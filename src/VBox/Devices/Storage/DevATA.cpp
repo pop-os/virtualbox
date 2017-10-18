@@ -60,9 +60,9 @@
 
 #include <VBox/sup.h>
 #include <VBox/scsi.h>
+#include <VBox/scsiinline.h>
+#include <VBox/ata.h>
 
-#include "PIIX3ATABmDma.h"
-#include "ide.h"
 #include "ATAPIPassthrough.h"
 #include "VBoxDD.h"
 
@@ -108,10 +108,64 @@
 #define ATA_MEDIA_TYPE_UNKNOWN                  0    /**< unknown CD type */
 #define ATA_MEDIA_NO_DISC                    0x70    /**< Door closed, no medium */
 
+/** @defgroup grp_piix3atabmdma     PIIX3 ATA Bus Master DMA
+ * @{
+ */
+
+/** @name BM_STATUS
+ * @{
+ */
+/** Currently performing a DMA operation. */
+#define BM_STATUS_DMAING 0x01
+/** An error occurred during the DMA operation. */
+#define BM_STATUS_ERROR  0x02
+/** The DMA unit has raised the IDE interrupt line. */
+#define BM_STATUS_INT    0x04
+/** User-defined bit 0, commonly used to signal that drive 0 supports DMA. */
+#define BM_STATUS_D0DMA  0x20
+/** User-defined bit 1, commonly used to signal that drive 1 supports DMA. */
+#define BM_STATUS_D1DMA  0x40
+/** @} */
+
+/** @name BM_CMD
+ * @{
+ */
+/** Start the DMA operation. */
+#define BM_CMD_START     0x01
+/** Data transfer direction: from device to memory if set. */
+#define BM_CMD_WRITE     0x08
+/** @} */
+
+/** @} */
 
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
 *********************************************************************************************************************************/
+/** @defgroup grp_piix3atabmdma     PIIX3 ATA Bus Master DMA
+ * @{
+ */
+/** PIIX3 Bus Master DMA unit state. */
+typedef struct BMDMAState
+{
+    /** Command register. */
+    uint8_t    u8Cmd;
+    /** Status register. */
+    uint8_t    u8Status;
+    /** Address of the MMIO region in the guest's memory space. */
+    RTGCPHYS32 GCPhysAddr;
+} BMDMAState;
+
+/** PIIX3 Bus Master DMA descriptor entry. */
+typedef struct BMDMADesc
+{
+    /** Address of the DMA source/target buffer. */
+    RTGCPHYS32 GCPhysBuffer;
+    /** Size of the DMA source/target buffer. */
+    uint32_t   cbBuffer;
+} BMDMADesc;
+/** @} */
+
+
 /**
  * The state of an ATA device.
  *
@@ -122,175 +176,173 @@
 typedef struct ATADevState
 {
     /** Flag indicating whether the current command uses LBA48 mode. */
-    bool fLBA48;
+    bool                                fLBA48;
     /** Flag indicating whether this drive implements the ATAPI command set. */
-    bool fATAPI;
+    bool                                fATAPI;
     /** Set if this interface has asserted the IRQ. */
-    bool fIrqPending;
+    bool                                fIrqPending;
     /** Currently configured number of sectors in a multi-sector transfer. */
-    uint8_t cMultSectors;
+    uint8_t                             cMultSectors;
     /** PCHS disk geometry. */
-    PDMMEDIAGEOMETRY PCHSGeometry;
+    PDMMEDIAGEOMETRY                    PCHSGeometry;
     /** Total number of sectors on this disk. */
-    uint64_t cTotalSectors;
+    uint64_t                            cTotalSectors;
     /** Sector size of the medium. */
-    uint32_t cbSector;
+    uint32_t                            cbSector;
     /** Number of sectors to transfer per IRQ. */
-    uint32_t cSectorsPerIRQ;
+    uint32_t                            cSectorsPerIRQ;
 
     /** ATA/ATAPI register 1: feature (write-only). */
-    uint8_t uATARegFeature;
+    uint8_t                             uATARegFeature;
     /** ATA/ATAPI register 1: feature, high order byte. */
-    uint8_t uATARegFeatureHOB;
+    uint8_t                             uATARegFeatureHOB;
     /** ATA/ATAPI register 1: error (read-only). */
-    uint8_t uATARegError;
+    uint8_t                             uATARegError;
     /** ATA/ATAPI register 2: sector count (read/write). */
-    uint8_t uATARegNSector;
+    uint8_t                             uATARegNSector;
     /** ATA/ATAPI register 2: sector count, high order byte. */
-    uint8_t uATARegNSectorHOB;
+    uint8_t                             uATARegNSectorHOB;
     /** ATA/ATAPI register 3: sector (read/write). */
-    uint8_t uATARegSector;
+    uint8_t                             uATARegSector;
     /** ATA/ATAPI register 3: sector, high order byte. */
-    uint8_t uATARegSectorHOB;
+    uint8_t                             uATARegSectorHOB;
     /** ATA/ATAPI register 4: cylinder low (read/write). */
-    uint8_t uATARegLCyl;
+    uint8_t                             uATARegLCyl;
     /** ATA/ATAPI register 4: cylinder low, high order byte. */
-    uint8_t uATARegLCylHOB;
+    uint8_t                             uATARegLCylHOB;
     /** ATA/ATAPI register 5: cylinder high (read/write). */
-    uint8_t uATARegHCyl;
+    uint8_t                             uATARegHCyl;
     /** ATA/ATAPI register 5: cylinder high, high order byte. */
-    uint8_t uATARegHCylHOB;
+    uint8_t                             uATARegHCylHOB;
     /** ATA/ATAPI register 6: select drive/head (read/write). */
-    uint8_t uATARegSelect;
+    uint8_t                             uATARegSelect;
     /** ATA/ATAPI register 7: status (read-only). */
-    uint8_t uATARegStatus;
+    uint8_t                             uATARegStatus;
     /** ATA/ATAPI register 7: command (write-only). */
-    uint8_t uATARegCommand;
+    uint8_t                             uATARegCommand;
     /** ATA/ATAPI drive control register (write-only). */
-    uint8_t uATARegDevCtl;
+    uint8_t                             uATARegDevCtl;
 
     /** Currently active transfer mode (MDMA/UDMA) and speed. */
-    uint8_t uATATransferMode;
+    uint8_t                             uATATransferMode;
     /** Current transfer direction. */
-    uint8_t uTxDir;
+    uint8_t                             uTxDir;
     /** Index of callback for begin transfer. */
-    uint8_t iBeginTransfer;
+    uint8_t                             iBeginTransfer;
     /** Index of callback for source/sink of data. */
-    uint8_t iSourceSink;
+    uint8_t                             iSourceSink;
     /** Flag indicating whether the current command transfers data in DMA mode. */
-    bool fDMA;
+    bool                                fDMA;
     /** Set to indicate that ATAPI transfer semantics must be used. */
-    bool fATAPITransfer;
+    bool                                fATAPITransfer;
 
     /** Total ATA/ATAPI transfer size, shared PIO/DMA. */
-    uint32_t cbTotalTransfer;
+    uint32_t                            cbTotalTransfer;
     /** Elementary ATA/ATAPI transfer size, shared PIO/DMA. */
-    uint32_t cbElementaryTransfer;
+    uint32_t                            cbElementaryTransfer;
     /** Maximum ATAPI elementary transfer size, PIO only. */
-    uint32_t cbPIOTransferLimit;
+    uint32_t                            cbPIOTransferLimit;
     /** ATAPI passthrough transfer size, shared PIO/DMA */
-    uint32_t cbAtapiPassthroughTransfer;
+    uint32_t                            cbAtapiPassthroughTransfer;
     /** Current read/write buffer position, shared PIO/DMA. */
-    uint32_t iIOBufferCur;
+    uint32_t                            iIOBufferCur;
     /** First element beyond end of valid buffer content, shared PIO/DMA. */
-    uint32_t iIOBufferEnd;
+    uint32_t                            iIOBufferEnd;
     /** Align the following fields correctly. */
-    uint32_t Alignment0;
+    uint32_t                            Alignment0;
 
     /** ATA/ATAPI current PIO read/write transfer position. Not shared with DMA for safety reasons. */
-    uint32_t iIOBufferPIODataStart;
+    uint32_t                            iIOBufferPIODataStart;
     /** ATA/ATAPI current PIO read/write transfer end. Not shared with DMA for safety reasons. */
-    uint32_t iIOBufferPIODataEnd;
+    uint32_t                            iIOBufferPIODataEnd;
 
     /** ATAPI current LBA position. */
-    uint32_t iATAPILBA;
+    uint32_t                            iATAPILBA;
     /** ATAPI current sector size. */
-    uint32_t cbATAPISector;
+    uint32_t                            cbATAPISector;
     /** ATAPI current command. */
-    uint8_t aATAPICmd[ATAPI_PACKET_SIZE];
+    uint8_t                             aATAPICmd[ATAPI_PACKET_SIZE];
     /** ATAPI sense data. */
-    uint8_t abATAPISense[ATAPI_SENSE_SIZE];
+    uint8_t                             abATAPISense[ATAPI_SENSE_SIZE];
     /** HACK: Countdown till we report a newly unmounted drive as mounted. */
-    uint8_t cNotifiedMediaChange;
+    uint8_t                             cNotifiedMediaChange;
     /** The same for GET_EVENT_STATUS for mechanism */
-    volatile uint32_t MediaEventStatus;
+    volatile uint32_t                   MediaEventStatus;
 
     /** Media type if known. */
-    volatile uint32_t MediaTrackType;
+    volatile uint32_t                   MediaTrackType;
 
     /** The status LED state for this drive. */
-    PDMLED Led;
+    PDMLED                              Led;
 
     /** Size of I/O buffer. */
-    uint32_t cbIOBuffer;
+    uint32_t                            cbIOBuffer;
     /** Pointer to the I/O buffer. */
-    R3PTRTYPE(uint8_t *) pbIOBufferR3;
+    R3PTRTYPE(uint8_t *)                pbIOBufferR3;
     /** Pointer to the I/O buffer. */
-    R0PTRTYPE(uint8_t *) pbIOBufferR0;
+    R0PTRTYPE(uint8_t *)                pbIOBufferR0;
     /** Pointer to the I/O buffer. */
-    RCPTRTYPE(uint8_t *) pbIOBufferRC;
+    RCPTRTYPE(uint8_t *)                pbIOBufferRC;
 
-    RTRCPTR Aligmnent1; /**< Align the statistics at an 8-byte boundary. */
+    RTRCPTR                             Aligmnent1; /**< Align the statistics at an 8-byte boundary. */
 
     /*
      * No data that is part of the saved state after this point!!!!!
      */
 
     /* Release statistics: number of ATA DMA commands. */
-    STAMCOUNTER StatATADMA;
+    STAMCOUNTER                         StatATADMA;
     /* Release statistics: number of ATA PIO commands. */
-    STAMCOUNTER StatATAPIO;
+    STAMCOUNTER                         StatATAPIO;
     /* Release statistics: number of ATAPI PIO commands. */
-    STAMCOUNTER StatATAPIDMA;
+    STAMCOUNTER                         StatATAPIDMA;
     /* Release statistics: number of ATAPI PIO commands. */
-    STAMCOUNTER StatATAPIPIO;
+    STAMCOUNTER                         StatATAPIPIO;
 #ifdef VBOX_INSTRUMENT_DMA_WRITES
     /* Release statistics: number of DMA sector writes and the time spent. */
-    STAMPROFILEADV StatInstrVDWrites;
+    STAMPROFILEADV                      StatInstrVDWrites;
 #endif
 
     /** Statistics: number of read operations and the time spent reading. */
-    STAMPROFILEADV  StatReads;
+    STAMPROFILEADV                      StatReads;
     /** Statistics: number of bytes read. */
-    STAMCOUNTER     StatBytesRead;
+    STAMCOUNTER                         StatBytesRead;
     /** Statistics: number of write operations and the time spent writing. */
-    STAMPROFILEADV  StatWrites;
+    STAMPROFILEADV                      StatWrites;
     /** Statistics: number of bytes written. */
-    STAMCOUNTER     StatBytesWritten;
+    STAMCOUNTER                         StatBytesWritten;
     /** Statistics: number of flush operations and the time spend flushing. */
-    STAMPROFILE     StatFlushes;
+    STAMPROFILE                         StatFlushes;
 
-    /** Mark the drive as having a non-rotational medium (i.e. as a SSD). */
-    bool            fNonRotational;
     /** Enable passing through commands directly to the ATAPI drive. */
-    bool            fATAPIPassthrough;
+    bool                                fATAPIPassthrough;
     /** Flag whether to overwrite inquiry data in passthrough mode. */
-    bool            fOverwriteInquiry;
+    bool                                fOverwriteInquiry;
     /** Number of errors we've reported to the release log.
      * This is to prevent flooding caused by something going horribly wrong.
      * this value against MAX_LOG_REL_ERRORS in places likely to cause floods
      * like the ones we currently seeing on the linux smoke tests (2006-11-10). */
-    uint32_t        cErrors;
+    uint32_t                            cErrors;
     /** Timestamp of last started command. 0 if no command pending. */
-    uint64_t        u64CmdTS;
+    uint64_t                            u64CmdTS;
 
     /** Pointer to the attached driver's base interface. */
-    R3PTRTYPE(PPDMIBASE)            pDrvBase;
+    R3PTRTYPE(PPDMIBASE)                pDrvBase;
     /** Pointer to the attached driver's block interface. */
-    R3PTRTYPE(PPDMIMEDIA)           pDrvMedia;
+    R3PTRTYPE(PPDMIMEDIA)               pDrvMedia;
     /** Pointer to the attached driver's mount interface.
      * This is NULL if the driver isn't a removable unit. */
-    R3PTRTYPE(PPDMIMOUNT)           pDrvMount;
+    R3PTRTYPE(PPDMIMOUNT)               pDrvMount;
     /** The base interface. */
-    PDMIBASE                        IBase;
+    PDMIBASE                            IBase;
     /** The block port interface. */
-    PDMIMEDIAPORT                   IPort;
+    PDMIMEDIAPORT                       IPort;
     /** The mount notify interface. */
-    PDMIMOUNTNOTIFY                 IMountNotify;
+    PDMIMOUNTNOTIFY                     IMountNotify;
     /** The LUN #. */
-    RTUINT                          iLUN;
+    RTUINT                              iLUN;
 #if HC_ARCH_BITS == 64
-    RTUINT                          Alignment2; /**< Align pDevInsR3 correctly. */
+    RTUINT                              Alignment2; /**< Align pDevInsR3 correctly. */
 #endif
     /** Pointer to device instance. */
     PPDMDEVINSR3                        pDevInsR3;
@@ -312,11 +364,11 @@ typedef struct ATADevState
     /** The model number to use for IDENTIFY DEVICE commands. */
     char                                szModelNumber[ATA_MODEL_NUMBER_LENGTH+1];
     /** The vendor identification string for SCSI INQUIRY commands. */
-    char                                szInquiryVendorId[ATAPI_INQUIRY_VENDOR_ID_LENGTH+1];
+    char                                szInquiryVendorId[SCSI_INQUIRY_VENDOR_ID_LENGTH+1];
     /** The product identification string for SCSI INQUIRY commands. */
-    char                                szInquiryProductId[ATAPI_INQUIRY_PRODUCT_ID_LENGTH+1];
+    char                                szInquiryProductId[SCSI_INQUIRY_PRODUCT_ID_LENGTH+1];
     /** The revision string for SCSI INQUIRY commands. */
-    char                                szInquiryRevision[ATAPI_INQUIRY_REVISION_LENGTH+1];
+    char                                szInquiryRevision[SCSI_INQUIRY_REVISION_LENGTH+1];
     /** The current tracklist of the loaded medium if passthrough is used. */
     R3PTRTYPE(PTRACKLIST)               pTrackList;
 
@@ -330,23 +382,39 @@ AssertCompileMemberAlignment(ATADevState, szSerialNumber, 8);
 AssertCompileSizeAlignment(ATADevState, 8);
 
 
+/**
+ * Transfer request forwarded to the async I/O thread.
+ */
 typedef struct ATATransferRequest
 {
-    uint8_t iIf;
-    uint8_t iBeginTransfer;
-    uint8_t iSourceSink;
+    /** The interface index the request is for. */
+    uint8_t  iIf;
+    /** The index of the begin transfer callback to call. */
+    uint8_t  iBeginTransfer;
+    /** The index of the source sink callback to call for doing the transfer. */
+    uint8_t  iSourceSink;
+    /** How many bytes to transfer. */
     uint32_t cbTotalTransfer;
-    uint8_t uTxDir;
+    /** Transfer direction. */
+    uint8_t  uTxDir;
 } ATATransferRequest;
 
 
+/**
+ * Abort request forwarded to the async I/O thread.
+ */
 typedef struct ATAAbortRequest
 {
+    /** The interface index the request is for. */
     uint8_t iIf;
-    bool fResetDrive;
+    /** Flag whether to reset the drive. */
+    bool    fResetDrive;
 } ATAAbortRequest;
 
 
+/**
+ * Request type indicator.
+ */
 typedef enum
 {
     /** Begin a new transfer. */
@@ -364,57 +432,68 @@ typedef enum
 } ATAAIO;
 
 
+/**
+ * Combining structure for an ATA request to the async I/O thread
+ * started with the request type insicator.
+ */
 typedef struct ATARequest
 {
-    ATAAIO ReqType;
+    /** Request type. */
+    ATAAIO                 ReqType;
+    /** Request type dependent data. */
     union
     {
+        /** Transfer request specific data. */
         ATATransferRequest t;
-        ATAAbortRequest a;
+        /** Abort request specific data. */
+        ATAAbortRequest    a;
     } u;
 } ATARequest;
 
 
+/**
+ * The state of an ATA controller containing to devices (master and slave).
+ */
 typedef struct ATACONTROLLER
 {
     /** The base of the first I/O Port range. */
-    RTIOPORT    IOPortBase1;
+    RTIOPORT            IOPortBase1;
     /** The base of the second I/O Port range. (0 if none) */
-    RTIOPORT    IOPortBase2;
+    RTIOPORT            IOPortBase2;
     /** The assigned IRQ. */
-    RTUINT      irq;
+    RTUINT              irq;
     /** Access critical section */
-    PDMCRITSECT lock;
+    PDMCRITSECT         lock;
 
     /** Selected drive. */
-    uint8_t     iSelectedIf;
+    uint8_t             iSelectedIf;
     /** The interface on which to handle async I/O. */
-    uint8_t     iAIOIf;
+    uint8_t             iAIOIf;
     /** The state of the async I/O thread. */
-    uint8_t     uAsyncIOState;
+    uint8_t             uAsyncIOState;
     /** Flag indicating whether the next transfer is part of the current command. */
-    bool        fChainedTransfer;
+    bool                fChainedTransfer;
     /** Set when the reset processing is currently active on this controller. */
-    bool        fReset;
+    bool                fReset;
     /** Flag whether the current transfer needs to be redone. */
-    bool        fRedo;
+    bool                fRedo;
     /** Flag whether the redo suspend has been finished. */
-    bool        fRedoIdle;
+    bool                fRedoIdle;
     /** Flag whether the DMA operation to be redone is the final transfer. */
-    bool        fRedoDMALastDesc;
+    bool                fRedoDMALastDesc;
     /** The BusMaster DMA state. */
-    BMDMAState  BmDma;
+    BMDMAState          BmDma;
     /** Pointer to first DMA descriptor. */
-    RTGCPHYS32  pFirstDMADesc;
+    RTGCPHYS32          GCPhysFirstDMADesc;
     /** Pointer to last DMA descriptor. */
-    RTGCPHYS32  pLastDMADesc;
+    RTGCPHYS32          GCPhysLastDMADesc;
     /** Pointer to current DMA buffer (for redo operations). */
-    RTGCPHYS32  pRedoDMABuffer;
+    RTGCPHYS32          GCPhysRedoDMABuffer;
     /** Size of current DMA buffer (for redo operations). */
-    uint32_t    cbRedoDMABuffer;
+    uint32_t            cbRedoDMABuffer;
 
     /** The ATA/ATAPI interfaces of this controller. */
-    ATADevState aIfs[2];
+    ATADevState         aIfs[2];
 
     /** Pointer to device instance. */
     PPDMDEVINSR3        pDevInsR3;
@@ -446,20 +525,17 @@ typedef struct ATACONTROLLER
     RTSEMEVENT          SuspendIOSem;
     /** The lock protecting the request queue. */
     PDMCRITSECT         AsyncIORequestLock;
-#if 0 /*HC_ARCH_BITS == 32*/
-    uint32_t            Alignment0;
-#endif
 
     /** Timestamp we started the reset. */
     uint64_t            u64ResetTime;
 
     /* Statistics */
-    STAMCOUNTER     StatAsyncOps;
-    uint64_t        StatAsyncMinWait;
-    uint64_t        StatAsyncMaxWait;
-    STAMCOUNTER     StatAsyncTimeUS;
-    STAMPROFILEADV  StatAsyncTime;
-    STAMPROFILE     StatLockWait;
+    STAMCOUNTER         StatAsyncOps;
+    uint64_t            StatAsyncMinWait;
+    uint64_t            StatAsyncMaxWait;
+    STAMCOUNTER         StatAsyncTimeUS;
+    STAMPROFILEADV      StatAsyncTime;
+    STAMPROFILE         StatLockWait;
 } ATACONTROLLER, *PATACONTROLLER;
 AssertCompileMemberAlignment(ATACONTROLLER, lock, 8);
 AssertCompileMemberAlignment(ATACONTROLLER, aIfs, 8);
@@ -486,42 +562,33 @@ typedef enum CHIPSET
  */
 typedef struct PCIATAState
 {
-    PDMPCIDEV           dev;
+    PDMPCIDEV                       dev;
     /** The controllers. */
-    ATACONTROLLER       aCts[2];
+    ATACONTROLLER                   aCts[2];
     /** Pointer to device instance. */
-    PPDMDEVINSR3        pDevIns;
+    PPDMDEVINSR3                    pDevIns;
     /** Status LUN: Base interface. */
-    PDMIBASE            IBase;
+    PDMIBASE                        IBase;
     /** Status LUN: Leds interface. */
-    PDMILEDPORTS        ILeds;
+    PDMILEDPORTS                    ILeds;
     /** Status LUN: Partner of ILeds. */
     R3PTRTYPE(PPDMILEDCONNECTORS)   pLedsConnector;
     /** Status LUN: Media Notify. */
     R3PTRTYPE(PPDMIMEDIANOTIFY)     pMediaNotify;
     /** Flag whether RC is enabled. */
-    bool                fRCEnabled;
+    bool                            fRCEnabled;
     /** Flag whether R0 is enabled. */
-    bool                fR0Enabled;
+    bool                            fR0Enabled;
     /** Flag indicating chipset being emulated. */
-    uint8_t             u8Type;
-    bool                Alignment0[HC_ARCH_BITS == 64 ? 5 : 1 ]; /**< Align the struct size. */
+    uint8_t                         u8Type;
+    bool                            Alignment0[HC_ARCH_BITS == 64 ? 5 : 1 ]; /**< Align the struct size. */
 } PCIATAState;
-
-#define PDMIBASE_2_PCIATASTATE(pInterface)      ( (PCIATAState *)((uintptr_t)(pInterface) - RT_OFFSETOF(PCIATAState, IBase)) )
-#define PDMILEDPORTS_2_PCIATASTATE(pInterface)  ( (PCIATAState *)((uintptr_t)(pInterface) - RT_OFFSETOF(PCIATAState, ILeds)) )
-#define PDMIMEDIAPORT_2_ATASTATE(pInterface)    ( (ATADevState *)((uintptr_t)(pInterface) - RT_OFFSETOF(ATADevState, IPort)) )
-#define PDMIMOUNT_2_ATASTATE(pInterface)        ( (ATADevState *)((uintptr_t)(pInterface) - RT_OFFSETOF(ATADevState, IMount)) )
-#define PDMIMOUNTNOTIFY_2_ATASTATE(pInterface)  ( (ATADevState *)((uintptr_t)(pInterface) - RT_OFFSETOF(ATADevState, IMountNotify)) )
-#define PCIDEV_2_PCIATASTATE(pPciDev)           ( (PCIATAState *)(pPciDev) )
 
 #define ATACONTROLLER_IDX(pController) ( (pController) - PDMINS_2_DATA(CONTROLLER_2_DEVINS(pController), PCIATAState *)->aCts )
 
 #define ATADEVSTATE_2_CONTROLLER(pIf)          ( (pIf)->CTX_SUFF(pController) )
 #define ATADEVSTATE_2_DEVINS(pIf)              ( (pIf)->CTX_SUFF(pDevIns) )
 #define CONTROLLER_2_DEVINS(pController)       ( (pController)->CTX_SUFF(pDevIns) )
-#define PDMIBASE_2_ATASTATE(pInterface)        ( (ATADevState *)((uintptr_t)(pInterface) - RT_OFFSETOF(ATADevState, IBase)) )
-#define PDMIMEDIAPORT_2_ATASTATE(pInterface)   ( (ATADevState *)((uintptr_t)(pInterface) - RT_OFFSETOF(ATADevState, IPort)) )
 
 #ifndef VBOX_DEVICE_STRUCT_TESTCASE
 
@@ -828,7 +895,10 @@ static void ataR3AsyncIODumpRequests(PATACONTROLLER pCtl)
         switch (pCtl->aAsyncIORequests[curr].ReqType)
         {
             case ATA_AIO_NEW:
-                LogRel(("new transfer request, iIf=%d iBeginTransfer=%d iSourceSink=%d cbTotalTransfer=%d uTxDir=%d\n", pCtl->aAsyncIORequests[curr].u.t.iIf, pCtl->aAsyncIORequests[curr].u.t.iBeginTransfer, pCtl->aAsyncIORequests[curr].u.t.iSourceSink, pCtl->aAsyncIORequests[curr].u.t.cbTotalTransfer, pCtl->aAsyncIORequests[curr].u.t.uTxDir));
+                LogRel(("new transfer request, iIf=%d iBeginTransfer=%d iSourceSink=%d cbTotalTransfer=%d uTxDir=%d\n",
+                        pCtl->aAsyncIORequests[curr].u.t.iIf, pCtl->aAsyncIORequests[curr].u.t.iBeginTransfer,
+                        pCtl->aAsyncIORequests[curr].u.t.iSourceSink, pCtl->aAsyncIORequests[curr].u.t.cbTotalTransfer,
+                        pCtl->aAsyncIORequests[curr].u.t.uTxDir));
                 break;
             case ATA_AIO_DMA:
                 LogRel(("dma transfer continuation\n"));
@@ -843,7 +913,8 @@ static void ataR3AsyncIODumpRequests(PATACONTROLLER pCtl)
                 LogRel(("reset cleared request\n"));
                 break;
             case ATA_AIO_ABORT:
-                LogRel(("abort request, iIf=%d fResetDrive=%d\n", pCtl->aAsyncIORequests[curr].u.a.iIf,  pCtl->aAsyncIORequests[curr].u.a.fResetDrive));
+                LogRel(("abort request, iIf=%d fResetDrive=%d\n", pCtl->aAsyncIORequests[curr].u.a.iIf,
+                                                                  pCtl->aAsyncIORequests[curr].u.a.fResetDrive));
                 break;
             default:
                 LogRel(("unknown request %d\n", pCtl->aAsyncIORequests[curr].ReqType));
@@ -910,7 +981,8 @@ static void ataR3StartTransfer(ATADevState *s, uint32_t cbTotalTransfer, uint8_t
      * twice (e.g. the Linux kernel that comes with Acronis True Image 8). */
     if (!fChainedTransfer && !ataR3AsyncIOIsIdle(pCtl, true /*fStrict*/))
     {
-        Log(("%s: Ctl#%d: ignored command %#04x, controller state %d\n", __FUNCTION__, ATACONTROLLER_IDX(pCtl), s->uATARegCommand, pCtl->uAsyncIOState));
+        Log(("%s: Ctl#%d: ignored command %#04x, controller state %d\n",
+             __FUNCTION__, ATACONTROLLER_IDX(pCtl), s->uATARegCommand, pCtl->uAsyncIOState));
         LogRel(("PIIX3 IDE: guest issued command %#04x while controller busy\n", s->uATARegCommand));
         return;
     }
@@ -1069,6 +1141,30 @@ static void ataHCPIOTransferLimitATAPI(ATADevState *s)
 
 # ifdef IN_RING3
 
+/**
+ * Enters the lock protecting the controller data against concurrent access.
+ *
+ * @returns nothing.
+ * @param   pCtl        The controller to lock.
+ */
+DECLINLINE(void) ataR3LockEnter(PATACONTROLLER pCtl)
+{
+    STAM_PROFILE_START(&pCtl->StatLockWait, a);
+    PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);
+    STAM_PROFILE_STOP(&pCtl->StatLockWait, a);
+}
+
+/**
+ * Leaves the lock protecting the controller against concurrent data access.
+ *
+ * @returns nothing.
+ * @param   pCtl        The controller to unlock.
+ */
+DECLINLINE(void) ataR3LockLeave(PATACONTROLLER pCtl)
+{
+    PDMCritSectLeave(&pCtl->lock);
+}
+
 static uint32_t ataR3GetNSectors(ATADevState *s)
 {
     /* 0 means either 256 (LBA28) or 65536 (LBA48) sectors. */
@@ -1098,75 +1194,6 @@ static void ataR3PadString(uint8_t *pbDst, const char *pbSrc, uint32_t cbSize)
         else
             pbDst[i ^ 1] = ' ';
     }
-}
-
-
-static void ataR3SCSIPadStr(uint8_t *pbDst, const char *pbSrc, uint32_t cbSize)
-{
-    for (uint32_t i = 0; i < cbSize; i++)
-    {
-        if (*pbSrc)
-            pbDst[i] = *pbSrc++;
-        else
-            pbDst[i] = ' ';
-    }
-}
-
-
-DECLINLINE(void) ataH2BE_U16(uint8_t *pbBuf, uint16_t val)
-{
-    pbBuf[0] = val >> 8;
-    pbBuf[1] = val;
-}
-
-
-DECLINLINE(void) ataH2BE_U24(uint8_t *pbBuf, uint32_t val)
-{
-    pbBuf[0] = val >> 16;
-    pbBuf[1] = val >> 8;
-    pbBuf[2] = val;
-}
-
-
-DECLINLINE(void) ataH2BE_U32(uint8_t *pbBuf, uint32_t val)
-{
-    pbBuf[0] = val >> 24;
-    pbBuf[1] = val >> 16;
-    pbBuf[2] = val >> 8;
-    pbBuf[3] = val;
-}
-
-
-DECLINLINE(uint16_t) ataBE2H_U16(const uint8_t *pbBuf)
-{
-    return (pbBuf[0] << 8) | pbBuf[1];
-}
-
-
-DECLINLINE(uint32_t) ataBE2H_U24(const uint8_t *pbBuf)
-{
-    return (pbBuf[0] << 16) | (pbBuf[1] << 8) | pbBuf[2];
-}
-
-
-DECLINLINE(uint32_t) ataBE2H_U32(const uint8_t *pbBuf)
-{
-    return (pbBuf[0] << 24) | (pbBuf[1] << 16) | (pbBuf[2] << 8) | pbBuf[3];
-}
-
-
-DECLINLINE(void) ataLBA2MSF(uint8_t *pbBuf, uint32_t iATAPILBA)
-{
-    iATAPILBA += 150;
-    pbBuf[0] = (iATAPILBA / 75) / 60;
-    pbBuf[1] = (iATAPILBA / 75) % 60;
-    pbBuf[2] = iATAPILBA % 75;
-}
-
-
-DECLINLINE(uint32_t) ataMSF2LBA(const uint8_t *pbBuf)
-{
-    return (pbBuf[0] * 60 + pbBuf[1]) * 75 + pbBuf[2];
 }
 
 
@@ -1295,7 +1322,7 @@ static bool ataR3IdentifySS(ATADevState *s)
     p[68] = RT_H2LE_U16(120); /* minimum PIO cycle time with IORDY flow control */
     if (   s->pDrvMedia->pfnDiscard
         || s->cbSector != 512
-        || s->fNonRotational)
+        || s->pDrvMedia->pfnIsNonRotational(s->pDrvMedia))
     {
         p[80] = RT_H2LE_U16(0x1f0); /* support everything up to ATA/ATAPI-8 ACS */
         p[81] = RT_H2LE_U16(0x28); /* conforms to ATA/ATAPI-8 ACS */
@@ -1338,7 +1365,7 @@ static bool ataR3IdentifySS(ATADevState *s)
 
     if (s->pDrvMedia->pfnDiscard) /** @todo Set bit 14 in word 69 too? (Deterministic read after TRIM). */
         p[169] = RT_H2LE_U16(1); /* DATA SET MANAGEMENT command supported. */
-    if (s->fNonRotational)
+    if (s->pDrvMedia->pfnIsNonRotational(s->pDrvMedia))
         p[217] = RT_H2LE_U16(1); /* Non-rotational medium */
     uint32_t uCsum = ataR3Checksum(p, 510);
     p[255] = RT_H2LE_U16(0xa5 | (uCsum << 8)); /* Integrity word */
@@ -1356,16 +1383,14 @@ static bool ataR3FlushSS(ATADevState *s)
     Assert(s->uTxDir == PDMMEDIATXDIR_NONE);
     Assert(!s->cbElementaryTransfer);
 
-    PDMCritSectLeave(&pCtl->lock);
+    ataR3LockLeave(pCtl);
 
     STAM_PROFILE_START(&s->StatFlushes, f);
     rc = s->pDrvMedia->pfnFlush(s->pDrvMedia);
     AssertRC(rc);
     STAM_PROFILE_STOP(&s->StatFlushes, f);
 
-    STAM_PROFILE_START(&pCtl->StatLockWait, a);
-    PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);
-    STAM_PROFILE_STOP(&pCtl->StatLockWait, a);
+    ataR3LockEnter(pCtl);
     ataR3CmdOK(s, 0);
     return false;
 }
@@ -1595,7 +1620,7 @@ static int ataR3ReadSectors(ATADevState *s, uint64_t u64Sector, void *pvBuf,
     PATACONTROLLER pCtl = ATADEVSTATE_2_CONTROLLER(s);
     int rc;
 
-    PDMCritSectLeave(&pCtl->lock);
+    ataR3LockLeave(pCtl);
 
     STAM_PROFILE_ADV_START(&s->StatReads, r);
     s->Led.Asserted.s.fReading = s->Led.Actual.s.fReading = 1;
@@ -1612,9 +1637,7 @@ static int ataR3ReadSectors(ATADevState *s, uint64_t u64Sector, void *pvBuf,
     else
         *pfRedo = ataR3IsRedoSetWarning(s, rc);
 
-    STAM_PROFILE_START(&pCtl->StatLockWait, a);
-    PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);
-    STAM_PROFILE_STOP(&pCtl->StatLockWait, a);
+    ataR3LockEnter(pCtl);
     return rc;
 }
 
@@ -1625,7 +1648,7 @@ static int ataR3WriteSectors(ATADevState *s, uint64_t u64Sector,
     PATACONTROLLER pCtl = ATADEVSTATE_2_CONTROLLER(s);
     int rc;
 
-    PDMCritSectLeave(&pCtl->lock);
+    ataR3LockLeave(pCtl);
 
     STAM_PROFILE_ADV_START(&s->StatWrites, w);
     s->Led.Asserted.s.fWriting = s->Led.Actual.s.fWriting = 1;
@@ -1650,9 +1673,7 @@ static int ataR3WriteSectors(ATADevState *s, uint64_t u64Sector,
     else
         *pfRedo = ataR3IsRedoSetWarning(s, rc);
 
-    STAM_PROFILE_START(&pCtl->StatLockWait, a);
-    PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);
-    STAM_PROFILE_STOP(&pCtl->StatLockWait, a);
+    ataR3LockEnter(pCtl);
     return rc;
 }
 
@@ -1810,78 +1831,6 @@ static void atapiR3CmdBT(ATADevState *s)
 
 static void atapiR3PassthroughCmdBT(ATADevState *s)
 {
-    /** @todo implement an algorithm for correctly determining the read and
-     * write sector size without sending additional commands to the drive.
-     * This should be doable by saving processing the configuration requests
-     * and replies. */
-# if 0
-    if (s->uTxDir == PDMMEDIATXDIR_TO_DEVICE)
-    {
-        uint8_t cmd = s->aATAPICmd[0];
-        if (cmd == SCSI_WRITE_10 || cmd == SCSI_WRITE_12 || cmd == SCSI_WRITE_AND_VERIFY_10)
-        {
-            uint8_t aModeSenseCmd[10];
-            uint8_t aModeSenseResult[16];
-            uint8_t uDummySense;
-            uint32_t cbTransfer;
-            int rc;
-
-            cbTransfer = sizeof(aModeSenseResult);
-            aModeSenseCmd[0] = SCSI_MODE_SENSE_10;
-            aModeSenseCmd[1] = 0x08; /* disable block descriptor = 1 */
-            aModeSenseCmd[2] = (SCSI_PAGECONTROL_CURRENT << 6) | SCSI_MODEPAGE_WRITE_PARAMETER;
-            aModeSenseCmd[3] = 0; /* subpage code */
-            aModeSenseCmd[4] = 0; /* reserved */
-            aModeSenseCmd[5] = 0; /* reserved */
-            aModeSenseCmd[6] = 0; /* reserved */
-            aModeSenseCmd[7] = cbTransfer >> 8;
-            aModeSenseCmd[8] = cbTransfer & 0xff;
-            aModeSenseCmd[9] = 0; /* control */
-            rc = s->pDrvMedia->pfnSendCmd(s->pDrvMedia, aModeSenseCmd, PDMMEDIATXDIR_FROM_DEVICE, aModeSenseResult, &cbTransfer, &uDummySense, 500);
-            if (RT_FAILURE(rc))
-            {
-                atapiR3CmdErrorSimple(s, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_NONE);
-                return;
-            }
-            /* Select sector size based on the current data block type. */
-            switch (aModeSenseResult[12] & 0x0f)
-            {
-                case 0:
-                    s->cbATAPISector = 2352;
-                    break;
-                case 1:
-                    s->cbATAPISector = 2368;
-                    break;
-                case 2:
-                case 3:
-                    s->cbATAPISector = 2448;
-                    break;
-                case 8:
-                case 10:
-                    s->cbATAPISector = 2048;
-                    break;
-                case 9:
-                    s->cbATAPISector = 2336;
-                    break;
-                case 11:
-                    s->cbATAPISector = 2056;
-                    break;
-                case 12:
-                    s->cbATAPISector = 2324;
-                    break;
-                case 13:
-                    s->cbATAPISector = 2332;
-                    break;
-                default:
-                    s->cbATAPISector = 0;
-            }
-            Log2(("%s: sector size %d\n", __FUNCTION__, s->cbATAPISector));
-            s->cbTotalTransfer *= s->cbATAPISector;
-            if (s->cbTotalTransfer == 0)
-                s->uTxDir = PDMMEDIATXDIR_NONE;
-        }
-    }
-# endif
     atapiR3CmdBT(s);
 }
 
@@ -1890,6 +1839,7 @@ static bool atapiR3ReadSS(ATADevState *s)
     PATACONTROLLER pCtl = ATADEVSTATE_2_CONTROLLER(s);
     int rc = VINF_SUCCESS;
     uint32_t cbTransfer, cSectors;
+    uint64_t cbBlockRegion = 0;
 
     Assert(s->uTxDir == PDMMEDIATXDIR_FROM_DEVICE);
     cbTransfer = RT_MIN(s->cbTotalTransfer, s->cbIOBuffer);
@@ -1897,55 +1847,74 @@ static bool atapiR3ReadSS(ATADevState *s)
     Assert(cSectors * s->cbATAPISector <= cbTransfer);
     Log(("%s: %d sectors at LBA %d\n", __FUNCTION__, cSectors, s->iATAPILBA));
 
-    PDMCritSectLeave(&pCtl->lock);
+    ataR3LockLeave(pCtl);
 
-    STAM_PROFILE_ADV_START(&s->StatReads, r);
-    s->Led.Asserted.s.fReading = s->Led.Actual.s.fReading = 1;
-    switch (s->cbATAPISector)
+    rc = s->pDrvMedia->pfnQueryRegionPropertiesForLba(s->pDrvMedia, s->iATAPILBA, NULL, NULL,
+                                                      &cbBlockRegion, NULL);
+    if (RT_SUCCESS(rc))
     {
-        case 2048:
-            rc = s->pDrvMedia->pfnRead(s->pDrvMedia, (uint64_t)s->iATAPILBA * s->cbATAPISector, s->CTX_SUFF(pbIOBuffer), s->cbATAPISector * cSectors);
-            break;
-        case 2352:
+        STAM_PROFILE_ADV_START(&s->StatReads, r);
+        s->Led.Asserted.s.fReading = s->Led.Actual.s.fReading = 1;
+
+        /* If the region block size and requested sector matches we can just pass the request through. */
+        if (cbBlockRegion == s->cbATAPISector)
+            rc = s->pDrvMedia->pfnRead(s->pDrvMedia, (uint64_t)s->iATAPILBA * s->cbATAPISector,
+                                       s->CTX_SUFF(pbIOBuffer), s->cbATAPISector * cSectors);
+        else
         {
-            uint8_t *pbBuf = s->CTX_SUFF(pbIOBuffer);
-
-            for (uint32_t i = s->iATAPILBA; i < s->iATAPILBA + cSectors; i++)
+            if (cbBlockRegion == 2048 && s->cbATAPISector == 2352)
             {
-                /* Sync bytes, see 4.2.3.8 CD Main Channel Block Formats */
-                *pbBuf++ = 0x00;
-                memset(pbBuf, 0xff, 10);
-                pbBuf += 10;
-                *pbBuf++ = 0x00;
-                /* MSF */
-                ataLBA2MSF(pbBuf, i);
-                pbBuf += 3;
-                *pbBuf++ = 0x01; /* mode 1 data */
-                /* data */
-                rc = s->pDrvMedia->pfnRead(s->pDrvMedia, (uint64_t)i * 2048, pbBuf, 2048);
-                if (RT_FAILURE(rc))
-                    break;
-                pbBuf += 2048;
-                /**
-                 * @todo: maybe compute ECC and parity, layout is:
-                 * 2072 4   EDC
-                 * 2076 172 P parity symbols
-                 * 2248 104 Q parity symbols
-                 */
-                memset(pbBuf, 0, 280);
-                pbBuf += 280;
-            }
-            break;
-        }
-        default:
-            break;
-    }
-    s->Led.Actual.s.fReading = 0;
-    STAM_PROFILE_ADV_STOP(&s->StatReads, r);
+                /* Generate the sync bytes. */
+                uint8_t *pbBuf = s->CTX_SUFF(pbIOBuffer);
 
-    STAM_PROFILE_START(&pCtl->StatLockWait, a);
-    PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);
-    STAM_PROFILE_STOP(&pCtl->StatLockWait, a);
+                for (uint32_t i = s->iATAPILBA; i < s->iATAPILBA + cSectors; i++)
+                {
+                    /* Sync bytes, see 4.2.3.8 CD Main Channel Block Formats */
+                    *pbBuf++ = 0x00;
+                    memset(pbBuf, 0xff, 10);
+                    pbBuf += 10;
+                    *pbBuf++ = 0x00;
+                    /* MSF */
+                    scsiLBA2MSF(pbBuf, i);
+                    pbBuf += 3;
+                    *pbBuf++ = 0x01; /* mode 1 data */
+                    /* data */
+                    rc = s->pDrvMedia->pfnRead(s->pDrvMedia, (uint64_t)i * 2048, pbBuf, 2048);
+                    if (RT_FAILURE(rc))
+                        break;
+                    pbBuf += 2048;
+                    /**
+                     * @todo: maybe compute ECC and parity, layout is:
+                     * 2072 4   EDC
+                     * 2076 172 P parity symbols
+                     * 2248 104 Q parity symbols
+                     */
+                    memset(pbBuf, 0, 280);
+                    pbBuf += 280;
+                }
+            }
+            else if (cbBlockRegion == 2352 && s->cbATAPISector == 2048)
+            {
+                /* Read only the user data portion. */
+                uint8_t *pbBuf = s->CTX_SUFF(pbIOBuffer);
+
+                for (uint32_t i = s->iATAPILBA; i < s->iATAPILBA + cSectors; i++)
+                {
+                    uint8_t abTmp[2352];
+                    rc = s->pDrvMedia->pfnRead(s->pDrvMedia, (uint64_t)i * 2352, &abTmp[0], 2352);
+                    if (RT_FAILURE(rc))
+                        break;
+
+                    memcpy(pbBuf, &abTmp[16], 2048);
+                    pbBuf += 2048;
+                }
+            }
+        }
+        s->Led.Actual.s.fReading = 0;
+        STAM_PROFILE_ADV_STOP(&s->StatReads, r);
+    }
+
+    ataR3LockEnter(pCtl);
 
     if (RT_SUCCESS(rc))
     {
@@ -2012,7 +1981,7 @@ static bool atapiR3PassthroughSS(ATADevState *s)
         }
     }
 
-    PDMCritSectLeave(&pCtl->lock);
+    ataR3LockLeave(pCtl);
 
 # if defined(LOG_ENABLED)
     char szBuf[1024];
@@ -2023,7 +1992,7 @@ static bool atapiR3PassthroughSS(ATADevState *s)
     {
         case SCSI_MODE_SELECT_10:
         {
-            size_t cbBlkDescLength = ataBE2H_U16(&s->CTX_SUFF(pbIOBuffer)[6]);
+            size_t cbBlkDescLength = scsiBE2H_U16(&s->CTX_SUFF(pbIOBuffer)[6]);
 
             SCSILogModePage(szBuf, sizeof(szBuf) - 1,
                             s->CTX_SUFF(pbIOBuffer) + 8 + cbBlkDescLength,
@@ -2064,32 +2033,28 @@ static bool atapiR3PassthroughSS(ATADevState *s)
             case SCSI_READ_10:
             case SCSI_WRITE_10:
             case SCSI_WRITE_AND_VERIFY_10:
-                iATAPILBA = ataBE2H_U32(s->aATAPICmd + 2);
-                cSectors = ataBE2H_U16(s->aATAPICmd + 7);
+                iATAPILBA = scsiBE2H_U32(s->aATAPICmd + 2);
+                cSectors = scsiBE2H_U16(s->aATAPICmd + 7);
                 break;
             case SCSI_READ_12:
             case SCSI_WRITE_12:
-                iATAPILBA = ataBE2H_U32(s->aATAPICmd + 2);
-                cSectors = ataBE2H_U32(s->aATAPICmd + 6);
+                iATAPILBA = scsiBE2H_U32(s->aATAPICmd + 2);
+                cSectors = scsiBE2H_U32(s->aATAPICmd + 6);
                 break;
             case SCSI_READ_CD:
-                iATAPILBA = ataBE2H_U32(s->aATAPICmd + 2);
-                cSectors = ataBE2H_U24(s->aATAPICmd + 6);
+                iATAPILBA = scsiBE2H_U32(s->aATAPICmd + 2);
+                cSectors = scsiBE2H_U24(s->aATAPICmd + 6);
                 break;
             case SCSI_READ_CD_MSF:
-                iATAPILBA = ataMSF2LBA(s->aATAPICmd + 3);
-                cSectors = ataMSF2LBA(s->aATAPICmd + 6) - iATAPILBA;
+                iATAPILBA = scsiMSF2LBA(s->aATAPICmd + 3);
+                cSectors = scsiMSF2LBA(s->aATAPICmd + 6) - iATAPILBA;
                 break;
             default:
                 AssertMsgFailed(("Don't know how to split command %#04x\n", s->aATAPICmd[0]));
                 if (s->cErrors++ < MAX_LOG_REL_ERRORS)
                     LogRel(("PIIX3 ATA: LUN#%d: CD-ROM passthrough split error\n", s->iLUN));
                 atapiR3CmdErrorSimple(s, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_ILLEGAL_OPCODE);
-                {
-                STAM_PROFILE_START(&pCtl->StatLockWait, a);
-                PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);
-                STAM_PROFILE_STOP(&pCtl->StatLockWait, a);
-                }
+                ataR3LockEnter(pCtl);
                 return false;
         }
         cSectorsMax = RT_MIN(cSectorsMax, cSectors);
@@ -2107,24 +2072,25 @@ static bool atapiR3PassthroughSS(ATADevState *s)
                 case SCSI_READ_10:
                 case SCSI_WRITE_10:
                 case SCSI_WRITE_AND_VERIFY_10:
-                    ataH2BE_U32(aATAPICmd + 2, iATAPILBA);
-                    ataH2BE_U16(aATAPICmd + 7, cReqSectors);
+                    scsiH2BE_U32(aATAPICmd + 2, iATAPILBA);
+                    scsiH2BE_U16(aATAPICmd + 7, cReqSectors);
                     break;
                 case SCSI_READ_12:
                 case SCSI_WRITE_12:
-                    ataH2BE_U32(aATAPICmd + 2, iATAPILBA);
-                    ataH2BE_U32(aATAPICmd + 6, cReqSectors);
+                    scsiH2BE_U32(aATAPICmd + 2, iATAPILBA);
+                    scsiH2BE_U32(aATAPICmd + 6, cReqSectors);
                     break;
                 case SCSI_READ_CD:
-                    ataH2BE_U32(aATAPICmd + 2, iATAPILBA);
-                    ataH2BE_U24(aATAPICmd + 6, cReqSectors);
+                    scsiH2BE_U32(aATAPICmd + 2, iATAPILBA);
+                    scsiH2BE_U24(aATAPICmd + 6, cReqSectors);
                     break;
                 case SCSI_READ_CD_MSF:
-                    ataLBA2MSF(aATAPICmd + 3, iATAPILBA);
-                    ataLBA2MSF(aATAPICmd + 6, iATAPILBA + cReqSectors);
+                    scsiLBA2MSF(aATAPICmd + 3, iATAPILBA);
+                    scsiLBA2MSF(aATAPICmd + 6, iATAPILBA + cReqSectors);
                     break;
             }
-            rc = s->pDrvMedia->pfnSendCmd(s->pDrvMedia, aATAPICmd, (PDMMEDIATXDIR)s->uTxDir, pbBuf, &cbCurrTX, abATAPISense, sizeof(abATAPISense), 30000 /**< @todo timeout */);
+            rc = s->pDrvMedia->pfnSendCmd(s->pDrvMedia, aATAPICmd, ATAPI_PACKET_SIZE, (PDMMEDIATXDIR)s->uTxDir,
+                                          pbBuf, &cbCurrTX, abATAPISense, sizeof(abATAPISense), 30000 /**< @todo timeout */);
             if (rc != VINF_SUCCESS)
                 break;
             iATAPILBA += cReqSectors;
@@ -2139,21 +2105,21 @@ static bool atapiR3PassthroughSS(ATADevState *s)
                 case SCSI_READ_10:
                 case SCSI_WRITE_10:
                 case SCSI_WRITE_AND_VERIFY_10:
-                    ataH2BE_U32(s->aATAPICmd + 2, iATAPILBA);
-                    ataH2BE_U16(s->aATAPICmd + 7, cSectors - cSectorsMax);
+                    scsiH2BE_U32(s->aATAPICmd + 2, iATAPILBA);
+                    scsiH2BE_U16(s->aATAPICmd + 7, cSectors - cSectorsMax);
                     break;
                 case SCSI_READ_12:
                 case SCSI_WRITE_12:
-                    ataH2BE_U32(s->aATAPICmd + 2, iATAPILBA);
-                    ataH2BE_U32(s->aATAPICmd + 6, cSectors - cSectorsMax);
+                    scsiH2BE_U32(s->aATAPICmd + 2, iATAPILBA);
+                    scsiH2BE_U32(s->aATAPICmd + 6, cSectors - cSectorsMax);
                     break;
                 case SCSI_READ_CD:
-                    ataH2BE_U32(s->aATAPICmd + 2, iATAPILBA);
-                    ataH2BE_U24(s->aATAPICmd + 6, cSectors - cSectorsMax);
+                    scsiH2BE_U32(s->aATAPICmd + 2, iATAPILBA);
+                    scsiH2BE_U24(s->aATAPICmd + 6, cSectors - cSectorsMax);
                     break;
                 case SCSI_READ_CD_MSF:
-                    ataLBA2MSF(s->aATAPICmd + 3, iATAPILBA);
-                    ataLBA2MSF(s->aATAPICmd + 6, iATAPILBA + cSectors - cSectorsMax);
+                    scsiLBA2MSF(s->aATAPICmd + 3, iATAPILBA);
+                    scsiLBA2MSF(s->aATAPICmd + 6, iATAPILBA + cSectors - cSectorsMax);
                     break;
                 default:
                     AssertMsgFailed(("Don't know how to split command %#04x\n", s->aATAPICmd[0]));
@@ -2165,12 +2131,11 @@ static bool atapiR3PassthroughSS(ATADevState *s)
         }
     }
     else
-        rc = s->pDrvMedia->pfnSendCmd(s->pDrvMedia, s->aATAPICmd, (PDMMEDIATXDIR)s->uTxDir, s->CTX_SUFF(pbIOBuffer), &cbTransfer, abATAPISense, sizeof(abATAPISense), 30000 /**< @todo timeout */);
+        rc = s->pDrvMedia->pfnSendCmd(s->pDrvMedia, s->aATAPICmd, ATAPI_PACKET_SIZE, (PDMMEDIATXDIR)s->uTxDir,
+                                      s->CTX_SUFF(pbIOBuffer), &cbTransfer, abATAPISense, sizeof(abATAPISense), 30000 /**< @todo timeout */);
     if (pProf) { STAM_PROFILE_ADV_STOP(pProf, b); }
 
-    STAM_PROFILE_START(&pCtl->StatLockWait, a);
-    PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);
-    STAM_PROFILE_STOP(&pCtl->StatLockWait, a);
+    ataR3LockEnter(pCtl);
 
     /* Update the LEDs and the read/write statistics. */
     if (cbTransfer >= 2048)
@@ -2217,15 +2182,12 @@ static bool atapiR3PassthroughSS(ATADevState *s)
 
         if (s->uTxDir == PDMMEDIATXDIR_FROM_DEVICE)
         {
-            Assert(cbTransfer <= s->cbAtapiPassthroughTransfer);
             /*
              * Reply with the same amount of data as the real drive
              * but only if the command wasn't split.
              */
-# if 0  /// @todo This destroys commands where cbTotalTransfer > cbIOBuffer
-            if (s->cbElementaryTransfer < s->cbIOBuffer)
+            if (s->cbAtapiPassthroughTransfer < s->cbIOBuffer)
                 s->cbTotalTransfer = cbTransfer;
-# endif
 
             if (   s->aATAPICmd[0] == SCSI_INQUIRY
                 && s->fOverwriteInquiry)
@@ -2234,20 +2196,22 @@ static bool atapiR3PassthroughSS(ATADevState *s)
                  * Motivation: changing the VM configuration should be as
                  *             invisible as possible to the guest. */
                 Log3(("ATAPI PT inquiry data before (%d): %.*Rhxs\n", cbTransfer, cbTransfer, s->CTX_SUFF(pbIOBuffer)));
-                ataR3SCSIPadStr(s->CTX_SUFF(pbIOBuffer) + 8, "VBOX", 8);
-                ataR3SCSIPadStr(s->CTX_SUFF(pbIOBuffer) + 16, "CD-ROM", 16);
-                ataR3SCSIPadStr(s->CTX_SUFF(pbIOBuffer) + 32, "1.0", 4);
+                scsiPadStr(s->CTX_SUFF(pbIOBuffer) + 8, "VBOX", 8);
+                scsiPadStr(s->CTX_SUFF(pbIOBuffer) + 16, "CD-ROM", 16);
+                scsiPadStr(s->CTX_SUFF(pbIOBuffer) + 32, "1.0", 4);
             }
 
             if (cbTransfer)
-                Log3(("ATAPI PT data read (%d): %.*Rhxs\n", cbTransfer, cbTransfer, s->CTX_SUFF(pbIOBuffer)));
+                Log3(("ATAPI PT data read (%d):\n%.*Rhxd\n", cbTransfer, cbTransfer, s->CTX_SUFF(pbIOBuffer)));
         }
 
         /* The initial buffer end value has been set up based on the total
          * transfer size. But the I/O buffer size limits what can actually be
          * done in one transfer, so set the actual value of the buffer end. */
-        s->cbElementaryTransfer = cbTransfer;
-        if (cbTransfer >= s->cbAtapiPassthroughTransfer)
+        Assert(cbTransfer <= s->cbAtapiPassthroughTransfer);
+        s->cbElementaryTransfer        = cbTransfer;
+        s->cbAtapiPassthroughTransfer -= cbTransfer;
+        if (!s->cbAtapiPassthroughTransfer)
         {
             s->iSourceSink = ATAFN_SS_NULL;
             atapiR3CmdOK(s);
@@ -2284,7 +2248,7 @@ static bool atapiR3ReadDVDStructureSS(ATADevState *s)
     int media = s->aATAPICmd[1];
     int format = s->aATAPICmd[7];
 
-    uint16_t max_len = ataBE2H_U16(&s->aATAPICmd[8]);
+    uint16_t max_len = scsiBE2H_U16(&s->aATAPICmd[8]);
 
     memset(buf, 0, max_len);
 
@@ -2341,12 +2305,12 @@ static bool atapiR3ReadDVDStructureSS(ATADevState *s)
                         buf[7] = 0;   /* default densities */
 
                         /* FIXME: 0x30000 per spec? */
-                        ataH2BE_U32(buf + 8, 0); /* start sector */
-                        ataH2BE_U32(buf + 12, total_sectors - 1); /* end sector */
-                        ataH2BE_U32(buf + 16, total_sectors - 1); /* l0 end sector */
+                        scsiH2BE_U32(buf + 8, 0); /* start sector */
+                        scsiH2BE_U32(buf + 12, total_sectors - 1); /* end sector */
+                        scsiH2BE_U32(buf + 16, total_sectors - 1); /* l0 end sector */
 
                         /* Size of buffer, not including 2 byte size field */
-                        ataH2BE_U32(&buf[0], 2048 + 2);
+                        scsiH2BE_U32(&buf[0], 2048 + 2);
 
                         /* 2k data + 4 byte header */
                         uASC = (2048 + 4);
@@ -2357,7 +2321,7 @@ static bool atapiR3ReadDVDStructureSS(ATADevState *s)
                         buf[5] = 0; /* no region restrictions */
 
                         /* Size of buffer, not including 2 byte size field */
-                        ataH2BE_U16(buf, 4 + 2);
+                        scsiH2BE_U16(buf, 4 + 2);
 
                         /* 4 byte header + 4 byte data */
                         uASC = (4 + 4);
@@ -2369,7 +2333,7 @@ static bool atapiR3ReadDVDStructureSS(ATADevState *s)
 
                     case 0x04: /* DVD disc manufacturing information */
                         /* Size of buffer, not including 2 byte size field */
-                        ataH2BE_U16(buf, 2048 + 2);
+                        scsiH2BE_U16(buf, 2048 + 2);
 
                         /* 2k data + 4 byte header */
                         uASC = (2048 + 4);
@@ -2382,22 +2346,22 @@ static bool atapiR3ReadDVDStructureSS(ATADevState *s)
 
                         buf[4] = 0x00; /* Physical format */
                         buf[5] = 0x40; /* Not writable, is readable */
-                        ataH2BE_U16((buf + 6), 2048 + 4);
+                        scsiH2BE_U16((buf + 6), 2048 + 4);
 
                         buf[8] = 0x01; /* Copyright info */
                         buf[9] = 0x40; /* Not writable, is readable */
-                        ataH2BE_U16((buf + 10), 4 + 4);
+                        scsiH2BE_U16((buf + 10), 4 + 4);
 
                         buf[12] = 0x03; /* BCA info */
                         buf[13] = 0x40; /* Not writable, is readable */
-                        ataH2BE_U16((buf + 14), 188 + 4);
+                        scsiH2BE_U16((buf + 14), 188 + 4);
 
                         buf[16] = 0x04; /* Manufacturing info */
                         buf[17] = 0x40; /* Not writable, is readable */
-                        ataH2BE_U16((buf + 18), 2048 + 4);
+                        scsiH2BE_U16((buf + 18), 2048 + 4);
 
                         /* Size of buffer, not including 2 byte size field */
-                        ataH2BE_U16(buf, 16 + 2);
+                        scsiH2BE_U16(buf, 16 + 2);
 
                         /* data written + 4 byte header */
                         uASC = (16 + 4);
@@ -2415,7 +2379,7 @@ static bool atapiR3ReadDVDStructureSS(ATADevState *s)
                 break;
             }
             /** @todo BD support, fall through for now */
-            /* fall thru */
+            RT_FALL_THRU();
 
         /* Generic disk structures */
         case 0x80: /** @todo AACS volume identifier */
@@ -2452,8 +2416,8 @@ static bool atapiR3ReadCapacitySS(ATADevState *s)
 
     Assert(s->uTxDir == PDMMEDIATXDIR_FROM_DEVICE);
     Assert(s->cbElementaryTransfer <= 8);
-    ataH2BE_U32(pbBuf, s->cTotalSectors - 1);
-    ataH2BE_U32(pbBuf + 4, 2048);
+    scsiH2BE_U32(pbBuf, s->cTotalSectors - 1);
+    scsiH2BE_U32(pbBuf + 4, 2048);
     s->iSourceSink = ATAFN_SS_NULL;
     atapiR3CmdOK(s);
     return false;
@@ -2467,19 +2431,19 @@ static bool atapiR3ReadDiscInformationSS(ATADevState *s)
     Assert(s->uTxDir == PDMMEDIATXDIR_FROM_DEVICE);
     Assert(s->cbElementaryTransfer <= 34);
     memset(pbBuf, '\0', 34);
-    ataH2BE_U16(pbBuf, 32);
+    scsiH2BE_U16(pbBuf, 32);
     pbBuf[2] = (0 << 4) | (3 << 2) | (2 << 0); /* not erasable, complete session, complete disc */
     pbBuf[3] = 1; /* number of first track */
     pbBuf[4] = 1; /* number of sessions (LSB) */
     pbBuf[5] = 1; /* first track number in last session (LSB) */
-    pbBuf[6] = 1; /* last track number in last session (LSB) */
+    pbBuf[6] = (uint8_t)s->pDrvMedia->pfnGetRegionCount(s->pDrvMedia); /* last track number in last session (LSB) */
     pbBuf[7] = (0 << 7) | (0 << 6) | (1 << 5) | (0 << 2) | (0 << 0); /* disc id not valid, disc bar code not valid, unrestricted use, not dirty, not RW medium */
     pbBuf[8] = 0; /* disc type = CD-ROM */
     pbBuf[9] = 0; /* number of sessions (MSB) */
     pbBuf[10] = 0; /* number of sessions (MSB) */
     pbBuf[11] = 0; /* number of sessions (MSB) */
-    ataH2BE_U32(pbBuf + 16, 0x00ffffff); /* last session lead-in start time is not available */
-    ataH2BE_U32(pbBuf + 20, 0x00ffffff); /* last possible start time for lead-out is not available */
+    scsiH2BE_U32(pbBuf + 16, 0xffffffff); /* last session lead-in start time is not available */
+    scsiH2BE_U32(pbBuf + 20, 0xffffffff); /* last possible start time for lead-out is not available */
     s->iSourceSink = ATAFN_SS_NULL;
     atapiR3CmdOK(s);
     return false;
@@ -2489,73 +2453,136 @@ static bool atapiR3ReadDiscInformationSS(ATADevState *s)
 static bool atapiR3ReadTrackInformationSS(ATADevState *s)
 {
     uint8_t *pbBuf = s->CTX_SUFF(pbIOBuffer);
+    uint32_t u32LogAddr = scsiBE2H_U32(&s->aATAPICmd[2]);
+    uint8_t u8LogAddrType = s->aATAPICmd[1] & 0x03;
+
+    int rc = VINF_SUCCESS;
+    uint64_t u64LbaStart = 0;
+    uint32_t uRegion = 0;
+    uint64_t cBlocks = 0;
+    uint64_t cbBlock = 0;
+    uint8_t u8DataMode = 0xf; /* Unknown data mode. */
+    uint8_t u8TrackMode = 0;
+    VDREGIONDATAFORM enmDataForm = VDREGIONDATAFORM_INVALID;
 
     Assert(s->uTxDir == PDMMEDIATXDIR_FROM_DEVICE);
     Assert(s->cbElementaryTransfer <= 36);
-    /* Accept address/number type of 1 only, and only track 1 exists. */
-    if ((s->aATAPICmd[1] & 0x03) != 1 || ataBE2H_U32(&s->aATAPICmd[2]) != 1)
+
+    switch (u8LogAddrType)
+    {
+        case 0x00:
+            rc = s->pDrvMedia->pfnQueryRegionPropertiesForLba(s->pDrvMedia, u32LogAddr, &uRegion,
+                                                              NULL, NULL, NULL);
+            if (RT_SUCCESS(rc))
+                rc = s->pDrvMedia->pfnQueryRegionProperties(s->pDrvMedia, uRegion, &u64LbaStart,
+                                                            &cBlocks, &cbBlock, &enmDataForm);
+            break;
+        case 0x01:
+        {
+            if (u32LogAddr >= 1)
+            {
+                uRegion = u32LogAddr - 1;
+                rc = s->pDrvMedia->pfnQueryRegionProperties(s->pDrvMedia, uRegion, &u64LbaStart,
+                                                            &cBlocks, &cbBlock, &enmDataForm);
+            }
+            else
+                rc = VERR_NOT_FOUND; /** @todo: Return lead-in information. */
+            break;
+        }
+        case 0x02:
+        default:
+            atapiR3CmdErrorSimple(s, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_INV_FIELD_IN_CMD_PACKET);
+            return false;
+    }
+
+    if (RT_FAILURE(rc))
     {
         atapiR3CmdErrorSimple(s, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_INV_FIELD_IN_CMD_PACKET);
         return false;
     }
+
+    switch (enmDataForm)
+    {
+        case VDREGIONDATAFORM_MODE1_2048:
+        case VDREGIONDATAFORM_MODE1_2352:
+        case VDREGIONDATAFORM_MODE1_0:
+            u8DataMode = 1;
+            break;
+        case VDREGIONDATAFORM_XA_2336:
+        case VDREGIONDATAFORM_XA_2352:
+        case VDREGIONDATAFORM_XA_0:
+        case VDREGIONDATAFORM_MODE2_2336:
+        case VDREGIONDATAFORM_MODE2_2352:
+        case VDREGIONDATAFORM_MODE2_0:
+            u8DataMode = 2;
+            break;
+        default:
+            u8DataMode = 0xf;
+    }
+
+    if (enmDataForm == VDREGIONDATAFORM_CDDA)
+        u8TrackMode = 0x0;
+    else
+        u8TrackMode = 0x4;
+
     memset(pbBuf, '\0', 36);
-    ataH2BE_U16(pbBuf, 34);
-    pbBuf[2] = 1; /* track number (LSB) */
-    pbBuf[3] = 1; /* session number (LSB) */
-    pbBuf[5] = (0 << 5) | (0 << 4) | (4 << 0); /* not damaged, primary copy, data track */
-    pbBuf[6] = (0 << 7) | (0 << 6) | (0 << 5) | (0 << 6) | (1 << 0); /* not reserved track, not blank, not packet writing, not fixed packet, data mode 1 */
-    pbBuf[7] = (0 << 1) | (0 << 0); /* last recorded address not valid, next recordable address not valid */
-    ataH2BE_U32(pbBuf + 8, 0); /* track start address is 0 */
-    ataH2BE_U32(pbBuf + 24, s->cTotalSectors); /* track size */
-    pbBuf[32] = 0; /* track number (MSB) */
-    pbBuf[33] = 0; /* session number (MSB) */
+    scsiH2BE_U16(pbBuf, 34);
+    pbBuf[2] = uRegion + 1;                                            /* track number (LSB) */
+    pbBuf[3] = 1;                                                      /* session number (LSB) */
+    pbBuf[5] = (0 << 5) | (0 << 4) | u8TrackMode;                      /* not damaged, primary copy, data track */
+    pbBuf[6] = (0 << 7) | (0 << 6) | (0 << 5) | (0 << 6) | u8DataMode; /* not reserved track, not blank, not packet writing, not fixed packet */
+    pbBuf[7] = (0 << 1) | (0 << 0);                                    /* last recorded address not valid, next recordable address not valid */
+    scsiH2BE_U32(pbBuf + 8, (uint32_t)u64LbaStart);                    /* track start address is 0 */
+    scsiH2BE_U32(pbBuf + 24, (uint32_t)cBlocks);                       /* track size */
+    pbBuf[32] = 0;                                                     /* track number (MSB) */
+    pbBuf[33] = 0;                                                     /* session number (MSB) */
     s->iSourceSink = ATAFN_SS_NULL;
     atapiR3CmdOK(s);
     return false;
 }
 
-static uint32_t atapiR3GetConfigurationFillFeatureListProfiles(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+static DECLCALLBACK(uint32_t) atapiR3GetConfigurationFillFeatureListProfiles(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
 {
     RT_NOREF1(s);
     if (cbBuf < 3*4)
         return 0;
 
-    ataH2BE_U16(pbBuf, 0x0); /* feature 0: list of profiles supported */
+    scsiH2BE_U16(pbBuf, 0x0); /* feature 0: list of profiles supported */
     pbBuf[2] = (0 << 2) | (1 << 1) | (1 << 0); /* version 0, persistent, current */
     pbBuf[3] = 8; /* additional bytes for profiles */
     /* The MMC-3 spec says that DVD-ROM read capability should be reported
      * before CD-ROM read capability. */
-    ataH2BE_U16(pbBuf + 4, 0x10); /* profile: read-only DVD */
+    scsiH2BE_U16(pbBuf + 4, 0x10); /* profile: read-only DVD */
     pbBuf[6] = (0 << 0); /* NOT current profile */
-    ataH2BE_U16(pbBuf + 8, 0x08); /* profile: read only CD */
+    scsiH2BE_U16(pbBuf + 8, 0x08); /* profile: read only CD */
     pbBuf[10] = (1 << 0); /* current profile */
 
     return 3*4; /* Header + 2 profiles entries */
 }
 
-static uint32_t atapiR3GetConfigurationFillFeatureCore(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+static DECLCALLBACK(uint32_t) atapiR3GetConfigurationFillFeatureCore(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
 {
     RT_NOREF1(s);
     if (cbBuf < 12)
         return 0;
 
-    ataH2BE_U16(pbBuf, 0x1); /* feature 0001h: Core Feature */
+    scsiH2BE_U16(pbBuf, 0x1); /* feature 0001h: Core Feature */
     pbBuf[2] = (0x2 << 2) | RT_BIT(1) | RT_BIT(0); /* Version | Persistent | Current */
     pbBuf[3] = 8; /* Additional length */
-    ataH2BE_U16(pbBuf + 4, 0x00000002); /* Physical interface ATAPI. */
+    scsiH2BE_U16(pbBuf + 4, 0x00000002); /* Physical interface ATAPI. */
     pbBuf[8] = RT_BIT(0); /* DBE */
     /* Rest is reserved. */
 
     return 12;
 }
 
-static uint32_t atapiR3GetConfigurationFillFeatureMorphing(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+static DECLCALLBACK(uint32_t) atapiR3GetConfigurationFillFeatureMorphing(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
 {
     RT_NOREF1(s);
     if (cbBuf < 8)
         return 0;
 
-    ataH2BE_U16(pbBuf, 0x2); /* feature 0002h: Morphing Feature */
+    scsiH2BE_U16(pbBuf, 0x2); /* feature 0002h: Morphing Feature */
     pbBuf[2] = (0x1 << 2) | RT_BIT(1) | RT_BIT(0); /* Version | Persistent | Current */
     pbBuf[3] = 4; /* Additional length */
     pbBuf[4] = RT_BIT(1) | 0x0; /* OCEvent | !ASYNC */
@@ -2564,13 +2591,13 @@ static uint32_t atapiR3GetConfigurationFillFeatureMorphing(ATADevState *s, uint8
     return 8;
 }
 
-static uint32_t atapiR3GetConfigurationFillFeatureRemovableMedium(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+static DECLCALLBACK(uint32_t) atapiR3GetConfigurationFillFeatureRemovableMedium(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
 {
     RT_NOREF1(s);
     if (cbBuf < 8)
         return 0;
 
-    ataH2BE_U16(pbBuf, 0x3); /* feature 0003h: Removable Medium Feature */
+    scsiH2BE_U16(pbBuf, 0x3); /* feature 0003h: Removable Medium Feature */
     pbBuf[2] = (0x2 << 2) | RT_BIT(1) | RT_BIT(0); /* Version | Persistent | Current */
     pbBuf[3] = 4; /* Additional length */
     /* Tray type loading | Load | Eject | !Pvnt Jmpr | !DBML | Lock */
@@ -2580,30 +2607,30 @@ static uint32_t atapiR3GetConfigurationFillFeatureRemovableMedium(ATADevState *s
     return 8;
 }
 
-static uint32_t atapiR3GetConfigurationFillFeatureRandomReadable (ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+static DECLCALLBACK(uint32_t) atapiR3GetConfigurationFillFeatureRandomReadable (ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
 {
     RT_NOREF1(s);
     if (cbBuf < 12)
         return 0;
 
-    ataH2BE_U16(pbBuf, 0x10); /* feature 0010h: Random Readable Feature */
+    scsiH2BE_U16(pbBuf, 0x10); /* feature 0010h: Random Readable Feature */
     pbBuf[2] = (0x0 << 2) | RT_BIT(1) | RT_BIT(0); /* Version | Persistent | Current */
     pbBuf[3] = 8; /* Additional length */
-    ataH2BE_U32(pbBuf + 4, 2048); /* Logical block size. */
-    ataH2BE_U16(pbBuf + 8, 0x10); /* Blocking (0x10 for DVD, CD is not defined). */
+    scsiH2BE_U32(pbBuf + 4, 2048); /* Logical block size. */
+    scsiH2BE_U16(pbBuf + 8, 0x10); /* Blocking (0x10 for DVD, CD is not defined). */
     pbBuf[10] = 0; /* PP not present */
     /* Rest is reserved. */
 
     return 12;
 }
 
-static uint32_t atapiR3GetConfigurationFillFeatureCDRead(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+static DECLCALLBACK(uint32_t) atapiR3GetConfigurationFillFeatureCDRead(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
 {
     RT_NOREF1(s);
     if (cbBuf < 8)
         return 0;
 
-    ataH2BE_U16(pbBuf, 0x1e); /* feature 001Eh: CD Read Feature */
+    scsiH2BE_U16(pbBuf, 0x1e); /* feature 001Eh: CD Read Feature */
     pbBuf[2] = (0x2 << 2) | RT_BIT(1) | RT_BIT(0); /* Version | Persistent | Current */
     pbBuf[3] = 0; /* Additional length */
     pbBuf[4] = (0x0 << 7) | (0x0 << 1) | 0x0; /* !DAP | !C2-Flags | !CD-Text. */
@@ -2612,26 +2639,26 @@ static uint32_t atapiR3GetConfigurationFillFeatureCDRead(ATADevState *s, uint8_t
     return 8;
 }
 
-static uint32_t atapiR3GetConfigurationFillFeaturePowerManagement(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+static DECLCALLBACK(uint32_t) atapiR3GetConfigurationFillFeaturePowerManagement(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
 {
     RT_NOREF1(s);
     if (cbBuf < 4)
         return 0;
 
-    ataH2BE_U16(pbBuf, 0x100); /* feature 0100h: Power Management Feature */
+    scsiH2BE_U16(pbBuf, 0x100); /* feature 0100h: Power Management Feature */
     pbBuf[2] = (0x0 << 2) | RT_BIT(1) | RT_BIT(0); /* Version | Persistent | Current */
     pbBuf[3] = 0; /* Additional length */
 
     return 4;
 }
 
-static uint32_t atapiR3GetConfigurationFillFeatureTimeout(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
+static DECLCALLBACK(uint32_t) atapiR3GetConfigurationFillFeatureTimeout(ATADevState *s, uint8_t *pbBuf, size_t cbBuf)
 {
     RT_NOREF1(s);
     if (cbBuf < 8)
         return 0;
 
-    ataH2BE_U16(pbBuf, 0x105); /* feature 0105h: Timeout Feature */
+    scsiH2BE_U16(pbBuf, 0x105); /* feature 0105h: Timeout Feature */
     pbBuf[2] = (0x0 << 2) | RT_BIT(1) | RT_BIT(0); /* Version | Persistent | Current */
     pbBuf[3] = 4; /* Additional length */
     pbBuf[4] = 0x0; /* !Group3 */
@@ -2639,17 +2666,56 @@ static uint32_t atapiR3GetConfigurationFillFeatureTimeout(ATADevState *s, uint8_
     return 8;
 }
 
+/**
+ * Callback to fill in the correct data for a feature.
+ *
+ * @returns Number of bytes written into the buffer.
+ * @param   s       The ATA device state.
+ * @param   pbBuf   The buffer to fill the data with.
+ * @param   cbBuf   Size of the buffer.
+ */
+typedef DECLCALLBACK(uint32_t) FNATAPIR3FEATUREFILL(ATADevState *s, uint8_t *pbBuf, size_t cbBuf);
+/** Pointer to a feature fill callback. */
+typedef FNATAPIR3FEATUREFILL *PFNATAPIR3FEATUREFILL;
+
+/**
+ * ATAPI feature descriptor.
+ */
+typedef struct ATAPIR3FEATDESC
+{
+    /** The feature number. */
+    uint16_t u16Feat;
+    /** The callback to fill in the correct data. */
+    PFNATAPIR3FEATUREFILL pfnFeatureFill;
+} ATAPIR3FEATDESC;
+
+/**
+ * Array of known ATAPI feature descriptors.
+ */
+static const ATAPIR3FEATDESC s_aAtapiR3Features[] =
+{
+    { 0x0000, atapiR3GetConfigurationFillFeatureListProfiles},
+    { 0x0001, atapiR3GetConfigurationFillFeatureCore},
+    { 0x0002, atapiR3GetConfigurationFillFeatureMorphing},
+    { 0x0003, atapiR3GetConfigurationFillFeatureRemovableMedium},
+    { 0x0010, atapiR3GetConfigurationFillFeatureRandomReadable},
+    { 0x001e, atapiR3GetConfigurationFillFeatureCDRead},
+    { 0x0100, atapiR3GetConfigurationFillFeaturePowerManagement},
+    { 0x0105, atapiR3GetConfigurationFillFeatureTimeout}
+};
+
 static bool atapiR3GetConfigurationSS(ATADevState *s)
 {
     uint8_t *pbBuf = s->CTX_SUFF(pbIOBuffer);
     uint32_t cbBuf = s->cbIOBuffer;
     uint32_t cbCopied = 0;
-    uint16_t u16Sfn = ataBE2H_U16(&s->aATAPICmd[2]);
+    uint16_t u16Sfn = scsiBE2H_U16(&s->aATAPICmd[2]);
+    uint8_t u8Rt = s->aATAPICmd[1] & 0x03;
 
     Assert(s->uTxDir == PDMMEDIATXDIR_FROM_DEVICE);
     Assert(s->cbElementaryTransfer <= 80);
-    /* Accept valid request types only, and only starting feature 0. */
-    if ((s->aATAPICmd[1] & 0x03) == 3 || u16Sfn != 0)
+    /* Accept valid request types only. */
+    if (u8Rt == 3)
     {
         atapiR3CmdErrorSimple(s, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_INV_FIELD_IN_CMD_PACKET);
         return false;
@@ -2658,46 +2724,40 @@ static bool atapiR3GetConfigurationSS(ATADevState *s)
     /** @todo implement switching between CD-ROM and DVD-ROM profile (the only
      * way to differentiate them right now is based on the image size). */
     if (s->cTotalSectors)
-        ataH2BE_U16(pbBuf + 6, 0x08); /* current profile: read-only CD */
+        scsiH2BE_U16(pbBuf + 6, 0x08); /* current profile: read-only CD */
     else
-        ataH2BE_U16(pbBuf + 6, 0x00); /* current profile: none -> no media */
+        scsiH2BE_U16(pbBuf + 6, 0x00); /* current profile: none -> no media */
     cbBuf    -= 8;
     pbBuf    += 8;
 
-    cbCopied = atapiR3GetConfigurationFillFeatureListProfiles(s, pbBuf, cbBuf);
-    cbBuf -= cbCopied;
-    pbBuf += cbCopied;
-
-    cbCopied = atapiR3GetConfigurationFillFeatureCore(s, pbBuf, cbBuf);
-    cbBuf -= cbCopied;
-    pbBuf += cbCopied;
-
-    cbCopied = atapiR3GetConfigurationFillFeatureMorphing(s, pbBuf, cbBuf);
-    cbBuf -= cbCopied;
-    pbBuf += cbCopied;
-
-    cbCopied = atapiR3GetConfigurationFillFeatureRemovableMedium(s, pbBuf, cbBuf);
-    cbBuf -= cbCopied;
-    pbBuf += cbCopied;
-
-    cbCopied = atapiR3GetConfigurationFillFeatureRandomReadable (s, pbBuf, cbBuf);
-    cbBuf -= cbCopied;
-    pbBuf += cbCopied;
-
-    cbCopied = atapiR3GetConfigurationFillFeatureCDRead(s, pbBuf, cbBuf);
-    cbBuf -= cbCopied;
-    pbBuf += cbCopied;
-
-    cbCopied = atapiR3GetConfigurationFillFeaturePowerManagement(s, pbBuf, cbBuf);
-    cbBuf -= cbCopied;
-    pbBuf += cbCopied;
-
-    cbCopied = atapiR3GetConfigurationFillFeatureTimeout(s, pbBuf, cbBuf);
-    cbBuf -= cbCopied;
-    pbBuf += cbCopied;
+    if (u8Rt == 0x2)
+    {
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aAtapiR3Features); i++)
+        {
+            if (s_aAtapiR3Features[i].u16Feat == u16Sfn)
+            {
+                cbCopied = s_aAtapiR3Features[i].pfnFeatureFill(s, pbBuf, cbBuf);
+                cbBuf -= cbCopied;
+                pbBuf += cbCopied;
+                break;
+            }
+        }
+    }
+    else
+    {
+        for (uint32_t i = 0; i < RT_ELEMENTS(s_aAtapiR3Features); i++)
+        {
+            if (s_aAtapiR3Features[i].u16Feat > u16Sfn)
+            {
+                cbCopied = s_aAtapiR3Features[i].pfnFeatureFill(s, pbBuf, cbBuf);
+                cbBuf -= cbCopied;
+                pbBuf += cbCopied;
+            }
+        }
+    }
 
     /* Set data length now - the field is not included in the final length. */
-    ataH2BE_U32(s->CTX_SUFF(pbIOBuffer), s->cbIOBuffer - cbBuf - 4);
+    scsiH2BE_U32(s->CTX_SUFF(pbIOBuffer), s->cbIOBuffer - cbBuf - 4);
 
     /* Other profiles we might want to add in the future: 0x40 (BD-ROM) and 0x50 (HDDVD-ROM) */
     s->iSourceSink = ATAFN_SS_NULL;
@@ -2729,7 +2789,7 @@ static bool atapiR3GetEventStatusNotificationSS(ATADevState *s)
         {
             case ATA_EVENT_STATUS_MEDIA_NEW:
                 /* mount */
-                ataH2BE_U16(pbBuf + 0, 6);
+                scsiH2BE_U16(pbBuf + 0, 6);
                 pbBuf[2] = 0x04; /* media */
                 pbBuf[3] = 0x5e; /* supported = busy|media|external|power|operational */
                 pbBuf[4] = 0x02; /* new medium */
@@ -2741,7 +2801,7 @@ static bool atapiR3GetEventStatusNotificationSS(ATADevState *s)
             case ATA_EVENT_STATUS_MEDIA_CHANGED:
             case ATA_EVENT_STATUS_MEDIA_REMOVED:
                 /* umount */
-                ataH2BE_U16(pbBuf + 0, 6);
+                scsiH2BE_U16(pbBuf + 0, 6);
                 pbBuf[2] = 0x04; /* media */
                 pbBuf[3] = 0x5e; /* supported = busy|media|external|power|operational */
                 pbBuf[4] = 0x03; /* media removal */
@@ -2753,7 +2813,7 @@ static bool atapiR3GetEventStatusNotificationSS(ATADevState *s)
                 break;
 
             case ATA_EVENT_STATUS_MEDIA_EJECT_REQUESTED: /* currently unused */
-                ataH2BE_U16(pbBuf + 0, 6);
+                scsiH2BE_U16(pbBuf + 0, 6);
                 pbBuf[2] = 0x04; /* media */
                 pbBuf[3] = 0x5e; /* supported = busy|media|external|power|operational */
                 pbBuf[4] = 0x01; /* eject requested (eject button pressed) */
@@ -2764,7 +2824,7 @@ static bool atapiR3GetEventStatusNotificationSS(ATADevState *s)
 
             case ATA_EVENT_STATUS_UNCHANGED:
             default:
-                ataH2BE_U16(pbBuf + 0, 6);
+                scsiH2BE_U16(pbBuf + 0, 6);
                 pbBuf[2] = 0x01; /* operational change request / notification */
                 pbBuf[3] = 0x5e; /* supported = busy|media|external|power|operational */
                 pbBuf[4] = 0x00;
@@ -2800,9 +2860,9 @@ static bool atapiR3InquirySS(ATADevState *s)
     pbBuf[5] = 0; /* reserved */
     pbBuf[6] = 0; /* reserved */
     pbBuf[7] = 0; /* reserved */
-    ataR3SCSIPadStr(pbBuf + 8, s->szInquiryVendorId, 8);
-    ataR3SCSIPadStr(pbBuf + 16, s->szInquiryProductId, 16);
-    ataR3SCSIPadStr(pbBuf + 32, s->szInquiryRevision, 4);
+    scsiPadStr(pbBuf + 8, s->szInquiryVendorId, 8);
+    scsiPadStr(pbBuf + 16, s->szInquiryProductId, 16);
+    scsiPadStr(pbBuf + 32, s->szInquiryRevision, 4);
     s->iSourceSink = ATAFN_SS_NULL;
     atapiR3CmdOK(s);
     return false;
@@ -2815,7 +2875,7 @@ static bool atapiR3ModeSenseErrorRecoverySS(ATADevState *s)
 
     Assert(s->uTxDir == PDMMEDIATXDIR_FROM_DEVICE);
     Assert(s->cbElementaryTransfer <= 16);
-    ataH2BE_U16(&pbBuf[0], 16 + 6);
+    scsiH2BE_U16(&pbBuf[0], 16 + 6);
     pbBuf[2] = (uint8_t)s->MediaTrackType;
     pbBuf[3] = 0;
     pbBuf[4] = 0;
@@ -2843,7 +2903,7 @@ static bool atapiR3ModeSenseCDStatusSS(ATADevState *s)
 
     Assert(s->uTxDir == PDMMEDIATXDIR_FROM_DEVICE);
     Assert(s->cbElementaryTransfer <= 40);
-    ataH2BE_U16(&pbBuf[0], 38);
+    scsiH2BE_U16(&pbBuf[0], 38);
     pbBuf[2] = (uint8_t)s->MediaTrackType;
     pbBuf[3] = 0;
     pbBuf[4] = 0;
@@ -2864,21 +2924,21 @@ static bool atapiR3ModeSenseCDStatusSS(ATADevState *s)
     if (s->pDrvMount->pfnIsLocked(s->pDrvMount))
         pbBuf[14] |= 1 << 1; /* report lock state */
     pbBuf[15] = 0; /* no subchannel reads supported, no separate audio volume control, no changer etc. */
-    ataH2BE_U16(&pbBuf[16], 5632); /* (obsolete) claim 32x speed support */
-    ataH2BE_U16(&pbBuf[18], 2); /* number of audio volume levels */
-    ataH2BE_U16(&pbBuf[20], s->cbIOBuffer / _1K); /* buffer size supported in Kbyte */
-    ataH2BE_U16(&pbBuf[22], 5632); /* (obsolete) current read speed 32x */
+    scsiH2BE_U16(&pbBuf[16], 5632); /* (obsolete) claim 32x speed support */
+    scsiH2BE_U16(&pbBuf[18], 2); /* number of audio volume levels */
+    scsiH2BE_U16(&pbBuf[20], s->cbIOBuffer / _1K); /* buffer size supported in Kbyte */
+    scsiH2BE_U16(&pbBuf[22], 5632); /* (obsolete) current read speed 32x */
     pbBuf[24] = 0; /* reserved */
     pbBuf[25] = 0; /* reserved for digital audio (see idx 15) */
-    ataH2BE_U16(&pbBuf[26], 0); /* (obsolete) maximum write speed */
-    ataH2BE_U16(&pbBuf[28], 0); /* (obsolete) current write speed */
-    ataH2BE_U16(&pbBuf[30], 0); /* copy management revision supported 0=no CSS */
+    scsiH2BE_U16(&pbBuf[26], 0); /* (obsolete) maximum write speed */
+    scsiH2BE_U16(&pbBuf[28], 0); /* (obsolete) current write speed */
+    scsiH2BE_U16(&pbBuf[30], 0); /* copy management revision supported 0=no CSS */
     pbBuf[32] = 0; /* reserved */
     pbBuf[33] = 0; /* reserved */
     pbBuf[34] = 0; /* reserved */
     pbBuf[35] = 1; /* rotation control CAV */
-    ataH2BE_U16(&pbBuf[36], 0); /* current write speed */
-    ataH2BE_U16(&pbBuf[38], 0); /* number of write speed performance descriptors */
+    scsiH2BE_U16(&pbBuf[36], 0); /* current write speed */
+    scsiH2BE_U16(&pbBuf[38], 0); /* number of write speed performance descriptors */
     s->iSourceSink = ATAFN_SS_NULL;
     atapiR3CmdOK(s);
     return false;
@@ -2904,13 +2964,13 @@ static bool atapiR3MechanismStatusSS(ATADevState *s)
 
     Assert(s->uTxDir == PDMMEDIATXDIR_FROM_DEVICE);
     Assert(s->cbElementaryTransfer <= 8);
-    ataH2BE_U16(pbBuf, 0);
+    scsiH2BE_U16(pbBuf, 0);
     /* no current LBA */
     pbBuf[2] = 0;
     pbBuf[3] = 0;
     pbBuf[4] = 0;
     pbBuf[5] = 1;
-    ataH2BE_U16(pbBuf + 6, 0);
+    scsiH2BE_U16(pbBuf + 6, 0);
     s->iSourceSink = ATAFN_SS_NULL;
     atapiR3CmdOK(s);
     return false;
@@ -2922,34 +2982,50 @@ static bool atapiR3ReadTOCNormalSS(ATADevState *s)
     uint8_t *pbBuf = s->CTX_SUFF(pbIOBuffer), *q, iStartTrack;
     bool fMSF;
     uint32_t cbSize;
+    uint32_t cTracks = s->pDrvMedia->pfnGetRegionCount(s->pDrvMedia);
 
     Assert(s->uTxDir == PDMMEDIATXDIR_FROM_DEVICE);
     fMSF = (s->aATAPICmd[1] >> 1) & 1;
     iStartTrack = s->aATAPICmd[6];
-    if (iStartTrack > 1 && iStartTrack != 0xaa)
+    if (iStartTrack == 0)
+        iStartTrack = 1;
+
+    if (iStartTrack > cTracks && iStartTrack != 0xaa)
     {
         atapiR3CmdErrorSimple(s, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_INV_FIELD_IN_CMD_PACKET);
         return false;
     }
     q = pbBuf + 2;
-    *q++ = 1; /* first session */
-    *q++ = 1; /* last session */
-    if (iStartTrack <= 1)
+    *q++ = iStartTrack; /* first track number */
+    *q++ = cTracks;     /* last track number */
+    for (uint32_t iTrack = iStartTrack; iTrack <= cTracks; iTrack++)
     {
-        *q++ = 0; /* reserved */
-        *q++ = 0x14; /* ADR, control */
-        *q++ = 1;    /* track number */
-        *q++ = 0; /* reserved */
+        uint64_t uLbaStart = 0;
+        VDREGIONDATAFORM enmDataForm = VDREGIONDATAFORM_MODE1_2048;
+
+        int rc = s->pDrvMedia->pfnQueryRegionProperties(s->pDrvMedia, iTrack - 1, &uLbaStart,
+                                                        NULL, NULL, &enmDataForm);
+        AssertRC(rc);
+
+        *q++ = 0;                  /* reserved */
+
+        if (enmDataForm == VDREGIONDATAFORM_CDDA)
+            *q++ = 0x10;           /* ADR, control */
+        else
+            *q++ = 0x14;           /* ADR, control */
+
+        *q++ = (uint8_t)iTrack;    /* track number */
+        *q++ = 0;                  /* reserved */
         if (fMSF)
         {
             *q++ = 0; /* reserved */
-            ataLBA2MSF(q, 0);
+            scsiLBA2MSF(q, (uint32_t)uLbaStart);
             q += 3;
         }
         else
         {
             /* sector 0 */
-            ataH2BE_U32(q, 0);
+            scsiH2BE_U32(q, (uint32_t)uLbaStart);
             q += 4;
         }
     }
@@ -2958,19 +3034,29 @@ static bool atapiR3ReadTOCNormalSS(ATADevState *s)
     *q++ = 0x14; /* ADR, control */
     *q++ = 0xaa; /* track number */
     *q++ = 0; /* reserved */
+
+    /* Query start and length of last track to get the start of the lead out track. */
+    uint64_t uLbaStart = 0;
+    uint64_t cBlocks = 0;
+
+    int rc = s->pDrvMedia->pfnQueryRegionProperties(s->pDrvMedia, cTracks - 1, &uLbaStart,
+                                                    &cBlocks, NULL, NULL);
+    AssertRC(rc);
+
+    uLbaStart += cBlocks;
     if (fMSF)
     {
         *q++ = 0; /* reserved */
-        ataLBA2MSF(q, s->cTotalSectors);
+        scsiLBA2MSF(q, (uint32_t)uLbaStart);
         q += 3;
     }
     else
     {
-        ataH2BE_U32(q, s->cTotalSectors);
+        scsiH2BE_U32(q, (uint32_t)uLbaStart);
         q += 4;
     }
     cbSize = q - pbBuf;
-    ataH2BE_U16(pbBuf, cbSize - 2);
+    scsiH2BE_U16(pbBuf, cbSize - 2);
     if (cbSize < s->cbTotalTransfer)
         s->cbTotalTransfer = cbSize;
     s->iSourceSink = ATAFN_SS_NULL;
@@ -2988,22 +3074,34 @@ static bool atapiR3ReadTOCMultiSS(ATADevState *s)
     Assert(s->cbElementaryTransfer <= 12);
     fMSF = (s->aATAPICmd[1] >> 1) & 1;
     /* multi session: only a single session defined */
-/** @todo double-check this stuff against what a real drive says for a CD-ROM (not a CD-R) with only a single data session. Maybe solve the problem with "cdrdao read-toc" not being able to figure out whether numbers are in BCD or hex. */
+    /** @todo double-check this stuff against what a real drive says for a CD-ROM (not a CD-R)
+     * with only a single data session. Maybe solve the problem with "cdrdao read-toc" not being
+     * able to figure out whether numbers are in BCD or hex. */
     memset(pbBuf, 0, 12);
     pbBuf[1] = 0x0a;
     pbBuf[2] = 0x01;
     pbBuf[3] = 0x01;
-    pbBuf[5] = 0x14; /* ADR, control */
+
+    VDREGIONDATAFORM enmDataForm = VDREGIONDATAFORM_MODE1_2048;
+    int rc = s->pDrvMedia->pfnQueryRegionProperties(s->pDrvMedia, 0, NULL,
+                                                    NULL, NULL, &enmDataForm);
+    AssertRC(rc);
+
+    if (enmDataForm == VDREGIONDATAFORM_CDDA)
+        pbBuf[5] = 0x10;           /* ADR, control */
+    else
+        pbBuf[5] = 0x14;           /* ADR, control */
+
     pbBuf[6] = 1; /* first track in last complete session */
     if (fMSF)
     {
         pbBuf[8] = 0; /* reserved */
-        ataLBA2MSF(&pbBuf[9], 0);
+        scsiLBA2MSF(&pbBuf[9], 0);
     }
     else
     {
         /* sector 0 */
-        ataH2BE_U32(pbBuf + 8, 0);
+        scsiH2BE_U32(pbBuf + 8, 0);
     }
     s->iSourceSink = ATAFN_SS_NULL;
     atapiR3CmdOK(s);
@@ -3059,12 +3157,12 @@ static bool atapiR3ReadTOCRawSS(ATADevState *s)
     if (fMSF)
     {
         *q++ = 0; /* reserved */
-        ataLBA2MSF(q, s->cTotalSectors);
+        scsiLBA2MSF(q, s->cTotalSectors);
         q += 3;
     }
     else
     {
-        ataH2BE_U32(q, s->cTotalSectors);
+        scsiH2BE_U32(q, s->cTotalSectors);
         q += 4;
     }
 
@@ -3078,18 +3176,18 @@ static bool atapiR3ReadTOCRawSS(ATADevState *s)
     if (fMSF)
     {
         *q++ = 0; /* reserved */
-        ataLBA2MSF(q, 0);
+        scsiLBA2MSF(q, 0);
         q += 3;
     }
     else
     {
         /* sector 0 */
-        ataH2BE_U32(q, 0);
+        scsiH2BE_U32(q, 0);
         q += 4;
     }
 
     cbSize = q - pbBuf;
-    ataH2BE_U16(pbBuf, cbSize - 2);
+    scsiH2BE_U16(pbBuf, cbSize - 2);
     if (cbSize < s->cbTotalTransfer)
         s->cbTotalTransfer = cbSize;
     s->iSourceSink = ATAFN_SS_NULL;
@@ -3122,13 +3220,13 @@ static void atapiR3ParseCmdVirtualATAPI(ATADevState *s)
                 atapiR3CmdErrorSimple(s, SCSI_SENSE_NOT_READY, SCSI_ASC_MEDIUM_NOT_PRESENT);
             break;
         case SCSI_GET_EVENT_STATUS_NOTIFICATION:
-            cbMax = ataBE2H_U16(pbPacket + 7);
+            cbMax = scsiBE2H_U16(pbPacket + 7);
             ataR3StartTransfer(s, RT_MIN(cbMax, 8), PDMMEDIATXDIR_FROM_DEVICE, ATAFN_BT_ATAPI_CMD, ATAFN_SS_ATAPI_GET_EVENT_STATUS_NOTIFICATION, true);
             break;
         case SCSI_MODE_SENSE_10:
         {
             uint8_t uPageControl, uPageCode;
-            cbMax = ataBE2H_U16(pbPacket + 7);
+            cbMax = scsiBE2H_U16(pbPacket + 7);
             uPageControl = pbPacket[2] >> 6;
             uPageCode = pbPacket[2] & 0x3f;
             switch (uPageControl)
@@ -3190,10 +3288,34 @@ static void atapiR3ParseCmdVirtualATAPI(ATADevState *s)
                 break;
             }
             if (pbPacket[0] == SCSI_READ_10)
-                cSectors = ataBE2H_U16(pbPacket + 7);
+                cSectors = scsiBE2H_U16(pbPacket + 7);
             else
-                cSectors = ataBE2H_U32(pbPacket + 6);
-            iATAPILBA = ataBE2H_U32(pbPacket + 2);
+                cSectors = scsiBE2H_U32(pbPacket + 6);
+            iATAPILBA = scsiBE2H_U32(pbPacket + 2);
+
+            /* Check that the sector size is valid. */
+            VDREGIONDATAFORM enmDataForm = VDREGIONDATAFORM_INVALID;
+            int rc = s->pDrvMedia->pfnQueryRegionPropertiesForLba(s->pDrvMedia, iATAPILBA,
+                                                                  NULL, NULL, NULL, &enmDataForm);
+            AssertRC(rc);
+            if (   enmDataForm != VDREGIONDATAFORM_MODE1_2048
+                && enmDataForm != VDREGIONDATAFORM_MODE1_2352
+                && enmDataForm != VDREGIONDATAFORM_MODE2_2336
+                && enmDataForm != VDREGIONDATAFORM_MODE2_2352
+                && enmDataForm != VDREGIONDATAFORM_RAW)
+            {
+                uint8_t abATAPISense[ATAPI_SENSE_SIZE];
+                RT_ZERO(abATAPISense);
+
+                abATAPISense[0] = 0x70 | (1 << 7);
+                abATAPISense[2] = (SCSI_SENSE_ILLEGAL_REQUEST & 0x0f) | SCSI_SENSE_FLAG_ILI;
+                scsiH2BE_U32(&abATAPISense[3], iATAPILBA);
+                abATAPISense[7] = 10;
+                abATAPISense[12] = SCSI_ASC_ILLEGAL_MODE_FOR_THIS_TRACK;
+                atapiR3CmdError(s, &abATAPISense[0], sizeof(abATAPISense));
+                break;
+            }
+
             if (cSectors == 0)
             {
                 atapiR3CmdOK(s);
@@ -3232,8 +3354,13 @@ static void atapiR3ParseCmdVirtualATAPI(ATADevState *s)
                 atapiR3CmdErrorSimple(s, SCSI_SENSE_NOT_READY, SCSI_ASC_MEDIUM_NOT_PRESENT);
                 break;
             }
+            if ((pbPacket[10] & 0x7) != 0)
+            {
+                atapiR3CmdErrorSimple(s, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_INV_FIELD_IN_CMD_PACKET);
+                break;
+            }
             cSectors = (pbPacket[6] << 16) | (pbPacket[7] << 8) | pbPacket[8];
-            iATAPILBA = ataBE2H_U32(pbPacket + 2);
+            iATAPILBA = scsiBE2H_U32(pbPacket + 2);
             if (cSectors == 0)
             {
                 atapiR3CmdOK(s);
@@ -3254,24 +3381,50 @@ static void atapiR3ParseCmdVirtualATAPI(ATADevState *s)
                 atapiR3CmdErrorSimple(s, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_LOGICAL_BLOCK_OOR);
                 break;
             }
-            switch (pbPacket[9] & 0xf8)
+            /*
+             * If the LBA is in an audio track we are required to ignore pretty much all
+             * of the channel selection values (except 0x00) and map everything to 0x10
+             * which means read user data with a sector size of 2352 bytes.
+             *
+             * (MMC-6 chapter 6.19.2.6)
+             */
+            uint8_t uChnSel = pbPacket[9] & 0xf8;
+            VDREGIONDATAFORM enmDataForm;
+            int rc = s->pDrvMedia->pfnQueryRegionPropertiesForLba(s->pDrvMedia, iATAPILBA,
+                                                                  NULL, NULL, NULL, &enmDataForm);
+            AssertRC(rc);
+
+            if (enmDataForm == VDREGIONDATAFORM_CDDA)
             {
-                case 0x00:
+                if (uChnSel == 0)
+                {
                     /* nothing */
                     atapiR3CmdOK(s);
-                    break;
-                case 0x10:
-                    /* normal read */
-                    atapiR3ReadSectors(s, iATAPILBA, cSectors, 2048);
-                    break;
-                case 0xf8:
-                    /* read all data */
+                }
+                else
                     atapiR3ReadSectors(s, iATAPILBA, cSectors, 2352);
-                    break;
-                default:
-                    LogRel(("PIIX3 ATA: LUN#%d: CD-ROM sector format not supported (%#x)\n", s->iLUN, pbPacket[9] & 0xf8));
-                    atapiR3CmdErrorSimple(s, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_INV_FIELD_IN_CMD_PACKET);
-                    break;
+            }
+            else
+            {
+                switch (uChnSel)
+                {
+                    case 0x00:
+                        /* nothing */
+                        atapiR3CmdOK(s);
+                        break;
+                    case 0x10:
+                        /* normal read */
+                        atapiR3ReadSectors(s, iATAPILBA, cSectors, 2048);
+                        break;
+                    case 0xf8:
+                        /* read all data */
+                        atapiR3ReadSectors(s, iATAPILBA, cSectors, 2352);
+                        break;
+                    default:
+                        LogRel(("PIIX3 ATA: LUN#%d: CD-ROM sector format not supported (%#x)\n", s->iLUN, pbPacket[9] & 0xf8));
+                        atapiR3CmdErrorSimple(s, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_INV_FIELD_IN_CMD_PACKET);
+                        break;
+                }
             }
             break;
         }
@@ -3289,7 +3442,7 @@ static void atapiR3ParseCmdVirtualATAPI(ATADevState *s)
                 atapiR3CmdErrorSimple(s, SCSI_SENSE_NOT_READY, SCSI_ASC_MEDIUM_NOT_PRESENT);
                 break;
             }
-            iATAPILBA = ataBE2H_U32(pbPacket + 2);
+            iATAPILBA = scsiBE2H_U32(pbPacket + 2);
             if (iATAPILBA > s->cTotalSectors)
             {
                 /* Rate limited logging, one log line per second. For
@@ -3324,7 +3477,7 @@ static void atapiR3ParseCmdVirtualATAPI(ATADevState *s)
                     PPDMDEVINS pDevIns = ATADEVSTATE_2_DEVINS(s);
                     PCIATAState *pThis = PDMINS_2_DATA(pDevIns, PCIATAState *);
 
-                    PDMCritSectLeave(&pCtl->lock);
+                    ataR3LockLeave(pCtl);
                     rc = VMR3ReqPriorityCallWait(PDMDevHlpGetVM(pDevIns), VMCPUID_ANY,
                                                  (PFNRT)s->pDrvMount->pfnUnmount, 3,
                                                  s->pDrvMount, false /*=fForce*/, true /*=fEject*/);
@@ -3336,11 +3489,8 @@ static void atapiR3ParseCmdVirtualATAPI(ATADevState *s)
                                                pThis->pMediaNotify, s->iLUN);
                         AssertRC(rc);
                     }
-                    {
-                        STAM_PROFILE_START(&pCtl->StatLockWait, a);
-                        PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);
-                        STAM_PROFILE_STOP(&pCtl->StatLockWait, a);
-                    }
+
+                    ataR3LockEnter(pCtl);
                     break;
                 }
                 case 3: /* 11 - Load media */
@@ -3355,7 +3505,7 @@ static void atapiR3ParseCmdVirtualATAPI(ATADevState *s)
         }
         case SCSI_MECHANISM_STATUS:
         {
-            cbMax = ataBE2H_U16(pbPacket + 8);
+            cbMax = scsiBE2H_U16(pbPacket + 8);
             ataR3StartTransfer(s, RT_MIN(cbMax, 8), PDMMEDIATXDIR_FROM_DEVICE, ATAFN_BT_ATAPI_CMD, ATAFN_SS_ATAPI_MECHANISM_STATUS, true);
             break;
         }
@@ -3374,7 +3524,7 @@ static void atapiR3ParseCmdVirtualATAPI(ATADevState *s)
                 atapiR3CmdErrorSimple(s, SCSI_SENSE_NOT_READY, SCSI_ASC_MEDIUM_NOT_PRESENT);
                 break;
             }
-            cbMax = ataBE2H_U16(pbPacket + 7);
+            cbMax = scsiBE2H_U16(pbPacket + 7);
             /* SCSI MMC-3 spec says format is at offset 2 (lower 4 bits),
              * but Linux kernel uses offset 9 (topmost 2 bits). Hope that
              * the other field is clear... */
@@ -3423,7 +3573,7 @@ static void atapiR3ParseCmdVirtualATAPI(ATADevState *s)
                 atapiR3CmdErrorSimple(s, SCSI_SENSE_NOT_READY, SCSI_ASC_MEDIUM_NOT_PRESENT);
                 break;
             }
-            cbMax = ataBE2H_U16(pbPacket + 7);
+            cbMax = scsiBE2H_U16(pbPacket + 7);
             ataR3StartTransfer(s, RT_MIN(cbMax, 34), PDMMEDIATXDIR_FROM_DEVICE, ATAFN_BT_ATAPI_CMD, ATAFN_SS_ATAPI_READ_DISC_INFORMATION, true);
             break;
         case SCSI_READ_TRACK_INFORMATION:
@@ -3438,21 +3588,21 @@ static void atapiR3ParseCmdVirtualATAPI(ATADevState *s)
                 atapiR3CmdErrorSimple(s, SCSI_SENSE_NOT_READY, SCSI_ASC_MEDIUM_NOT_PRESENT);
                 break;
             }
-            cbMax = ataBE2H_U16(pbPacket + 7);
+            cbMax = scsiBE2H_U16(pbPacket + 7);
             ataR3StartTransfer(s, RT_MIN(cbMax, 36), PDMMEDIATXDIR_FROM_DEVICE, ATAFN_BT_ATAPI_CMD, ATAFN_SS_ATAPI_READ_TRACK_INFORMATION, true);
             break;
         case SCSI_GET_CONFIGURATION:
             /* No media change stuff here, it can confuse Linux guests. */
-            cbMax = ataBE2H_U16(pbPacket + 7);
+            cbMax = scsiBE2H_U16(pbPacket + 7);
             ataR3StartTransfer(s, RT_MIN(cbMax, 80), PDMMEDIATXDIR_FROM_DEVICE, ATAFN_BT_ATAPI_CMD, ATAFN_SS_ATAPI_GET_CONFIGURATION, true);
             break;
         case SCSI_INQUIRY:
-            cbMax = ataBE2H_U16(pbPacket + 3);
+            cbMax = scsiBE2H_U16(pbPacket + 3);
             ataR3StartTransfer(s, RT_MIN(cbMax, 36), PDMMEDIATXDIR_FROM_DEVICE, ATAFN_BT_ATAPI_CMD, ATAFN_SS_ATAPI_INQUIRY, true);
             break;
         case SCSI_READ_DVD_STRUCTURE:
         {
-            cbMax = ataBE2H_U16(pbPacket + 8);
+            cbMax = scsiBE2H_U16(pbPacket + 8);
             ataR3StartTransfer(s, RT_MIN(cbMax, 4), PDMMEDIATXDIR_FROM_DEVICE, ATAFN_BT_ATAPI_CMD, ATAFN_SS_ATAPI_READ_DVD_STRUCTURE, true);
             break;
         }
@@ -3468,298 +3618,38 @@ static void atapiR3ParseCmdVirtualATAPI(ATADevState *s)
  */
 static void atapiR3ParseCmdPassthrough(ATADevState *s)
 {
-    const uint8_t *pbPacket;
-    uint8_t *pbBuf;
-    uint32_t cSectors, iATAPILBA;
-    uint32_t cbTransfer = 0;
-    PDMMEDIATXDIR uTxDir = PDMMEDIATXDIR_NONE;
+    const uint8_t *pbPacket = &s->aATAPICmd[0];
 
-    pbPacket = s->aATAPICmd;
-    pbBuf = s->CTX_SUFF(pbIOBuffer);
-    switch (pbPacket[0])
+    /* Some cases we have to handle here. */
+    if (   pbPacket[0] == SCSI_GET_EVENT_STATUS_NOTIFICATION
+        && ASMAtomicReadU32(&s->MediaEventStatus) != ATA_EVENT_STATUS_UNCHANGED)
     {
-        case SCSI_BLANK:
-            goto sendcmd;
-        case SCSI_CLOSE_TRACK_SESSION:
-            goto sendcmd;
-        case SCSI_ERASE_10:
-            iATAPILBA = ataBE2H_U32(pbPacket + 2);
-            cbTransfer = ataBE2H_U16(pbPacket + 7);
-            Log2(("ATAPI PT: lba %d\n", iATAPILBA));
-            uTxDir = PDMMEDIATXDIR_TO_DEVICE;
-            goto sendcmd;
-        case SCSI_FORMAT_UNIT:
-            cbTransfer = s->uATARegLCyl | (s->uATARegHCyl << 8); /* use ATAPI transfer length */
-            uTxDir = PDMMEDIATXDIR_TO_DEVICE;
-            goto sendcmd;
-        case SCSI_GET_CONFIGURATION:
-            cbTransfer = ataBE2H_U16(pbPacket + 7);
-            uTxDir = PDMMEDIATXDIR_FROM_DEVICE;
-            goto sendcmd;
-        case SCSI_GET_EVENT_STATUS_NOTIFICATION:
-            cbTransfer = ataBE2H_U16(pbPacket + 7);
-            if (ASMAtomicReadU32(&s->MediaEventStatus) != ATA_EVENT_STATUS_UNCHANGED)
-            {
-                ataR3StartTransfer(s, RT_MIN(cbTransfer, 8), PDMMEDIATXDIR_FROM_DEVICE, ATAFN_BT_ATAPI_CMD, ATAFN_SS_ATAPI_GET_EVENT_STATUS_NOTIFICATION, true);
-                break;
-            }
-            uTxDir = PDMMEDIATXDIR_FROM_DEVICE;
-            goto sendcmd;
-        case SCSI_GET_PERFORMANCE:
-            cbTransfer = s->uATARegLCyl | (s->uATARegHCyl << 8); /* use ATAPI transfer length */
-            uTxDir = PDMMEDIATXDIR_FROM_DEVICE;
-            goto sendcmd;
-        case SCSI_INQUIRY:
-            cbTransfer = ataBE2H_U16(pbPacket + 3);
-            uTxDir = PDMMEDIATXDIR_FROM_DEVICE;
-            goto sendcmd;
-        case SCSI_LOAD_UNLOAD_MEDIUM:
-            goto sendcmd;
-        case SCSI_MECHANISM_STATUS:
-            cbTransfer = ataBE2H_U16(pbPacket + 8);
-            uTxDir = PDMMEDIATXDIR_FROM_DEVICE;
-            goto sendcmd;
-        case SCSI_MODE_SELECT_10:
-            cbTransfer = ataBE2H_U16(pbPacket + 7);
-            uTxDir = PDMMEDIATXDIR_TO_DEVICE;
-            goto sendcmd;
-        case SCSI_MODE_SENSE_10:
-            cbTransfer = ataBE2H_U16(pbPacket + 7);
-            uTxDir = PDMMEDIATXDIR_FROM_DEVICE;
-            goto sendcmd;
-        case SCSI_PAUSE_RESUME:
-            goto sendcmd;
-        case SCSI_PLAY_AUDIO_10:
-            goto sendcmd;
-        case SCSI_PLAY_AUDIO_12:
-            goto sendcmd;
-        case SCSI_PLAY_AUDIO_MSF:
-            goto sendcmd;
-        case SCSI_PREVENT_ALLOW_MEDIUM_REMOVAL:
-            /** @todo do not forget to unlock when a VM is shut down */
-            goto sendcmd;
-        case SCSI_READ_10:
-            iATAPILBA = ataBE2H_U32(pbPacket + 2);
-            cSectors = ataBE2H_U16(pbPacket + 7);
-            Log2(("ATAPI PT: lba %d sectors %d\n", iATAPILBA, cSectors));
-            s->cbATAPISector = 2048;
-            cbTransfer = cSectors * s->cbATAPISector;
-            uTxDir = PDMMEDIATXDIR_FROM_DEVICE;
-            goto sendcmd;
-        case SCSI_READ_12:
-            iATAPILBA = ataBE2H_U32(pbPacket + 2);
-            cSectors = ataBE2H_U32(pbPacket + 6);
-            Log2(("ATAPI PT: lba %d sectors %d\n", iATAPILBA, cSectors));
-            s->cbATAPISector = 2048;
-            cbTransfer = cSectors * s->cbATAPISector;
-            uTxDir = PDMMEDIATXDIR_FROM_DEVICE;
-            goto sendcmd;
-        case SCSI_READ_BUFFER:
-            cbTransfer = ataBE2H_U24(pbPacket + 6);
-            uTxDir = PDMMEDIATXDIR_FROM_DEVICE;
-            goto sendcmd;
-        case SCSI_READ_BUFFER_CAPACITY:
-            cbTransfer = ataBE2H_U16(pbPacket + 7);
-            uTxDir = PDMMEDIATXDIR_FROM_DEVICE;
-            goto sendcmd;
-        case SCSI_READ_CAPACITY:
-            cbTransfer = 8;
-            uTxDir = PDMMEDIATXDIR_FROM_DEVICE;
-            goto sendcmd;
-        case SCSI_READ_CD:
-        case SCSI_READ_CD_MSF:
+        uint32_t cbTransfer = scsiBE2H_U16(pbPacket + 7);
+        ataR3StartTransfer(s, RT_MIN(cbTransfer, 8), PDMMEDIATXDIR_FROM_DEVICE, ATAFN_BT_ATAPI_CMD, ATAFN_SS_ATAPI_GET_EVENT_STATUS_NOTIFICATION, true);
+    }
+    else if (   pbPacket[0] == SCSI_REQUEST_SENSE
+             && (s->abATAPISense[2] & 0x0f) != SCSI_SENSE_NONE)
+        ataR3StartTransfer(s, RT_MIN(pbPacket[4], 18), PDMMEDIATXDIR_FROM_DEVICE, ATAFN_BT_ATAPI_CMD, ATAFN_SS_ATAPI_REQUEST_SENSE, true);
+    else
+    {
+        size_t cbBuf = 0;
+        size_t cbATAPISector = 0;
+        size_t cbTransfer = 0;
+        PDMMEDIATXDIR uTxDir = PDMMEDIATXDIR_NONE;
+        uint8_t u8ScsiSts = SCSI_STATUS_OK;
+
+        if (pbPacket[0] == SCSI_FORMAT_UNIT || pbPacket[0] == SCSI_GET_PERFORMANCE)
+            cbBuf = s->uATARegLCyl | (s->uATARegHCyl << 8); /* use ATAPI transfer length */
+
+        bool fPassthrough = ATAPIPassthroughParseCdb(pbPacket, sizeof(s->aATAPICmd), cbBuf, s->pTrackList,
+                                                     &s->abATAPISense[0], sizeof(s->abATAPISense), &uTxDir, &cbTransfer,
+                                                     &cbATAPISector, &u8ScsiSts);
+        if (fPassthrough)
         {
-            /* Get sector size based on the expected sector type field. */
-            switch ((pbPacket[1] >> 2) & 0x7)
-            {
-                case 0x0: /* All types. */
-                {
-                    uint32_t iLbaStart;
+            s->cbATAPISector = (uint32_t)cbATAPISector;
+            Assert(s->cbATAPISector == (uint32_t)cbATAPISector);
+            Assert(cbTransfer == (uint32_t)cbTransfer);
 
-                    if (pbPacket[0] == SCSI_READ_CD)
-                        iLbaStart = ataBE2H_U32(&pbPacket[2]);
-                    else
-                        iLbaStart = ataMSF2LBA(&pbPacket[3]);
-
-                    if (s->pTrackList)
-                        s->cbATAPISector = ATAPIPassthroughTrackListGetSectorSizeFromLba(s->pTrackList, iLbaStart);
-                    else
-                        s->cbATAPISector = 2048; /* Might be incorrect if we couldn't determine the type. */
-                    break;
-                }
-                case 0x1: /* CD-DA */
-                    s->cbATAPISector = 2352;
-                    break;
-                case 0x2: /* Mode 1 */
-                    s->cbATAPISector = 2048;
-                    break;
-                case 0x3: /* Mode 2 formless */
-                    s->cbATAPISector = 2336;
-                    break;
-                case 0x4: /* Mode 2 form 1 */
-                    s->cbATAPISector = 2048;
-                    break;
-                case 0x5: /* Mode 2 form 2 */
-                    s->cbATAPISector = 2324;
-                    break;
-                default: /* Reserved */
-                    AssertMsgFailed(("Unknown sector type\n"));
-                    s->cbATAPISector = 0; /** @todo we should probably fail the command here already. */
-            }
-
-            if (pbPacket[0] == SCSI_READ_CD)
-                cbTransfer = ataBE2H_U24(pbPacket + 6) * s->cbATAPISector;
-            else /* SCSI_READ_MSF */
-            {
-                cSectors = ataMSF2LBA(pbPacket + 6) - ataMSF2LBA(pbPacket + 3);
-                if (cSectors > 32)
-                    cSectors = 32; /* Limit transfer size to 64~74K. Safety first. In any case this can only harm software doing CDDA extraction. */
-                cbTransfer = cSectors * s->cbATAPISector;
-            }
-            uTxDir = PDMMEDIATXDIR_FROM_DEVICE;
-            goto sendcmd;
-        }
-        case SCSI_READ_DISC_INFORMATION:
-            cbTransfer = ataBE2H_U16(pbPacket + 7);
-            uTxDir = PDMMEDIATXDIR_FROM_DEVICE;
-            goto sendcmd;
-        case SCSI_READ_DVD_STRUCTURE:
-            cbTransfer = ataBE2H_U16(pbPacket + 8);
-            uTxDir = PDMMEDIATXDIR_FROM_DEVICE;
-            goto sendcmd;
-        case SCSI_READ_FORMAT_CAPACITIES:
-            cbTransfer = ataBE2H_U16(pbPacket + 7);
-            uTxDir = PDMMEDIATXDIR_FROM_DEVICE;
-            goto sendcmd;
-        case SCSI_READ_SUBCHANNEL:
-            cbTransfer = ataBE2H_U16(pbPacket + 7);
-            uTxDir = PDMMEDIATXDIR_FROM_DEVICE;
-            goto sendcmd;
-        case SCSI_READ_TOC_PMA_ATIP:
-            cbTransfer = ataBE2H_U16(pbPacket + 7);
-            uTxDir = PDMMEDIATXDIR_FROM_DEVICE;
-            goto sendcmd;
-        case SCSI_READ_TRACK_INFORMATION:
-            cbTransfer = ataBE2H_U16(pbPacket + 7);
-            uTxDir = PDMMEDIATXDIR_FROM_DEVICE;
-            goto sendcmd;
-        case SCSI_REPAIR_TRACK:
-            goto sendcmd;
-        case SCSI_REPORT_KEY:
-            cbTransfer = ataBE2H_U16(pbPacket + 8);
-            uTxDir = PDMMEDIATXDIR_FROM_DEVICE;
-            goto sendcmd;
-        case SCSI_REQUEST_SENSE:
-            cbTransfer = pbPacket[4];
-            if ((s->abATAPISense[2] & 0x0f) != SCSI_SENSE_NONE)
-            {
-                ataR3StartTransfer(s, RT_MIN(cbTransfer, 18), PDMMEDIATXDIR_FROM_DEVICE, ATAFN_BT_ATAPI_CMD, ATAFN_SS_ATAPI_REQUEST_SENSE, true);
-                break;
-            }
-            uTxDir = PDMMEDIATXDIR_FROM_DEVICE;
-            goto sendcmd;
-        case SCSI_RESERVE_TRACK:
-            goto sendcmd;
-        case SCSI_SCAN:
-            goto sendcmd;
-        case SCSI_SEEK_10:
-            goto sendcmd;
-        case SCSI_SEND_CUE_SHEET:
-            cbTransfer = ataBE2H_U24(pbPacket + 6);
-            uTxDir = PDMMEDIATXDIR_TO_DEVICE;
-            goto sendcmd;
-        case SCSI_SEND_DVD_STRUCTURE:
-            cbTransfer = ataBE2H_U16(pbPacket + 8);
-            uTxDir = PDMMEDIATXDIR_TO_DEVICE;
-            goto sendcmd;
-        case SCSI_SEND_EVENT:
-            cbTransfer = ataBE2H_U16(pbPacket + 8);
-            uTxDir = PDMMEDIATXDIR_TO_DEVICE;
-            goto sendcmd;
-        case SCSI_SEND_KEY:
-            cbTransfer = ataBE2H_U16(pbPacket + 8);
-            uTxDir = PDMMEDIATXDIR_TO_DEVICE;
-            goto sendcmd;
-        case SCSI_SEND_OPC_INFORMATION:
-            cbTransfer = ataBE2H_U16(pbPacket + 7);
-            uTxDir = PDMMEDIATXDIR_TO_DEVICE;
-            goto sendcmd;
-        case SCSI_SET_CD_SPEED:
-            goto sendcmd;
-        case SCSI_SET_READ_AHEAD:
-            goto sendcmd;
-        case SCSI_SET_STREAMING:
-            cbTransfer = ataBE2H_U16(pbPacket + 9);
-            uTxDir = PDMMEDIATXDIR_TO_DEVICE;
-            goto sendcmd;
-        case SCSI_START_STOP_UNIT:
-            goto sendcmd;
-        case SCSI_STOP_PLAY_SCAN:
-            goto sendcmd;
-        case SCSI_SYNCHRONIZE_CACHE:
-            goto sendcmd;
-        case SCSI_TEST_UNIT_READY:
-            goto sendcmd;
-        case SCSI_VERIFY_10:
-            goto sendcmd;
-        case SCSI_WRITE_10:
-        case SCSI_WRITE_AND_VERIFY_10:
-            iATAPILBA = ataBE2H_U32(pbPacket + 2);
-            cSectors = ataBE2H_U16(pbPacket + 7);
-            if (s->pTrackList)
-                s->cbATAPISector = ATAPIPassthroughTrackListGetSectorSizeFromLba(s->pTrackList, iATAPILBA);
-            else
-                s->cbATAPISector = 2048;
-            Log2(("ATAPI PT: lba %d sectors %d sector size %d\n", iATAPILBA, cSectors, s->cbATAPISector));
-            cbTransfer = cSectors * s->cbATAPISector;
-            uTxDir = PDMMEDIATXDIR_TO_DEVICE;
-            goto sendcmd;
-        case SCSI_WRITE_12:
-            iATAPILBA = ataBE2H_U32(pbPacket + 2);
-            cSectors = ataBE2H_U32(pbPacket + 6);
-            if (s->pTrackList)
-                s->cbATAPISector = ATAPIPassthroughTrackListGetSectorSizeFromLba(s->pTrackList, iATAPILBA);
-            else
-                s->cbATAPISector = 2048;
-            Log2(("ATAPI PT: lba %d sectors %d sector size %d\n", iATAPILBA, cSectors, s->cbATAPISector));
-            cbTransfer = cSectors * s->cbATAPISector;
-            uTxDir = PDMMEDIATXDIR_TO_DEVICE;
-            goto sendcmd;
-        case SCSI_WRITE_BUFFER:
-            switch (pbPacket[1] & 0x1f)
-            {
-                case 0x04: /* download microcode */
-                case 0x05: /* download microcode and save */
-                case 0x06: /* download microcode with offsets */
-                case 0x07: /* download microcode with offsets and save */
-                case 0x0e: /* download microcode with offsets and defer activation */
-                case 0x0f: /* activate deferred microcode */
-                    LogRel(("PIIX3 ATA: LUN#%d: CD-ROM passthrough command attempted to update firmware, blocked\n", s->iLUN));
-                    atapiR3CmdErrorSimple(s, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_INV_FIELD_IN_CMD_PACKET);
-                    break;
-                default:
-                    cbTransfer = ataBE2H_U16(pbPacket + 6);
-                    uTxDir = PDMMEDIATXDIR_TO_DEVICE;
-                    goto sendcmd;
-            }
-            break;
-        case SCSI_REPORT_LUNS: /* Not part of MMC-3, but used by Windows. */
-            cbTransfer = ataBE2H_U32(pbPacket + 6);
-            uTxDir = PDMMEDIATXDIR_FROM_DEVICE;
-            goto sendcmd;
-        case SCSI_REZERO_UNIT:
-            /* Obsolete command used by cdrecord. What else would one expect?
-             * This command is not sent to the drive, it is handled internally,
-             * as the Linux kernel doesn't like it (message "scsi: unknown
-             * opcode 0x01" in syslog) and replies with a sense code of 0,
-             * which sends cdrecord to an endless loop. */
-            atapiR3CmdErrorSimple(s, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_ILLEGAL_OPCODE);
-            break;
-        default:
-            LogRel(("PIIX3 ATA: LUN#%d: passthrough unimplemented for command %#x\n", s->iLUN, pbPacket[0]));
-            atapiR3CmdErrorSimple(s, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_ILLEGAL_OPCODE);
-            break;
-        sendcmd:
             /*
              * Send a command to the drive, passing data in/out as required.
              * Commands which exceed the I/O buffer size are split below
@@ -3768,7 +3658,28 @@ static void atapiR3ParseCmdPassthrough(ATADevState *s)
             Log2(("ATAPI PT: max size %d\n", cbTransfer));
             if (cbTransfer == 0)
                 uTxDir = PDMMEDIATXDIR_NONE;
-            ataR3StartTransfer(s, cbTransfer, uTxDir, ATAFN_BT_ATAPI_PASSTHROUGH_CMD, ATAFN_SS_ATAPI_PASSTHROUGH, true);
+            ataR3StartTransfer(s, (uint32_t)cbTransfer, uTxDir, ATAFN_BT_ATAPI_PASSTHROUGH_CMD, ATAFN_SS_ATAPI_PASSTHROUGH, true);
+        }
+        else if (u8ScsiSts == SCSI_STATUS_CHECK_CONDITION)
+        {
+            /* Sense data is already set, end the request and notify the guest. */
+            Log(("%s: sense=%#x (%s) asc=%#x ascq=%#x (%s)\n", __FUNCTION__, s->abATAPISense[2] & 0x0f, SCSISenseText(s->abATAPISense[2] & 0x0f),
+                     s->abATAPISense[12], s->abATAPISense[13], SCSISenseExtText(s->abATAPISense[12], s->abATAPISense[13])));
+            s->uATARegError = s->abATAPISense[2] << 4;
+            ataSetStatusValue(s, ATA_STAT_READY | ATA_STAT_ERR);
+            s->uATARegNSector = (s->uATARegNSector & ~7) | ATAPI_INT_REASON_IO | ATAPI_INT_REASON_CD;
+            Log2(("%s: interrupt reason %#04x\n", __FUNCTION__, s->uATARegNSector));
+            s->cbTotalTransfer = 0;
+            s->cbElementaryTransfer = 0;
+            s->cbAtapiPassthroughTransfer = 0;
+            s->iIOBufferCur = 0;
+            s->iIOBufferEnd = 0;
+            s->uTxDir = PDMMEDIATXDIR_NONE;
+            s->iBeginTransfer = ATAFN_BT_NULL;
+            s->iSourceSink = ATAFN_SS_NULL;
+        }
+        else if (u8ScsiSts == SCSI_STATUS_OK)
+            atapiR3CmdOK(s);
     }
 }
 
@@ -3846,17 +3757,22 @@ static void ataR3MediumInserted(ATADevState *s)
  */
 static DECLCALLBACK(void) ataR3MountNotify(PPDMIMOUNTNOTIFY pInterface)
 {
-    ATADevState *pIf = PDMIMOUNTNOTIFY_2_ATASTATE(pInterface);
+    ATADevState *pIf = RT_FROM_MEMBER(pInterface, ATADevState, IMountNotify);
     Log(("%s: changing LUN#%d\n", __FUNCTION__, pIf->iLUN));
 
     /* Ignore the call if we're called while being attached. */
     if (!pIf->pDrvMedia)
         return;
 
-    if (pIf->fATAPI)
-        pIf->cTotalSectors = pIf->pDrvMedia->pfnGetSize(pIf->pDrvMedia) / 2048;
-    else
-        pIf->cTotalSectors = pIf->pDrvMedia->pfnGetSize(pIf->pDrvMedia) / pIf->cbSector;
+    uint32_t cRegions = pIf->pDrvMedia->pfnGetRegionCount(pIf->pDrvMedia);
+    for (uint32_t i = 0; i < cRegions; i++)
+    {
+        uint64_t cBlocks = 0;
+        int rc = pIf->pDrvMedia->pfnQueryRegionProperties(pIf->pDrvMedia, i, NULL, &cBlocks,
+                                                          NULL, NULL);
+        AssertRC(rc);
+        pIf->cTotalSectors += cBlocks;
+    }
 
     LogRel(("PIIX3 ATA: LUN#%d: CD/DVD, total number of sectors %Ld, passthrough unchanged\n", pIf->iLUN, pIf->cTotalSectors));
 
@@ -3872,7 +3788,7 @@ static DECLCALLBACK(void) ataR3MountNotify(PPDMIMOUNTNOTIFY pInterface)
  */
 static DECLCALLBACK(void) ataR3UnmountNotify(PPDMIMOUNTNOTIFY pInterface)
 {
-    ATADevState *pIf = PDMIMOUNTNOTIFY_2_ATASTATE(pInterface);
+    ATADevState *pIf = RT_FROM_MEMBER(pInterface, ATADevState, IMountNotify);
     Log(("%s:\n", __FUNCTION__));
     pIf->cTotalSectors = 0;
 
@@ -3942,7 +3858,7 @@ static int ataR3TrimSectors(ATADevState *s, uint64_t u64Sector, uint32_t cSector
     PATACONTROLLER pCtl = ATADEVSTATE_2_CONTROLLER(s);
     int rc;
 
-    PDMCritSectLeave(&pCtl->lock);
+    ataR3LockLeave(pCtl);
 
     TrimRange.offStart = u64Sector * s->cbSector;
     TrimRange.cbRange  = cSectors * s->cbSector;
@@ -3956,9 +3872,7 @@ static int ataR3TrimSectors(ATADevState *s, uint64_t u64Sector, uint32_t cSector
     else
         *pfRedo = ataR3IsRedoSetWarning(s, rc);
 
-    STAM_PROFILE_START(&pCtl->StatLockWait, a);
-    PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);
-    STAM_PROFILE_STOP(&pCtl->StatLockWait, a);
+    ataR3LockEnter(pCtl);
     return rc;
 }
 
@@ -4049,7 +3963,7 @@ static void ataR3ParseCmd(ATADevState *s, uint8_t cmd)
         case ATA_RECALIBRATE:
             if (s->fATAPI)
                 goto abort_cmd;
-            /* fall through */
+            RT_FALL_THRU();
         case ATA_INITIALIZE_DEVICE_PARAMETERS:
             ataR3CmdOK(s, ATA_STAT_SEEK);
             ataHCSetIRQ(s); /* Shortcut, do not use AIO thread. */
@@ -4071,7 +3985,7 @@ static void ataR3ParseCmd(ATADevState *s, uint8_t cmd)
             break;
         case ATA_READ_VERIFY_SECTORS_EXT:
             s->fLBA48 = true;
-            /* fall thru */
+            RT_FALL_THRU();
         case ATA_READ_VERIFY_SECTORS:
         case ATA_READ_VERIFY_SECTORS_WITHOUT_RETRIES:
             /* do sector number check ? */
@@ -4080,7 +3994,7 @@ static void ataR3ParseCmd(ATADevState *s, uint8_t cmd)
             break;
         case ATA_READ_SECTORS_EXT:
             s->fLBA48 = true;
-            /* fall thru */
+            RT_FALL_THRU();
         case ATA_READ_SECTORS:
         case ATA_READ_SECTORS_WITHOUT_RETRIES:
             if (!s->pDrvMedia || s->fATAPI)
@@ -4090,7 +4004,7 @@ static void ataR3ParseCmd(ATADevState *s, uint8_t cmd)
             break;
         case ATA_WRITE_SECTORS_EXT:
             s->fLBA48 = true;
-            /* fall thru */
+            RT_FALL_THRU();
         case ATA_WRITE_SECTORS:
         case ATA_WRITE_SECTORS_WITHOUT_RETRIES:
             if (!s->pDrvMedia || s->fATAPI)
@@ -4100,7 +4014,7 @@ static void ataR3ParseCmd(ATADevState *s, uint8_t cmd)
             break;
         case ATA_READ_MULTIPLE_EXT:
             s->fLBA48 = true;
-            /* fall thru */
+            RT_FALL_THRU();
         case ATA_READ_MULTIPLE:
             if (!s->pDrvMedia || !s->cMultSectors || s->fATAPI)
                 goto abort_cmd;
@@ -4109,7 +4023,7 @@ static void ataR3ParseCmd(ATADevState *s, uint8_t cmd)
             break;
         case ATA_WRITE_MULTIPLE_EXT:
             s->fLBA48 = true;
-            /* fall thru */
+            RT_FALL_THRU();
         case ATA_WRITE_MULTIPLE:
             if (!s->pDrvMedia || !s->cMultSectors || s->fATAPI)
                 goto abort_cmd;
@@ -4118,7 +4032,7 @@ static void ataR3ParseCmd(ATADevState *s, uint8_t cmd)
             break;
         case ATA_READ_DMA_EXT:
             s->fLBA48 = true;
-            /* fall thru */
+            RT_FALL_THRU();
         case ATA_READ_DMA:
         case ATA_READ_DMA_WITHOUT_RETRIES:
             if (!s->pDrvMedia || s->fATAPI)
@@ -4129,7 +4043,7 @@ static void ataR3ParseCmd(ATADevState *s, uint8_t cmd)
             break;
         case ATA_WRITE_DMA_EXT:
             s->fLBA48 = true;
-            /* fall thru */
+            RT_FALL_THRU();
         case ATA_WRITE_DMA:
         case ATA_WRITE_DMA_WITHOUT_RETRIES:
             if (!s->pDrvMedia || s->fATAPI)
@@ -4524,7 +4438,7 @@ static int ataIOPortReadU8(PATACONTROLLER pCtl, uint32_t addr, uint32_t *pu32)
             {
 #ifdef IN_RING3
                 cBusy = 0;
-                PDMCritSectLeave(&pCtl->lock);
+                ataR3LockLeave(pCtl);
 
 #ifndef RT_OS_WINDOWS
                 /*
@@ -4554,11 +4468,7 @@ static int ataIOPortReadU8(PATACONTROLLER pCtl, uint32_t addr, uint32_t *pu32)
 
                 RTThreadYield();
 
-                {
-                    STAM_PROFILE_START(&pCtl->StatLockWait, a);
-                    PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);
-                    STAM_PROFILE_STOP(&pCtl->StatLockWait, a);
-                }
+                ataR3LockEnter(pCtl);
 
                 val = s->uATARegStatus;
 #else /* !IN_RING3 */
@@ -4643,6 +4553,7 @@ static int ataControlWrite(PATACONTROLLER pCtl, uint32_t addr, uint32_t val)
             Log2(("%s: LUN#%d status %#04x\n", __FUNCTION__, pCtl->aIfs[i].iLUN, pCtl->aIfs[i].uATARegStatus));
             pCtl->aIfs[i].uATARegError = 0x01;
         }
+        pCtl->iSelectedIf = 0;
         ataR3AsyncIOClearRequests(pCtl);
         Log2(("%s: Ctl#%d: message to async I/O thread, resetA\n", __FUNCTION__, ATACONTROLLER_IDX(pCtl)));
         if (val & ATA_DEVCTL_HOB)
@@ -4726,7 +4637,8 @@ static void ataHCPIOTransfer(PATACONTROLLER pCtl)
     if (s->cbTotalTransfer && s->iIOBufferCur > s->iIOBufferEnd)
     {
 # ifdef IN_RING3
-        LogRel(("PIIX3 ATA: LUN#%d: %s data in the middle of a PIO transfer - VERY SLOW\n", s->iLUN, s->uTxDir == PDMMEDIATXDIR_FROM_DEVICE ? "loading" : "storing"));
+        LogRel(("PIIX3 ATA: LUN#%d: %s data in the middle of a PIO transfer - VERY SLOW\n",
+                s->iLUN, s->uTxDir == PDMMEDIATXDIR_FROM_DEVICE ? "loading" : "storing"));
         /* Any guest OS that triggers this case has a pathetic ATA driver.
          * In a real system it would block the CPU via IORDY, here we do it
          * very similarly by not continuing with the current instruction
@@ -4849,10 +4761,10 @@ DECL_NO_INLINE(static, void) ataCopyPioData124Slow(ATADevState *pIf, uint8_t *pb
 
     switch (cbCopy)
     {
-        case 4: pbDst[3] = pbSrc[3]; /* fall thru */
-        case 3: pbDst[2] = pbSrc[2]; /* fall thru */
-        case 2: pbDst[1] = pbSrc[1]; /* fall thru */
-        case 1: pbDst[0] = pbSrc[0]; /* fall thru */
+        case 4: pbDst[3] = pbSrc[3]; RT_FALL_THRU();
+        case 3: pbDst[2] = pbSrc[2]; RT_FALL_THRU();
+        case 2: pbDst[1] = pbSrc[1]; RT_FALL_THRU();
+        case 1: pbDst[0] = pbSrc[0]; RT_FALL_THRU();
         case 0: break;
         default: AssertFailed(); /* impossible */
     }
@@ -5252,10 +5164,9 @@ static void ataR3DMATransfer(PATACONTROLLER pCtl)
     PPDMDEVINS pDevIns = CONTROLLER_2_DEVINS(pCtl);
     ATADevState *s = &pCtl->aIfs[pCtl->iAIOIf];
     bool fRedo;
-    RTGCPHYS32 pDesc;
+    RTGCPHYS32 GCPhysDesc;
     uint32_t cbTotalTransfer, cbElementaryTransfer;
     uint32_t iIOBufferCur, iIOBufferEnd;
-    uint32_t dmalen;
     PDMMEDIATXDIR uTxDir;
     bool fLastDesc = false;
 
@@ -5273,29 +5184,31 @@ static void ataR3DMATransfer(PATACONTROLLER pCtl)
     /* The DMA loop is designed to hold the lock only when absolutely
      * necessary. This avoids long freezes should the guest access the
      * ATA registers etc. for some reason. */
-    PDMCritSectLeave(&pCtl->lock);
+    ataR3LockLeave(pCtl);
 
     Log2(("%s: %s tx_size=%d elem_tx_size=%d index=%d end=%d\n",
          __FUNCTION__, uTxDir == PDMMEDIATXDIR_FROM_DEVICE ? "T2I" : "I2T",
          cbTotalTransfer, cbElementaryTransfer,
          iIOBufferCur, iIOBufferEnd));
-    for (pDesc = pCtl->pFirstDMADesc; pDesc <= pCtl->pLastDMADesc; pDesc += sizeof(BMDMADesc))
+    for (GCPhysDesc = pCtl->GCPhysFirstDMADesc;
+         GCPhysDesc <= pCtl->GCPhysLastDMADesc;
+         GCPhysDesc += sizeof(BMDMADesc))
     {
         BMDMADesc DMADesc;
-        RTGCPHYS32 pBuffer;
+        RTGCPHYS32 GCPhysBuffer;
         uint32_t cbBuffer;
 
         if (RT_UNLIKELY(fRedo))
         {
-            pBuffer = pCtl->pRedoDMABuffer;
+            GCPhysBuffer = pCtl->GCPhysRedoDMABuffer;
             cbBuffer = pCtl->cbRedoDMABuffer;
             fLastDesc = pCtl->fRedoDMALastDesc;
-            DMADesc.pBuffer = DMADesc.cbBuffer = 0; /* Shut up MSC. */
+            DMADesc.GCPhysBuffer = DMADesc.cbBuffer = 0; /* Shut up MSC. */
         }
         else
         {
-            PDMDevHlpPhysRead(pDevIns, pDesc, &DMADesc, sizeof(BMDMADesc));
-            pBuffer = RT_LE2H_U32(DMADesc.pBuffer);
+            PDMDevHlpPhysRead(pDevIns, GCPhysDesc, &DMADesc, sizeof(BMDMADesc));
+            GCPhysBuffer = RT_LE2H_U32(DMADesc.GCPhysBuffer);
             cbBuffer = RT_LE2H_U32(DMADesc.cbBuffer);
             fLastDesc = !!(cbBuffer & 0x80000000);
             cbBuffer &= 0xfffe;
@@ -5309,19 +5222,19 @@ static void ataR3DMATransfer(PATACONTROLLER pCtl)
         {
             if (RT_LIKELY(!fRedo))
             {
-                dmalen = RT_MIN(cbBuffer, iIOBufferEnd - iIOBufferCur);
+                uint32_t cbXfer = RT_MIN(cbBuffer, iIOBufferEnd - iIOBufferCur);
                 Log2(("%s: DMA desc %#010x: addr=%#010x size=%#010x orig_size=%#010x\n", __FUNCTION__,
-                       (int)pDesc, pBuffer, cbBuffer, RT_LE2H_U32(DMADesc.cbBuffer) & 0xfffe));
+                       (int)GCPhysDesc, GCPhysBuffer, cbBuffer, RT_LE2H_U32(DMADesc.cbBuffer) & 0xfffe));
 
                 if (uTxDir == PDMMEDIATXDIR_FROM_DEVICE)
-                    PDMDevHlpPCIPhysWrite(pDevIns, pBuffer, s->CTX_SUFF(pbIOBuffer) + iIOBufferCur, dmalen);
+                    PDMDevHlpPCIPhysWrite(pDevIns, GCPhysBuffer, s->CTX_SUFF(pbIOBuffer) + iIOBufferCur, cbXfer);
                 else
-                    PDMDevHlpPCIPhysRead(pDevIns, pBuffer, s->CTX_SUFF(pbIOBuffer) + iIOBufferCur, dmalen);
+                    PDMDevHlpPCIPhysRead(pDevIns, GCPhysBuffer, s->CTX_SUFF(pbIOBuffer) + iIOBufferCur, cbXfer);
 
-                iIOBufferCur += dmalen;
-                cbTotalTransfer -= dmalen;
-                cbBuffer -= dmalen;
-                pBuffer += dmalen;
+                iIOBufferCur    += cbXfer;
+                cbTotalTransfer -= cbXfer;
+                cbBuffer        -= cbXfer;
+                GCPhysBuffer    += cbXfer;
             }
             if (    iIOBufferCur == iIOBufferEnd
                 &&  (uTxDir == PDMMEDIATXDIR_TO_DEVICE || cbTotalTransfer))
@@ -5329,11 +5242,7 @@ static void ataR3DMATransfer(PATACONTROLLER pCtl)
                 if (uTxDir == PDMMEDIATXDIR_FROM_DEVICE && cbElementaryTransfer > cbTotalTransfer)
                     cbElementaryTransfer = cbTotalTransfer;
 
-                {
-                STAM_PROFILE_START(&pCtl->StatLockWait, a);
-                PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);
-                STAM_PROFILE_STOP(&pCtl->StatLockWait, a);
-                }
+                ataR3LockEnter(pCtl);
 
                 /* The RESET handler could have cleared the DMA transfer
                  * state (since we didn't hold the lock until just now
@@ -5349,8 +5258,8 @@ static void ataR3DMATransfer(PATACONTROLLER pCtl)
                     fRedo = g_apfnSourceSinkFuncs[s->iSourceSink](s);
                     if (RT_UNLIKELY(fRedo))
                     {
-                        pCtl->pFirstDMADesc = pDesc;
-                        pCtl->pRedoDMABuffer = pBuffer;
+                        pCtl->GCPhysFirstDMADesc = GCPhysDesc;
+                        pCtl->GCPhysRedoDMABuffer = GCPhysBuffer;
                         pCtl->cbRedoDMABuffer = cbBuffer;
                         pCtl->fRedoDMALastDesc = fLastDesc;
                     }
@@ -5369,10 +5278,10 @@ static void ataR3DMATransfer(PATACONTROLLER pCtl)
                 else
                 {
                     /* This forces the loop to exit immediately. */
-                    pDesc = pCtl->pLastDMADesc + 1;
+                    GCPhysDesc = pCtl->GCPhysLastDMADesc + 1;
                 }
 
-                PDMCritSectLeave(&pCtl->lock);
+                ataR3LockLeave(pCtl);
                 if (RT_UNLIKELY(fRedo))
                     break;
             }
@@ -5385,11 +5294,7 @@ static void ataR3DMATransfer(PATACONTROLLER pCtl)
         if (!cbTotalTransfer || fLastDesc)
             break;
 
-        {
-        STAM_PROFILE_START(&pCtl->StatLockWait, a);
-        PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);
-        STAM_PROFILE_STOP(&pCtl->StatLockWait, a);
-        }
+        ataR3LockEnter(pCtl);
 
         if (!(pCtl->BmDma.u8Cmd & BM_CMD_START) || pCtl->fReset)
         {
@@ -5397,18 +5302,13 @@ static void ataR3DMATransfer(PATACONTROLLER pCtl)
             if (!pCtl->fReset)
                 ataR3DMATransferStop(s);
             /* This forces the loop to exit immediately. */
-            pDesc = pCtl->pLastDMADesc + 1;
+            GCPhysDesc = pCtl->GCPhysLastDMADesc + 1;
         }
 
-        PDMCritSectLeave(&pCtl->lock);
+        ataR3LockLeave(pCtl);
     }
 
-    {
-    STAM_PROFILE_START(&pCtl->StatLockWait, a);
-    PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);
-    STAM_PROFILE_STOP(&pCtl->StatLockWait, a);
-    }
-
+    ataR3LockEnter(pCtl);
     if (RT_UNLIKELY(fRedo))
         return;
 
@@ -5521,15 +5421,15 @@ static DECLCALLBACK(int) ataR3AsyncIOThread(RTTHREAD hThreadSelf, void *pvUser)
                 /* Incorrect sequence of PIO/DMA states. Dump request queue. */
                 ataR3AsyncIODumpRequests(pCtl);
             }
-            AssertReleaseMsg(ReqType == ATA_AIO_RESET_ASSERTED || ReqType == ATA_AIO_RESET_CLEARED || ReqType == ATA_AIO_ABORT || pCtl->uAsyncIOState == ReqType, ("I/O state inconsistent: state=%d request=%d\n", pCtl->uAsyncIOState, ReqType));
+            AssertReleaseMsg(   ReqType == ATA_AIO_RESET_ASSERTED
+                             || ReqType == ATA_AIO_RESET_CLEARED
+                             || ReqType == ATA_AIO_ABORT
+                             || pCtl->uAsyncIOState == ReqType,
+                             ("I/O state inconsistent: state=%d request=%d\n", pCtl->uAsyncIOState, ReqType));
         }
 
         /* Do our work.  */
-        {
-        STAM_PROFILE_START(&pCtl->StatLockWait, a);
-        PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);
-        STAM_PROFILE_STOP(&pCtl->StatLockWait, a);
-        }
+        ataR3LockEnter(pCtl);
 
         if (pCtl->uAsyncIOState == ATA_AIO_NEW && !pCtl->fChainedTransfer)
         {
@@ -5630,7 +5530,8 @@ static DECLCALLBACK(int) ataR3AsyncIOThread(RTTHREAD hThreadSelf, void *pvUser)
                         /* If BMDMA is already started, do the transfer now. */
                         if (pCtl->BmDma.u8Cmd & BM_CMD_START)
                         {
-                            Log2(("%s: Ctl#%d: message to async I/O thread, continuing DMA transfer immediately\n", __FUNCTION__, ATACONTROLLER_IDX(pCtl)));
+                            Log2(("%s: Ctl#%d: message to async I/O thread, continuing DMA transfer immediately\n",
+                                  __FUNCTION__, ATACONTROLLER_IDX(pCtl)));
                             ataHCAsyncIOPutRequest(pCtl, &g_ataDMARequest);
                         }
                     }
@@ -5699,8 +5600,8 @@ static DECLCALLBACK(int) ataR3AsyncIOThread(RTTHREAD hThreadSelf, void *pvUser)
                 {
                     /* The specs say that the descriptor table must not cross a
                      * 4K boundary. */
-                    pCtl->pFirstDMADesc = bm->pvAddr;
-                    pCtl->pLastDMADesc = RT_ALIGN_32(bm->pvAddr + 1, _4K) - sizeof(BMDMADesc);
+                    pCtl->GCPhysFirstDMADesc = bm->GCPhysAddr;
+                    pCtl->GCPhysLastDMADesc = RT_ALIGN_32(bm->GCPhysAddr + 1, _4K) - sizeof(BMDMADesc);
                 }
                 ataR3DMATransfer(pCtl);
 
@@ -5721,9 +5622,9 @@ static DECLCALLBACK(int) ataR3AsyncIOThread(RTTHREAD hThreadSelf, void *pvUser)
                      * usually during component install). So far no better
                      * solution has been found. */
                     Log(("%s: delay IRQ hack\n", __FUNCTION__));
-                    PDMCritSectLeave(&pCtl->lock);
+                    ataR3LockLeave(pCtl);
                     RTThreadSleep(pCtl->DelayIRQMillies);
-                    PDMCritSectEnter(&pCtl->lock, VINF_SUCCESS);
+                    ataR3LockEnter(pCtl);
                 }
 
                 ataUnsetStatus(s, ATA_STAT_DRQ);
@@ -5880,7 +5781,8 @@ static DECLCALLBACK(int) ataR3AsyncIOThread(RTTHREAD hThreadSelf, void *pvUser)
 
             u64TS = RTTimeNanoTS() - u64TS;
             uWait = u64TS / 1000;
-            Log(("%s: Ctl#%d: LUN#%d finished I/O transaction in %d microseconds\n", __FUNCTION__, ATACONTROLLER_IDX(pCtl), pCtl->aIfs[pCtl->iAIOIf].iLUN, (uint32_t)(uWait)));
+            Log(("%s: Ctl#%d: LUN#%d finished I/O transaction in %d microseconds\n",
+                 __FUNCTION__, ATACONTROLLER_IDX(pCtl), pCtl->aIfs[pCtl->iAIOIf].iLUN, (uint32_t)(uWait)));
             /* Mark command as finished. */
             pCtl->aIfs[pCtl->iAIOIf].u64CmdTS = 0;
 
@@ -5899,7 +5801,8 @@ static DECLCALLBACK(int) ataR3AsyncIOThread(RTTHREAD hThreadSelf, void *pvUser)
                      * an entry in the release log to allow tracking such
                      * timing errors (which are often caused by the host).
                      */
-                    LogRel(("PIIX3 ATA: execution time for ATA command %#04x was %d seconds\n", pCtl->aIfs[pCtl->iAIOIf].uATARegCommand, uWait / (1000 * 1000)));
+                    LogRel(("PIIX3 ATA: execution time for ATA command %#04x was %d seconds\n",
+                            pCtl->aIfs[pCtl->iAIOIf].uATARegCommand, uWait / (1000 * 1000)));
                 }
             }
             else
@@ -5912,7 +5815,8 @@ static DECLCALLBACK(int) ataR3AsyncIOThread(RTTHREAD hThreadSelf, void *pvUser)
                      * an entry in the release log to allow tracking such
                      * timing errors (which are often caused by the host).
                      */
-                    LogRel(("PIIX3 ATA: execution time for ATAPI command %#04x was %d seconds\n", pCtl->aIfs[pCtl->iAIOIf].aATAPICmd[0], uWait / (1000 * 1000)));
+                    LogRel(("PIIX3 ATA: execution time for ATAPI command %#04x was %d seconds\n",
+                            pCtl->aIfs[pCtl->iAIOIf].aATAPICmd[0], uWait / (1000 * 1000)));
                 }
             }
 
@@ -5927,7 +5831,7 @@ static DECLCALLBACK(int) ataR3AsyncIOThread(RTTHREAD hThreadSelf, void *pvUser)
 # endif /* DEBUG || VBOX_WITH_STATISTICS */
         }
 
-        PDMCritSectLeave(&pCtl->lock);
+        ataR3LockLeave(pCtl);
     }
 
     /* Signal the ultimate idleness. */
@@ -6016,7 +5920,7 @@ static void ataBMDMAStatusWriteB(PATACONTROLLER pCtl, uint32_t addr, uint32_t va
 
 static uint32_t ataBMDMAAddrReadL(PATACONTROLLER pCtl, uint32_t addr)
 {
-    uint32_t val = (uint32_t)pCtl->BmDma.pvAddr;
+    uint32_t val = (uint32_t)pCtl->BmDma.GCPhysAddr;
     RT_NOREF1(addr);
     Log2(("%s: addr=%#06x val=%#010x\n", __FUNCTION__, addr, val));
     return val;
@@ -6026,14 +5930,14 @@ static void ataBMDMAAddrWriteL(PATACONTROLLER pCtl, uint32_t addr, uint32_t val)
 {
     RT_NOREF1(addr);
     Log2(("%s: addr=%#06x val=%#010x\n", __FUNCTION__, addr, val));
-    pCtl->BmDma.pvAddr = val & ~3;
+    pCtl->BmDma.GCPhysAddr = val & ~3;
 }
 
 static void ataBMDMAAddrWriteLowWord(PATACONTROLLER pCtl, uint32_t addr, uint32_t val)
 {
     RT_NOREF1(addr);
     Log2(("%s: addr=%#06x val=%#010x\n", __FUNCTION__, addr, val));
-    pCtl->BmDma.pvAddr = (pCtl->BmDma.pvAddr & 0xFFFF0000) | RT_LOWORD(val & ~3);
+    pCtl->BmDma.GCPhysAddr = (pCtl->BmDma.GCPhysAddr & 0xFFFF0000) | RT_LOWORD(val & ~3);
 
 }
 
@@ -6041,7 +5945,7 @@ static void ataBMDMAAddrWriteHighWord(PATACONTROLLER pCtl, uint32_t addr, uint32
 {
     Log2(("%s: addr=%#06x val=%#010x\n", __FUNCTION__, addr, val));
     RT_NOREF1(addr);
-    pCtl->BmDma.pvAddr = (RT_LOWORD(val) << 16) | RT_LOWORD(pCtl->BmDma.pvAddr);
+    pCtl->BmDma.GCPhysAddr = (RT_LOWORD(val) << 16) | RT_LOWORD(pCtl->BmDma.GCPhysAddr);
 }
 
 #define VAL(port, size)   ( ((port) & 7) | ((size) << 3) )
@@ -6072,8 +5976,8 @@ PDMBOTHCBDECL(int) ataBMDMAIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT
             break;
         default:
             AssertMsgFailed(("%s: Unsupported read from port %x size=%d\n", __FUNCTION__, Port, cb));
-            PDMCritSectLeave(&pCtl->lock);
-            return VERR_IOM_IOPORT_UNUSED;
+            rc = VERR_IOM_IOPORT_UNUSED;
+            break;
     }
     PDMCritSectLeave(&pCtl->lock);
     return rc;
@@ -6124,8 +6028,8 @@ PDMBOTHCBDECL(int) ataBMDMAIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPOR
 static DECLCALLBACK(int) ataR3BMDMAIORangeMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
                                               RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType)
 {
-    RT_NOREF(iRegion, cb, enmType);
-    PCIATAState *pThis = PCIDEV_2_PCIATASTATE(pPciDev);
+    RT_NOREF(iRegion, cb, enmType, pPciDev);
+    PCIATAState *pThis = PDMINS_2_DATA(pDevIns, PCIATAState *);
     int         rc = VINF_SUCCESS;
     Assert(enmType == PCI_ADDRESS_SPACE_IO);
     Assert(iRegion == 4);
@@ -6171,7 +6075,7 @@ static DECLCALLBACK(int) ataR3BMDMAIORangeMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPc
  */
 static DECLCALLBACK(void *) ataR3Status_QueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
-    PCIATAState *pThis = PDMIBASE_2_PCIATASTATE(pInterface);
+    PCIATAState *pThis = RT_FROM_MEMBER(pInterface, PCIATAState, IBase);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pThis->IBase);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMILEDPORTS, &pThis->ILeds);
     return NULL;
@@ -6190,7 +6094,7 @@ static DECLCALLBACK(void *) ataR3Status_QueryInterface(PPDMIBASE pInterface, con
  */
 static DECLCALLBACK(int) ataR3Status_QueryStatusLed(PPDMILEDPORTS pInterface, unsigned iLUN, PPDMLED *ppLed)
 {
-    PCIATAState *pThis = PDMILEDPORTS_2_PCIATASTATE(pInterface);
+    PCIATAState *pThis = RT_FROM_MEMBER(pInterface, PCIATAState, ILeds);
     if (iLUN < 4)
     {
         switch (iLUN)
@@ -6214,7 +6118,7 @@ static DECLCALLBACK(int) ataR3Status_QueryStatusLed(PPDMILEDPORTS pInterface, un
  */
 static DECLCALLBACK(void *) ataR3QueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
-    ATADevState *pIf = PDMIBASE_2_ATASTATE(pInterface);
+    ATADevState *pIf = RT_FROM_MEMBER(pInterface, ATADevState, IBase);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pIf->IBase);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMEDIAPORT, &pIf->IPort);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIMOUNTNOTIFY, &pIf->IMountNotify);
@@ -6230,7 +6134,7 @@ static DECLCALLBACK(void *) ataR3QueryInterface(PPDMIBASE pInterface, const char
 static DECLCALLBACK(int) ataR3QueryDeviceLocation(PPDMIMEDIAPORT pInterface, const char **ppcszController,
                                                   uint32_t *piInstance, uint32_t *piLUN)
 {
-    ATADevState *pIf = PDMIMEDIAPORT_2_ATASTATE(pInterface);
+    ATADevState *pIf = RT_FROM_MEMBER(pInterface, ATADevState, IPort);
     PPDMDEVINS pDevIns = pIf->CTX_SUFF(pDevIns);
 
     AssertPtrReturn(ppcszController, VERR_INVALID_POINTER);
@@ -6471,7 +6375,7 @@ static int ataR3ConfigLun(PPDMDEVINS pDevIns, ATADevState *pIf)
      * Allocate I/O buffer.
      */
     if (pIf->fATAPI)
-        pIf->cbSector = 2048;
+        pIf->cbSector = 2048; /* Not required for ATAPI, one medium can have multiple sector sizes. */
     else
         pIf->cbSector = pIf->pDrvMedia->pfnGetSectorSize(pIf->pDrvMedia);
 
@@ -6505,17 +6409,27 @@ static int ataR3ConfigLun(PPDMDEVINS pDevIns, ATADevState *pIf)
     /*
      * Init geometry (only for non-CD/DVD media).
      */
+    uint32_t cRegions = pIf->pDrvMedia->pfnGetRegionCount(pIf->pDrvMedia);
+    pIf->cTotalSectors = 0;
+    for (uint32_t i = 0; i < cRegions; i++)
+    {
+        uint64_t cBlocks = 0;
+        rc = pIf->pDrvMedia->pfnQueryRegionProperties(pIf->pDrvMedia, i, NULL, &cBlocks,
+                                                      NULL, NULL);
+        AssertRC(rc);
+        pIf->cTotalSectors += cBlocks;
+    }
+
     if (pIf->fATAPI)
     {
-        pIf->cTotalSectors = pIf->pDrvMedia->pfnGetSize(pIf->pDrvMedia) / pIf->cbSector;
         pIf->PCHSGeometry.cCylinders = 0; /* dummy */
         pIf->PCHSGeometry.cHeads     = 0; /* dummy */
         pIf->PCHSGeometry.cSectors   = 0; /* dummy */
-        LogRel(("PIIX3 ATA: LUN#%d: CD/DVD, total number of sectors %Ld, passthrough %s\n", pIf->iLUN, pIf->cTotalSectors, (pIf->fATAPIPassthrough ? "enabled" : "disabled")));
+        LogRel(("PIIX3 ATA: LUN#%d: CD/DVD, total number of sectors %Ld, passthrough %s\n",
+                pIf->iLUN, pIf->cTotalSectors, (pIf->fATAPIPassthrough ? "enabled" : "disabled")));
     }
     else
     {
-        pIf->cTotalSectors = pIf->pDrvMedia->pfnGetSize(pIf->pDrvMedia) / pIf->cbSector;
         rc = pIf->pDrvMedia->pfnBiosGetPCHSGeometry(pIf->pDrvMedia, &pIf->PCHSGeometry);
         if (rc == VERR_PDM_MEDIA_NOT_MOUNTED)
         {
@@ -6543,7 +6457,9 @@ static int ataR3ConfigLun(PPDMDEVINS pDevIns, ATADevState *pIf)
             pIf->pDrvMedia->pfnBiosSetPCHSGeometry(pIf->pDrvMedia, &pIf->PCHSGeometry);
             rc = VINF_SUCCESS;
         }
-        LogRel(("PIIX3 ATA: LUN#%d: disk, PCHS=%u/%u/%u, total number of sectors %Ld\n", pIf->iLUN, pIf->PCHSGeometry.cCylinders, pIf->PCHSGeometry.cHeads, pIf->PCHSGeometry.cSectors, pIf->cTotalSectors));
+        LogRel(("PIIX3 ATA: LUN#%d: disk, PCHS=%u/%u/%u, total number of sectors %Ld\n",
+                pIf->iLUN, pIf->PCHSGeometry.cCylinders, pIf->PCHSGeometry.cHeads, pIf->PCHSGeometry.cSectors,
+                pIf->cTotalSectors));
 
         if (pIf->pDrvMedia->pfnDiscard)
             LogRel(("PIIX3 ATA: LUN#%d: TRIM enabled\n", pIf->iLUN));
@@ -6646,7 +6562,7 @@ static DECLCALLBACK(void) ataR3Resume(PPDMDEVINS pDevIns)
  *
  * @returns true on success.
  * @returns false when one or more threads is still processing.
- * @param   pThis               Pointer to the instance data.
+ * @param   pDevIns               Pointer to the PDM device instance.
  */
 static bool ataR3AllAsyncIOIsIdle(PPDMDEVINS pDevIns)
 {
@@ -6743,9 +6659,9 @@ static DECLCALLBACK(int) ataR3SaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
         SSMR3PutBool(pSSM, pThis->aCts[i].fRedoIdle);
         SSMR3PutBool(pSSM, pThis->aCts[i].fRedoDMALastDesc);
         SSMR3PutMem(pSSM, &pThis->aCts[i].BmDma, sizeof(pThis->aCts[i].BmDma));
-        SSMR3PutGCPhys32(pSSM, pThis->aCts[i].pFirstDMADesc);
-        SSMR3PutGCPhys32(pSSM, pThis->aCts[i].pLastDMADesc);
-        SSMR3PutGCPhys32(pSSM, pThis->aCts[i].pRedoDMABuffer);
+        SSMR3PutGCPhys32(pSSM, pThis->aCts[i].GCPhysFirstDMADesc);
+        SSMR3PutGCPhys32(pSSM, pThis->aCts[i].GCPhysLastDMADesc);
+        SSMR3PutGCPhys32(pSSM, pThis->aCts[i].GCPhysRedoDMABuffer);
         SSMR3PutU32(pSSM, pThis->aCts[i].cbRedoDMABuffer);
 
         for (uint32_t j = 0; j < RT_ELEMENTS(pThis->aCts[i].aIfs); j++)
@@ -6916,9 +6832,9 @@ static DECLCALLBACK(int) ataR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint
         SSMR3GetBool(pSSM, (bool *)&pThis->aCts[i].fRedoIdle);
         SSMR3GetBool(pSSM, (bool *)&pThis->aCts[i].fRedoDMALastDesc);
         SSMR3GetMem(pSSM, &pThis->aCts[i].BmDma, sizeof(pThis->aCts[i].BmDma));
-        SSMR3GetGCPhys32(pSSM, &pThis->aCts[i].pFirstDMADesc);
-        SSMR3GetGCPhys32(pSSM, &pThis->aCts[i].pLastDMADesc);
-        SSMR3GetGCPhys32(pSSM, &pThis->aCts[i].pRedoDMABuffer);
+        SSMR3GetGCPhys32(pSSM, &pThis->aCts[i].GCPhysFirstDMADesc);
+        SSMR3GetGCPhys32(pSSM, &pThis->aCts[i].GCPhysLastDMADesc);
+        SSMR3GetGCPhys32(pSSM, &pThis->aCts[i].GCPhysRedoDMABuffer);
         SSMR3GetU32(pSSM, &pThis->aCts[i].cbRedoDMABuffer);
 
         for (uint32_t j = 0; j < RT_ELEMENTS(pThis->aCts[i].aIfs); j++)
@@ -7124,7 +7040,7 @@ static int ataR3ResetCommon(PPDMDEVINS pDevIns, bool fConstruct)
          * default is 0x00. */
         pThis->aCts[i].BmDma.u8Status =   (pThis->aCts[i].aIfs[0].pDrvBase != NULL ? BM_STATUS_D0DMA : 0)
                                         | (pThis->aCts[i].aIfs[1].pDrvBase != NULL ? BM_STATUS_D1DMA : 0);
-        pThis->aCts[i].BmDma.pvAddr = 0;
+        pThis->aCts[i].BmDma.GCPhysAddr = 0;
 
         pThis->aCts[i].fReset = true;
         pThis->aCts[i].fRedo = false;
@@ -7455,6 +7371,18 @@ static DECLCALLBACK(int) ataR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGM
             AssertMsgFailed(("Unsupported IDE chipset type: %d\n", pThis->u8Type));
     }
 
+    /** @todo
+     * This is the job of the BIOS / EFI!
+     *
+     * The same is done in DevPCI.cpp / pci_bios_init_device() but there is no
+     * corresponding function in DevPciIch9.cpp. The EFI has corresponding code
+     * in OvmfPkg/Library/PlatformBdsLib/BdsPlatform.c: NotifyDev() but this
+     * function assumes that the IDE controller is located at PCI 00:01.1 which
+     * is not true if the ICH9 chipset is used.
+     */
+    PCIDevSetWord(&pThis->dev, 0x40, 0x8000); /* enable IDE0 */
+    PCIDevSetWord(&pThis->dev, 0x42, 0x8000); /* enable IDE1 */
+
     PCIDevSetCommand(   &pThis->dev, PCI_COMMAND_IOACCESS | PCI_COMMAND_MEMACCESS | PCI_COMMAND_BUSMASTER);
     PCIDevSetClassProg( &pThis->dev, 0x8a); /* programming interface = PCI_IDE bus master is supported */
     PCIDevSetClassSub(  &pThis->dev, 0x01); /* class_sub = PCI_IDE */
@@ -7754,11 +7682,6 @@ static DECLCALLBACK(int) ataR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGM
                         return PDMDEV_SET_ERROR(pDevIns, rc,
                                     N_("PIIX3 configuration error: failed to read \"ModelNumber\" as string"));
                     }
-
-                    rc = CFGMR3QueryBoolDef(pCfgNode, "NonRotationalMedium", &pIf->fNonRotational, false);
-                    if (RT_FAILURE(rc))
-                        return PDMDEV_SET_ERROR(pDevIns, rc,
-                                    N_("PIIX3 configuration error: failed to read \"NonRotationalMedium\" as boolean"));
 
                     /* There are three other identification strings for CD drives used for INQUIRY */
                     if (pIf->fATAPI)

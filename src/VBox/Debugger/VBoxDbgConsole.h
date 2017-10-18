@@ -126,7 +126,7 @@ private slots:
 /**
  * The Debugger Console Input widget.
  *
- * This is a combobox which only responds to <return>.
+ * This is a combobox which only responds to \<return\>.
  */
 class VBoxDbgConsoleInput : public QComboBox
 {
@@ -307,6 +307,13 @@ protected:
      * with the main thread has to be posted to it so it can perform it.
      */
     bool event(QEvent *pEvent);
+
+    /**
+     * For implementing keyboard shortcuts.
+     *
+     * @param   pEvent      The key event.
+     */
+    void keyReleaseEvent(QKeyEvent *pEvent);
 
 protected:
     /** The output widget. */

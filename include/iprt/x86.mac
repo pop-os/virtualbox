@@ -448,6 +448,10 @@
 %define MSR_IA32_VMX_VMFUNC                 0x491
 %define MSR_IA32_VMX_PROCBASED_CTLS2        0x48B
 %define MSR_IA32_VMX_EPT_VPID_CAP           0x48C
+%define MSR_IA32_VMX_TRUE_PINBASED_CTLS     0x48D
+%define MSR_IA32_VMX_TRUE_PROCBASED_CTLS    0x48E
+%define MSR_IA32_VMX_TRUE_EXIT_CTLS         0x48F
+%define MSR_IA32_VMX_TRUE_ENTRY_CTLS        0x490
 %define MSR_IA32_DS_AREA                    0x600
 %define MSR_RAPL_POWER_UNIT                 0x606
 %define MSR_IA32_X2APIC_START               0x800
@@ -777,26 +781,26 @@
 %define X86_FCW_RC_UP       0x0800
 %define X86_FCW_RC_ZERO     0x0c00
 %define X86_FCW_ZERO_MASK   0xf080
-%define X86_MXCSR_IE          RT_BIT_32(0)
-%define X86_MXCSR_DE          RT_BIT_32(1)
-%define X86_MXCSR_ZE          RT_BIT_32(2)
-%define X86_MXCSR_OE          RT_BIT_32(3)
-%define X86_MXCSR_UE          RT_BIT_32(4)
-%define X86_MXCSR_PE          RT_BIT_32(5)
-%define X86_MXCSR_DAZ         RT_BIT_32(6)
-%define X86_MXCSR_IM          RT_BIT_32(7)
-%define X86_MXCSR_DM          RT_BIT_32(8)
-%define X86_MXCSR_ZM          RT_BIT_32(9)
-%define X86_MXCSR_OM          RT_BIT_32(10)
-%define X86_MXCSR_UM          RT_BIT_32(11)
-%define X86_MXCSR_PM          RT_BIT_32(12)
-%define X86_MXCSR_RC_MASK     0x6000
-%define X86_MXCSR_RC_NEAREST  0x0000
-%define X86_MXCSR_RC_DOWN     0x2000
-%define X86_MXCSR_RC_UP       0x4000
-%define X86_MXCSR_RC_ZERO     0x6000
-%define X86_MXCSR_FZ          RT_BIT_32(15)
-%define X86_MXCSR_MM          RT_BIT_32(17)
+%define X86_MXSCR_IE          RT_BIT_32(0)
+%define X86_MXSCR_DE          RT_BIT_32(1)
+%define X86_MXSCR_ZE          RT_BIT_32(2)
+%define X86_MXSCR_OE          RT_BIT_32(3)
+%define X86_MXSCR_UE          RT_BIT_32(4)
+%define X86_MXSCR_PE          RT_BIT_32(5)
+%define X86_MXSCR_DAZ         RT_BIT_32(6)
+%define X86_MXSCR_IM          RT_BIT_32(7)
+%define X86_MXSCR_DM          RT_BIT_32(8)
+%define X86_MXSCR_ZM          RT_BIT_32(9)
+%define X86_MXSCR_OM          RT_BIT_32(10)
+%define X86_MXSCR_UM          RT_BIT_32(11)
+%define X86_MXSCR_PM          RT_BIT_32(12)
+%define X86_MXSCR_RC_MASK     0x6000
+%define X86_MXSCR_RC_NEAREST  0x0000
+%define X86_MXSCR_RC_DOWN     0x2000
+%define X86_MXSCR_RC_UP       0x4000
+%define X86_MXSCR_RC_ZERO     0x6000
+%define X86_MXSCR_FZ          RT_BIT_32(15)
+%define X86_MXSCR_MM          RT_BIT_32(17)
 %ifndef VBOX_FOR_DTRACE_LIB
 %endif
 %ifndef VBOX_FOR_DTRACE_LIB
@@ -835,8 +839,6 @@
 %define XSAVE_C_PKRU            RT_BIT_64(XSAVE_C_PKRU_BIT)
 %define XSAVE_C_LWP_BIT         62
 %define XSAVE_C_LWP             RT_BIT_64(XSAVE_C_LWP_BIT)
-%define XSAVE_C_X_BIT           63
-%define XSAVE_C_X               RT_BIT_64(XSAVE_C_X_BIT)
 %ifndef VBOX_FOR_DTRACE_LIB
 %endif
 %define X86DESCATTR_TYPE            0x0000000f

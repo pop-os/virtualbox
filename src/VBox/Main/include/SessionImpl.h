@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -86,6 +86,7 @@ private:
     HRESULT uninitialize();
     HRESULT onNetworkAdapterChange(const ComPtr<INetworkAdapter> &aNetworkAdapter,
                                    BOOL aChangeAdapter);
+    HRESULT onAudioAdapterChange(const ComPtr<IAudioAdapter> &aAudioAdapter);
     HRESULT onSerialPortChange(const ComPtr<ISerialPort> &aSerialPort);
     HRESULT onParallelPortChange(const ComPtr<IParallelPort> &aParallelPort);
     HRESULT onStorageControllerChange();
@@ -135,6 +136,7 @@ private:
     HRESULT resumeWithReason(Reason_T aReason);
     HRESULT saveStateWithReason(Reason_T aReason,
                                 const ComPtr<IProgress> &aProgress,
+                                const ComPtr<ISnapshot> &aSnapshot,
                                 const Utf8Str &aStateFilePath,
                                 BOOL aPauseVM,
                                 BOOL *aLeftPaused);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2016 Oracle Corporation
+ * Copyright (C) 2004-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -153,7 +153,7 @@ Machine::Data::~Data()
 Machine::HWData::HWData()
 {
     /* default values for a newly created machine */
-    mHWVersion = "2"; /** @todo get the default from the schema if that is possible. */
+    mHWVersion = Utf8StrFmt("%d", SchemaDefs::DefaultHardwareVersion);
     mMemorySize = 128;
     mCPUCount = 1;
     mCPUHotPlugEnabled = false;
@@ -228,18 +228,6 @@ Machine::HWData::~HWData()
 }
 
 /////////////////////////////////////////////////////////////////////////////
-// Machine::HDData structure
-/////////////////////////////////////////////////////////////////////////////
-
-Machine::MediaData::MediaData()
-{
-}
-
-Machine::MediaData::~MediaData()
-{
-}
-
-/////////////////////////////////////////////////////////////////////////////
 // Machine class
 /////////////////////////////////////////////////////////////////////////////
 
@@ -285,6 +273,8 @@ void Machine::FinalRelease()
  *  @param aOsType      OS Type of this machine or NULL.
  *  @param aId          UUID for the new machine.
  *  @param fForceOverwrite Whether to overwrite an existing machine settings file.
+ *  @param fDirectoryIncludesUUID Whether the use a special VM directory naming
+ *                      scheme (includes the UUID).
  *
  *  @return  Success indicator. if not S_OK, the machine object is invalid
  */
@@ -347,14 +337,6 @@ HRESULT Machine::init(VirtualBox *aParent,
             /* Apply BIOS defaults */
             mBIOSSettings->i_applyDefaults(aOsType);
 
-            /* Apply network adapters defaults */
-            for (ULONG slot = 0; slot < mNetworkAdapters.size(); ++slot)
-                mNetworkAdapters[slot]->i_applyDefaults(aOsType);
-
-            /* Apply serial port defaults */
-            for (ULONG slot = 0; slot < RT_ELEMENTS(mSerialPorts); ++slot)
-                mSerialPorts[slot]->i_applyDefaults(aOsType);
-
             /* Let the OS type select 64-bit ness. */
             mHWData->mLongMode = aOsType->i_is64Bit()
                                ? settings::Hardware::LongMode_Enabled : settings::Hardware::LongMode_Disabled;
@@ -362,6 +344,14 @@ HRESULT Machine::init(VirtualBox *aParent,
             /* Let the OS type enable the X2APIC */
             mHWData->mX2APIC = aOsType->i_recommendedX2APIC();
         }
+
+        /* Apply network adapters defaults */
+        for (ULONG slot = 0; slot < mNetworkAdapters.size(); ++slot)
+            mNetworkAdapters[slot]->i_applyDefaults(aOsType);
+
+        /* Apply serial port defaults */
+        for (ULONG slot = 0; slot < RT_ELEMENTS(mSerialPorts); ++slot)
+            mSerialPorts[slot]->i_applyDefaults(aOsType);
 
         /* Apply parallel port defaults */
         for (ULONG slot = 0; slot < RT_ELEMENTS(mParallelPorts); ++slot)
@@ -406,7 +396,7 @@ HRESULT Machine::init(VirtualBox *aParent,
  *         and the machine remains unregistered until RegisterMachine() is called.
  *
  *  @param aParent      Associated parent object
- *  @param aConfigFile  Local file system path to the VM settings file (can
+ *  @param strConfigFile Local file system path to the VM settings file (can
  *                      be relative to the VirtualBox config directory).
  *  @param aId          UUID of the machine or NULL (see above).
  *
@@ -517,6 +507,7 @@ HRESULT Machine::initFromSettings(VirtualBox *aParent,
  *  (import OVF case). Since we are importing, the UUID in the machine
  *  config is ignored and we always generate a fresh one.
  *
+ *  @param aParent  Associated parent object.
  *  @param strName  Name for the new machine; this overrides what is specified in config and is used
  *                  for the settings file as well.
  *  @param config   Machine configuration loaded and parsed from XML.
@@ -609,7 +600,8 @@ HRESULT Machine::init(VirtualBox *aParent,
 
 /**
  * Shared code between the various init() implementations.
- * @param aParent
+ * @param   aParent         The VirtualBox object.
+ * @param   strConfigFile   Settings file.
  * @return
  */
 HRESULT Machine::initImpl(VirtualBox *aParent,
@@ -928,7 +920,7 @@ HRESULT Machine::getAccessible(BOOL *aAccessible)
 
         if (mData->pMachineConfigFile)
         {
-            // reset the XML file to force loadSettings() (called from registeredInit())
+            // reset the XML file to force loadSettings() (called from i_registeredInit())
             // to parse it again; the file might have changed
             delete mData->pMachineConfigFile;
             mData->pMachineConfigFile = NULL;
@@ -1052,8 +1044,10 @@ HRESULT Machine::getGroups(std::vector<com::Utf8Str> &aGroups)
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
     aGroups.resize(mUserData->s.llGroups.size());
     size_t i = 0;
-    for (StringsList::const_iterator it = mUserData->s.llGroups.begin();
-         it != mUserData->s.llGroups.end(); ++it, ++i)
+    for (StringsList::const_iterator
+         it = mUserData->s.llGroups.begin();
+         it != mUserData->s.llGroups.end();
+         ++it, ++i)
         aGroups[i] = (*it);
 
     return S_OK;
@@ -1090,15 +1084,14 @@ HRESULT Machine::getOSTypeId(com::Utf8Str &aOSTypeId)
 HRESULT Machine::setOSTypeId(const com::Utf8Str &aOSTypeId)
 {
     /* look up the object by Id to check it is valid */
-    ComPtr<IGuestOSType> guestOSType;
-    HRESULT rc = mParent->GetGuestOSType(Bstr(aOSTypeId).raw(), guestOSType.asOutParam());
+    ComObjPtr<GuestOSType> pGuestOSType;
+    HRESULT rc = mParent->i_findGuestOSType(aOSTypeId,
+                                            pGuestOSType);
     if (FAILED(rc)) return rc;
 
     /* when setting, always use the "etalon" value for consistency -- lookup
      * by ID is case-insensitive and the input value may have different case */
-    Bstr osTypeId;
-    rc = guestOSType->COMGETTER(Id)(osTypeId.asOutParam());
-    if (FAILED(rc)) return rc;
+    Utf8Str osTypeId = pGuestOSType->i_id();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -1290,14 +1283,13 @@ HRESULT Machine::getEffectiveParavirtProvider(ParavirtProvider_T *aParavirtProvi
         /* Resolve dynamic provider types to the effective types. */
         default:
         {
-            ComPtr<IGuestOSType> ptrGuestOSType;
-            HRESULT hrc2 = mParent->GetGuestOSType(Bstr(mUserData->s.strOsType).raw(), ptrGuestOSType.asOutParam());
+            ComObjPtr<GuestOSType> pGuestOSType;
+            HRESULT hrc2 = mParent->i_findGuestOSType(mUserData->s.strOsType,
+                                                      pGuestOSType);
             AssertMsgReturn(SUCCEEDED(hrc2), ("Failed to get guest OS type. hrc2=%Rhrc\n", hrc2), hrc2);
 
-            Bstr guestTypeFamilyId;
-            hrc2 = ptrGuestOSType->COMGETTER(FamilyId)(guestTypeFamilyId.asOutParam());
-            AssertMsgReturn(SUCCEEDED(hrc2), ("Failed to get guest family. hrc2=%Rhrc\n", hrc2), hrc2);
-            BOOL fOsXGuest = guestTypeFamilyId == Bstr("MacOS");
+            Utf8Str guestTypeFamilyId = pGuestOSType->i_familyId();
+            bool fOsXGuest = guestTypeFamilyId == "MacOS";
 
             switch (mHWData->mParavirtProvider)
             {
@@ -1392,7 +1384,7 @@ HRESULT Machine::setHardwareVersion(const com::Utf8Str &aHardwareVersion)
     /* check known version */
     Utf8Str hwVersion = aHardwareVersion;
     if (    hwVersion.compare("1") != 0
-        &&  hwVersion.compare("2") != 0)
+        &&  hwVersion.compare("2") != 0)    // VBox 2.1.x and later (VMMDev heap)
         return setError(E_INVALIDARG,
                         tr("Invalid hardware version: %s\n"), aHardwareVersion.c_str());
 
@@ -2231,18 +2223,17 @@ HRESULT Machine::getCPUProperty(CPUPropertyType_T aProperty, BOOL *aValue)
             {
                 *aValue = FALSE;
 
-                ComPtr<IGuestOSType> ptrGuestOSType;
-                HRESULT hrc2 = mParent->GetGuestOSType(Bstr(mUserData->s.strOsType).raw(), ptrGuestOSType.asOutParam());
+                ComObjPtr<GuestOSType> pGuestOSType;
+                HRESULT hrc2 = mParent->i_findGuestOSType(mUserData->s.strOsType,
+                                                          pGuestOSType);
                 if (SUCCEEDED(hrc2))
                 {
-                    BOOL fIs64Bit = FALSE;
-                    hrc2 = ptrGuestOSType->COMGETTER(Is64Bit)(&fIs64Bit); AssertComRC(hrc2);
-                    if (SUCCEEDED(hrc2) && fIs64Bit)
+                    if (pGuestOSType->i_is64Bit())
                     {
-                        ComObjPtr<Host> ptrHost = mParent->i_host();
+                        ComObjPtr<Host> pHost = mParent->i_host();
                         alock.release();
 
-                        hrc2 = ptrHost->GetProcessorFeature(ProcessorFeature_LongMode, aValue); AssertComRC(hrc2);
+                        hrc2 = pHost->GetProcessorFeature(ProcessorFeature_LongMode, aValue); AssertComRC(hrc2);
                         if (FAILED(hrc2))
                             *aValue = FALSE;
                     }
@@ -2318,168 +2309,139 @@ HRESULT Machine::setCPUProperty(CPUPropertyType_T aProperty, BOOL aValue)
     return S_OK;
 }
 
-HRESULT Machine::getCPUIDLeaf(ULONG aId, ULONG *aValEax, ULONG *aValEbx, ULONG *aValEcx, ULONG *aValEdx)
+HRESULT Machine::getCPUIDLeafByOrdinal(ULONG aOrdinal, ULONG *aIdx, ULONG *aSubIdx, ULONG *aValEax, ULONG *aValEbx,
+                                       ULONG *aValEcx, ULONG *aValEdx)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    if (aOrdinal < mHWData->mCpuIdLeafList.size())
+    {
+        for (settings::CpuIdLeafsList::const_iterator it = mHWData->mCpuIdLeafList.begin();
+             it != mHWData->mCpuIdLeafList.end();
+             ++it)
+        {
+            if (aOrdinal == 0)
+            {
+                const settings::CpuIdLeaf &rLeaf= *it;
+                *aIdx    = rLeaf.idx;
+                *aSubIdx = rLeaf.idxSub;
+                *aValEax = rLeaf.uEax;
+                *aValEbx = rLeaf.uEbx;
+                *aValEcx = rLeaf.uEcx;
+                *aValEdx = rLeaf.uEdx;
+                return S_OK;
+            }
+            aOrdinal--;
+        }
+    }
+    return E_INVALIDARG;
+}
+
+HRESULT Machine::getCPUIDLeaf(ULONG aIdx, ULONG aSubIdx, ULONG *aValEax, ULONG *aValEbx, ULONG *aValEcx, ULONG *aValEdx)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    switch(aId)
+    /*
+     * Search the list.
+     */
+    for (settings::CpuIdLeafsList::const_iterator it = mHWData->mCpuIdLeafList.begin(); it != mHWData->mCpuIdLeafList.end(); ++it)
     {
-        case 0x0:
-        case 0x1:
-        case 0x2:
-        case 0x3:
-        case 0x4:
-        case 0x5:
-        case 0x6:
-        case 0x7:
-        case 0x8:
-        case 0x9:
-        case 0xA:
-            if (mHWData->mCpuIdStdLeafs[aId].ulId != aId)
-                return E_INVALIDARG;
-
-            *aValEax = mHWData->mCpuIdStdLeafs[aId].ulEax;
-            *aValEbx = mHWData->mCpuIdStdLeafs[aId].ulEbx;
-            *aValEcx = mHWData->mCpuIdStdLeafs[aId].ulEcx;
-            *aValEdx = mHWData->mCpuIdStdLeafs[aId].ulEdx;
-            break;
-
-        case 0x80000000:
-        case 0x80000001:
-        case 0x80000002:
-        case 0x80000003:
-        case 0x80000004:
-        case 0x80000005:
-        case 0x80000006:
-        case 0x80000007:
-        case 0x80000008:
-        case 0x80000009:
-        case 0x8000000A:
-            if (mHWData->mCpuIdExtLeafs[aId - 0x80000000].ulId != aId)
-                return E_INVALIDARG;
-
-            *aValEax = mHWData->mCpuIdExtLeafs[aId - 0x80000000].ulEax;
-            *aValEbx = mHWData->mCpuIdExtLeafs[aId - 0x80000000].ulEbx;
-            *aValEcx = mHWData->mCpuIdExtLeafs[aId - 0x80000000].ulEcx;
-            *aValEdx = mHWData->mCpuIdExtLeafs[aId - 0x80000000].ulEdx;
-            break;
-
-        default:
-            return setError(E_INVALIDARG, tr("CpuId override leaf %#x is out of range"), aId);
+        const settings::CpuIdLeaf &rLeaf= *it;
+        if (   rLeaf.idx == aIdx
+            && (   aSubIdx == UINT32_MAX
+                || rLeaf.idxSub == aSubIdx) )
+        {
+            *aValEax = rLeaf.uEax;
+            *aValEbx = rLeaf.uEbx;
+            *aValEcx = rLeaf.uEcx;
+            *aValEdx = rLeaf.uEdx;
+            return S_OK;
+        }
     }
-    return S_OK;
+
+    return E_INVALIDARG;
 }
 
 
-HRESULT Machine::setCPUIDLeaf(ULONG aId, ULONG aValEax, ULONG aValEbx, ULONG aValEcx, ULONG aValEdx)
+HRESULT Machine::setCPUIDLeaf(ULONG aIdx, ULONG aSubIdx, ULONG aValEax, ULONG aValEbx, ULONG aValEcx, ULONG aValEdx)
+{
+    /*
+     * Validate input before taking locks and checking state.
+     */
+    if (aSubIdx != 0 && aSubIdx != UINT32_MAX)
+        return setError(E_INVALIDARG, tr("Currently only aSubIdx values 0 and 0xffffffff are supported: %#x"), aSubIdx);
+    if (   aIdx >= UINT32_C(0x20)
+        && aIdx - UINT32_C(0x80000000) >= UINT32_C(0x20)
+        && aIdx - UINT32_C(0xc0000000) >= UINT32_C(0x10) )
+        return setError(E_INVALIDARG, tr("CpuId override leaf %#x is out of range"), aIdx);
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+    HRESULT rc = i_checkStateDependency(MutableStateDep);
+    if (FAILED(rc)) return rc;
+
+    /*
+     * Impose a maximum number of leaves.
+     */
+    if (mHWData->mCpuIdLeafList.size() > 256)
+        return setError(E_FAIL, tr("Max of 256 CPUID override leaves reached"));
+
+    /*
+     * Updating the list is a bit more complicated.  So, let's do a remove first followed by an insert.
+     */
+    i_setModified(IsModified_MachineData);
+    mHWData.backup();
+
+    for (settings::CpuIdLeafsList::iterator it = mHWData->mCpuIdLeafList.begin(); it != mHWData->mCpuIdLeafList.end(); )
+    {
+        settings::CpuIdLeaf &rLeaf= *it;
+        if (   rLeaf.idx == aIdx
+            && (   aSubIdx == UINT32_MAX
+                || rLeaf.idxSub == aSubIdx) )
+            it = mHWData->mCpuIdLeafList.erase(it);
+        else
+            ++it;
+    }
+
+    settings::CpuIdLeaf NewLeaf;
+    NewLeaf.idx    = aIdx;
+    NewLeaf.idxSub = aSubIdx == UINT32_MAX ? 0 : aSubIdx;
+    NewLeaf.uEax   = aValEax;
+    NewLeaf.uEbx   = aValEbx;
+    NewLeaf.uEcx   = aValEcx;
+    NewLeaf.uEdx   = aValEdx;
+    mHWData->mCpuIdLeafList.push_back(NewLeaf);
+    return S_OK;
+}
+
+HRESULT Machine::removeCPUIDLeaf(ULONG aIdx, ULONG aSubIdx)
 {
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     HRESULT rc = i_checkStateDependency(MutableStateDep);
     if (FAILED(rc)) return rc;
 
-    switch(aId)
+    /*
+     * Do the removal.
+     */
+    bool fModified = false;
+    for (settings::CpuIdLeafsList::iterator it = mHWData->mCpuIdLeafList.begin(); it != mHWData->mCpuIdLeafList.end(); )
     {
-        case 0x0:
-        case 0x1:
-        case 0x2:
-        case 0x3:
-        case 0x4:
-        case 0x5:
-        case 0x6:
-        case 0x7:
-        case 0x8:
-        case 0x9:
-        case 0xA:
-            AssertCompile(RT_ELEMENTS(mHWData->mCpuIdStdLeafs) == 0xB);
-            AssertRelease(aId < RT_ELEMENTS(mHWData->mCpuIdStdLeafs));
-            i_setModified(IsModified_MachineData);
-            mHWData.backup();
-            mHWData->mCpuIdStdLeafs[aId].ulId  = aId;
-            mHWData->mCpuIdStdLeafs[aId].ulEax = aValEax;
-            mHWData->mCpuIdStdLeafs[aId].ulEbx = aValEbx;
-            mHWData->mCpuIdStdLeafs[aId].ulEcx = aValEcx;
-            mHWData->mCpuIdStdLeafs[aId].ulEdx = aValEdx;
-            break;
-
-        case 0x80000000:
-        case 0x80000001:
-        case 0x80000002:
-        case 0x80000003:
-        case 0x80000004:
-        case 0x80000005:
-        case 0x80000006:
-        case 0x80000007:
-        case 0x80000008:
-        case 0x80000009:
-        case 0x8000000A:
-            AssertCompile(RT_ELEMENTS(mHWData->mCpuIdExtLeafs) == 0xB);
-            AssertRelease(aId - 0x80000000 < RT_ELEMENTS(mHWData->mCpuIdExtLeafs));
-            i_setModified(IsModified_MachineData);
-            mHWData.backup();
-            mHWData->mCpuIdExtLeafs[aId - 0x80000000].ulId  = aId;
-            mHWData->mCpuIdExtLeafs[aId - 0x80000000].ulEax = aValEax;
-            mHWData->mCpuIdExtLeafs[aId - 0x80000000].ulEbx = aValEbx;
-            mHWData->mCpuIdExtLeafs[aId - 0x80000000].ulEcx = aValEcx;
-            mHWData->mCpuIdExtLeafs[aId - 0x80000000].ulEdx = aValEdx;
-            break;
-
-        default:
-            return setError(E_INVALIDARG, tr("CpuId override leaf %#x is out of range"), aId);
+        settings::CpuIdLeaf &rLeaf= *it;
+        if (   rLeaf.idx == aIdx
+            && (   aSubIdx == UINT32_MAX
+                || rLeaf.idxSub == aSubIdx) )
+        {
+            if (!fModified)
+            {
+                fModified = true;
+                i_setModified(IsModified_MachineData);
+                mHWData.backup();
+            }
+            it = mHWData->mCpuIdLeafList.erase(it);
+        }
+        else
+            ++it;
     }
-    return S_OK;
-}
 
-HRESULT Machine::removeCPUIDLeaf(ULONG aId)
-{
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    HRESULT rc = i_checkStateDependency(MutableStateDep);
-    if (FAILED(rc)) return rc;
-
-    switch(aId)
-    {
-        case 0x0:
-        case 0x1:
-        case 0x2:
-        case 0x3:
-        case 0x4:
-        case 0x5:
-        case 0x6:
-        case 0x7:
-        case 0x8:
-        case 0x9:
-        case 0xA:
-            AssertCompile(RT_ELEMENTS(mHWData->mCpuIdStdLeafs) == 0xB);
-            AssertRelease(aId < RT_ELEMENTS(mHWData->mCpuIdStdLeafs));
-            i_setModified(IsModified_MachineData);
-            mHWData.backup();
-            /* Invalidate leaf. */
-            mHWData->mCpuIdStdLeafs[aId].ulId = UINT32_MAX;
-            break;
-
-        case 0x80000000:
-        case 0x80000001:
-        case 0x80000002:
-        case 0x80000003:
-        case 0x80000004:
-        case 0x80000005:
-        case 0x80000006:
-        case 0x80000007:
-        case 0x80000008:
-        case 0x80000009:
-        case 0x8000000A:
-            AssertCompile(RT_ELEMENTS(mHWData->mCpuIdExtLeafs) == 0xB);
-            AssertRelease(aId - 0x80000000 < RT_ELEMENTS(mHWData->mCpuIdExtLeafs));
-            i_setModified(IsModified_MachineData);
-            mHWData.backup();
-            /* Invalidate leaf. */
-            mHWData->mCpuIdExtLeafs[aId - 0x80000000].ulId = UINT32_MAX;
-            break;
-
-        default:
-            return setError(E_INVALIDARG, tr("CpuId override leaf %#x is out of range"), aId);
-    }
     return S_OK;
 }
 
@@ -2490,16 +2452,13 @@ HRESULT Machine::removeAllCPUIDLeaves()
     HRESULT rc = i_checkStateDependency(MutableStateDep);
     if (FAILED(rc)) return rc;
 
-    i_setModified(IsModified_MachineData);
-    mHWData.backup();
+    if (mHWData->mCpuIdLeafList.size() > 0)
+    {
+        i_setModified(IsModified_MachineData);
+        mHWData.backup();
 
-    /* Invalidate all standard leafs. */
-    for (unsigned i = 0; i < RT_ELEMENTS(mHWData->mCpuIdStdLeafs); ++i)
-        mHWData->mCpuIdStdLeafs[i].ulId = UINT32_MAX;
-
-    /* Invalidate all extended leafs. */
-    for (unsigned i = 0; i < RT_ELEMENTS(mHWData->mCpuIdExtLeafs); ++i)
-        mHWData->mCpuIdExtLeafs[i].ulId = UINT32_MAX;
+        mHWData->mCpuIdLeafList.clear();
+    }
 
     return S_OK;
 }
@@ -2645,10 +2604,12 @@ HRESULT Machine::getMediumAttachments(std::vector<ComPtr<IMediumAttachment> > &a
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    aMediumAttachments.resize(mMediaData->mAttachments.size());
+    aMediumAttachments.resize(mMediumAttachments->size());
     size_t i = 0;
-    for (MediaData::AttachmentList::iterator it = mMediaData->mAttachments.begin();
-         it != mMediaData->mAttachments.end(); ++it, ++i)
+    for (MediumAttachmentList::const_iterator
+         it = mMediumAttachments->begin();
+         it != mMediumAttachments->end();
+         ++it, ++i)
         aMediumAttachments[i] = *it;
 
     return S_OK;
@@ -2687,10 +2648,12 @@ HRESULT Machine::getUSBControllers(std::vector<ComPtr<IUSBController> > &aUSBCon
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    USBControllerList data = *mUSBControllers.data();
-    aUSBControllers.resize(data.size());
+    aUSBControllers.resize(mUSBControllers->size());
     size_t i = 0;
-    for (USBControllerList::iterator it = data.begin(); it != data.end(); ++i, ++it)
+    for (USBControllerList::const_iterator
+         it = mUSBControllers->begin();
+         it != mUSBControllers->end();
+         ++it, ++i)
         aUSBControllers[i] = *it;
 
     return S_OK;
@@ -2863,8 +2826,10 @@ HRESULT Machine::getSharedFolders(std::vector<ComPtr<ISharedFolder> > &aSharedFo
 
     aSharedFolders.resize(mHWData->mSharedFolders.size());
     size_t i = 0;
-    for (std::list<ComObjPtr<SharedFolder> >::iterator it = mHWData->mSharedFolders.begin();
-         it != mHWData->mSharedFolders.end(); ++i, ++it)
+    for (std::list<ComObjPtr<SharedFolder> >::const_iterator
+         it = mHWData->mSharedFolders.begin();
+         it != mHWData->mSharedFolders.end();
+         ++it, ++i)
         aSharedFolders[i] = *it;
 
     return S_OK;
@@ -2936,11 +2901,15 @@ HRESULT Machine::setDnDMode(DnDMode_T aDnDMode)
 HRESULT Machine::getStorageControllers(std::vector<ComPtr<IStorageController> > &aStorageControllers)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-    StorageControllerList data = *mStorageControllers.data();
+
+    aStorageControllers.resize(mStorageControllers->size());
     size_t i = 0;
-    aStorageControllers.resize(data.size());
-    for (StorageControllerList::iterator it = data.begin(); it != data.end(); ++it, ++i)
+    for (StorageControllerList::const_iterator
+         it = mStorageControllers->begin();
+         it != mStorageControllers->end();
+         ++it, ++i)
         aStorageControllers[i] = *it;
+
     return S_OK;
 }
 
@@ -3853,8 +3822,8 @@ HRESULT Machine::attachDevice(const com::Utf8Str &aName,
 
     /* check if the device slot is already busy */
     MediumAttachment *pAttachTemp;
-    if ((pAttachTemp = i_findAttachment(mMediaData->mAttachments,
-                                        Bstr(aName).raw(),
+    if ((pAttachTemp = i_findAttachment(*mMediumAttachments.data(),
+                                        aName,
                                         aControllerPort,
                                         aDevice)))
     {
@@ -3884,7 +3853,7 @@ HRESULT Machine::attachDevice(const com::Utf8Str &aName,
 
     AutoWriteLock mediumLock(medium COMMA_LOCKVAL_SRC_POS);
 
-    if (    (pAttachTemp = i_findAttachment(mMediaData->mAttachments, medium))
+    if (    (pAttachTemp = i_findAttachment(*mMediumAttachments.data(), medium))
          && !medium.isNull()
        )
         return setError(VBOX_E_OBJECT_IN_USE,
@@ -3929,9 +3898,9 @@ HRESULT Machine::attachDevice(const com::Utf8Str &aName,
     do
     {
         if (    aType == DeviceType_HardDisk
-             && mMediaData.isBackedUp())
+             && mMediumAttachments.isBackedUp())
         {
-            const MediaData::AttachmentList &oldAtts = mMediaData.backedUpData()->mAttachments;
+            const MediumAttachmentList &oldAtts = *mMediumAttachments.backedUpData();
 
             /* check if the medium was attached to the VM before we started
              * changing attachments in which case the attachment just needs to
@@ -3941,11 +3910,11 @@ HRESULT Machine::attachDevice(const com::Utf8Str &aName,
                 AssertReturn(!fIndirect, E_FAIL);
 
                 /* see if it's the same bus/channel/device */
-                if (pAttachTemp->i_matches(Bstr(aName).raw(), aControllerPort, aDevice))
+                if (pAttachTemp->i_matches(aName, aControllerPort, aDevice))
                 {
                     /* the simplest case: restore the whole attachment
                      * and return, nothing else to do */
-                    mMediaData->mAttachments.push_back(pAttachTemp);
+                    mMediumAttachments->push_back(pAttachTemp);
 
                     /* Reattach the medium to the VM. */
                     if (fHotplug || fSilent)
@@ -4010,14 +3979,17 @@ HRESULT Machine::attachDevice(const com::Utf8Str &aName,
             /* first, investigate the backup copy of the current hard disk
              * attachments to make it possible to re-attach existing diffs to
              * another device slot w/o losing their contents */
-            if (mMediaData.isBackedUp())
+            if (mMediumAttachments.isBackedUp())
             {
-                const MediaData::AttachmentList &oldAtts = mMediaData.backedUpData()->mAttachments;
+                const MediumAttachmentList &oldAtts = *mMediumAttachments.backedUpData();
 
-                MediaData::AttachmentList::const_iterator foundIt = oldAtts.end();
+                MediumAttachmentList::const_iterator foundIt = oldAtts.end();
                 uint32_t foundLevel = 0;
 
-                for (MediaData::AttachmentList::const_iterator it = oldAtts.begin(); it != oldAtts.end(); ++it)
+                for (MediumAttachmentList::const_iterator
+                     it = oldAtts.begin();
+                     it != oldAtts.end();
+                     ++it)
                 {
                     uint32_t level = 0;
                     MediumAttachment *pAttach = *it;
@@ -4030,7 +4002,7 @@ HRESULT Machine::attachDevice(const com::Utf8Str &aName,
                     {
                         /* skip the hard disk if its currently attached (we
                          * cannot attach the same hard disk twice) */
-                        if (i_findAttachment(mMediaData->mAttachments,
+                        if (i_findAttachment(*mMediumAttachments.data(),
                                              pMedium))
                             continue;
 
@@ -4039,11 +4011,11 @@ HRESULT Machine::attachDevice(const com::Utf8Str &aName,
                          * otherwise the attachment that has the youngest
                          * descendant of medium will be used
                          */
-                        if (pAttach->i_matches(Bstr(aName).raw(), aControllerPort, aDevice))
+                        if (pAttach->i_matches(aName, aControllerPort, aDevice))
                         {
                             /* the simplest case: restore the whole attachment
                              * and return, nothing else to do */
-                            mMediaData->mAttachments.push_back(*it);
+                            mMediumAttachments->push_back(*it);
 
                             /* Reattach the medium to the VM. */
                             if (fHotplug || fSilent)
@@ -4126,12 +4098,15 @@ HRESULT Machine::attachDevice(const com::Utf8Str &aName,
             {
                 AutoReadLock snapLock(snap COMMA_LOCKVAL_SRC_POS);
 
-                const MediaData::AttachmentList &snapAtts = snap->i_getSnapshotMachine()->mMediaData->mAttachments;
+                const MediumAttachmentList &snapAtts = *snap->i_getSnapshotMachine()->mMediumAttachments.data();
 
                 MediumAttachment *pAttachFound = NULL;
                 uint32_t foundLevel = 0;
 
-                for (MediaData::AttachmentList::const_iterator it = snapAtts.begin(); it != snapAtts.end(); ++it)
+                for (MediumAttachmentList::const_iterator
+                     it = snapAtts.begin();
+                     it != snapAtts.end();
+                     ++it)
                 {
                     MediumAttachment *pAttach = *it;
                     ComObjPtr<Medium> pMedium = pAttach->i_getMedium();
@@ -4312,8 +4287,8 @@ HRESULT Machine::attachDevice(const com::Utf8Str &aName,
 
     /* success: finally remember the attachment */
     i_setModified(IsModified_Storage);
-    mMediaData.backup();
-    mMediaData->mAttachments.push_back(attachment);
+    mMediumAttachments.backup();
+    mMediumAttachments->push_back(attachment);
 
     mediumLock.release();
     treeLock.release();
@@ -4409,8 +4384,8 @@ HRESULT Machine::detachDevice(const com::Utf8Str &aName, LONG aControllerPort,
                         tr("Controller '%s' does not support hotplugging"),
                         aName.c_str());
 
-    MediumAttachment *pAttach = i_findAttachment(mMediaData->mAttachments,
-                                                 Bstr(aName).raw(),
+    MediumAttachment *pAttach = i_findAttachment(*mMediumAttachments.data(),
+                                                 aName,
                                                  aControllerPort,
                                                  aDevice);
     if (!pAttach)
@@ -4466,8 +4441,8 @@ HRESULT Machine::passthroughDevice(const com::Utf8Str &aName, LONG aControllerPo
                         tr("Invalid machine state: %s"),
                         Global::stringifyMachineState(mData->mMachineState));
 
-    MediumAttachment *pAttach = i_findAttachment(mMediaData->mAttachments,
-                                                 Bstr(aName).raw(),
+    MediumAttachment *pAttach = i_findAttachment(*mMediumAttachments.data(),
+                                                 aName,
                                                  aControllerPort,
                                                  aDevice);
     if (!pAttach)
@@ -4477,7 +4452,7 @@ HRESULT Machine::passthroughDevice(const com::Utf8Str &aName, LONG aControllerPo
 
 
     i_setModified(IsModified_Storage);
-    mMediaData.backup();
+    mMediumAttachments.backup();
 
     AutoWriteLock attLock(pAttach COMMA_LOCKVAL_SRC_POS);
 
@@ -4502,8 +4477,8 @@ HRESULT Machine::temporaryEjectDevice(const com::Utf8Str &aName, LONG aControlle
     HRESULT rc = i_checkStateDependency(MutableOrSavedOrRunningStateDep);
     if (FAILED(rc)) return rc;
 
-    MediumAttachment *pAttach = i_findAttachment(mMediaData->mAttachments,
-                                                 Bstr(aName).raw(),
+    MediumAttachment *pAttach = i_findAttachment(*mMediumAttachments.data(),
+                                                 aName,
                                                  aControllerPort,
                                                  aDevice);
     if (!pAttach)
@@ -4513,7 +4488,7 @@ HRESULT Machine::temporaryEjectDevice(const com::Utf8Str &aName, LONG aControlle
 
 
     i_setModified(IsModified_Storage);
-    mMediaData.backup();
+    mMediumAttachments.backup();
 
     AutoWriteLock attLock(pAttach COMMA_LOCKVAL_SRC_POS);
 
@@ -4545,8 +4520,8 @@ HRESULT Machine::nonRotationalDevice(const com::Utf8Str &aName, LONG aController
                         tr("Invalid machine state: %s"),
                         Global::stringifyMachineState(mData->mMachineState));
 
-    MediumAttachment *pAttach = i_findAttachment(mMediaData->mAttachments,
-                                                 Bstr(aName).raw(),
+    MediumAttachment *pAttach = i_findAttachment(*mMediumAttachments.data(),
+                                                 aName,
                                                  aControllerPort,
                                                  aDevice);
     if (!pAttach)
@@ -4556,7 +4531,7 @@ HRESULT Machine::nonRotationalDevice(const com::Utf8Str &aName, LONG aController
 
 
     i_setModified(IsModified_Storage);
-    mMediaData.backup();
+    mMediumAttachments.backup();
 
     AutoWriteLock attLock(pAttach COMMA_LOCKVAL_SRC_POS);
 
@@ -4588,8 +4563,8 @@ HRESULT Machine::setAutoDiscardForDevice(const com::Utf8Str &aName, LONG aContro
                         tr("Invalid machine state: %s"),
                         Global::stringifyMachineState(mData->mMachineState));
 
-    MediumAttachment *pAttach = i_findAttachment(mMediaData->mAttachments,
-                                                 Bstr(aName).raw(),
+    MediumAttachment *pAttach = i_findAttachment(*mMediumAttachments.data(),
+                                                 aName,
                                                  aControllerPort,
                                                  aDevice);
     if (!pAttach)
@@ -4599,7 +4574,7 @@ HRESULT Machine::setAutoDiscardForDevice(const com::Utf8Str &aName, LONG aContro
 
 
     i_setModified(IsModified_Storage);
-    mMediaData.backup();
+    mMediumAttachments.backup();
 
     AutoWriteLock attLock(pAttach COMMA_LOCKVAL_SRC_POS);
 
@@ -4630,8 +4605,8 @@ HRESULT Machine::setHotPluggableForDevice(const com::Utf8Str &aName, LONG aContr
                         tr("Invalid machine state: %s"),
                         Global::stringifyMachineState(mData->mMachineState));
 
-    MediumAttachment *pAttach = i_findAttachment(mMediaData->mAttachments,
-                                                 Bstr(aName).raw(),
+    MediumAttachment *pAttach = i_findAttachment(*mMediumAttachments.data(),
+                                                 aName,
                                                  aControllerPort,
                                                  aDevice);
     if (!pAttach)
@@ -4657,7 +4632,7 @@ HRESULT Machine::setHotPluggableForDevice(const com::Utf8Str &aName, LONG aContr
                     aName.c_str());
 
     i_setModified(IsModified_Storage);
-    mMediaData.backup();
+    mMediumAttachments.backup();
 
     AutoWriteLock attLock(pAttach COMMA_LOCKVAL_SRC_POS);
 
@@ -4698,8 +4673,8 @@ HRESULT Machine::setBandwidthGroupForDevice(const com::Utf8Str &aName, LONG aCon
                         tr("Invalid machine state: %s"),
                         Global::stringifyMachineState(mData->mMachineState));
 
-    MediumAttachment *pAttach = i_findAttachment(mMediaData->mAttachments,
-                                                 Bstr(aName).raw(),
+    MediumAttachment *pAttach = i_findAttachment(*mMediumAttachments.data(),
+                                                 aName,
                                                  aControllerPort,
                                                  aDevice);
     if (!pAttach)
@@ -4709,7 +4684,7 @@ HRESULT Machine::setBandwidthGroupForDevice(const com::Utf8Str &aName, LONG aCon
 
 
     i_setModified(IsModified_Storage);
-    mMediaData.backup();
+    mMediumAttachments.backup();
 
     IBandwidthGroup *iB = aBandwidthGroup;
     ComObjPtr<BandwidthGroup> group = static_cast<BandwidthGroup*>(iB);
@@ -4749,7 +4724,7 @@ HRESULT Machine::attachDeviceWithoutMedium(const com::Utf8Str &aName,
      LogFlowThisFunc(("aName=\"%s\" aControllerPort=%d aDevice=%d aType=%d\n",
                       aName.c_str(), aControllerPort, aDevice, aType));
 
-     rc = AttachDevice(Bstr(aName).raw(), aControllerPort, aDevice, aType, NULL);
+     rc = attachDevice(aName, aControllerPort, aDevice, aType, NULL);
 
      return rc;
 }
@@ -4785,8 +4760,8 @@ HRESULT Machine::mountMedium(const com::Utf8Str &aName,
                                   this->lockHandle(),
                                   &mParent->i_getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
 
-    ComObjPtr<MediumAttachment> pAttach = i_findAttachment(mMediaData->mAttachments,
-                                                           Bstr(aName).raw(),
+    ComObjPtr<MediumAttachment> pAttach = i_findAttachment(*mMediumAttachments.data(),
+                                                           aName,
                                                            aControllerPort,
                                                            aDevice);
     if (pAttach.isNull())
@@ -4827,13 +4802,13 @@ HRESULT Machine::mountMedium(const com::Utf8Str &aName,
     }
 
     i_setModified(IsModified_Storage);
-    mMediaData.backup();
+    mMediumAttachments.backup();
 
     {
         // The backup operation makes the pAttach reference point to the
         // old settings. Re-get the correct reference.
-        pAttach = i_findAttachment(mMediaData->mAttachments,
-                                   Bstr(aName).raw(),
+        pAttach = i_findAttachment(*mMediumAttachments.data(),
+                                   aName,
                                    aControllerPort,
                                    aDevice);
         if (!oldmedium.isNull())
@@ -4866,8 +4841,8 @@ HRESULT Machine::mountMedium(const com::Utf8Str &aName,
     {
         if (!pMedium.isNull())
             pMedium->i_removeBackReference(mData->mUuid);
-        pAttach = i_findAttachment(mMediaData->mAttachments,
-                                   Bstr(aName).raw(),
+        pAttach = i_findAttachment(*mMediumAttachments.data(),
+                                   aName,
                                    aControllerPort,
                                    aDevice);
         /* If the attachment is gone in the meantime, bail out. */
@@ -4901,8 +4876,8 @@ HRESULT Machine::getMedium(const com::Utf8Str &aName,
 
     aMedium = NULL;
 
-    ComObjPtr<MediumAttachment> pAttach = i_findAttachment(mMediaData->mAttachments,
-                                                           Bstr(aName).raw(),
+    ComObjPtr<MediumAttachment> pAttach = i_findAttachment(*mMediumAttachments.data(),
+                                                           aName,
                                                            aControllerPort,
                                                            aDevice);
     if (pAttach.isNull())
@@ -4956,7 +4931,8 @@ HRESULT Machine::getExtraDataKeys(std::vector<com::Utf8Str> &aKeys)
 
     aKeys.resize(mData->pMachineConfigFile->mapExtraDataItems.size());
     size_t i = 0;
-    for (settings::StringsMap::const_iterator it = mData->pMachineConfigFile->mapExtraDataItems.begin();
+    for (settings::StringsMap::const_iterator
+         it = mData->pMachineConfigFile->mapExtraDataItems.begin();
          it != mData->pMachineConfigFile->mapExtraDataItems.end();
          ++it, ++i)
         aKeys[i] = it->first;
@@ -5191,8 +5167,8 @@ HRESULT Machine::unregister(AutoCaller &autoCaller,
     //    the root ("first") snapshot of the machine.
     MediaList llMedia;
 
-    if (    !mMediaData.isNull()      // can be NULL if machine is inaccessible
-         && mMediaData->mAttachments.size()
+    if (    !mMediumAttachments.isNull()    // can be NULL if machine is inaccessible
+         && mMediumAttachments->size()
        )
     {
         // we have media attachments: detach them all and add the Medium objects to our list
@@ -5201,7 +5177,7 @@ HRESULT Machine::unregister(AutoCaller &autoCaller,
         else
             return setError(VBOX_E_INVALID_OBJECT_STATE,
                             tr("Cannot unregister the machine '%s' because it has %d media attachments"),
-                            mUserData->s.strName.c_str(), mMediaData->mAttachments.size());
+                            mUserData->s.strName.c_str(), mMediumAttachments->size());
     }
 
     if (cSnapshots)
@@ -5241,9 +5217,12 @@ HRESULT Machine::unregister(AutoCaller &autoCaller,
     alock.release();
 
     // return media to caller
-    size_t i = 0;
     aMedia.resize(llMedia.size());
-    for (MediaList::iterator it = llMedia.begin(); it != llMedia.end(); ++it, ++i)
+    size_t i = 0;
+    for (MediaList::const_iterator
+         it = llMedia.begin();
+         it != llMedia.end();
+         ++it, ++i)
         (*it).queryInterfaceTo(aMedia[i].asOutParam());
 
     mParent->i_unregisterMachine(this, id);
@@ -5276,7 +5255,7 @@ private:
         {
             m_pMachine->i_deleteConfigHandler(*this);
         }
-        catch(...)
+        catch (...)
         {
             LogRel(("Some exception in the function Machine::i_deleteConfigHandler()\n"));
         }
@@ -5378,27 +5357,24 @@ void Machine::i_deleteConfigHandler(DeleteConfigTask &task)
         // (this includes saved states of the machine and snapshots and
         // medium storage files from the IMedium list passed in, and the
         // machine XML file)
-        StringsList::const_iterator it = task.m_llFilesToDelete.begin();
-        while (it != task.m_llFilesToDelete.end())
+        for (StringsList::const_iterator
+             it = task.m_llFilesToDelete.begin();
+             it != task.m_llFilesToDelete.end();
+             ++it)
         {
             const Utf8Str &strFile = *it;
             LogFunc(("Deleting file %s\n", strFile.c_str()));
+            rc = task.m_pProgress->SetNextOperation(BstrFmt(tr("Deleting '%s'"), it->c_str()).raw(), 1);
+            if (FAILED(rc)) throw rc;
+
             int vrc = RTFileDelete(strFile.c_str());
             if (RT_FAILURE(vrc))
                 throw setError(VBOX_E_IPRT_ERROR,
                                tr("Could not delete file '%s' (%Rrc)"), strFile.c_str(), vrc);
-
-            ++it;
-            if (it == task.m_llFilesToDelete.end())
-            {
-                rc = task.m_pProgress->SetNextOperation(Bstr(tr("Cleaning up machine directory")).raw(), 1);
-                if (FAILED(rc)) throw rc;
-                break;
-            }
-
-            rc = task.m_pProgress->SetNextOperation(BstrFmt(tr("Deleting '%s'"), it->c_str()).raw(), 1);
-            if (FAILED(rc)) throw rc;
         }
+
+        rc = task.m_pProgress->SetNextOperation(Bstr(tr("Cleaning up machine directory")).raw(), 1);
+        if (FAILED(rc)) throw rc;
 
         /* delete the settings only when the file actually exists */
         if (mData->pMachineConfigFile->fileExists())
@@ -5512,10 +5488,10 @@ HRESULT Machine::deleteConfig(const std::vector<ComPtr<IMedium> > &aMedia, ComPt
     pProgress.createObject();
     rc = pProgress->init(i_getVirtualBox(),
                          static_cast<IMachine*>(this) /* aInitiator */,
-                         Bstr(tr("Deleting files")).raw(),
+                         tr("Deleting files"),
                          true /* fCancellable */,
                          (ULONG)(1 + llMediums.size() + llFilesToDelete.size() + 1),    // cOperations
-                         Bstr(tr("Collecting file inventory")).raw());
+                         tr("Collecting file inventory"));
     if (FAILED(rc))
         return rc;
 
@@ -5713,7 +5689,7 @@ HRESULT Machine::i_getGuestPropertyFromVM(const com::Utf8Str &aName,
     if (!directControl)
         rc = E_ACCESSDENIED;
     else
-        rc = directControl->AccessGuestProperty(Bstr(aName).raw(), Bstr("").raw(), Bstr("").raw(),
+        rc = directControl->AccessGuestProperty(Bstr(aName).raw(), Bstr::Empty.raw(), Bstr::Empty.raw(),
                                                 0 /* accessMode */,
                                                 &bValue, aTimestamp, &bFlags);
 
@@ -5932,8 +5908,10 @@ HRESULT Machine::i_enumerateGuestPropertiesInService(const com::Utf8Str &aPatter
     /*
      * Look for matching patterns and build up a list.
      */
-    HWData::GuestPropertyMap::const_iterator it = mHWData->mGuestProperties.begin();
-    while (it != mHWData->mGuestProperties.end())
+    for (HWData::GuestPropertyMap::const_iterator
+         it = mHWData->mGuestProperties.begin();
+         it != mHWData->mGuestProperties.end();
+         ++it)
     {
         if (   strPatterns.isEmpty()
             || RTStrSimplePatternMultiMatch(strPatterns.c_str(),
@@ -5943,7 +5921,6 @@ HRESULT Machine::i_enumerateGuestPropertiesInService(const com::Utf8Str &aPatter
                                             NULL)
            )
             propMap.insert(*it);
-        ++it;
     }
 
     alock.release();
@@ -5959,8 +5936,11 @@ HRESULT Machine::i_enumerateGuestPropertiesInService(const com::Utf8Str &aPatter
     aFlags.resize(cEntries);
 
     char szFlags[MAX_FLAGS_LEN + 1];
-    size_t i= 0;
-    for (it = propMap.begin(); it != propMap.end(); ++i, ++it)
+    size_t i = 0;
+    for (HWData::GuestPropertyMap::const_iterator
+         it = propMap.begin();
+         it != propMap.end();
+         ++it, ++i)
     {
         aNames[i] = it->first;
         aValues[i] = it->second.strValue;
@@ -6044,14 +6024,17 @@ HRESULT Machine::enumerateGuestProperties(const com::Utf8Str &aPatterns,
 HRESULT Machine::getMediumAttachmentsOfController(const com::Utf8Str &aName,
                                                   std::vector<ComPtr<IMediumAttachment> > &aMediumAttachments)
 {
-    MediaData::AttachmentList atts;
+    MediumAttachmentList atts;
 
     HRESULT rc = i_getMediumAttachmentsOfController(aName, atts);
     if (FAILED(rc)) return rc;
 
-    size_t i = 0;
     aMediumAttachments.resize(atts.size());
-    for (MediaData::AttachmentList::iterator it = atts.begin(); it != atts.end(); ++it, ++i)
+    size_t i = 0;
+    for (MediumAttachmentList::const_iterator
+         it = atts.begin();
+         it != atts.end();
+         ++it, ++i)
         (*it).queryInterfaceTo(aMediumAttachments[i].asOutParam());
 
     return S_OK;
@@ -6069,8 +6052,8 @@ HRESULT Machine::getMediumAttachment(const com::Utf8Str &aName,
 
     aAttachment = NULL;
 
-    ComObjPtr<MediumAttachment> pAttach = i_findAttachment(mMediaData->mAttachments,
-                                                           Bstr(aName).raw(),
+    ComObjPtr<MediumAttachment> pAttach = i_findAttachment(*mMediumAttachments.data(),
+                                                           aName,
                                                            aControllerPort,
                                                            aDevice);
     if (pAttach.isNull())
@@ -6113,7 +6096,8 @@ HRESULT Machine::addStorageController(const com::Utf8Str &aName,
     /* get a new instance number for the storage controller */
     ULONG ulInstance = 0;
     bool fBootable = true;
-    for (StorageControllerList::const_iterator it = mStorageControllers->begin();
+    for (StorageControllerList::const_iterator
+         it = mStorageControllers->begin();
          it != mStorageControllers->end();
          ++it)
     {
@@ -6166,7 +6150,8 @@ HRESULT Machine::getStorageControllerByInstance(StorageBus_T aConnectionType,
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    for (StorageControllerList::const_iterator it = mStorageControllers->begin();
+    for (StorageControllerList::const_iterator
+         it = mStorageControllers->begin();
          it != mStorageControllers->end();
          ++it)
     {
@@ -6198,7 +6183,8 @@ HRESULT Machine::setStorageControllerBootable(const com::Utf8Str &aName, BOOL aB
         /* Ensure that only one controller of each type is marked as bootable. */
         if (aBootable == TRUE)
         {
-            for (StorageControllerList::const_iterator it = mStorageControllers->begin();
+            for (StorageControllerList::const_iterator
+                 it = mStorageControllers->begin();
                  it != mStorageControllers->end();
                  ++it)
             {
@@ -6246,10 +6232,11 @@ HRESULT Machine::removeStorageController(const com::Utf8Str &aName)
     {
         /* find all attached devices to the appropriate storage controller and detach them all */
         // make a temporary list because detachDevice invalidates iterators into
-        // mMediaData->mAttachments
-        MediaData::AttachmentList llAttachments2 = mMediaData->mAttachments;
+        // mMediumAttachments
+        MediumAttachmentList llAttachments2 = *mMediumAttachments.data();
 
-        for (MediaData::AttachmentList::iterator it = llAttachments2.begin();
+        for (MediumAttachmentList::const_iterator
+             it = llAttachments2.begin();
              it != llAttachments2.end();
              ++it)
         {
@@ -6765,8 +6752,9 @@ HRESULT Machine::attachHostPCIDevice(LONG aHostAddress, LONG aDesiredGuestAddres
         }
 
         // check if device with this host PCI address already attached
-        for (HWData::PCIDeviceAssignmentList::iterator it =  mHWData->mPCIDeviceAssignments.begin();
-             it !=  mHWData->mPCIDeviceAssignments.end();
+        for (HWData::PCIDeviceAssignmentList::const_iterator
+             it = mHWData->mPCIDeviceAssignments.begin();
+             it != mHWData->mPCIDeviceAssignments.end();
              ++it)
         {
             LONG iHostAddress = -1;
@@ -6783,9 +6771,8 @@ HRESULT Machine::attachHostPCIDevice(LONG aHostAddress, LONG aDesiredGuestAddres
 
         RTStrPrintf(name, sizeof(name), "host%02x:%02x.%x", (aHostAddress>>8) & 0xff,
                     (aHostAddress & 0xf8) >> 3, aHostAddress & 7);
-        Bstr bname(name);
         pda.createObject();
-        pda->init(this, bname,  aHostAddress, aDesiredGuestAddress, TRUE);
+        pda->init(this, name, aHostAddress, aDesiredGuestAddress, TRUE);
         i_setModified(IsModified_MachineData);
         mHWData.backup();
         mHWData->mPCIDeviceAssignments.push_back(pda);
@@ -6811,8 +6798,9 @@ HRESULT Machine::detachHostPCIDevice(LONG aHostAddress)
         rc = i_checkStateDependency(MutableStateDep);
         if (FAILED(rc)) return rc;
 
-        for (HWData::PCIDeviceAssignmentList::iterator it =  mHWData->mPCIDeviceAssignments.begin();
-             it !=  mHWData->mPCIDeviceAssignments.end();
+        for (HWData::PCIDeviceAssignmentList::const_iterator
+             it = mHWData->mPCIDeviceAssignments.begin();
+             it != mHWData->mPCIDeviceAssignments.end();
              ++it)
         {
             LONG iHostAddress = -1;
@@ -6854,11 +6842,11 @@ HRESULT Machine::getPCIDeviceAssignments(std::vector<ComPtr<IPCIDeviceAttachment
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     aPCIDeviceAssignments.resize(mHWData->mPCIDeviceAssignments.size());
-
     size_t i = 0;
-    for (std::list<ComObjPtr<PCIDeviceAttachment> >::const_iterator it = mHWData->mPCIDeviceAssignments.begin();
+    for (std::list<ComObjPtr<PCIDeviceAttachment> >::const_iterator
+         it = mHWData->mPCIDeviceAssignments.begin();
          it != mHWData->mPCIDeviceAssignments.end();
-         ++i, ++it)
+         ++it, ++i)
         (*it).queryInterfaceTo(aPCIDeviceAssignments[i].asOutParam());
 
     return S_OK;
@@ -7240,7 +7228,8 @@ HRESULT Machine::discardSavedState(BOOL aFRemoveFile)
 /**
  * Adds the given IsModified_* flag to the dirty flags of the machine.
  * This must be called either during i_loadSettings or under the machine write lock.
- * @param fl
+ * @param   fl                       Flag
+ * @param   fAllowStateModification  If state modifications are allowed.
  */
 void Machine::i_setModified(uint32_t fl, bool fAllowStateModification /* = true */)
 {
@@ -7253,7 +7242,8 @@ void Machine::i_setModified(uint32_t fl, bool fAllowStateModification /* = true 
  * Adds the given IsModified_* flag to the dirty flags of the machine, taking
  * care of the write locking.
  *
- * @param   fModifications      The flag to add.
+ * @param   fModification            The flag to add.
+ * @param   fAllowStateModification  If state modifications are allowed.
  */
 void Machine::i_setModifiedLock(uint32_t fModification, bool fAllowStateModification /* = true */)
 {
@@ -7264,7 +7254,7 @@ void Machine::i_setModifiedLock(uint32_t fModification, bool fAllowStateModifica
 /**
  *  Saves the registry entry of this machine to the given configuration node.
  *
- *  @param aEntryNode Node to save the registry entry to.
+ *  @param data     Machine registry data.
  *
  *  @note locks this object for reading.
  */
@@ -7285,7 +7275,7 @@ HRESULT Machine::i_saveRegistryEntry(settings::MachineRegistryEntry &data)
  * Calculates the absolute path of the given path taking the directory of the
  * machine settings file as the current directory.
  *
- * @param  aPath    Path to calculate the absolute path for.
+ * @param  strPath  Path to calculate the absolute path for.
  * @param  aResult  Where to put the result (used only on success, can be the
  *                  same Utf8Str instance as passed in @a aPath).
  * @return IPRT result.
@@ -7367,10 +7357,10 @@ void Machine::i_getLogFolder(Utf8Str &aLogFolder)
             char szTmp2[RTPATH_MAX];
             vrc = RTPathAbs(szTmp, szTmp2, sizeof(szTmp2));
             if (RT_SUCCESS(vrc))
-                aLogFolder = BstrFmt("%s%c%s",
-                                     szTmp2,
-                                     RTPATH_DELIMITER,
-                                     mUserData->s.strName.c_str()); // path/to/logfolder/vmname
+                aLogFolder = Utf8StrFmt("%s%c%s",
+                                        szTmp2,
+                                        RTPATH_DELIMITER,
+                                        mUserData->s.strName.c_str()); // path/to/logfolder/vmname
         }
         else
             vrc = VERR_PATH_IS_RELATIVE;
@@ -7438,7 +7428,7 @@ Utf8Str Machine::i_getHardeningLogFilename(void)
  *
  * So instead we now use a timestamp.
  *
- * @param str
+ * @param strStateFilePath
  */
 
 void Machine::i_composeSavedStateFilename(Utf8Str &strStateFilePath)
@@ -8097,11 +8087,11 @@ HRESULT Machine::i_prepareRegister()
 /**
  * Increases the number of objects dependent on the machine state or on the
  * registered state. Guarantees that these two states will not change at least
- * until #releaseStateDependency() is called.
+ * until #i_releaseStateDependency() is called.
  *
  * Depending on the @a aDepType value, additional state checks may be made.
  * These checks will set extended error info on failure. See
- * #checkStateDependency() for more info.
+ * #i_checkStateDependency() for more info.
  *
  * If this method returns a failure, the dependency is not added and the caller
  * is not allowed to rely on any particular machine state or registration state
@@ -8154,7 +8144,7 @@ HRESULT Machine::i_addStateDependency(StateDependency aDepType /* = AnyStateDep 
 
 /**
  * Decreases the number of objects dependent on the machine state.
- * Must always complete the #addStateDependency() call after the state
+ * Must always complete the #i_addStateDependency() call after the state
  * dependency is no more necessary.
  */
 void Machine::i_releaseStateDependency()
@@ -8230,8 +8220,8 @@ Utf8Str Machine::i_getExtraData(const Utf8Str &strKey)
  *
  *  @param aDepType     Dependency type to check.
  *
- *  @note Non Machine based classes should use #addStateDependency() and
- *  #releaseStateDependency() methods or the smart AutoStateDependency
+ *  @note Non Machine based classes should use #i_addStateDependency() and
+ *  #i_releaseStateDependency() methods or the smart AutoStateDependency
  *  template.
  *
  *  @note This method must be called from under this object's read or write
@@ -8321,7 +8311,7 @@ HRESULT Machine::i_checkStateDependency(StateDependency aDepType)
  * This method must be called as a part of the object's initialization procedure
  * (usually done in the #init() method).
  *
- * @note Must be called only from #init() or from #registeredInit().
+ * @note Must be called only from #init() or from #i_registeredInit().
  */
 HRESULT Machine::initDataAndChildObjects()
 {
@@ -8336,12 +8326,15 @@ HRESULT Machine::initDataAndChildObjects()
     mSSData.allocate();
     mUserData.allocate();
     mHWData.allocate();
-    mMediaData.allocate();
+    mMediumAttachments.allocate();
     mStorageControllers.allocate();
     mUSBControllers.allocate();
 
     /* initialize mOSTypeId */
     mUserData->s.strOsType = mParent->i_getUnknownOSType()->i_id();
+
+/** @todo r=bird: init() methods never fails, right? Why don't we make them
+ *        return void then! */
 
     /* create associated BIOS settings object */
     unconst(mBIOSSettings).createObject();
@@ -8395,7 +8388,7 @@ HRESULT Machine::initDataAndChildObjects()
  * This method must be called as a part of the object's uninitialization
  * procedure (usually done in the #uninit() method).
  *
- * @note Must be called only from #uninit() or from #registeredInit().
+ * @note Must be called only from #uninit() or from #i_registeredInit().
  */
 void Machine::uninitDataAndChildObjects()
 {
@@ -8470,12 +8463,13 @@ void Machine::uninitDataAndChildObjects()
      * a result of unregistering or deleting the snapshot), outdated media
      * attachments will already be uninitialized and deleted, so this
      * code will not affect them. */
-    if (    !!mMediaData
-         && (!i_isSessionMachine())
+    if (    !mMediumAttachments.isNull()
+         && !i_isSessionMachine()
        )
     {
-        for (MediaData::AttachmentList::const_iterator it = mMediaData->mAttachments.begin();
-             it != mMediaData->mAttachments.end();
+        for (MediumAttachmentList::const_iterator
+             it = mMediumAttachments->begin();
+             it != mMediumAttachments->end();
              ++it)
         {
             ComObjPtr<Medium> pMedium = (*it)->i_getMedium();
@@ -8504,7 +8498,7 @@ void Machine::uninitDataAndChildObjects()
 
     /* free data structures (the essential mData structure is not freed here
      * since it may be still in use) */
-    mMediaData.free();
+    mMediumAttachments.free();
     mStorageControllers.free();
     mUSBControllers.free();
     mHWData.free();
@@ -8520,7 +8514,7 @@ void Machine::uninitDataAndChildObjects()
  *  object's pointer itself. For SessionMachine objects, returns the peer
  *  (primary) machine pointer.
  */
-Machine* Machine::i_getMachine()
+Machine *Machine::i_getMachine()
 {
     if (i_isSessionMachine())
         return (Machine*)mPeer;
@@ -8629,9 +8623,10 @@ HRESULT Machine::i_findSharedFolder(const Utf8Str &aName,
                                     bool aSetError /* = false */)
 {
     HRESULT rc = VBOX_E_OBJECT_NOT_FOUND;
-    for (HWData::SharedFolderList::const_iterator it = mHWData->mSharedFolders.begin();
-        it != mHWData->mSharedFolders.end();
-        ++it)
+    for (HWData::SharedFolderList::const_iterator
+         it = mHWData->mSharedFolders.begin();
+         it != mHWData->mSharedFolders.end();
+         ++it)
     {
         SharedFolder *pSF = *it;
         AutoCaller autoCaller(pSF);
@@ -8657,7 +8652,7 @@ HRESULT Machine::i_findSharedFolder(const Utf8Str &aName,
  * This gets called in several contexts during machine initialization:
  *
  * -- When machine XML exists on disk already and needs to be loaded into memory,
- *    for example, from registeredInit() to load all registered machines on
+ *    for example, from #i_registeredInit() to load all registered machines on
  *    VirtualBox startup. In this case, puuidRegistry is NULL because the media
  *    attached to the machine should be part of some media registry already.
  *
@@ -8680,10 +8675,11 @@ HRESULT Machine::i_loadMachineDataFromSettings(const settings::MachineConfigFile
     mUserData->s = config.machineUserData;
 
     // look up the object by Id to check it is valid
-    ComPtr<IGuestOSType> guestOSType;
-    HRESULT rc = mParent->GetGuestOSType(Bstr(mUserData->s.strOsType).raw(),
-                                         guestOSType.asOutParam());
+    ComObjPtr<GuestOSType> pGuestOSType;
+    HRESULT rc = mParent->i_findGuestOSType(mUserData->s.strOsType,
+                                            pGuestOSType);
     if (FAILED(rc)) return rc;
+    mUserData->s.strOsType = pGuestOSType->i_id();
 
     // stateFile (optional)
     if (config.strStateFile.isEmpty())
@@ -8783,7 +8779,7 @@ HRESULT Machine::i_loadMachineDataFromSettings(const settings::MachineConfigFile
 /**
  *  Recursively loads all snapshots starting from the given.
  *
- *  @param aNode            <Snapshot> node.
+ *  @param data             snapshot settings.
  *  @param aCurSnapshotId   Current snapshot ID from the settings file.
  *  @param aParentSnapshot  Parent snapshot.
  */
@@ -8844,7 +8840,8 @@ HRESULT Machine::i_loadSnapshot(const settings::Snapshot &data,
         mData->mCurrentSnapshot = pSnapshot;
 
     // now create the children
-    for (settings::SnapshotsList::const_iterator it = data.llChildSnapshots.begin();
+    for (settings::SnapshotsList::const_iterator
+         it = data.llChildSnapshots.begin();
          it != data.llChildSnapshots.end();
          ++it)
     {
@@ -8862,9 +8859,11 @@ HRESULT Machine::i_loadSnapshot(const settings::Snapshot &data,
 /**
  *  Loads settings into mHWData.
  *
- *  @param data           Reference to the hardware settings.
- *  @param pDbg           Pointer to the debugging settings.
- *  @param pAutostart     Pointer to the autostart settings.
+ * @param puuidRegistry Registry ID.
+ * @param puuidSnapshot Snapshot ID
+ * @param data          Reference to the hardware settings.
+ * @param pDbg          Pointer to the debugging settings.
+ * @param pAutostart    Pointer to the autostart settings.
  */
 HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
                                 const Guid *puuidSnapshot,
@@ -8878,6 +8877,12 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
 
     try
     {
+        ComObjPtr<GuestOSType> pGuestOSType;
+        rc = mParent->i_findGuestOSType(Bstr(mUserData->s.strOsType).raw(),
+                                        pGuestOSType);
+        if (FAILED(rc))
+            return rc;
+
         /* The hardware version attribute (optional). */
         mHWData->mHWVersion = data.strVersion;
         mHWData->mHardwareUUID = data.uuid;
@@ -8902,9 +8907,10 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
         // cpu
         if (mHWData->mCPUHotPlugEnabled)
         {
-            for (settings::CpuList::const_iterator it = data.llCpus.begin();
-                it != data.llCpus.end();
-                ++it)
+            for (settings::CpuList::const_iterator
+                 it = data.llCpus.begin();
+                 it != data.llCpus.end();
+                 ++it)
             {
                 const settings::Cpu &cpu = *it;
 
@@ -8913,46 +8919,17 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
         }
 
         // cpuid leafs
-        for (settings::CpuIdLeafsList::const_iterator it = data.llCpuIdLeafs.begin();
-            it != data.llCpuIdLeafs.end();
-            ++it)
+        for (settings::CpuIdLeafsList::const_iterator
+             it = data.llCpuIdLeafs.begin();
+             it != data.llCpuIdLeafs.end();
+             ++it)
         {
-            const settings::CpuIdLeaf &leaf = *it;
-
-            switch (leaf.ulId)
-            {
-            case 0x0:
-            case 0x1:
-            case 0x2:
-            case 0x3:
-            case 0x4:
-            case 0x5:
-            case 0x6:
-            case 0x7:
-            case 0x8:
-            case 0x9:
-            case 0xA:
-                mHWData->mCpuIdStdLeafs[leaf.ulId] = leaf;
-                break;
-
-            case 0x80000000:
-            case 0x80000001:
-            case 0x80000002:
-            case 0x80000003:
-            case 0x80000004:
-            case 0x80000005:
-            case 0x80000006:
-            case 0x80000007:
-            case 0x80000008:
-            case 0x80000009:
-            case 0x8000000A:
-                mHWData->mCpuIdExtLeafs[leaf.ulId - 0x80000000] = leaf;
-                break;
-
-            default:
-                /* just ignore */
-                break;
-            }
+            const settings::CpuIdLeaf &rLeaf= *it;
+            if (   rLeaf.idx < UINT32_C(0x20)
+                || rLeaf.idx - UINT32_C(0x80000000) < UINT32_C(0x20)
+                || rLeaf.idx - UINT32_C(0xc0000000) < UINT32_C(0x10) )
+                mHWData->mCpuIdLeafList.push_back(rLeaf);
+            /* else: just ignore */
         }
 
         mHWData->mMemorySize = data.ulMemorySizeMB;
@@ -8985,6 +8962,7 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
             i_calculateFullPath(data.strVideoCaptureFile, mHWData->mVideoCaptureFile);
         else
             mHWData->mVideoCaptureFile.setNull();
+        mHWData->mVideoCaptureOptions = data.strVideoCaptureOptions;
         mHWData->mFirmwareType = data.firmwareType;
         mHWData->mPointingHIDType = data.pointingHIDType;
         mHWData->mKeyboardHIDType = data.keyboardHIDType;
@@ -9007,7 +8985,8 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
         if (FAILED(rc)) return rc;
 
         /* Shared folders */
-        for (settings::USBControllerList::const_iterator it = data.usbSettings.llUSBControllers.begin();
+        for (settings::USBControllerList::const_iterator
+             it = data.usbSettings.llUSBControllers.begin();
              it != data.usbSettings.llUSBControllers.end();
              ++it)
         {
@@ -9023,7 +9002,9 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
         rc = mUSBDeviceFilters->i_loadSettings(data.usbSettings);
         if (FAILED(rc)) return rc;
 
-        // network adapters
+        // network adapters (establish array size first and apply defaults, to
+        // ensure reading the same settings as we saved, since the list skips
+        // adapters having defaults)
         size_t newCount = Global::getMaxNetworkAdapters(mHWData->mChipsetType);
         size_t oldCount = mNetworkAdapters.size();
         if (newCount > oldCount)
@@ -9037,13 +9018,16 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
         }
         else if (newCount < oldCount)
             mNetworkAdapters.resize(newCount);
-        for (settings::NetworkAdaptersList::const_iterator it = data.llNetworkAdapters.begin();
-            it != data.llNetworkAdapters.end();
-            ++it)
+        for (unsigned i = 0; i < mNetworkAdapters.size(); i++)
+            mNetworkAdapters[i]->i_applyDefaults(pGuestOSType);
+        for (settings::NetworkAdaptersList::const_iterator
+             it = data.llNetworkAdapters.begin();
+             it != data.llNetworkAdapters.end();
+             ++it)
         {
             const settings::NetworkAdapter &nic = *it;
 
-            /* slot unicity is guaranteed by XML Schema */
+            /* slot uniqueness is guaranteed by XML Schema */
             AssertBreak(nic.ulSlot < mNetworkAdapters.size());
             rc = mNetworkAdapters[nic.ulSlot]->i_loadSettings(mBandwidthControl, nic);
             if (FAILED(rc)) return rc;
@@ -9052,10 +9036,11 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
         // serial ports (establish defaults first, to ensure reading the same
         // settings as we saved, since the list skips ports having defaults)
         for (unsigned i = 0; i < RT_ELEMENTS(mSerialPorts); i++)
-            mSerialPorts[i]->i_applyDefaults(NULL);
-        for (settings::SerialPortsList::const_iterator it = data.llSerialPorts.begin();
-            it != data.llSerialPorts.end();
-            ++it)
+            mSerialPorts[i]->i_applyDefaults(pGuestOSType);
+        for (settings::SerialPortsList::const_iterator
+             it = data.llSerialPorts.begin();
+             it != data.llSerialPorts.end();
+             ++it)
         {
             const settings::SerialPort &s = *it;
 
@@ -9068,9 +9053,10 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
         // settings as we saved, since the list skips ports having defaults)
         for (unsigned i = 0; i < RT_ELEMENTS(mParallelPorts); i++)
             mParallelPorts[i]->i_applyDefaults();
-        for (settings::ParallelPortsList::const_iterator it = data.llParallelPorts.begin();
-            it != data.llParallelPorts.end();
-            ++it)
+        for (settings::ParallelPortsList::const_iterator
+             it = data.llParallelPorts.begin();
+             it != data.llParallelPorts.end();
+             ++it)
         {
             const settings::ParallelPort &p = *it;
 
@@ -9090,7 +9076,8 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
         if (FAILED(rc)) return rc;
 
         /* Shared folders */
-        for (settings::SharedFoldersList::const_iterator it = data.llSharedFolders.begin();
+        for (settings::SharedFoldersList::const_iterator
+             it = data.llSharedFolders.begin();
              it != data.llSharedFolders.end();
              ++it)
         {
@@ -9131,7 +9118,8 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
         mHWData->mIOCacheSize = data.ioSettings.ulIOCacheSize;
 
         // Host PCI devices
-        for (settings::HostPCIDeviceAttachmentList::const_iterator it = data.pciAttachments.begin();
+        for (settings::HostPCIDeviceAttachmentList::const_iterator
+             it = data.pciAttachments.begin();
              it != data.pciAttachments.end();
              ++it)
         {
@@ -9163,9 +9151,10 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
          * surprisingly long without getting fixed, especially for snapshots
          * as there are no config changes. */
         settings::GuestPropertiesList &llGuestProperties = unconst(data.llGuestProperties);
-        for (settings::GuestPropertiesList::iterator it = llGuestProperties.begin();
-            it != llGuestProperties.end();
-            /*nothing*/)
+        for (settings::GuestPropertiesList::iterator
+             it = llGuestProperties.begin();
+             it != llGuestProperties.end();
+             /*nothing*/)
         {
             const settings::GuestProperty &prop = *it;
             uint32_t fFlags = guestProp::NILFLAG;
@@ -9192,7 +9181,7 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
         /* default frontend */
         mHWData->mDefaultFrontend = data.strDefaultFrontend;
     }
-    catch(std::bad_alloc &)
+    catch (std::bad_alloc &)
     {
         return E_OUTOFMEMORY;
     }
@@ -9202,7 +9191,7 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
 }
 
 /**
- * Called from Machine::loadHardware() to load the debugging settings of the
+ * Called from i_loadHardware() to load the debugging settings of the
  * machine.
  *
  * @param   pDbg        Pointer to the settings.
@@ -9217,9 +9206,10 @@ HRESULT Machine::i_loadDebugging(const settings::Debugging *pDbg)
 /**
  *  Called from i_loadMachineDataFromSettings() for the storage controller data, including media.
  *
- * @param data
- * @param puuidRegistry media registry ID to set media to or NULL; see Machine::i_loadMachineDataFromSettings()
- * @param puuidSnapshot
+ * @param data          storage settings.
+ * @param puuidRegistry media registry ID to set media to or NULL;
+ *                      see Machine::i_loadMachineDataFromSettings()
+ * @param puuidSnapshot snapshot ID
  * @return
  */
 HRESULT Machine::i_loadStorageControllers(const settings::Storage &data,
@@ -9230,7 +9220,8 @@ HRESULT Machine::i_loadStorageControllers(const settings::Storage &data,
 
     HRESULT rc = S_OK;
 
-    for (settings::StorageControllersList::const_iterator it = data.llStorageControllers.begin();
+    for (settings::StorageControllersList::const_iterator
+         it = data.llStorageControllers.begin();
          it != data.llStorageControllers.end();
          ++it)
     {
@@ -9277,10 +9268,11 @@ HRESULT Machine::i_loadStorageControllers(const settings::Storage &data,
 /**
  * Called from i_loadStorageControllers for a controller's devices.
  *
- * @param aStorageController
- * @param data
- * @param puuidRegistry media registry ID to set media to or NULL; see Machine::i_loadMachineDataFromSettings()
- * @param aSnapshotId  pointer to the snapshot ID if this is a snapshot machine
+ * @param   aStorageController
+ * @param   data
+ * @param   puuidRegistry   media registry ID to set media to or NULL; see
+ *                          Machine::i_loadMachineDataFromSettings()
+ * @param   puuidSnapshot   pointer to the snapshot ID if this is a snapshot machine
  * @return
  */
 HRESULT Machine::i_loadStorageDevices(StorageController *aStorageController,
@@ -9291,7 +9283,8 @@ HRESULT Machine::i_loadStorageDevices(StorageController *aStorageController,
     HRESULT rc = S_OK;
 
     /* paranoia: detect duplicate attachments */
-    for (settings::AttachedDevicesList::const_iterator it = data.llAttachedDevices.begin();
+    for (settings::AttachedDevicesList::const_iterator
+         it = data.llAttachedDevices.begin();
          it != data.llAttachedDevices.end();
          ++it)
     {
@@ -9319,7 +9312,8 @@ HRESULT Machine::i_loadStorageDevices(StorageController *aStorageController,
         }
     }
 
-    for (settings::AttachedDevicesList::const_iterator it = data.llAttachedDevices.begin();
+    for (settings::AttachedDevicesList::const_iterator
+         it = data.llAttachedDevices.begin();
          it != data.llAttachedDevices.end();
          ++it)
     {
@@ -9419,7 +9413,7 @@ HRESULT Machine::i_loadStorageDevices(StorageController *aStorageController,
                                     mData->m_strConfigFileFull.c_str(),
                                     medium->i_getChildren().size());
 
-                if (i_findAttachment(mMediaData->mAttachments,
+                if (i_findAttachment(*mMediumAttachments.data(),
                                      medium))
                     return setError(E_FAIL,
                                     tr("Hard disk '%s' with UUID {%RTuuid} is already attached to the virtual machine '%s' ('%s')"),
@@ -9458,7 +9452,7 @@ HRESULT Machine::i_loadStorageDevices(StorageController *aStorageController,
             pBwGroup->i_reference();
         }
 
-        const Bstr controllerName = aStorageController->i_getName();
+        const Utf8Str controllerName = aStorageController->i_getName();
         ComObjPtr<MediumAttachment> pAttachment;
         pAttachment.createObject();
         rc = pAttachment->init(this,
@@ -9498,11 +9492,11 @@ HRESULT Machine::i_loadStorageDevices(StorageController *aStorageController,
         if (FAILED(rc))
             break;
 
-        /* back up mMediaData to let registeredInit() properly rollback on failure
-         * (= limited accessibility) */
+        /* back up mMediumAttachments to let registeredInit() properly rollback
+         * on failure (= limited accessibility) */
         i_setModified(IsModified_Storage);
-        mMediaData.backup();
-        mMediaData->mAttachments.push_back(pAttachment);
+        mMediumAttachments.backup();
+        mMediumAttachments->push_back(pAttachment);
     }
 
     return rc;
@@ -9548,7 +9542,7 @@ HRESULT Machine::i_findSnapshotById(const Guid &aId,
 /**
  *  Returns the snapshot with the given name or fails of no such snapshot.
  *
- *  @param aName        snapshot name to find
+ *  @param strName      snapshot name to find
  *  @param aSnapshot    where to return the found snapshot
  *  @param aSetError    true to set extended error info on failure
  */
@@ -9594,7 +9588,8 @@ HRESULT Machine::i_getStorageControllerByName(const Utf8Str &aName,
 {
     AssertReturn(!aName.isEmpty(), E_INVALIDARG);
 
-    for (StorageControllerList::const_iterator it = mStorageControllers->begin();
+    for (StorageControllerList::const_iterator
+         it = mStorageControllers->begin();
          it != mStorageControllers->end();
          ++it)
     {
@@ -9625,7 +9620,8 @@ HRESULT Machine::i_getUSBControllerByName(const Utf8Str &aName,
 {
     AssertReturn(!aName.isEmpty(), E_INVALIDARG);
 
-    for (USBControllerList::const_iterator it = mUSBControllers->begin();
+    for (USBControllerList::const_iterator
+         it = mUSBControllers->begin();
          it != mUSBControllers->end();
          ++it)
     {
@@ -9652,7 +9648,8 @@ ULONG Machine::i_getUSBControllerCountByType(USBControllerType_T enmType)
 {
     ULONG cCtrls = 0;
 
-    for (USBControllerList::const_iterator it = mUSBControllers->begin();
+    for (USBControllerList::const_iterator
+         it = mUSBControllers->begin();
          it != mUSBControllers->end();
          ++it)
     {
@@ -9664,15 +9661,16 @@ ULONG Machine::i_getUSBControllerCountByType(USBControllerType_T enmType)
 }
 
 HRESULT Machine::i_getMediumAttachmentsOfController(const Utf8Str &aName,
-                                                    MediaData::AttachmentList &atts)
+                                                    MediumAttachmentList &atts)
 {
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    for (MediaData::AttachmentList::iterator it = mMediaData->mAttachments.begin();
-         it != mMediaData->mAttachments.end();
+    for (MediumAttachmentList::const_iterator
+         it = mMediumAttachments->begin();
+         it != mMediumAttachments->end();
          ++it)
     {
         const ComObjPtr<MediumAttachment> &pAtt = *it;
@@ -9928,9 +9926,6 @@ HRESULT Machine::i_prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
  *  - SaveS_ResetCurStateModified: Resets mData->mCurrentStateModified to FALSE.
  *    Used when saving settings after an operation that makes them 100%
  *    correspond to the settings from the current snapshot.
- *  - SaveS_InformCallbacksAnyway: Callbacks will be informed even if
- *    #isReallyModified() returns false. This is necessary for cases when we
- *    change machine data directly, not through the backup()/commit() mechanism.
  *  - SaveS_Force: settings will be saved without doing a deep compare of the
  *    settings structures. This is used when this is called because snapshots
  *    have changed to avoid the overhead of the deep compare.
@@ -9944,6 +9939,7 @@ HRESULT Machine::i_prepareSaveSettings(bool *pfNeedsGlobalSaveSettings)
  *          settings have changed. This will happen if a machine rename has been
  *          saved and the global machine and media registries will therefore need
  *          updating.
+ * @param   aFlags  Flags.
  */
 HRESULT Machine::i_saveSettings(bool *pfNeedsGlobalSaveSettings,
                                 int  aFlags /*= 0*/)
@@ -10038,7 +10034,7 @@ HRESULT Machine::i_saveSettings(bool *pfNeedsGlobalSaveSettings,
         rc = VirtualBoxBase::handleUnexpectedExceptions(this, RT_SRC_POS);
     }
 
-    if (fNeedsWrite || (aFlags & SaveS_InformCallbacksAnyway))
+    if (fNeedsWrite)
     {
         /* Fire the data change event, even on failure (since we've already
          * committed all data). This is done only for SessionMachines because
@@ -10203,12 +10199,12 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
     try
     {
         /* The hardware version attribute (optional).
-            Automatically upgrade from 1 to 2 when there is no saved state. (ugly!) */
+           Automatically upgrade from 1 to current default hardware version
+           when there is no saved state. (ugly!) */
         if (    mHWData->mHWVersion == "1"
              && mSSData->strStateFilePath.isEmpty()
            )
-            mHWData->mHWVersion = "2";  /** @todo Is this safe, to update mHWVersion here? If not some
-                                            other point needs to be found where this can be done. */
+            mHWData->mHWVersion = Utf8StrFmt("%d", SchemaDefs::DefaultHardwareVersion);
 
         data.strVersion = mHWData->mHWVersion;
         data.uuid = mHWData->mHardwareUUID;
@@ -10247,12 +10243,7 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
 
         /* Standard and Extended CPUID leafs. */
         data.llCpuIdLeafs.clear();
-        for (unsigned idx = 0; idx < RT_ELEMENTS(mHWData->mCpuIdStdLeafs); ++idx)
-            if (mHWData->mCpuIdStdLeafs[idx].ulId != UINT32_MAX)
-                data.llCpuIdLeafs.push_back(mHWData->mCpuIdStdLeafs[idx]);
-        for (unsigned idx = 0; idx < RT_ELEMENTS(mHWData->mCpuIdExtLeafs); ++idx)
-            if (mHWData->mCpuIdExtLeafs[idx].ulId != UINT32_MAX)
-                data.llCpuIdLeafs.push_back(mHWData->mCpuIdExtLeafs[idx]);
+        data.llCpuIdLeafs = mHWData->mCpuIdLeafList;
 
         // memory
         data.ulMemorySizeMB = mHWData->mMemorySize;
@@ -10303,6 +10294,7 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
         }
         /* store relative video capture file if possible */
         i_copyPathRelativeToMachine(mHWData->mVideoCaptureFile, data.strVideoCaptureFile);
+        data.strVideoCaptureOptions = mHWData->mVideoCaptureOptions;
 
         /* VRDEServer settings (optional) */
         rc = mVRDEServer->i_saveSettings(data.vrdeSettings);
@@ -10314,7 +10306,10 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
 
         /* USB Controller (required) */
         data.usbSettings.llUSBControllers.clear();
-        for (USBControllerList::const_iterator it = mUSBControllers->begin(); it != mUSBControllers->end(); ++it)
+        for (USBControllerList::const_iterator
+             it = mUSBControllers->begin();
+             it != mUSBControllers->end();
+             ++it)
         {
             ComObjPtr<USBController> ctrl = *it;
             settings::USBController settingsCtrl;
@@ -10342,6 +10337,9 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
             /* paranoia check... must not be NULL, but must not crash either. */
             if (mNetworkAdapters[slot])
             {
+                if (mNetworkAdapters[slot]->i_hasDefaults())
+                    continue;
+
                 rc = mNetworkAdapters[slot]->i_saveSettings(nic);
                 if (FAILED(rc)) throw rc;
 
@@ -10388,9 +10386,10 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
 
         /* Shared folders */
         data.llSharedFolders.clear();
-        for (HWData::SharedFolderList::const_iterator it = mHWData->mSharedFolders.begin();
-            it != mHWData->mSharedFolders.end();
-            ++it)
+        for (HWData::SharedFolderList::const_iterator
+             it = mHWData->mSharedFolders.begin();
+             it != mHWData->mSharedFolders.end();
+             ++it)
         {
             SharedFolder *pSF = *it;
             AutoCaller sfCaller(pSF);
@@ -10423,7 +10422,8 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
 
         /* Host PCI devices */
         data.pciAttachments.clear();
-        for (HWData::PCIDeviceAssignmentList::const_iterator it = mHWData->mPCIDeviceAssignments.begin();
+        for (HWData::PCIDeviceAssignmentList::const_iterator
+             it = mHWData->mPCIDeviceAssignments.begin();
              it != mHWData->mPCIDeviceAssignments.end();
              ++it)
         {
@@ -10439,7 +10439,8 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
         // guest properties
         data.llGuestProperties.clear();
 #ifdef VBOX_WITH_GUEST_PROPS
-        for (HWData::GuestPropertyMap::const_iterator it = mHWData->mGuestProperties.begin();
+        for (HWData::GuestPropertyMap::const_iterator
+             it = mHWData->mGuestProperties.begin();
              it != mHWData->mGuestProperties.end();
              ++it)
         {
@@ -10475,7 +10476,7 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
 
         data.strDefaultFrontend = mHWData->mDefaultFrontend;
     }
-    catch(std::bad_alloc &)
+    catch (std::bad_alloc &)
     {
         return E_OUTOFMEMORY;
     }
@@ -10487,13 +10488,14 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
 /**
  *  Saves the storage controller configuration.
  *
- *  @param aNode    <StorageControllers> node to save the VM hardware configuration to.
+ *  @param data    storage settings.
  */
 HRESULT Machine::i_saveStorageControllers(settings::Storage &data)
 {
     data.llStorageControllers.clear();
 
-    for (StorageControllerList::const_iterator it = mStorageControllers->begin();
+    for (StorageControllerList::const_iterator
+         it = mStorageControllers->begin();
          it != mStorageControllers->end();
          ++it)
     {
@@ -10535,13 +10537,14 @@ HRESULT Machine::i_saveStorageControllers(settings::Storage &data)
 HRESULT Machine::i_saveStorageDevices(ComObjPtr<StorageController> aStorageController,
                                       settings::StorageController &data)
 {
-    MediaData::AttachmentList atts;
+    MediumAttachmentList atts;
 
     HRESULT rc = i_getMediumAttachmentsOfController(aStorageController->i_getName(), atts);
     if (FAILED(rc)) return rc;
 
     data.llAttachedDevices.clear();
-    for (MediaData::AttachmentList::const_iterator it = atts.begin();
+    for (MediumAttachmentList::const_iterator
+         it = atts.begin();
          it != atts.end();
          ++it)
     {
@@ -10690,11 +10693,9 @@ void Machine::i_addMediumToRegistry(ComObjPtr<Medium> &pMedium)
  * Used when taking a snapshot or when deleting the current state. Gets called
  * from SessionMachine::BeginTakingSnapshot() and SessionMachine::restoreSnapshotHandler().
  *
- * This method assumes that mMediaData contains the original hard disk attachments
- * it needs to create diffs for. On success, these attachments will be replaced
- * with the created diffs. On failure, #deleteImplicitDiffs() is implicitly
- * called to delete created diffs which will also rollback mMediaData and restore
- * whatever was backed up before calling this method.
+ * This method assumes that mMediumAttachments contains the original hard disk
+ * attachments it needs to create diffs for. On success, these attachments will
+ * be replaced with the created diffs.
  *
  * Attachments with non-normal hard disks are left as is.
  *
@@ -10707,6 +10708,7 @@ void Machine::i_addMediumToRegistry(ComObjPtr<Medium> &pMedium)
  * @param aProgress         Progress object to run (must contain at least as
  *                          many operations left as the number of hard disks
  *                          attached).
+ * @param aWeight           Weight of this operation.
  * @param aOnline           Whether the VM was online prior to this operation.
  *
  * @note The progress object is not marked as completed, neither on success nor
@@ -10750,14 +10752,15 @@ HRESULT Machine::i_createImplicitDiffs(IProgress *aProgress,
         {
             /* lock all attached hard disks early to detect "in use"
              * situations before creating actual diffs */
-            for (MediaData::AttachmentList::const_iterator it = mMediaData->mAttachments.begin();
-                 it != mMediaData->mAttachments.end();
+            for (MediumAttachmentList::const_iterator
+                 it = mMediumAttachments->begin();
+                 it != mMediumAttachments->end();
                  ++it)
             {
-                MediumAttachment* pAtt = *it;
+                MediumAttachment *pAtt = *it;
                 if (pAtt->i_getType() == DeviceType_HardDisk)
                 {
-                    Medium* pMedium = pAtt->i_getMedium();
+                    Medium *pMedium = pAtt->i_getMedium();
                     Assert(pMedium);
 
                     MediumLockList *pMediumLockList(new MediumLockList());
@@ -10794,22 +10797,23 @@ HRESULT Machine::i_createImplicitDiffs(IProgress *aProgress,
         }
 
         /* remember the current list (note that we don't use backup() since
-         * mMediaData may be already backed up) */
-        MediaData::AttachmentList atts = mMediaData->mAttachments;
+         * mMediumAttachments may be already backed up) */
+        MediumAttachmentList atts = *mMediumAttachments.data();
 
         /* start from scratch */
-        mMediaData->mAttachments.clear();
+        mMediumAttachments->clear();
 
         /* go through remembered attachments and create diffs for normal hard
          * disks and attach them */
-        for (MediaData::AttachmentList::const_iterator it = atts.begin();
+        for (MediumAttachmentList::const_iterator
+             it = atts.begin();
              it != atts.end();
              ++it)
         {
-            MediumAttachment* pAtt = *it;
+            MediumAttachment *pAtt = *it;
 
             DeviceType_T devType = pAtt->i_getType();
-            Medium* pMedium = pAtt->i_getMedium();
+            Medium *pMedium = pAtt->i_getMedium();
 
             if (   devType != DeviceType_HardDisk
                 || pMedium == NULL
@@ -10831,7 +10835,7 @@ HRESULT Machine::i_createImplicitDiffs(IProgress *aProgress,
                                                     aWeight);        // weight
                 }
 
-                mMediaData->mAttachments.push_back(pAtt);
+                mMediumAttachments->push_back(pAtt);
                 continue;
             }
 
@@ -10912,7 +10916,7 @@ HRESULT Machine::i_createImplicitDiffs(IProgress *aProgress,
 
             rc = lockedMediaMap->ReplaceKey(pAtt, attachment);
             AssertComRCThrowRC(rc);
-            mMediaData->mAttachments.push_back(attachment);
+            mMediumAttachments->push_back(attachment);
         }
     }
     catch (HRESULT aRC) { rc = aRC; }
@@ -10931,10 +10935,11 @@ HRESULT Machine::i_createImplicitDiffs(IProgress *aProgress,
 
 /**
  * Deletes implicit differencing hard disks created either by
- * #i_createImplicitDiffs() or by #AttachDevice() and rolls back mMediaData.
+ * #i_createImplicitDiffs() or by #attachDevice() and rolls back
+ * mMediumAttachments.
  *
- * Note that to delete hard disks created by #AttachDevice() this method is
- * called from #fixupMedia() when the changes are rolled back.
+ * Note that to delete hard disks created by #attachDevice() this method is
+ * called from #i_rollbackMedia() when the changes are rolled back.
  *
  * @note Locks this object and the media tree for writing.
  */
@@ -10949,12 +10954,13 @@ HRESULT Machine::i_deleteImplicitDiffs(bool aOnline)
                               &mParent->i_getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
 
     /* We absolutely must have backed up state. */
-    AssertReturn(mMediaData.isBackedUp(), E_FAIL);
+    AssertReturn(mMediumAttachments.isBackedUp(), E_FAIL);
 
     /* Check if there are any implicitly created diff images. */
     bool fImplicitDiffs = false;
-    for (MediaData::AttachmentList::const_iterator it = mMediaData->mAttachments.begin();
-         it != mMediaData->mAttachments.end();
+    for (MediumAttachmentList::const_iterator
+         it = mMediumAttachments->begin();
+         it != mMediumAttachments->end();
          ++it)
     {
         const ComObjPtr<MediumAttachment> &pAtt = *it;
@@ -11004,14 +11010,15 @@ HRESULT Machine::i_deleteImplicitDiffs(bool aOnline)
         {
             /* lock all attached hard disks early to detect "in use"
              * situations before deleting actual diffs */
-            for (MediaData::AttachmentList::const_iterator it = mMediaData->mAttachments.begin();
-               it != mMediaData->mAttachments.end();
-               ++it)
+            for (MediumAttachmentList::const_iterator
+                 it = mMediumAttachments->begin();
+                 it != mMediumAttachments->end();
+                 ++it)
             {
-                MediumAttachment* pAtt = *it;
+                MediumAttachment *pAtt = *it;
                 if (pAtt->i_getType() == DeviceType_HardDisk)
                 {
-                    Medium* pMedium = pAtt->i_getMedium();
+                    Medium *pMedium = pAtt->i_getMedium();
                     Assert(pMedium);
 
                     MediumLockList *pMediumLockList(new MediumLockList());
@@ -11043,10 +11050,11 @@ HRESULT Machine::i_deleteImplicitDiffs(bool aOnline)
 
         /* Go through remembered attachments and delete all implicitly created
          * diffs and fix up the attachment information */
-        const MediaData::AttachmentList &oldAtts = mMediaData.backedUpData()->mAttachments;
-        MediaData::AttachmentList implicitAtts;
-        for (MediaData::AttachmentList::const_iterator it = mMediaData->mAttachments.begin();
-             it != mMediaData->mAttachments.end();
+        const MediumAttachmentList &oldAtts = *mMediumAttachments.backedUpData();
+        MediumAttachmentList implicitAtts;
+        for (MediumAttachmentList::const_iterator
+             it = mMediumAttachments->begin();
+             it != mMediumAttachments->end();
              ++it)
         {
             ComObjPtr<MediumAttachment> pAtt = *it;
@@ -11094,7 +11102,7 @@ HRESULT Machine::i_deleteImplicitDiffs(bool aOnline)
         }
 
         /* rollback hard disk changes */
-        mMediaData.rollback();
+        mMediumAttachments.rollback();
 
         MultiResult mrc(S_OK);
 
@@ -11103,7 +11111,10 @@ HRESULT Machine::i_deleteImplicitDiffs(bool aOnline)
         {
             alock.release();
 
-            for (MediaData::AttachmentList::const_iterator it = implicitAtts.begin(); it != implicitAtts.end(); ++it)
+            for (MediumAttachmentList::const_iterator
+                 it = implicitAtts.begin();
+                 it != implicitAtts.end();
+                 ++it)
             {
                 // Remove medium associated with this attachment.
                 ComObjPtr<MediumAttachment> pAtt = *it;
@@ -11165,18 +11176,21 @@ HRESULT Machine::i_deleteImplicitDiffs(bool aOnline)
  * and returns it, or NULL if not found. The list is a parameter so that backup lists
  * can be searched as well if needed.
  *
- * @param list
+ * @param ll
  * @param aControllerName
  * @param aControllerPort
  * @param aDevice
  * @return
  */
-MediumAttachment* Machine::i_findAttachment(const MediaData::AttachmentList &ll,
+MediumAttachment *Machine::i_findAttachment(const MediumAttachmentList &ll,
                                             const Utf8Str &aControllerName,
                                             LONG aControllerPort,
                                             LONG aDevice)
 {
-   for (MediaData::AttachmentList::const_iterator it = ll.begin(); it != ll.end(); ++it)
+    for (MediumAttachmentList::const_iterator
+         it = ll.begin();
+         it != ll.end();
+         ++it)
     {
         MediumAttachment *pAttach = *it;
         if (pAttach->i_matches(aControllerName, aControllerPort, aDevice))
@@ -11191,16 +11205,17 @@ MediumAttachment* Machine::i_findAttachment(const MediaData::AttachmentList &ll,
  * and returns it, or NULL if not found. The list is a parameter so that backup lists
  * can be searched as well if needed.
  *
- * @param list
- * @param aControllerName
- * @param aControllerPort
- * @param aDevice
+ * @param ll
+ * @param pMedium
  * @return
  */
-MediumAttachment* Machine::i_findAttachment(const MediaData::AttachmentList &ll,
+MediumAttachment *Machine::i_findAttachment(const MediumAttachmentList &ll,
                                             ComObjPtr<Medium> pMedium)
 {
-   for (MediaData::AttachmentList::const_iterator it = ll.begin(); it != ll.end(); ++it)
+    for (MediumAttachmentList::const_iterator
+         it = ll.begin();
+         it != ll.end();
+         ++it)
     {
         MediumAttachment *pAttach = *it;
         ComObjPtr<Medium> pMediumThis = pAttach->i_getMedium();
@@ -11216,16 +11231,17 @@ MediumAttachment* Machine::i_findAttachment(const MediaData::AttachmentList &ll,
  * and returns it, or NULL if not found. The list is a parameter so that backup lists
  * can be searched as well if needed.
  *
- * @param list
- * @param aControllerName
- * @param aControllerPort
- * @param aDevice
+ * @param ll
+ * @param id
  * @return
  */
-MediumAttachment* Machine::i_findAttachment(const MediaData::AttachmentList &ll,
+MediumAttachment *Machine::i_findAttachment(const MediumAttachmentList &ll,
                                             Guid &id)
 {
-   for (MediaData::AttachmentList::const_iterator it = ll.begin(); it != ll.end(); ++it)
+    for (MediumAttachmentList::const_iterator
+         it = ll.begin();
+         it != ll.end();
+         ++it)
     {
         MediumAttachment *pAttach = *it;
         ComObjPtr<Medium> pMediumThis = pAttach->i_getMedium();
@@ -11240,10 +11256,12 @@ MediumAttachment* Machine::i_findAttachment(const MediaData::AttachmentList &ll,
  * Main implementation for Machine::DetachDevice. This also gets called
  * from Machine::prepareUnregister() so it has been taken out for simplicity.
  *
- * @param pAttach Medium attachment to detach.
- * @param writeLock Machine write lock which the caller must have locked once. This may be released temporarily in here.
- * @param pSnapshot If NULL, then the detachment is for the current machine. Otherwise this is for a
- * SnapshotMachine, and this must be its snapshot.
+ * @param pAttach   Medium attachment to detach.
+ * @param writeLock Machine write lock which the caller must have locked once.
+ *                  This may be released temporarily in here.
+ * @param pSnapshot If NULL, then the detachment is for the current machine.
+ *                  Otherwise this is for a SnapshotMachine, and this must be
+ *                  its snapshot.
  * @return
  */
 HRESULT Machine::i_detachDevice(MediumAttachment *pAttach,
@@ -11263,7 +11281,7 @@ HRESULT Machine::i_detachDevice(MediumAttachment *pAttach,
         /// and forbid any hard disk operation when it is implicit. Or maybe
         /// a special media state for it to make it even more simple.
 
-        Assert(mMediaData.isBackedUp());
+        Assert(mMediumAttachments.isBackedUp());
 
         /* will release the lock before the potentially lengthy operation, so
          * protect with the special state */
@@ -11283,8 +11301,8 @@ HRESULT Machine::i_detachDevice(MediumAttachment *pAttach,
     }
 
     i_setModified(IsModified_Storage);
-    mMediaData.backup();
-    mMediaData->mAttachments.remove(pAttach);
+    mMediumAttachments.backup();
+    mMediumAttachments->remove(pAttach);
 
     if (!oldmedium.isNull())
     {
@@ -11316,12 +11334,15 @@ HRESULT Machine::i_detachDevice(MediumAttachment *pAttach,
  * Requires caller and locking. The machine lock must be passed in because it
  * will be passed on to i_detachDevice which needs it for temporary unlocking.
  *
- * @param writeLock Machine lock from top-level caller; this gets passed to i_detachDevice.
- * @param pSnapshot Must be NULL when called for a "real" Machine or a snapshot object if called for a SnapshotMachine.
- * @param cleanupMode If DetachAllReturnHardDisksOnly, only hard disk media get added to llMedia; if
- * Full, then all media get added;
- *          otherwise no media get added.
- * @param llMedia Caller's list to receive Medium objects which got detached so caller can close() them, depending on cleanupMode.
+ * @param writeLock Machine lock from top-level caller; this gets passed to
+ *                  i_detachDevice.
+ * @param pSnapshot Must be NULL when called for a "real" Machine or a snapshot
+ *                  object if called for a SnapshotMachine.
+ * @param cleanupMode If DetachAllReturnHardDisksOnly, only hard disk media get
+ *                  added to llMedia; if Full, then all media get added;
+ *                  otherwise no media get added.
+ * @param llMedia   Caller's list to receive Medium objects which got detached so
+ *                  caller can close() them, depending on cleanupMode.
  * @return
  */
 HRESULT Machine::i_detachAllMedia(AutoWriteLock &writeLock,
@@ -11334,10 +11355,13 @@ HRESULT Machine::i_detachAllMedia(AutoWriteLock &writeLock,
     HRESULT rc;
 
     // make a temporary list because i_detachDevice invalidates iterators into
-    // mMediaData->mAttachments
-    MediaData::AttachmentList llAttachments2 = mMediaData->mAttachments;
+    // mMediumAttachments
+    MediumAttachmentList llAttachments2 = *mMediumAttachments.data();
 
-    for (MediaData::AttachmentList::iterator it = llAttachments2.begin(); it != llAttachments2.end(); ++it)
+    for (MediumAttachmentList::iterator
+         it = llAttachments2.begin();
+         it != llAttachments2.end();
+         ++it)
     {
         ComObjPtr<MediumAttachment> &pAttach = *it;
         ComObjPtr<Medium> pMedium = pAttach->i_getMedium();
@@ -11398,12 +11422,12 @@ HRESULT Machine::i_detachAllMedia(AutoWriteLock &writeLock,
 /**
  * Perform deferred hard disk detachments.
  *
- * Does nothing if the hard disk attachment data (mMediaData) is not changed (not
- * backed up).
+ * Does nothing if the hard disk attachment data (mMediumAttachments) is not
+ * changed (not backed up).
  *
- * If @a aOnline is @c true then this method will also unlock the old hard disks
- * for which the new implicit diffs were created and will lock these new diffs for
- * writing.
+ * If @a aOnline is @c true then this method will also unlock the old hard
+ * disks for which the new implicit diffs were created and will lock these new
+ * diffs for writing.
  *
  * @param aOnline       Whether the VM was online prior to this operation.
  *
@@ -11421,22 +11445,23 @@ void Machine::i_commitMedia(bool aOnline /*= false*/)
     HRESULT rc = S_OK;
 
     /* no attach/detach operations -- nothing to do */
-    if (!mMediaData.isBackedUp())
+    if (!mMediumAttachments.isBackedUp())
         return;
 
-    MediaData::AttachmentList &oldAtts = mMediaData.backedUpData()->mAttachments;
+    MediumAttachmentList &oldAtts = *mMediumAttachments.backedUpData();
     bool fMediaNeedsLocking = false;
 
     /* enumerate new attachments */
-    for (MediaData::AttachmentList::const_iterator it = mMediaData->mAttachments.begin();
-         it != mMediaData->mAttachments.end();
+    for (MediumAttachmentList::const_iterator
+         it = mMediumAttachments->begin();
+         it != mMediumAttachments->end();
          ++it)
     {
         MediumAttachment *pAttach = *it;
 
         pAttach->i_commit();
 
-        Medium* pMedium = pAttach->i_getMedium();
+        Medium *pMedium = pAttach->i_getMedium();
         bool fImplicit = pAttach->i_isImplicit();
 
         LogFlowThisFunc(("Examining current medium '%s' (implicit: %d)\n",
@@ -11481,7 +11506,10 @@ void Machine::i_commitMedia(bool aOnline /*= false*/)
         if (pMedium)
         {
             /* was this medium attached before? */
-            for (MediaData::AttachmentList::iterator oldIt = oldAtts.begin(); oldIt != oldAtts.end(); ++oldIt)
+            for (MediumAttachmentList::iterator
+                 oldIt = oldAtts.begin();
+                 oldIt != oldAtts.end();
+                 ++oldIt)
             {
                 MediumAttachment *pOldAttach = *oldIt;
                 if (pOldAttach->i_getMedium() == pMedium)
@@ -11498,10 +11526,13 @@ void Machine::i_commitMedia(bool aOnline /*= false*/)
 
     /* enumerate remaining old attachments and de-associate from the
      * current machine state */
-    for (MediaData::AttachmentList::const_iterator it = oldAtts.begin(); it != oldAtts.end(); ++it)
+    for (MediumAttachmentList::const_iterator
+         it = oldAtts.begin();
+         it != oldAtts.end();
+         ++it)
     {
         MediumAttachment *pAttach = *it;
-        Medium* pMedium = pAttach->i_getMedium();
+        Medium *pMedium = pAttach->i_getMedium();
 
         /* Detach only hard disks, since DVD/floppy media is detached
          * instantly in MountMedium. */
@@ -11547,7 +11578,7 @@ void Machine::i_commitMedia(bool aOnline /*= false*/)
     }
 
     /* commit the hard disk changes */
-    mMediaData.commit();
+    mMediumAttachments.commit();
 
     if (i_isSessionMachine())
     {
@@ -11562,13 +11593,14 @@ void Machine::i_commitMedia(bool aOnline /*= false*/)
          *        objects for session machines and share the data with the peer
          *        machine.
          */
-        for (MediaData::AttachmentList::const_iterator it = mMediaData->mAttachments.begin();
-             it != mMediaData->mAttachments.end();
+        for (MediumAttachmentList::const_iterator
+             it = mMediumAttachments->begin();
+             it != mMediumAttachments->end();
              ++it)
             (*it)->i_updateParentMachine(mPeer);
 
         /* attach new data to the primary machine and reshare it */
-        mPeer->mMediaData.attach(mMediaData);
+        mPeer->mMediumAttachments.attach(mMediumAttachments);
     }
 
     return;
@@ -11577,8 +11609,8 @@ void Machine::i_commitMedia(bool aOnline /*= false*/)
 /**
  * Perform deferred deletion of implicitly created diffs.
  *
- * Does nothing if the hard disk attachment data (mMediaData) is not changed (not
- * backed up).
+ * Does nothing if the hard disk attachment data (mMediumAttachments) is not
+ * changed (not backed up).
  *
  * @note Locks this object for writing!
  */
@@ -11593,19 +11625,20 @@ void Machine::i_rollbackMedia()
     HRESULT rc = S_OK;
 
     /* no attach/detach operations -- nothing to do */
-    if (!mMediaData.isBackedUp())
+    if (!mMediumAttachments.isBackedUp())
         return;
 
     /* enumerate new attachments */
-    for (MediaData::AttachmentList::const_iterator it = mMediaData->mAttachments.begin();
-         it != mMediaData->mAttachments.end();
+    for (MediumAttachmentList::const_iterator
+         it = mMediumAttachments->begin();
+         it != mMediumAttachments->end();
          ++it)
     {
         MediumAttachment *pAttach = *it;
         /* Fix up the backrefs for DVD/floppy media. */
         if (pAttach->i_getType() != DeviceType_HardDisk)
         {
-            Medium* pMedium = pAttach->i_getMedium();
+            Medium *pMedium = pAttach->i_getMedium();
             if (pMedium)
             {
                 rc = pMedium->i_removeBackReference(mData->mUuid);
@@ -11619,7 +11652,7 @@ void Machine::i_rollbackMedia()
         /* Fix up the backrefs for DVD/floppy media. */
         if (pAttach->i_getType() != DeviceType_HardDisk)
         {
-            Medium* pMedium = pAttach->i_getMedium();
+            Medium *pMedium = pAttach->i_getMedium();
             if (pMedium)
             {
                 rc = pMedium->i_addBackReference(mData->mUuid);
@@ -11685,9 +11718,11 @@ void Machine::i_rollback(bool aNotify)
         if (mStorageControllers.isBackedUp())
         {
             /* unitialize all new devices (absent in the backed up list). */
-            StorageControllerList::const_iterator it = mStorageControllers->begin();
             StorageControllerList *backedList = mStorageControllers.backedUpData();
-            while (it != mStorageControllers->end())
+            for (StorageControllerList::const_iterator
+                 it = mStorageControllers->begin();
+                 it != mStorageControllers->end();
+                 ++it)
             {
                 if (   std::find(backedList->begin(), backedList->end(), *it)
                     == backedList->end()
@@ -11695,7 +11730,6 @@ void Machine::i_rollback(bool aNotify)
                 {
                     (*it)->uninit();
                 }
-                ++it;
             }
 
             /* restore the list */
@@ -11705,11 +11739,12 @@ void Machine::i_rollback(bool aNotify)
         /* rollback any changes to devices after restoring the list */
         if (mData->flModifications & IsModified_Storage)
         {
-            StorageControllerList::const_iterator it = mStorageControllers->begin();
-            while (it != mStorageControllers->end())
+            for (StorageControllerList::const_iterator
+                 it = mStorageControllers->begin();
+                 it != mStorageControllers->end();
+                 ++it)
             {
                 (*it)->i_rollback();
-                ++it;
             }
         }
     }
@@ -11719,9 +11754,11 @@ void Machine::i_rollback(bool aNotify)
         if (mUSBControllers.isBackedUp())
         {
             /* unitialize all new devices (absent in the backed up list). */
-            USBControllerList::const_iterator it = mUSBControllers->begin();
             USBControllerList *backedList = mUSBControllers.backedUpData();
-            while (it != mUSBControllers->end())
+            for (USBControllerList::const_iterator
+                 it = mUSBControllers->begin();
+                 it != mUSBControllers->end();
+                 ++it)
             {
                 if (   std::find(backedList->begin(), backedList->end(), *it)
                     == backedList->end()
@@ -11729,7 +11766,6 @@ void Machine::i_rollback(bool aNotify)
                 {
                     (*it)->uninit();
                 }
-                ++it;
             }
 
             /* restore the list */
@@ -11739,11 +11775,12 @@ void Machine::i_rollback(bool aNotify)
         /* rollback any changes to devices after restoring the list */
         if (mData->flModifications & IsModified_USB)
         {
-            USBControllerList::const_iterator it = mUSBControllers->begin();
-            while (it != mUSBControllers->end())
+            for (USBControllerList::const_iterator
+                 it = mUSBControllers->begin();
+                 it != mUSBControllers->end();
+                 ++it)
             {
                 (*it)->i_rollback();
-                ++it;
             }
         }
     }
@@ -11864,7 +11901,7 @@ void Machine::i_commit()
 
     mHWData.commit();
 
-    if (mMediaData.isBackedUp())
+    if (mMediumAttachments.isBackedUp())
         i_commitMedia(Global::IsOnline(mData->mMachineState));
 
     mBIOSSettings->i_commit();
@@ -11938,8 +11975,10 @@ void Machine::i_commit()
             /* Commit all changes to new controllers (this will reshare data with
              * peers for those who have peers) */
             StorageControllerList *newList = new StorageControllerList();
-            StorageControllerList::const_iterator it = mStorageControllers->begin();
-            while (it != mStorageControllers->end())
+            for (StorageControllerList::const_iterator
+                 it = mStorageControllers->begin();
+                 it != mStorageControllers->end();
+                 ++it)
             {
                 (*it)->i_commit();
 
@@ -11959,16 +11998,15 @@ void Machine::i_commit()
                 }
                 /* and add it to the new list */
                 newList->push_back(peer);
-
-                ++it;
             }
 
             /* uninit old peer's controllers that are left */
-            it = mPeer->mStorageControllers->begin();
-            while (it != mPeer->mStorageControllers->end())
+            for (StorageControllerList::const_iterator
+                 it = mPeer->mStorageControllers->begin();
+                 it != mPeer->mStorageControllers->end();
+                 ++it)
             {
                 (*it)->uninit();
-                ++it;
             }
 
             /* attach new list of controllers to our peer */
@@ -11990,11 +12028,12 @@ void Machine::i_commit()
 
     if (commitStorageControllers)
     {
-        StorageControllerList::const_iterator it = mStorageControllers->begin();
-        while (it != mStorageControllers->end())
+        for (StorageControllerList::const_iterator
+             it = mStorageControllers->begin();
+             it != mStorageControllers->end();
+             ++it)
         {
             (*it)->i_commit();
-            ++it;
         }
     }
 
@@ -12009,8 +12048,10 @@ void Machine::i_commit()
             /* Commit all changes to new controllers (this will reshare data with
              * peers for those who have peers) */
             USBControllerList *newList = new USBControllerList();
-            USBControllerList::const_iterator it = mUSBControllers->begin();
-            while (it != mUSBControllers->end())
+            for (USBControllerList::const_iterator
+                 it = mUSBControllers->begin();
+                 it != mUSBControllers->end();
+                 ++it)
             {
                 (*it)->i_commit();
 
@@ -12030,16 +12071,15 @@ void Machine::i_commit()
                 }
                 /* and add it to the new list */
                 newList->push_back(peer);
-
-                ++it;
             }
 
             /* uninit old peer's controllers that are left */
-            it = mPeer->mUSBControllers->begin();
-            while (it != mPeer->mUSBControllers->end())
+            for (USBControllerList::const_iterator
+                 it = mPeer->mUSBControllers->begin();
+                 it != mPeer->mUSBControllers->end();
+                 ++it)
             {
                 (*it)->uninit();
-                ++it;
             }
 
             /* attach new list of controllers to our peer */
@@ -12061,11 +12101,12 @@ void Machine::i_commit()
 
     if (commitUSBControllers)
     {
-        USBControllerList::const_iterator it = mUSBControllers->begin();
-        while (it != mUSBControllers->end())
+        for (USBControllerList::const_iterator
+             it = mUSBControllers->begin();
+             it != mUSBControllers->end();
+             ++it)
         {
             (*it)->i_commit();
-            ++it;
         }
     }
 
@@ -12074,9 +12115,9 @@ void Machine::i_commit()
         /* attach new data to the primary machine and reshare it */
         mPeer->mUserData.attach(mUserData);
         mPeer->mHWData.attach(mHWData);
-        /* mMediaData is reshared by fixupMedia */
-        // mPeer->mMediaData.attach(mMediaData);
-        Assert(mPeer->mMediaData.data() == mMediaData.data());
+        /* mmMediumAttachments is reshared by fixupMedia */
+        // mPeer->mMediumAttachments.attach(mMediumAttachments);
+        Assert(mPeer->mMediumAttachments.data() == mMediumAttachments.data());
     }
 }
 
@@ -12089,7 +12130,7 @@ void Machine::i_commit()
  *
  * @note This method must be called from under this object's lock.
  *
- * @note This method doesn't call #commit(), so all data remains backed up and
+ * @note This method doesn't call #i_commit(), so all data remains backed up and
  *       unsaved.
  */
 void Machine::i_copyFrom(Machine *aThat)
@@ -12103,7 +12144,8 @@ void Machine::i_copyFrom(Machine *aThat)
 
     // create copies of all shared folders (mHWData after attaching a copy
     // contains just references to original objects)
-    for (HWData::SharedFolderList::iterator it = mHWData->mSharedFolders.begin();
+    for (HWData::SharedFolderList::iterator
+         it = mHWData->mSharedFolders.begin();
          it != mHWData->mSharedFolders.end();
          ++it)
     {
@@ -12123,7 +12165,8 @@ void Machine::i_copyFrom(Machine *aThat)
     /* create private copies of all controllers */
     mStorageControllers.backup();
     mStorageControllers->clear();
-    for (StorageControllerList::iterator it = aThat->mStorageControllers->begin();
+    for (StorageControllerList::const_iterator
+         it = aThat->mStorageControllers->begin();
          it != aThat->mStorageControllers->end();
          ++it)
     {
@@ -12136,7 +12179,8 @@ void Machine::i_copyFrom(Machine *aThat)
     /* create private copies of all USB controllers */
     mUSBControllers.backup();
     mUSBControllers->clear();
-    for (USBControllerList::iterator it = aThat->mUSBControllers->begin();
+    for (USBControllerList::const_iterator
+         it = aThat->mUSBControllers->begin();
          it != aThat->mUSBControllers->end();
          ++it)
     {
@@ -12187,11 +12231,12 @@ bool Machine::i_isControllerHotplugCapable(StorageControllerType_T enmCtrlType)
 
 void Machine::i_getDiskList(MediaList &list)
 {
-    for (MediaData::AttachmentList::const_iterator it = mMediaData->mAttachments.begin();
-         it != mMediaData->mAttachments.end();
+    for (MediumAttachmentList::const_iterator
+         it = mMediumAttachments->begin();
+         it != mMediumAttachments->end();
          ++it)
     {
-        MediumAttachment* pAttach = *it;
+        MediumAttachment *pAttach = *it;
         /* just in case */
         AssertContinue(pAttach);
 
@@ -12272,7 +12317,7 @@ void Machine::i_registerMetrics(PerformanceCollector *aCollector, Machine *aMach
     /* Guest metrics collector */
     mCollectorGuest = new pm::CollectorGuest(aMachine, pid);
     aCollector->registerGuest(mCollectorGuest);
-    Log7(("{%p} " LOG_FN_FMT ": mCollectorGuest=%p\n", this, __PRETTY_FUNCTION__, mCollectorGuest));
+    Log7Func(("{%p}: mCollectorGuest=%p\n", this, mCollectorGuest));
 
     /* Create sub metrics */
     pm::SubMetric *guestLoadUser = new pm::SubMetric("Guest/CPU/Load/User",
@@ -12457,10 +12502,11 @@ HRESULT SessionMachine::init(Machine *aMachine)
 
     mUserData.share(aMachine->mUserData);
     mHWData.share(aMachine->mHWData);
-    mMediaData.share(aMachine->mMediaData);
+    mMediumAttachments.share(aMachine->mMediumAttachments);
 
     mStorageControllers.allocate();
-    for (StorageControllerList::const_iterator it = aMachine->mStorageControllers->begin();
+    for (StorageControllerList::const_iterator
+         it = aMachine->mStorageControllers->begin();
          it != aMachine->mStorageControllers->end();
          ++it)
     {
@@ -12471,7 +12517,8 @@ HRESULT SessionMachine::init(Machine *aMachine)
     }
 
     mUSBControllers.allocate();
-    for (USBControllerList::const_iterator it = aMachine->mUSBControllers->begin();
+    for (USBControllerList::const_iterator
+         it = aMachine->mUSBControllers->begin();
          it != aMachine->mUSBControllers->end();
          ++it)
     {
@@ -12627,7 +12674,7 @@ void SessionMachine::uninit(Uninit::Reason aReason)
      */
     i_unregisterMetrics(mParent->i_performanceCollector(), mPeer);
     /* The guest must be unregistered after its metrics (@bugref{5949}). */
-    Log7(("{%p} " LOG_FN_FMT ": mCollectorGuest=%p\n", this, __PRETTY_FUNCTION__, mCollectorGuest));
+    Log7Func(("{%p}: mCollectorGuest=%p\n", this, mCollectorGuest));
     if (mCollectorGuest)
     {
         mParent->i_performanceCollector()->unregisterGuest(mCollectorGuest);
@@ -12668,9 +12715,12 @@ void SessionMachine::uninit(Uninit::Reason aReason)
         LogFlowThisFunc(("Closing remote sessions (%d):\n",
                           mData->mSession.mRemoteControls.size()));
 
-        Data::Session::RemoteControlList::iterator it =
-            mData->mSession.mRemoteControls.begin();
-        while (it != mData->mSession.mRemoteControls.end())
+        /* Always restart a the beginning, since the iterator is invalidated
+         * by using erase(). */
+        for (Data::Session::RemoteControlList::iterator
+             it = mData->mSession.mRemoteControls.begin();
+             it != mData->mSession.mRemoteControls.end();
+             it = mData->mSession.mRemoteControls.begin())
         {
             ComPtr<IInternalSessionControl> pControl = *it;
             mData->mSession.mRemoteControls.erase(it);
@@ -12681,7 +12731,6 @@ void SessionMachine::uninit(Uninit::Reason aReason)
             if (FAILED(rc))
                 Log1WarningThisFunc(("Forgot to close the remote session?\n"));
             multilock.acquire();
-            it = mData->mSession.mRemoteControls.begin();
         }
         mData->mSession.mRemoteControls.clear();
     }
@@ -12708,9 +12757,10 @@ void SessionMachine::uninit(Uninit::Reason aReason)
                 if (SUCCEEDED(hrc))
                 {
                     multilock.release();
-                    LogRel(("VM '%s' stops using NAT network '%ls'\n",
-                            mUserData->s.strName.c_str(), name.raw()));
-                    mParent->i_natNetworkRefDec(name.raw());
+                    Utf8Str strName(name);
+                    LogRel(("VM '%s' stops using NAT network '%s'\n",
+                            mUserData->s.strName.c_str(), strName.c_str()));
+                    mParent->i_natNetworkRefDec(strName);
                     multilock.acquire();
                 }
             }
@@ -12933,7 +12983,7 @@ void SessionMachine::i_saveStateHandler(SaveStateTask &task)
                            tr("Trying to save state without a running VM"));
         alock.release();
         BOOL fSuspendedBySave;
-        rc = directControl->SaveStateWithReason(task.m_enmReason, task.m_pProgress, Bstr(task.m_strStateFilePath).raw(), task.m_machineStateBackup != MachineState_Paused, &fSuspendedBySave);
+        rc = directControl->SaveStateWithReason(task.m_enmReason, task.m_pProgress, NULL, Bstr(task.m_strStateFilePath).raw(), task.m_machineStateBackup != MachineState_Paused, &fSuspendedBySave);
         Assert(!fSuspendedBySave);
         alock.acquire();
 
@@ -12995,7 +13045,7 @@ HRESULT SessionMachine::i_saveStateWithReason(Reason_T aReason, ComPtr<IProgress
     pProgress.createObject();
     rc = pProgress->init(i_getVirtualBox(),
                          static_cast<IMachine *>(this) /* aInitiator */,
-                         Bstr(tr("Saving the execution state of the virtual machine")).raw(),
+                         tr("Saving the execution state of the virtual machine"),
                          FALSE /* aCancelable */);
     if (FAILED(rc))
         return rc;
@@ -13092,7 +13142,7 @@ HRESULT SessionMachine::updateState(MachineState_T aState)
  */
 HRESULT SessionMachine::beginPowerUp(const ComPtr<IProgress> &aProgress)
 {
-    IProgress* pProgress(aProgress);
+    IProgress *pProgress(aProgress);
 
     LogFlowThisFunc(("aProgress=%p\n", pProgress));
 
@@ -13125,10 +13175,11 @@ HRESULT SessionMachine::beginPowerUp(const ComPtr<IProgress> &aProgress)
                 hrc = mNetworkAdapters[slot]->COMGETTER(NATNetwork)(name.asOutParam());
                 if (SUCCEEDED(hrc))
                 {
-                    LogRel(("VM '%s' starts using NAT network '%ls'\n",
-                            mUserData->s.strName.c_str(), name.raw()));
+                    Utf8Str strName(name);
+                    LogRel(("VM '%s' starts using NAT network '%s'\n",
+                            mUserData->s.strName.c_str(), strName.c_str()));
                     mPeer->lockHandle()->unlockWrite();
-                    mParent->i_natNetworkRefInc(name.raw());
+                    mParent->i_natNetworkRefInc(strName);
 #ifdef RT_LOCK_STRICT
                     mPeer->lockHandle()->lockWrite(RT_SRC_POS);
 #else
@@ -13192,7 +13243,7 @@ HRESULT SessionMachine::beginPoweringDown(ComPtr<IProgress> &aProgress)
     pProgress.createObject();
     pProgress->init(i_getVirtualBox(),
                     static_cast<IMachine *>(this) /* aInitiator */,
-                    Bstr(tr("Stopping the virtual machine")).raw(),
+                    tr("Stopping the virtual machine"),
                     FALSE /* aCancelable */);
 
     /* fill in the console task data */
@@ -13438,20 +13489,24 @@ HRESULT SessionMachine::onSessionEnd(const ComPtr<ISession> &aSession,
     else
     {
         /* the remote session is being normally closed */
-        Data::Session::RemoteControlList::iterator it =
-            mData->mSession.mRemoteControls.begin();
-        while (it != mData->mSession.mRemoteControls.end())
+        bool found = false;
+        for (Data::Session::RemoteControlList::iterator
+             it = mData->mSession.mRemoteControls.begin();
+             it != mData->mSession.mRemoteControls.end();
+             ++it)
         {
             if (control == *it)
+            {
+                found = true;
+                // This MUST be erase(it), not remove(*it) as the latter
+                // triggers a very nasty use after free due to the place where
+                // the value "lives".
+                mData->mSession.mRemoteControls.erase(it);
                 break;
-            ++it;
+            }
         }
-        BOOL found = it != mData->mSession.mRemoteControls.end();
         ComAssertMsgRet(found, ("The session is not found in the session list!"),
                          E_INVALIDARG);
-        // This MUST be erase(it), not remove(*it) as the latter triggers a
-        // very nasty use after free due to the place where the value "lives".
-        mData->mSession.mRemoteControls.erase(it);
     }
 
     /* signal the client watcher thread, because the client is going away */
@@ -13480,7 +13535,8 @@ HRESULT SessionMachine::pullGuestProperties(std::vector<com::Utf8Str> &aNames,
     aFlags.resize(cEntries);
 
     size_t  i = 0;
-    for (HWData::GuestPropertyMap::iterator it = mHWData->mGuestProperties.begin();
+    for (HWData::GuestPropertyMap::const_iterator
+         it = mHWData->mGuestProperties.begin();
          it != mHWData->mGuestProperties.end();
          ++it, ++i)
     {
@@ -13617,7 +13673,7 @@ HRESULT SessionMachine::ejectMedium(const ComPtr<IMediumAttachment> &aAttachment
     IMediumAttachment *iAttach = aAttachment;
     ComObjPtr<MediumAttachment> pAttach = static_cast<MediumAttachment *>(iAttach);
 
-    Bstr ctrlName;
+    Utf8Str ctrlName;
     LONG lPort;
     LONG lDevice;
     bool fTempEject;
@@ -13640,12 +13696,12 @@ HRESULT SessionMachine::ejectMedium(const ComPtr<IMediumAttachment> &aAttachment
         oldmedium = pAttach->i_getMedium();
 
         i_setModified(IsModified_Storage);
-        mMediaData.backup();
+        mMediumAttachments.backup();
 
         // The backup operation makes the pAttach reference point to the
         // old settings. Re-get the correct reference.
-        pAttach = i_findAttachment(mMediaData->mAttachments,
-                                   ctrlName.raw(),
+        pAttach = i_findAttachment(*mMediumAttachments.data(),
+                                   ctrlName,
                                    lPort,
                                    lDevice);
 
@@ -13919,6 +13975,30 @@ HRESULT SessionMachine::i_onNATRedirectRuleChange(ULONG ulSlot, BOOL aNatRuleRem
     mParent->i_onNatRedirectChange(i_getId(), ulSlot, RT_BOOL(aNatRuleRemove), aRuleName, aProto, aHostIp,
                                    (uint16_t)aHostPort, aGuestIp, (uint16_t)aGuestPort);
     return S_OK;
+}
+
+/**
+ *  @note Locks this object for reading.
+ */
+HRESULT SessionMachine::i_onAudioAdapterChange(IAudioAdapter *audioAdapter)
+{
+    LogFlowThisFunc(("\n"));
+
+    AutoCaller autoCaller(this);
+    AssertComRCReturn(autoCaller.rc(), autoCaller.rc());
+
+    ComPtr<IInternalSessionControl> directControl;
+    {
+        AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+        if (mData->mSession.mLockType == LockType_VM)
+            directControl = mData->mSession.mDirectControl;
+    }
+
+    /* ignore notifications sent after #OnSessionEnd() is called */
+    if (!directControl)
+        return S_OK;
+
+    return directControl->OnAudioAdapterChange(audioAdapter);
 }
 
 /**
@@ -14423,11 +14503,12 @@ HRESULT SessionMachine::i_lockMedia()
     MultiResult mrc(S_OK);
 
     /* Collect locking information for all medium objects attached to the VM. */
-    for (MediaData::AttachmentList::const_iterator it = mMediaData->mAttachments.begin();
-         it != mMediaData->mAttachments.end();
+    for (MediumAttachmentList::const_iterator
+         it = mMediumAttachments->begin();
+         it != mMediumAttachments->end();
          ++it)
     {
-        MediumAttachment* pAtt = *it;
+        MediumAttachment *pAtt = *it;
         DeviceType_T devType = pAtt->i_getType();
         Medium *pMedium = pAtt->i_getMedium();
 
@@ -14694,7 +14775,8 @@ HRESULT SessionMachine::i_setMachineState(MachineState_T aMachineState)
 
         /* remove it from the settings representation */
         settings::GuestPropertiesList &llGuestProperties = mData->pMachineConfigFile->hardwareMachine.llGuestProperties;
-        for (settings::GuestPropertiesList::iterator it = llGuestProperties.begin();
+        for (settings::GuestPropertiesList::iterator
+             it = llGuestProperties.begin();
              it != llGuestProperties.end();
              /*nothing*/)
         {
@@ -14714,7 +14796,8 @@ HRESULT SessionMachine::i_setMachineState(MachineState_T aMachineState)
         /* Additionally remove it from the HWData representation. Required to
          * keep everything in sync, as this is what the API keeps using. */
         HWData::GuestPropertyMap &llHWGuestProperties = mHWData->mGuestProperties;
-        for (HWData::GuestPropertyMap::iterator it = llHWGuestProperties.begin();
+        for (HWData::GuestPropertyMap::iterator
+             it = llHWGuestProperties.begin();
              it != llHWGuestProperties.end();
              /*nothing*/)
         {

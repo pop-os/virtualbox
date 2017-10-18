@@ -38,12 +38,12 @@ public:
                  LONG aPort,
                  LONG aDevice,
                  DeviceType_T aType,
-                 bool fImplicit,
-                 bool fPassthrough,
-                 bool fTempEject,
-                 bool fNonRotational,
-                 bool fDiscard,
-                 bool fHotPluggable,
+                 bool aImplicit,
+                 bool aPassthrough,
+                 bool aTempEject,
+                 bool aNonRotational,
+                 bool aDiscard,
+                 bool aHotPluggable,
                  const Utf8Str &strBandwidthGroup);
     HRESULT initCopy(Machine *aParent, MediumAttachment *aThat);
     void uninit();
@@ -128,5 +128,5 @@ private:
     Utf8Str mLogName;                   /**< For logging purposes */
 };
 
-#endif // ____H_MEDIUMATTACHMENTIMPL
+#endif // !____H_MEDIUMATTACHMENTIMPL
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

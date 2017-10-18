@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -346,7 +346,7 @@ static int txsTcpConnect(void)
 }
 
 /**
- * @interface_method_impl{TXSTRANSPORT,txsTcpNotifyReboot}
+ * @interface_method_impl{TXSTRANSPORT,pfnNotifyReboot}
  */
 static DECLCALLBACK(void) txsTcpNotifyReboot(void)
 {
@@ -741,7 +741,7 @@ static DECLCALLBACK(int) txsTcpOption(int ch, PCRTGETOPTUNION pVal)
 
         case TXSTCPOPT_LEGACY_CONNECT:
             g_enmTcpMode = TXSTCPMODE_CLIENT;
-            /* fall thru */
+            RT_FALL_THRU();
         case TXSTCPOPT_CONNECT_ADDRESS:
             rc = RTStrCopy(g_szTcpConnectAddr, sizeof(g_szTcpConnectAddr), pVal->psz);
             if (RT_FAILURE(rc))

@@ -7,7 +7,7 @@ Test Manager WUI - TestBox.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard python imports.
@@ -38,7 +38,7 @@ from testmanager.webui.wuicontentbase   import WuiContentBase, WuiListContentWit
                                                WuiSvnLink, WuiTmLink, WuiSpanText, WuiRawHtml;
 from testmanager.core.db                import TMDatabaseConnection;
 from testmanager.core.schedgroup        import SchedGroupLogic, SchedGroupData;
-from testmanager.core.testbox           import TestBoxData, TestBoxDataEx;
+from testmanager.core.testbox           import TestBoxData, TestBoxDataEx, TestBoxLogic;
 from testmanager.core.testset           import TestSetData;
 from testmanager.core.db                import isDbTimestampInfinity;
 
@@ -176,10 +176,14 @@ class WuiTestBoxList(WuiListContentWithActionBase):
         TestBoxData.kaoTestBoxCmdDescs[5],
     ];
 
-    def __init__(self, aoEntries, iPage, cItemsPerPage, tsEffective, fnDPrint, oDisp):
+    ## Boxes which doesn't report in for more than 15 min are considered dead.
+    kcSecMaxStatusDeltaAlive = 15*60
+
+    def __init__(self, aoEntries, iPage, cItemsPerPage, tsEffective, fnDPrint, oDisp, aiSelectedSortColumns = None):
         # type: (list[TestBoxDataForListing], int, int, datetime.datetime, ignore, WuiAdmin) -> None
         WuiListContentWithActionBase.__init__(self, aoEntries, iPage, cItemsPerPage, tsEffective,
-                                              sTitle = 'TestBoxes', sId = 'users', fnDPrint = fnDPrint, oDisp = oDisp);
+                                              sTitle = 'TestBoxes', sId = 'users', fnDPrint = fnDPrint, oDisp = oDisp,
+                                              aiSelectedSortColumns = aiSelectedSortColumns);
         self._asColumnHeaders.extend([ 'Name', 'LOM', 'Status', 'Cmd',
                                        'Note', 'Script', 'Python', 'Group',
                                        'OS', 'CPU', 'Features', 'CPUs', 'RAM', 'Scratch',
@@ -188,9 +192,51 @@ class WuiTestBoxList(WuiListContentWithActionBase):
                                        'align="center"', 'align="center"', 'align="center"', 'align="center"',
                                        '', '', '', 'align="left"', 'align="right"', 'align="right"', 'align="right"',
                                        'align="center"' ]);
+        self._aaiColumnSorting.extend([
+            (TestBoxLogic.kiSortColumn_sName,),
+            None, # LOM
+            (-TestBoxLogic.kiSortColumn_fEnabled, TestBoxLogic.kiSortColumn_enmState, -TestBoxLogic.kiSortColumn_tsUpdated,),
+            (TestBoxLogic.kiSortColumn_enmPendingCmd,),
+            None, # Note
+            (TestBoxLogic.kiSortColumn_iTestBoxScriptRev,),
+            (TestBoxLogic.kiSortColumn_iPythonHexVersion,),
+            None, # Group
+            (TestBoxLogic.kiSortColumn_sOs, TestBoxLogic.kiSortColumn_sOsVersion, TestBoxLogic.kiSortColumn_sCpuArch,),
+            (TestBoxLogic.kiSortColumn_sCpuVendor, TestBoxLogic.kiSortColumn_lCpuRevision,),
+            (TestBoxLogic.kiSortColumn_fCpuNestedPaging,),
+            (TestBoxLogic.kiSortColumn_cCpus,),
+            (TestBoxLogic.kiSortColumn_cMbMemory,),
+            (TestBoxLogic.kiSortColumn_cMbScratch,),
+            None, # Actions
+        ]);
+        assert len(self._aaiColumnSorting) == len(self._asColumnHeaders);
         self._aoActions     = list(self.kasTestBoxActionDescs);
         self._sAction       = oDisp.ksActionTestBoxListPost;
         self._sCheckboxName = TestBoxData.ksParam_idTestBox;
+
+    def show(self, fShowNavigation = True):
+        """ Adds some stats at the bottom of the page """
+        (sTitle, sBody) = super(WuiTestBoxList, self).show(fShowNavigation);
+
+        # Count boxes in interesting states.
+        if self._aoEntries:
+            cActive = 0;
+            cDead   = 0;
+            for oTestBox in self._aoEntries:
+                if oTestBox.oStatus is not None:
+                    oDelta = oTestBox.tsCurrent - oTestBox.oStatus.tsUpdated;
+                    if oDelta.days <= 0 and oDelta.seconds <= self.kcSecMaxStatusDeltaAlive:
+                        if oTestBox.fEnabled:
+                            cActive += 1;
+                    else:
+                        cDead += 1;
+                else:
+                    cDead += 1;
+            sBody += '<div id="testboxsummary"><p>\n' \
+                     '%s testboxes of which %s are active and %s dead' \
+                     '</p></div>\n' \
+                     % (len(self._aoEntries), cActive, cDead,)
+        return (sTitle, sBody);
 
     def _formatListEntry(self, iEntry): # pylint: disable=R0914
         from testmanager.webui.wuiadmin import WuiAdmin;
@@ -218,7 +264,7 @@ class WuiTestBoxList(WuiListContentWithActionBase):
             oState = '';
         else:
             oDelta = oEntry.tsCurrent - oEntry.oStatus.tsUpdated;
-            if oDelta.days <= 0 and oDelta.seconds <= 15*60: # 15 mins and we consider you dead.
+            if oDelta.days <= 0 and oDelta.seconds <= self.kcSecMaxStatusDeltaAlive:
                 oSeen = WuiSpanText('tmspan-online',  u'%s\u00a0s\u00a0ago' % (oDelta.days * 24 * 3600 + oDelta.seconds,));
             else:
                 oSeen = WuiSpanText('tmspan-offline', u'%s' % (self.formatTsShort(oEntry.oStatus.tsUpdated),));
@@ -269,6 +315,11 @@ class WuiTestBoxList(WuiListContentWithActionBase):
                 if iSep > 0 and sOsVersion[-1] == ')':
                     sVer1 = sOsVersion[:iSep].strip();
                     sVer2 = sOsVersion[iSep + 2:-1].strip();
+            elif oEntry.sOs == 'win':
+                iSep = sOsVersion.find('build');
+                if iSep > 0:
+                    sVer1 = sOsVersion[:iSep].strip();
+                    sVer2 = 'B' + sOsVersion[iSep + 1:].strip();
             aoOs = [
                 WuiSpanText('tmspan-osarch', u'%s.%s' % (oEntry.sOs, oEntry.sCpuArch,)),
                 WuiSpanText('tmspan-osver1', sVer1.replace('-', u'\u2011'),),
@@ -300,7 +351,7 @@ class WuiTestBoxList(WuiListContentWithActionBase):
         if oEntry.fCpuNestedPaging is True: asFeatures.append(u'Nested\u2011Paging');
         if oEntry.fCpu64BitGuest   is True: asFeatures.append(u'64\u2011bit\u2011Guest');
         if oEntry.fChipsetIoMmu    is True: asFeatures.append(u'I/O\u2011MMU');
-        sFeatures = u' '.join(asFeatures) if len(asFeatures) > 0 else u'';
+        sFeatures = u' '.join(asFeatures) if asFeatures else u'';
 
         # Collection applicable actions.
         aoActions = [
@@ -310,19 +361,20 @@ class WuiTestBoxList(WuiListContentWithActionBase):
                          WuiAdmin.ksParamEffectiveDate: self._tsEffectiveDate, } ),
             ]
 
-        if isDbTimestampInfinity(oEntry.tsExpire):
-            aoActions += [
-                WuiTmLink('Edit', WuiAdmin.ksScriptName,
-                          { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestBoxEdit,
-                            TestBoxData.ksParam_idTestBox: oEntry.idTestBox, } ),
-                WuiTmLink('Remove', WuiAdmin.ksScriptName,
-                          { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestBoxRemovePost,
-                            TestBoxData.ksParam_idTestBox: oEntry.idTestBox },
-                          sConfirm = 'Are you sure that you want to remove %s (%s)?' % (oEntry.sName, oEntry.ip) ),
-            ]
+        if self._oDisp is None or not self._oDisp.isReadOnlyUser():
+            if isDbTimestampInfinity(oEntry.tsExpire):
+                aoActions += [
+                    WuiTmLink('Edit', WuiAdmin.ksScriptName,
+                              { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestBoxEdit,
+                                TestBoxData.ksParam_idTestBox: oEntry.idTestBox, } ),
+                    WuiTmLink('Remove', WuiAdmin.ksScriptName,
+                              { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestBoxRemovePost,
+                                TestBoxData.ksParam_idTestBox: oEntry.idTestBox },
+                              sConfirm = 'Are you sure that you want to remove %s (%s)?' % (oEntry.sName, oEntry.ip) ),
+                ]
 
-        if oEntry.sOs not in [ 'win', 'os2', ] and oEntry.ip is not None:
-            aoActions.append(WuiLinkBase('ssh', 'ssh://vbox@%s' % (oEntry.ip,),));
+            if oEntry.sOs not in [ 'win', 'os2', ] and oEntry.ip is not None:
+                aoActions.append(WuiLinkBase('ssh', 'ssh://vbox@%s' % (oEntry.ip,),));
 
         return [ self._getCheckBoxColumn(iEntry, oEntry.idTestBox),
                  [ WuiSpanText('tmspan-name', oEntry.sName), WuiRawHtml('<br>'), '%s' % (oEntry.ip,),],

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2016 Oracle Corporation
+# Copyright (C) 2006-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -68,7 +68,8 @@ VBoxSDL_DEFS.win.x86 = _WIN32_WINNT=0x0500
 VBoxSDL_DEFS.win.amd64 = _WIN32_WINNT=0x0510
 
 VBoxSDL_INCS = \
-	$(VBoxSDL_0_OUTDIR)
+	$(VBoxSDL_0_OUTDIR) \
+	$(VBOX_GRAPHICS_INCS)
 ifeq ($(filter-out freebsd linux netbsd openbsd solaris,$(KBUILD_TARGET)),) # X11
 VBoxSDL_INCS += \
 	$(VBOX_XCURSOR_INCS)

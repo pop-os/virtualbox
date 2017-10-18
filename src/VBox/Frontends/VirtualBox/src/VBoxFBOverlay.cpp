@@ -61,7 +61,7 @@
 #include <VBox/err.h>
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
-# include <VBox/VBoxVideo.h>
+# include <VBoxVideo.h>
 # include <VBox/vmm/ssm.h>
 #endif /* VBOX_WITH_VIDEOHWACCEL */
 
@@ -3669,11 +3669,7 @@ void VBoxVHWAImage::vboxDoUpdateViewport(const QRect & aRect)
 
     const OverlayList & overlays = mDisplay.overlays();
     QRect overInter = overlaysRectIntersection();
-#if QT_VERSION >= 0x050000
     overInter = overInter.intersected(aRect);
-#else /* QT_VERSION < 0x050000 */
-    overInter = overInter.intersect(aRect);
-#endif /* QT_VERSION < 0x050000 */
 
     bool bDisplayPrimary = true;
 

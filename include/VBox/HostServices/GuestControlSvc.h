@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2016 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,13 +27,10 @@
 #ifndef ___VBox_HostService_GuestControlService_h
 #define ___VBox_HostService_GuestControlService_h
 
-#include <VBox/types.h>
-#include <VBox/VMMDev.h>
-#include <VBox/VBoxGuest2.h>
+#include <VBox/VMMDevCoreTypes.h>
+#include <VBox/VBoxGuestCoreTypes.h>
 #include <VBox/hgcmsvc.h>
-#include <VBox/log.h>
 #include <iprt/assert.h>
-#include <iprt/string.h>
 
 /* Everything defined in this file lives in this namespace. */
 namespace guestControl {
@@ -207,6 +204,17 @@ enum eGuestFn
     /**
      * Guest waits for a new message the host wants to process on the guest side.
      * This is a blocking call and can be deferred.
+     *
+     * @note This command is rather odd.  The above description isn't really
+     *       correct.  Yes, it (1) waits for a new message and will return the
+     *       mesage number and parameter count when one is available.   However, it
+     *       is also (2) used to retrieve the message parameters.   For some weird
+     *       reasons it was decided that it should always return VERR_TOO_MUCH_DATA
+     *       when used in the first capacity.
+     *
+     * @todo r=bird: Next time this interface gets a major adjustment, please split
+     *       this function up into two calls and, for heavens sake, make them return
+     *       VINF_SUCCESS on success.
      */
     GUEST_MSG_WAIT = 1,
     /**
@@ -368,7 +376,7 @@ enum GUEST_FILE_SEEKTYPE
  */
 typedef struct HGCMMsgCmdWaitFor
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /**
      * The returned command the host wants to
      * run on the guest.
@@ -386,7 +394,7 @@ typedef struct HGCMMsgCmdWaitFor
  */
 typedef struct HGCMMsgCmdFilterSet
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Value to filter for after filter mask
      *  was applied. */
     HGCMFunctionParameter value;         /* IN uint32_t */
@@ -404,7 +412,7 @@ typedef struct HGCMMsgCmdFilterSet
  */
 typedef struct HGCMMsgCmdFilterUnset
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Unset flags; currently unused. */
     HGCMFunctionParameter flags;    /* IN uint32_t */
 } HGCMMsgCmdFilterUnset;
@@ -416,7 +424,7 @@ typedef struct HGCMMsgCmdFilterUnset
  */
 typedef struct HGCMMsgCmdSkip
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Skip flags; currently unused. */
     HGCMFunctionParameter flags;    /* IN uint32_t */
 } HGCMMsgCmdSkip;
@@ -427,12 +435,12 @@ typedef struct HGCMMsgCmdSkip
  */
 typedef struct HGCMMsgCancelPendingWaits
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
 } HGCMMsgCancelPendingWaits;
 
 typedef struct HGCMMsgCmdReply
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Context ID. */
     HGCMFunctionParameter context;
     /** Message type. */
@@ -448,7 +456,7 @@ typedef struct HGCMMsgCmdReply
  */
 typedef struct HGCMMsgSessionOpen
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Context ID. */
     HGCMFunctionParameter context;
     /** The guest control protocol version this
@@ -469,7 +477,7 @@ typedef struct HGCMMsgSessionOpen
  */
 typedef struct HGCMMsgSessionClose
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Context ID. */
     HGCMFunctionParameter context;
     /** Session termination flags. */
@@ -481,7 +489,7 @@ typedef struct HGCMMsgSessionClose
  */
 typedef struct HGCMMsgSessionNotify
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Context ID. */
     HGCMFunctionParameter context;
     /** Notification type. */
@@ -492,7 +500,7 @@ typedef struct HGCMMsgSessionNotify
 
 typedef struct HGCMMsgPathRename
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** UInt32: Context ID. */
     HGCMFunctionParameter context;
     /** Source to rename. */
@@ -508,7 +516,7 @@ typedef struct HGCMMsgPathRename
  */
 typedef struct HGCMMsgProcExec
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Context ID. */
     HGCMFunctionParameter context;
     /** The command to execute on the guest. */
@@ -563,7 +571,7 @@ typedef struct HGCMMsgProcExec
  */
 typedef struct HGCMMsgProcInput
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Context ID. */
     HGCMFunctionParameter context;
     /** The process ID (PID) to send the input to. */
@@ -582,7 +590,7 @@ typedef struct HGCMMsgProcInput
  */
 typedef struct HGCMMsgProcOutput
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Context ID. */
     HGCMFunctionParameter context;
     /** The process ID (PID). */
@@ -600,7 +608,7 @@ typedef struct HGCMMsgProcOutput
  */
 typedef struct HGCMMsgProcStatus
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Context ID. */
     HGCMFunctionParameter context;
     /** The process ID (PID). */
@@ -618,7 +626,7 @@ typedef struct HGCMMsgProcStatus
  */
 typedef struct HGCMMsgProcStatusInput
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Context ID. */
     HGCMFunctionParameter context;
     /** The process ID (PID). */
@@ -640,7 +648,7 @@ typedef struct HGCMMsgProcStatusInput
  */
 typedef struct HGCMMsgProcTerminate
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Context ID. */
     HGCMFunctionParameter context;
     /** The process ID (PID). */
@@ -652,7 +660,7 @@ typedef struct HGCMMsgProcTerminate
  */
 typedef struct HGCMMsgProcWaitFor
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Context ID. */
     HGCMFunctionParameter context;
     /** The process ID (PID). */
@@ -665,7 +673,7 @@ typedef struct HGCMMsgProcWaitFor
 
 typedef struct HGCMMsgDirRemove
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** UInt32: Context ID. */
     HGCMFunctionParameter context;
     /** Directory to remove. */
@@ -679,7 +687,7 @@ typedef struct HGCMMsgDirRemove
  */
 typedef struct HGCMMsgFileOpen
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** UInt32: Context ID. */
     HGCMFunctionParameter context;
     /** File to open. */
@@ -701,7 +709,7 @@ typedef struct HGCMMsgFileOpen
  */
 typedef struct HGCMMsgFileClose
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Context ID. */
     HGCMFunctionParameter context;
     /** File handle to close. */
@@ -713,7 +721,7 @@ typedef struct HGCMMsgFileClose
  */
 typedef struct HGCMMsgFileRead
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Context ID. */
     HGCMFunctionParameter context;
     /** File handle to read from. */
@@ -727,7 +735,7 @@ typedef struct HGCMMsgFileRead
  */
 typedef struct HGCMMsgFileReadAt
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Context ID. */
     HGCMFunctionParameter context;
     /** File handle to read from. */
@@ -743,7 +751,7 @@ typedef struct HGCMMsgFileReadAt
  */
 typedef struct HGCMMsgFileWrite
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Context ID. */
     HGCMFunctionParameter context;
     /** File handle to write to. */
@@ -759,7 +767,7 @@ typedef struct HGCMMsgFileWrite
  */
 typedef struct HGCMMsgFileWriteAt
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Context ID. */
     HGCMFunctionParameter context;
     /** File handle to write to. */
@@ -777,7 +785,7 @@ typedef struct HGCMMsgFileWriteAt
  */
 typedef struct HGCMMsgFileSeek
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Context ID. */
     HGCMFunctionParameter context;
     /** File handle to seek. */
@@ -793,7 +801,7 @@ typedef struct HGCMMsgFileSeek
  */
 typedef struct HGCMMsgFileTell
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Context ID. */
     HGCMFunctionParameter context;
     /** File handle to get the current position for. */
@@ -807,7 +815,7 @@ typedef struct HGCMMsgFileTell
 
 typedef struct HGCMReplyFileNotify
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Context ID. */
     HGCMFunctionParameter context;
     /** Notification type. */
@@ -845,7 +853,7 @@ typedef struct HGCMReplyFileNotify
 
 typedef struct HGCMReplyDirNotify
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
     /** Context ID. */
     HGCMFunctionParameter context;
     /** Notification type. */

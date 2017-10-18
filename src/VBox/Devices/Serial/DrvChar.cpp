@@ -29,6 +29,7 @@
 #include <VBox/vmm/pdmdrv.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
+#include <iprt/poll.h>
 #include <iprt/stream.h>
 #include <iprt/semaphore.h>
 #include <iprt/uuid.h>
@@ -39,8 +40,6 @@
 /*********************************************************************************************************************************
 *   Defined Constants And Macros                                                                                                 *
 *********************************************************************************************************************************/
-/** Converts a pointer to DRVCHAR::ICharConnector to a PDRVCHAR. */
-#define PDMICHAR_2_DRVCHAR(pInterface)  RT_FROM_MEMBER(pInterface, DRVCHAR, ICharConnector)
 
 
 /*********************************************************************************************************************************
@@ -63,17 +62,28 @@ typedef struct DRVCHAR
     PDMICHARCONNECTOR           ICharConnector;
     /** Flag to notify the receive thread it should terminate. */
     volatile bool               fShutdown;
-    /** Receive thread ID. */
-    RTTHREAD                    ReceiveThread;
-    /** Send thread ID. */
-    RTTHREAD                    SendThread;
-    /** Send event semaphore */
-    RTSEMEVENT                  SendSem;
+    /** I/O thread. */
+    PPDMTHREAD                  pThrdIo;
+    /** Thread to relay read data to the device above without
+     * blocking send operations.
+     * @todo: This has to go but needs changes in the interface
+     *        between device and driver.
+     */
+    PPDMTHREAD                  pThrdRead;
+    /** Event semaphore for the read relay thread. */
+    RTSEMEVENT                  hEvtSemRead;
 
     /** Internal send FIFO queue */
     uint8_t volatile            u8SendByte;
     bool volatile               fSending;
     uint8_t                     Alignment[2];
+
+    /** Receive buffer. */
+    uint8_t                     abBuffer[256];
+    /** Number of bytes remaining in the receive buffer. */
+    volatile size_t             cbRemaining;
+    /** Current position into the read buffer. */
+    uint8_t                     *pbBuf;
 
     /** Read/write statistics */
     STAMCOUNTER                 StatBytesRead;
@@ -107,7 +117,7 @@ static DECLCALLBACK(void *) drvCharQueryInterface(PPDMIBASE pInterface, const ch
  */
 static DECLCALLBACK(int) drvCharWrite(PPDMICHARCONNECTOR pInterface, const void *pvBuf, size_t cbWrite)
 {
-    PDRVCHAR pThis = PDMICHAR_2_DRVCHAR(pInterface);
+    PDRVCHAR pThis = RT_FROM_MEMBER(pInterface, DRVCHAR, ICharConnector);
     const char *pbBuffer = (const char *)pvBuf;
 
     LogFlow(("%s: pvBuf=%#p cbWrite=%d\n", __FUNCTION__, pvBuf, cbWrite));
@@ -118,7 +128,7 @@ static DECLCALLBACK(int) drvCharWrite(PPDMICHARCONNECTOR pInterface, const void 
             return VERR_BUFFER_OVERFLOW;
 
         pThis->u8SendByte = pbBuffer[i];
-        RTSemEventSignal(pThis->SendSem);
+        pThis->pDrvStream->pfnPollInterrupt(pThis->pDrvStream);
         STAM_COUNTER_INC(&pThis->StatBytesWritten);
     }
     return VINF_SUCCESS;
@@ -132,118 +142,147 @@ static DECLCALLBACK(int) drvCharSetParameters(PPDMICHARCONNECTOR pInterface, uns
                                               unsigned cDataBits,  unsigned cStopBits)
 {
     RT_NOREF(pInterface, Bps, chParity, cDataBits, cStopBits);
-    /*PDRVCHAR pThis = PDMICHAR_2_DRVCHAR(pInterface); - unused*/
 
     LogFlow(("%s: Bps=%u chParity=%c cDataBits=%u cStopBits=%u\n", __FUNCTION__, Bps, chParity, cDataBits, cStopBits));
     return VINF_SUCCESS;
 }
 
 
-/* -=-=-=-=- receive thread -=-=-=-=- */
+/* -=-=-=-=- I/O thread -=-=-=-=- */
 
 /**
  * Send thread loop - pushes data down thru the driver chain.
  *
- * @returns 0 on success.
- * @param   hThreadSelf Thread handle to this thread.
- * @param   pvUser      User argument.
+ * @returns VBox status code.
+ * @param   pDrvIns     The char driver instance.
+ * @param   pThread     The worker thread.
  */
-static DECLCALLBACK(int) drvCharSendLoop(RTTHREAD hThreadSelf, void *pvUser)
+static DECLCALLBACK(int) drvCharIoLoop(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 {
-    RT_NOREF(hThreadSelf);
-    PDRVCHAR pThis = (PDRVCHAR)pvUser;
+    RT_NOREF(pDrvIns);
+    PDRVCHAR pThis = (PDRVCHAR)pThread->pvUser;
 
-    int rc = VINF_SUCCESS;
-    while (!pThis->fShutdown)
+    if (pThread->enmState == PDMTHREADSTATE_INITIALIZING)
+        return VINF_SUCCESS;
+
+    while (pThread->enmState == PDMTHREADSTATE_RUNNING)
     {
-        RTMSINTERVAL cMillies = (rc == VERR_TIMEOUT) ? 50 : RT_INDEFINITE_WAIT;
-        rc = RTSemEventWait(pThis->SendSem, cMillies);
-        if (    RT_FAILURE(rc)
-             && rc != VERR_TIMEOUT)
-            break;
+        uint32_t fEvts = 0;
 
-        /*
-         * Write the character to the attached stream (if present).
-         */
-        if (    pThis->fShutdown
-            ||  !pThis->pDrvStream)
-            break;
+        if (   !pThis->cbRemaining
+            && pThis->pDrvStream->pfnRead)
+            fEvts |= RTPOLL_EVT_READ;
+        if (pThis->fSending)
+            fEvts |= RTPOLL_EVT_WRITE;
 
-        size_t cbProcessed = 1;
-        uint8_t ch = pThis->u8SendByte;
-        rc = pThis->pDrvStream->pfnWrite(pThis->pDrvStream, &ch, &cbProcessed);
+        uint32_t fEvtsRecv = 0;
+        int rc = pThis->pDrvStream->pfnPoll(pThis->pDrvStream, fEvts, &fEvtsRecv, RT_INDEFINITE_WAIT);
         if (RT_SUCCESS(rc))
         {
-            ASMAtomicXchgBool(&pThis->fSending, false);
-            Assert(cbProcessed == 1);
-        }
-        else if (rc == VERR_TIMEOUT)
-        {
-            /* Normal case, just means that the stream didn't accept a new
-             * character before the timeout elapsed. Just retry. */
+            if (fEvtsRecv & RTPOLL_EVT_WRITE)
+            {
+                Assert(pThis->fSending);
 
-            /* do not change the rc status here, otherwise the (rc == VERR_TIMEOUT) branch
-             * in the wait above will never get executed */
-            /* rc = VINF_SUCCESS; */
+                size_t cbProcessed = 1;
+                uint8_t ch = pThis->u8SendByte;
+                rc = pThis->pDrvStream->pfnWrite(pThis->pDrvStream, &ch, &cbProcessed);
+                if (RT_SUCCESS(rc))
+                {
+                    ASMAtomicXchgBool(&pThis->fSending, false);
+                    Assert(cbProcessed == 1);
+                }
+                else if (rc == VERR_TIMEOUT)
+                {
+                    /* Normal case, just means that the stream didn't accept a new
+                     * character before the timeout elapsed. Just retry. */
+
+                    /* do not change the rc status here, otherwise the (rc == VERR_TIMEOUT) branch
+                     * in the wait above will never get executed */
+                    /* rc = VINF_SUCCESS; */
+                }
+                else
+                {
+                    LogRel(("Write failed with %Rrc; skipping\n", rc));
+                    break;
+                }
+            }
+
+            if (fEvtsRecv & RTPOLL_EVT_READ)
+            {
+                AssertPtr(pThis->pDrvStream->pfnRead);
+                Assert(!pThis->cbRemaining);
+
+                size_t cbRead = sizeof(pThis->abBuffer);
+                rc = pThis->pDrvStream->pfnRead(pThis->pDrvStream, &pThis->abBuffer[0], &cbRead);
+                if (RT_FAILURE(rc))
+                {
+                    LogFlow(("Read failed with %Rrc\n", rc));
+                    break;
+                }
+                pThis->pbBuf = &pThis->abBuffer[0];
+                ASMAtomicWriteZ(&pThis->cbRemaining, cbRead);
+                RTSemEventSignal(pThis->hEvtSemRead); /* Wakeup relay thread to continue. */
+            }
         }
-        else
-        {
-            LogRel(("Write failed with %Rrc; skipping\n", rc));
-            break;
-        }
+        else if (rc != VERR_INTERRUPTED)
+            LogRelMax(10, ("Char#%d: Polling failed with %Rrc\n", pDrvIns->iInstance, rc));
     }
 
     return VINF_SUCCESS;
 }
 
 
-/* -=-=-=-=- receive thread -=-=-=-=- */
-
 /**
- * Receive thread loop.
+ * Unblock the send worker thread so it can respond to a state change.
  *
- * @returns 0 on success.
- * @param   hThreadSelf Thread handle to this thread.
- * @param   pvUser      User argument.
+ * @returns VBox status code.
+ * @param   pDrvIns     The char driver instance.
+ * @param   pThread     The worker thread.
  */
-static DECLCALLBACK(int) drvCharReceiveLoop(RTTHREAD hThreadSelf, void *pvUser)
+static DECLCALLBACK(int) drvCharIoLoopWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
 {
-    RT_NOREF(hThreadSelf);
-    PDRVCHAR    pThis = (PDRVCHAR)pvUser;
-    char        abBuffer[256];
-    char       *pbRemaining = abBuffer;
-    size_t      cbRemaining = 0;
-    int         rc;
+    PDRVCHAR pThis = (PDRVCHAR)pThread->pvUser;
 
-    while (!pThis->fShutdown)
+    RT_NOREF(pDrvIns);
+    return pThis->pDrvStream->pfnPollInterrupt(pThis->pDrvStream);
+}
+
+
+static DECLCALLBACK(int) drvCharReadRelayLoop(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
+{
+    RT_NOREF(pDrvIns);
+    PDRVCHAR pThis = (PDRVCHAR)pThread->pvUser;
+
+    if (pThread->enmState == PDMTHREADSTATE_INITIALIZING)
+        return VINF_SUCCESS;
+
+    int rc = VINF_SUCCESS;
+    while (pThread->enmState == PDMTHREADSTATE_RUNNING)
     {
-        if (!cbRemaining)
-        {
-            /* Get block of data from stream driver. */
-            if (pThis->pDrvStream)
-            {
-                pbRemaining = abBuffer;
-                cbRemaining = sizeof(abBuffer);
-                rc = pThis->pDrvStream->pfnRead(pThis->pDrvStream, abBuffer, &cbRemaining);
-                if (RT_FAILURE(rc))
-                {
-                    LogFlow(("Read failed with %Rrc\n", rc));
-                    break;
-                }
-            }
-            else
-                RTThreadSleep(100);
-        }
-        else
+        size_t cbRem = ASMAtomicReadZ(&pThis->cbRemaining);
+
+        /* Block as long as there is nothing to relay. */
+        if (!pThis->cbRemaining)
+            rc = RTSemEventWait(pThis->hEvtSemRead, RT_INDEFINITE_WAIT);
+
+        if (pThread->enmState != PDMTHREADSTATE_RUNNING)
+            break;
+
+        cbRem = ASMAtomicReadZ(&pThis->cbRemaining);
+        if (cbRem)
         {
             /* Send data to guest. */
-            size_t cbProcessed = cbRemaining;
-            rc = pThis->pDrvCharPort->pfnNotifyRead(pThis->pDrvCharPort, pbRemaining, &cbProcessed);
+            size_t cbProcessed = cbRem;
+            rc = pThis->pDrvCharPort->pfnNotifyRead(pThis->pDrvCharPort, pThis->pbBuf, &cbProcessed);
             if (RT_SUCCESS(rc))
             {
                 Assert(cbProcessed);
-                pbRemaining += cbProcessed;
-                cbRemaining -= cbProcessed;
+                pThis->pbBuf += cbProcessed;
+
+                /* Wake up the I/o thread so it can read new data to process. */
+                cbRem = ASMAtomicSubZ(&pThis->cbRemaining, cbProcessed);
+                if (cbRem == cbProcessed)
+                    pThis->pDrvStream->pfnPollInterrupt(pThis->pDrvStream);
                 STAM_COUNTER_ADD(&pThis->StatBytesRead, cbProcessed);
             }
             else if (rc == VERR_TIMEOUT)
@@ -261,6 +300,22 @@ static DECLCALLBACK(int) drvCharReceiveLoop(RTTHREAD hThreadSelf, void *pvUser)
     }
 
     return VINF_SUCCESS;
+}
+
+
+/**
+ * Unblock the read relay worker thread so it can respond to a state change.
+ *
+ * @returns VBox status code.
+ * @param   pDrvIns     The char driver instance.
+ * @param   pThread     The worker thread.
+ */
+static DECLCALLBACK(int) drvCharReadRelayLoopWakeup(PPDMDRVINS pDrvIns, PPDMTHREAD pThread)
+{
+    PDRVCHAR pThis = (PDRVCHAR)pThread->pvUser;
+
+    RT_NOREF(pDrvIns);
+    return RTSemEventSignal(pThis->hEvtSemRead);
 }
 
 
@@ -302,42 +357,10 @@ static DECLCALLBACK(void) drvCharDestruct(PPDMDRVINS pDrvIns)
     LogFlow(("%s: iInstance=%d\n", __FUNCTION__, pDrvIns->iInstance));
     PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
 
-    /*
-     * Tell the threads to shut down.
-     */
-    pThis->fShutdown = true;
-    if (pThis->SendSem != NIL_RTSEMEVENT)
+    if (pThis->hEvtSemRead != NIL_RTSEMEVENT)
     {
-        RTSemEventSignal(pThis->SendSem);
-        pThis->SendSem = NIL_RTSEMEVENT;
-    }
-
-    /*
-     * Wait for the threads.
-     * ASSUMES that PDM destroys the driver chain from the bottom and up.
-     */
-    if (pThis->ReceiveThread != NIL_RTTHREAD)
-    {
-        int rc = RTThreadWait(pThis->ReceiveThread, 30000, NULL);
-        if (RT_SUCCESS(rc))
-            pThis->ReceiveThread = NIL_RTTHREAD;
-        else
-            LogRel(("Char%d: receive thread did not terminate (%Rrc)\n", pDrvIns->iInstance, rc));
-    }
-
-    if (pThis->SendThread != NIL_RTTHREAD)
-    {
-        int rc = RTThreadWait(pThis->SendThread, 30000, NULL);
-        if (RT_SUCCESS(rc))
-            pThis->SendThread = NIL_RTTHREAD;
-        else
-            LogRel(("Char%d: send thread did not terminate (%Rrc)\n", pDrvIns->iInstance, rc));
-    }
-
-    if (pThis->SendSem != NIL_RTSEMEVENT)
-    {
-        RTSemEventDestroy(pThis->SendSem);
-        pThis->SendSem = NIL_RTSEMEVENT;
+        RTSemEventDestroy(pThis->hEvtSemRead);
+        pThis->hEvtSemRead = NIL_RTSEMEVENT;
     }
 }
 
@@ -357,10 +380,10 @@ static DECLCALLBACK(int) drvCharConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
     /*
      * Init basic data members and interfaces.
      */
-    pThis->fShutdown                        = false;
-    pThis->ReceiveThread                    = NIL_RTTHREAD;
-    pThis->SendThread                       = NIL_RTTHREAD;
-    pThis->SendSem                          = NIL_RTSEMEVENT;
+    pThis->pDrvIns                          = pDrvIns;
+    pThis->pThrdIo                          = NIL_RTTHREAD;
+    pThis->pThrdRead                        = NIL_RTTHREAD;
+    pThis->hEvtSemRead                      = NIL_RTSEMEVENT;
     /* IBase. */
     pDrvIns->IBase.pfnQueryInterface        = drvCharQueryInterface;
     /* ICharConnector. */
@@ -387,22 +410,20 @@ static DECLCALLBACK(int) drvCharConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
     if (!pThis->pDrvStream)
         return PDMDrvHlpVMSetError(pDrvIns, VERR_PDM_MISSING_INTERFACE_BELOW, RT_SRC_POS, N_("Char#%d has no stream interface below"), pDrvIns->iInstance);
 
-    /*
-     * Don't start the receive thread if the driver doesn't support reading
-     */
+    /* Don't start the receive relay thread if reading is not supported. */
     if (pThis->pDrvStream->pfnRead)
     {
-        rc = RTThreadCreate(&pThis->ReceiveThread, drvCharReceiveLoop, (void *)pThis, 0,
-                            RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE, "CharRecv");
+        rc = PDMDrvHlpThreadCreate(pThis->pDrvIns, &pThis->pThrdRead, pThis, drvCharReadRelayLoop,
+                                   drvCharReadRelayLoopWakeup, 0, RTTHREADTYPE_IO, "CharReadRel");
         if (RT_FAILURE(rc))
-            return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS, N_("Char#%d cannot create receive thread"), pDrvIns->iInstance);
+            return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS, N_("Char#%d cannot create read relay thread"), pDrvIns->iInstance);
+
+         rc = RTSemEventCreate(&pThis->hEvtSemRead);
+         AssertRCReturn(rc, rc);
     }
 
-    rc = RTSemEventCreate(&pThis->SendSem);
-    AssertRCReturn(rc, rc);
-
-    rc = RTThreadCreate(&pThis->SendThread, drvCharSendLoop, (void *)pThis, 0,
-                        RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE, "CharSend");
+    rc = PDMDrvHlpThreadCreate(pThis->pDrvIns, &pThis->pThrdIo, pThis, drvCharIoLoop,
+                               drvCharIoLoopWakeup, 0, RTTHREADTYPE_IO, "CharIo");
     if (RT_FAILURE(rc))
         return PDMDrvHlpVMSetError(pDrvIns, rc, RT_SRC_POS, N_("Char#%d cannot create send thread"), pDrvIns->iInstance);
 

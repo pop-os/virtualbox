@@ -18,6 +18,7 @@
 #ifndef ____H_APPLIANCEIMPLPRIVATE
 #define ____H_APPLIANCEIMPLPRIVATE
 
+
 class VirtualSystemDescription;
 
 #include "ovfreader.h"
@@ -69,7 +70,6 @@ struct Appliance::Data
       , fDigestTypes(0)
       , hOurManifest(NIL_RTMANIFEST)
       , fManifest(true)
-      , fSha256(false)
       , fDeterminedDigestTypes(false)
       , hTheirManifest(NIL_RTMANIFEST)
       , hMemFileTheirManifest(NIL_RTVFSFILE)
@@ -158,7 +158,6 @@ struct Appliance::Data
     /** @name Write data
      * @{ */
     bool                fManifest;      // Create a manifest file on export
-    bool                fSha256;        // true = SHA256 (OVF 2.0), false = SHA1 (OVF 1.0)
     /** @} */
 
     /** @name Read data
@@ -422,20 +421,6 @@ ovf::CIMOSType_T convertVBoxOSType2CIMOSType(const char *pcszVBox, BOOL fLongMod
 
 Utf8Str convertNetworkAttachmentTypeToString(NetworkAttachmentType_T type);
 
-
-typedef struct SHASTORAGE
-{
-    PVDINTERFACE pVDImageIfaces;
-    bool         fCreateDigest;
-    bool         fSha256;        /* false = SHA1 (OVF 1.x), true = SHA256 (OVF 2.0) */
-    Utf8Str      strDigest;
-} SHASTORAGE, *PSHASTORAGE;
-
-PVDINTERFACEIO ShaCreateInterface();
-PVDINTERFACEIO FileCreateInterface();
-PVDINTERFACEIO tarWriterCreateInterface(void);
-
-int writeBufferToFile(const char *pcszFilename, void *pvBuf, size_t cbSize, PVDINTERFACEIO pIfIo, void *pvUser);
 
 #endif // !____H_APPLIANCEIMPLPRIVATE
 

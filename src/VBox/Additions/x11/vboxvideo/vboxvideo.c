@@ -4,25 +4,13 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
- *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- * --------------------------------------------------------------------
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This code is based on the X.Org VESA driver with the following copyrights:
  *
  * Copyright (c) 2000 by Conectiva S.A. (http://www.conectiva.com)
  * Copyright 2008 Red Hat, Inc.
  * Copyright 2012 Red Hat, Inc.
- *
- * and the following permission notice (not all original sourse files include
- * the last paragraph):
  *
  * Permission is hereby granted, free of charge, to any person obtaining a
  * copy of this software and associated documentation files (the "Software"),
@@ -36,11 +24,11 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * CONECTIVA LINUX BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
- * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF
- * OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL
+ * THE COPYRIGHT HOLDERS, AUTHORS AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+ * USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  * Except as contained in this notice, the name of Conectiva Linux shall
  * not be used in advertising or otherwise to promote the sale, use or other
@@ -51,15 +39,11 @@
  *          David Dawes <dawes@xfree86.org>
  *          Adam Jackson <ajax@redhat.com>
  *          Dave Airlie <airlied@redhat.com>
+ *          Michael Thayer <michael.thayer@oracle.com>
  */
 
 #include "vboxvideo.h"
-#include <VBox/VBoxGuest.h>
-#include <VBox/VBoxGuestLib.h>
-#include <VBox/Hardware/VBoxVideoVBE.h>
-#include "version-generated.h"
-#include "product-generated.h"
-#include "revision-generated.h"
+#include <VBoxVideoVBE.h>
 
 /* Basic definitions and functions needed by all drivers. */
 #include "xf86.h"
@@ -88,7 +72,7 @@
 #endif
 /* For setting the root window property. */
 #include "property.h"
-#include "X11/Xatom.h"
+#include <X11/Xatom.h>
 
 #ifdef XORG_7X
 # include <stdlib.h>
@@ -127,7 +111,7 @@ static Bool VBOXMapVidMem(ScrnInfoPtr pScrn);
 static void VBOXUnmapVidMem(ScrnInfoPtr pScrn);
 static void VBOXSaveMode(ScrnInfoPtr pScrn);
 static void VBOXRestoreMode(ScrnInfoPtr pScrn);
-static void setSizesAndCursorIntegration(ScrnInfoPtr pScrn, bool fScreenInitTime);
+static void setSizesAndCursorIntegration(ScrnInfoPtr pScrn, Bool fScreenInitTime);
 
 #ifndef XF86_SCRN_INTERFACE
 # define xf86ScreenToScrn(pScreen) xf86Screens[(pScreen)->myNum]
@@ -260,14 +244,15 @@ static Bool adjustScreenPixmap(ScrnInfoPtr pScrn, int width, int height)
     PixmapPtr pPixmap;
 
     TRACE_LOG("width=%d, height=%d\n", width, height);
-    VBVXASSERT(width >= 0 && height >= 0, ("Invalid negative width (%d) or height (%d)\n", width, height));
+    AssertMsg(width >= 0 && height >= 0, ("Invalid negative width (%d) or height (%d)\n", width, height));
     if (pScreen == NULL)  /* Not yet initialised. */
         return TRUE;
     pPixmap = pScreen->GetScreenPixmap(pScreen);
-    VBVXASSERT(pPixmap != NULL, ("Failed to get the screen pixmap.\n"));
+    AssertMsg(pPixmap != NULL, ("Failed to get the screen pixmap.\n"));
     TRACE_LOG("pPixmap=%p adjustedWidth=%d height=%d pScrn->depth=%d pScrn->bitsPerPixel=%d cbLine=%d pVBox->base=%p pPixmap->drawable.width=%d pPixmap->drawable.height=%d\n",
-              pPixmap, adjustedWidth, height, pScrn->depth, pScrn->bitsPerPixel, cbLine, pVBox->base, pPixmap->drawable.width,
-              pPixmap->drawable.height);
+              (void *)pPixmap, adjustedWidth, height, pScrn->depth,
+              pScrn->bitsPerPixel, cbLine, pVBox->base,
+              pPixmap->drawable.width, pPixmap->drawable.height);
     if (   adjustedWidth != pPixmap->drawable.width
         || height != pPixmap->drawable.height)
     {
@@ -299,7 +284,7 @@ static Bool adjustScreenPixmap(ScrnInfoPtr pScrn, int width, int height)
  * RandR.  We solve this by setting the requested mode to the host but keeping
  * the virtual frame-
  * buffer matching what the X server expects. */
-static void setModeRandR11(ScrnInfoPtr pScrn, DisplayModePtr pMode, bool fScreenInitTime, bool fEnterVTTime,
+static void setModeRandR11(ScrnInfoPtr pScrn, DisplayModePtr pMode, Bool fScreenInitTime, Bool fEnterVTTime,
                            int cXOverRide, int cYOverRide)
 {
     VBOXPtr pVBox = VBOXGetRec(pScrn);
@@ -357,7 +342,7 @@ static void setModeRandR12(ScrnInfoPtr pScrn, unsigned cScreen)
     /* Check that this code cannot trigger the resizing bug in X.Org Server 1.3.
      * See the work-around in ScreenInit. */
     xf86RandR12GetOriginalVirtualSize(pScrn, &originalX, &originalY);
-    VBVXASSERT(originalX == VBOX_VIDEO_MAX_VIRTUAL && originalY == VBOX_VIDEO_MAX_VIRTUAL, ("OriginalSize=%dx%d",
+    AssertMsg(originalX == VBOX_VIDEO_MAX_VIRTUAL && originalY == VBOX_VIDEO_MAX_VIRTUAL, ("OriginalSize=%dx%d",
                originalX, originalY));
     for (i = cFirst; i < cLast; ++i)
         if (pVBox->pScreens[i].paCrtcs->mode.HDisplay != 0 && pVBox->pScreens[i].paCrtcs->mode.VDisplay != 0 && pScrn->vtSema)
@@ -411,7 +396,7 @@ vbox_crtc_dpms(xf86CrtcPtr crtc, int mode)
 
 static Bool
 vbox_crtc_lock (xf86CrtcPtr crtc)
-{ (void) crtc; return FALSE; }
+{ RT_NOREF(crtc); return FALSE; }
 
 
 /* We use this function to check whether the X server owns the active virtual
@@ -423,17 +408,17 @@ vbox_crtc_lock (xf86CrtcPtr crtc)
 static Bool
 vbox_crtc_mode_fixup (xf86CrtcPtr crtc, DisplayModePtr mode,
                       DisplayModePtr adjusted_mode)
-{ (void) crtc; (void) mode; (void) adjusted_mode; return TRUE; }
+{ RT_NOREF(crtc, mode, adjusted_mode); return TRUE; }
 
 static void
 vbox_crtc_stub (xf86CrtcPtr crtc)
-{ (void) crtc; }
+{ RT_NOREF(crtc); }
 
 static void
 vbox_crtc_mode_set (xf86CrtcPtr crtc, DisplayModePtr mode,
                     DisplayModePtr adjusted_mode, int x, int y)
 {
-    (void) mode;
+    RT_NOREF(mode);
     VBOXPtr pVBox = VBOXGetRec(crtc->scrn);
     unsigned cDisplay = (uintptr_t)crtc->driver_private;
 
@@ -450,11 +435,11 @@ vbox_crtc_mode_set (xf86CrtcPtr crtc, DisplayModePtr mode,
 static void
 vbox_crtc_gamma_set (xf86CrtcPtr crtc, CARD16 *red,
                      CARD16 *green, CARD16 *blue, int size)
-{ (void) crtc; (void) red; (void) green; (void) blue; (void) size; }
+{ RT_NOREF(crtc, red, green, blue, size); }
 
 static void *
 vbox_crtc_shadow_allocate (xf86CrtcPtr crtc, int width, int height)
-{ (void) crtc; (void) width; (void) height; return NULL; }
+{ RT_NOREF(crtc, width, height); return NULL; }
 
 static const xf86CrtcFuncsRec VBOXCrtcFuncs = {
     .dpms = vbox_crtc_dpms,
@@ -481,12 +466,12 @@ static const xf86CrtcFuncsRec VBOXCrtcFuncs = {
 
 static void
 vbox_output_stub (xf86OutputPtr output)
-{ (void) output; }
+{ RT_NOREF(output); }
 
 static void
 vbox_output_dpms (xf86OutputPtr output, int mode)
 {
-    (void)output; (void)mode;
+    RT_NOREF(output, mode);
 }
 
 static int
@@ -498,14 +483,13 @@ vbox_output_mode_valid (xf86OutputPtr output, DisplayModePtr mode)
 static Bool
 vbox_output_mode_fixup (xf86OutputPtr output, DisplayModePtr mode,
                         DisplayModePtr adjusted_mode)
-{ (void) output; (void) mode; (void) adjusted_mode; return TRUE; }
+{ RT_NOREF(output, mode, adjusted_mode); return TRUE; }
 
 static void
 vbox_output_mode_set (xf86OutputPtr output, DisplayModePtr mode,
                         DisplayModePtr adjusted_mode)
-{ (void) output; (void) mode; (void) adjusted_mode; }
+{ RT_NOREF(output, mode, adjusted_mode); }
 
-/* A virtual monitor is always connected. */
 static xf86OutputStatus
 vbox_output_detect (xf86OutputPtr output)
 {
@@ -608,7 +592,7 @@ static MODULESETUPPROTO(vboxSetup);
 static XF86ModuleVersionInfo vboxVersionRec =
 {
     VBOX_DRIVER_NAME,
-    VBOX_VENDOR,
+    "Oracle Corporation",
     MODINFOSTRING1,
     MODINFOSTRING2,
 #ifdef XORG_7X
@@ -689,22 +673,22 @@ static Bool VBOXScreenInitIndex(int scrnIndex, ScreenPtr pScreen, int argc, char
 }
 
 static Bool VBOXEnterVTIndex(int scrnIndex, int flags)
-{ (void) flags; return VBOXEnterVT(xf86Screens[scrnIndex]); }
+{ RT_NOREF(flags); return VBOXEnterVT(xf86Screens[scrnIndex]); }
 
 static void VBOXLeaveVTIndex(int scrnIndex, int flags)
-{ (void) flags; VBOXLeaveVT(xf86Screens[scrnIndex]); }
+{ RT_NOREF(flags); VBOXLeaveVT(xf86Screens[scrnIndex]); }
 
 static Bool VBOXCloseScreenIndex(int scrnIndex, ScreenPtr pScreen)
-{ (void) scrnIndex; return VBOXCloseScreen(pScreen); }
+{ RT_NOREF(scrnIndex); return VBOXCloseScreen(pScreen); }
 
 static Bool VBOXSwitchModeIndex(int scrnIndex, DisplayModePtr pMode, int flags)
-{ (void) flags; return VBOXSwitchMode(xf86Screens[scrnIndex], pMode); }
+{ RT_NOREF(flags); return VBOXSwitchMode(xf86Screens[scrnIndex], pMode); }
 
 static void VBOXAdjustFrameIndex(int scrnIndex, int x, int y, int flags)
-{ (void) flags; VBOXAdjustFrame(xf86Screens[scrnIndex], x, y); }
+{ RT_NOREF(flags); VBOXAdjustFrame(xf86Screens[scrnIndex], x, y); }
 
 static void VBOXFreeScreenIndex(int scrnIndex, int flags)
-{ (void) flags; VBOXFreeScreen(xf86Screens[scrnIndex]); }
+{ RT_NOREF(flags); VBOXFreeScreen(xf86Screens[scrnIndex]); }
 # else
 # define SCRNINDEXAPI(pfn) pfn
 #endif /* XF86_SCRN_INTERFACE */
@@ -766,7 +750,7 @@ VBOXPciProbe(DriverPtr drv, int entity_num, struct pci_device *dev,
         pVBox->pciInfo = dev;
     }
 
-    TRACE_LOG("returning %s\n", BOOL_STR(pScrn != NULL));
+    TRACE_LOG("returning %s\n", pScrn == NULL ? "false" : "true");
     return (pScrn != NULL);
 }
 #endif
@@ -859,8 +843,9 @@ VBOXPreInit(ScrnInfoPtr pScrn, int flags)
     if (flags & PROBE_DETECT)
         return (FALSE);
 
-    xf86DrvMsg(pScrn->scrnIndex, X_INFO, "VirtualBox guest additions video driver version " VBOX_VERSION_STRING "r%d\n",
-               VBOX_SVN_REV);
+    xf86DrvMsg(pScrn->scrnIndex, X_INFO,
+               "VirtualBox guest additions video driver version %d.%d\n",
+               VBOX_VERSION_MAJOR, VBOX_VERSION_MINOR);
 
     /* The ramdac module is needed for the hardware cursor. */
     if (!xf86LoadSubModule(pScrn, "ramdac"))
@@ -1003,8 +988,7 @@ static void
 vboxLoadPalette(ScrnInfoPtr pScrn, int numColors, int *indices,
           LOCO *colors, VisualPtr pVisual)
 {
-    (void)pScrn; (void) numColors; (void) indices; (void) colors;
-    (void)pVisual;
+    RT_NOREF(pScrn, numColors, indices, colors, pVisual);
 }
 
 /** Set the graphics and guest cursor support capabilities to the host if
@@ -1041,7 +1025,20 @@ static void setSizesRandR11(ScrnInfoPtr pScrn)
 
 #endif
 
-static void setSizesAndCursorIntegration(ScrnInfoPtr pScrn, bool fScreenInitTime)
+static void reprobeCursor(ScrnInfoPtr pScrn)
+{
+    if (ROOT_WINDOW(pScrn) == NULL)
+        return;
+#ifdef XF86_SCRN_INTERFACE
+    pScrn->EnableDisableFBAccess(pScrn, FALSE);
+    pScrn->EnableDisableFBAccess(pScrn, TRUE);
+#else
+    pScrn->EnableDisableFBAccess(pScrn->scrnIndex, FALSE);
+    pScrn->EnableDisableFBAccess(pScrn->scrnIndex, TRUE);
+#endif
+}
+
+static void setSizesAndCursorIntegration(ScrnInfoPtr pScrn, Bool fScreenInitTime)
 {
     RT_NOREF(fScreenInitTime);
     TRACE_LOG("fScreenInitTime=%d\n", (int)fScreenInitTime);
@@ -1056,20 +1053,29 @@ static void setSizesAndCursorIntegration(ScrnInfoPtr pScrn, bool fScreenInitTime
 #endif
     /* This calls EnableDisableFBAccess(), so only use when switched in. */
     if (pScrn->vtSema)
-        vbvxReprobeCursor(pScrn);
+        reprobeCursor(pScrn);
 }
 
 /* We update the size hints from the X11 property set by VBoxClient every time
  * that the X server goes to sleep (to catch the property change request).
  * Although this is far more often than necessary it should not have real-life
  * performance consequences and allows us to simplify the code quite a bit. */
-static void vboxBlockHandler(pointer pData, OSTimePtr pTimeout, pointer pReadmask)
+static void vboxBlockHandler(pointer pData,
+#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 23
+                             OSTimePtr pTimeout,
+                             pointer pReadmask
+#else
+                             void *pTimeout
+#endif
+                  )
 {
     ScrnInfoPtr pScrn = (ScrnInfoPtr)pData;
-    bool fNeedUpdate = false;
+    Bool fNeedUpdate = false;
 
-    (void)pTimeout;
-    (void)pReadmask;
+    RT_NOREF(pTimeout);
+#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) < 23
+    RT_NOREF(pReadmask);
+#endif
     if (pScrn->vtSema)
         vbvxReadSizesAndCursorIntegrationFromHGSMI(pScrn, &fNeedUpdate);
     if (fNeedUpdate)
@@ -1099,8 +1105,6 @@ static Bool VBOXScreenInit(ScreenPtr pScreen, int argc, char **argv)
 
     TRACE_ENTRY();
 
-    /* Initialise our guest library if possible: ignore failure. */
-    VbglR3Init();
     if (!VBOXMapVidMem(pScrn))
         return (FALSE);
 
@@ -1227,6 +1231,10 @@ static Bool VBOXScreenInit(ScreenPtr pScreen, int argc, char **argv)
 
     /* Say that we support graphics. */
     updateGraphicsCapability(pScrn, TRUE);
+
+#if GET_ABI_MAJOR(ABI_VIDEODRV_VERSION) >= 23
+# define WakeupHandlerProcPtr ServerWakeupHandlerProcPtr
+#endif
 
     /* Register block and wake-up handlers for getting new screen size hints. */
     RegisterBlockAndWakeupHandlers(vboxBlockHandler, (WakeupHandlerProcPtr)NoopDDA, (pointer)pScrn);
@@ -1355,7 +1363,6 @@ static Bool VBOXCloseScreen(ScreenPtr pScreen)
 #else
     ret = pScreen->CloseScreen(pScreen);
 #endif
-    VbglR3Term();
     return ret;
 }
 
@@ -1374,7 +1381,7 @@ static Bool VBOXSwitchMode(ScrnInfoPtr pScrn, DisplayModePtr pMode)
 }
 
 static void VBOXAdjustFrame(ScrnInfoPtr pScrn, int x, int y)
-{ (void)pScrn; (void)x; (void)y; }
+{ RT_NOREF(pScrn, x, y); }
 
 static void VBOXFreeScreen(ScrnInfoPtr pScrn)
 {
@@ -1438,7 +1445,7 @@ VBOXUnmapVidMem(ScrnInfoPtr pScrn)
 static Bool
 VBOXSaveScreen(ScreenPtr pScreen, int mode)
 {
-    (void)pScreen; (void)mode;
+    RT_NOREF(pScreen, mode);
     return TRUE;
 }
 #endif
@@ -1480,6 +1487,6 @@ VBOXRestoreMode(ScrnInfoPtr pScrn)
 static void
 VBOXDisplayPowerManagementSet(ScrnInfoPtr pScrn, int mode, int flags)
 {
-    (void)pScrn; (void)mode; (void) flags;
+    RT_NOREF(pScrn, mode, flags);
 }
 #endif

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2012-2016 Oracle Corporation
+ * Copyright (C) 2012-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,14 +30,16 @@
 /* Define VRDE_VIDEOIN_WITH_VRDEINTERFACE to include the server VRDE interface parts. */
 
 #ifdef VRDE_VIDEOIN_WITH_VRDEINTERFACE
-#include <VBox/RemoteDesktop/VRDE.h>
+# include <VBox/RemoteDesktop/VRDE.h>
 #endif /* VRDE_VIDEOIN_WITH_VRDEINTERFACE */
 
 #ifdef AssertCompileSize
-#define ASSERTSIZE(type, size) AssertCompileSize(type, size);
+# define ASSERTSIZE(type, size) AssertCompileSize(type, size);
 #else
-#define ASSERTSIZE(type, size)
+# define ASSERTSIZE(type, size)
 #endif /* AssertCompileSize */
+
+#include <iprt/types.h>
 
 
 /*

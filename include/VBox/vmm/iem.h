@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2016 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -59,9 +59,9 @@ typedef IEMXCPTRAISEINFO *PIEMXCPTRAISEINFO;
 #define IEMXCPTRAISEINFO_PF_CONTRIBUTORY_XCPT    RT_BIT_32(3)
 /** Delivery of an external interrupt caused an exception. */
 #define IEMXCPTRAISEINFO_EXT_INT_XCPT            RT_BIT_32(4)
-/** Delivery of an software interrupt caused an exception. */
+/** Delivery of an external interrupt caused an \#PF. */
 #define IEMXCPTRAISEINFO_EXT_INT_PF              RT_BIT_32(5)
-/** Delivery of an external interrupt caused a \#PF. */
+/** Delivery of a software interrupt caused an exception. */
 #define IEMXCPTRAISEINFO_SOFT_INT_XCPT           RT_BIT_32(6)
 /** Delivery of an NMI caused an exception. */
 #define IEMXCPTRAISEINFO_NMI_XCPT                RT_BIT_32(7)
@@ -215,12 +215,15 @@ VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedMovCRxRead(PVMCPU pVCpu, uint8_t cbIns
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedClts(PVMCPU pVCpu, uint8_t cbInstr);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedLmsw(PVMCPU pVCpu, uint8_t cbInstr, uint16_t uValue);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedXsetbv(PVMCPU pVCpu, uint8_t cbInstr);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedInvlpg(PVMCPU pVCpu,  uint8_t cbInstr, RTGCPTR GCPtrPage);
 #ifdef VBOX_WITH_NESTED_HWVIRT
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedClgi(PVMCPU pVCpu, uint8_t cbInstr);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedStgi(PVMCPU pVCpu, uint8_t cbInstr);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedVmload(PVMCPU pVCpu, uint8_t cbInstr);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedVmsave(PVMCPU pVCpu, uint8_t cbInstr);
 VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedInvlpga(PVMCPU pVCpu, uint8_t cbInstr);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecDecodedVmrun(PVMCPU pVCpu, uint8_t cbInstr);
+VMM_INT_DECL(VBOXSTRICTRC)  IEMExecSvmVmexit(PVMCPU pVCpu, uint64_t uExitCode, uint64_t uExitInfo1, uint64_t uExitInfo2);
 #endif
 /** @}  */
 

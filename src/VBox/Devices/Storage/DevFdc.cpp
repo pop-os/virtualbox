@@ -140,6 +140,8 @@ typedef struct fdrive_t {
 #ifndef VBOX
     BlockDriverState *bs;
 #else /* VBOX */
+    /** Pointer to the owning device instance. */
+    R3PTRTYPE(PPDMDEVINS)           pDevIns;
     /** Pointer to the attached driver's base interface. */
     R3PTRTYPE(PPDMIBASE)            pDrvBase;
     /** Pointer to the attached driver's block interface. */
@@ -199,7 +201,7 @@ static void fd_init(fdrive_t *drv, bool fInit)
                     break;
                 default:
                     AssertFailed();
-                    /* fall thru */
+                    RT_FALL_THRU();
                 case PDMMEDIATYPE_FLOPPY_2_88:
                     drv->drive = FDRIVE_DRV_288;
                     break;
@@ -2406,26 +2408,26 @@ static DECLCALLBACK(void) fdcTimerCallback(PPDMDEVINS pDevIns, PTMTIMER pTimer, 
 /**
  * @callback_method_impl{FNIOMIOPORTOUT}
  */
-static DECLCALLBACK(int) fdcIoPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
+static DECLCALLBACK(int) fdcIoPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT uPort, uint32_t u32, unsigned cb)
 {
     RT_NOREF(pDevIns);
     if (cb == 1)
-        fdctrl_write (pvUser, Port & 7, u32);
+        fdctrl_write (pvUser, uPort & 7, u32);
     else
-        AssertMsgFailed(("Port=%#x cb=%d u32=%#x\n", Port, cb, u32));
+        AssertMsgFailed(("uPort=%#x cb=%d u32=%#x\n", uPort, cb, u32));
     return VINF_SUCCESS;
 }
 
 
 /**
- * @callback_method_impl{FNIOMIOPORTOUT}
+ * @callback_method_impl{FNIOMIOPORTIN}
  */
-static DECLCALLBACK(int) fdcIoPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
+static DECLCALLBACK(int) fdcIoPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT uPort, uint32_t *pu32, unsigned cb)
 {
     RT_NOREF(pDevIns);
     if (cb == 1)
     {
-        *pu32 = fdctrl_read (pvUser, Port & 7);
+        *pu32 = fdctrl_read (pvUser, uPort & 7);
         return VINF_SUCCESS;
     }
     return VERR_IOM_IOPORT_UNUSED;
@@ -2668,6 +2670,26 @@ static DECLCALLBACK(void *) fdQueryInterface (PPDMIBASE pInterface, const char *
     return NULL;
 }
 
+
+/**
+ * @interface_method_impl{PDMIMEDIAPORT,pfnQueryDeviceLocation}
+ */
+static DECLCALLBACK(int) fdQueryDeviceLocation(PPDMIMEDIAPORT pInterface, const char **ppcszController,
+                                               uint32_t *piInstance, uint32_t *piLUN)
+{
+    fdrive_t *pDrv = RT_FROM_MEMBER(pInterface, fdrive_t, IPort);
+    PPDMDEVINS pDevIns = pDrv->pDevIns;
+
+    AssertPtrReturn(ppcszController, VERR_INVALID_POINTER);
+    AssertPtrReturn(piInstance, VERR_INVALID_POINTER);
+    AssertPtrReturn(piLUN, VERR_INVALID_POINTER);
+
+    *ppcszController = pDevIns->pReg->szName;
+    *piInstance = pDevIns->iInstance;
+    *piLUN = pDrv->iLUN;
+
+    return VINF_SUCCESS;
+}
 
 /* -=-=-=-=-=-=-=-=- Controller level interfaces -=-=-=-=-=-=-=-=- */
 
@@ -2927,12 +2949,14 @@ static DECLCALLBACK(int) fdcConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNO
     {
         fdrive_t *pDrv = &pThis->drives[i];
 
-        pDrv->drive = FDRIVE_DRV_NONE;
-        pDrv->iLUN = i;
+        pDrv->drive   = FDRIVE_DRV_NONE;
+        pDrv->iLUN    = i;
+        pDrv->pDevIns = pDevIns;
 
         pDrv->IBase.pfnQueryInterface       = fdQueryInterface;
         pDrv->IMountNotify.pfnMountNotify   = fdMountNotify;
         pDrv->IMountNotify.pfnUnmountNotify = fdUnmountNotify;
+        pDrv->IPort.pfnQueryDeviceLocation  = fdQueryDeviceLocation;
         pDrv->Led.u32Magic = PDMLED_MAGIC;
     }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,94 +24,199 @@
 
 /* GUI includes: */
 # include "UIGlobalSettingsGeneral.h"
+# include "UIExtraDataManager.h"
+# include "UIErrorString.h"
 # include "VBoxGlobal.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
-UIGlobalSettingsGeneral::UIGlobalSettingsGeneral()
+/** Global settings: General page data structure. */
+struct UIDataSettingsGlobalGeneral
 {
-    /* Apply UI decorations: */
-    Ui::UIGlobalSettingsGeneral::setupUi(this);
+    /** Constructs data. */
+    UIDataSettingsGlobalGeneral()
+        : m_strDefaultMachineFolder(QString())
+        , m_strVRDEAuthLibrary(QString())
+        , m_fHostScreenSaverDisabled(false)
+    {}
 
-    /* Hide checkbox for now: */
-    m_pLabelHostScreenSaver->hide();
-    m_pCheckBoxHostScreenSaver->hide();
+    /** Returns whether the @a other passed data is equal to this one. */
+    bool equal(const UIDataSettingsGlobalGeneral &other) const
+    {
+        return true
+               && (m_strDefaultMachineFolder == other.m_strDefaultMachineFolder)
+               && (m_strVRDEAuthLibrary == other.m_strVRDEAuthLibrary)
+               && (m_fHostScreenSaverDisabled == other.m_fHostScreenSaverDisabled)
+               ;
+    }
 
-    /* Setup widgets: */
-    m_pSelectorMachineFolder->setHomeDir(vboxGlobal().homeFolder());
-    m_pSelectorVRDPLibName->setHomeDir(vboxGlobal().homeFolder());
-    m_pSelectorVRDPLibName->setMode(UIFilePathSelector::Mode_File_Open);
+    /** Returns whether the @a other passed data is equal to this one. */
+    bool operator==(const UIDataSettingsGlobalGeneral &other) const { return equal(other); }
+    /** Returns whether the @a other passed data is different from this one. */
+    bool operator!=(const UIDataSettingsGlobalGeneral &other) const { return !equal(other); }
 
-    /* Apply language settings: */
-    retranslateUi();
+    /** Holds the default machine folder path. */
+    QString m_strDefaultMachineFolder;
+    /** Holds the VRDE authentication library name. */
+    QString m_strVRDEAuthLibrary;
+    /** Holds whether host screen-saver should be disabled. */
+    bool m_fHostScreenSaverDisabled;
+};
+
+
+UIGlobalSettingsGeneral::UIGlobalSettingsGeneral()
+    : m_pCache(0)
+{
+    /* Prepare: */
+    prepare();
 }
 
-/* Load data to cache from corresponding external object(s),
- * this task COULD be performed in other than GUI thread: */
+UIGlobalSettingsGeneral::~UIGlobalSettingsGeneral()
+{
+    /* Cleanup: */
+    cleanup();
+}
+
 void UIGlobalSettingsGeneral::loadToCacheFrom(QVariant &data)
 {
-    /* Fetch data to properties & settings: */
+    /* Fetch data to properties: */
     UISettingsPageGlobal::fetchData(data);
 
-    /* Load to cache: */
-    m_cache.m_strDefaultMachineFolder = m_properties.GetDefaultMachineFolder();
-    m_cache.m_strVRDEAuthLibrary = m_properties.GetVRDEAuthLibrary();
-    m_cache.m_fHostScreenSaverDisabled = m_settings.hostScreenSaverDisabled();
+    /* Clear cache initially: */
+    m_pCache->clear();
 
-    /* Upload properties & settings to data: */
+    /* Prepare old general data: */
+    UIDataSettingsGlobalGeneral oldGeneralData;
+
+    /* Gather old general data: */
+    oldGeneralData.m_strDefaultMachineFolder = m_properties.GetDefaultMachineFolder();
+    oldGeneralData.m_strVRDEAuthLibrary = m_properties.GetVRDEAuthLibrary();
+    oldGeneralData.m_fHostScreenSaverDisabled = gEDataManager->hostScreenSaverDisabled();
+
+    /* Cache old general data: */
+    m_pCache->cacheInitialData(oldGeneralData);
+
+    /* Upload properties to data: */
     UISettingsPageGlobal::uploadData(data);
 }
 
-/* Load data to corresponding widgets from cache,
- * this task SHOULD be performed in GUI thread only: */
 void UIGlobalSettingsGeneral::getFromCache()
 {
-    /* Fetch from cache: */
-    m_pSelectorMachineFolder->setPath(m_cache.m_strDefaultMachineFolder);
-    m_pSelectorVRDPLibName->setPath(m_cache.m_strVRDEAuthLibrary);
-    m_pCheckBoxHostScreenSaver->setChecked(m_cache.m_fHostScreenSaverDisabled);
+    /* Get old general data from the cache: */
+    const UIDataSettingsGlobalGeneral &oldGeneralData = m_pCache->base();
+
+    /* Load old general data from the cache: */
+    m_pSelectorMachineFolder->setPath(oldGeneralData.m_strDefaultMachineFolder);
+    m_pSelectorVRDPLibName->setPath(oldGeneralData.m_strVRDEAuthLibrary);
+    m_pCheckBoxHostScreenSaver->setChecked(oldGeneralData.m_fHostScreenSaverDisabled);
 }
 
-/* Save data from corresponding widgets to cache,
- * this task SHOULD be performed in GUI thread only: */
 void UIGlobalSettingsGeneral::putToCache()
 {
-    /* Upload to cache: */
-    m_cache.m_strDefaultMachineFolder = m_pSelectorMachineFolder->path();
-    m_cache.m_strVRDEAuthLibrary = m_pSelectorVRDPLibName->path();
-    m_cache.m_fHostScreenSaverDisabled = m_pCheckBoxHostScreenSaver->isChecked();
+    /* Prepare new general data: */
+    UIDataSettingsGlobalGeneral newGeneralData = m_pCache->base();
+
+    /* Gather new general data: */
+    newGeneralData.m_strDefaultMachineFolder = m_pSelectorMachineFolder->path();
+    newGeneralData.m_strVRDEAuthLibrary = m_pSelectorVRDPLibName->path();
+    newGeneralData.m_fHostScreenSaverDisabled = m_pCheckBoxHostScreenSaver->isChecked();
+
+    /* Cache new general data: */
+    m_pCache->cacheCurrentData(newGeneralData);
 }
 
-/* Save data from cache to corresponding external object(s),
- * this task COULD be performed in other than GUI thread: */
 void UIGlobalSettingsGeneral::saveFromCacheTo(QVariant &data)
 {
-    /* Fetch data to properties & settings: */
+    /* Fetch data to properties: */
     UISettingsPageGlobal::fetchData(data);
 
-    /* Save from cache: */
-    if (m_properties.isOk() && m_pSelectorMachineFolder->isModified())
-        m_properties.SetDefaultMachineFolder(m_cache.m_strDefaultMachineFolder);
-    if (m_properties.isOk() && m_pSelectorVRDPLibName->isModified())
-        m_properties.SetVRDEAuthLibrary(m_cache.m_strVRDEAuthLibrary);
-    m_settings.setHostScreenSaverDisabled(m_cache.m_fHostScreenSaverDisabled);
+    /* Update general data and failing state: */
+    setFailed(!saveGeneralData());
 
-    /* Upload properties & settings to data: */
+    /* Upload properties to data: */
     UISettingsPageGlobal::uploadData(data);
-}
-
-void UIGlobalSettingsGeneral::setOrderAfter(QWidget *pWidget)
-{
-    /* Configure navigation: */
-    setTabOrder(pWidget, m_pSelectorMachineFolder);
-    setTabOrder(m_pSelectorMachineFolder, m_pSelectorVRDPLibName);
-    setTabOrder(m_pSelectorVRDPLibName, m_pCheckBoxHostScreenSaver);
 }
 
 void UIGlobalSettingsGeneral::retranslateUi()
 {
     /* Translate uic generated strings: */
     Ui::UIGlobalSettingsGeneral::retranslateUi(this);
+}
+
+void UIGlobalSettingsGeneral::prepare()
+{
+    /* Apply UI decorations: */
+    Ui::UIGlobalSettingsGeneral::setupUi(this);
+
+    /* Prepare cache: */
+    m_pCache = new UISettingsCacheGlobalGeneral;
+    AssertPtrReturnVoid(m_pCache);
+
+    /* Layout/widgets created in the .ui file. */
+    AssertPtrReturnVoid(m_pLabelHostScreenSaver);
+    AssertPtrReturnVoid(m_pCheckBoxHostScreenSaver);
+    AssertPtrReturnVoid(m_pSelectorMachineFolder);
+    AssertPtrReturnVoid(m_pSelectorVRDPLibName);
+    {
+        /* Configure host screen-saver check-box: */
+        // Hide checkbox for now.
+        m_pLabelHostScreenSaver->hide();
+        m_pCheckBoxHostScreenSaver->hide();
+
+        /* Configure other widgets: */
+        m_pSelectorMachineFolder->setHomeDir(vboxGlobal().homeFolder());
+        m_pSelectorVRDPLibName->setHomeDir(vboxGlobal().homeFolder());
+        m_pSelectorVRDPLibName->setMode(UIFilePathSelector::Mode_File_Open);
+    }
+
+    /* Apply language settings: */
+    retranslateUi();
+}
+
+void UIGlobalSettingsGeneral::cleanup()
+{
+    /* Cleanup cache: */
+    delete m_pCache;
+    m_pCache = 0;
+}
+
+bool UIGlobalSettingsGeneral::saveGeneralData()
+{
+    /* Prepare result: */
+    bool fSuccess = true;
+    /* Save general settings from the cache: */
+    if (fSuccess && m_pCache->wasChanged())
+    {
+        /* Get old general data from the cache: */
+        const UIDataSettingsGlobalGeneral &oldGeneralData = m_pCache->base();
+        /* Get new general data from the cache: */
+        const UIDataSettingsGlobalGeneral &newGeneralData = m_pCache->data();
+
+        /* Save default machine folder: */
+        if (   fSuccess
+            && newGeneralData.m_strDefaultMachineFolder != oldGeneralData.m_strDefaultMachineFolder)
+        {
+            m_properties.SetDefaultMachineFolder(newGeneralData.m_strDefaultMachineFolder);
+            fSuccess = m_properties.isOk();
+        }
+        /* Save VRDE auth library: */
+        if (   fSuccess
+            && newGeneralData.m_strVRDEAuthLibrary != oldGeneralData.m_strVRDEAuthLibrary)
+        {
+            m_properties.SetVRDEAuthLibrary(newGeneralData.m_strVRDEAuthLibrary);
+            fSuccess = m_properties.isOk();
+        }
+
+        /* Show error message if necessary: */
+        if (!fSuccess)
+            notifyOperationProgressError(UIErrorString::formatErrorInfo(m_properties));
+
+        /* Save new general data from the cache: */
+        if (newGeneralData.m_fHostScreenSaverDisabled != oldGeneralData.m_fHostScreenSaverDisabled)
+            gEDataManager->setHostScreenSaverDisabled(newGeneralData.m_fHostScreenSaverDisabled);
+    }
+    /* Return result: */
+    return fSuccess;
 }
 

@@ -301,7 +301,7 @@ mb_free_ext(PNATState pData, struct mbuf *m)
 #else
             AssertMsgFailed(("unimplemented"));
 #endif
-			/* FALLTHROUGH */
+			RT_FALL_THRU();
 		case EXT_EXTREF:
 			KASSERT(m->m_ext.ext_free != NULL,
 				("%s: ext_free not set", __func__));
@@ -1231,7 +1231,7 @@ m_copyup(PNATState pData, struct mbuf *n, int len, int dstoff)
 	struct mbuf *m;
 	int count, space;
 
-	if (len > (MHLEN - dstoff))
+	if (len > (int)(MHLEN - dstoff))
 		goto bad;
 	MGET(m, M_DONTWAIT, n->m_type);
 	if (m == NULL)

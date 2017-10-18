@@ -4,16 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
- *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- * --------------------------------------------------------------------
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This code is based on:
  *
@@ -33,11 +24,11 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * CONECTIVA LINUX BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
- * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF
- * OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL
+ * THE COPYRIGHT HOLDERS, AUTHORS AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+ * USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  * Except as contained in this notice, the name of Conectiva Linux shall
  * not be used in advertising or otherwise to promote the sale, use or other
@@ -45,6 +36,7 @@
  * Conectiva Linux.
  *
  * Authors: Paulo César Pereira de Andrade <pcpa@conectiva.com.br>
+ *          Michael Thayer <michael.thayer@oracle.com>
  */
 
 #ifdef XORG_7X
@@ -55,8 +47,6 @@
 # include <string.h>
 #endif
 #include "vboxvideo.h"
-#include "version-generated.h"
-#include "product-generated.h"
 #include "xf86.h"
 
 /* VGA hardware functions for setting and restoring text mode */
@@ -78,7 +68,7 @@ void vbvxClearVRAM(ScrnInfoPtr pScrn, size_t cbOldSize, size_t cbNewSize)
     VBOXPtr pVBox = VBOXGetRec(pScrn);
 
     /* Assume 32BPP - this is just a sanity test. */
-    VBVXASSERT(   cbOldSize / 4 <= VBOX_VIDEO_MAX_VIRTUAL * VBOX_VIDEO_MAX_VIRTUAL
+    AssertMsg(   cbOldSize / 4 <= VBOX_VIDEO_MAX_VIRTUAL * VBOX_VIDEO_MAX_VIRTUAL
                && cbNewSize / 4 <= VBOX_VIDEO_MAX_VIRTUAL * VBOX_VIDEO_MAX_VIRTUAL,
                ("cbOldSize=%llu cbNewSize=%llu, max=%u.\n", (unsigned long long)cbOldSize, (unsigned long long)cbNewSize,
                 VBOX_VIDEO_MAX_VIRTUAL * VBOX_VIDEO_MAX_VIRTUAL));
@@ -92,21 +82,21 @@ void vbvxClearVRAM(ScrnInfoPtr pScrn, size_t cbOldSize, size_t cbNewSize)
 /** Set a graphics mode.  Poke any required values into registers, do an HGSMI
  * mode set and tell the host we support advanced graphics functions.
  */
-void vbvxSetMode(ScrnInfoPtr pScrn, unsigned cDisplay, unsigned cWidth, unsigned cHeight, int x, int y, bool fEnabled,
-                 bool fConnected, struct vbvxFrameBuffer *pFrameBuffer)
+void vbvxSetMode(ScrnInfoPtr pScrn, unsigned cDisplay, unsigned cWidth, unsigned cHeight, int x, int y, Bool fEnabled,
+                 Bool fConnected, struct vbvxFrameBuffer *pFrameBuffer)
 {
     VBOXPtr pVBox = VBOXGetRec(pScrn);
     uint32_t offStart;
     uint16_t fFlags;
     int rc;
-    bool fEnabledAndVisible = fEnabled && x + cWidth <= pFrameBuffer->cWidth && y + cHeight <= pFrameBuffer->cHeight;
+    Bool fEnabledAndVisible = fEnabled && x + cWidth <= pFrameBuffer->cWidth && y + cHeight <= pFrameBuffer->cHeight;
     /* Recent host code has a flag to blank the screen; older code needs BPP set to zero. */
     uint32_t cBPP = fEnabledAndVisible || pVBox->fHostHasScreenBlankingFlag ? pFrameBuffer->cBPP : 0;
 
     TRACE_LOG("cDisplay=%u, cWidth=%u, cHeight=%u, x=%d, y=%d, fEnabled=%d, fConnected=%d, pFrameBuffer: { x0=%d, y0=%d, cWidth=%u, cHeight=%u, cBPP=%u }\n",
               cDisplay, cWidth, cHeight, x, y, fEnabled, fConnected, pFrameBuffer->x0, pFrameBuffer->y0, pFrameBuffer->cWidth,
               pFrameBuffer->cHeight, pFrameBuffer->cBPP);
-    VBVXASSERT(cWidth != 0 && cHeight != 0, ("cWidth = 0 or cHeight = 0\n"));
+    AssertMsg(cWidth != 0 && cHeight != 0, ("cWidth = 0 or cHeight = 0\n"));
     offStart = (y * pFrameBuffer->cWidth + x) * pFrameBuffer->cBPP / 8;
     if (cDisplay == 0 && fEnabled)
         VBoxVideoSetModeRegisters(cWidth, cHeight, pFrameBuffer->cWidth, pFrameBuffer->cBPP, 0, x, y);

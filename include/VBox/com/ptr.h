@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -116,7 +116,7 @@ public:
      * pointer p does not support the ComPtr interface T.
      *
      * Does not call AddRef explicitly because if QueryInterface succeeded, then
-     * the refcount will have been increased by one already .
+     * the refcount will have been increased by one already.
      */
     template <class T2>
     ComPtr(const ComPtr<T2> &that)
@@ -141,7 +141,7 @@ public:
      * pointer p does not support the ComPtr interface T.
      *
      * Does not call AddRef explicitly because if QueryInterface succeeded, then
-     * the refcount will have been increased by one already .
+     * the refcount will have been increased by one already.
      */
     template <class T2>
     ComPtr(T2 *p)
@@ -166,7 +166,7 @@ public:
      * pointer p does not support the ComPtr interface T.
      *
      * Does not call AddRef explicitly because if QueryInterface succeeded, then
-     * the refcount will have been increased by one already .
+     * the refcount will have been increased by one already.
      */
     template <class T2>
     ComPtr& operator=(const ComPtr<T2> &that)
@@ -190,7 +190,7 @@ public:
      * pointer p does not support the ComPtr interface T.
      *
      * Does not call AddRef explicitly because if QueryInterface succeeded, then
-     * the refcount will have been increased by one already .
+     * the refcount will have been increased by one already.
      */
     template <class T2>
     ComPtr& operator=(T2 *p)
@@ -287,13 +287,9 @@ public:
         {
             if (m_p)
                 return m_p->QueryInterface(COM_IIDOF(T2), (void **)pp);
-            else
-            {
-                *pp = NULL;
-                return S_OK;
-            }
+            *pp = NULL;
+            return S_OK;
         }
-
         return E_INVALIDARG;
     }
 

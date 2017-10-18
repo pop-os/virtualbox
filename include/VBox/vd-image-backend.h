@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,10 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef __vd_image_backend_h__
-#define __vd_image_backend_h__
+#ifndef ___VBox_vd_image_backend_h
+#define ___VBox_vd_image_backend_h
 
 #include <VBox/vd.h>
+#include <VBox/vd-common.h>
 #include <VBox/vd-ifs-internal.h>
 
 
@@ -60,29 +61,21 @@
 /**
  * Image format backend interface used by VBox HDD Container implementation.
  */
-typedef struct VBOXHDDBACKEND
+typedef struct VDIMAGEBACKEND
 {
-    /**
-     * The name of the backend (constant string).
-     */
-    const char *pszBackendName;
-
-    /**
-     * The size of the structure.
-     */
-    uint32_t cbSize;
-
-    /**
-     * The capabilities of the backend.
-     */
-    uint64_t uBackendCaps;
+    /** Structure version. VD_IMGBACKEND_VERSION defines the current version. */
+    uint32_t            u32Version;
+    /** The name of the backend (constant string). */
+    const char          *pszBackendName;
+    /** The capabilities of the backend. */
+    uint64_t            uBackendCaps;
 
     /**
      * Pointer to a NULL-terminated array, containing the supported
      * file extensions. Note that some backends do not work on files, so this
      * pointer may just contain NULL.
      */
-    PCVDFILEEXTENSION paFileExtensions;
+    PCVDFILEEXTENSION   paFileExtensions;
 
     /**
      * Pointer to an array of structs describing each supported config key.
@@ -90,10 +83,10 @@ typedef struct VBOXHDDBACKEND
      * the configuration interface, so this pointer may just contain NULL.
      * Mandatory if the backend sets VD_CAP_CONFIG.
      */
-    PCVDCONFIGINFO paConfigInfo;
+    PCVDCONFIGINFO      paConfigInfo;
 
     /**
-     * Check if a file is valid for the backend.
+     * Check whether the file is supported by the backend.
      *
      * @returns VBox status code.
      * @param   pszFilename     Name of the image file.
@@ -101,8 +94,8 @@ typedef struct VBOXHDDBACKEND
      * @param   pVDIfsImage     Pointer to the per-image VD interface list.
      * @param   penmType        Returns the supported device type on success.
      */
-    DECLR3CALLBACKMEMBER(int, pfnCheckIfValid, (const char *pszFilename, PVDINTERFACE pVDIfsDisk,
-                                                PVDINTERFACE pVDIfsImage, VDTYPE *penmType));
+    DECLR3CALLBACKMEMBER(int, pfnProbe, (const char *pszFilename, PVDINTERFACE pVDIfsDisk,
+                                         PVDINTERFACE pVDIfsImage, VDTYPE *penmType));
 
     /**
      * Open a disk image.
@@ -183,11 +176,11 @@ typedef struct VBOXHDDBACKEND
      * @returns VBox status code.
      * @param   pBackendData    Opaque state data for this image.
      * @param   uOffset         The offset of the virtual disk to read from.
-     * @param   cbRead          How many bytes to read.
+     * @param   cbToRead        How many bytes to read.
      * @param   pIoCtx          I/O context associated with this request.
      * @param   pcbActuallyRead Pointer to returned number of bytes read.
      */
-    DECLR3CALLBACKMEMBER(int, pfnRead, (void *pBackendData, uint64_t uOffset, size_t cbRead,
+    DECLR3CALLBACKMEMBER(int, pfnRead, (void *pBackendData, uint64_t uOffset, size_t cbToRead,
                                         PVDIOCTX pIoCtx, size_t *pcbActuallyRead));
 
     /**
@@ -196,7 +189,7 @@ typedef struct VBOXHDDBACKEND
      * @returns VBox status code.
      * @param   pBackendData    Opaque state data for this image.
      * @param   uOffset         The offset of the virtual disk to write to.
-     * @param   cbWrite         How many bytes to write.
+     * @param   cbToWrite       How many bytes to write.
      * @param   pIoCtx          I/O context associated with this request.
      * @param   pcbWriteProcess Pointer to returned number of bytes that could
      *                          be processed. In case the function returned
@@ -211,7 +204,7 @@ typedef struct VBOXHDDBACKEND
      * @param   fWrite          Flags which affect write behavior. Combination
      *                          of the VD_WRITE_* flags.
      */
-    DECLR3CALLBACKMEMBER(int, pfnWrite, (void *pBackendData, uint64_t uOffset, size_t cbWrite,
+    DECLR3CALLBACKMEMBER(int, pfnWrite, (void *pBackendData, uint64_t uOffset, size_t cbToWrite,
                                          PVDIOCTX pIoCtx,
                                          size_t *pcbWriteProcess, size_t *pcbPreRead,
                                          size_t *pcbPostRead, unsigned fWrite));
@@ -266,22 +259,6 @@ typedef struct VBOXHDDBACKEND
     DECLR3CALLBACKMEMBER(unsigned, pfnGetVersion, (void *pBackendData));
 
     /**
-     * Get the sector size of a disk image.
-     *
-     * @returns size of disk image in bytes.
-     * @param   pBackendData    Opaque state data for this image.
-     */
-    DECLR3CALLBACKMEMBER(uint32_t, pfnGetSectorSize, (void *pBackendData));
-
-    /**
-     * Get the capacity of a disk image.
-     *
-     * @returns size of disk image in bytes.
-     * @param   pBackendData    Opaque state data for this image.
-     */
-    DECLR3CALLBACKMEMBER(uint64_t, pfnGetSize, (void *pBackendData));
-
-    /**
      * Get the file size of a disk image.
      *
      * @returns size of disk image in bytes.
@@ -330,9 +307,28 @@ typedef struct VBOXHDDBACKEND
     DECLR3CALLBACKMEMBER(int, pfnSetLCHSGeometry, (void *pBackendData,  PCVDGEOMETRY pLCHSGeometry));
 
     /**
+     * Returns a region list for the disk image if supported, optional.
+     *
+     * @returns VBox status code.
+     * @retval  VERR_NOT_SUPPORTED if region lists are not supported for this kind of image.
+     * @param   pBackendData    Opaque state data for this image.
+     * @param   ppRegionList    Where to store the pointer to the region list on success.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnQueryRegions, (void *pBackendData, PCVDREGIONLIST *ppRegionList));
+
+    /**
+     * Releases the region list acquired with VDIMAGEBACKEND::pfnQueryRegions() before.
+     *
+     * @returns nothing.
+     * @param   pBackendData    Opaque state data for this image.
+     * @param   pRegionList     The region list to release.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnRegionListRelease, (void *pBackendData, PCVDREGIONLIST pRegionList));
+
+    /**
      * Get the image flags of a disk image.
      *
-     * @returns image flags of disk image.
+     * @returns image flags of disk image (VD_IMAGE_FLAGS_XXX).
      * @param   pBackendData    Opaque state data for this image.
      */
     DECLR3CALLBACKMEMBER(unsigned, pfnGetImageFlags, (void *pBackendData));
@@ -340,18 +336,20 @@ typedef struct VBOXHDDBACKEND
     /**
      * Get the open flags of a disk image.
      *
-     * @returns open flags of disk image.
+     * @returns open flags of disk image (VD_OPEN_FLAGS_XXX).
      * @param   pBackendData    Opaque state data for this image.
      */
     DECLR3CALLBACKMEMBER(unsigned, pfnGetOpenFlags, (void *pBackendData));
 
     /**
-     * Set the open flags of a disk image. May cause the image to be locked
-     * in a different mode or be reopened (which can fail).
+     * Set the open flags of a disk image.
+     *
+     * May cause the image to be locked in a different mode or be reopened (which
+     * can fail).
      *
      * @returns VBox status code.
      * @param   pBackendData    Opaque state data for this image.
-     * @param   uOpenFlags      New open flags for this image.
+     * @param   uOpenFlags      New open flags for this image (VD_OPEN_FLAGS_XXX).
      */
     DECLR3CALLBACKMEMBER(int, pfnSetOpenFlags, (void *pBackendData, unsigned uOpenFlags));
 
@@ -486,8 +484,8 @@ typedef struct VBOXHDDBACKEND
      * Get the relative path to parent image. May be NULL.
      *
      * @returns VBox status code.
-     * @param   pBackendData      Opaque state data for this image.
-     * @param   pszParentFilename Where to store the path.
+     * @param   pBackendData       Opaque state data for this image.
+     * @param   ppszParentFilename Where to store the path.
      */
     DECLR3CALLBACKMEMBER(int, pfnGetParentFilename, (void *pBackendData, char **ppszParentFilename));
 
@@ -584,16 +582,22 @@ typedef struct VBOXHDDBACKEND
                                                     PVDINTERFACE pVDIfsImage,
                                                     PVDINTERFACE pVDIfsOperation));
 
-} VBOXHDDBACKEND;
+    /** Initialization safty marker. */
+    uint32_t            u32VersionEnd;
+
+} VDIMAGEBACKEND;
 
 /** Pointer to VD backend. */
-typedef VBOXHDDBACKEND *PVBOXHDDBACKEND;
+typedef VDIMAGEBACKEND *PVDIMAGEBACKEND;
 /** Constant pointer to VD backend. */
-typedef const VBOXHDDBACKEND *PCVBOXHDDBACKEND;
+typedef const VDIMAGEBACKEND *PCVDIMAGEBACKEND;
 
-/** @copydoc VBOXHDDBACKEND::pfnComposeLocation */
+/** The current version of the VDIMAGEBACKEND structure. */
+#define VD_IMGBACKEND_VERSION                   VD_VERSION_MAKE(0xff01, 3, 0)
+
+/** @copydoc VDIMAGEBACKEND::pfnComposeLocation */
 DECLCALLBACK(int) genericFileComposeLocation(PVDINTERFACE pConfig, char **pszLocation);
-/** @copydoc VBOXHDDBACKEND::pfnComposeName */
+/** @copydoc VDIMAGEBACKEND::pfnComposeName */
 DECLCALLBACK(int) genericFileComposeName(PVDINTERFACE pConfig, char **pszName);
 
 #endif

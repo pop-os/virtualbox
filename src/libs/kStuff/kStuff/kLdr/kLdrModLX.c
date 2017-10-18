@@ -1,4 +1,4 @@
-/* $Id: kLdrModLX.c 87 2016-09-07 13:09:12Z bird $ */
+/* $Id: kLdrModLX.c 102 2017-10-02 10:45:31Z bird $ */
 /** @file
  * kLdr - The Module Interpreter for the Linear eXecutable (LX) Format.
  */
@@ -1486,6 +1486,7 @@ static int kldrModLXDoLoadBits(PKLDRMODLX pModLX, void *pvBits)
 
                 case RANGE:
                     KLDRMODLX_ASSERT(!"RANGE");
+                    /* Falls through. */
                 default:
                     rc = KLDR_ERR_LX_BAD_PAGE_MAP;
                     break;
@@ -1522,7 +1523,7 @@ static int kldrModLXDoIterDataUnpacking(KU8 *pbDst, const KU8 *pbSrc, int cbSrc)
     int                     cbDst = OBJPAGELEN;
 
     /* Validate size of data. */
-    if (cbSrc >= OBJPAGELEN - 2)
+    if (cbSrc >= (int)OBJPAGELEN - 2)
         return KLDR_ERR_LX_BAD_ITERDATA;
 
     /*
@@ -2443,6 +2444,7 @@ static int kldrModLXRelocateBits(PKLDRMOD pMod, void *pvBits, KLDRADDR NewBaseAd
 
                     case NRRENT:
                         KLDRMODLX_ASSERT(!"NRRENT");
+                        /* Falls through. */
                     default:
                         iSelector = -1;
                         break;
@@ -2474,11 +2476,11 @@ static int kldrModLXRelocateBits(PKLDRMOD pMod, void *pvBits, KLDRADDR NewBaseAd
                     /* common / simple */
                     if (    (u.prlc->nr_stype & NRSRCMASK) == NROFF32
                         &&  off >= 0
-                        &&  off <= OBJPAGELEN - 4)
+                        &&  off <= (int)OBJPAGELEN - 4)
                         *(KU32 *)&pbPage[off] = (KU32)uValue;
                     else if (    (u.prlc->nr_stype & NRSRCMASK) == NRSOFF32
                             &&  off >= 0
-                            &&  off <= OBJPAGELEN - 4)
+                            &&  off <= (int)OBJPAGELEN - 4)
                         *(KU32 *)&pbPage[off] = (KU32)(uValue - (PageAddress + off + 4));
                     else
                     {
@@ -2499,7 +2501,7 @@ static int kldrModLXRelocateBits(PKLDRMOD pMod, void *pvBits, KLDRADDR NewBaseAd
                         while (c-- > 0)
                         {
                             int off = *poffSrc++;
-                            if (off >= 0 && off <= OBJPAGELEN - 4)
+                            if (off >= 0 && off <= (int)OBJPAGELEN - 4)
                                 *(KU32 *)&pbPage[off] = (KU32)uValue;
                             else
                             {
@@ -2514,7 +2516,7 @@ static int kldrModLXRelocateBits(PKLDRMOD pMod, void *pvBits, KLDRADDR NewBaseAd
                         while (c-- > 0)
                         {
                             int off = *poffSrc++;
-                            if (off >= 0 && off <= OBJPAGELEN - 4)
+                            if (off >= 0 && off <= (int)OBJPAGELEN - 4)
                                 *(KU32 *)&pbPage[off] = (KU32)(uValue - (PageAddress + off + 4));
                             else
                             {
@@ -2647,7 +2649,7 @@ static int kldrModLXDoReloc(KU8 *pbPage, int off, KLDRADDR PageAddress, const st
     pbDst = pbPage + off;
     while (cb-- > 0)
     {
-        if (off > OBJPAGELEN)
+        if (off > (int)OBJPAGELEN)
             break;
         if (off >= 0)
             *pbDst = *pbSrc;

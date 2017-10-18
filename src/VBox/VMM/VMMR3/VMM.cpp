@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -119,9 +119,7 @@
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/csam.h>
 #include <VBox/vmm/patm.h>
-#ifdef VBOX_WITH_NEW_APIC
-# include <VBox/vmm/apic.h>
-#endif
+#include <VBox/vmm/apic.h>
 #ifdef VBOX_WITH_REM
 # include <VBox/vmm/rem.h>
 #endif
@@ -1483,11 +1481,12 @@ static DECLCALLBACK(int) vmmR3SendInitIpi(PVM pVM, VMCPUID idCpu)
 
     Log(("vmmR3SendInitIpi for VCPU %d\n", idCpu));
 
+    /** @todo Figure out how to handle a nested-guest intercepts here for INIT
+     *  IPI (e.g. SVM_EXIT_INIT). */
+
     PGMR3ResetCpu(pVM, pVCpu);
     PDMR3ResetCpu(pVCpu);   /* Only clears pending interrupts force flags */
-#ifdef VBOX_WITH_NEW_APIC
     APICR3InitIpi(pVCpu);
-#endif
     TRPMR3ResetCpu(pVCpu);
     CPUMR3ResetCpu(pVM, pVCpu);
     EMR3ResetCpu(pVCpu);
@@ -2160,10 +2159,10 @@ VMMR3DECL(int) VMMR3EmtRendezvous(PVM pVM, uint32_t fFlags, PFNVMMEMTRENDEZVOUS 
     VBOXSTRICTRC rcStrict;
     PVMCPU pVCpu = VMMGetCpu(pVM);
     if (!pVCpu)
+    {
         /*
          * Forward the request to an EMT thread.
          */
-    {
         Log(("VMMR3EmtRendezvous: %#x non-EMT\n", fFlags));
         if (!(fFlags & VMMEMTRENDEZVOUS_FLAGS_PRIORITY))
             rcStrict = VMR3ReqCallWait(pVM, VMCPUID_ANY, (PFNRT)VMMR3EmtRendezvous, 4, pVM, fFlags, pfnRendezvous, pvUser);
@@ -2171,10 +2170,15 @@ VMMR3DECL(int) VMMR3EmtRendezvous(PVM pVM, uint32_t fFlags, PFNVMMEMTRENDEZVOUS 
             rcStrict = VMR3ReqPriorityCallWait(pVM, VMCPUID_ANY, (PFNRT)VMMR3EmtRendezvous, 4, pVM, fFlags, pfnRendezvous, pvUser);
         Log(("VMMR3EmtRendezvous: %#x non-EMT returns %Rrc\n", fFlags, VBOXSTRICTRC_VAL(rcStrict)));
     }
-    else if (pVM->cCpus == 1)
+    else if (   pVM->cCpus == 1
+             || (   pVM->enmVMState == VMSTATE_DESTROYING
+                 && VMR3GetActiveEmts(pVM->pUVM) < pVM->cCpus ) )
     {
         /*
          * Shortcut for the single EMT case.
+         *
+         * We also ends up here if EMT(0) (or others) tries to issue a rendezvous
+         * during vmR3Destroy after other emulation threads have started terminating.
          */
         if (!pVCpu->vmm.s.fInRendezvous)
         {
@@ -2330,7 +2334,7 @@ VMMR3DECL(int) VMMR3EmtRendezvous(PVM pVM, uint32_t fFlags, PFNVMMEMTRENDEZVOUS 
 
 
 /**
- * Read from the ring 0 jump buffer stack
+ * Read from the ring 0 jump buffer stack.
  *
  * @returns VBox status code.
  *

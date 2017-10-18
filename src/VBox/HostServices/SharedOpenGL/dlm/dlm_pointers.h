@@ -1,5 +1,5 @@
 /* $Id: dlm_pointers.h $ */
-#include <VBox/VBoxUhgsmi.h>
+#include <VBoxUhgsmi.h>
 
 #include "cr_dlm.h"
 #include "dlm_generated.h"

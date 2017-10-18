@@ -19,40 +19,29 @@
 # include <precomp.h>
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* Qt includes: */
-# include <QFont>
-# include <QHash>
-# include <QBrush>
-# include <QGraphicsView>
-# include <QGraphicsScene>
-# include <QGraphicsSceneContextMenuEvent>
-
 /* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UIConverter.h"
-# include "UIExtraDataManager.h"
 # include "UIInformationModel.h"
 # include "UIInformationDataItem.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIInformationModel::UIInformationModel(QObject *pParent, const CMachine &machine, const CConsole &console)
     : QAbstractListModel(pParent)
     , m_machine(machine)
     , m_console(console)
 {
-    /* Prepare information-model: */
+    /* Prepare: */
     prepare();
 }
 
 UIInformationModel::~UIInformationModel()
 {
-    /* Destroy all data-items: */
-    qDeleteAll(m_list);
-    m_list.clear();
+    /* Cleanup: */
+    cleanup();
 }
 
-int UIInformationModel::rowCount(const QModelIndex& /*parent */) const
+int UIInformationModel::rowCount(const QModelIndex & /* parentIndex */) const
 {
     /* Return row-count: */
     return m_list.count();
@@ -60,12 +49,33 @@ int UIInformationModel::rowCount(const QModelIndex& /*parent */) const
 
 QVariant UIInformationModel::data(const QModelIndex &index, int role) const
 {
-    /* Get row: */
-    int row = index.row();
     /* Get item at the row: */
-    UIInformationDataItem *pItem = m_list.at(row);
+    UIInformationDataItem *pItem = m_list.at(index.row());
     /* Return the data for the corresponding role: */
     return pItem->data(index, role);
+}
+
+void UIInformationModel::addItem(UIInformationDataItem *pItem)
+{
+    /* Make sure item is valid: */
+    AssertPtrReturnVoid(pItem);
+    /* Add item: */
+    m_list.append(pItem);
+}
+
+void UIInformationModel::updateData(const QModelIndex &index)
+{
+    /* Emit data-changed signal: */
+    emit dataChanged(index, index);
+}
+
+void UIInformationModel::updateData(UIInformationDataItem *pItem)
+{
+    /* Update data: */
+    AssertPtrReturnVoid(pItem);
+    int iRow = m_list.indexOf(pItem);
+    QModelIndex index = createIndex(iRow, 0);
+    emit dataChanged(index, index);
 }
 
 void UIInformationModel::prepare()
@@ -76,12 +86,16 @@ void UIInformationModel::prepare()
     roleNames[Qt::DecorationRole] = "";
     roleNames[Qt::UserRole + 1] = "";
     roleNames[Qt::UserRole + 2] = "";
-    # if QT_VERSION < 0x050000
-    setRoleNames(roleNames);
-    # endif /* QT_VERSION < 0x050000 */
 
     /* Register meta-type: */
     qRegisterMetaType<InformationElementType>();
+}
+
+void UIInformationModel::cleanup()
+{
+    /* Destroy all data-items: */
+    qDeleteAll(m_list);
+    m_list.clear();
 }
 
 QHash<int, QByteArray> UIInformationModel::roleNames() const
@@ -93,28 +107,5 @@ QHash<int, QByteArray> UIInformationModel::roleNames() const
     roleNames[Qt::UserRole + 1] = "";
     roleNames[Qt::UserRole + 2] = "";
     return roleNames;
-}
-
-void UIInformationModel::addItem(UIInformationDataItem *pItem)
-{
-    /* Make sure item is valid: */
-    AssertPtrReturnVoid(pItem);
-    /* Add item: */
-    m_list.append(pItem);
-}
-
-void UIInformationModel::updateData(const QModelIndex &idx)
-{
-    /* Emit data-changed signal: */
-    emit dataChanged(idx, idx);
-}
-
-void UIInformationModel::updateData(UIInformationDataItem *pItem)
-{
-    /* Updates data: */
-    AssertPtrReturnVoid(pItem);
-    int iRow = m_list.indexOf(pItem);
-    QModelIndex index = createIndex(iRow, 0);
-    emit dataChanged(index, index);
 }
 

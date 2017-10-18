@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,6 +39,7 @@
 # define NtQueryInformationFile         ZwQueryInformationFile
 # define NtQueryInformationProcess      ZwQueryInformationProcess
 # define NtQueryInformationThread       ZwQueryInformationThread
+# define NtQueryFullAttributesFile      ZwQueryFullAttributesFile
 # define NtQuerySystemInformation       ZwQuerySystemInformation
 # define NtQuerySecurityObject          ZwQuerySecurityObject
 # define NtSetInformationFile           ZwSetInformationFile
@@ -195,6 +196,10 @@
 # endif
 # pragma warning(disable: 4668)
 # pragma warning(disable: 4255) /* warning C4255: 'ObGetFilterVersion' : no function prototype given: converting '()' to '(void)' */
+# if _MSC_VER >= 1800 /*RT_MSC_VER_VC120*/
+#  pragma warning(disable:4005) /* sdk/v7.1/include/sal_supp.h(57) : warning C4005: '__useHeader' : macro redefinition */
+#  pragma warning(disable:4471) /* wdm.h(11057) : warning C4471: '_POOL_TYPE' : a forward declaration of an unscoped enumeration must have an underlying type (int assumed) */
+# endif
 
 # include <ntifs.h>
 # include <wdm.h>
@@ -1465,16 +1470,18 @@ DECL_FORCE_INLINE(uint32_t) RTNtCurrentThreadId(void) { return (uint32_t)__readg
 
 #ifdef IPRT_NT_USE_WINTERNL
 NTSYSAPI NTSTATUS NTAPI NtCreateSection(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, PLARGE_INTEGER, ULONG, ULONG, HANDLE);
-NTSYSAPI NTSTATUS NTAPI NtUnmapViewOfSection(HANDLE, PVOID);
 typedef enum _SECTION_INHERIT
 {
     ViewShare = 1,
     ViewUnmap
 } SECTION_INHERIT;
+#endif
 NTSYSAPI NTSTATUS NTAPI NtMapViewOfSection(HANDLE, HANDLE, PVOID *, ULONG, SIZE_T, PLARGE_INTEGER, PSIZE_T, SECTION_INHERIT,
                                            ULONG, ULONG);
+NTSYSAPI NTSTATUS NTAPI NtFlushVirtualMemory(HANDLE, PVOID *, PSIZE_T, PIO_STATUS_BLOCK);
+NTSYSAPI NTSTATUS NTAPI NtUnmapViewOfSection(HANDLE, PVOID);
 
-
+#ifdef IPRT_NT_USE_WINTERNL
 typedef struct _FILE_FS_ATTRIBUTE_INFORMATION
 {
     ULONG   FileSystemAttributes;
@@ -1550,6 +1557,17 @@ typedef struct _FILE_NAME_INFORMATION
     WCHAR           FileName[1];
 } FILE_NAME_INFORMATION;
 typedef FILE_NAME_INFORMATION *PFILE_NAME_INFORMATION;
+typedef struct _FILE_NETWORK_OPEN_INFORMATION
+{
+    LARGE_INTEGER   CreationTime;
+    LARGE_INTEGER   LastAccessTime;
+    LARGE_INTEGER   LastWriteTime;
+    LARGE_INTEGER   ChangeTime;
+    LARGE_INTEGER   AllocationSize;
+    LARGE_INTEGER   EndOfFile;
+    ULONG           FileAttributes;
+} FILE_NETWORK_OPEN_INFORMATION;
+typedef FILE_NETWORK_OPEN_INFORMATION *PFILE_NETWORK_OPEN_INFORMATION;
 typedef enum _FILE_INFORMATION_CLASS
 {
     FileDirectoryInformation = 1,
@@ -1621,7 +1639,11 @@ NTSYSAPI NTSTATUS NTAPI NtQueryInformationFile(HANDLE, PIO_STATUS_BLOCK, PVOID, 
 NTSYSAPI NTSTATUS NTAPI NtQueryDirectoryFile(HANDLE, HANDLE, PIO_APC_ROUTINE, PVOID, PIO_STATUS_BLOCK, PVOID, ULONG,
                                              FILE_INFORMATION_CLASS, BOOLEAN, PUNICODE_STRING, BOOLEAN);
 NTSYSAPI NTSTATUS NTAPI NtSetInformationFile(HANDLE, PIO_STATUS_BLOCK, PVOID, ULONG, FILE_INFORMATION_CLASS);
+#endif /* IPRT_NT_USE_WINTERNL */
+NTSYSAPI NTSTATUS NTAPI NtQueryAttributesFile(POBJECT_ATTRIBUTES, PFILE_BASIC_INFORMATION);
+NTSYSAPI NTSTATUS NTAPI NtQueryFullAttributesFile(POBJECT_ATTRIBUTES, PFILE_NETWORK_OPEN_INFORMATION);
 
+#ifdef IPRT_NT_USE_WINTERNL
 
 /** For use with KeyBasicInformation. */
 typedef struct _KEY_BASIC_INFORMATION
@@ -2111,7 +2133,18 @@ typedef enum _SYSTEM_INFORMATION_CLASS
     SystemInformation_Unknown_93,
     SystemInformation_Unknown_94,
     SystemInformation_Unknown_95,
-    SystemInformation_KiOpPrefetchPatchCount,
+    SystemInformation_KiOpPrefetchPatchCount, /* 96 */
+    SystemInformation_Unknown_97,
+    SystemInformation_Unknown_98,
+    SystemInformation_Unknown_99,
+    SystemInformation_Unknown_100,
+    SystemInformation_Unknown_101,
+    SystemInformation_Unknown_102,
+    SystemInformation_Unknown_103,
+    SystemInformation_Unknown_104,
+    SystemInformation_Unknown_105,
+    SystemInformation_Unknown_107,
+    SystemInformation_GetLogicalProcessorInformationEx, /* 107 */
 
     /** @todo fill gap. they've added a whole bunch of things  */
     SystemPolicyInformation = 134,
@@ -2218,7 +2251,7 @@ typedef struct _SYSTEM_HANDLE_INFORMATION_EX
 } SYSTEM_HANDLE_INFORMATION_EX;
 typedef SYSTEM_HANDLE_INFORMATION_EX *PSYSTEM_HANDLE_INFORMATION_EX;
 
-/** Input to SystemSessionProcessInformation. */
+/** Returned by SystemSessionProcessInformation. */
 typedef struct _SYSTEM_SESSION_PROCESS_INFORMATION
 {
     ULONG SessionId;
@@ -2227,6 +2260,29 @@ typedef struct _SYSTEM_SESSION_PROCESS_INFORMATION
     PVOID Buffer;
 } SYSTEM_SESSION_PROCESS_INFORMATION;
 typedef SYSTEM_SESSION_PROCESS_INFORMATION *PSYSTEM_SESSION_PROCESS_INFORMATION;
+
+typedef struct _RTL_PROCESS_MODULE_INFORMATION
+{
+    HANDLE Section;                 /**< 0x00 / 0x00 */
+    PVOID MappedBase;               /**< 0x04 / 0x08 */
+    PVOID ImageBase;                /**< 0x08 / 0x10 */
+    ULONG ImageSize;                /**< 0x0c / 0x18 */
+    ULONG Flags;                    /**< 0x10 / 0x1c */
+    USHORT LoadOrderIndex;          /**< 0x14 / 0x20 */
+    USHORT InitOrderIndex;          /**< 0x16 / 0x22 */
+    USHORT LoadCount;               /**< 0x18 / 0x24 */
+    USHORT OffsetToFileName;        /**< 0x1a / 0x26 */
+    UCHAR  FullPathName[256];       /**< 0x1c / 0x28 */
+} RTL_PROCESS_MODULE_INFORMATION;
+typedef RTL_PROCESS_MODULE_INFORMATION *PRTL_PROCESS_MODULE_INFORMATION;
+
+/** Returned by SystemModuleInformation. */
+typedef struct _RTL_PROCESS_MODULES
+{
+    ULONG NumberOfModules;
+    RTL_PROCESS_MODULE_INFORMATION Modules[1];  /**< 0x04 / 0x08 */
+} RTL_PROCESS_MODULES;
+typedef RTL_PROCESS_MODULES *PRTL_PROCESS_MODULES;
 
 NTSYSAPI NTSTATUS NTAPI NtQuerySystemInformation(SYSTEM_INFORMATION_CLASS, PVOID, ULONG, PULONG);
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1030,7 +1030,7 @@ static int emR3RawPrivileged(PVM pVM, PVMCPU pVCpu)
                             pCtx->eip = pOrgInstrGC;
                     }
                     /* no break; we could just return VINF_EM_HALT here */
-                    /* fall thru */
+                    RT_FALL_THRU();
 
                 case OP_MOV_CR:
                 case OP_MOV_DR:

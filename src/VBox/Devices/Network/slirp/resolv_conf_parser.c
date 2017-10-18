@@ -156,13 +156,25 @@ int rcp_parse(struct rcp_state *state, const char *filename)
             break;
         }
 
+        /*
+         * Strip comment if present.
+         *
+         * This is not how ad-hoc parser in bind's res_init.c does it,
+         * btw, so this code will accept more input as valid compared
+         * to res_init.  (e.g. "nameserver 1.1.1.1; comment" is
+         * misparsed by res_init).
+         */
+        for (s = buf; *s != '\0'; ++s)
+        {
+            if (*s == '#' || *s == ';')
+            {
+                *s = '\0';
+                break;
+            }
+        }
 
         tok = getToken(buf, &s);
-
-        /* no more tokens or a comment */
-#       define NO_VALUE(tok)  (tok == NULL || tok[0] == '#' || tok[0] == ';')
-
-        if (NO_VALUE(tok))
+        if (tok == NULL)
             continue;
 
 
@@ -193,7 +205,7 @@ int rcp_parse(struct rcp_state *state, const char *filename)
              * parse next token as an IP address
              */
             tok = getToken(NULL, &s);
-            if (NO_VALUE(tok))
+            if (tok == NULL)
             {
                 LogRel(("NAT: resolv.conf: nameserver line without value\n"));
                 continue;
@@ -251,7 +263,7 @@ int rcp_parse(struct rcp_state *state, const char *filename)
 
 
             tok = getToken(NULL, &s);
-            if (!NO_VALUE(tok))
+            if (tok != NULL)
                 LogRel(("NAT: resolv.conf: ignoring unexpected trailer on the nameserver line\n"));
 
             if ((flags & RCPSF_IGNORE_IPV6) && NetAddr.enmType == RTNETADDRTYPE_IPV6)
@@ -303,7 +315,7 @@ int rcp_parse(struct rcp_state *state, const char *filename)
             }
 
             tok = getToken(NULL, &s);
-            if (NO_VALUE(tok))
+            if (tok == NULL)
             {
                 LogRel(("NAT: resolv.conf: port line without value\n"));
                 continue;
@@ -335,7 +347,7 @@ int rcp_parse(struct rcp_state *state, const char *filename)
             }
 
             tok = getToken(NULL, &s);
-            if (NO_VALUE(tok))
+            if (tok == NULL)
             {
                 LogRel(("NAT: resolv.conf: domain line without value\n"));
                 continue;
@@ -361,13 +373,7 @@ int rcp_parse(struct rcp_state *state, const char *filename)
          */
         if (RTStrCmp(tok, "search") == 0)
         {
-            if (cbSearchBuf == 0)
-            {
-                LogRel(("NAT: resolv.conf: no buffer space, ignoring search list %s\n", s));
-                break;
-            }
-
-            while ((tok = getToken(NULL, &s)) && !NO_VALUE(tok))
+            while ((tok = getToken(NULL, &s)) && tok != NULL)
             {
                 i = state->rcps_num_searchlist;
                 if (RT_UNLIKELY(i >= RCPS_MAX_SEARCHLIST))
@@ -376,8 +382,8 @@ int rcp_parse(struct rcp_state *state, const char *filename)
                     continue;
                 }
 
-                Log2(("NAT: resolv.conf: saving search @%td,+%zu\n",
-                      pszSearchBuf - state->rcps_searchlist_buffer, cbSearchBuf));
+                Log2(("NAT: resolv.conf: saving search %s @%td,+%zu\n",
+                      tok, pszSearchBuf - state->rcps_searchlist_buffer, cbSearchBuf));
                 state->rcps_searchlist[i] = pszSearchBuf;
                 rc = RTStrCopyP(&pszSearchBuf, &cbSearchBuf, tok);
                 if (RT_SUCCESS(rc))
@@ -389,7 +395,7 @@ int rcp_parse(struct rcp_state *state, const char *filename)
                 }
                 else
                 {
-                    Log2(("NAT: resolv.conf: truncated: %s\n", tok));
+                    LogRel(("NAT: resolv.conf: no buffer space, ignoring search domain %s\n", tok));
                     pszSearchBuf = state->rcps_searchlist[i];
                     cbSearchBuf = sizeof(state->rcps_searchlist_buffer)
                         - (pszSearchBuf - state->rcps_searchlist_buffer);

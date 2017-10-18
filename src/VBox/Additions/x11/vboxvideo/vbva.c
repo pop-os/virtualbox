@@ -4,27 +4,37 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL
+ * THE COPYRIGHT HOLDERS, AUTHORS AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+ * USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <VBox/VMMDev.h>
-#include <VBox/VBoxGuestLib.h>
-
-#include <iprt/string.h>
+#if defined(IN_XF86_MODULE) && !defined(NO_ANSIC)
+# include "xf86_ansic.h"
+#endif
 #include "compiler.h"
 
 #include "vboxvideo.h"
 
 #ifdef XORG_7X
 # include <stdlib.h>
+# include <string.h>
 #endif
 
 /**************************************************************************
@@ -35,7 +45,7 @@
  * Callback function called by the X server to tell us about dirty
  * rectangles in the video buffer.
  *
- * @param pScreen pointer to the information structure for the current
+ * @param pScrn   pointer to the information structure for the current
  *                screen
  * @param iRects  Number of dirty rectangles to update
  * @param aRects  Array of structures containing the coordinates of the
@@ -91,13 +101,13 @@ void vbvxHandleDirtyRect(ScrnInfoPtr pScrn, int iRects, BoxPtr aRects)
 
 static DECLCALLBACK(void *) hgsmiEnvAlloc(void *pvEnv, HGSMISIZE cb)
 {
-    NOREF(pvEnv);
+    RT_NOREF(pvEnv);
     return calloc(1, cb);
 }
 
 static DECLCALLBACK(void) hgsmiEnvFree(void *pvEnv, void *pv)
 {
-    NOREF(pvEnv);
+    RT_NOREF(pvEnv);
     free(pv);
 }
 
@@ -110,9 +120,7 @@ static HGSMIENV g_hgsmiEnv =
 
 /**
  * Calculate the location in video RAM of and initialise the heap for guest to
- * host messages.  In the VirtualBox 4.3 and earlier Guest Additions this
- * function creates the heap structures directly in guest video RAM, so it
- * needs to be called whenever video RAM is (re-)set-up.
+ * host messages.
  */
 void vbvxSetUpHGSMIHeapInGuest(VBOXPtr pVBox, uint32_t cbVRAM)
 {
@@ -124,7 +132,7 @@ void vbvxSetUpHGSMIHeapInGuest(VBOXPtr pVBox, uint32_t cbVRAM)
     pvGuestHeapMemory = ((uint8_t *)pVBox->base) + offVRAMBaseMapping + offGuestHeapMemory;
     rc = VBoxHGSMISetupGuestContext(&pVBox->guestCtx, pvGuestHeapMemory, cbGuestHeapMemory,
                                     offVRAMBaseMapping + offGuestHeapMemory, &g_hgsmiEnv);
-    VBVXASSERT(RT_SUCCESS(rc), ("Failed to set up the guest-to-host message buffer heap, rc=%d\n", rc));
+    AssertMsg(RT_SUCCESS(rc), ("Failed to set up the guest-to-host message buffer heap, rc=%d\n", rc));
     pVBox->cbView = offVRAMBaseMapping;
 }
 
@@ -169,11 +177,11 @@ static Bool vboxSetupVRAMVbva(VBOXPtr pVBox)
               (unsigned long) pVBox->cbFBMax);
     rc = VBoxHGSMISendViewInfo(&pVBox->guestCtx, pVBox->cScreens,
                                vboxFillViewInfo, (void *)pVBox);
-    VBVXASSERT(RT_SUCCESS(rc), ("Failed to send the view information to the host, rc=%d\n", rc));
+    AssertMsg(RT_SUCCESS(rc), ("Failed to send the view information to the host, rc=%d\n", rc));
     return TRUE;
 }
 
-static bool haveHGSMIModeHintAndCursorReportingInterface(VBOXPtr pVBox)
+static Bool haveHGSMIModeHintAndCursorReportingInterface(VBOXPtr pVBox)
 {
     uint32_t fModeHintReporting, fCursorReporting;
 
@@ -183,7 +191,7 @@ static bool haveHGSMIModeHintAndCursorReportingInterface(VBOXPtr pVBox)
            && fCursorReporting == VINF_SUCCESS;
 }
 
-static bool hostHasScreenBlankingFlag(VBOXPtr pVBox)
+static Bool hostHasScreenBlankingFlag(VBOXPtr pVBox)
 {
     uint32_t fScreenFlags;
 
@@ -201,7 +209,7 @@ static bool hostHasScreenBlankingFlag(VBOXPtr pVBox)
 Bool
 vboxEnableVbva(ScrnInfoPtr pScrn)
 {
-    bool rc = TRUE;
+    Bool rc = TRUE;
     unsigned i;
     VBOXPtr pVBox = pScrn->driverPrivate;
 
@@ -218,7 +226,7 @@ vboxEnableVbva(ScrnInfoPtr pScrn)
                             pVBVA, i))
             rc = FALSE;
     }
-    VBVXASSERT(rc, ("Failed to enable screen update reporting for at least one virtual monitor.\n"));
+    AssertMsg(rc, ("Failed to enable screen update reporting for at least one virtual monitor.\n"));
     pVBox->fHaveHGSMIModeHints = haveHGSMIModeHintAndCursorReportingInterface(pVBox);
     pVBox->fHostHasScreenBlankingFlag = hostHasScreenBlankingFlag(pVBox);
     return rc;

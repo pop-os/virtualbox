@@ -7,7 +7,7 @@ Test Manager WUI - Admin - System Log.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Validation Kit imports.
@@ -41,9 +41,9 @@ class WuiAdminSystemLogList(WuiListContentBase):
     WUI System Log Content Generator.
     """
 
-    def __init__(self, aoEntries, iPage, cItemsPerPage, tsEffective, fnDPrint, oDisp):
+    def __init__(self, aoEntries, iPage, cItemsPerPage, tsEffective, fnDPrint, oDisp, aiSelectedSortColumns = None):
         WuiListContentBase.__init__(self, aoEntries, iPage, cItemsPerPage, tsEffective, 'System Log',
-                                    fnDPrint = fnDPrint, oDisp = oDisp);
+                                    fnDPrint = fnDPrint, oDisp = oDisp, aiSelectedSortColumns = aiSelectedSortColumns);
         self._asColumnHeaders = ['Date', 'Event', 'Message', 'Action'];
         self._asColumnAttribs = ['', '', '', 'align="center"'];
 
@@ -51,24 +51,25 @@ class WuiAdminSystemLogList(WuiListContentBase):
         from testmanager.webui.wuiadmin import WuiAdmin;
         oEntry  = self._aoEntries[iEntry];
 
-        if    oEntry.sEvent == SystemLogData.ksEvent_TestBoxUnknown \
-          and oEntry.sLogText.find('addr=') >= 0 \
-          and oEntry.sLogText.find('uuid=') >= 0:
-            sUuid = (oEntry.sLogText[(oEntry.sLogText.find('uuid=') + 5):])[:36];
-            sAddr = (oEntry.sLogText[(oEntry.sLogText.find('addr=') + 5):]).split(' ')[0];
-            oAction = WuiTmLink('Add TestBox', WuiAdmin.ksScriptName,
-                                { WuiAdmin.ksParamAction:         WuiAdmin.ksActionTestBoxAdd,
-                                  TestBoxData.ksParam_uuidSystem: sUuid,
-                                  TestBoxData.ksParam_ip:         sAddr });
+        oAction = None
 
-        elif oEntry.sEvent == SystemLogData.ksEvent_UserAccountUnknown:
-            sUserName = oEntry.sLogText[oEntry.sLogText.find('(') + 1:
-                                      oEntry.sLogText.find(')')]
-            oAction = WuiTmLink('Add User', WuiAdmin.ksScriptName,
-                                { WuiAdmin.ksParamAction: WuiAdmin.ksActionUserAdd,
-                                  UserAccountData.ksParam_sLoginName: sUserName });
-        else:
-            oAction = ''; # pylint: disable=R0204
+        if self._oDisp is None or not self._oDisp.isReadOnlyUser():
+            if    oEntry.sEvent == SystemLogData.ksEvent_TestBoxUnknown \
+              and oEntry.sLogText.find('addr=') >= 0 \
+              and oEntry.sLogText.find('uuid=') >= 0:
+                sUuid = (oEntry.sLogText[(oEntry.sLogText.find('uuid=') + 5):])[:36];
+                sAddr = (oEntry.sLogText[(oEntry.sLogText.find('addr=') + 5):]).split(' ')[0];
+                oAction = WuiTmLink('Add TestBox', WuiAdmin.ksScriptName,
+                                    { WuiAdmin.ksParamAction:         WuiAdmin.ksActionTestBoxAdd,
+                                      TestBoxData.ksParam_uuidSystem: sUuid,
+                                      TestBoxData.ksParam_ip:         sAddr });
+
+            elif oEntry.sEvent == SystemLogData.ksEvent_UserAccountUnknown:
+                sUserName = oEntry.sLogText[oEntry.sLogText.find('(') + 1:
+                                          oEntry.sLogText.find(')')]
+                oAction = WuiTmLink('Add User', WuiAdmin.ksScriptName,
+                                    { WuiAdmin.ksParamAction: WuiAdmin.ksActionUserAdd,
+                                      UserAccountData.ksParam_sLoginName: sUserName });
 
         return [oEntry.tsCreated, oEntry.sEvent, oEntry.sLogText, oAction];
 

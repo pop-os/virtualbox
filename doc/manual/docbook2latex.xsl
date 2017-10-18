@@ -562,6 +562,13 @@
   <xsl:template match="itemizedlist">
     <xsl:call-template name="xsltprocNewlineOutputHack"/>
     <xsl:text>&#x0a;\begin{itemize}&#x0a;</xsl:text>
+    <xsl:if test="@spacing = 'compact'">
+      <xsl:text> \setlength{\parskip}{0pt}&#x0a;</xsl:text>
+      <xsl:text> \setlength{\itemsep}{0pt}&#x0a;</xsl:text>
+      <xsl:text> \setlength{\topsep}{0pt}&#x0a;</xsl:text>
+      <xsl:text> \setlength{\parsep}{0pt}&#x0a;</xsl:text> 
+      <xsl:text> \setlength{\partopsep}{0pt}&#x0a;</xsl:text>
+    </xsl:if>
     <xsl:apply-templates />
     <xsl:text>&#x0a;\end{itemize}&#x0a;</xsl:text>
   </xsl:template>
@@ -569,6 +576,13 @@
   <xsl:template match="orderedlist">
     <xsl:call-template name="xsltprocNewlineOutputHack"/>
     <xsl:text>&#x0a;\begin{enumerate}&#x0a;</xsl:text>
+    <xsl:if test="@spacing = 'compact'">
+      <xsl:text> \setlength{\parskip}{0pt}&#x0a;</xsl:text>
+      <xsl:text> \setlength{\itemsep}{0pt}&#x0a;</xsl:text>
+      <xsl:text> \setlength{\topsep}{0pt}&#x0a;</xsl:text>
+      <xsl:text> \setlength{\parsep}{0pt}&#x0a;</xsl:text>
+      <xsl:text> \setlength{\partopsep}{0pt}&#x0a;</xsl:text>
+    </xsl:if>
     <xsl:apply-templates />
     <xsl:text>&#x0a;\end{enumerate}&#x0a;</xsl:text>
   </xsl:template>
@@ -576,17 +590,28 @@
   <xsl:template match="variablelist">
     <xsl:call-template name="xsltprocNewlineOutputHack"/>
     <xsl:text>&#x0a;\begin{description}&#x0a;</xsl:text>
+    <xsl:if test="@spacing = 'compact'">
+      <xsl:text> \setlength{\parskip}{0pt}&#x0a;</xsl:text>
+      <xsl:text> \setlength{\itemsep}{0pt}&#x0a;</xsl:text>
+      <xsl:text> \setlength{\topsep}{0pt}&#x0a;</xsl:text>
+      <xsl:text> \setlength{\parsep}{0pt}&#x0a;</xsl:text>
+      <xsl:text> \setlength{\partopsep}{0pt}&#x0a;</xsl:text>
+    </xsl:if>
     <xsl:apply-templates />
     <xsl:text>&#x0a;\end{description}&#x0a;</xsl:text>
   </xsl:template>
 
   <xsl:template match="varlistentry">
-    <xsl:if test="not(./term) or not(./listitem) or count(*) != 2">
-      <xsl:message terminate="yes">Expected exactly one term and one listitem element in the varlistentry.</xsl:message>
+    <xsl:if test="not(./term) or not(./listitem) or count(./listitem) != 1">
+      <xsl:message terminate="yes">Expected at least one term and one listitem element in the varlistentry.</xsl:message>
     </xsl:if>
-    <xsl:text>&#x0a;&#x0a;\item[</xsl:text>
-    <xsl:apply-templates select="term"/>
-    <xsl:text>] \hfill \\&#x0a;</xsl:text>
+    <xsl:text>&#x0a;&#x0a;\item[{\parbox[t]{\linewidth}{\raggedright </xsl:text>
+    <xsl:apply-templates select="./term[1]"/>
+    <xsl:for-each select="./term[position() > 1]">
+      <xsl:text>\\&#x0a; </xsl:text>
+      <xsl:apply-templates select="."/>
+    </xsl:for-each>
+    <xsl:text>}}] \hfill \\&#x0a;</xsl:text>
     <xsl:apply-templates select="listitem/*"/>
   </xsl:template>
 

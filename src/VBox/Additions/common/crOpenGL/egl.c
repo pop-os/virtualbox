@@ -30,6 +30,7 @@
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #define EGL_ASSERT(expr) \
     if (!(expr)) { printf("Assertion failed: %s\n", #expr); exit(1); }
@@ -93,7 +94,7 @@ static struct VBEGLTLS *getTls(void)
     if (RT_LIKELY(pTls))
         return pTls;
     pTls = (struct VBEGLTLS *)malloc(sizeof(*pTls));
-    if (!VALID_PTR(pTls))
+    if (!pTls)
         return NULL;
     pTls->cErr = EGL_SUCCESS;
     pTls->enmAPI = EGL_NONE;
@@ -133,14 +134,16 @@ static EGLBoolean setEGLError(EGLint cErr)
 
 static EGLBoolean testValidDisplay(EGLNativeDisplayType hDisplay)
 {
+    void *pSymbol = dlsym(NULL, "gbm_create_device");
+
     if (hDisplay == EGL_DEFAULT_DISPLAY)
         return EGL_TRUE;
     if ((void *)hDisplay == NULL)
         return EGL_FALSE;
     /* This is the test that Mesa uses to see if this is a GBM "display".  Not
      * very pretty, but since no one can afford to break Mesa it should be
-     * safe. Obviously we can't support GBM for now. */
-    if (*(void **)hDisplay == dlsym(NULL, "gbm_create_device"))
+     * safe.  We need this to detect when the X server tries to load us. */
+    if (pSymbol != NULL && *(void **)hDisplay == pSymbol)
         return EGL_FALSE;
     return EGL_TRUE;
 }
@@ -148,7 +151,6 @@ static EGLBoolean testValidDisplay(EGLNativeDisplayType hDisplay)
 DECLEXPORT(EGLDisplay) eglGetDisplay(EGLNativeDisplayType hDisplay)
 {
     Display *pDisplay;
-    int cError, cEvent, cMajor, cMinor;
 
     if (!testValidDisplay(hDisplay))
         return EGL_NO_DISPLAY;
@@ -161,10 +163,8 @@ DECLEXPORT(EGLDisplay) eglGetDisplay(EGLNativeDisplayType hDisplay)
         pthread_once(&g_defaultDisplayOnce, defaultDisplayInitOnce);
         pDisplay = g_pDefaultDisplay;
     }
-    if (pDisplay && glXQueryExtension(pDisplay, &cError, &cEvent))
-        if (glXQueryVersion(pDisplay, &cMajor, &cMinor))
-            if (cMajor > 1 || (cMajor == 1 && cMinor >= 3))
-                return (EGLDisplay) pDisplay;
+    if (pDisplay && !strcmp(glXGetClientString(pDisplay, GLX_VENDOR), "Chromium"))
+        return (EGLDisplay) pDisplay;
     return EGL_NO_DISPLAY;
 }
 
@@ -398,6 +398,7 @@ DECLEXPORT(EGLBoolean) eglChooseConfig (EGLDisplay hDisplay, const EGLint *paAtt
                     break;
                 case EGL_RENDERABLE_TYPE:
                     cRenderableType = pAttrib[1];
+                    cAttribs -= 2;  /* We did not add anything to the list. */
                     break;
                 case EGL_SURFACE_TYPE:
                     if (pAttrib[1] & ~(EGL_PBUFFER_BIT | EGL_PIXMAP_BIT | EGL_WINDOW_BIT))

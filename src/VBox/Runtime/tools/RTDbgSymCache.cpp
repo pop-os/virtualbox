@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2016 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1125,7 +1125,7 @@ static RTEXITCODE rtDbgSymCacheAddFileOrDir(const char *pszPath, const char *psz
 
         case RTDBGSYMCACHEFILETYPE_DIR_FILTER:
             Cfg.pszFilter = RTPathFilename(pszPath);
-            /* fall thru */
+            RT_FALL_THRU();
         case RTDBGSYMCACHEFILETYPE_DIR:
             rc = rtDbgSymCacheAddDir(pszPath, &Cfg);
             break;

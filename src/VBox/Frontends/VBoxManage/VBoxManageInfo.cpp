@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -399,7 +399,9 @@ static const char *paravirtProviderToString(ParavirtProvider_T provider, VMINFO_
 #if defined(_MSC_VER)
 # pragma optimize("g", off)
 # pragma warning(push)
-# pragma warning(disable: 4748)
+# if _MSC_VER < RT_MSC_VER_VC120
+#  pragma warning(disable: 4748)
+# endif
 #endif
 
 HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
@@ -627,31 +629,31 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
 
     if (details != VMINFO_MACHINEREADABLE)
         RTPrintf("CPUID overrides: ");
-    ULONG cFound = 0;
-    static uint32_t const s_auCpuIdRanges[] =
+    ULONG uOrdinal = 0;
+    for (uOrdinal = 0; uOrdinal < _4K; uOrdinal++)
     {
-        UINT32_C(0x00000000), UINT32_C(0x0000000a),
-        UINT32_C(0x80000000), UINT32_C(0x8000000a)
-    };
-    for (unsigned i = 0; i < RT_ELEMENTS(s_auCpuIdRanges); i += 2)
-        for (uint32_t uLeaf = s_auCpuIdRanges[i]; uLeaf < s_auCpuIdRanges[i + 1]; uLeaf++)
+        ULONG uLeaf, uSubLeaf, uEAX, uEBX, uECX, uEDX;
+        rc = machine->GetCPUIDLeafByOrdinal(uOrdinal, &uLeaf, &uSubLeaf, &uEAX, &uEBX, &uECX, &uEDX);
+        if (SUCCEEDED(rc))
         {
-            ULONG uEAX, uEBX, uECX, uEDX;
-            rc = machine->GetCPUIDLeaf(uLeaf, &uEAX, &uEBX, &uECX, &uEDX);
-            if (SUCCEEDED(rc))
+            if (details == VMINFO_MACHINEREADABLE)
+                RTPrintf("cpuid=%08x,%08x,%08x,%08x,%08x,%08x", uLeaf, uSubLeaf, uEAX, uEBX, uECX, uEDX);
+            else
             {
-                if (details == VMINFO_MACHINEREADABLE)
-                    RTPrintf("cpuid=%08x,%08x,%08x,%08x,%08x", uLeaf, uEAX, uEBX, uECX, uEDX);
-                else
-                {
-                    if (!cFound)
-                        RTPrintf("Leaf no.  EAX      EBX      ECX      EDX\n");
-                    RTPrintf("                 %08x  %08x %08x %08x %08x\n", uLeaf, uEAX, uEBX, uECX, uEDX);
-                }
-                cFound++;
+                if (!uOrdinal)
+                    RTPrintf("Leaf no.       EAX      EBX      ECX      EDX\n");
+                RTPrintf("                 %08x/%03x  %08x %08x %08x %08x\n", uLeaf, uSubLeaf, uEAX, uEBX, uECX, uEDX);
             }
         }
-    if (!cFound && details != VMINFO_MACHINEREADABLE)
+        else
+        {
+            if (rc != E_INVALIDARG)
+                com::GlueHandleComError(machine, "GetCPUIDLeaf", rc, __FILE__, __LINE__);
+            break;
+        }
+    }
+
+    if (!uOrdinal && details != VMINFO_MACHINEREADABLE)
         RTPrintf("None\n");
 
     ComPtr<IBIOSSettings> biosSettings;
@@ -1628,6 +1630,8 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
                     else
                         pszCtrl = "HDA";
                     break;
+                default:
+                    break;
             }
             AudioCodecType_T enmCodecType;
             rc = AudioAdapter->COMGETTER(AudioCodec)(&enmCodecType);
@@ -1646,16 +1650,27 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
                     pszCodec = "STAC9221";
                     break;
                 case AudioCodecType_Null: break; /* Shut up MSC. */
+                default:                  break;
             }
         }
         else
             fEnabled = FALSE;
+
+        BOOL fEnabledIn = false;
+        CHECK_ERROR(AudioAdapter, COMGETTER(EnabledIn)(&fEnabledIn));
+
+        BOOL fEnabledOut = false;
+        CHECK_ERROR(AudioAdapter,  COMGETTER(EnabledOut)(&fEnabledOut));
+
         if (details == VMINFO_MACHINEREADABLE)
         {
             if (fEnabled)
                 RTPrintf("audio=\"%s\"\n", pszDrv);
             else
                 RTPrintf("audio=\"none\"\n");
+
+            RTPrintf("audio_in=\"%s\"\n",  fEnabledIn  ? "true" : "false");
+            RTPrintf("audio_out=\"%s\"\n", fEnabledOut ? "true" : "false");
         }
         else
         {
@@ -1665,6 +1680,9 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
                 RTPrintf(" (Driver: %s, Controller: %s, Codec: %s)",
                     pszDrv, pszCtrl, pszCodec);
             RTPrintf("\n");
+
+            RTPrintf("Audio playback:  %s\n", fEnabledIn  ? "enabled" : "disabled");
+            RTPrintf("Audio capture: %s\n", fEnabledOut ? "enabled" : "disabled");
         }
     }
 
@@ -2524,10 +2542,15 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
             RTPrintf("\n");
     }
 
+#ifdef VBOX_WITH_VIDEOREC
     {
         /* Video capture */
-        BOOL bActive = FALSE;
-        CHECK_ERROR_RET(machine, COMGETTER(VideoCaptureEnabled)(&bActive), rc);
+        BOOL fCaptureVideo = FALSE;
+# ifdef VBOX_WITH_AUDIO_VIDEOREC
+        BOOL fCaptureAudio = FALSE;
+# endif
+
+        CHECK_ERROR_RET(machine, COMGETTER(VideoCaptureEnabled)(&fCaptureVideo), rc);
         com::SafeArray<BOOL> screens;
         CHECK_ERROR_RET(machine, COMGETTER(VideoCaptureScreens)(ComSafeArrayAsOutParam(screens)), rc);
         ULONG Width;
@@ -2538,12 +2561,35 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
         CHECK_ERROR_RET(machine, COMGETTER(VideoCaptureRate)(&Rate), rc);
         ULONG Fps;
         CHECK_ERROR_RET(machine, COMGETTER(VideoCaptureFPS)(&Fps), rc);
-        Bstr File;
-        CHECK_ERROR_RET(machine, COMGETTER(VideoCaptureFile)(File.asOutParam()), rc);
+        Bstr  bstrFile;
+        CHECK_ERROR_RET(machine, COMGETTER(VideoCaptureFile)(bstrFile.asOutParam()), rc);
+        Bstr  bstrOptions;
+        CHECK_ERROR_RET(machine, COMGETTER(VideoCaptureOptions)(bstrOptions.asOutParam()), rc);
+
+        Utf8Str strOptions(bstrOptions);
+        size_t pos = 0;
+        com::Utf8Str key, value;
+        while ((pos = strOptions.parseKeyValue(key, value, pos)) != com::Utf8Str::npos)
+        {
+            if (key.compare("vc_enabled", Utf8Str::CaseInsensitive) == 0)
+            {
+                fCaptureVideo = value.compare("true", Utf8Str::CaseInsensitive) == 0;
+            }
+            else if (key.compare("ac_enabled", Utf8Str::CaseInsensitive) == 0)
+            {
+# ifdef VBOX_WITH_AUDIO_VIDEOREC
+                fCaptureAudio = value.compare("true", Utf8Str::CaseInsensitive) == 0;
+# endif
+            }
+        }
+
         if (details == VMINFO_MACHINEREADABLE)
         {
-            RTPrintf("vcpenabled=\"%s\"\n", bActive ? "on" : "off");
-            RTPrintf("vcpscreens=");
+            RTPrintf("videocap=\"%s\"\n",       fCaptureVideo ? "on" : "off");
+# ifdef VBOX_WITH_AUDIO_VIDEOREC
+            RTPrintf("videocap_audio=\"%s\"\n", fCaptureAudio ? "on" : "off");
+# endif
+            RTPrintf("videocapscreens=");
             bool fComma = false;
             for (unsigned i = 0; i < screens.size(); i++)
                 if (screens[i])
@@ -2552,15 +2598,18 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
                     fComma = true;
                 }
             RTPrintf("\n");
-            RTPrintf("vcpfile=\"%ls\"\n", File.raw());
-            RTPrintf("vcpwidth=%u\n", (unsigned)Width);
-            RTPrintf("vcpheight=%u\n", (unsigned)Height);
-            RTPrintf("vcprate=%u\n", (unsigned)Rate);
-            RTPrintf("vcpfps=%u\n", (unsigned)Fps);
+            RTPrintf("videocapfile=\"%ls\"\n", bstrFile.raw());
+            RTPrintf("videocapres=%ux%u\n", (unsigned)Width, (unsigned)Height);
+            RTPrintf("videocaprate=%u\n", (unsigned)Rate);
+            RTPrintf("videocapfps=%u\n", (unsigned)Fps);
+            RTPrintf("videocapopts=%ls\n", bstrOptions.raw());
         }
         else
         {
-            RTPrintf("Video capturing:    %s\n", bActive ? "active" : "not active");
+            RTPrintf("Capturing:          %s\n", fCaptureVideo ? "active" : "not active");
+# ifdef VBOX_WITH_AUDIO_VIDEOREC
+            RTPrintf("Capture audio:      %s\n", fCaptureAudio ? "active" : "not active");
+# endif
             RTPrintf("Capture screens:    ");
             bool fComma = false;
             for (unsigned i = 0; i < screens.size(); i++)
@@ -2570,13 +2619,17 @@ HRESULT showVMInfo(ComPtr<IVirtualBox> pVirtualBox,
                     fComma = true;
                 }
             RTPrintf("\n");
-            RTPrintf("Capture file:       %ls\n", File.raw());
+            RTPrintf("Capture file:       %ls\n", bstrFile.raw());
             RTPrintf("Capture dimensions: %ux%u\n", Width, Height);
             RTPrintf("Capture rate:       %u kbps\n", Rate);
             RTPrintf("Capture FPS:        %u\n", Fps);
+            RTPrintf("Capture options:    %ls\n", bstrOptions.raw());
             RTPrintf("\n");
+
+            /** @todo Add more audio capturing profile / information here. */
         }
     }
+#endif /* VBOX_WITH_VIDEOREC */
 
     if (    details == VMINFO_STANDARD
         ||  details == VMINFO_FULL

@@ -59,11 +59,11 @@ ifeq ($(shell if grep -q '^%disttag' /usr/lib/rpm/macros.d/mandriva 2>/dev/null;
 $(error Fix /usr/lib/rpm/macros.d/mandriva)
 endif
 
-verpkg   := VirtualBox-5.1
+verpkg   := VirtualBox-5.2
 current  := $(shell pwd)
 vboxroot := $(shell while ! test -r configure && ! test "$PWD" = "/"; do cd ..; done; pwd)
 pkgdir   := $(if $(PKGDIR),$(PKGDIR),$(shell cd $(vboxroot)/..; pwd))
-builddir := $(vboxroot)/out/rpm/builddir
+builddir := $(vboxroot)/rpm/builddir
 rpmlib   := $(shell if [ `uname -m` = "x86_64" ]; then echo "lib64"; else echo "lib"; fi)
 chrarch  := $(shell if [ `uname -m` = "x86_64" ]; then echo "amd64"; else echo "x86"; fi)
 verfile  := $(builddir)/version-generated.mk
@@ -232,7 +232,7 @@ binary: rpm/build-stamp
 	    -e 's|%NETTOOLS%|$(if $(filter fedora18 fedora19 fedora20 fedora21 el5 openSUSE110 openSUSE111 openSUSE112 openSUSE113 openSUSE114,$(rpmrel)),net-tools,iproute)|g' \
 	    rpm/VirtualBox.tmpl.spec > $(archdir)/VirtualBox.spec
 	mv rpm/VirtualBox-$(ver) rpm/$(rpmname)
-	cp ../../../../tools/linux.$(chrarch)/bin/chrpath rpm/$(rpmname)
+	cp ../../../../tools/linux.$(chrarch)/bin/chrpath rpm/$(rpmname) || true
 	tar -cf rpm/VirtualBox.tar -C rpm $(rpmname)
 	rm -f rpmbuild/RPMS/*/VirtualBox*rpm
 	rm -f rpmbuild/SPECS/*

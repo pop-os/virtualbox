@@ -483,6 +483,12 @@ typedef struct ACPIState
     uint8_t             au8SMBusBlkDat[32];
     /** SMBus Host Block Index */
     uint8_t             u8SMBusBlkIdx;
+
+    /** @todo DEBUGGING */
+    uint32_t            uPmTimeOld;
+    uint32_t            uPmTimeA;
+    uint32_t            uPmTimeB;
+    uint32_t            Alignment5;
 } ACPIState;
 
 #pragma pack(1)
@@ -1048,7 +1054,7 @@ static void acpiR3PmTimerReset(ACPIState *pThis, uint64_t uNow)
   * the VM is resetting or loading state.
   *
   * @param   pThis              The ACPI instance
-  * @param   uNow               The current time
+  * @param   u64Now             The current time
   */
 
 static void acpiPmTimerUpdate(ACPIState *pThis, uint64_t u64Now)
@@ -1238,7 +1244,7 @@ PDMBOTHCBDECL(int) acpiR3BatDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT 
     {
         case BAT_STATUS_STATE:
             acpiR3FetchBatteryStatus(pThis);
-            /* fall thru */
+            RT_FALL_THRU();
         case BAT_STATUS_PRESENT_RATE:
         case BAT_STATUS_REMAINING_CAPACITY:
         case BAT_STATUS_PRESENT_VOLTAGE:
@@ -1247,7 +1253,7 @@ PDMBOTHCBDECL(int) acpiR3BatDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT 
 
         case BAT_INFO_UNITS:
             acpiR3FetchBatteryInfo(pThis);
-            /* fall thru */
+            RT_FALL_THRU();
         case BAT_INFO_DESIGN_CAPACITY:
         case BAT_INFO_LAST_FULL_CHARGE_CAPACITY:
         case BAT_INFO_TECHNOLOGY:
@@ -1501,7 +1507,7 @@ PDMBOTHCBDECL(int) acpiR3SysInfoDataRead(PPDMDEVINS pDevIns, void *pvUser, RTIOP
     }
 
     DEVACPI_UNLOCK(pThis);
-    Log(("acpiR3SysInfoDataRead: idx=%d val=%#x (%d) rc=%Rrc\n", uSystemInfoIndex, *pu32, *pu32, rc));
+    Log(("acpiR3SysInfoDataRead: idx=%d val=%#x (%u) rc=%Rrc\n", uSystemInfoIndex, *pu32, *pu32, rc));
     return rc;
 }
 
@@ -1686,7 +1692,7 @@ PDMBOTHCBDECL(int) acpiR3PM1aCtlWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT
                     break;
                 }
                 LogRel(("ACPI: Ignoring guest attempt to enter S1 power state (powered-on suspend)!\n"));
-                /* fall thru */
+                RT_FALL_THRU();
 
             case 0x04:                  /* S4 */
                 if (pThis->fS4Enabled)
@@ -1696,7 +1702,7 @@ PDMBOTHCBDECL(int) acpiR3PM1aCtlWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT
                     break;
                 }
                 LogRel(("ACPI: Ignoring guest attempt to enter S4 power state (suspend to disk)!\n"));
-                /* fall thru */
+                RT_FALL_THRU();
 
             case 0x05:                  /* S5 */
                 LogRel(("ACPI: Entering S5 power state (power down)\n"));
@@ -1755,11 +1761,34 @@ PDMBOTHCBDECL(int) acpiPMTmrRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port
     DBGFTRACE_PDM_U64_TAG(pDevIns, u64Now, "acpi");
     Log(("acpi: acpiPMTmrRead -> %#x\n", *pu32));
 
+#if 0
+    /** @todo temporary: sanity check against running backwards */
+    uint32_t uOld = ASMAtomicXchgU32(&pThis->uPmTimeOld, *pu32);
+    if (*pu32 - uOld >= 0x10000000)
+    {
+#if defined(IN_RING0)
+        pThis->uPmTimeA = uOld;
+        pThis->uPmTimeB = *pu32;
+        return VERR_TM_TIMER_BAD_CLOCK;
+#elif defined(IN_RING3)
+        AssertReleaseMsgFailed(("acpiPMTmrRead: old=%08RX32, current=%08RX32\n", uOld, *pu32));
+#endif
+    }
+#endif
+
     NOREF(pvUser); NOREF(Port);
     return rc;
 }
 
 #ifdef IN_RING3
+
+static DECLCALLBACK(void) acpiR3Info(PPDMDEVINS pDevIns, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    RT_NOREF(pszArgs);
+    ACPIState *pThis = PDMINS_2_DATA(pDevIns, ACPIState *);
+    pHlp->pfnPrintf(pHlp,
+                    "timer: old=%08RX32, current=%08RX32\n", pThis->uPmTimeA, pThis->uPmTimeB);
+}
 
 /**
  * @callback_method_impl{FNIOMIOPORTIN, GPE0 Status}
@@ -2990,7 +3019,7 @@ static void acpiR3SetupMadt(ACPIState *pThis, RTGCPHYS32 addr)
     isos[1].u8Bus      = 0; /* Must be 0 */
     isos[1].u8Source   = 9; /* IRQ9 */
     isos[1].u32GSI     = 9; /* connected to pin 9 */
-    isos[1].u16Flags   = 0xd; /* active high, level triggered */
+    isos[1].u16Flags   = 0xf; /* active low, level triggered */
     Assert(NUMBER_OF_IRQ_SOURCE_OVERRIDES == 2);
 
     madt.header_addr()->u8Checksum = acpiR3Checksum(madt.data(), madt.size());
@@ -3150,11 +3179,11 @@ static int acpiR3PlantTables(ACPIState *pThis)
             LogRel(("ACPI: NOT enabling 64-bit prefetch root bus resource (min/%#018RX64 >= max/%#018RX64)\n",
                    u64PciPref64Min, pThis->u64PciPref64Max-1));
     }
-    if (cbBelow4GB > UINT32_C(0xffe00000)) /* See MEM3. */
+    if (cbBelow4GB > UINT32_C(0xfe000000)) /* See MEM3. */
     {
         /* Note: This is also enforced by DevPcBios.cpp. */
-        LogRel(("ACPI: Clipping cbRamLow=%#RX64 down to 0xffe00000.\n", cbBelow4GB));
-        cbBelow4GB = UINT32_C(0xffe00000);
+        LogRel(("ACPI: Clipping cbRamLow=%#RX64 down to 0xfe000000.\n", cbBelow4GB));
+        cbBelow4GB = UINT32_C(0xfe000000);
     }
     pThis->cbRamLow = cbBelow4GB;
 
@@ -3282,38 +3311,38 @@ static int acpiR3PlantTables(ACPIState *pThis)
 /**
  * @callback_method_impl{FNPCICONFIGREAD}
  */
-static DECLCALLBACK(uint32_t) acpiR3PciConfigRead(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t Address, unsigned cb)
+static DECLCALLBACK(uint32_t) acpiR3PciConfigRead(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t uAddress, unsigned cb)
 {
     ACPIState *pThis   = PDMINS_2_DATA(pDevIns, ACPIState *);
 
-    Log2(("acpi: PCI config read: 0x%x (%d)\n", Address, cb));
-    return pThis->pfnAcpiPciConfigRead(pDevIns, pPciDev, Address, cb);
+    Log2(("acpi: PCI config read: 0x%x (%d)\n", uAddress, cb));
+    return pThis->pfnAcpiPciConfigRead(pDevIns, pPciDev, uAddress, cb);
 }
 
 /**
  * @callback_method_impl{FNPCICONFIGWRITE}
  */
-static DECLCALLBACK(void) acpiR3PciConfigWrite(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t Address,
+static DECLCALLBACK(void) acpiR3PciConfigWrite(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t uAddress,
                                                uint32_t u32Value, unsigned cb)
 {
     ACPIState *pThis = PDMINS_2_DATA(pDevIns, ACPIState *);
 
-    Log2(("acpi: PCI config write: 0x%x -> 0x%x (%d)\n", u32Value, Address, cb));
+    Log2(("acpi: PCI config write: 0x%x -> 0x%x (%d)\n", u32Value, uAddress, cb));
     DEVACPI_LOCK_R3(pThis);
 
-    if (Address == VBOX_PCI_INTERRUPT_LINE)
+    if (uAddress == VBOX_PCI_INTERRUPT_LINE)
     {
         Log(("acpi: ignore interrupt line settings: %d, we'll use hardcoded value %d\n", u32Value, SCI_INT));
         u32Value = SCI_INT;
     }
 
-    pThis->pfnAcpiPciConfigWrite(pDevIns, pPciDev, Address, u32Value, cb);
+    pThis->pfnAcpiPciConfigWrite(pDevIns, pPciDev, uAddress, u32Value, cb);
 
     /* Assume that the base address is only changed when the corresponding
      * hardware functionality is disabled. The IO region is mapped when the
      * functionality is enabled by the guest. */
 
-    if (Address == PMREGMISC)
+    if (uAddress == PMREGMISC)
     {
         RTIOPORT NewIoPortBase = 0;
         /* Check Power Management IO Space Enable (PMIOSE) bit */
@@ -3327,7 +3356,7 @@ static DECLCALLBACK(void) acpiR3PciConfigWrite(PPDMDEVINS pDevIns, PPDMPCIDEV pP
         AssertRC(rc);
     }
 
-    if (Address == SMBHSTCFG)
+    if (uAddress == SMBHSTCFG)
     {
         RTIOPORT NewIoPortBase = 0;
         /* Check SMBus Controller Host Interface Enable (SMB_HST_EN) bit */
@@ -3469,6 +3498,7 @@ static DECLCALLBACK(void) acpiR3Reset(PPDMDEVINS pDevIns)
     pThis->u64PmTimerInitial = TMTimerGet(pThis->pPmTimerR3);
     pThis->uPmTimerVal       = 0;
     acpiR3PmTimerReset(pThis, pThis->u64PmTimerInitial);
+    pThis->uPmTimeOld        = pThis->uPmTimerVal;
     pThis->uBatteryIndex     = 0;
     pThis->uSystemInfoIndex  = 0;
     pThis->gpe0_en           = 0;
@@ -3508,7 +3538,7 @@ static DECLCALLBACK(int) acpiR3Destruct(PPDMDEVINS pDevIns)
     ACPIState *pThis = PDMINS_2_DATA(pDevIns, ACPIState *);
     if (pThis->pu8CustBin)
     {
-        MMR3HeapFree(pThis->pu8CustBin);
+        PDMDevHlpMMHeapFree(pDevIns, pThis->pu8CustBin);
         pThis->pu8CustBin = NULL;
     }
     return VINF_SUCCESS;
@@ -3909,7 +3939,7 @@ static DECLCALLBACK(int) acpiR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
                     if (RT_FAILURE(rc))
                     {
                         AssertMsgFailed(("RTFileRead(,,%d,NULL) -> %Rrc\n", pThis->cbCustBin, rc));
-                        MMR3HeapFree(pThis->pu8CustBin);
+                        PDMDevHlpMMHeapFree(pDevIns, pThis->pu8CustBin);
                         pThis->pu8CustBin = NULL;
                     }
                     else
@@ -4023,7 +4053,7 @@ static DECLCALLBACK(int) acpiR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
     PCIDevSetDeviceId(&pThis->dev, 0x7113); /* 82371AB */
 
     /* See p. 50 of PIIX4 manual */
-    PCIDevSetCommand(&pThis->dev, 0x01);
+    PCIDevSetCommand(&pThis->dev, PCI_COMMAND_IOACCESS);
     PCIDevSetStatus(&pThis->dev, 0x0280);
 
     PCIDevSetRevisionId(&pThis->dev, 0x08);
@@ -4080,6 +4110,8 @@ static DECLCALLBACK(int) acpiR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
    }
    else
        return PDMDEV_SET_ERROR(pDevIns, rc, N_("Failed to attach LUN #0"));
+
+    PDMDevHlpDBGFInfoRegister(pDevIns, "acpi", "ACPI info", acpiR3Info);
 
     return rc;
 }

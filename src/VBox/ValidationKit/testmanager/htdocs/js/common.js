@@ -5,7 +5,7 @@
 
 /*
  *
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -49,6 +49,22 @@ function isInteger(sValue)
             return true;
         }
     }
+    return false;
+}
+
+/**
+ * Checks if @a oMemmber is present in aoArray.
+ *
+ * @returns true/false.
+ * @param   aoArray             The array to check.
+ * @param   oMember             The member to check for.
+ */
+function isMemberOfArray(aoArray, oMember)
+{
+    var i;
+    for (i = 0; i < aoArray.length; i++)
+        if (aoArray[i] == oMember)
+            return true;
     return false;
 }
 
@@ -198,6 +214,72 @@ function getCurrentBrowerUrlPartForRedirectTo()
     return sWhere.substring(offPathKeep + 1);
 }
 
+/**
+ * Adds the given sorting options to the URL and reloads.
+ *
+ * This will preserve previous sorting columns except for those
+ * given in @a aiColumns.
+ *
+ * @param   sParam              Sorting parameter.
+ * @param   aiColumns           Array of sorting columns.
+ */
+function ahrefActionSortByColumns(sParam, aiColumns)
+{
+    var sWhere = window.location.href;
+
+    var offHash = sWhere.indexOf('#');
+    if (offHash < 0)
+        offHash = sWhere.length;
+
+    var offQm = sWhere.indexOf('?');
+    if (offQm > offHash)
+        offQm = -1;
+
+    var sNew = '';
+    if (offQm > 0)
+        sNew = sWhere.substring(0, offQm);
+
+    sNew += '?' + sParam + '=' + aiColumns[0];
+    var i;
+    for (i = 1; i < aiColumns.length; i++)
+        sNew += '&' + sParam + '=' + aiColumns[i];
+
+    if (offQm >= 0 && offQm + 1 < offHash)
+    {
+        var sArgs = '&' + sWhere.substring(offQm + 1, offHash);
+        var off   = 0;
+        while (off < sArgs.length)
+        {
+            var offMatch = sArgs.indexOf('&' + sParam + '=', off);
+            if (offMatch >= 0)
+            {
+                if (off < offMatch)
+                    sNew += sArgs.substring(off, offMatch);
+
+                var offValue = offMatch + 1 + sParam.length + 1;
+                offEnd = sArgs.indexOf('&', offValue);
+                if (offEnd < offValue)
+                    offEnd = sArgs.length;
+
+                var iColumn = parseInt(sArgs.substring(offValue, offEnd));
+                if (!isMemberOfArray(aiColumns, iColumn) && !isMemberOfArray(aiColumns, -iColumn))
+                    sNew += sArgs.substring(offMatch, offEnd);
+
+                off = offEnd;
+            }
+            else
+            {
+                sNew += sArgs.substring(off);
+                break;
+            }
+        }
+    }
+
+    if (offHash < sWhere.length)
+        sNew = sWhere.substr(offHash);
+
+    window.location.href = sNew;
+}
 
 /**
  * Sets the value of an input field element (give by ID).
@@ -351,6 +433,165 @@ function addRedirectToAnchorHref(oAnchor)
     return true;
 }
 
+
+
+/**
+ * Clears one input element.
+ *
+ * @param   oInput      The input to clear.
+ */
+function resetInput(oInput)
+{
+    switch (oInput.type)
+    {
+        case 'checkbox':
+        case 'radio':
+            oInput.checked = false;
+            break;
+
+        case 'text':
+            oInput.value = 0;
+            break;
+    }
+}
+
+
+/**
+ * Clears a form.
+ *
+ * @param   sIdForm     The ID of the form
+ */
+function clearForm(sIdForm)
+{
+    var oForm = document.getElementById(sIdForm);
+    if (oForm)
+    {
+        var aoInputs = oForm.getElementsByTagName('INPUT');
+        var i;
+        for (i = 0; i < aoInputs.length; i++)
+            resetInput(aoInputs[i])
+
+        /* HTML5 allows inputs outside <form>, so scan the document. */
+        aoInputs = document.getElementsByTagName('INPUT');
+        for (i = 0; i < aoInputs.length; i++)
+            if (aoInputs.hasOwnProperty("form"))
+                if (aoInputs.form == sIdForm)
+                    resetInput(aoInputs[i])
+    }
+
+    return true;
+}
+
+
+/** @name Collapsible / Expandable items
+ * @{
+ */
+
+
+/**
+ * Toggles the collapsible / expandable state of a parent DD and DT uncle.
+ *
+ * @returns true
+ * @param   oAnchor             The anchor object.
+ */
+function toggleCollapsibleDtDd(oAnchor)
+{
+    var oParent = oAnchor.parentElement;
+    var sClass  = oParent.className;
+
+    /* Find the DD sibling tag */
+    var oDdElement = oParent.nextSibling;
+    while (oDdElement != null && oDdElement.tagName != 'DD')
+        oDdElement = oDdElement.nextSibling;
+
+    /* Determin the new class and arrow char. */
+    var sNewClass;
+    var sNewChar;
+    if (     sClass.substr(-11) == 'collapsible')
+    {
+        sNewClass = sClass.substr(0, sClass.length - 11) + 'expandable';
+        sNewChar  = '\u25B6'; /* black right-pointing triangle */
+    }
+    else if (sClass.substr(-10) == 'expandable')
+    {
+        sNewClass = sClass.substr(0, sClass.length - 10) + 'collapsible';
+        sNewChar  = '\u25BC'; /* black down-pointing triangle */
+    }
+    else
+    {
+        console.log('toggleCollapsibleParent: Invalid class: ' + sClass);
+        return true;
+    }
+
+    /* Update the parent (DT) class and anchor text. */
+    oParent.className   = sNewClass;
+    oAnchor.firstChild.textContent = sNewChar + oAnchor.firstChild.textContent.substr(1);
+
+    /* Update the uncle (DD) class. */
+    if (oDdElement)
+        oDdElement.className = sNewClass;
+    return true;
+}
+
+/**
+ * Shows/hides a sub-category UL according to checkbox status.
+ *
+ * The checkbox is expected to be within a label element or something.
+ *
+ * @returns true
+ * @param   oInput          The input checkbox.
+ */
+function toggleCollapsibleCheckbox(oInput)
+{
+    var oParent = oInput.parentElement;
+
+    /* Find the UL sibling element. */
+    var oUlElement = oParent.nextSibling;
+    while (oUlElement != null && oUlElement.tagName != 'UL')
+        oUlElement = oUlElement.nextSibling;
+
+    /* Change the visibility. */
+    if (oInput.checked)
+        oUlElement.className = oUlElement.className.replace('expandable', 'collapsible');
+    else
+    {
+        oUlElement.className = oUlElement.className.replace('collapsible', 'expandable');
+
+        /* Make sure all sub-checkboxes are now unchecked. */
+        var aoSubInputs = oUlElement.getElementsByTagName('input');
+        var i;
+        for (i = 0; i < aoSubInputs.length; i++)
+            aoSubInputs[i].checked = false;
+    }
+    return true;
+}
+
+/**
+ * Toggles the sidebar size so filters can more easily manipulated.
+ */
+function toggleSidebarSize()
+{
+    var sLinkText;
+    if (document.body.className != 'tm-wide-side-menu')
+    {
+        document.body.className = 'tm-wide-side-menu';
+        sLinkText = '\u00ab\u00ab';
+    }
+    else
+    {
+        document.body.className = '';
+        sLinkText = '\u00bb\u00bb';
+    }
+
+    var aoToggleLink = document.getElementsByClassName('tm-sidebar-size-link');
+    var i;
+    for (i = 0; i < aoToggleLink.length; i++)
+        if (   aoToggleLink[i].textContent.indexOf('\u00bb') >= 0
+            || aoToggleLink[i].textContent.indexOf('\u00ab') >= 0)
+            aoToggleLink[i].textContent = sLinkText;
+}
+
+/** @} */
 
 
 /** @name Custom Tooltips

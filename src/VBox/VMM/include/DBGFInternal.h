@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,6 +19,9 @@
 #define ___DBGFInternal_h
 
 #include <VBox/cdefs.h>
+#ifdef IN_RING3
+# include <VBox/dis.h>
+#endif
 #include <VBox/types.h>
 #include <iprt/semaphore.h>
 #include <iprt/critsect.h>
@@ -205,8 +208,17 @@ typedef struct DBGF
     /** Enabled software interrupt breakpoints. */
     uint32_t                    cSoftIntBreakpoints;
 
-    /** Number of selected events. */
+    /** The number of selected events. */
     uint32_t                    cSelectedEvents;
+
+    /** The number of enabled hardware breakpoints. */
+    uint8_t                     cEnabledHwBreakpoints;
+    /** The number of enabled hardware I/O breakpoints. */
+    uint8_t                     cEnabledHwIoBreakpoints;
+    /** The number of enabled INT3 breakpoints. */
+    uint8_t                     cEnabledInt3Breakpoints;
+    uint8_t                     abPadding; /**< Unused padding space up for grabs. */
+    uint32_t                    uPadding;
 
     /** Debugger Attached flag.
      * Set if a debugger is attached, elsewise it's clear.
@@ -272,13 +284,7 @@ typedef struct DBGF
 
     } SteppingFilter;
 
-    uint32_t                    u32Padding; /**< Alignment padding. */
-
-    /** The number of enabled hardware breakpoints. */
-    uint8_t                     cEnabledHwBreakpoints;
-    /** The number of enabled hardware I/O breakpoints. */
-    uint8_t                     cEnabledHwIoBreakpoints;
-    uint8_t                     abPadding[2]; /**< Unused padding space up for grabs. */
+    uint32_t                    u32Padding[2]; /**< Alignment padding. */
 
     /** Array of hardware breakpoints. (0..3)
      * This is shared among all the CPUs because life is much simpler that way. */
@@ -487,6 +493,26 @@ void dbgfR3PlugInTerm(PUVM pUVM);
 
 
 #ifdef IN_RING3
+/**
+ * DBGF disassembler state (substate of DISSTATE).
+ */
+typedef struct DBGFDISSTATE
+{
+    /** Pointer to the current instruction. */
+    PCDISOPCODE     pCurInstr;
+    /** Size of the instruction in bytes. */
+    uint32_t        cbInstr;
+    /** Parameters.  */
+    DISOPPARAM      Param1;
+    DISOPPARAM      Param2;
+    DISOPPARAM      Param3;
+    DISOPPARAM      Param4;
+} DBGFDISSTATE;
+/** Pointer to a DBGF disassembler state. */
+typedef DBGFDISSTATE *PDBGFDISSTATE;
+
+DECLHIDDEN(int) dbgfR3DisasInstrStateEx(PUVM pUVM, VMCPUID idCpu, PDBGFADDRESS pAddr, uint32_t fFlags,
+                                        char *pszOutput, uint32_t cbOutput, PDBGFDISSTATE pDisState);
 
 #endif
 

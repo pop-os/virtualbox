@@ -5,23 +5,30 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <VBox/VBoxVideoGuest.h>
-#include <VBox/VBoxVideo.h>
-#include <VBox/err.h>
-#include <VBox/log.h>
-#include <iprt/assert.h>
-#include <iprt/string.h>
+#include <VBoxVideoGuest.h>
+#include <VBoxVideoIPRT.h>
+#include <HGSMIChannels.h>
 
 /*
  * There is a hardware ring buffer in the graphics device video RAM, formerly
@@ -61,7 +68,7 @@ static bool vboxVBVAInformHost(PVBVABUFFERCONTEXT pCtx,
                                        VBVA_ENABLE);
         if (!p)
         {
-            LogFunc(("HGSMIHeapAlloc failed\n"));
+            // LogFunc(("HGSMIHeapAlloc failed\n"));
         }
         else
         {
@@ -103,13 +110,13 @@ DECLHIDDEN(bool) VBoxVBVAEnable(PVBVABUFFERCONTEXT pCtx,
 {
     bool bRc = false;
 
-    LogFlowFunc(("pVBVA %p\n", pVBVA));
+    // LogFlowFunc(("pVBVA %p\n", pVBVA));
 
 #if 0  /* All callers check this */
     if (ppdev->bHGSMISupported)
 #endif
     {
-        LogFunc(("pVBVA %p vbva off 0x%x\n", pVBVA, pCtx->offVRAMBuffer));
+        // LogFunc(("pVBVA %p vbva off 0x%x\n", pVBVA, pCtx->offVRAMBuffer));
 
         pVBVA->hostFlags.u32HostEvents      = 0;
         pVBVA->hostFlags.u32SupportedOrders = 0;
@@ -140,7 +147,7 @@ DECLHIDDEN(void) VBoxVBVADisable(PVBVABUFFERCONTEXT pCtx,
                                  PHGSMIGUESTCOMMANDCONTEXT pHGSMICtx,
                                  int32_t cScreen)
 {
-    LogFlowFunc(("\n"));
+    // LogFlowFunc(("\n"));
 
     pCtx->fHwBufferOverflow = false;
     pCtx->pRecord           = NULL;
@@ -177,8 +184,8 @@ DECLHIDDEN(bool) VBoxVBVABufferBeginUpdate(PVBVABUFFERCONTEXT pCtx,
         if (indexRecordNext == pCtx->pVBVA->indexRecordFirst)
         {
             /* Even after flush there is no place. Fail the request. */
-            LogFunc(("no space in the queue of records!!! first %d, last %d\n",
-                     pCtx->pVBVA->indexRecordFirst, pCtx->pVBVA->indexRecordFree));
+            // LogFunc(("no space in the queue of records!!! first %d, last %d\n",
+            //          pCtx->pVBVA->indexRecordFirst, pCtx->pVBVA->indexRecordFree));
         }
         else
         {
@@ -240,7 +247,7 @@ static void vboxHwBufferFlush(PHGSMIGUESTCOMMANDCONTEXT pCtx)
                                    VBVA_FLUSH);
     if (!p)
     {
-        LogFunc(("HGSMIHeapAlloc failed\n"));
+        // LogFunc(("HGSMIHeapAlloc failed\n"));
     }
     else
     {
@@ -314,7 +321,7 @@ static bool vboxHwBufferWrite(PVBVABUFFERCONTEXT pCtx,
 
         if (cbChunk >= cbHwBufferAvail)
         {
-            LogFunc(("1) avail %d, chunk %d\n", cbHwBufferAvail, cbChunk));
+            // LogFunc(("1) avail %d, chunk %d\n", cbHwBufferAvail, cbChunk));
 
             vboxHwBufferFlush (pHGSMICtx);
 
@@ -322,12 +329,12 @@ static bool vboxHwBufferWrite(PVBVABUFFERCONTEXT pCtx,
 
             if (cbChunk >= cbHwBufferAvail)
             {
-                LogFunc(("no place for %d bytes. Only %d bytes available after flush. Going to partial writes.\n",
-                            cb, cbHwBufferAvail));
+                // LogFunc(("no place for %d bytes. Only %d bytes available after flush. Going to partial writes.\n",
+                //             cb, cbHwBufferAvail));
 
                 if (cbHwBufferAvail <= pVBVA->cbPartialWriteThreshold)
                 {
-                    LogFunc(("Buffer overflow!!!\n"));
+                    // LogFunc(("Buffer overflow!!!\n"));
                     pCtx->fHwBufferOverflow = true;
                     Assert(false);
                     return false;

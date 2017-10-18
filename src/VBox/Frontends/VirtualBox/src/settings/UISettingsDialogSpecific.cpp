@@ -27,7 +27,7 @@
 # include "UIMessageCenter.h"
 # include "UIExtraDataManager.h"
 # include "QIWidgetValidator.h"
-# include "VBoxSettingsSelector.h"
+# include "UISettingsSelector.h"
 # include "UIVirtualBoxEventHandler.h"
 
 # include "UIGlobalSettingsGeneral.h"
@@ -50,7 +50,6 @@
 # include "UIMachineSettingsAudio.h"
 # include "UIMachineSettingsNetwork.h"
 # include "UIMachineSettingsSerial.h"
-# include "UIMachineSettingsParallel.h"
 # include "UIMachineSettingsUSB.h"
 # include "UIMachineSettingsSF.h"
 # include "UIMachineSettingsInterface.h"
@@ -204,12 +203,11 @@ UISettingsDialogGlobal::UISettingsDialogGlobal(QWidget *pParent,
 
 void UISettingsDialogGlobal::loadOwnData()
 {
-    /* Get properties and settings: */
+    /* Get properties: */
     CSystemProperties properties = vboxGlobal().virtualBox().GetSystemProperties();
-    VBoxGlobalSettings settings = vboxGlobal().settings();
     /* Prepare global data: */
     qRegisterMetaType<UISettingsDataGlobal>();
-    UISettingsDataGlobal data(properties, settings);
+    UISettingsDataGlobal data(properties);
     QVariant varData = QVariant::fromValue(data);
 
     /* Call to base-class: */
@@ -218,26 +216,21 @@ void UISettingsDialogGlobal::loadOwnData()
 
 void UISettingsDialogGlobal::saveOwnData()
 {
-    /* Get properties and settings: */
+    /* Get properties: */
     CSystemProperties properties = vboxGlobal().virtualBox().GetSystemProperties();
-    VBoxGlobalSettings settings = vboxGlobal().settings();
     /* Prepare global data: */
     qRegisterMetaType<UISettingsDataGlobal>();
-    UISettingsDataGlobal data(properties, settings);
+    UISettingsDataGlobal data(properties);
     QVariant varData = QVariant::fromValue(data);
 
     /* Call to base-class: */
     UISettingsDialog::saveData(varData);
 
-    /* Get updated properties & settings: */
+    /* Get updated properties: */
     CSystemProperties newProperties = varData.value<UISettingsDataGlobal>().m_properties;
-    VBoxGlobalSettings newSettings = varData.value<UISettingsDataGlobal>().m_settings;
     /* If properties are not OK => show the error: */
     if (!newProperties.isOk())
         msgCenter().cannotSetSystemProperties(newProperties, this);
-    /* Else save the new settings if they were changed: */
-    else if (!(newSettings == settings))
-        vboxGlobal().setSettings(newSettings);
 
     /* Mark as saved: */
     sltMarkSaved();
@@ -245,6 +238,9 @@ void UISettingsDialogGlobal::saveOwnData()
 
 void UISettingsDialogGlobal::retranslateUi()
 {
+    /* Selector itself: */
+    m_pSelector->widget()->setWhatsThis(tr("Allows to navigate through Global Property categories"));
+
     /* General page: */
     m_pSelector->setItemText(GlobalSettingsPageType_General, tr("General"));
 
@@ -385,7 +381,7 @@ UISettingsDialogMachine::UISettingsDialogMachine(QWidget *pParent, const QString
                 case MachineSettingsPageType_Storage:
                 {
                     pSettingsPage = new UIMachineSettingsStorage;
-                    connect(pSettingsPage, SIGNAL(storageChanged()), this, SLOT(sltResetFirstRunFlag()));
+                    connect(pSettingsPage, SIGNAL(sigStorageChanged()), this, SLOT(sltResetFirstRunFlag()));
                     addItem(":/hd_32px.png", ":/hd_24px.png", ":/hd_16px.png",
                             iPageIndex, "#storage", pSettingsPage);
                     break;
@@ -421,14 +417,6 @@ UISettingsDialogMachine::UISettingsDialogMachine(QWidget *pParent, const QString
                             iPageIndex, "#serialPorts", pSettingsPage, MachineSettingsPageType_Ports);
                     break;
                 }
-                /* Parallel page: */
-                case MachineSettingsPageType_Parallel:
-                {
-                    pSettingsPage = new UIMachineSettingsParallelPage;
-                    addItem(":/parallel_port_32px.png", ":/parallel_port_24px.png", ":/parallel_port_16px.png",
-                            iPageIndex, "#parallelPorts", pSettingsPage, MachineSettingsPageType_Ports);
-                    break;
-                }
                 /* USB page: */
                 case MachineSettingsPageType_USB:
                 {
@@ -459,8 +447,8 @@ UISettingsDialogMachine::UISettingsDialogMachine(QWidget *pParent, const QString
         }
     }
 
-    /* Recalculate configuration access level: */
-    updateConfigurationAccessLevel();
+    /* Calculate initial configuration access level: */
+    setConfigurationAccessLevel(::configurationAccessLevel(m_sessionState, m_machineState));
 
     /* Retranslate UI: */
     retranslateUi();
@@ -597,15 +585,16 @@ void UISettingsDialogMachine::saveOwnData()
 
 void UISettingsDialogMachine::retranslateUi()
 {
-    /* We have to make sure that the Network, Serial & Parallel pages are retranslated
+    /* Selector itself: */
+    m_pSelector->widget()->setWhatsThis(tr("Allows to navigate through VM Settings categories"));
+
+    /* We have to make sure that the Network, Serial pages are retranslated
      * before they are revalidated. Cause: They do string comparing within
      * vboxGlobal which is retranslated at that point already: */
     QEvent event(QEvent::LanguageChange);
     if (QWidget *pPage = m_pSelector->idToPage(MachineSettingsPageType_Network))
         qApp->sendEvent(pPage, &event);
     if (QWidget *pPage = m_pSelector->idToPage(MachineSettingsPageType_Serial))
-        qApp->sendEvent(pPage, &event);
-    if (QWidget *pPage = m_pSelector->idToPage(MachineSettingsPageType_Parallel))
         qApp->sendEvent(pPage, &event);
 
     /* General page: */
@@ -631,9 +620,6 @@ void UISettingsDialogMachine::retranslateUi()
 
     /* Serial page: */
     m_pSelector->setItemText(MachineSettingsPageType_Serial, tr("Serial Ports"));
-
-    /* Parallel page: */
-    m_pSelector->setItemText(MachineSettingsPageType_Parallel, tr("Parallel Ports"));
 
     /* USB page: */
     m_pSelector->setItemText(MachineSettingsPageType_USB, tr("USB"));
@@ -843,14 +829,6 @@ bool UISettingsDialogMachine::isPageAvailable(int iPageId)
             if (!isPageAvailable(MachineSettingsPageType_Ports))
                 return false;
             break;
-        }
-        case MachineSettingsPageType_Parallel:
-        {
-            /* Depends on ports availability: */
-            if (!isPageAvailable(MachineSettingsPageType_Ports))
-                return false;
-            /* But for now this page is always disabled: */
-            return false;
         }
         case MachineSettingsPageType_USB:
         {

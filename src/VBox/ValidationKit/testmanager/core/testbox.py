@@ -7,7 +7,7 @@ Test Manager - TestBox.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard python imports.
@@ -37,7 +37,7 @@ import unittest;
 from testmanager.core               import db;
 from testmanager.core.base          import ModelDataBase, ModelDataBaseTestCase, ModelLogicBase, TMInFligthCollision, \
                                            TMInvalidData, TMTooManyRows, TMRowNotFound, \
-                                           ChangeLogEntry, AttributeChangeEntry;
+                                           ChangeLogEntry, AttributeChangeEntry, AttributeChangeEntryPre;
 from testmanager.core.useraccount   import UserAccountLogic;
 
 
@@ -338,35 +338,55 @@ class TestBoxData(ModelDataBase):  # pylint: disable=R0902
             dErrors[self.ksParam_ipLom] = 'Light-out-management IP is mandatory and a LOM is selected.'
         return dErrors;
 
-    def formatPythonVersion(self):
-        """
-        Unbuttons the version number and formats it as a version string.
-        """
-        if self.iPythonHexVersion is None:
+    @staticmethod
+    def formatPythonVersionEx(iPythonHexVersion):
+        """ Unbuttons the version number and formats it as a version string. """
+        if iPythonHexVersion is None:
             return 'N/A';
         return 'v%d.%d.%d.%d' \
-            % (  self.iPythonHexVersion >> 24,
-                (self.iPythonHexVersion >> 16) & 0xff,
-                (self.iPythonHexVersion >>  8) & 0xff,
-                 self.iPythonHexVersion        & 0xff);
+            % (  iPythonHexVersion >> 24,
+                (iPythonHexVersion >> 16) & 0xff,
+                (iPythonHexVersion >>  8) & 0xff,
+                 iPythonHexVersion        & 0xff);
+
+    def formatPythonVersion(self):
+        """ Unbuttons the version number and formats it as a version string. """
+        return self.formatPythonVersionEx(self.iPythonHexVersion);
+
+
+    @staticmethod
+    def getCpuFamilyEx(lCpuRevision):
+        """ Returns the CPU family for a x86 or amd64 testboxes."""
+        if lCpuRevision is None:
+            return 0;
+        return (lCpuRevision >> 24 & 0xff);
 
     def getCpuFamily(self):
         """ Returns the CPU family for a x86 or amd64 testboxes."""
-        if self.lCpuRevision is None:
+        return self.getCpuFamilyEx(self.lCpuRevision);
+
+    @staticmethod
+    def getCpuModelEx(lCpuRevision):
+        """ Returns the CPU model for a x86 or amd64 testboxes."""
+        if lCpuRevision is None:
             return 0;
-        return (self.lCpuRevision >> 24 & 0xff);
+        return (lCpuRevision >> 8 & 0xffff);
 
     def getCpuModel(self):
         """ Returns the CPU model for a x86 or amd64 testboxes."""
-        if self.lCpuRevision is None:
+        return self.getCpuModelEx(self.lCpuRevision);
+
+    @staticmethod
+    def getCpuSteppingEx(lCpuRevision):
+        """ Returns the CPU stepping for a x86 or amd64 testboxes."""
+        if lCpuRevision is None:
             return 0;
-        return (self.lCpuRevision >> 8 & 0xffff);
+        return (lCpuRevision & 0xff);
 
     def getCpuStepping(self):
         """ Returns the CPU stepping for a x86 or amd64 testboxes."""
-        if self.lCpuRevision is None:
-            return 0;
-        return (self.lCpuRevision & 0xff);
+        return self.getCpuSteppingEx(self.lCpuRevision);
+
 
     # The following is a translation of the g_aenmIntelFamily06 array in CPUMR3CpuId.cpp:
     kdIntelFamily06 = {
@@ -435,18 +455,19 @@ class TestBoxData(ModelDataBase):  # pylint: disable=R0902
         0x07: 'NB_Gallatin',
     };
 
-    def queryCpuMicroarch(self):
+    @staticmethod
+    def queryCpuMicroarchEx(lCpuRevision, sCpuVendor):
         """ Try guess the microarch name for the cpu.  Returns None if we cannot. """
-        if self.lCpuRevision is None or self.sCpuVendor is None:
+        if lCpuRevision is None or sCpuVendor is None:
             return None;
-        uFam = self.getCpuFamily();
-        uMod = self.getCpuModel();
-        if self.sCpuVendor == 'GenuineIntel':
+        uFam = TestBoxData.getCpuFamilyEx(lCpuRevision);
+        uMod = TestBoxData.getCpuModelEx(lCpuRevision);
+        if sCpuVendor == 'GenuineIntel':
             if uFam == 6:
-                return self.kdIntelFamily06.get(uMod, None);
+                return TestBoxData.kdIntelFamily06.get(uMod, None);
             if uFam == 15:
-                return self.kdIntelFamily15.get(uMod, None);
-        elif self.sCpuVendor == 'AuthenticAMD':
+                return TestBoxData.kdIntelFamily15.get(uMod, None);
+        elif sCpuVendor == 'AuthenticAMD':
             if uFam == 0xf:
                 if uMod < 0x10:                             return 'K8_130nm';
                 if uMod >= 0x60 and uMod < 0x80:            return 'K8_65nm';
@@ -463,7 +484,7 @@ class TestBoxData(ModelDataBase):  # pylint: disable=R0902
                 return None;
             if uFam == 0x16:
                 return 'Jaguar';
-        elif self.sCpuVendor == 'CentaurHauls':
+        elif sCpuVendor == 'CentaurHauls':
             if uFam == 0x05:
                 if uMod == 0x01: return 'Centaur_C6';
                 if uMod == 0x04: return 'Centaur_C6';
@@ -472,21 +493,33 @@ class TestBoxData(ModelDataBase):  # pylint: disable=R0902
             if uFam == 0x06:
                 if uMod == 0x05: return 'VIA_C3_M2';
                 if uMod == 0x06: return 'VIA_C3_C5A';
-                if uMod == 0x07: return 'VIA_C3_C5B' if self.getCpuStepping() < 8 else 'VIA_C3_C5C';
+                if uMod == 0x07: return 'VIA_C3_C5B' if TestBoxData.getCpuSteppingEx(lCpuRevision) < 8 else 'VIA_C3_C5C';
                 if uMod == 0x08: return 'VIA_C3_C5N';
-                if uMod == 0x09: return 'VIA_C3_C5XL' if self.getCpuStepping() < 8 else 'VIA_C3_C5P';
+                if uMod == 0x09: return 'VIA_C3_C5XL' if TestBoxData.getCpuSteppingEx(lCpuRevision) < 8 else 'VIA_C3_C5P';
                 if uMod == 0x0a: return 'VIA_C7_C5J';
                 if uMod == 0x0f: return 'VIA_Isaiah';
         return None;
 
+    def queryCpuMicroarch(self):
+        """ Try guess the microarch name for the cpu.  Returns None if we cannot. """
+        return self.queryCpuMicroarchEx(self.lCpuRevision, self.sCpuVendor);
+
+    @staticmethod
+    def getPrettyCpuVersionEx(lCpuRevision, sCpuVendor):
+        """ Pretty formatting of the family/model/stepping with microarch optimizations. """
+        if lCpuRevision is None or sCpuVendor is None:
+            return u'<none>';
+        sMarch = TestBoxData.queryCpuMicroarchEx(lCpuRevision, sCpuVendor);
+        if sMarch is not None:
+            return '%s %02x:%x' \
+                 % (sMarch, TestBoxData.getCpuModelEx(lCpuRevision), TestBoxData.getCpuSteppingEx(lCpuRevision));
+        return 'fam%02X m%02X s%02X' \
+             % ( TestBoxData.getCpuFamilyEx(lCpuRevision), TestBoxData.getCpuModelEx(lCpuRevision),
+                 TestBoxData.getCpuSteppingEx(lCpuRevision));
+
     def getPrettyCpuVersion(self):
         """ Pretty formatting of the family/model/stepping with microarch optimizations. """
-        if self.lCpuRevision is None or self.sCpuVendor is None:
-            return u'<none>';
-        sMarch = self.queryCpuMicroarch();
-        if sMarch is not None:
-            return '%s m%02X s%02X' % (sMarch, self.getCpuModel(), self.getCpuStepping());
-        return 'fam%02X m%02X s%02X' % (self.getCpuFamily(), self.getCpuModel(), self.getCpuStepping());
+        return self.getPrettyCpuVersionEx(self.lCpuRevision, self.sCpuVendor);
 
     def getArchBitString(self):
         """ Returns 32-bit, 64-bit, <none>, or sCpuArch. """
@@ -610,7 +643,7 @@ class TestBoxDataEx(TestBoxData):
             oInSchedGroup = copy.copy(oInSchedGroup);
             oInSchedGroup.idTestBox = self.idTestBox;
             dCurErrors = oInSchedGroup.validateAndConvert(oDb, ModelDataBase.ksValidateFor_Other);
-            if len(dCurErrors) == 0:
+            if not dCurErrors:
                 pass; ## @todo figure out the ID?
             else:
                 asErrors = [];
@@ -629,7 +662,7 @@ class TestBoxDataEx(TestBoxData):
                     else:                   dErrors[iInGrp2]  = sMsg;
                     break;
 
-        return (aoNewValues, dErrors if len(dErrors) > 0 else None);
+        return (aoNewValues, dErrors if dErrors else None);
 
 
 class TestBoxLogic(ModelLogicBase):
@@ -637,6 +670,60 @@ class TestBoxLogic(ModelLogicBase):
     TestBox logic.
     """
 
+    kiSortColumn_sName              =  1;
+    kiSortColumn_sOs                =  2;
+    kiSortColumn_sOsVersion         =  3;
+    kiSortColumn_sCpuVendor         =  4;
+    kiSortColumn_sCpuArch           =  5;
+    kiSortColumn_lCpuRevision       =  6;
+    kiSortColumn_cCpus              =  7;
+    kiSortColumn_cMbMemory          =  8;
+    kiSortColumn_cMbScratch         =  9;
+    kiSortColumn_fCpuNestedPaging   = 10;
+    kiSortColumn_iTestBoxScriptRev  = 11;
+    kiSortColumn_iPythonHexVersion  = 12;
+    kiSortColumn_enmPendingCmd      = 13;
+    kiSortColumn_fEnabled           = 14;
+    kiSortColumn_enmState           = 15;
+    kiSortColumn_tsUpdated          = 16;
+    kcMaxSortColumns                = 17;
+    kdSortColumnMap                 = {
+        0:                               'TestBoxesWithStrings.sName',
+        kiSortColumn_sName:              "regexp_replace(TestBoxesWithStrings.sName,'[0-9]*','', 'g'), "\
+                                         "regexp_replace(CONCAT(TestBoxesWithStrings.sName,'0'),'[^0-9]*','', 'g')::int",
+        -kiSortColumn_sName:             "regexp_replace(TestBoxesWithStrings.sName,'[0-9]*','', 'g') DESC, "\
+                                         "regexp_replace(CONCAT(TestBoxesWithStrings.sName,'0'),'[^0-9]*','', 'g')::int DESC",
+        kiSortColumn_sOs:                'TestBoxesWithStrings.sOs',
+        -kiSortColumn_sOs:               'TestBoxesWithStrings.sOs DESC',
+        kiSortColumn_sOsVersion:         'TestBoxesWithStrings.sOsVersion',
+        -kiSortColumn_sOsVersion:        'TestBoxesWithStrings.sOsVersion DESC',
+        kiSortColumn_sCpuVendor:         'TestBoxesWithStrings.sCpuVendor',
+        -kiSortColumn_sCpuVendor:        'TestBoxesWithStrings.sCpuVendor DESC',
+        kiSortColumn_sCpuArch:           'TestBoxesWithStrings.sCpuArch',
+        -kiSortColumn_sCpuArch:          'TestBoxesWithStrings.sCpuArch DESC',
+        kiSortColumn_lCpuRevision:       'TestBoxesWithStrings.lCpuRevision',
+        -kiSortColumn_lCpuRevision:      'TestBoxesWithStrings.lCpuRevision DESC',
+        kiSortColumn_cCpus:              'TestBoxesWithStrings.cCpus',
+        -kiSortColumn_cCpus:             'TestBoxesWithStrings.cCpus DESC',
+        kiSortColumn_cMbMemory:          'TestBoxesWithStrings.cMbMemory',
+        -kiSortColumn_cMbMemory:         'TestBoxesWithStrings.cMbMemory DESC',
+        kiSortColumn_cMbScratch:         'TestBoxesWithStrings.cMbScratch',
+        -kiSortColumn_cMbScratch:        'TestBoxesWithStrings.cMbScratch DESC',
+        kiSortColumn_fCpuNestedPaging:   'TestBoxesWithStrings.fCpuNestedPaging',
+        -kiSortColumn_fCpuNestedPaging:  'TestBoxesWithStrings.fCpuNestedPaging DESC',
+        kiSortColumn_iTestBoxScriptRev:  'TestBoxesWithStrings.iTestBoxScriptRev',
+        -kiSortColumn_iTestBoxScriptRev: 'TestBoxesWithStrings.iTestBoxScriptRev DESC',
+        kiSortColumn_iPythonHexVersion:  'TestBoxesWithStrings.iPythonHexVersion',
+        -kiSortColumn_iPythonHexVersion: 'TestBoxesWithStrings.iPythonHexVersion DESC',
+        kiSortColumn_enmPendingCmd:      'TestBoxesWithStrings.enmPendingCmd',
+        -kiSortColumn_enmPendingCmd:     'TestBoxesWithStrings.enmPendingCmd DESC',
+        kiSortColumn_fEnabled:           'TestBoxesWithStrings.fEnabled',
+        -kiSortColumn_fEnabled:          'TestBoxesWithStrings.fEnabled DESC',
+        kiSortColumn_enmState:           'TestBoxStatuses.enmState',
+        -kiSortColumn_enmState:          'TestBoxStatuses.enmState DESC',
+        kiSortColumn_tsUpdated:          'TestBoxStatuses.tsUpdated',
+        -kiSortColumn_tsUpdated:         'TestBoxStatuses.tsUpdated DESC',
+    };
 
     def __init__(self, oDb):
         ModelLogicBase.__init__(self, oDb);
@@ -660,7 +747,7 @@ class TestBoxLogic(ModelLogicBase):
         oData.initFromDbRow(self._oDb.fetchOne());
         return oData;
 
-    def fetchForListing(self, iStart, cMaxRows, tsNow):
+    def fetchForListing(self, iStart, cMaxRows, tsNow, aiSortColumns = None):
         """
         Fetches testboxes for listing.
 
@@ -680,6 +767,9 @@ class TestBoxLogic(ModelLogicBase):
 
         from testmanager.core.testboxstatus import TestBoxStatusData;
 
+        if not aiSortColumns:
+            aiSortColumns = [self.kiSortColumn_sName,];
+
         if tsNow is None:
             self._oDb.execute('SELECT   TestBoxesWithStrings.*,\n'
                               '         TestBoxStatuses.*\n'
@@ -687,7 +777,7 @@ class TestBoxLogic(ModelLogicBase):
                               '         LEFT OUTER JOIN TestBoxStatuses\n'
                               '                      ON TestBoxStatuses.idTestBox = TestBoxesWithStrings.idTestBox\n'
                               'WHERE    TestBoxesWithStrings.tsExpire = \'infinity\'::TIMESTAMP\n'
-                              'ORDER BY TestBoxesWithStrings.sName\n'
+                              'ORDER BY ' + (', '.join([self.kdSortColumnMap[i] for i in aiSortColumns])) + '\n'
                               'LIMIT %s OFFSET %s\n'
                               , (cMaxRows, iStart,));
         else:
@@ -698,7 +788,7 @@ class TestBoxLogic(ModelLogicBase):
                               '                      ON TestBoxStatuses.idTestBox = TestBoxesWithStrings.idTestBox\n'
                               'WHERE    tsExpire     > %s\n'
                               '     AND tsEffective <= %s\n'
-                              'ORDER BY TestBoxesWithStrings.sName\n'
+                              'ORDER BY ' + (', '.join([self.kdSortColumnMap[i] for i in aiSortColumns])) + '\n'
                               'LIMIT %s OFFSET %s\n'
                               , ( tsNow, tsNow, cMaxRows, iStart,));
 
@@ -748,11 +838,14 @@ class TestBoxLogic(ModelLogicBase):
                     oOldAttr = getattr(oOld, sAttr);
                     oNewAttr = getattr(oNew, sAttr);
                     if oOldAttr != oNewAttr:
-                        aoChanges.append(AttributeChangeEntry(sAttr, oNewAttr, oOldAttr, str(oNewAttr), str(oOldAttr)));
+                        if sAttr == 'sReport':
+                            aoChanges.append(AttributeChangeEntryPre(sAttr, oNewAttr, oOldAttr, str(oNewAttr), str(oOldAttr)));
+                        else:
+                            aoChanges.append(AttributeChangeEntry(sAttr, oNewAttr, oOldAttr, str(oNewAttr), str(oOldAttr)));
             aoEntries.append(ChangeLogEntry(oNew.uidAuthor, None, oNew.tsEffective, oNew.tsExpire, oNew, oOld, aoChanges));
 
         # If we're at the end of the log, add the initial entry.
-        if len(aoRows) <= cMaxRows and len(aoRows) > 0:
+        if len(aoRows) <= cMaxRows and aoRows:
             oNew = aoRows[-1];
             aoEntries.append(ChangeLogEntry(oNew.uidAuthor, None, oNew.tsEffective, oNew.tsExpire, oNew, None, []));
 
@@ -768,10 +861,10 @@ class TestBoxLogic(ModelLogicBase):
         Raises exception on invalid input.
         """
         dDataErrors = oData.validateAndConvert(self._oDb, enmValidateFor);
-        if len(dDataErrors) > 0:
+        if dDataErrors:
             raise TMInvalidData('TestBoxLogic.addEntry: %s' % (dDataErrors,));
         if isinstance(oData, TestBoxDataEx):
-            if len(oData.aoInSchedGroups):
+            if oData.aoInSchedGroups:
                 sSchedGrps = ', '.join('(%s)' % oCur.idSchedGroup for oCur in oData.aoInSchedGroups);
                 self._oDb.execute('SELECT   SchedGroupIDs.idSchedGroup\n'
                                   'FROM     (VALUES ' + sSchedGrps + ' ) AS SchedGroupIDs(idSchedGroup)\n'
@@ -780,7 +873,7 @@ class TestBoxLogic(ModelLogicBase):
                                   '                         AND SchedGroups.tsExpire = \'infinity\'::TIMESTAMP\n'
                                   'WHERE    SchedGroups.idSchedGroup IS NULL\n');
                 aaoRows = self._oDb.fetchAll();
-                if len(aaoRows) > 0:
+                if aaoRows:
                     raise TMInvalidData('TestBoxLogic.addEntry missing scheduling groups: %s'
                                         % (', '.join(str(aoRow[0]) for aoRow in aaoRows),));
         return None;
@@ -991,7 +1084,7 @@ class TestBoxLogic(ModelLogicBase):
             if self._oDb.getRowCount() == 0:
                 # Maybe it was deleted, try get the last entry.
                 self._oDb.execute('SELECT   TestBoxesWithStrings.*\n'
-                                  'FROM     TestBoxes\n'
+                                  'FROM     TestBoxesWithStrings\n'
                                   'WHERE    idTestBox = %s\n'
                                   'ORDER BY tsExpire DESC\n'
                                   'LIMIT 1\n'

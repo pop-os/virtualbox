@@ -264,6 +264,7 @@ HRESULT USBProxyService::removeUSBDeviceSource(const com::Utf8Str &aId)
  *
  * @param   aMachine        The machine to attach the device to.
  * @param   aId             The UUID of the USB device to capture and attach.
+ * @param   aCaptureFilename
  *
  * @returns COM status code and error info.
  *
@@ -423,6 +424,8 @@ HRESULT USBProxyService::autoCaptureDevicesForVM(SessionMachine *aMachine)
  * to other VMs.
  *
  * @param   aMachine        The machine to detach devices from.
+ * @param   aDone
+ * @param   aAbnormal
  *
  * @returns COM status code, perhaps with error info.
  *
@@ -541,7 +544,7 @@ HRESULT USBProxyService::i_saveSettings(settings::USBDeviceSourcesList &llUSBDev
  * VM attaching. This may result in IPC and temporary lock abandonment.
  *
  * @param   aDevice     The device in question.
- * @param   aUSBDevice  The USB device structure.
+ * @param   pDev        The USB device structure.
  */
 void USBProxyService::i_deviceAdded(ComObjPtr<HostUSBDevice> &aDevice,
                                     PUSBDEVICE pDev)
@@ -709,6 +712,7 @@ void USBProxyService::deviceChanged(ComObjPtr<HostUSBDevice> &aDevice, bool fRun
  *
  * @returns COM status code (only parameter & state checks will fail).
  * @param   aDevice         The USB device to apply filters to.
+ * @param   llOpenedMachines The list of opened machines.
  * @param   aIgnoreMachine  The machine to ignore filters from (we've just
  *                          detached the device from this machine).
  *

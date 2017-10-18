@@ -254,7 +254,7 @@ static DECLCALLBACK(int) dbgcHlpPrintfV(PDBGCCMDHLP pCmdHlp, size_t *pcbWritten,
 
 
 /**
- * @interface_method_impl{DBGCCMDHLP,pfnStrPrintf}
+ * @interface_method_impl{DBGCCMDHLP,pfnStrPrintfV}
  */
 static DECLCALLBACK(size_t) dbgcHlpStrPrintfV(PDBGCCMDHLP pCmdHlp, char *pszBuf, size_t cbBuf,
                                               const char *pszFormat, va_list va)
@@ -554,7 +554,7 @@ static DECLCALLBACK(int) dbgcHlpMemWrite(PDBGCCMDHLP pCmdHlp, const void *pvBuff
             Var.enmType = DBGCVAR_TYPE_GC_FLAT;
             Var.u.GCFlat = Address.FlatPtr;
         }
-        /* fall thru */
+        RT_FALL_THRU();
         case DBGCVAR_TYPE_GC_FLAT:
             rc = DBGFR3MemWrite(pDbgc->pUVM, pDbgc->idCpu,
                                 DBGFR3AddrFromFlat(pDbgc->pUVM, &Address, Var.u.GCFlat),
@@ -698,7 +698,7 @@ static DECLCALLBACK(int) dbgcHlpFailV(PDBGCCMDHLP pCmdHlp, PCDBGCCMD pCmd, const
 
 
 /**
- * @interface_method_impl{DBGCCMDHLP,pfnFailV}
+ * @interface_method_impl{DBGCCMDHLP,pfnFailRcV}
  */
 static DECLCALLBACK(int) dbgcHlpFailRcV(PDBGCCMDHLP pCmdHlp, PCDBGCCMD pCmd, int rc, const char *pszFormat, va_list va)
 {
@@ -935,11 +935,11 @@ static DECLCALLBACK(int) dbgcHlpVarGetRange(PDBGCCMDHLP pCmdHlp, PCDBGCVAR pVar,
 /**
  * @interface_method_impl{DBGCCMDHLP,pfnVarConvert}
  */
-static DECLCALLBACK(int) dbgcHlpVarConvert(PDBGCCMDHLP pCmdHlp, PCDBGCVAR pInVar, DBGCVARTYPE enmToType, bool fConvSyms,
+static DECLCALLBACK(int) dbgcHlpVarConvert(PDBGCCMDHLP pCmdHlp, PCDBGCVAR pVar, DBGCVARTYPE enmToType, bool fConvSyms,
                                            PDBGCVAR pResult)
 {
     PDBGC           pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
-    DBGCVAR const   InVar = *pInVar;    /* if pInVar == pResult  */
+    DBGCVAR const   InVar = *pVar;      /* if pVar == pResult  */
     PCDBGCVAR       pArg = &InVar;      /* lazy bird, clean up later */
     DBGFADDRESS     Address;
     int             rc;

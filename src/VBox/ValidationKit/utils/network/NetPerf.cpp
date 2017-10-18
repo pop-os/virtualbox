@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -718,6 +718,7 @@ static int netperfTCPThroughputRecv(NETPERFPARAMS const *pParams, NETPERFHDR *pB
  * Prints the statistics for the latency test.
  *
  * @param   pStats              The statistics.
+ * @param   cbPacket            The packet size in bytes.
  */
 static void netperfPrintLatencyStats(NETPERFSTATS const *pStats, uint32_t cbPacket)
 {
@@ -1703,7 +1704,8 @@ static int netperfTCPClient(const char *pszServer, NETPERFPARAMS *pParams)
  *
  * @returns Exit code.
  * @param   enmProto            The protocol.
- * @param   pParams             The parameter block.
+ * @param   pszServer           The server name.
+ * @param   pvUser              The parameter block as opaque user data.
  */
 static RTEXITCODE netperfClient(NETPERFPROTO enmProto, const char *pszServer, void *pvUser)
 {
@@ -1863,7 +1865,7 @@ int main(int argc, char *argv[])
                 return RTEXITCODE_SUCCESS;
 
             case 'V':
-                RTPrintf("$Revision: 109040 $\n");
+                RTPrintf("$Revision: 118412 $\n");
                 return RTEXITCODE_SUCCESS;
 
             case 'w':

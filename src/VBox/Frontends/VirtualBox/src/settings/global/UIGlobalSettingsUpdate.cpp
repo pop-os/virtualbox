@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,95 +22,132 @@
 /* GUI includes: */
 # include "UIGlobalSettingsUpdate.h"
 # include "UIExtraDataManager.h"
+# include "UIMessageCenter.h"
 # include "VBoxGlobal.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
+/** Global settings: Update page data structure. */
+struct UIDataSettingsGlobalUpdate
+{
+    /** Constructs data. */
+    UIDataSettingsGlobalUpdate()
+        : m_fCheckEnabled(false)
+        , m_periodIndex(VBoxUpdateData::PeriodUndefined)
+        , m_branchIndex(VBoxUpdateData::BranchStable)
+        , m_strDate(QString())
+    {}
+
+    /** Returns whether the @a other passed data is equal to this one. */
+    bool equal(const UIDataSettingsGlobalUpdate &other) const
+    {
+        return true
+               && (m_fCheckEnabled == other.m_fCheckEnabled)
+               && (m_periodIndex == other.m_periodIndex)
+               && (m_branchIndex == other.m_branchIndex)
+               && (m_strDate == other.m_strDate)
+               ;
+    }
+
+    /** Returns whether the @a other passed data is equal to this one. */
+    bool operator==(const UIDataSettingsGlobalUpdate &other) const { return equal(other); }
+    /** Returns whether the @a other passed data is different from this one. */
+    bool operator!=(const UIDataSettingsGlobalUpdate &other) const { return !equal(other); }
+
+    /** Holds whether the update check is enabled. */
+    bool m_fCheckEnabled;
+    /** Holds the update check period. */
+    VBoxUpdateData::PeriodType m_periodIndex;
+    /** Holds the update branch type. */
+    VBoxUpdateData::BranchType m_branchIndex;
+    /** Holds the next update date. */
+    QString m_strDate;
+};
+
+
 UIGlobalSettingsUpdate::UIGlobalSettingsUpdate()
     : m_pLastChosenRadio(0)
-    , m_fChanged(false)
+    , m_pCache(0)
 {
-    /* Apply UI decorations: */
-    Ui::UIGlobalSettingsUpdate::setupUi(this);
-
-    /* Setup connections: */
-    connect(m_pCheckBoxUpdate, SIGNAL(toggled(bool)), this, SLOT(sltUpdaterToggled(bool)));
-    connect(m_pComboBoxUpdatePeriod, SIGNAL(activated(int)), this, SLOT(sltPeriodActivated()));
-    connect(m_pRadioUpdateFilterStable, SIGNAL(toggled(bool)), this, SLOT(sltBranchToggled()));
-    connect(m_pRadioUpdateFilterEvery, SIGNAL(toggled(bool)), this, SLOT(sltBranchToggled()));
-    connect(m_pRadioUpdateFilterBetas, SIGNAL(toggled(bool)), this, SLOT(sltBranchToggled()));
-
-    /* Apply language settings: */
-    retranslateUi();
+    /* Prepare: */
+    prepare();
 }
 
-/* Load data to cache from corresponding external object(s),
- * this task COULD be performed in other than GUI thread: */
+UIGlobalSettingsUpdate::~UIGlobalSettingsUpdate()
+{
+    /* Cleanup: */
+    cleanup();
+}
+
 void UIGlobalSettingsUpdate::loadToCacheFrom(QVariant &data)
 {
-    /* Fetch data to properties & settings: */
+    /* Fetch data to properties: */
     UISettingsPageGlobal::fetchData(data);
 
-    /* Fill internal variables with corresponding values: */
-    VBoxUpdateData updateData(gEDataManager->applicationUpdateData());
-    m_cache.m_fCheckEnabled = !updateData.isNoNeedToCheck();
-    m_cache.m_periodIndex = updateData.periodIndex();
-    m_cache.m_branchIndex = updateData.branchIndex();
-    m_cache.m_strDate = updateData.date();
+    /* Clear cache initially: */
+    m_pCache->clear();
 
-    /* Upload properties & settings to data: */
+    /* Prepare old update data: */
+    UIDataSettingsGlobalUpdate oldUpdateData;
+
+    /* Gather old update data: */
+    const VBoxUpdateData updateData(gEDataManager->applicationUpdateData());
+    oldUpdateData.m_fCheckEnabled = !updateData.isNoNeedToCheck();
+    oldUpdateData.m_periodIndex = updateData.periodIndex();
+    oldUpdateData.m_branchIndex = updateData.branchIndex();
+    oldUpdateData.m_strDate = updateData.date();
+
+    /* Cache old update data: */
+    m_pCache->cacheInitialData(oldUpdateData);
+
+    /* Upload properties to data: */
     UISettingsPageGlobal::uploadData(data);
 }
 
-/* Load data to corresponding widgets from cache,
- * this task SHOULD be performed in GUI thread only: */
 void UIGlobalSettingsUpdate::getFromCache()
 {
-    /* Apply internal variables data to QWidget(s): */
-    m_pCheckBoxUpdate->setChecked(m_cache.m_fCheckEnabled);
+    /* Get old update data from the cache: */
+    const UIDataSettingsGlobalUpdate &oldUpdateData = m_pCache->base();
+
+    /* Load old update data from the cache: */
+    m_pCheckBoxUpdate->setChecked(oldUpdateData.m_fCheckEnabled);
     if (m_pCheckBoxUpdate->isChecked())
     {
-        m_pComboBoxUpdatePeriod->setCurrentIndex(m_cache.m_periodIndex);
-        if (m_cache.m_branchIndex == VBoxUpdateData::BranchWithBetas)
+        m_pComboBoxUpdatePeriod->setCurrentIndex(oldUpdateData.m_periodIndex);
+        if (oldUpdateData.m_branchIndex == VBoxUpdateData::BranchWithBetas)
             m_pRadioUpdateFilterBetas->setChecked(true);
-        else if (m_cache.m_branchIndex == VBoxUpdateData::BranchAllRelease)
+        else if (oldUpdateData.m_branchIndex == VBoxUpdateData::BranchAllRelease)
             m_pRadioUpdateFilterEvery->setChecked(true);
         else
             m_pRadioUpdateFilterStable->setChecked(true);
     }
-    m_pUpdateDateText->setText(m_cache.m_strDate);
-    sltUpdaterToggled(m_cache.m_fCheckEnabled);
-
-    /* Mark page as *not changed*: */
-    m_fChanged = false;
+    m_pUpdateDateText->setText(oldUpdateData.m_strDate);
+    sltHandleUpdateToggle(oldUpdateData.m_fCheckEnabled);
 }
 
-/* Save data from corresponding widgets to cache,
- * this task SHOULD be performed in GUI thread only: */
 void UIGlobalSettingsUpdate::putToCache()
 {
-    /* Gather internal variables data from QWidget(s): */
-    m_cache.m_periodIndex = periodType();
-    m_cache.m_branchIndex = branchType();
+    /* Prepare new update data: */
+    UIDataSettingsGlobalUpdate newUpdateData = m_pCache->base();
+
+    /* Gather new update data: */
+    newUpdateData.m_periodIndex = periodType();
+    newUpdateData.m_branchIndex = branchType();
+
+    /* Cache new update data: */
+    m_pCache->cacheCurrentData(newUpdateData);
 }
 
-/* Save data from cache to corresponding external object(s),
- * this task COULD be performed in other than GUI thread: */
 void UIGlobalSettingsUpdate::saveFromCacheTo(QVariant &data)
 {
-    /* Test settings altering flag: */
-    if (!m_fChanged)
-        return;
-
-    /* Fetch data to properties & settings: */
+    /* Fetch data to properties: */
     UISettingsPageGlobal::fetchData(data);
 
-    /* Gather corresponding values from internal variables: */
-    VBoxUpdateData newData(m_cache.m_periodIndex, m_cache.m_branchIndex);
-    gEDataManager->setApplicationUpdateData(newData.data());
+    /* Update update data and failing state: */
+    setFailed(!saveUpdateData());
 
-    /* Upload properties & settings to data: */
+    /* Upload properties to data: */
     UISettingsPageGlobal::uploadData(data);
 }
 
@@ -137,13 +174,13 @@ void UIGlobalSettingsUpdate::retranslateUi()
     m_pComboBoxUpdatePeriod->setCurrentIndex(iCurrenIndex == -1 ? 0 : iCurrenIndex);
 }
 
-void UIGlobalSettingsUpdate::sltUpdaterToggled(bool fEnabled)
+void UIGlobalSettingsUpdate::sltHandleUpdateToggle(bool fEnabled)
 {
     /* Update activity status: */
     m_pContainerUpdate->setEnabled(fEnabled);
 
     /* Update time of next check: */
-    sltPeriodActivated();
+    sltHandleUpdatePeriodChange();
 
     /* Temporary remember branch type if was switched off: */
     if (!fEnabled)
@@ -157,21 +194,44 @@ void UIGlobalSettingsUpdate::sltUpdaterToggled(bool fEnabled)
         m_pLastChosenRadio->setChecked(fEnabled);
 }
 
-void UIGlobalSettingsUpdate::sltPeriodActivated()
+void UIGlobalSettingsUpdate::sltHandleUpdatePeriodChange()
 {
-    VBoxUpdateData data(periodType(), branchType());
+    const VBoxUpdateData data(periodType(), branchType());
     m_pUpdateDateText->setText(data.date());
-    m_fChanged = true;
 }
 
-void UIGlobalSettingsUpdate::sltBranchToggled()
+void UIGlobalSettingsUpdate::prepare()
 {
-    m_fChanged = true;
+    /* Apply UI decorations: */
+    Ui::UIGlobalSettingsUpdate::setupUi(this);
+
+    /* Prepare cache: */
+    m_pCache = new UISettingsCacheGlobalUpdate;
+    AssertPtrReturnVoid(m_pCache);
+
+    /* Layout/widgets created in the .ui file. */
+    AssertPtrReturnVoid(m_pCheckBoxUpdate);
+    AssertPtrReturnVoid(m_pComboBoxUpdatePeriod);
+    {
+        /* Configure widgets: */
+        connect(m_pCheckBoxUpdate, SIGNAL(toggled(bool)), this, SLOT(sltHandleUpdateToggle(bool)));
+        connect(m_pComboBoxUpdatePeriod, SIGNAL(activated(int)), this, SLOT(sltHandleUpdatePeriodChange()));
+    }
+
+    /* Apply language settings: */
+    retranslateUi();
+}
+
+void UIGlobalSettingsUpdate::cleanup()
+{
+    /* Cleanup cache: */
+    delete m_pCache;
+    m_pCache = 0;
 }
 
 VBoxUpdateData::PeriodType UIGlobalSettingsUpdate::periodType() const
 {
-    VBoxUpdateData::PeriodType result = m_pCheckBoxUpdate->isChecked() ?
+    const VBoxUpdateData::PeriodType result = m_pCheckBoxUpdate->isChecked() ?
         (VBoxUpdateData::PeriodType)m_pComboBoxUpdatePeriod->currentIndex() : VBoxUpdateData::PeriodNever;
     return result == VBoxUpdateData::PeriodUndefined ? VBoxUpdateData::Period1Day : result;
 }
@@ -184,5 +244,25 @@ VBoxUpdateData::BranchType UIGlobalSettingsUpdate::branchType() const
         return VBoxUpdateData::BranchAllRelease;
     else
         return VBoxUpdateData::BranchStable;
+}
+
+bool UIGlobalSettingsUpdate::saveUpdateData()
+{
+    /* Prepare result: */
+    bool fSuccess = true;
+    /* Save update settings from the cache: */
+    if (fSuccess && m_pCache->wasChanged())
+    {
+        /* Get old update data from the cache: */
+        //const UIDataSettingsGlobalUpdate &oldUpdateData = m_pCache->base();
+        /* Get new update data from the cache: */
+        const UIDataSettingsGlobalUpdate &newUpdateData = m_pCache->data();
+
+        /* Save new update data from the cache: */
+        const VBoxUpdateData newData(newUpdateData.m_periodIndex, newUpdateData.m_branchIndex);
+        gEDataManager->setApplicationUpdateData(newData.data());
+    }
+    /* Return result: */
+    return fSuccess;
 }
 

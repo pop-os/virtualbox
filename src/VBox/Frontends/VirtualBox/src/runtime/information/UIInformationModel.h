@@ -19,30 +19,16 @@
 #define ___UIInformationModel_h___
 
 /* Qt includes: */
-#include <QMap>
-#include <QSet>
-#include <QObject>
-#include <QPointer>
 #include <QAbstractListModel>
 
-/* GUI includes: */
-#include "UIExtraDataDefs.h"
-#include "UIInformationDataItem.h"
-
 /* COM includes: */
-# include "CGuest.h"
-# include "CConsole.h"
-# include "CDisplay.h"
-# include "CMachine.h"
 # include "COMEnums.h"
-# include "CNetworkAdapter.h"
-# include "CMachineDebugger.h"
-# include "CMediumAttachment.h"
-# include "CSystemProperties.h"
-# include "CStorageController.h"
+# include "CConsole.h"
+# include "CMachine.h"
 
 /* Forward declarations: */
 class UIInformationDataItem;
+
 
 /** QAbstractListModel extension
   * providing GUI with information-model for view in session-information window. */
@@ -52,40 +38,43 @@ class UIInformationModel : public QAbstractListModel
 
 public:
 
-    /** Constructs information-model passing @a pParent to base-class.
-      * @param machine is machine reference.
-      * @param console is machine console reference. */
+    /** Constructs information-model passing @a pParent to the base-class.
+      * @param  machine  Brings the machine reference.
+      * @param  console  Brings the machine console reference. */
     UIInformationModel(QObject *pParent, const CMachine &machine, const CConsole &console);
-
     /** Destructs information-model. */
     ~UIInformationModel();
 
-    /** Returns the row-count for item specified by @a parentIdx. */
-    int rowCount(const QModelIndex &parentIdx = QModelIndex()) const;
+    /** Returns the row-count for item specified by the @a parentIndex. */
+    virtual int rowCount(const QModelIndex &parentIndex = QModelIndex()) const /* override */;
 
-    /** Returns data for item specified by @a idx for the @a role. */
-    QVariant data(const QModelIndex &idx, int role = Qt::DisplayRole) const;
+    /** Returns the data for item specified by the @a index and the @a role. */
+    virtual QVariant data(const QModelIndex &index, int role = Qt::DisplayRole) const /* override */;
 
-    /** Adds the item. */
+    /** Adds the @a pItem into the model. */
     void addItem(UIInformationDataItem *pItem);
 
-    /** Updates Data. */
-    void updateData(const QModelIndex &idx);
+    /** Updates the data for item specified by the @a index. */
+    void updateData(const QModelIndex &index);
 
 public slots:
+
+    /** Updates the data for the specified @a pItem. */
     void updateData(UIInformationDataItem *pItem);
 
 private:
 
-    /** Prepares information-model. */
+    /** Prepares all. */
     void prepare();
+    /** Cleanups all. */
+    void cleanup();
 
     /** Returns the list of role-names supported by model. */
     QHash<int, QByteArray> roleNames() const;
 
-    /** Holds the machine instance. */
+    /** Holds the machine reference. */
     CMachine m_machine;
-    /** Holds the console instance. */
+    /** Holds the machine console reference. */
     CConsole m_console;
     /** Holds the list of instances of information-data items. */
     QList<UIInformationDataItem*> m_list;

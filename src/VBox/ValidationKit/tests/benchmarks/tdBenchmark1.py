@@ -8,7 +8,7 @@ VirtualBox Validation Kit - Test that runs various benchmarks.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2016 Oracle Corporation
+Copyright (C) 2010-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard Python imports.
@@ -91,14 +91,11 @@ class tdBenchmark1(vbox.TestDriver):
         self.logVmInfo(oVM);
         oSession = self.startVm(oVM, sName = oTestVm.sVmName, asEnv = asEnv);
         if oSession is not None:
-            self.addTask(oSession);
-
             cMsTimeout = 15*60*1000;
             if not reporter.isLocal(): ## @todo need to figure a better way of handling timeouts on the testboxes ...
                 cMsTimeout = self.adjustTimeoutMs(180 * 60000);
 
             oRc = self.waitForTasks(cMsTimeout);
-            self.removeTask(oSession);
             if oRc == oSession:
                 fRc = oSession.assertPoweredOff();
             else:

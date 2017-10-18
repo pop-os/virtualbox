@@ -144,7 +144,7 @@
  *      - @ref pg_main_events
  *      - @ref pg_vrdb_usb
  *  - Frontends:
- *      - VirtualBox - The default Qt4 based GUI.
+ *      - VirtualBox - The default Qt-based GUI.
  *      - VBoxHeadless - The headless frontend.
  *      - VBoxManage - The CLI.
  *      - VBoxShell - An interactive shell written in python.
@@ -155,6 +155,7 @@
  *  - Validation Kit:
  *      - @ref pg_validationkit_guideline
  *      - @ref pg_bs3kit
+ *  - @ref pg_vbox_guideline
  *
  * @todo Make links to the components.
  *

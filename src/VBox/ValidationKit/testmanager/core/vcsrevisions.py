@@ -7,7 +7,7 @@ Test Manager - VcsRevisions
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard python imports.
@@ -112,14 +112,14 @@ class VcsRevisionLogic(ModelLogicBase): # pylint: disable=R0903
     # Standard methods.
     #
 
-    def fetchForListing(self, iStart, cMaxRows, tsNow):
+    def fetchForListing(self, iStart, cMaxRows, tsNow, aiSortColumns = None):
         """
         Fetches VCS revisions for listing.
 
         Returns an array (list) of VcsRevisionData items, empty list if none.
         Raises exception on error.
         """
-        _ = tsNow;
+        _ = tsNow; _ = aiSortColumns;
         self._oDb.execute('SELECT   *\n'
                           'FROM     VcsRevisions\n'
                           'ORDER BY tsCreated, sRepository, iRevision\n'
@@ -142,7 +142,7 @@ class VcsRevisionLogic(ModelLogicBase): # pylint: disable=R0903
         aaoRows = self._oDb.fetchAll();
         if len(aaoRows) == 1:
             return VcsRevisionData().initFromDbRow(aaoRows[0]);
-        if len(aaoRows) != 0:
+        if aaoRows:
             raise TMExceptionBase('VcsRevisions has a primary key problem: %u duplicates' % (len(aaoRows),));
         return None
 
@@ -159,7 +159,7 @@ class VcsRevisionLogic(ModelLogicBase): # pylint: disable=R0903
 
         # Check VcsRevisionData before do anything
         dDataErrors = oData.validateAndConvert(self._oDb, oData.ksValidateFor_Add);
-        if len(dDataErrors) > 0:
+        if dDataErrors:
             raise TMExceptionBase('Invalid data passed to addVcsRevision(): %s' % (dDataErrors,));
 
         # Does it already exist?

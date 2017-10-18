@@ -8,7 +8,7 @@ Test Manager Core - Base Class(es).
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard python imports.
@@ -232,7 +232,7 @@ class ModelDataBase(ModelBase): # pylint: disable=R0903
         #
         # Perform deep conversion on ModelDataBase object and lists of them.
         #
-        elif isinstance(oValue, list) and len(oValue) > 0 and isinstance(oValue[0], ModelDataBase):
+        elif isinstance(oValue, list) and oValue and isinstance(oValue[0], ModelDataBase):
             oValue = copy.copy(oValue);
             for i, _ in enumerate(oValue):
                 assert isinstance(oValue[i], ModelDataBase);
@@ -268,7 +268,7 @@ class ModelDataBase(ModelBase): # pylint: disable=R0903
         #
         # Perform deep conversion on ModelDataBase object and lists of them.
         #
-        elif isinstance(oValue, list) and len(oValue) > 0 and isinstance(oValue[0], ModelDataBase):
+        elif isinstance(oValue, list) and oValue and isinstance(oValue[0], ModelDataBase):
             oValue = copy.copy(oValue);
             for i, _ in enumerate(oValue):
                 assert isinstance(oValue[i], ModelDataBase);
@@ -315,7 +315,7 @@ class ModelDataBase(ModelBase): # pylint: disable=R0903
                                                     lMin = getattr(self, 'klMin_' + sAttr, 0),
                                                     lMax = getattr(self, 'klMax_' + sAttr, None));
         elif sPrefix == 'f':
-            if oValue is '' and not fAllowNull: oValue = '0'; # HACK ALERT! Checkboxes are only added when checked.
+            if not oValue and not fAllowNull: oValue = '0'; # HACK ALERT! Checkboxes are only added when checked.
             (oNewValue, sError) = self.validateBool(oValue, aoNilValues = aoNilValues, fAllowNull = fAllowNull);
         elif sPrefix == 'ts':
             (oNewValue, sError) = self.validateTs(  oValue, aoNilValues = aoNilValues, fAllowNull = fAllowNull);
@@ -742,14 +742,14 @@ class ModelDataBase(ModelBase): # pylint: disable=R0903
     @staticmethod
     def validateListOfSomething(asValues, aoNilValues = tuple([[], None]), fAllowNull = True):
         """ Validate a list of some uniform values. Returns a copy of the list (if list it is). """
-        if asValues in aoNilValues  or  (len(asValues) == 0 and not fAllowNull):
+        if asValues in aoNilValues  or  (not asValues and not fAllowNull):
             return (asValues, None if fAllowNull else 'Mandatory.')
 
         if not isinstance(asValues, list):
             return (asValues, 'Invalid data type (%s).' % (type(asValues),));
 
         asValues = list(asValues); # copy the list.
-        if len(asValues) > 0:
+        if asValues:
             oType = type(asValues[0]);
             for i in range(1, len(asValues)):
                 if type(asValues[i]) is not oType: # pylint: disable=unidiomatic-typecheck
@@ -763,7 +763,7 @@ class ModelDataBase(ModelBase): # pylint: disable=R0903
         """ Validates a list of text items."""
         (asValues, sError) = ModelDataBase.validateListOfSomething(asValues, aoNilValues, fAllowNull);
 
-        if sError is None  and asValues not in aoNilValues  and  len(asValues) > 0:
+        if sError is None  and  asValues not in aoNilValues  and  asValues:
             if not utils.isString(asValues[0]):
                 return (asValues, 'Invalid item data type.');
 
@@ -792,7 +792,7 @@ class ModelDataBase(ModelBase): # pylint: disable=R0903
         """ Validates a list of integer items."""
         (asValues, sError) = ModelDataBase.validateListOfSomething(asValues, aoNilValues, fAllowNull);
 
-        if sError is None  and asValues not in aoNilValues  and  len(asValues) > 0:
+        if sError is None  and  asValues not in aoNilValues  and  asValues:
             for i, _ in enumerate(asValues):
                 sValue = asValues[i];
 
@@ -1088,7 +1088,7 @@ class ModelDataBaseTestCase(unittest.TestCase):
             self.assertIsNotNone(oSample.isEqual(self.aoSamples[0]));
 
     def testNullConversion(self):
-        if len(self.aoSamples[0].getDataAttributes()) == 0:
+        if not self.aoSamples[0].getDataAttributes():
             return;
         for oSample in self.aoSamples:
             oCopy = copy.copy(oSample);
@@ -1152,6 +1152,138 @@ class ModelDataBaseTestCase(unittest.TestCase):
             self.assertIsNotNone(oSample.toString());
 
 
+class FilterCriterionValueAndDescription(object):
+    """
+    A filter criterion value and its description.
+    """
+
+    def __init__(self, oValue, sDesc, cTimes = None, sHover = None, fIrrelevant = False):
+        self.oValue      = oValue;      ##< Typically the ID of something in the database.
+        self.sDesc       = sDesc;       ##< What to display.
+        self.cTimes      = cTimes;      ##< Number of times the value occurs in the result set. None if not given.
+        self.sHover      = sHover;      ##< Optional hover/title string.
+        self.fIrrelevant = fIrrelevant; ##< Irrelevant filter option, only present because it's selected
+        self.aoSubs      = [];          ##< References to FilterCriterion.oSub.aoPossible.
+
+
+class FilterCriterion(object):
+    """
+    A filter criterion.
+    """
+
+    ## @name The state.
+    ## @{
+    ksState_NotSelected = 'not-selected';
+    ksState_Selected    = 'selected';
+    ## @}
+
+    ## @name The kind of filtering.
+    ## @{
+    ## 'Element of' by default, 'not an element of' when fInverted is False.
+    ksKind_ElementOfOrNot = 'element-of-or-not';
+    ## The criterion is a special one and cannot be inverted.
+    ksKind_Special        = 'special';
+    ## @}
+
+    ## @name The value type.
+    ## @{
+    ksType_UInt    = 'uint';     ##< unsigned integer value.
+    ksType_UIntNil = 'uint-nil'; ##< unsigned integer value, with nil.
+    ksType_String  = 'string';   ##< string value.
+    ## @}
+
+    def __init__(self, sName, sVarNm = None, sType = ksType_UInt, # pylint: disable=too-many-arguments
+                 sState = ksState_NotSelected, sKind = ksKind_ElementOfOrNot,
+                 sTable = None, sColumn = None, asTables = None, oSub = None):
+        assert len(sVarNm) == 2;    # required by wuimain.py for filtering.
+        self.sName      = sName;
+        self.sState     = sState;
+        self.sType      = sType;
+        self.sKind      = sKind;
+        self.sVarNm     = sVarNm;
+        self.aoSelected = [];       ##< User input from sVarNm. Single value, type according to sType.
+        self.sInvVarNm  = 'i' + sVarNm if sKind == self.ksKind_ElementOfOrNot else None;
+        self.fInverted  = False;    ##< User input from sInvVarNm. Inverts the operation (-> not an element of).
+        self.aoPossible = [];       ##< type: list[FilterCriterionValueAndDescription]
+        assert (sTable is None and asTables is None) or ((sTable is not None) != (asTables is not None)), \
+               '%s %s' % (sTable, asTables);
+        self.asTables   = [sTable,] if sTable is not None else asTables;
+        assert sColumn is None or len(self.asTables) == 1, '%s %s' % (self.asTables, sColumn);
+        self.sColumn    = sColumn;  ##< Normally only applicable if one table.
+        self.fExpanded  = None;     ##< Tristate (None, False, True)
+        self.oSub       = oSub;     ##< type: FilterCriterion
+
+
+class ModelFilterBase(ModelBase):
+    """
+    Base class for filters.
+
+    Filters are used to narrow down data that is displayed in a list or
+    report.  This class differs a little from ModelDataBase in that it is not
+    tied to a database table, but one or more database queries that are
+    typically rather complicated.
+
+    The filter object has two roles:
+
+      1. It is used by a ModelLogicBase descendant to store the available
+         filtering options for data begin displayed.
+
+      2. It decodes and stores the filtering options submitted by the user so
+         a ModeLogicBase descendant can use it to construct WHERE statements.
+
+    The ModelFilterBase class is related to the ModelDataBase class in that it
+    decodes user parameters and stores data, however it is not a descendant.
+
+    Note! In order to reduce URL lengths, we use very very brief parameter
+          names for the filters.
+    """
+
+    def __init__(self):
+        ModelBase.__init__(self);
+        self.aCriteria = []; # type: list[FilterCriterion]
+
+    def _initFromParamsWorker(self, oDisp, oCriterion):
+        """ Worker for initFromParams. """
+        if oCriterion.sType == FilterCriterion.ksType_UInt:
+            oCriterion.aoSelected = oDisp.getListOfIntParams(oCriterion.sVarNm, iMin = 0, aiDefaults = []);
+        elif oCriterion.sType == FilterCriterion.ksType_UIntNil:
+            oCriterion.aoSelected = oDisp.getListOfIntParams(oCriterion.sVarNm, iMin = -1, aiDefaults = []);
+        elif oCriterion.sType == FilterCriterion.ksType_String:
+            oCriterion.aoSelected = oDisp.getListOfStrParams(oCriterion.sVarNm, asDefaults = []);
+            if len(oCriterion.aoSelected) > 100:
+                raise TMExceptionBase('Variable %s has %u value, max allowed is 100!'
+                                      % (oCriterion.sVarNm, len(oCriterion.aoSelected)));
+            for sValue in oCriterion.aoSelected:
+                if   len(sValue) > 64 \
+                  or '\'' in sValue \
+                  or sValue[-1] == '\\':
+                    raise TMExceptionBase('Variable %s has an illegal value "%s"!' % (oCriterion.sVarNm, sValue));
+        else:
+            assert False;
+        if oCriterion.aoSelected:
+            oCriterion.sState = FilterCriterion.ksState_Selected;
+        else:
+            oCriterion.sState = FilterCriterion.ksState_NotSelected;
+
+        if oCriterion.sKind == FilterCriterion.ksKind_ElementOfOrNot:
+            oCriterion.fInverted = oDisp.getBoolParam(oCriterion.sInvVarNm, fDefault = False);
+
+        if oCriterion.oSub is not None:
+            self._initFromParamsWorker(oDisp, oCriterion.oSub);
+        return;
+
+    def initFromParams(self, oDisp): # type: (WuiDispatcherBase) -> self
+        """
+        Initialize the object from parameters.
+
+        Returns self. Raises exception on invalid parameter value.
+        """
+
+        for oCriterion in self.aCriteria:
+            self._initFromParamsWorker(oDisp, oCriterion);
+        return self;
+
+
 class ModelLogicBase(ModelBase): # pylint: disable=R0903
     """
     Something all classes in the logic classes the logical model inherits from.
@@ -1206,6 +1338,14 @@ class AttributeChangeEntry(object): # pylint: disable=R0903
         self.oOldRaw        = oOldRaw;
         self.sNewText       = sNewText;
         self.sOldText       = sOldText;
+
+class AttributeChangeEntryPre(AttributeChangeEntry): # pylint: disable=R0903
+    """
+    AttributeChangeEntry for preformatted values.
+    """
+
+    def __init__(self, sAttr, oNewRaw, oOldRaw, sNewText, sOldText):
+        AttributeChangeEntry.__init__(self, sAttr, oNewRaw, oOldRaw, sNewText, sOldText);
 
 class ChangeLogEntry(object): # pylint: disable=R0903
     """

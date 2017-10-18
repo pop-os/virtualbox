@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2016 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIMachineSettingsDisplay_h__
-#define __UIMachineSettingsDisplay_h__
+#ifndef ___UIMachineSettingsDisplay_h___
+#define ___UIMachineSettingsDisplay_h___
 
 /* GUI includes: */
 #include "UISettingsPage.h"
@@ -27,102 +27,11 @@
 
 /* Forward declarations: */
 class UIActionPool;
-
-/* Machine settings / Display page / Data: */
-struct UIDataSettingsMachineDisplay
-{
-    /* Constructor: */
-    UIDataSettingsMachineDisplay()
-        : m_iCurrentVRAM(0)
-        , m_cGuestScreenCount(0)
-        , m_dScaleFactor(1.0)
-#ifdef VBOX_WS_MAC
-        , m_fUseUnscaledHiDPIOutput(false)
-#endif /* VBOX_WS_MAC */
-        , m_f3dAccelerationEnabled(false)
-#ifdef VBOX_WITH_VIDEOHWACCEL
-        , m_f2dAccelerationEnabled(false)
-#endif /* VBOX_WITH_VIDEOHWACCEL */
-        , m_fRemoteDisplayServerSupported(false)
-        , m_fRemoteDisplayServerEnabled(false)
-        , m_strRemoteDisplayPort(QString())
-        , m_remoteDisplayAuthType(KAuthType_Null)
-        , m_uRemoteDisplayTimeout(0)
-        , m_fRemoteDisplayMultiConnAllowed(false)
-        , m_fVideoCaptureEnabled(false)
-        , m_strVideoCaptureFolder(QString())
-        , m_strVideoCaptureFilePath(QString())
-        , m_iVideoCaptureFrameWidth(0)
-        , m_iVideoCaptureFrameHeight(0)
-        , m_iVideoCaptureFrameRate(0)
-        , m_iVideoCaptureBitRate(0)
-    {}
-
-    /* Functions: */
-    bool equal(const UIDataSettingsMachineDisplay &other) const
-    {
-        return (m_iCurrentVRAM == other.m_iCurrentVRAM) &&
-               (m_cGuestScreenCount == other.m_cGuestScreenCount) &&
-               (m_dScaleFactor == other.m_dScaleFactor) &&
-#ifdef VBOX_WS_MAC
-               (m_fUseUnscaledHiDPIOutput == other.m_fUseUnscaledHiDPIOutput) &&
-#endif /* VBOX_WS_MAC */
-               (m_f3dAccelerationEnabled == other.m_f3dAccelerationEnabled) &&
-#ifdef VBOX_WITH_VIDEOHWACCEL
-               (m_f2dAccelerationEnabled == other.m_f2dAccelerationEnabled) &&
-#endif /* VBOX_WITH_VIDEOHWACCEL */
-               (m_fRemoteDisplayServerSupported == other.m_fRemoteDisplayServerSupported) &&
-               (m_fRemoteDisplayServerEnabled == other.m_fRemoteDisplayServerEnabled) &&
-               (m_strRemoteDisplayPort == other.m_strRemoteDisplayPort) &&
-               (m_remoteDisplayAuthType == other.m_remoteDisplayAuthType) &&
-               (m_uRemoteDisplayTimeout == other.m_uRemoteDisplayTimeout) &&
-               (m_fRemoteDisplayMultiConnAllowed == other.m_fRemoteDisplayMultiConnAllowed) &&
-               (m_fVideoCaptureEnabled == other.m_fVideoCaptureEnabled) &&
-               (m_strVideoCaptureFilePath == other.m_strVideoCaptureFilePath) &&
-               (m_iVideoCaptureFrameWidth == other.m_iVideoCaptureFrameWidth) &&
-               (m_iVideoCaptureFrameHeight == other.m_iVideoCaptureFrameHeight) &&
-               (m_iVideoCaptureFrameRate == other.m_iVideoCaptureFrameRate) &&
-               (m_iVideoCaptureBitRate == other.m_iVideoCaptureBitRate) &&
-               (m_screens == other.m_screens);
-    }
-
-    /* Operators: */
-    bool operator==(const UIDataSettingsMachineDisplay &other) const { return equal(other); }
-    bool operator!=(const UIDataSettingsMachineDisplay &other) const { return !equal(other); }
-
-    /* Variables: Video stuff: */
-    int m_iCurrentVRAM;
-    int m_cGuestScreenCount;
-    double m_dScaleFactor;
-#ifdef VBOX_WS_MAC
-    bool m_fUseUnscaledHiDPIOutput;
-#endif /* VBOX_WS_MAC */
-    bool m_f3dAccelerationEnabled;
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    bool m_f2dAccelerationEnabled;
-#endif /* VBOX_WITH_VIDEOHWACCEL */
-
-    /* Variables: Remote Display stuff: */
-    bool m_fRemoteDisplayServerSupported;
-    bool m_fRemoteDisplayServerEnabled;
-    QString m_strRemoteDisplayPort;
-    KAuthType m_remoteDisplayAuthType;
-    ulong m_uRemoteDisplayTimeout;
-    bool m_fRemoteDisplayMultiConnAllowed;
-
-    /* Variables: Video Capture stuff: */
-    bool m_fVideoCaptureEnabled;
-    QString m_strVideoCaptureFolder;
-    QString m_strVideoCaptureFilePath;
-    int m_iVideoCaptureFrameWidth;
-    int m_iVideoCaptureFrameHeight;
-    int m_iVideoCaptureFrameRate;
-    int m_iVideoCaptureBitRate;
-    QVector<BOOL> m_screens;
-};
+struct UIDataSettingsMachineDisplay;
 typedef UISettingsCache<UIDataSettingsMachineDisplay> UISettingsCacheMachineDisplay;
 
-/* Machine settings / Display page: */
+
+/** Machine settings: Display page. */
 class UIMachineSettingsDisplay : public UISettingsPageMachine,
                                  public Ui::UIMachineSettingsDisplay
 {
@@ -130,115 +39,150 @@ class UIMachineSettingsDisplay : public UISettingsPageMachine,
 
 public:
 
-    /** Constructor. */
+    /** Constructs Display settings page. */
     UIMachineSettingsDisplay();
+    /** Destructs Display settings page. */
+    ~UIMachineSettingsDisplay();
 
-    /* API: Correlation stuff: */
-    void setGuestOSType(CGuestOSType guestOSType);
+    /** Defines @a comGuestOSType. */
+    void setGuestOSType(CGuestOSType comGuestOSType);
+
 #ifdef VBOX_WITH_VIDEOHWACCEL
+    /** Returns whether 2D Video Acceleration is enabled. */
     bool isAcceleration2DVideoSelected() const;
-#endif /* VBOX_WITH_VIDEOHWACCEL */
+#endif
 
 protected:
 
-    /* API: Cache stuff: */
-    bool changed() const { return m_cache.wasChanged(); }
+    /** Returns whether the page content was changed. */
+    virtual bool changed() const /* override */;
 
-    /* API: Load data to cache from corresponding external object(s),
-     * this task COULD be performed in other than GUI thread: */
-    void loadToCacheFrom(QVariant &data);
-    /* API: Load data to corresponding widgets from cache,
-     * this task SHOULD be performed in GUI thread only: */
-    void getFromCache();
+    /** Loads data into the cache from corresponding external object(s),
+      * this task COULD be performed in other than the GUI thread. */
+    virtual void loadToCacheFrom(QVariant &data) /* override */;
+    /** Loads data into corresponding widgets from the cache,
+      * this task SHOULD be performed in the GUI thread only. */
+    virtual void getFromCache() /* override */;
 
-    /* API: Save data from corresponding widgets to cache,
-     * this task SHOULD be performed in GUI thread only: */
-    void putToCache();
-    /* API: Save data from cache to corresponding external object(s),
-     * this task COULD be performed in other than GUI thread: */
-    void saveFromCacheTo(QVariant &data);
+    /** Saves data from corresponding widgets to the cache,
+      * this task SHOULD be performed in the GUI thread only. */
+    virtual void putToCache() /* override */;
+    /** Saves data from the cache to corresponding external object(s),
+      * this task COULD be performed in other than the GUI thread. */
+    virtual void saveFromCacheTo(QVariant &data) /* overrride */;
 
-    /* API: Validation stuff: */
-    bool validate(QList<UIValidationMessage> &messages);
+    /** Performs validation, updates @a messages list if something is wrong. */
+    virtual bool validate(QList<UIValidationMessage> &messages) /* override */;
 
-    /* Helper: Navigation stuff: */
-    void setOrderAfter(QWidget *pWidget);
+    /** Defines TAB order for passed @a pWidget. */
+    virtual void setOrderAfter(QWidget *pWidget) /* override */;
 
-    /* Helper: Translation stuff: */
-    void retranslateUi();
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */;
 
-    /* Helper: Polishing stuff: */
-    void polishPage();
+    /** Performs final page polishing. */
+    virtual void polishPage() /* override */;
 
 private slots:
 
-    /* Handlers: Screen stuff: */
+    /** Handles Video Memory size slider change. */
     void sltHandleVideoMemorySizeSliderChange();
+    /** Handles Video Memory size editor change. */
     void sltHandleVideoMemorySizeEditorChange();
-    void sltHandleVideoScreenCountSliderChange();
-    void sltHandleVideoScreenCountEditorChange();
+    /** Handles Guest Screen count slider change. */
+    void sltHandleGuestScreenCountSliderChange();
+    /** Handles Guest Screen count editor change. */
+    void sltHandleGuestScreenCountEditorChange();
+    /** Handles Guest Screen scale-factor slider change. */
     void sltHandleGuestScreenScaleSliderChange();
+    /** Handles Guest Screen scale-factor editor change. */
     void sltHandleGuestScreenScaleEditorChange();
 
-    /* Handlers: Video Capture stuff: */
+    /** Handles Video Capture toggle. */
     void sltHandleVideoCaptureCheckboxToggle();
+    /** Handles Video Capture frame size change. */
     void sltHandleVideoCaptureFrameSizeComboboxChange();
+    /** Handles Video Capture frame width change. */
     void sltHandleVideoCaptureFrameWidthEditorChange();
+    /** Handles Video Capture frame height change. */
     void sltHandleVideoCaptureFrameHeightEditorChange();
+    /** Handles Video Capture frame rate slider change. */
     void sltHandleVideoCaptureFrameRateSliderChange();
+    /** Handles Video Capture frame rate editor change. */
     void sltHandleVideoCaptureFrameRateEditorChange();
+    /** Handles Video Capture quality slider change. */
     void sltHandleVideoCaptureQualitySliderChange();
+    /** Handles Video Capture bit-rate editor change. */
     void sltHandleVideoCaptureBitRateEditorChange();
 
 private:
 
-    /** Prepare routine. */
+    /** Prepares all. */
     void prepare();
-    /** Prepare routine: Screen tab. */
-    void prepareScreenTab();
-    /** Prepare routine: Remote Display tab. */
-    void prepareRemoteDisplayTab();
-    /** Prepare routine: Video Capture tab. */
-    void prepareVideoCaptureTab();
-    /** Prepare routine: Validation. */
-    void prepareValidation();
+    /** Prepares 'Screen' tab. */
+    void prepareTabScreen();
+    /** Prepares 'Remote Display' tab. */
+    void prepareTabRemoteDisplay();
+    /** Prepares 'Video Capture' tab. */
+    void prepareTabVideoCapture();
+    /** Prepares connections. */
+    void prepareConnections();
+    /** Cleanups all. */
+    void cleanup();
 
-    /* Helpers: Video stuff: */
+    /** Checks the VRAM requirements. */
     void checkVRAMRequirements();
-    bool shouldWeWarnAboutLowVideoMemory();
-    static int calcPageStep(int iMax);
+    /** Returns whether the VRAM requirements are important. */
+    bool shouldWeWarnAboutLowVRAM();
+    /** Calculates the reasonably sane slider page step. */
+    static int calculatePageStep(int iMax);
 
-    /* Helpers: Video Capture stuff: */
-    void lookForCorrespondingSizePreset();
-    void updateVideoCaptureScreenCount();
-    void updateVideoCaptureSizeHint();
-    static void lookForCorrespondingPreset(QComboBox *pWhere, const QVariant &whichData);
+    /** Searches for corresponding frame size preset. */
+    void lookForCorrespondingFrameSizePreset();
+    /** Updates guest-screen count. */
+    void updateGuestScreenCount();
+    /** Updates video capture file size hint. */
+    void updateVideoCaptureFileSizeHint();
+    /** Searches for the @a data field in corresponding @a pComboBox. */
+    static void lookForCorrespondingPreset(QComboBox *pComboBox, const QVariant &data);
+    /** Calculates Video Capture bit-rate for passed @a iFrameWidth, @a iFrameHeight, @a iFrameRate and @a iQuality. */
     static int calculateBitRate(int iFrameWidth, int iFrameHeight, int iFrameRate, int iQuality);
+    /** Calculates Video Capture quality for passed @a iFrameWidth, @a iFrameHeight, @a iFrameRate and @a iBitRate. */
     static int calculateQuality(int iFrameWidth, int iFrameHeight, int iFrameRate, int iBitRate);
 
-    /* Guest OS type id: */
-    CGuestOSType m_guestOSType;
-    /* System minimum lower limit of VRAM (MiB). */
-    int m_iMinVRAM;
-    /* System maximum limit of VRAM (MiB). */
-    int m_iMaxVRAM;
-    /* Upper limit of VRAM in MiB for this dialog. This value is lower than
-     * m_maxVRAM to save careless users from setting useless big values. */
-    int m_iMaxVRAMVisible;
-    /* Initial VRAM value when the dialog is opened. */
-    int m_iInitialVRAM;
-#ifdef VBOX_WITH_VIDEOHWACCEL
-    /* Specifies whether the guest OS supports 2D video-acceleration: */
-    bool m_f2DVideoAccelerationSupported;
-#endif /* VBOX_WITH_VIDEOHWACCEL */
-#ifdef VBOX_WITH_CRHGSMI
-    /* Specifies whether the guest OS supports WDDM: */
-    bool m_fWddmModeSupported;
-#endif /* VBOX_WITH_CRHGSMI */
+    /** Saves existing display data from the cache. */
+    bool saveDisplayData();
+    /** Saves existing 'Screen' data from the cache. */
+    bool saveScreenData();
+    /** Saves existing 'Remote Display' data from the cache. */
+    bool saveRemoteDisplayData();
+    /** Saves existing 'Video Capture' data from the cache. */
+    bool saveVideoCaptureData();
 
-    /* Cache: */
-    UISettingsCacheMachineDisplay m_cache;
+    /** Holds the guest OS type ID. */
+    CGuestOSType  m_comGuestOSType;
+    /** Holds the minimum lower limit of VRAM (MiB). */
+    int           m_iMinVRAM;
+    /** Holds the maximum upper limit of VRAM (MiB). */
+    int           m_iMaxVRAM;
+    /** Holds the upper limit of VRAM (MiB) for this dialog.
+      * This value is lower than m_iMaxVRAM to save careless
+      * users from setting useless big values. */
+    int           m_iMaxVRAMVisible;
+    /** Holds the initial VRAM value when the dialog is opened. */
+    int           m_iInitialVRAM;
+#ifdef VBOX_WITH_VIDEOHWACCEL
+    /** Holds whether the guest OS supports 2D Video Acceleration. */
+    bool          m_f2DVideoAccelerationSupported;
+#endif
+#ifdef VBOX_WITH_CRHGSMI
+    /** Holds whether the guest OS supports WDDM. */
+    bool          m_fWddmModeSupported;
+#endif
+
+    /** Holds the page data cache instance. */
+    UISettingsCacheMachineDisplay *m_pCache;
 };
 
-#endif // __UIMachineSettingsDisplay_h__
+#endif /* !___UIMachineSettingsDisplay_h___ */
 

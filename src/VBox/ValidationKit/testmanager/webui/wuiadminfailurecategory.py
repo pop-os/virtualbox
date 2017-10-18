@@ -7,7 +7,7 @@ Test Manager WUI - Failure Categories Web content generator.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Validation Kit imports.
@@ -96,7 +96,7 @@ class WuiFailureCategory(WuiFormContentBase):
             tsNow     = self._oDisp.getNow();
             cMax      = 4096;
             aoEntries = oLogic.fetchForListingInCategory(0, cMax, tsNow, oData.idFailureCategory)
-            if len(aoEntries) > 0:
+            if aoEntries:
                 oList = WuiAdminFailureReasonList(aoEntries, 0, cMax, tsNow, fnDPrint = None, oDisp = self._oDisp);
                 return [ [ 'Members', oList.show(fShowNavigation = False)[1]], ];
         return [];
@@ -108,10 +108,10 @@ class WuiFailureCategoryList(WuiListContentBase):
     WUI Admin Failure Category Content Generator.
     """
 
-    def __init__(self, aoEntries, iPage, cItemsPerPage, tsEffective, fnDPrint, oDisp):
+    def __init__(self, aoEntries, iPage, cItemsPerPage, tsEffective, fnDPrint, oDisp, aiSelectedSortColumns = None):
         WuiListContentBase.__init__(self, aoEntries, iPage, cItemsPerPage, tsEffective,
                                     sTitle = 'Failure Categories', sId = 'failureCategories',
-                                    fnDPrint = fnDPrint, oDisp = oDisp);
+                                    fnDPrint = fnDPrint, oDisp = oDisp, aiSelectedSortColumns = aiSelectedSortColumns);
 
         self._asColumnHeaders = ['ID', 'Short Description', 'Full Description', 'Actions' ]
         self._asColumnAttribs = ['align="right"', 'align="center"', 'align="center"', 'align="center"']
@@ -120,17 +120,25 @@ class WuiFailureCategoryList(WuiListContentBase):
         from testmanager.webui.wuiadmin import WuiAdmin
         oEntry = self._aoEntries[iEntry]
 
+        aoActions = [
+            WuiTmLink('Details', WuiAdmin.ksScriptName,
+                      { WuiAdmin.ksParamAction: WuiAdmin.ksActionFailureCategoryDetails,
+                        FailureCategoryData.ksParam_idFailureCategory: oEntry.idFailureCategory }),
+        ];
+        if self._oDisp is None or not self._oDisp.isReadOnlyUser():
+            aoActions += [
+                WuiTmLink('Modify', WuiAdmin.ksScriptName,
+                          { WuiAdmin.ksParamAction: WuiAdmin.ksActionFailureCategoryEdit,
+                            FailureCategoryData.ksParam_idFailureCategory: oEntry.idFailureCategory }),
+                WuiTmLink('Remove', WuiAdmin.ksScriptName,
+                          { WuiAdmin.ksParamAction: WuiAdmin.ksActionFailureCategoryDoRemove,
+                            FailureCategoryData.ksParam_idFailureCategory: oEntry.idFailureCategory },
+                          sConfirm = 'Do you really want to remove failure cateogry #%d?' % (oEntry.idFailureCategory,)),
+            ]
+
         return [ oEntry.idFailureCategory,
                  oEntry.sShort,
                  oEntry.sFull,
-                 [ WuiTmLink('Details', WuiAdmin.ksScriptName,
-                             { WuiAdmin.ksParamAction: WuiAdmin.ksActionFailureCategoryDetails,
-                               FailureCategoryData.ksParam_idFailureCategory: oEntry.idFailureCategory }),
-                   WuiTmLink('Modify', WuiAdmin.ksScriptName,
-                             { WuiAdmin.ksParamAction: WuiAdmin.ksActionFailureCategoryEdit,
-                               FailureCategoryData.ksParam_idFailureCategory: oEntry.idFailureCategory }),
-                   WuiTmLink('Remove', WuiAdmin.ksScriptName,
-                             { WuiAdmin.ksParamAction: WuiAdmin.ksActionFailureCategoryDoRemove,
-                               FailureCategoryData.ksParam_idFailureCategory: oEntry.idFailureCategory },
-                             sConfirm = 'Do you really want to remove failure cateogry #%d?' % (oEntry.idFailureCategory,)),
-        ] ];
+                 aoActions,
+        ];
+

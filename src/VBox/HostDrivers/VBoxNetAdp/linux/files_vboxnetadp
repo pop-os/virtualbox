@@ -1,5 +1,5 @@
 #!/bin/sh
-# $Revision: 115996 $
+# $Revision: 117917 $
 ## @files
 # Shared file between Makefile.kmk and export_modules
 #
@@ -23,6 +23,7 @@ VBOX_VBOXNETADP_SOURCES=" \
     ${PATH_ROOT}/include/iprt/asm-amd64-x86.h=>include/iprt/asm-amd64-x86.h \
     ${PATH_ROOT}/include/iprt/asm-math.h=>include/iprt/asm-math.h \
     ${PATH_ROOT}/include/iprt/assert.h=>include/iprt/assert.h \
+    ${PATH_ROOT}/include/iprt/assertcompile.h=>include/iprt/assertcompile.h \
     ${PATH_ROOT}/include/iprt/avl.h=>include/iprt/avl.h \
     ${PATH_ROOT}/include/iprt/cdefs.h=>include/iprt/cdefs.h \
     ${PATH_ROOT}/include/iprt/cpuset.h=>include/iprt/cpuset.h \
@@ -66,6 +67,8 @@ VBOX_VBOXNETADP_SOURCES=" \
     ${PATH_ROOT}/src/VBox/HostDrivers/VBoxNetAdp/linux/VBoxNetAdp-linux.c=>linux/VBoxNetAdp-linux.c \
     ${PATH_ROOT}/src/VBox/HostDrivers/VBoxNetAdp/VBoxNetAdp.c=>VBoxNetAdp.c \
     ${PATH_ROOT}/src/VBox/HostDrivers/VBoxNetAdp/VBoxNetAdpInternal.h=>VBoxNetAdpInternal.h \
+    ${PATH_ROOT}/src/VBox/Installer/linux/Makefile.include.footer=>Makefile.include.footer \
+    ${PATH_ROOT}/src/VBox/Installer/linux/Makefile.include.header=>Makefile.include.header \
     ${PATH_ROOT}/src/VBox/Runtime/common/math/gcc/divdi3.c=>math/gcc/divdi3.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/math/gcc/moddi3.c=>math/gcc/moddi3.c \
     ${PATH_ROOT}/src/VBox/Runtime/common/math/gcc/qdivrem.c=>math/gcc/qdivrem.c \

@@ -30,11 +30,10 @@
 #ifdef VBOX_WITH_WDDM
 #include <d3d9types.h>
 #include <D3dumddi.h>
-#include "../../WINNT/Graphics/Video/common/wddm/VBoxMPIf.h"
 #endif
 
 #if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
-# include <VBox/VBoxCrHgsmi.h>
+# include <VBoxCrHgsmi.h>
 #endif
 
 /**
@@ -282,7 +281,7 @@ static void SPU_APIENTRY trapScissor(GLint x, GLint y, GLsizei w, GLsizei h)
 #endif /* unused */
 
 /**
- * Use the GL function pointers in <spu> to initialize the static glim
+ * Use the GL function pointers in \<spu\> to initialize the static glim
  * dispatch table.
  */
 static void stubInitSPUDispatch(SPU *spu)
@@ -785,26 +784,6 @@ static void stubDispatchVisibleRegions(WindowInfo *pWindow)
     else crWarning("GetRegionData failed, VisibleRegions update failed");
 }
 
-static HRGN stubMakeRegionFromRects(PVBOXVIDEOCM_CMD_RECTS pRegions, uint32_t start)
-{
-    HRGN hRgn, hTmpRgn;
-    uint32_t i;
-
-    if (pRegions->RectsInfo.cRects<=start)
-    {
-        return INVALID_HANDLE_VALUE;
-    }
-
-    hRgn = CreateRectRgn(0, 0, 0, 0);
-    for (i=start; i<pRegions->RectsInfo.cRects; ++i)
-    {
-        hTmpRgn = CreateRectRgnIndirect(&pRegions->RectsInfo.aRects[i]);
-        CombineRgn(hRgn, hRgn, hTmpRgn, RGN_OR);
-        DeleteObject(hTmpRgn);
-    }
-    return hRgn;
-}
-
 # endif /* VBOX_WITH_WDDM */
 
 static void stubSyncTrCheckWindowsCB(unsigned long key, void *data1, void *data2)
@@ -1211,6 +1190,7 @@ static MINIDUMP_TYPE g_enmVBoxMdDumpType = MiniDumpNormal
 
 static HMODULE loadSystemDll(const char *pszName)
 {
+#ifndef DEBUG
     char   szPath[MAX_PATH];
     UINT   cchPath = GetSystemDirectoryA(szPath, sizeof(szPath));
     size_t cbName  = strlen(pszName) + 1;
@@ -1222,6 +1202,9 @@ static HMODULE loadSystemDll(const char *pszName)
     szPath[cchPath] = '\\';
     memcpy(&szPath[cchPath + 1], pszName, cbName);
     return LoadLibraryA(szPath);
+#else
+    return LoadLibraryA(pszName);
+#endif
 }
 
 static DWORD vboxMdMinidumpCreate(struct _EXCEPTION_POINTERS *pExceptionInfo)

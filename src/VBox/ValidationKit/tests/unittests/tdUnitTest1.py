@@ -8,7 +8,7 @@ VirtualBox Validation Kit - Unit Tests.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2016 Oracle Corporation
+Copyright (C) 2010-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,14 +27,13 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard Python imports.
 import os
 import sys
 import re
-import subprocess
 
 
 # Only the main script needs to modify the path.
@@ -63,6 +62,10 @@ class tdUnitTest1(vbox.TestDriver):
         'linux': {
             'testcase/tstRTFileAio': '',                # See xTracker #8035.
         },
+        'linux.amd64': {
+            'testcase/tstLdr-4': '',        # failed: Failed to get bits for '/home/vbox/test/tmp/bin/testcase/tstLdrObjR0.r0'/0,
+                                                        # rc=VERR_SYMBOL_VALUE_TOO_BIG. aborting test
+        },
         'solaris': {
             'testcase/tstIntNet-1': '',                 # Fails opening rge0, probably a generic issue figuring which nic to use.
             'testcase/tstIprtList': '',                 # Crashes in the multithreaded test, I think.
@@ -71,6 +74,10 @@ class tdUnitTest1(vbox.TestDriver):
             'testcase/tstRTSemRW': '',                  # line 338: RTSemRWReleaseRead(hSemRW): got VERR_ACCESS_DENIED
             'testcase/tstRTStrAlloc': '',               # VERR_NO_STR_MEMORY!
             'testcase/tstRTFileGetSize-1': '',          # VERR_DEV_IO_ERROR on /dev/null!
+        },
+        'solaris.amd64': {
+            'testcase/tstLdr-4': '',        # failed: Failed to get bits for '/home/vbox/test/tmp/bin/testcase/tstLdrObjR0.r0'/0,
+                                                        # rc=VERR_SYMBOL_VALUE_TOO_BIG. aborting test
         },
         'win': {
             'testcase/tstFile': '',                     # ??
@@ -180,8 +187,6 @@ class tdUnitTest1(vbox.TestDriver):
         'testcase/tstCryptoPkcs7Sign': '',# failed: 29330:error:02001002:lib(2):func(1):reason(2):NA:0:fopen('server.pem': '','r')
         'testcase/tstCompressionBenchmark': '', # failed: error: RTZipBlockCompress failed
                                                 # for 'RTZipBlock/LZJB' (#4): VERR_NOT_SUPPORTED
-        'testcase/tstLdr-4': '',            # failed: Failed to get bits for '/home/vbox/test/tmp/bin/testcase/tstLdrObjR0.r0'/0,
-                                            # rc=VERR_SYMBOL_VALUE_TOO_BIG. aborting test
         'tstPDMAsyncCompletionStress': '',  # VERR_INVALID_PARAMETER (cbSize = 0)
         'tstMicro': '',                     # doesn't work on solaris, fix later if we care.
         'tstVMM-HwAccm': '',                # failed: Only checked AMD-V on linux
@@ -340,7 +345,7 @@ class tdUnitTest1(vbox.TestDriver):
             if not sPathName in os.environ:
                 sPathName = 'Path';
             sPath = os.environ.get(sPathName, '.');
-            if len(sPath) > 0 and sPath[-1] != ';':
+            if sPath and sPath[-1] != ';':
                 sPath += ';';
             os.environ[sPathName] = sPath + self.sVBoxInstallRoot + ';';
 
@@ -457,7 +462,7 @@ class tdUnitTest1(vbox.TestDriver):
                     # Convert the version value, making sure we've got a valid one.
                     try:    aiValue = [int(sComp) for sComp in sValue.replace('r', '.').split('.')];
                     except: aiValue = ();
-                    if len(aiValue) == 0 or len(aiValue) > 4:
+                    if not aiValue or len(aiValue) > 4:
                         reporter.error('Invalid exclusion expression for %s: "%s" [%s]' % (sTest, sSubExpr, dExclList[sTest]));
                         return True;
 
@@ -632,7 +637,7 @@ class tdUnitTest1(vbox.TestDriver):
                 if fHardened:
                     oChild = utils.sudoProcessPopen(asArgs, stdin = oDevNull, stdout = sys.stdout, stderr = sys.stdout);
                 else:
-                    oChild = subprocess.Popen(      asArgs, stdin = oDevNull, stdout = sys.stdout, stderr = sys.stdout);
+                    oChild = utils.processPopenSafe(asArgs, stdin = oDevNull, stdout = sys.stdout, stderr = sys.stdout);
             except:
                 if sName in [ 'tstAsmStructsRC',    # 32-bit, may fail to start on 64-bit linux. Just ignore.
                             ]:
@@ -644,7 +649,7 @@ class tdUnitTest1(vbox.TestDriver):
                 oChild = None;
 
             if oChild is not None:
-                self.pidFileAdd(oChild.pid, fSudo = fHardened);
+                self.pidFileAdd(oChild.pid, sName, fSudo = fHardened);
                 iRc = oChild.wait();
                 self.pidFileRemove(oChild.pid);
         else:

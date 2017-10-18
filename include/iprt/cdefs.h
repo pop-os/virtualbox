@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1062,7 +1062,11 @@
  */
 #ifdef RT_EXCEPTIONS_ENABLED
 # ifdef __GNUC__
-#  define RT_NO_THROW_PROTO     __attribute__((__nothrow__))
+#  if RT_GNUC_PREREQ(3, 3)
+#   define RT_NO_THROW_PROTO    __attribute__((__nothrow__))
+#  else
+#   define RT_NO_THROW_PROTO
+#  endif
 # else
 #  define RT_NO_THROW_PROTO     throw()
 # endif
@@ -1103,6 +1107,21 @@
 #else
 # define RT_THROW(type)
 #endif
+
+
+/** @def RT_FALL_THROUGH
+ * Tell the compiler that we're falling through to the next case in a switch.
+ * @sa RT_FALL_THRU  */
+#if RT_GNUC_PREREQ(7, 0)
+# define RT_FALL_THROUGH()      __attribute__((fallthrough))
+#else
+# define RT_FALL_THROUGH()      (void)0
+#endif
+/** @def RT_FALL_THRU
+ * Tell the compiler that we're falling thru to the next case in a switch.
+ * @sa RT_FALL_THROUGH */
+#define RT_FALL_THRU()          RT_FALL_THROUGH()
+
 
 /** @def RT_IPRT_FORMAT_ATTR
  * Identifies a function taking an IPRT format string.
@@ -1289,7 +1308,7 @@
  * How to declare an call back function type.
  * @param   type    The return type of the function declaration.
  */
-#define DECLCALLBACK(type)      type RTCALL
+#define DECLCALLBACK(type)      type RT_FAR_CODE RTCALL
 
 /** @def DECLCALLBACKPTR
  * How to declare an call back function pointer.
@@ -1299,7 +1318,7 @@
 #if defined(__IBMC__) || defined(__IBMCPP__)
 # define DECLCALLBACKPTR(type, name)    type (* RTCALL name)
 #else
-# define DECLCALLBACKPTR(type, name)    type (RTCALL * name)
+# define DECLCALLBACKPTR(type, name)    type (RT_FAR_CODE RTCALL * name)
 #endif
 
 /** @def DECLCALLBACKMEMBER
@@ -1310,7 +1329,7 @@
 #if defined(__IBMC__) || defined(__IBMCPP__)
 # define DECLCALLBACKMEMBER(type, name) type (* RTCALL name)
 #else
-# define DECLCALLBACKMEMBER(type, name) type (RTCALL * name)
+# define DECLCALLBACKMEMBER(type, name) type (RT_FAR_CODE RTCALL * name)
 #endif
 
 /** @def DECLR3CALLBACKMEMBER
@@ -2310,7 +2329,8 @@
  */
 #if RT_MSC_PREREQ(RT_MSC_VER_VS2005) /** @todo Probably much much earlier. */ \
  || (defined(__cplusplus) && RT_GNUC_PREREQ(6, 1) && !RT_GNUC_PREREQ(7, 0)) /* gcc-7 warns again */\
- || defined(__WATCOMC__) /* openwatcom 1.9 supports it, we don't care about older atm. */
+ || defined(__WATCOMC__) /* openwatcom 1.9 supports it, we don't care about older atm. */ \
+ || RT_CLANG_PREREQ_EX(3, 4, 0) /* Only tested clang v3.4, support is probably older. */
 # define RT_FLEXIBLE_ARRAY
 # if defined(__cplusplus) && defined(_MSC_VER)
 #  pragma warning(disable:4200) /* -wd4200 does not work with VS2010 */
@@ -3634,15 +3654,45 @@
 /* 4.5 or later, I think, if in ++11 mode... */
 #endif
 
-/** @def RT_FAR_DATA
+/** @def RT_DATA_IS_FAR
  * Set to 1 if we're in 16-bit mode and use far pointers.
  */
 #if ARCH_BITS == 16 && defined(__WATCOMC__) \
   && (defined(__COMPACT__) || defined(__LARGE__))
-# define RT_FAR_DATA 1
+# define RT_DATA_IS_FAR 1
 #else
-# define RT_FAR_DATA 0
+# define RT_DATA_IS_FAR 0
 #endif
+
+/** @def RT_FAR
+ * For indicating far pointers in 16-bit code.
+ * Does nothing in 32-bit and 64-bit code. */
+/** @def RT_NEAR
+ * For indicating near pointers in 16-bit code.
+ * Does nothing in 32-bit and 64-bit code. */
+/** @def RT_FAR_CODE
+ * For indicating far 16-bit functions.
+ * Does nothing in 32-bit and 64-bit code. */
+/** @def RT_NEAR_CODE
+ * For indicating near 16-bit functions.
+ * Does nothing in 32-bit and 64-bit code. */
+/** @def RT_FAR_DATA
+ * For indicating far 16-bit external data, i.e. in a segment other than DATA16.
+ * Does nothing in 32-bit and 64-bit code. */
+#if ARCH_BITS == 16
+# define RT_FAR            __far
+# define RT_NEAR           __near
+# define RT_FAR_CODE       __far
+# define RT_NEAR_CODE      __near
+# define RT_FAR_DATA       __far
+#else
+# define RT_FAR
+# define RT_NEAR
+# define RT_FAR_CODE
+# define RT_NEAR_CODE
+# define RT_FAR_DATA
+#endif
+
 
 /** @} */
 

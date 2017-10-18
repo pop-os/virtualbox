@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,8 +34,8 @@
 #undef RT_MAX
 
 #include <iprt/err.h>
+#include <iprt/log.h>
 #include <iprt/assert.h>
-#include <iprt/err.h>
 
 
 RTDECL(int)  RTErrConvertFromOS2(unsigned uNativeCode)
@@ -171,7 +171,7 @@ RTDECL(int)  RTErrConvertFromOS2(unsigned uNativeCode)
     }
 
     /* unknown error. */
-    AssertMsgFailed(("Unhandled error %u\n", uNativeCode));
+    AssertLogRelMsgFailed(("Unhandled error %u\n", uNativeCode));
     return VERR_UNRESOLVED_ERROR;
 }
 

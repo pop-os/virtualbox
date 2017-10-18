@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -406,20 +406,12 @@ static RTEXITCODE gzipOpenInput(const char *pszFile, PRTGZIPCMDOPTS pOpts, PRTVF
     }
     else
     {
-        const char *pszError;
-        rc = RTVfsChainOpenIoStream(pszFile, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_WRITE, phVfsIos, &pszError);
+        uint32_t        offError = 0;
+        RTERRINFOSTATIC ErrInfo;
+        rc = RTVfsChainOpenIoStream(pszFile, RTFILE_O_READ | RTFILE_O_OPEN | RTFILE_O_DENY_WRITE,
+                                    phVfsIos, &offError, RTErrInfoInitStatic(&ErrInfo));
         if (RT_FAILURE(rc))
-        {
-            if (pszError && *pszError)
-                return RTMsgErrorExit(RTEXITCODE_FAILURE,
-                                      "RTVfsChainOpenIoStream failed with rc=%Rrc:\n"
-                                      "    '%s'\n"
-                                      "     %*s^\n",
-                                      rc, pszFile, pszError - pszFile, "");
-            return RTMsgErrorExit(RTEXITCODE_FAILURE,
-                                  "RTVfsChainOpenIoStream failed with rc=%Rrc: '%s'",
-                                  rc, pszFile);
-        }
+            return RTVfsChainMsgErrorExitFailure("RTVfsChainOpenIoStream", pszFile, rc, offError, &ErrInfo.Core);
     }
 
     return RTEXITCODE_SUCCESS;
@@ -511,14 +503,17 @@ RTEXITCODE RTZipGzipCmd(unsigned cArgs, char **papszArgs)
                     return rcExit;
                 ValueUnion.psz = "-";
                 Opts.fStdOut = true;
-                /* Fall thru. */
+                RT_FALL_THRU();
             case VINF_GETOPT_NOT_OPTION:
             {
                 if (!*Opts.pszSuff && !Opts.fStdOut)
                     return RTMsgErrorExit(RTEXITCODE_SYNTAX, "The --suffix option specified an empty string");
                 if (!Opts.fStdOut && RTVfsChainIsSpec(ValueUnion.psz))
                     return RTMsgErrorExit(RTEXITCODE_SYNTAX, "Must use standard out with VFS chain specifications");
-                if (Opts.fName)
+                if (   Opts.fName
+                    && !Opts.fList
+                    && !Opts.fTest
+                    && !Opts.fDecompress)
                     return RTMsgErrorExit(RTEXITCODE_SYNTAX, "The --name option has not yet been implemented. Use --no-name.");
                 if (Opts.fAscii)
                     return RTMsgErrorExit(RTEXITCODE_SYNTAX, "The --ascii option has not yet been implemented.");

@@ -133,6 +133,8 @@
 # define USAGE_GSTCTRL_WATCH        RT_BIT(14)
 #endif
 
+#define USAGE_UNATTENDEDINSTALL     RT_BIT(27)
+
 typedef uint64_t USAGECATEGORY;
 
 /** command handler argument */
@@ -273,6 +275,7 @@ RTEXITCODE handleSetExtraData(HandlerArg *a);
 RTEXITCODE handleSetProperty(HandlerArg *a);
 RTEXITCODE handleSharedFolder(HandlerArg *a);
 RTEXITCODE handleExtPack(HandlerArg *a);
+RTEXITCODE handleUnattended(HandlerArg *a);
 
 /* VBoxManageDisk.cpp */
 HRESULT openMedium(HandlerArg *a, const char *pszFilenameOrUuid,
@@ -326,4 +329,3 @@ RTEXITCODE handleBandwidthControl(HandlerArg *a);
 #endif /* !VBOX_ONLY_DOCS */
 
 #endif /* !___H_VBOXMANAGE */
-

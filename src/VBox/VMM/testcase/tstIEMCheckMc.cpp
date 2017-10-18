@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2016 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -118,11 +118,11 @@ typedef VBOXSTRICTRC (* PFNIEMOPRM)(PVMCPU pVCpu, uint8_t bRm);
 #define IEMOP_HLP_64BIT_OP_SIZE()                           do { } while (0)
 #define IEMOP_HLP_DEFAULT_64BIT_OP_SIZE()                   do { } while (0)
 #define IEMOP_HLP_CLEAR_REX_NOT_BEFORE_OPCODE(a_szPrf)      do { } while (0)
-#define IEMOP_HLP_DONE_VEX_DECODING_L0_AND_NO_VVVV()         do { } while (0)
 #define IEMOP_HLP_DONE_DECODING_NO_LOCK_PREFIX()            do { } while (0)
-#define IEMOP_HLP_DONE_VEX_DECODING()             do { } while (0)
-#define IEMOP_HLP_DONE_VEX_DECODING_L0()      do { } while (0)
-#define IEMOP_HLP_DONE_VEX_DECODING_NO_VVVV() do { } while (0)
+#define IEMOP_HLP_DONE_VEX_DECODING()                       do { } while (0)
+#define IEMOP_HLP_DONE_VEX_DECODING_L0()                    do { } while (0)
+#define IEMOP_HLP_DONE_VEX_DECODING_NO_VVVV()               do { } while (0)
+#define IEMOP_HLP_DONE_VEX_DECODING_L0_AND_NO_VVVV()        do { } while (0)
 #define IEMOP_HLP_DONE_DECODING_NO_LOCK_REPZ_OR_REPNZ_PREFIXES()                                    do { } while (0)
 
 
@@ -502,6 +502,7 @@ IEMOPMEDIAF2 g_iemAImpl_pcmpeqd;
 #define IEM_MC_FLIP_EFL_BIT(a_fBit)                     do { CHK_SINGLE_BIT(uint32_t, a_fBit); } while (0)
 #define IEM_MC_CLEAR_FSW_EX()                           do { } while (0)
 #define IEM_MC_FPU_TO_MMX_MODE()                        do { (void)fFpuWrite; } while (0)
+#define IEM_MC_FPU_FROM_MMX_MODE()                      do { } while (0)
 
 #define IEM_MC_FETCH_MREG_U64(a_u64Value, a_iMReg)          do { (a_u64Value) = 0; CHK_TYPE(uint64_t, a_u64Value); (void)fFpuRead; } while (0)
 #define IEM_MC_FETCH_MREG_U32(a_u32Value, a_iMReg)          do { (a_u32Value) = 0; CHK_TYPE(uint32_t, a_u32Value); (void)fFpuRead; } while (0)

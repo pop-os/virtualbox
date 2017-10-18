@@ -91,11 +91,17 @@ void MediumAttachment::FinalRelease()
  *
  * @param aParent           Machine object.
  * @param aMedium           Medium object.
- * @param aController       Controller the hard disk is attached to.
+ * @param aControllerName   Controller the hard disk is attached to.
  * @param aPort             Port number.
  * @param aDevice           Device number on the port.
+ * @param aType             Device type.
+ * @param aImplicit
  * @param aPassthrough      Whether accesses are directly passed to the host drive.
- * @param aBandwidthLimit   Bandwidth limit in Mbps
+ * @param aTempEject        Whether guest-triggered eject results in unmounting the medium.
+ * @param aNonRotational    Whether this medium is non-rotational (aka SSD).
+ * @param aDiscard          Whether this medium supports discarding unused blocks.
+ * @param aHotPluggable     Whether this medium is hot-pluggable.
+ * @param strBandwidthGroup Bandwidth group.
  */
 HRESULT MediumAttachment::init(Machine *aParent,
                                Medium *aMedium,
@@ -507,7 +513,7 @@ void MediumAttachment::i_updateName(const Utf8Str &aName)
 void MediumAttachment::i_updateMedium(const ComObjPtr<Medium> &aMedium)
 {
     Assert(isWriteLockOnCurrentThread());
-    Assert(!m->pMachine->i_isSnapshotMachine());
+    /* No assertion for a snapshot. Method used in deleting snapshot. */
 
     m->bd.backup();
     m->bd->pMedium = aMedium;

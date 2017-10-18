@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,6 +32,7 @@
 #define ___iprt_formats_omf_h
 
 #include <iprt/stdint.h>
+#include <iprt/assertcompile.h>
 
 
 /** @defgroup grp_rt_formats_omf     Relocatable Object Module Format (OMF) structures and definitions
@@ -51,6 +52,7 @@ typedef struct OMFRECHDR
     uint16_t        cbLen;
 } OMFRECHDR;
 #pragma pack()
+AssertCompileSize(OMFRECHDR, 3);
 /** Pointer to an OMF header. */
 typedef OMFRECHDR *POMFRECHDR;
 /** Pointer to a const OMF header. */

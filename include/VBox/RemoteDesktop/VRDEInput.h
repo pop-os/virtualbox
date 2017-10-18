@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2013-2016 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +26,7 @@
 #ifndef ___VBox_RemoteDesktop_VRDEInput_h
 #define ___VBox_RemoteDesktop_VRDEInput_h
 
+#include <VBox/RemoteDesktop/VRDE.h>
 
 /*
  * Interface for receiving input events from the client.

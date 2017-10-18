@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -769,6 +769,10 @@ typedef const X86CPUIDFEATEDX *PCX86CPUIDFEATEDX;
 #define X86_CPUID_SVM_FEATURE_EDX_PAUSE_FILTER_THRESHOLD    RT_BIT(12)
 /** Bit 13 - AVIC - Advanced Virtual Interrupt Controller. */
 #define X86_CPUID_SVM_FEATURE_EDX_AVIC                      RT_BIT(13)
+/** Bit 15 - V_VMSAVE_VMLOAD - Supports virtualized VMSAVE/VMLOAD. */
+#define X86_CPUID_SVM_FEATURE_EDX_VIRT_VMSAVE_VMLOAD        RT_BIT(15)
+/** Bit 16 - V_VMSAVE_VMLOAD - Supports virtualized GIF. */
+#define X86_CPUID_SVM_FEATURE_EDX_VGIF                      RT_BIT(16)
 /** @} */
 
 
@@ -1300,6 +1304,15 @@ AssertCompile(X86_DR7_ANY_RW_IO(UINT32_C(0x00040000)) == 0);
 #define MSR_IA32_VMX_PROCBASED_CTLS2        0x48B
 /** EPT capabilities. */
 #define MSR_IA32_VMX_EPT_VPID_CAP           0x48C
+/** Allowed settings of all pin-based VM execution controls. */
+#define MSR_IA32_VMX_TRUE_PINBASED_CTLS     0x48D
+/** Allowed settings of all proc-based VM execution controls. */
+#define MSR_IA32_VMX_TRUE_PROCBASED_CTLS    0x48E
+/** Allowed settings of all VMX exit controls. */
+#define MSR_IA32_VMX_TRUE_EXIT_CTLS         0x48F
+/** Allowed settings of all VMX entry controls. */
+#define MSR_IA32_VMX_TRUE_ENTRY_CTLS        0x490
+
 /** DS Save Area (R/W). */
 #define MSR_IA32_DS_AREA                    0x600
 /** Running Average Power Limit (RAPL) power units. */

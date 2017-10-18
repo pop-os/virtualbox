@@ -7,7 +7,7 @@ Test Manager WUI - User accounts.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 # Validation Kit imports.
 from testmanager.webui.wuicontentbase   import WuiFormContentBase, WuiListContentBase, WuiTmLink;
@@ -56,6 +56,7 @@ class WuiUserAccount(WuiFormContentBase):
         oForm.addText(       UserAccountData.ksParam_sUsername,   oData.sUsername,   'User name')
         oForm.addText(       UserAccountData.ksParam_sFullName,   oData.sFullName,   'Full name')
         oForm.addText(       UserAccountData.ksParam_sEmail,      oData.sEmail,      'E-mail')
+        oForm.addCheckBox(   UserAccountData.ksParam_fReadOnly,   oData.fReadOnly,   'Only read access')
         if self._sMode != WuiFormContentBase.ksMode_Show:
             oForm.addSubmit('Add User' if self._sMode == WuiFormContentBase.ksMode_Add else 'Change User');
         return True;
@@ -66,23 +67,34 @@ class WuiUserAccountList(WuiListContentBase):
     WUI user account list content generator.
     """
 
-    def __init__(self, aoEntries, iPage, cItemsPerPage, tsEffective, fnDPrint, oDisp):
+    def __init__(self, aoEntries, iPage, cItemsPerPage, tsEffective, fnDPrint, oDisp, aiSelectedSortColumns = None):
         WuiListContentBase.__init__(self, aoEntries, iPage, cItemsPerPage, tsEffective,
-                                    sTitle = 'Registered User Accounts', sId = 'users', fnDPrint = fnDPrint, oDisp = oDisp);
-        self._asColumnHeaders = ['User ID', 'Name', 'E-mail', 'Full Name', 'Login Name', 'Actions'];
+                                    sTitle = 'Registered User Accounts', sId = 'users', fnDPrint = fnDPrint, oDisp = oDisp,
+                                    aiSelectedSortColumns = aiSelectedSortColumns);
+        self._asColumnHeaders = ['User ID', 'Name', 'E-mail', 'Full Name', 'Login Name', 'Access', 'Actions'];
         self._asColumnAttribs = ['align="center"', 'align="center"', 'align="center"', 'align="center"', 'align="center"',
-                                 'align="center"'];
+                                 'align="center"', 'align="center"', ];
 
     def _formatListEntry(self, iEntry):
         from testmanager.webui.wuiadmin import WuiAdmin;
         oEntry  = self._aoEntries[iEntry];
+        aoActions = [
+            WuiTmLink('Details', WuiAdmin.ksScriptName,
+                      { WuiAdmin.ksParamAction: WuiAdmin.ksActionUserDetails,
+                        UserAccountData.ksParam_uid: oEntry.uid } ),
+        ];
+        if self._oDisp is None or not self._oDisp.isReadOnlyUser():
+            aoActions += [
+                WuiTmLink('Modify', WuiAdmin.ksScriptName,
+                          { WuiAdmin.ksParamAction: WuiAdmin.ksActionUserEdit,
+                            UserAccountData.ksParam_uid: oEntry.uid } ),
+                WuiTmLink('Remove', WuiAdmin.ksScriptName,
+                          { WuiAdmin.ksParamAction: WuiAdmin.ksActionUserDelPost,
+                            UserAccountData.ksParam_uid: oEntry.uid },
+                          sConfirm = 'Are you sure you want to remove user #%d?' % (oEntry.uid,)),
+            ];
+
         return [ oEntry.uid, oEntry.sUsername, oEntry.sEmail, oEntry.sFullName, oEntry.sLoginName,
-                 [ WuiTmLink('Modify', WuiAdmin.ksScriptName,
-                             { WuiAdmin.ksParamAction: WuiAdmin.ksActionUserEdit,
-                               UserAccountData.ksParam_uid: oEntry.uid } ),
-                   WuiTmLink('Remove', WuiAdmin.ksScriptName,
-                             { WuiAdmin.ksParamAction: WuiAdmin.ksActionUserDelPost,
-                               UserAccountData.ksParam_uid: oEntry.uid },
-                             sConfirm = 'Are you sure you want to remove user #%d?' % (oEntry.uid,)),
-               ] ];
+                 'read only' if oEntry.fReadOnly else 'full',
+                 aoActions, ];
 

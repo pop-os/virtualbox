@@ -203,11 +203,14 @@ public:
 
     HRESULT i_fixParentUuidOfChildren(MediumLockList *pChildrenToReparent);
 
+    HRESULT i_addRawToFss(const char *aFilename, SecretKeyStore *pKeyStore, RTVFSFSSTREAM hVfsFssDst,
+                          const ComObjPtr<Progress> &aProgress, bool fSparse);
+
     HRESULT i_exportFile(const char *aFilename,
                          const ComObjPtr<MediumFormat> &aFormat,
                          MediumVariant_T aVariant,
                          SecretKeyStore *pKeyStore,
-                         PVDINTERFACEIO aVDImageIOIf, void *aVDImageIOUser,
+                         RTVFSIOSTREAM hVfsIosDst,
                          const ComObjPtr<Progress> &aProgress);
     HRESULT i_importFile(const char *aFilename,
                         const ComObjPtr<MediumFormat> &aFormat,
@@ -361,6 +364,10 @@ private:
     static DECLCALLBACK(int) i_vdCryptoKeyStoreReturnParameters(void *pvUser, const char *pszCipher,
                                                                 const uint8_t *pbDek, size_t cbDek);
 
+    struct CryptoFilterSettings;
+    HRESULT i_openHddForReading(SecretKeyStore *pKeyStore, PVDISK *ppHdd, MediumLockList *pMediumLockList,
+                                struct CryptoFilterSettings *pCryptoSettingsRead);
+
     class Task;
     class CreateBaseTask;
     class CreateDiffTask;
@@ -371,7 +378,6 @@ private:
     class ResetTask;
     class DeleteTask;
     class MergeTask;
-    class ExportTask;
     class ImportTask;
     class EncryptTask;
     friend class Task;
@@ -384,7 +390,6 @@ private:
     friend class ResetTask;
     friend class DeleteTask;
     friend class MergeTask;
-    friend class ExportTask;
     friend class ImportTask;
     friend class EncryptTask;
 
@@ -397,11 +402,9 @@ private:
     HRESULT i_taskResetHandler(Medium::ResetTask &task);
     HRESULT i_taskCompactHandler(Medium::CompactTask &task);
     HRESULT i_taskResizeHandler(Medium::ResizeTask &task);
-    HRESULT i_taskExportHandler(Medium::ExportTask &task);
     HRESULT i_taskImportHandler(Medium::ImportTask &task);
     HRESULT i_taskEncryptHandler(Medium::EncryptTask &task);
 
-    struct CryptoFilterSettings;
     void i_taskEncryptSettingsSetup(CryptoFilterSettings *pSettings, const char *pszCipher,
                                     const char *pszKeyStore,  const char *pszPassword,
                                     bool fCreateKeyStore);
@@ -410,5 +413,5 @@ private:
     Data *m;
 };
 
-#endif /* ____H_MEDIUMIMPL */
+#endif /* !____H_MEDIUMIMPL */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2016,7 +2016,7 @@ int pgmR3PhysRamZeroAll(PVM pVM)
                             case PGM_PAGE_STATE_WRITE_MONITORED:
                                 rc = pgmPhysPageMakeWritable(pVM, pPage, pRam->GCPhys + ((RTGCPHYS)iPage << PAGE_SHIFT));
                                 AssertLogRelRCReturn(rc, rc);
-                                /* fall thru */
+                                RT_FALL_THRU();
 
                             case PGM_PAGE_STATE_ALLOCATED:
                                 if (pVM->pgm.s.fZeroRamPagesOnReset)
@@ -2697,7 +2697,7 @@ static int pgmR3PhysMMIOExCreate(PVM pVM, PPDMDEVINS pDevIns, uint32_t iSubDev, 
         pNew->RamRange.GCPhys       = NIL_RTGCPHYS;
         pNew->RamRange.GCPhysLast   = NIL_RTGCPHYS;
         pNew->RamRange.pszDesc      = pszDesc;
-        pNew->RamRange.cb           = (RTGCPHYS)cPagesTrackedByChunk << X86_PAGE_SHIFT;
+        pNew->RamRange.cb           = pNew->cbReal = (RTGCPHYS)cPagesTrackedByChunk << X86_PAGE_SHIFT;
         pNew->RamRange.fFlags      |= PGM_RAM_RANGE_FLAGS_AD_HOC_MMIO_EX;
         //pNew->RamRange.pvR3       = NULL;
         //pNew->RamRange.paLSPages  = NULL;
@@ -3162,7 +3162,7 @@ VMMR3DECL(int) PGMR3PhysMMIOExDeregister(PVM pVM, PPDMDEVINS pDevIns, uint32_t i
             /*
              * Free the memory.
              */
-            uint32_t const cPages = pCur->RamRange.cb >> PAGE_SHIFT;
+            uint32_t const cPages = pCur->cbReal >> PAGE_SHIFT;
             if (pCur->fFlags & PGMREGMMIORANGE_F_MMIO2)
             {
                 int rc2 = SUPR3PageFreeEx(pCur->pvR3, cPages);
@@ -3673,6 +3673,84 @@ VMMR3DECL(int) PGMR3PhysMMIOExUnmap(PVM pVM, PPDMDEVINS pDevIns, uint32_t iSubDe
 #endif
 
     return VINF_SUCCESS;
+}
+
+
+/**
+ * Reduces the mapping size of a MMIO2 or pre-registered MMIO region.
+ *
+ * This is mainly for dealing with old saved states after changing the default
+ * size of a mapping region.  See PGMDevHlpMMIOExReduce and
+ * PDMPCIDEV::pfnRegionLoadChangeHookR3.
+ *
+ * The region must not currently be mapped when making this call.  The VM state
+ * must be state restore or VM construction.
+ *
+ * @returns VBox status code.
+ * @param   pVM             The cross context VM structure.
+ * @param   pDevIns         The device instance owning the region.
+ * @param   iSubDev         The sub-device number of the registered region.
+ * @param   iRegion         The index of the registered region.
+ * @param   cbRegion        The new mapping size.
+ */
+VMMR3_INT_DECL(int) PGMR3PhysMMIOExReduce(PVM pVM, PPDMDEVINS pDevIns, uint32_t iSubDev, uint32_t iRegion, RTGCPHYS cbRegion)
+{
+    /*
+     * Validate input
+     */
+    VM_ASSERT_EMT_RETURN(pVM, VERR_VM_THREAD_NOT_EMT);
+    AssertPtrReturn(pDevIns, VERR_INVALID_PARAMETER);
+    AssertReturn(iSubDev <= UINT8_MAX, VERR_INVALID_PARAMETER);
+    AssertReturn(iRegion <= UINT8_MAX, VERR_INVALID_PARAMETER);
+    AssertReturn(cbRegion >= X86_PAGE_SIZE, VERR_INVALID_PARAMETER);
+    AssertReturn(!(cbRegion & X86_PAGE_OFFSET_MASK), VERR_UNSUPPORTED_ALIGNMENT);
+    VMSTATE enmVmState = VMR3GetState(pVM);
+    AssertLogRelMsgReturn(   enmVmState == VMSTATE_CREATING
+                          || enmVmState == VMSTATE_LOADING,
+                          ("enmVmState=%d (%s)\n", enmVmState, VMR3GetStateName(enmVmState)),
+                          VERR_VM_INVALID_VM_STATE);
+
+    int rc = pgmLock(pVM);
+    AssertRCReturn(rc, rc);
+
+    PPGMREGMMIORANGE pFirstMmio = pgmR3PhysMMIOExFind(pVM, pDevIns, iSubDev, iRegion);
+    if (pFirstMmio)
+    {
+        Assert(pFirstMmio->fFlags & PGMREGMMIORANGE_F_FIRST_CHUNK);
+        if (!(pFirstMmio->fFlags & PGMREGMMIORANGE_F_MAPPED))
+        {
+            /*
+             * NOTE! Current implementation does not support multiple ranges.
+             *       Implement when there is a real world need and thus a testcase.
+             */
+            AssertLogRelMsgStmt(pFirstMmio->fFlags & PGMREGMMIORANGE_F_LAST_CHUNK,
+                                ("%s: %#x\n", pFirstMmio->RamRange.pszDesc, pFirstMmio->fFlags),
+                                rc = VERR_NOT_SUPPORTED);
+            if (RT_SUCCESS(rc))
+            {
+                /*
+                 * Make the change.
+                 */
+                Log(("PGMR3PhysMMIOExReduce: %s changes from %RGp bytes (%RGp) to %RGp bytes.\n",
+                     pFirstMmio->RamRange.pszDesc, pFirstMmio->RamRange.cb, pFirstMmio->cbReal, cbRegion));
+
+                AssertLogRelMsgStmt(cbRegion <= pFirstMmio->cbReal,
+                                    ("%s: cbRegion=%#RGp cbReal=%#RGp\n", pFirstMmio->RamRange.pszDesc, cbRegion, pFirstMmio->cbReal),
+                                    rc = VERR_OUT_OF_RANGE);
+                if (RT_SUCCESS(rc))
+                {
+                    pFirstMmio->RamRange.cb = cbRegion;
+                }
+            }
+        }
+        else
+            rc = VERR_WRONG_ORDER;
+    }
+    else
+        rc = VERR_NOT_FOUND;
+
+    pgmUnlock(pVM);
+    return rc;
 }
 
 
@@ -4780,7 +4858,7 @@ int pgmR3PhysChunkMap(PVM pVM, uint32_t idChunk, PPPGMCHUNKR3MAP ppChunk)
                         break;
                     }
                 }
-                /* fall thru */
+                RT_FALL_THRU();
                 default:
                     rc = VMR3ReqCallNoWait(pVM, VMCPUID_ANY_QUEUE, (PFNRT)pgmR3PhysUnmapChunk, 1, pVM);
                     AssertRC(rc);
@@ -5338,7 +5416,7 @@ VMMR3DECL(int) PGMR3PhysTlbGCPhys2Ptr(PVM pVM, RTGCPHYS GCPhys, bool fWritable, 
                     case PGM_PAGE_STATE_SHARED:
                         if (rc == VINF_PGM_PHYS_TLB_CATCH_WRITE)
                             break;
-                        /* fall thru */
+                        RT_FALL_THRU();
                     case PGM_PAGE_STATE_WRITE_MONITORED:
                         rc2 = pgmPhysPageMakeWritable(pVM, pPage, GCPhys & ~(RTGCPHYS)PAGE_OFFSET_MASK);
                         AssertLogRelRCReturn(rc2, rc2);

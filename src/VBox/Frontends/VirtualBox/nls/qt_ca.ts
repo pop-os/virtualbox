@@ -128,13 +128,6 @@ que teniu instal·lat el connector libgstreamer-plugins-base.</translation>
         <source>Could not decode media source.</source>
         <translation type="vanished">No es pot descodificar el suport multimèdia.</translation>
     </message>
-    <message numerus="yes">
-        <source>A required codec is missing. You need to install the following codec(s) to play this content: %0</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
 </context>
 <context>
     <name>Phonon::VolumeSlider</name>
@@ -9047,20 +9040,6 @@ La versió mínima requerida del Direct2D és %1.%2.%3.%4. La versió del Direct
     <message>
         <source>The namespace for a user defined function cannot be empty (try the predefined prefix %1 which exists for cases like this)</source>
         <translation type="vanished">El nomespai per a una funció definida per l&apos;usuari no pot estar buit (proveu amb el prefix predefinit %1 que existeix per a casos com aquest)</translation>
-    </message>
-    <message numerus="yes">
-        <source>%1 takes at most %n argument(s). %2 is therefore invalid.</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>%1 requires at least %n argument(s). %2 is therefore invalid.</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
     </message>
 </context>
 <context>

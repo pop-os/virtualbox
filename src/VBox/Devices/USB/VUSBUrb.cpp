@@ -351,9 +351,9 @@ void vusbUrbCompletionRh(PVUSBURB pUrb)
             /* Don't bother with error callback for isochronous URBs. */
             break;
 
-#if 1   /** @todo r=bird: OHCI say "If the Transfer Descriptor is being
+#if 1   /** @todo r=bird: OHCI say ''If the Transfer Descriptor is being
          * retired because of an error, the Host Controller must update
-         * the Halt bit of the Endpoint Descriptor."
+         * the Halt bit of the Endpoint Descriptor.''
          *
          * So, I'll subject all transfertypes to the same halt stuff now. It could
          * just happen to fix the logitech disconnect trap in win2k.
@@ -744,6 +744,9 @@ static bool vusbMsgSetup(PVUSBPIPE pPipe, const void *pvBuf, uint32_t cbBuf)
  * pipe state which we grab from the device for the URB.
  *
  * @param   pUrb        The URB to submit.
+ * @param   pSetup      The setup packet for the message transfer.
+ * @param   pExtra      Pointer to the additional state requred for a control transfer.
+ * @param   pPipe       The message pipe state.
  */
 static void vusbMsgDoTransfer(PVUSBURB pUrb, PVUSBSETUP pSetup, PVUSBCTRLEXTRA pExtra, PVUSBPIPE pPipe)
 {
@@ -1180,14 +1183,6 @@ int vusbUrbSubmit(PVUSBURB pUrb)
             LogRel(("VUSB: Capturing URB submit event failed with %Rrc\n", rc));
     }
 
-#ifdef VBOX_WITH_USB
-    if (pPipe && pPipe->hBuffer)
-    {
-        rc = vusbBufferedPipeSubmitUrb(pPipe->hBuffer, pUrb);
-        return rc;
-    }
-#endif
-
     /*
      * Take action based on type.
      */
@@ -1328,13 +1323,8 @@ static void vusbUrbCompletion(PVUSBURB pUrb)
 
     if (pUrb->enmState == VUSBURBSTATE_REAPED)
         vusbUrbUnlink(pUrb);
-#ifdef VBOX_WITH_USB
-    // Read-ahead URBs are handled differently
-    if (pUrb->pVUsb->pvBuffered)
-        vusbBufferedPipeCompleteUrb(pUrb);
-    else
-#endif
-        vusbUrbCompletionRh(pUrb);
+
+    vusbUrbCompletionRh(pUrb);
 }
 
 /**
@@ -1388,7 +1378,7 @@ DECLHIDDEN(int) vusbUrbCancelWorker(PVUSBURB pUrb, CANCELMODE enmMode)
         {
             default:
                 AssertMsgFailed(("Invalid cancel mode\n"));
-                /* fall thru */
+                RT_FALL_THRU();
             case CANCELMODE_FAIL:
                 pUrb->enmStatus = VUSBSTATUS_CRC;
                 break;

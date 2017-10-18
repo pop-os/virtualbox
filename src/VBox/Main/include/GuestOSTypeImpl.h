@@ -16,7 +16,6 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-    // static int i_vrdpServerVerifyPortsString(com::Utf8Str portRange);
 #ifndef ____H_GUESTOSTYPEIMPL
 #define ____H_GUESTOSTYPEIMPL
 
@@ -38,8 +37,8 @@ public:
     void uninit();
 
     // public methods only for internal purposes
-    const Bstr &i_id() const { return mID; }
-    const Bstr &i_familyId() const { return mFamilyID; }
+    const Utf8Str &i_id() const { return mID; }
+    const Utf8Str &i_familyId() const { return mFamilyID; }
     bool i_is64Bit() const { return !!(mOSHint & VBOXOSHINT_64BIT); }
     bool i_recommendedIOAPIC() const { return !!(mOSHint & VBOXOSHINT_IOAPIC); }
     bool i_recommendedX2APIC() const { return !!(mOSHint & VBOXOSHINT_X2APIC); }
@@ -84,10 +83,10 @@ private:
     HRESULT getRecommendedX2APIC(BOOL *aRecommendedX2APIC);
 
 
-    const Bstr mFamilyID;
-    const Bstr mFamilyDescription;
-    const Bstr mID;
-    const Bstr mDescription;
+    const Utf8Str mFamilyID;
+    const Utf8Str mFamilyDescription;
+    const Utf8Str mID;
+    const Utf8Str mDescription;
     const VBOXOSTYPE mOSType;
     const uint32_t mOSHint;
     const uint32_t mRAMSize;

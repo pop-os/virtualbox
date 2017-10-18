@@ -28,9 +28,7 @@
 #define VBOX_WITH_HGCM                  /* grumble */
 #define VBOX_DEVICE_STRUCT_TESTCASE
 #undef LOG_GROUP
-#include "../Bus/DevPCI.cpp"
-#undef LOG_GROUP
-#include "../Bus/DevPciIch9.cpp"
+#include "../Bus/DevPciInternal.h"
 #undef LOG_GROUP
 #include "../Graphics/DevVGA.cpp"
 #undef LOG_GROUP
@@ -58,17 +56,9 @@
 #undef LOG_GROUP
 #include "../PC/DevRTC.cpp"
 # undef LOG_GROUP
-#ifdef VBOX_WITH_NEW_APIC
 # include "../../VMM/VMMR3/APIC.cpp"
-#else
-# include "../PC/DevAPIC.cpp"
-#endif
 #undef LOG_GROUP
-#ifdef VBOX_WITH_NEW_IOAPIC
-# include "../PC/DevIoApic.cpp"
-#else
-# include "../PC/DevIoApic_Old.cpp"
-#endif
+#include "../PC/DevIoApic.cpp"
 #undef LOG_GROUP
 #include "../PC/DevHPET.cpp"
 #undef LOG_GROUP
@@ -140,7 +130,8 @@
     do { \
         if (off != RT_OFFSETOF(type, m)) \
         { \
-            printf("tstDeviceStructSize: error! %#010x %s  Off by %d!! (off=%#x)\n", RT_OFFSETOF(type, m), #type "." #m, off - RT_OFFSETOF(type, m), off); \
+            printf("tstDeviceStructSize: Error! %#010x %s  Member offset wrong by %d (should be %d -- but is %d)\n", \
+                   RT_OFFSETOF(type, m), #type "." #m, off - RT_OFFSETOF(type, m), off, RT_OFFSETOF(type, m)); \
             rc++; \
         } \
         else  \
@@ -156,7 +147,8 @@
     do { \
         if (size != sizeof(type)) \
         { \
-            printf("tstDeviceStructSize: error! sizeof(%s): %#x (%d)  Off by %d!!\n", #type, (int)sizeof(type), (int)sizeof(type), (int)(sizeof(type) - size)); \
+            printf("tstDeviceStructSize: Error! sizeof(%s): %#x (%d)  Size wrong by %d (should be %d -- but is %d)\n", \
+                   #type, (int)sizeof(type), (int)sizeof(type), (int)(sizeof(type) - size), (int)size, (int)sizeof(type)); \
             rc++; \
         } \
         else \
@@ -287,15 +279,11 @@ int main()
      * Misc alignment checks (keep this somewhat alphabetical).
      */
     CHECK_MEMBER_ALIGNMENT(AHCI, lock, 8);
-    CHECK_MEMBER_ALIGNMENT(AHCIPort, StatDMA, 8);
-#ifdef VBOX_WITH_NEW_APIC
+    CHECK_MEMBER_ALIGNMENT(AHCI, ahciPort[0], 8);
+
     CHECK_MEMBER_ALIGNMENT(APICDEV, pDevInsR0, 8);
     CHECK_MEMBER_ALIGNMENT(APICDEV, pDevInsRC, 8);
-#else
-# ifdef VBOX_WITH_STATISTICS
-    CHECK_MEMBER_ALIGNMENT(APICDeviceInfo, StatMMIOReadGC, 8);
-# endif
-#endif
+
     CHECK_MEMBER_ALIGNMENT(ATADevState, cTotalSectors, 8);
     CHECK_MEMBER_ALIGNMENT(ATADevState, StatATADMA, 8);
     CHECK_MEMBER_ALIGNMENT(ATADevState, StatReads, 8);
@@ -329,23 +317,16 @@ int main()
     CHECK_MEMBER_ALIGNMENT(XHCI, RootHub3, 8);
     CHECK_MEMBER_ALIGNMENT(XHCI, cmdr_dqp, 8);
 #  ifdef VBOX_WITH_STATISTICS
-    CHECK_MEMBER_ALIGNMENT(XHCI, StatCanceledIsocUrbs, 8);
+    CHECK_MEMBER_ALIGNMENT(XHCI, StatErrorIsocUrbs, 8);
     CHECK_MEMBER_ALIGNMENT(XHCI, StatIntrsCleared, 8);
 #  endif
 # endif
 #endif
     CHECK_MEMBER_ALIGNMENT(E1KSTATE, StatReceiveBytes, 8);
-#ifdef VBOX_WITH_NEW_IOAPIC
     CHECK_MEMBER_ALIGNMENT(IOAPIC, au64RedirTable, 8);
 # ifdef VBOX_WITH_STATISTICS
     CHECK_MEMBER_ALIGNMENT(IOAPIC, StatMmioReadRZ, 8);
 # endif
-#else
-# ifdef VBOX_WITH_STATISTICS
-    CHECK_MEMBER_ALIGNMENT(IOAPIC, StatMMIOReadGC, 8);
-    CHECK_MEMBER_ALIGNMENT(IOAPIC, StatMMIOReadGC, 8);
-# endif
-#endif
     CHECK_MEMBER_ALIGNMENT(LSILOGISCSI, GCPhysMMIOBase, 8);
     CHECK_MEMBER_ALIGNMENT(LSILOGISCSI, aMessage, 8);
     CHECK_MEMBER_ALIGNMENT(LSILOGISCSI, ReplyPostQueueCritSect, 8);
@@ -358,9 +339,9 @@ int main()
     CHECK_MEMBER_ALIGNMENT(OHCI, StatCanceledIsocUrbs, 8);
 # endif
 #endif
-    CHECK_MEMBER_ALIGNMENT(PCIBUS, devices, 16);
-    CHECK_MEMBER_ALIGNMENT(PCIBUS, devices, 16);
-    CHECK_MEMBER_ALIGNMENT(PCIGLOBALS, pci_irq_levels, 16);
+    CHECK_MEMBER_ALIGNMENT(DEVPCIBUS, apDevices, 64);
+    CHECK_MEMBER_ALIGNMENT(DEVPCIROOT, auPciApicIrqLevels, 16);
+    CHECK_MEMBER_ALIGNMENT(DEVPCIROOT, Piix3.auPciLegacyIrqLevels, 16);
     CHECK_MEMBER_ALIGNMENT(PCNETSTATE, u64LastPoll, 8);
     CHECK_MEMBER_ALIGNMENT(PCNETSTATE, CritSect, 8);
     CHECK_MEMBER_ALIGNMENT(PCNETSTATE, StatReceiveBytes, 8);
@@ -373,6 +354,8 @@ int main()
     CHECK_SIZE(VMSVGAState, RT_ALIGN_Z(sizeof(VMSVGAState), 8));
     CHECK_MEMBER_ALIGNMENT(VGASTATE, svga, 8);
     CHECK_MEMBER_ALIGNMENT(VGASTATE, svga.u64HostWindowId, 8);
+    CHECK_MEMBER_ALIGNMENT(VGASTATE, svga.au32ScratchRegion, 8);
+    CHECK_MEMBER_ALIGNMENT(VGASTATE, svga.StatRegBitsPerPixelWr, 8);
 #endif
     CHECK_MEMBER_ALIGNMENT(VGASTATE, cMonitors, 8);
     CHECK_MEMBER_ALIGNMENT(VGASTATE, GCPhysVRAM, 8);

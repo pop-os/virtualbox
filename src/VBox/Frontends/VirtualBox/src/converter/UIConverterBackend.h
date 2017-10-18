@@ -84,11 +84,13 @@ template<> bool canConvert<UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType>()
 #ifdef VBOX_WS_MAC
 template<> bool canConvert<UIExtraDataMetaDefs::MenuWindowActionType>();
 #endif /* VBOX_WS_MAC */
+template<> bool canConvert<ToolTypeMachine>();
+template<> bool canConvert<ToolTypeGlobal>();
 template<> bool canConvert<UIVisualStateType>();
 template<> bool canConvert<DetailsElementType>();
-template<> bool canConvert<InformationElementType>();
 template<> bool canConvert<PreviewUpdateIntervalType>();
 template<> bool canConvert<EventHandlingType>();
+template<> bool canConvert<GUIFeatureType>();
 template<> bool canConvert<GlobalSettingsPageType>();
 template<> bool canConvert<MachineSettingsPageType>();
 template<> bool canConvert<WizardType>();
@@ -101,6 +103,8 @@ template<> bool canConvert<HiDPIOptimizationType>();
 #ifndef VBOX_WS_MAC
 template<> bool canConvert<MiniToolbarAlignment>();
 #endif /* !VBOX_WS_MAC */
+template<> bool canConvert<InformationElementType>();
+template<> bool canConvert<MaxGuestResolutionPolicy>();
 
 /* Declare COM canConvert specializations: */
 template<> bool canConvert<KMachineState>();
@@ -154,6 +158,10 @@ template<> UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType fromInternalString
 template<> QString toInternalString(const UIExtraDataMetaDefs::MenuWindowActionType &menuWindowActionType);
 template<> UIExtraDataMetaDefs::MenuWindowActionType fromInternalString<UIExtraDataMetaDefs::MenuWindowActionType>(const QString &strMenuWindowActionType);
 #endif /* VBOX_WS_MAC */
+template<> QString toInternalString(const ToolTypeMachine &enmToolTypeMachine);
+template<> ToolTypeMachine fromInternalString<ToolTypeMachine>(const QString &strToolTypeMachine);
+template<> QString toInternalString(const ToolTypeGlobal &enmToolTypeGlobal);
+template<> ToolTypeGlobal fromInternalString<ToolTypeGlobal>(const QString &strToolTypeGlobal);
 template<> QString toInternalString(const UIVisualStateType &visualStateType);
 template<> UIVisualStateType fromInternalString<UIVisualStateType>(const QString &strVisualStateType);
 template<> QString toString(const DetailsElementType &detailsElementType);
@@ -166,6 +174,8 @@ template<> PreviewUpdateIntervalType fromInternalString<PreviewUpdateIntervalTyp
 template<> int toInternalInteger(const PreviewUpdateIntervalType &previewUpdateIntervalType);
 template<> PreviewUpdateIntervalType fromInternalInteger<PreviewUpdateIntervalType>(const int &iPreviewUpdateIntervalType);
 template<> EventHandlingType fromInternalString<EventHandlingType>(const QString &strEventHandlingType);
+template<> QString toInternalString(const GUIFeatureType &guiFeatureType);
+template<> GUIFeatureType fromInternalString<GUIFeatureType>(const QString &strGuiFeatureType);
 template<> QString toInternalString(const GlobalSettingsPageType &globalSettingsPageType);
 template<> GlobalSettingsPageType fromInternalString<GlobalSettingsPageType>(const QString &strGlobalSettingsPageType);
 template<> QPixmap toWarningPixmap(const GlobalSettingsPageType &globalSettingsPageType);
@@ -176,6 +186,7 @@ template<> QString toInternalString(const WizardType &wizardType);
 template<> WizardType fromInternalString<WizardType>(const QString &strWizardType);
 template<> QString toInternalString(const IndicatorType &indicatorType);
 template<> IndicatorType fromInternalString<IndicatorType>(const QString &strIndicatorType);
+template<> QString toString(const IndicatorType &indicatorType);
 template<> QIcon toIcon(const IndicatorType &indicatorType);
 template<> QString toInternalString(const MachineCloseAction &machineCloseAction);
 template<> MachineCloseAction fromInternalString<MachineCloseAction>(const QString &strMachineCloseAction);
@@ -196,6 +207,8 @@ template<> InformationElementType fromString<InformationElementType>(const QStri
 template<> QString toInternalString(const InformationElementType &informationElementType);
 template<> InformationElementType fromInternalString<InformationElementType>(const QString &strInformationElementType);
 template<> QIcon toIcon(const InformationElementType &informationElementType);
+template<> QString toInternalString(const MaxGuestResolutionPolicy &enmMaxGuestResolutionPolicy);
+template<> MaxGuestResolutionPolicy fromInternalString<MaxGuestResolutionPolicy>(const QString &strMaxGuestResolutionPolicy);
 
 /* Declare COM conversion specializations: */
 template<> QColor toColor(const KMachineState &state);

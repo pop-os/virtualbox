@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -201,7 +201,7 @@ static int rtCrStoreInMemGrow(PRTCRSTOREINMEM pThis, uint32_t cMin)
 
 
 
-/** @interface_method_impl{RTCRSTOREPROVIDER, pfnDestroyStore} */
+/** @interface_method_impl{RTCRSTOREPROVIDER,pfnDestroyStore} */
 static DECLCALLBACK(void) rtCrStoreInMem_DestroyStore(void *pvProvider)
 {
     PRTCRSTOREINMEM pThis = (PRTCRSTOREINMEM)pvProvider;
@@ -223,7 +223,7 @@ static DECLCALLBACK(void) rtCrStoreInMem_DestroyStore(void *pvProvider)
 }
 
 
-/** @interface_method_impl{RTCRSTOREPROVIDER, pfnCertCtxQueryPrivateKey} */
+/** @interface_method_impl{RTCRSTOREPROVIDER,pfnCertCtxQueryPrivateKey} */
 static DECLCALLBACK(int) rtCrStoreInMem_CertCtxQueryPrivateKey(void *pvProvider, PRTCRCERTCTXINT pCertCtx,
                                                                uint8_t *pbKey, size_t cbKey, size_t *pcbKeyRet)
 {
@@ -233,7 +233,7 @@ static DECLCALLBACK(int) rtCrStoreInMem_CertCtxQueryPrivateKey(void *pvProvider,
 }
 
 
-/** @interface_method_impl{RTCRSTOREPROVIDER, pfnCertFindAll} */
+/** @interface_method_impl{RTCRSTOREPROVIDER,pfnCertFindAll} */
 static DECLCALLBACK(int) rtCrStoreInMem_CertFindAll(void *pvProvider, PRTCRSTORECERTSEARCH pSearch)
 {
     pSearch->auOpaque[0] = ~(uintptr_t)pvProvider;
@@ -244,7 +244,7 @@ static DECLCALLBACK(int) rtCrStoreInMem_CertFindAll(void *pvProvider, PRTCRSTORE
 }
 
 
-/** @interface_method_impl{RTCRSTOREPROVIDER, pfnCertSearchNext} */
+/** @interface_method_impl{RTCRSTOREPROVIDER,pfnCertSearchNext} */
 static DECLCALLBACK(PCRTCRCERTCTX) rtCrStoreInMem_CertSearchNext(void *pvProvider, PRTCRSTORECERTSEARCH pSearch)
 {
     PRTCRSTOREINMEM pThis = (PRTCRSTOREINMEM)pvProvider;
@@ -262,7 +262,7 @@ static DECLCALLBACK(PCRTCRCERTCTX) rtCrStoreInMem_CertSearchNext(void *pvProvide
 }
 
 
-/** @interface_method_impl{RTCRSTOREPROVIDER, pfnCertSearchDestroy} */
+/** @interface_method_impl{RTCRSTOREPROVIDER,pfnCertSearchDestroy} */
 static DECLCALLBACK(void) rtCrStoreInMem_CertSearchDestroy(void *pvProvider, PRTCRSTORECERTSEARCH pSearch)
 {
     NOREF(pvProvider);
@@ -274,7 +274,7 @@ static DECLCALLBACK(void) rtCrStoreInMem_CertSearchDestroy(void *pvProvider, PRT
 }
 
 
-/** @interface_method_impl{RTCRSTOREPROVIDER, pfnCertSearchDestroy} */
+/** @interface_method_impl{RTCRSTOREPROVIDER,pfnCertSearchDestroy} */
 static DECLCALLBACK(int) rtCrStoreInMem_CertAddEncoded(void *pvProvider, uint32_t fFlags,
                                                        uint8_t const *pbEncoded, uint32_t cbEncoded, PRTERRINFO pErrInfo)
 {

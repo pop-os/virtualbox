@@ -7,7 +7,7 @@ Test Manager Core - WUI - Admin Main page.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard python imports.
@@ -47,17 +47,21 @@ class WuiAdmin(WuiDispatcherBase):
     ## The name of the script.
     ksScriptName = 'admin.py'
 
+    ## Number of days back.
+    ksParamDaysBack = 'cDaysBack';
 
     ## @name Actions
     ## @{
     ksActionSystemLogList           = 'SystemLogList'
+    ksActionSystemChangelogList     = 'SystemChangelogList'
 
     ksActionUserList                = 'UserList'
     ksActionUserAdd                 = 'UserAdd'
-    ksActionUserEdit                = 'UserEdit'
     ksActionUserAddPost             = 'UserAddPost'
+    ksActionUserEdit                = 'UserEdit'
     ksActionUserEditPost            = 'UserEditPost'
     ksActionUserDelPost             = 'UserDelPost'
+    ksActionUserDetails             = 'UserDetails'
 
     ksActionTestBoxList             = 'TestBoxList'
     ksActionTestBoxListPost         = 'TestBoxListPost'
@@ -163,6 +167,7 @@ class WuiAdmin(WuiDispatcherBase):
         #
         # System Log actions.
         #
+        self._dDispatch[self.ksActionSystemChangelogList]       = self._actionSystemChangelogList;
         self._dDispatch[self.ksActionSystemLogList]             = self._actionSystemLogList;
 
         #
@@ -173,6 +178,7 @@ class WuiAdmin(WuiDispatcherBase):
         self._dDispatch[self.ksActionUserEdit]                  = self._actionUserEdit;
         self._dDispatch[self.ksActionUserAddPost]               = self._actionUserAddPost;
         self._dDispatch[self.ksActionUserEditPost]              = self._actionUserEditPost;
+        self._dDispatch[self.ksActionUserDetails]               = self._actionUserDetails;
         self._dDispatch[self.ksActionUserDelPost]               = self._actionUserDelPost;
 
         #
@@ -312,53 +318,54 @@ class WuiAdmin(WuiDispatcherBase):
             [
                 'Builds',       self._sActionUrlBase + self.ksActionBuildList,
                 [
-                    [ 'Builds',                 self._sActionUrlBase + self.ksActionBuildList ],
-                    [ 'Blacklist',              self._sActionUrlBase + self.ksActionBuildBlacklist ],
-                    [ 'Build Sources',          self._sActionUrlBase + self.ksActionBuildSrcList ],
-                    [ 'Build Categories',       self._sActionUrlBase + self.ksActionBuildCategoryList ],
-                    [ 'New Build',              self._sActionUrlBase + self.ksActionBuildAdd ],
-                    [ 'New Blacklisting',       self._sActionUrlBase + self.ksActionBuildBlacklistAdd ],
-                    [ 'New Build Source',       self._sActionUrlBase + self.ksActionBuildSrcAdd],
-                    [ 'New Build Category',     self._sActionUrlBase + self.ksActionBuildCategoryAdd ],
+                    [ 'Builds',                 self._sActionUrlBase + self.ksActionBuildList,              False ],
+                    [ 'Blacklist',              self._sActionUrlBase + self.ksActionBuildBlacklist,         False ],
+                    [ 'Build sources',          self._sActionUrlBase + self.ksActionBuildSrcList,           False ],
+                    [ 'Build categories',       self._sActionUrlBase + self.ksActionBuildCategoryList,      False ],
+                    [ 'New build',              self._sActionUrlBase + self.ksActionBuildAdd,               True ],
+                    [ 'New blacklisting',       self._sActionUrlBase + self.ksActionBuildBlacklistAdd,      True  ],
+                    [ 'New build source',       self._sActionUrlBase + self.ksActionBuildSrcAdd,            True ],
+                    [ 'New build category',     self._sActionUrlBase + self.ksActionBuildCategoryAdd,       True  ],
                 ]
             ],
             [
                 'Failure Reasons',       self._sActionUrlBase + self.ksActionFailureReasonList,
                 [
-                    [ 'Failure Categories',     self._sActionUrlBase + self.ksActionFailureCategoryList ],
-                    [ 'Failure Reasons',        self._sActionUrlBase + self.ksActionFailureReasonList ],
-                    [ 'New Failure Category',   self._sActionUrlBase + self.ksActionFailureCategoryAdd ],
-                    [ 'New Failure Reason',     self._sActionUrlBase + self.ksActionFailureReasonAdd ],
+                    [ 'Failure categories',     self._sActionUrlBase + self.ksActionFailureCategoryList,    False ],
+                    [ 'Failure reasons',        self._sActionUrlBase + self.ksActionFailureReasonList,      False ],
+                    [ 'New failure category',   self._sActionUrlBase + self.ksActionFailureCategoryAdd,     True  ],
+                    [ 'New failure reason',     self._sActionUrlBase + self.ksActionFailureReasonAdd,       True  ],
                 ]
             ],
             [
-                'System',      self._sActionUrlBase + self.ksActionSystemLogList,
+                'System',      self._sActionUrlBase + self.ksActionSystemChangelogList,
                 [
-                    [ 'System Log',             self._sActionUrlBase + self.ksActionSystemLogList ],
-                    [ 'User Accounts',          self._sActionUrlBase + self.ksActionUserList ],
-                    [ 'New User',               self._sActionUrlBase + self.ksActionUserAdd ],
+                    [ 'Changelog',              self._sActionUrlBase + self.ksActionSystemChangelogList,    False ],
+                    [ 'System log',             self._sActionUrlBase + self.ksActionSystemLogList,          False ],
+                    [ 'User accounts',          self._sActionUrlBase + self.ksActionUserList,               False ],
+                    [ 'New user',               self._sActionUrlBase + self.ksActionUserAdd,                True  ],
                 ]
             ],
             [
-                'TestBoxes',   self._sActionUrlBase + self.ksActionTestBoxList,
+                'Testboxes',   self._sActionUrlBase + self.ksActionTestBoxList,
                 [
-                    [ 'TestBoxes',              self._sActionUrlBase + self.ksActionTestBoxList ],
-                    [ 'Scheduling Groups',      self._sActionUrlBase + self.ksActionSchedGroupList ],
-                    [ 'New TestBox',            self._sActionUrlBase + self.ksActionTestBoxAdd ],
-                    [ 'New Scheduling Group',   self._sActionUrlBase + self.ksActionSchedGroupAdd ],
-                    [ 'Regenerate All Scheduling Queues', self._sActionUrlBase + self.ksActionTestBoxesRegenQueues ],
+                    [ 'Testboxes',              self._sActionUrlBase + self.ksActionTestBoxList,            False ],
+                    [ 'Scheduling groups',      self._sActionUrlBase + self.ksActionSchedGroupList,         False ],
+                    [ 'New testbox',            self._sActionUrlBase + self.ksActionTestBoxAdd,             True  ],
+                    [ 'New scheduling group',   self._sActionUrlBase + self.ksActionSchedGroupAdd,          True  ],
+                    [ 'Regenerate all scheduling queues', self._sActionUrlBase + self.ksActionTestBoxesRegenQueues, True  ],
                 ]
             ],
             [
                 'Test Config', self._sActionUrlBase + self.ksActionTestGroupList,
                 [
-                    [ 'Test Cases',             self._sActionUrlBase + self.ksActionTestCaseList ],
-                    [ 'Test Groups',            self._sActionUrlBase + self.ksActionTestGroupList ],
-                    [ 'Global Resources',       self._sActionUrlBase + self.ksActionGlobalRsrcShowAll ],
-                    [ 'New Test Case',          self._sActionUrlBase + self.ksActionTestCaseAdd ],
-                    [ 'New Test Group',         self._sActionUrlBase + self.ksActionTestGroupAdd ],
-                    [ 'New Global Resource',    self._sActionUrlBase + self.ksActionGlobalRsrcShowAdd ],
-                    [ 'Regenerate All Scheduling Queues', self._sActionUrlBase + self.ksActionTestCfgRegenQueues ],
+                    [ 'Test cases',             self._sActionUrlBase + self.ksActionTestCaseList,           False ],
+                    [ 'Test groups',            self._sActionUrlBase + self.ksActionTestGroupList,          False ],
+                    [ 'Global resources',       self._sActionUrlBase + self.ksActionGlobalRsrcShowAll,      False  ],
+                    [ 'New test case',          self._sActionUrlBase + self.ksActionTestCaseAdd,            True  ],
+                    [ 'New test group',         self._sActionUrlBase + self.ksActionTestGroupAdd,           True  ],
+                    [ 'New global resource',    self._sActionUrlBase + self.ksActionGlobalRsrcShowAdd,      True  ],
+                    [ 'Regenerate all scheduling queues', self._sActionUrlBase + self.ksActionTestCfgRegenQueues, True  ],
                 ]
             ],
             [
@@ -409,6 +416,26 @@ class WuiAdmin(WuiDispatcherBase):
     # System Category.
     #
 
+    # System wide changelog actions.
+
+    def _actionSystemChangelogList(self):
+        """ Action wrapper. """
+        from testmanager.core.systemchangelog          import SystemChangelogLogic;
+        from testmanager.webui.wuiadminsystemchangelog import WuiAdminSystemChangelogList;
+
+        tsEffective     = self.getEffectiveDateParam();
+        cItemsPerPage   = self.getIntParam(self.ksParamItemsPerPage, iMin = 2, iMax =   9999, iDefault = 300);
+        iPage           = self.getIntParam(self.ksParamPageNo,       iMin = 0, iMax = 999999, iDefault = 0);
+        cDaysBack       = self.getIntParam(self.ksParamDaysBack,     iMin = 1, iMax = 366,    iDefault = 14);
+        self._checkForUnknownParameters();
+
+        aoEntries  = SystemChangelogLogic(self._oDb).fetchForListingEx(iPage * cItemsPerPage, cItemsPerPage + 1,
+                                                                       tsEffective, cDaysBack);
+        oContent   = WuiAdminSystemChangelogList(aoEntries, iPage, cItemsPerPage, tsEffective,
+                                                 cDaysBack = cDaysBack, fnDPrint = self._oSrvGlue.dprint, oDisp = self);
+        (self._sPageTitle, self._sPageBody) = oContent.show();
+        return True;
+
     # System Log actions.
 
     def _actionSystemLogList(self):
@@ -430,6 +457,12 @@ class WuiAdmin(WuiDispatcherBase):
         from testmanager.core.useraccount              import UserAccountData;
         from testmanager.webui.wuiadminuseraccount     import WuiUserAccount;
         return self._actionGenericFormAdd(UserAccountData, WuiUserAccount)
+
+    def _actionUserDetails(self):
+        """ Action wrapper. """
+        from testmanager.core.useraccount              import UserAccountData, UserAccountLogic;
+        from testmanager.webui.wuiadminuseraccount     import WuiUserAccount;
+        return self._actionGenericFormDetails(UserAccountData, UserAccountLogic, WuiUserAccount, 'uid');
 
     def _actionUserEdit(self):
         """ Action wrapper. """
@@ -491,7 +524,7 @@ class WuiAdmin(WuiDispatcherBase):
 
 
         # Take action.
-        if sListAction is 'none':
+        if sListAction == 'none':
             pass;
         else:
             oLogic = TestBoxLogic(self._oDb);
@@ -617,34 +650,38 @@ class WuiAdmin(WuiDispatcherBase):
         ## @todo should also be changed to a POST with a confirmation dialog preceeding it.
 
         self._sPageTitle = 'Regenerate All Scheduling Queues';
-        self._sPageBody  = '';
-        aoGroups = SchedGroupLogic(self._oDb).getAll();
-        for oGroup in aoGroups:
-            self._sPageBody += '<h3>%s (ID %#d)</h3>' % (webutils.escapeElem(oGroup.sName), oGroup.idSchedGroup);
-            try:
-                (aoErrors, asMessages) = SchedulerBase.recreateQueue(self._oDb, self._oCurUser.uid, oGroup.idSchedGroup, 2);
-            except Exception as oXcpt:
-                self._oDb.rollback();
-                self._sPageBody += '<p>SchedulerBase.recreateQueue threw an exception: %s</p>' \
-                                % (webutils.escapeElem(str(oXcpt)),);
-                self._sPageBody += cgitb.html(sys.exc_info());
-            else:
-                if len(aoErrors) == 0:
-                    self._sPageBody += '<p>Successfully regenerated.</p>';
+        if not self.isReadOnlyUser():
+            self._sPageBody  = '';
+            aoGroups = SchedGroupLogic(self._oDb).getAll();
+            for oGroup in aoGroups:
+                self._sPageBody += '<h3>%s (ID %#d)</h3>' % (webutils.escapeElem(oGroup.sName), oGroup.idSchedGroup);
+                try:
+                    (aoErrors, asMessages) = SchedulerBase.recreateQueue(self._oDb, self._oCurUser.uid, oGroup.idSchedGroup, 2);
+                except Exception as oXcpt:
+                    self._oDb.rollback();
+                    self._sPageBody += '<p>SchedulerBase.recreateQueue threw an exception: %s</p>' \
+                                    % (webutils.escapeElem(str(oXcpt)),);
+                    self._sPageBody += cgitb.html(sys.exc_info());
                 else:
-                    for oError in aoErrors:
-                        if oError[1] is None:
-                            self._sPageBody += '<p>%s.</p>' % (webutils.escapeElem(oError[0]),);
-                        ## @todo links.
-                        #elif isinstance(oError[1], TestGroupData):
-                        #    self._sPageBody += '<p>%s.</p>' % (webutils.escapeElem(oError[0]),);
-                        #elif isinstance(oError[1], TestGroupCase):
-                        #    self._sPageBody += '<p>%s.</p>' % (webutils.escapeElem(oError[0]),);
-                        else:
-                            self._sPageBody += '<p>%s. [Cannot link to %s]</p>' \
-                                             % (webutils.escapeElem(oError[0]), webutils.escapeElem(str(oError[1])));
-                for sMsg in asMessages:
-                    self._sPageBody += '<p>%s<p>\n' % (webutils.escapeElem(sMsg),);
+                    if not aoErrors:
+                        self._sPageBody += '<p>Successfully regenerated.</p>';
+                    else:
+                        for oError in aoErrors:
+                            if oError[1] is None:
+                                self._sPageBody += '<p>%s.</p>' % (webutils.escapeElem(oError[0]),);
+                            ## @todo links.
+                            #elif isinstance(oError[1], TestGroupData):
+                            #    self._sPageBody += '<p>%s.</p>' % (webutils.escapeElem(oError[0]),);
+                            #elif isinstance(oError[1], TestGroupCase):
+                            #    self._sPageBody += '<p>%s.</p>' % (webutils.escapeElem(oError[0]),);
+                            else:
+                                self._sPageBody += '<p>%s. [Cannot link to %s]</p>' \
+                                                 % (webutils.escapeElem(oError[0]), webutils.escapeElem(str(oError[1])));
+                    for sMsg in asMessages:
+                        self._sPageBody += '<p>%s<p>\n' % (webutils.escapeElem(sMsg),);
+        else:
+            self._sPageBody = webutils.escapeElem('%s is a read only user and may not regenerate the scheduling queues!'
+                                                  % (self._oCurUser.sUsername,));
         return True;
 
 
@@ -809,7 +846,7 @@ class WuiAdmin(WuiDispatcherBase):
 
         oGlobalResourceLogic = GlobalResourceLogic(self._oDb)
         dErrors = oData.validateAndConvert(self._oDb);
-        if len(dErrors) == 0:
+        if not dErrors:
             if sAction == WuiAdmin.ksActionGlobalRsrcAdd:
                 oGlobalResourceLogic.addGlobalResource(self._oCurUser.uid, oData)
             elif sAction == WuiAdmin.ksActionGlobalRsrcEdit:

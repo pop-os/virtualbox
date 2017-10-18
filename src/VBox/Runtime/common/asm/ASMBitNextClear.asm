@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2016 Oracle Corporation
+; Copyright (C) 2006-2017 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -65,12 +65,10 @@ BEGINPROC_EXPORTED ASMBitNextClear
         mov     r9, rdi                 ; Save rdi for bit calculation.
 %elif ARCH_BITS == 32
         mov     edi, [esp + 8]          ; edi=pvBits
-        mov     ecx, [esp + 8 + 8]      ; edx=iPrevBit
+        mov     ecx, [esp + 8 + 8]      ; ecx=iPrevBit
 %elif ARCH_BITS == 16
-        mov     ax,  [bp + 4 + 2]
-        mov     es, ax
-        mov     di,  [bp + 4]           ; es:di=pvBits
-        mov     ecx, [bp + 4 + 8]       ; edx=iPrevBit
+        les     di, [bp + 4]            ; es:di=pvBits
+        mov     ecx, [bp + 4 + 8]       ; ecx=iPrevBit
 %endif
 
         ;
@@ -139,6 +137,7 @@ BEGINPROC_EXPORTED ASMBitNextClear
         jbe     .return_failure
 
         ; Do the scanning.
+        cld
         mov     eax, 0ffffffffh
         repe scasd
         je      .return_failure
@@ -159,7 +158,7 @@ BEGINPROC_EXPORTED ASMBitNextClear
         sub     di, [bp + 4]
         movzx   edi, di
 %elif ARCH_BITS == 32
-        sub     xDI, [esp + 4]
+        sub     xDI, [esp + 8]
 %elif ARCH_BITS == 64
         sub     xDI, r9
 %endif

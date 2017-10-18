@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -182,7 +182,7 @@ static int testLdrOne(const char *pszFilename)
         {
             /* VERR_ELF_EXE_NOT_SUPPORTED in the previous loop? */
             if (!aLoads[i].hLdrMod)
-                continue; /* VERR_ELF_EXE_NOT_SUPPORTED in the previous loop */
+                continue;
             /* get the pointer. */
             RTUINTPTR Value;
             rc = RTLdrGetSymbolEx(aLoads[i].hLdrMod, aLoads[i].pvBits, (uintptr_t)aLoads[i].pvBits,

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,7 +44,7 @@ enum IDX_Parse
   IDX_ParseImmUlong,
   IDX_ParseImmQword,
   IDX_ParseTwoByteEsc,
-  IDX_ParseImmGrpl,
+  IDX_ParseGrp1,
   IDX_ParseShiftGrp2,
   IDX_ParseGrp3,
   IDX_ParseGrp4,

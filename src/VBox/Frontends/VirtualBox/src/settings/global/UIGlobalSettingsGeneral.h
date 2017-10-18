@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,57 +15,63 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIGlobalSettingsGeneral_h__
-#define __UIGlobalSettingsGeneral_h__
+#ifndef ___UIGlobalSettingsGeneral_h___
+#define ___UIGlobalSettingsGeneral_h___
 
-/* Local includes */
+/* GUI includes: */
 #include "UISettingsPage.h"
 #include "UIGlobalSettingsGeneral.gen.h"
 
-/* Global settings / General page / Cache: */
-struct UISettingsCacheGlobalGeneral
-{
-    QString m_strDefaultMachineFolder;
-    QString m_strVRDEAuthLibrary;
-    bool m_fHostScreenSaverDisabled;
-};
+/* Forward declarations: */
+struct UIDataSettingsGlobalGeneral;
+typedef UISettingsCache<UIDataSettingsGlobalGeneral> UISettingsCacheGlobalGeneral;
 
-/* Global settings / General page: */
-class UIGlobalSettingsGeneral : public UISettingsPageGlobal, public Ui::UIGlobalSettingsGeneral
+
+/** Global settings: General page. */
+class UIGlobalSettingsGeneral : public UISettingsPageGlobal,
+                                public Ui::UIGlobalSettingsGeneral
 {
     Q_OBJECT;
 
 public:
 
-    /* Constructor: */
+    /** Constructs General settings page. */
     UIGlobalSettingsGeneral();
+    /** Destructs General settings page. */
+    ~UIGlobalSettingsGeneral();
 
 protected:
 
-    /* Load data to cache from corresponding external object(s),
-     * this task COULD be performed in other than GUI thread: */
-    void loadToCacheFrom(QVariant &data);
-    /* Load data to corresponding widgets from cache,
-     * this task SHOULD be performed in GUI thread only: */
-    void getFromCache();
+    /** Loads data into the cache from corresponding external object(s),
+      * this task COULD be performed in other than the GUI thread. */
+    virtual void loadToCacheFrom(QVariant &data) /* override */;
+    /** Loads data into corresponding widgets from the cache,
+      * this task SHOULD be performed in the GUI thread only. */
+    virtual void getFromCache() /* override */;
 
-    /* Save data from corresponding widgets to cache,
-     * this task SHOULD be performed in GUI thread only: */
-    void putToCache();
-    /* Save data from cache to corresponding external object(s),
-     * this task COULD be performed in other than GUI thread: */
-    void saveFromCacheTo(QVariant &data);
+    /** Saves data from corresponding widgets to the cache,
+      * this task SHOULD be performed in the GUI thread only. */
+    virtual void putToCache() /* override */;
+    /** Saves data from the cache to corresponding external object(s),
+      * this task COULD be performed in other than the GUI thread. */
+    virtual void saveFromCacheTo(QVariant &data) /* overrride */;
 
-    /* Helper: Navigation stuff: */
-    void setOrderAfter(QWidget *pWidget);
-
-    /* Helper: Translation stuff: */
-    void retranslateUi();
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */;
 
 private:
 
-    /* Cache: */
-    UISettingsCacheGlobalGeneral m_cache;
+    /** Prepares all. */
+    void prepare();
+    /** Cleanups all. */
+    void cleanup();
+
+    /** Saves existing general data from the cache. */
+    bool saveGeneralData();
+
+    /** Holds the page data cache instance. */
+    UISettingsCacheGlobalGeneral *m_pCache;
 };
 
-#endif // __UIGlobalSettingsGeneral_h__
+#endif /* !___UIGlobalSettingsGeneral_h___ */
+

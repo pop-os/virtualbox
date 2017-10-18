@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,9 +27,7 @@
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/gim.h>
-#ifdef VBOX_WITH_NEW_APIC
-# include <VBox/vmm/apic.h>
-#endif
+#include <VBox/vmm/apic.h>
 #include <VBox/vmm/csam.h>
 #include <VBox/vmm/patm.h>
 #include <VBox/vmm/mm.h>
@@ -228,11 +226,10 @@ static int trpmGCExitTrap(PVM pVM, PVMCPU pVCpu, int rc, PCPUMCTXCORE pRegFrame)
             rc = VINF_EM_NO_MEMORY;
         else
         {
-#ifdef VBOX_WITH_NEW_APIC
             /* APIC needs updating. */
             if (VMCPU_FF_TEST_AND_CLEAR(pVCpu, VMCPU_FF_UPDATE_APIC))
                 APICUpdatePendingInterrupts(pVCpu);
-#endif
+
             if (VMCPU_FF_TEST_AND_CLEAR(pVCpu, VMCPU_FF_CPUM))
                 CPUMRCProcessForceFlag(pVCpu);
 
@@ -845,7 +842,7 @@ static int trpmGCTrap0dHandlerRing0(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
              */
             pCpu->Param1.fUse  = DISUSE_IMMEDIATE8;
             pCpu->Param1.uValue = 3;
-            /* fallthru */
+            RT_FALL_THRU();
         case OP_INT:
         {
             Assert(pCpu->Param1.fUse & DISUSE_IMMEDIATE8);
@@ -901,7 +898,7 @@ static int trpmGCTrap0dHandlerRing0(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
             if (    !PATMIsPatchGCAddr(pVM, PC)
                 &&  !CSAMIsKnownDangerousInstr(pVM, PC))
                 break;
-            /* fall thru */
+            RT_FALL_THRU();
         case OP_INVLPG:
         case OP_LLDT:
         case OP_STI:
@@ -956,7 +953,7 @@ static int trpmGCTrap0dHandlerRing3(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFram
              */
             pCpu->Param1.fUse  = DISUSE_IMMEDIATE8;
             pCpu->Param1.uValue = 3;
-            /* fall thru */
+            RT_FALL_THRU();
         case OP_INT:
         {
             Assert(pCpu->Param1.fUse & DISUSE_IMMEDIATE8);

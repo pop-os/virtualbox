@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,8 +28,13 @@
 
 #include <iprt/sg.h>
 #include <VBox/types.h>
+#include <VBox/vdmedia.h>
 
 RT_C_DECLS_BEGIN
+
+struct PDMISECKEY;
+struct PDMISECKEYHLP;
+
 
 /** @defgroup grp_pdm_ifs_storage       PDM Storage Interfaces
  * @ingroup grp_pdm_interfaces
@@ -287,15 +292,19 @@ typedef struct PDMIMEDIA
      *
      * @returns VBox status code.
      * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   pbCmd           Offset to start reading from.
+     * @param   pbCdb           The command to process.
+     * @param   cbCdb           The length of the command in bytes.
      * @param   enmTxDir        Direction of transfer.
      * @param   pvBuf           Pointer tp the transfer buffer.
-     * @param   cbBuf           Size of the transfer buffer.
-     * @param   pbSenseKey      Status of the command (when return value is VERR_DEV_IO_ERROR).
+     * @param   pcbBuf          Size of the transfer buffer.
+     * @param   pabSense        Status of the command (when return value is VERR_DEV_IO_ERROR).
+     * @param   cbSense         Size of the sense buffer in bytes.
      * @param   cTimeoutMillies Command timeout in milliseconds.
      * @thread  Any thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnSendCmd,(PPDMIMEDIA pInterface, const uint8_t *pbCmd, PDMMEDIATXDIR enmTxDir, void *pvBuf, uint32_t *pcbBuf, uint8_t *pabSense, size_t cbSense, uint32_t cTimeoutMillies));
+    DECLR3CALLBACKMEMBER(int, pfnSendCmd,(PPDMIMEDIA pInterface, const uint8_t *pbCdb, size_t cbCdb,
+                                          PDMMEDIATXDIR enmTxDir, void *pvBuf, uint32_t *pcbBuf,
+                                          uint8_t *pabSense, size_t cbSense, uint32_t cTimeoutMillies));
 
     /**
      * Merge medium contents during a live snapshot deletion. All details
@@ -321,8 +330,8 @@ typedef struct PDMIMEDIA
      * @param   pIfSecKeyHlp    The secret key helper interface to use.
      * @thread  Any thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnSetSecKeyIf,(PPDMIMEDIA pInterface, PPDMISECKEY pIfSecKey,
-                                              PPDMISECKEYHLP pIfSecKeyHlp));
+    DECLR3CALLBACKMEMBER(int, pfnSetSecKeyIf,(PPDMIMEDIA pInterface, struct PDMISECKEY *pIfSecKey,
+                                              struct PDMISECKEYHLP *pIfSecKeyHlp));
 
     /**
      * Get the media size in bytes.
@@ -351,6 +360,16 @@ typedef struct PDMIMEDIA
      * @thread  Any thread.
      */
     DECLR3CALLBACKMEMBER(bool, pfnIsReadOnly,(PPDMIMEDIA pInterface));
+
+    /**
+     * Returns whether the medium should be marked as rotational or not.
+     *
+     * @returns true if non rotating medium.
+     * @returns false if rotating medium.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(bool, pfnIsNonRotational,(PPDMIMEDIA pInterface));
 
     /**
      * Get stored media geometry (physical CHS, PCHS) - BIOS property.
@@ -447,115 +466,48 @@ typedef struct PDMIMEDIA
     DECLR3CALLBACKMEMBER(int, pfnDiscard,(PPDMIMEDIA pInterface, PCRTRANGE paRanges, unsigned cRanges));
 
     /**
-     * Allocate buffer memory which is suitable for I/O and might have special proerties for secure
-     * environments (non-pageable memory for sensitive data which should not end up on the disk).
+     * Returns the number of regions for the medium.
      *
-     * @returns VBox status code.
+     * @returns Number of regions.
      * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   cb              Amount of memory to allocate.
-     * @param   ppvNew          Where to store the pointer to the buffer on success.
      */
-    DECLR3CALLBACKMEMBER(int, pfnIoBufAlloc, (PPDMIMEDIA pInterface, size_t cb, void **ppvNew));
+    DECLR3CALLBACKMEMBER(uint32_t, pfnGetRegionCount,(PPDMIMEDIA pInterface));
 
     /**
-     * Free memory allocated with PDMIMEDIA::pfnIoBufAlloc().
+     * Queries the properties for the given region.
      *
      * @returns VBox status code.
+     * @retval  VERR_NOT_FOUND if the region index is not known.
      * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   pv              Pointer to the memory to free.
-     * @param   cb              Amount of bytes given in PDMIMEDIA::pfnIoBufAlloc().
+     * @param   uRegion         The region index to query the properties of.
+     * @param   pu64LbaStart    Where to store the starting LBA for the region on success.
+     * @param   pcBlocks        Where to store the number of blocks for the region on success.
+     * @param   pcbBlock        Where to store the size of one block in bytes on success.
+     * @param   penmDataForm    WHere to store the data form for the region on success.
      */
-    DECLR3CALLBACKMEMBER(int, pfnIoBufFree, (PPDMIMEDIA pInterface, void *pv, size_t cb));
+    DECLR3CALLBACKMEMBER(int, pfnQueryRegionProperties,(PPDMIMEDIA pInterface, uint32_t uRegion, uint64_t *pu64LbaStart,
+                                                        uint64_t *pcBlocks, uint64_t *pcbBlock,
+                                                        PVDREGIONDATAFORM penmDataForm));
+
+    /**
+     * Queries the properties for the region covering the given LBA.
+     *
+     * @returns VBox status code.
+     * @retval  VERR_NOT_FOUND if the region index is not known.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   u64LbaStart     Where to store the starting LBA for the region on success.
+     * @param   puRegion        Where to store the region number on success.
+     * @param   pcBlocks        Where to store the number of blocks left in this region starting from the given LBA.
+     * @param   pcbBlock        Where to store the size of one block in bytes on success.
+     * @param   penmDataForm    WHere to store the data form for the region on success.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnQueryRegionPropertiesForLba,(PPDMIMEDIA pInterface, uint64_t u64LbaStart,
+                                                              uint32_t *puRegion, uint64_t *pcBlocks,
+                                                              uint64_t *pcbBlock, PVDREGIONDATAFORM penmDataForm));
 
 } PDMIMEDIA;
 /** PDMIMEDIA interface ID. */
-#define PDMIMEDIA_IID                           "352f2fa2-52c0-4e51-ba3c-9f59b7043218"
-
-
-/** Pointer to an asynchronous notification interface. */
-typedef struct PDMIMEDIAASYNCPORT *PPDMIMEDIAASYNCPORT;
-/**
- * Asynchronous version of the media interface (up).
- * Pair with PDMIMEDIAASYNC.
- */
-typedef struct PDMIMEDIAASYNCPORT
-{
-    /**
-     * Notify completion of a task.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   pvUser          The user argument given in pfnStartWrite.
-     * @param   rcReq           IPRT Status code of the completed request.
-     * @thread  Any thread.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnTransferCompleteNotify, (PPDMIMEDIAASYNCPORT pInterface, void *pvUser, int rcReq));
-} PDMIMEDIAASYNCPORT;
-/** PDMIMEDIAASYNCPORT interface ID. */
-#define PDMIMEDIAASYNCPORT_IID                  "22d38853-901f-4a71-9670-4d9da6e82317"
-
-
-/** Pointer to an asynchronous media interface. */
-typedef struct PDMIMEDIAASYNC *PPDMIMEDIAASYNC;
-/**
- * Asynchronous version of PDMIMEDIA (down).
- * Pair with PDMIMEDIAASYNCPORT.
- */
-typedef struct PDMIMEDIAASYNC
-{
-    /**
-     * Start reading task.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   off             Offset to start reading from. Must be aligned to a sector boundary.
-     * @param   paSegs          Pointer to the S/G segment array.
-     * @param   cSegs           Number of entries in the array.
-     * @param   cbRead          Number of bytes to read. Must be aligned to a sector boundary.
-     * @param   pvUser          User data.
-     * @thread  Any thread.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnStartRead,(PPDMIMEDIAASYNC pInterface, uint64_t off, PCRTSGSEG paSegs, unsigned cSegs, size_t cbRead, void *pvUser));
-
-    /**
-     * Start writing task.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   off             Offset to start writing at. Must be aligned to a sector boundary.
-     * @param   paSegs          Pointer to the S/G segment array.
-     * @param   cSegs           Number of entries in the array.
-     * @param   cbWrite         Number of bytes to write. Must be aligned to a sector boundary.
-     * @param   pvUser          User data.
-     * @thread  Any thread.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnStartWrite,(PPDMIMEDIAASYNC pInterface, uint64_t off, PCRTSGSEG paSegs, unsigned cSegs, size_t cbWrite, void *pvUser));
-
-    /**
-     * Flush everything to disk.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   pvUser          User argument which is returned in completion callback.
-     * @thread  Any thread.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnStartFlush,(PPDMIMEDIAASYNC pInterface, void *pvUser));
-
-    /**
-     * Discards the given range.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   paRanges        Array of ranges to discard.
-     * @param   cRanges         Number of entries in the array.
-     * @param   pvUser          User argument which is returned in completion callback.
-     * @thread  Any thread.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnStartDiscard,(PPDMIMEDIAASYNC pInterface, PCRTRANGE paRanges, unsigned cRanges, void *pvUser));
-
-} PDMIMEDIAASYNC;
-/** PDMIMEDIAASYNC interface ID. */
-#define PDMIMEDIAASYNC_IID                      "4be209d3-ccb5-4297-82fe-7d8018bc6ab4"
+#define PDMIMEDIA_IID                           "8ec68c48-dd20-4430-8386-f0d628a5aca6"
 
 
 /**
@@ -584,10 +536,31 @@ typedef enum PDMMEDIAEXIOREQTYPE
     /** Read request. */
     PDMMEDIAEXIOREQTYPE_READ,
     /** Discard request. */
-    PDMMEDIAEXIOREQTYPE_DISCARD
+    PDMMEDIAEXIOREQTYPE_DISCARD,
+    /** SCSI command. */
+    PDMMEDIAEXIOREQTYPE_SCSI
 } PDMMEDIAEXIOREQTYPE;
 /** Pointer to a I/O request type. */
 typedef PDMMEDIAEXIOREQTYPE *PPDMMEDIAEXIOREQTYPE;
+
+/**
+ * Data direction for raw SCSI commands.
+ */
+typedef enum PDMMEDIAEXIOREQSCSITXDIR
+{
+    /** Invalid data direction. */
+    PDMMEDIAEXIOREQSCSITXDIR_INVALID     = 0,
+    /** Direction is unknown. */
+    PDMMEDIAEXIOREQSCSITXDIR_UNKNOWN,
+    /** Direction is from device to host. */
+    PDMMEDIAEXIOREQSCSITXDIR_FROM_DEVICE,
+    /** Direction is from host to device. */
+    PDMMEDIAEXIOREQSCSITXDIR_TO_DEVICE,
+    /** No data transfer associated with this request. */
+    PDMMEDIAEXIOREQSCSITXDIR_NONE,
+    /** 32bit hack. */
+    PDMMEDIAEXIOREQSCSITXDIR_32BIT_HACK  = 0x7fffffff
+} PDMMEDIAEXIOREQSCSITXDIR;
 
 /**
  * I/O request state.
@@ -605,6 +578,18 @@ typedef enum PDMMEDIAEXIOREQSTATE
 } PDMMEDIAEXIOREQSTATE;
 /** Pointer to a I/O request state. */
 typedef PDMMEDIAEXIOREQSTATE *PPDMMEDIAEXIOREQSTATE;
+
+/** @name Supported feature flags
+ * @{ */
+/** I/O requests will execute asynchronously by default. */
+#define PDMIMEDIAEX_FEATURE_F_ASYNC             RT_BIT_32(0)
+/** The discard request is supported. */
+#define PDMIMEDIAEX_FEATURE_F_DISCARD           RT_BIT_32(1)
+/** The send raw SCSI command request is supported. */
+#define PDMIMEDIAEX_FEATURE_F_RAWSCSICMD        RT_BIT_32(2)
+/** Mask of valid flags. */
+#define PDMIMEDIAEX_FEATURE_F_VALID             (PDMIMEDIAEX_FEATURE_F_ASYNC | PDMIMEDIAEX_FEATURE_F_DISCARD | PDMIMEDIAEX_FEATURE_F_RAWSCSICMD)
+/** @} */
 
 /** @name I/O request specific flags
  * @{ */
@@ -681,6 +666,45 @@ typedef struct PDMIMEDIAEXPORT
                                                   size_t cbCopy));
 
     /**
+     * Queries a pointer to the memory buffer for the request from the drive/device above.
+     *
+     * @returns VBox status code.
+     * @retval  VERR_NOT_SUPPORTED if this is not supported for this request.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   hIoReq          The I/O request handle.
+     * @param   pvIoReqAlloc    The allocator specific memory for this request.
+     * @param   ppvBuf          Where to store the pointer to the guest buffer on success.
+     * @param   pcbBuf          Where to store the size of the buffer on success.
+     *
+     * @note This is an optional feature of the entity implementing this interface to avoid overhead
+     *       by copying the data between buffers. If NULL it is not supported at all and the caller
+     *       has to resort to PDMIMEDIAEXPORT::pfnIoReqCopyToBuf and PDMIMEDIAEXPORT::pfnIoReqCopyFromBuf.
+     *       The same holds when VERR_NOT_SUPPORTED is returned.
+     *
+     *       On the upside the caller of this interface might not call this method at all and just
+     *       use the before mentioned methods to copy the data between the buffers.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIoReqQueryBuf, (PPDMIMEDIAEXPORT pInterface, PDMMEDIAEXIOREQ hIoReq,
+                                                 void *pvIoReqAlloc, void **ppvBuf, size_t *pcbBuf));
+
+    /**
+     * Queries the specified amount of ranges to discard from the callee for the given I/O request.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   hIoReq          The I/O request handle.
+     * @param   pvIoReqAlloc    The allocator specific memory for this request.
+     * @param   idxRangeStart   The range index to start with.
+     * @param   cRanges         How man ranges can be stored in the provided array.
+     * @param   paRanges        Where to store the ranges on success.
+     * @param   *pcRanges       Where to store the number of ranges copied over on success.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIoReqQueryDiscardRanges, (PPDMIMEDIAEXPORT pInterface, PDMMEDIAEXIOREQ hIoReq,
+                                                           void *pvIoReqAlloc, uint32_t idxRangeStart,
+                                                           uint32_t cRanges, PRTRANGE paRanges,
+                                                           uint32_t *pcRanges));
+
+    /**
      * Notify the request owner about a state change for the request.
      *
      * @returns nothing.
@@ -692,10 +716,18 @@ typedef struct PDMIMEDIAEXPORT
     DECLR3CALLBACKMEMBER(void, pfnIoReqStateChanged, (PPDMIMEDIAEXPORT pInterface, PDMMEDIAEXIOREQ hIoReq,
                                                       void *pvIoReqAlloc, PDMMEDIAEXIOREQSTATE enmState));
 
+    /**
+     * Informs the device that the underlying medium was ejected.
+     *
+     * @returns nothing.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     */
+    DECLR3CALLBACKMEMBER(void, pfnMediumEjected, (PPDMIMEDIAEXPORT pInterface));
+
 } PDMIMEDIAEXPORT;
 
 /** PDMIMEDIAAEXPORT interface ID. */
-#define PDMIMEDIAEXPORT_IID                  "779f38d0-bcaa-4a49-af2b-6f63edd4181a"
+#define PDMIMEDIAEXPORT_IID                  "0ae2e534-6c28-41d6-9a88-7f88f2cb2ff8"
 
 
 /** Pointer to an extended media interface. */
@@ -707,6 +739,15 @@ typedef struct PDMIMEDIAEX *PPDMIMEDIAEX;
  */
 typedef struct PDMIMEDIAEX
 {
+    /**
+     * Queries the features supported by the entity implementing this interface.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   pfFeatures      Where to store the supported feature flags on success.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnQueryFeatures, (PPDMIMEDIAEX pInterface, uint32_t *pfFeatures));
+
     /**
      * Sets the size of the allocator specific memory for a I/O request.
      *
@@ -743,6 +784,43 @@ typedef struct PDMIMEDIAEX
      * @thread  Any thread.
      */
     DECLR3CALLBACKMEMBER(int, pfnIoReqFree, (PPDMIMEDIAEX pInterface, PDMMEDIAEXIOREQ hIoReq));
+
+    /**
+     * Queries the residual amount of data not transfered when the request completed.
+     *
+     * @returns VBox status code.
+     * @retval  VERR_PDM_MEDIAEX_IOREQ_INVALID_STATE has not completed yet.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   hIoReq          The I/O request.
+     * @param   pcbResidual     Where to store the amount of resdiual data in bytes.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIoReqQueryResidual, (PPDMIMEDIAEX pInterface, PDMMEDIAEXIOREQ hIoReq, size_t *pcbResidual));
+
+    /**
+     * Queries the residual amount of data not transfered when the request completed.
+     *
+     * @returns VBox status code.
+     * @retval  VERR_PDM_MEDIAEX_IOREQ_INVALID_STATE has not completed yet.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   hIoReq          The I/O request.
+     * @param   pcbXfer         Where to store the amount of resdiual data in bytes.
+     * @thread  Any thread.
+     *
+     * @note For simple read/write requests this returns the amount to read/write as given to the
+     *       PDMIMEDIAEX::pfnIoReqRead or PDMIMEDIAEX::pfnIoReqWrite call.
+     *       For SCSI commands this returns the transfer size as given in the provided CDB.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIoReqQueryXferSize, (PPDMIMEDIAEX pInterface, PDMMEDIAEXIOREQ hIoReq, size_t *pcbXfer));
+
+    /**
+     * Cancels all I/O active requests.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIoReqCancelAll, (PPDMIMEDIAEX pInterface));
 
     /**
      * Cancels a I/O request identified by the ID.
@@ -816,11 +894,37 @@ typedef struct PDMIMEDIAEX
      * @retval  VINF_SUCCESS if the request completed successfully.
      * @param   pInterface      Pointer to the interface structure containing the called function pointer.
      * @param   hIoReq          The I/O request to associate the discard with.
-     * @param   paRanges        Array of ranges to discard.
-     * @param   cRanges         Number of entries in the array.
+     * @param   cRangesMax      The maximum number of ranges this request has associated, this must not be accurate
+     *                          but can actually be bigger than the amount of ranges actually available.
      * @thread  Any thread.
      */
-    DECLR3CALLBACKMEMBER(int, pfnIoReqDiscard, (PPDMIMEDIAEX pInterface, PDMMEDIAEXIOREQ hIoReq, PCRTRANGE paRanges, unsigned cRanges));
+    DECLR3CALLBACKMEMBER(int, pfnIoReqDiscard, (PPDMIMEDIAEX pInterface, PDMMEDIAEXIOREQ hIoReq, unsigned cRangesMax));
+
+    /**
+     * Send a raw command to the underlying device (CDROM).
+     *
+     * @returns VBox status code.
+     * @retval  VERR_PDM_MEDIAEX_IOREQ_CANCELED if the request was canceled  by a call to
+     *          PDMIMEDIAEX::pfnIoReqCancel.
+     * @retval  VINF_PDM_MEDIAEX_IOREQ_IN_PROGRESS if the request was successfully submitted but is still in progress.
+     *          Completion will be notified through PDMIMEDIAEXPORT::pfnIoReqCompleteNotify with the appropriate status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   hIoReq          The I/O request to associate the command with.
+     * @param   uLun            The LUN the command is for.
+     * @param   pbCdb           The SCSI CDB containing the command.
+     * @param   cbCdb           Size of the CDB in bytes.
+     * @param   enmTxDir        Direction of transfer.
+     * @param   cbBuf           Size of the transfer buffer.
+     * @param   pabSense        Where to store the optional sense key.
+     * @param   cbSense         Size of the sense key buffer.
+     * @param   pu8ScsiSts      Where to store the SCSI status on success.
+     * @param   cTimeoutMillies Command timeout in milliseconds.
+     * @thread  Any thread.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIoReqSendScsiCmd,(PPDMIMEDIAEX pInterface, PDMMEDIAEXIOREQ hIoReq, uint32_t uLun,
+                                                   const uint8_t *pbCdb, size_t cbCdb, PDMMEDIAEXIOREQSCSITXDIR enmTxDir,
+                                                   size_t cbBuf, uint8_t *pabSense, size_t cbSense, uint8_t *pu8ScsiSts,
+                                                   uint32_t cTimeoutMillies));
 
     /**
      * Returns the number of active I/O requests.
@@ -896,137 +1000,7 @@ typedef struct PDMIMEDIAEX
 
 } PDMIMEDIAEX;
 /** PDMIMEDIAEX interface ID. */
-#define PDMIMEDIAEX_IID                      "8856ba6a-773b-40ce-92a2-431cd06e678e"
-
-/**
- * Data direction.
- */
-typedef enum PDMSCSIREQUESTTXDIR
-{
-    PDMSCSIREQUESTTXDIR_UNKNOWN     = 0x00,
-    PDMSCSIREQUESTTXDIR_FROM_DEVICE = 0x01,
-    PDMSCSIREQUESTTXDIR_TO_DEVICE   = 0x02,
-    PDMSCSIREQUESTTXDIR_NONE        = 0x03,
-    PDMSCSIREQUESTTXDIR_32BIT_HACK  = 0x7fffffff
-} PDMSCSIREQUESTTXDIR;
-
-/**
- * SCSI request structure.
- */
-typedef struct PDMSCSIREQUEST
-{
-    /** The logical unit. */
-    uint32_t               uLogicalUnit;
-    /** Direction of the data flow. */
-    PDMSCSIREQUESTTXDIR    uDataDirection;
-    /** Size of the SCSI CDB. */
-    uint32_t               cbCDB;
-    /** Pointer to the SCSI CDB. */
-    uint8_t               *pbCDB;
-    /** Overall size of all scatter gather list elements
-     *  for data transfer if any. */
-    uint32_t               cbScatterGather;
-    /** Number of elements in the scatter gather list. */
-    uint32_t               cScatterGatherEntries;
-    /** Pointer to the head of the scatter gather list. */
-    PRTSGSEG               paScatterGatherHead;
-    /** Size of the sense buffer. */
-    uint32_t               cbSenseBuffer;
-    /** Pointer to the sense buffer. *
-     * Current assumption that the sense buffer is not scattered. */
-    uint8_t               *pbSenseBuffer;
-    /** Opaque user data for use by the device. Left untouched by everything else! */
-    void                  *pvUser;
-} PDMSCSIREQUEST, *PPDMSCSIREQUEST;
-/** Pointer to a const SCSI request structure. */
-typedef const PDMSCSIREQUEST *PCSCSIREQUEST;
-
-/** Pointer to a SCSI port interface. */
-typedef struct PDMISCSIPORT *PPDMISCSIPORT;
-/**
- * SCSI command execution port interface (down).
- * Pair with PDMISCSICONNECTOR.
- */
-typedef struct PDMISCSIPORT
-{
-
-    /**
-     * Notify the device on request completion.
-     *
-     * @returns VBox status code.
-     * @param   pInterface    Pointer to this interface.
-     * @param   pSCSIRequest  Pointer to the finished SCSI request.
-     * @param   rcCompletion  SCSI_STATUS_* code for the completed request.
-     * @param   fRedo         Flag whether the request can to be redone
-     *                        when it failed.
-     * @param   rcReq         The status code the request completed with (VERR_*)
-     *                        Should be only used to choose the correct error message
-     *                        displayed to the user if the error can be fixed by him
-     *                        (fRedo is true).
-     */
-     DECLR3CALLBACKMEMBER(int, pfnSCSIRequestCompleted, (PPDMISCSIPORT pInterface, PPDMSCSIREQUEST pSCSIRequest,
-                                                         int rcCompletion, bool fRedo, int rcReq));
-
-    /**
-     * Returns the storage controller name, instance and LUN of the attached medium.
-     *
-     * @returns VBox status.
-     * @param   pInterface      Pointer to this interface.
-     * @param   ppcszController Where to store the name of the storage controller.
-     * @param   piInstance      Where to store the instance number of the controller.
-     * @param   piLUN           Where to store the LUN of the attached device.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnQueryDeviceLocation, (PPDMISCSIPORT pInterface, const char **ppcszController,
-                                                       uint32_t *piInstance, uint32_t *piLUN));
-
-} PDMISCSIPORT;
-/** PDMISCSIPORT interface ID. */
-#define PDMISCSIPORT_IID                        "05d9fc3b-e38c-4b30-8344-a323feebcfe5"
-
-/**
- * LUN type.
- */
-typedef enum PDMSCSILUNTYPE
-{
-    PDMSCSILUNTYPE_INVALID = 0,
-    PDMSCSILUNTYPE_SBC,         /** Hard disk (SBC) */
-    PDMSCSILUNTYPE_MMC,         /** CD/DVD drive (MMC) */
-    PDMSCSILUNTYPE_SSC,         /** Tape drive (SSC) */
-    PDMSCSILUNTYPE_32BIT_HACK = 0x7fffffff
-} PDMSCSILUNTYPE, *PPDMSCSILUNTYPE;
-
-
-/** Pointer to a SCSI connector interface. */
-typedef struct PDMISCSICONNECTOR *PPDMISCSICONNECTOR;
-/**
- * SCSI command execution connector interface (up).
- * Pair with PDMISCSIPORT.
- */
-typedef struct PDMISCSICONNECTOR
-{
-
-    /**
-     * Submits a SCSI request for execution.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to this interface.
-     * @param   pSCSIRequest    Pointer to the SCSI request to execute.
-     */
-     DECLR3CALLBACKMEMBER(int, pfnSCSIRequestSend, (PPDMISCSICONNECTOR pInterface, PPDMSCSIREQUEST pSCSIRequest));
-
-    /**
-     * Queries the type of the attached LUN.
-     *
-     * @returns VBox status code.
-     * @param   pInterface      Pointer to this interface.
-     * @param   iLUN            The logical unit number.
-     * @param   pSCSIRequest    Pointer to the LUN to be returned.
-     */
-     DECLR3CALLBACKMEMBER(int, pfnQueryLUNType, (PPDMISCSICONNECTOR pInterface, uint32_t iLun, PPDMSCSILUNTYPE pLUNType));
-
-} PDMISCSICONNECTOR;
-/** PDMISCSICONNECTOR interface ID. */
-#define PDMISCSICONNECTOR_IID                   "94465fbd-a2f2-447e-88c9-7366421bfbfe"
+#define PDMIMEDIAEX_IID                      "1f82b709-a9f7-4928-ad50-e879c9bbeba1"
 
 /** @} */
 

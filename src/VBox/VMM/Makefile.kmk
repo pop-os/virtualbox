@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2016 Oracle Corporation
+# Copyright (C) 2006-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -50,6 +50,9 @@ ifdef VBOX_WITH_3RD_IEM_STEP
 endif
 ifdef VBOX_WITH_NESTED_HWVIRT
  VMM_COMMON_DEFS += VBOX_WITH_NESTED_HWVIRT
+ ifdef VBOX_WITH_NESTED_HWVIRT_ONLY_IN_IEM
+  VMM_COMMON_DEFS += VBOX_WITH_NESTED_HWVIRT_ONLY_IN_IEM
+ endif
 endif
 #ifdef VBOX_WITH_IEM
 # VMM_COMMON_DEFS += VBOX_WITH_IEM
@@ -90,12 +93,6 @@ ifdef VBOXSTRICTRC_STRICT_ENABLED
 endif
 ifeq ($(KBUILD_TARGET),amd64)
  VMM_COMMON_DEFS += VBOX_WITH_MORE_RING0_MEM_MAPPINGS
-endif
-ifdef VBOX_WITH_NEW_APIC
- VMM_COMMON_DEFS += VBOX_WITH_NEW_APIC
-endif
-ifdef VBOX_WITH_NEW_IOAPIC
- VMM_COMMON_DEFS += VBOX_WITH_NEW_IOAPIC
 endif
 
 # VMM_COMMON_DEFS += VBOX_WITH_NS_ACCOUNTING_STATS
@@ -148,6 +145,7 @@ VBoxVMM_ASINCS   = .
 
 VBoxVMM_SOURCES  = \
 	VBoxVMM.d \
+	VMMR3/APIC.cpp \
 	VMMR3/CFGM.cpp \
 	VMMR3/CPUM.cpp \
 	VMMR3/CPUMR3CpuId.cpp \
@@ -167,6 +165,7 @@ VBoxVMM_SOURCES  = \
 	VMMR3/DBGFR3PlugIn.cpp \
 	VMMR3/DBGFReg.cpp \
 	VMMR3/DBGFStack.cpp \
+	VMMR3/DBGFR3Flow.cpp \
 	VMMR3/DBGFR3Trace.cpp \
 	VMMR3/DBGFR3Type.cpp \
 	VMMR3/EM.cpp \
@@ -227,11 +226,13 @@ VBoxVMM_SOURCES  = \
 	VMMR3/PATMSSM.cpp \
 	VMMR3/PATMR3Dbg.cpp \
        ,) \
+	VMMAll/APICAll.cpp \
 	VMMAll/CPUMAllRegs.cpp \
 	VMMAll/CPUMAllMsrs.cpp \
 	VMMAll/CPUMStack.cpp \
 	VMMAll/DBGFAll.cpp \
 	VMMAll/HMAll.cpp \
+	VMMAll/HMSVMAll.cpp \
 	VMMAll/IEMAll.cpp \
 	VMMAll/IEMAllAImpl.asm \
 	VMMAll/IEMAllAImplC.cpp \
@@ -284,11 +285,6 @@ ifdef VBOX_WITH_NETSHAPER
  	VMMR3/PDMNetShaper.cpp \
  	VMMAll/PDMAllNetShaper.cpp
 endif
-ifdef VBOX_WITH_NEW_APIC
- VBoxVMM_SOURCES += \
- 	VMMR3/APIC.cpp \
- 	VMMAll/APICAll.cpp
-endif
 ifdef VBOX_WITH_REM
  VBoxVMM_SOURCES += \
 	VMMAll/REMAll.cpp
@@ -321,7 +317,7 @@ VBoxVMM_LIBS += \
 	$(LIB_RUNTIME)
 
 VBoxVMM_LIBS.win = $(PATH_TOOL_$(VBOX_VCC_TOOL)_LIB)/delayimp.lib
-VBoxVMM_LDFLAGS.linux = -Wl,--no-undefined
+VBoxVMM_LDFLAGS.linux = $(VBOX_GCC_NO_UNDEFINED)
 VBoxVMM_LDFLAGS.darwin = -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxVMM.dylib
 VBoxVMM_LDFLAGS.solaris = -mimpure-text
 
@@ -351,12 +347,14 @@ $(call VBOX_SET_VER_INFO_DLL,VBoxVMM,VirtualBox VMM) # Version info / descriptio
 #
 # Generate macro template for IEM instruction statistics.
 #
+$(call KB_FN_DO_PASS0_ON_TARGET,VBoxVMM) # Set VBoxVMM_0_OUTDIR
 VBoxVMM_INTERMEDIATES += $(VBoxVMM_0_OUTDIR)/CommonGenIncs/IEMInstructionStatisticsTmpl.h
 VBoxVMM_CLEAN         += \
 	$(VBoxVMM_0_OUTDIR)/CommonGenIncs/IEMInstructionStatisticsTmpl.h.ts \
 	$(VBoxVMM_0_OUTDIR)/CommonGenIncs/IEMInstructionStatisticsTmpl.h
-$$(VBoxVMM_0_OUTDIR)/CommonGenIncs/IEMInstructionStatisticsTmpl.h.ts \
-+| $$(VBoxVMM_0_OUTDIR)/CommonGenIncs/IEMInstructionStatisticsTmpl.h: \
+$(call KB_FN_AUTO_CMD_DEPS,$(VBoxVMM_0_OUTDIR)/CommonGenIncs/IEMInstructionStatisticsTmpl.h.ts)
+$(VBoxVMM_0_OUTDIR)/CommonGenIncs/IEMInstructionStatisticsTmpl.h.ts \
++| $(VBoxVMM_0_OUTDIR)/CommonGenIncs/IEMInstructionStatisticsTmpl.h: \
 		$(PATH_SUB_CURRENT)/VMMAll/IEMAllInstructions.cpp.h \
 		$(PATH_SUB_CURRENT)/VMMAll/IEMAllInstructionsOneByte.cpp.h \
 		$(PATH_SUB_CURRENT)/VMMAll/IEMAllInstructionsTwoByte0f.cpp.h \
@@ -366,11 +364,19 @@ $$(VBoxVMM_0_OUTDIR)/CommonGenIncs/IEMInstructionStatisticsTmpl.h.ts \
 		$(PATH_SUB_CURRENT)/VMMAll/IEMAllInstructionsVexMap2.cpp.h \
 		$(PATH_SUB_CURRENT)/VMMAll/IEMAllInstructionsVexMap3.cpp.h \
 		$(PATH_SUB_CURRENT)/VMMAll/IEMAllInstructions3DNow.cpp.h
-	$(QUIET)$(call MSG_GENERATE,VBoxVMM,$@,$<)
+	$(QUIET)$(call MSG_GENERATE,VBoxVMM,$@,VMMAll/IEMAllInstructions*.cpp.h)
 	$(QUIET)$(RM) -f -- "$@.tmp" "$@.tmp" "$@.sorted"
 	$(QUIET)$(MKDIR) -p -- "$(dir $@)"
+	$(call KB_FN_AUTO_CMD_DEPS_COMMANDS)
 	$(QUIET)$(SED) \
 		-e '/IEMOP_MNEMONIC\(\|[01234]\|[01234]EX\)(/!d' \
+               -e ':look-for-end-of-invocation' \
+               -e '/)/bend-of-invocation' \
+               -e 'N' \
+               -e 'blook-for-end-of-invocation' \
+               -e ':end-of-invocation' \
+               -e 's/\n/ /g' \
+               -e 's/  */ /g' \
                -e 's/^.*IEMOP_MNEMONIC\(\|[01234]\|[01234]EX\)(/IEM_DO_INSTR_STAT\1(/' \
                -e 's/;.*$(DOLLAR)//' \
 		--output "$@.tmp" $(filter %.cpp.h,$^)
@@ -406,7 +412,7 @@ $$(VBoxVMM_0_OUTDIR)/CommonGenIncs/IEMInstructionStatisticsTmpl.h.ts \
 	$(QUIET)$(RM) -f -- "$@.tmp" "$@.sorted"
 	$(QUIET)$(CP) -v -f --changed -- "$@" "$(patsubst %.ts,%,$@)"
 
-foobar: $$(VBoxVMM_0_OUTDIR)/CommonGenIncs/IEMInstructionStatisticsTmpl.h
+foobar: $(VBoxVMM_0_OUTDIR)/CommonGenIncs/IEMInstructionStatisticsTmpl.h
 
 if "$(KBUILD_TARGET)" == "win" && !defined(VBOX_ONLY_EXTPACKS_USE_IMPLIBS)
  #
@@ -455,22 +461,25 @@ if defined(VBOX_WITH_RAW_MODE) && $(intersects $(VBOX_LDR_FMT32), pe lx)
  VMMRCImp_TEMPLATE = VBoxRc
  VMMRCImp_SOURCES = $(VMMRCImp_0_OUTDIR)/VMMRC.def
  VMMRCImp_CLEAN   = $(VMMRCImp_0_OUTDIR)/VMMRC.def
+ $(call KB_FN_DO_PASS0_ON_TARGET,VMMRCImp)
 
- $$(VMMRCImp_0_OUTDIR)/VMMRC.def: $(PATH_SUB_CURRENT)/VMMRC/VMMRC.def | $$(dir $$@)
+ $(call KB_FN_AUTO_CMD_DEPS,$(VMMRCImp_0_OUTDIR)/VMMRC.def)
+ $(VMMRCImp_0_OUTDIR)/VMMRC.def: $(VMMRCImp_DEFPATH)/VMMRC/VMMRC.def | $$(dir $$@)
+	$(call KB_FN_AUTO_CMD_DEPS_COMMANDS)
  ifeq ($(VBOX_LDR_FMT32),lx)
 	$(SED) \
 		-e '/not-os2/d' \
 		-e 's/^[ \t][ \t]*\([a-zA-Z]\)/    _\1/' \
 		-e 's/[ \t]DATA[ \t]*/ /' \
 		--output $@ \
-		$<
+		$(VMMRCImp_DEFPATH)/VMMRC/VMMRC.def
 	$(APPEND) "$@" ""
 	$(APPEND) "$@" "    ___ehInit"
  else
 	$(SED) \
 		-e '/not-win/d' \
 		-e '/not-$(KBUILD_TARGET_ARCH)/d' \
-		--output $@ $<
+		--output $@ $(VMMRCImp_DEFPATH)/VMMRC/VMMRC.def
  endif
 
 endif # RC && (pe || lx)
@@ -487,22 +496,25 @@ if1of ($(VBOX_LDR_FMT), pe lx)
  ifeq ($(KBUILD_TARGET),win) # Experiment: Let's see how blunt the ones messing our NULL_THUNK_DATA entries on W10 are.
   VMMR0Imp_POST_CMDS = $(KLIBTWEAKER_EXT) --clear-timestamps --fill-null_thunk_data $(out)
  endif
+ $(call KB_FN_DO_PASS0_ON_TARGET,VMMR0Imp)
 
- $$(VMMR0Imp_0_OUTDIR)/VMMR0.def: $(PATH_SUB_CURRENT)/VMMR0/VMMR0.def | $$(dir $$@)
+ $(call KB_FN_AUTO_CMD_DEPS,$(VMMR0Imp_0_OUTDIR)/VMMR0.def)
+ $(VMMR0Imp_0_OUTDIR)/VMMR0.def: $(VMMR0Imp_DEFPATH)/VMMR0/VMMR0.def | $$(dir $$@)
+	$(call KB_FN_AUTO_CMD_DEPS_COMMANDS)
  ifeq ($(VBOX_LDR_FMT),lx)
 	$(SED) \
 		-e '/not-os2/d' \
 		-e '/not-amd64/d' \
 		-e 's/^[ \t][ \t]*\([a-zA-Z]\)/    _\1/' \
 		-e 's/[ \t]DATA[ \t]*/ /'  \
-		--output $@ $<
+		--output $@ $(VMMR0Imp_DEFPATH)/VMMR0/VMMR0.def
 	$(APPEND) "$@" ""
 	$(APPEND) "$@" "    ___ehInit"
  else
 	$(SED) \
 		-e '/not-win/d' \
 		-e '/not-$(KBUILD_TARGET_ARCH)/d' \
-		--output $@ $<
+		--output $@ $(VMMR0Imp_DEFPATH)/VMMR0/VMMR0.def
  endif
 endif # R0: pe + lx
 
@@ -522,8 +534,12 @@ ifneq ($(VBOX_LIB_VMM_LAZY),$(LIB_VMM))
  VMMR3LazyImp_INST     = $(INST_LIB)
  VMMR3LazyImp_SOURCES  = $(VMMR3LazyImp_0_OUTDIR)/VMMR3LazyLoad.asm
  VMMR3LazyImp_CLEAN    = $(VMMR3LazyImp_0_OUTDIR)/VMMR3LazyLoad.asm
- $$(VMMR3LazyImp_0_OUTDIR)/VMMR3LazyLoad.asm: $(PATH_SUB_CURRENT)/VMMR3/VMMR3.def $(VBOX_DEF_2_LAZY_LOAD) | $$(dir $$@)
-	$(VBOX_DEF_2_LAZY_LOAD) --output $@ --library VBoxVMM $<
+ $(call KB_FN_DO_PASS0_ON_TARGET,VMMR3LazyImp)
+
+ $(call KB_FN_AUTO_CMD_DEPS,$(VMMR3LazyImp_0_OUTDIR)/VMMR3LazyLoad.asm)
+ $(VMMR3LazyImp_0_OUTDIR)/VMMR3LazyLoad.asm: $(VMMR3LazyImp_DEFPATH)/VMMR3/VMMR3.def $(VBOX_DEF_2_LAZY_LOAD) | $$(dir $$@)
+	$(call KB_FN_AUTO_CMD_DEPS_COMMANDS)
+	$(VBOX_DEF_2_LAZY_LOAD) --output $@ --library VBoxVMM $(VMMR3LazyImp_DEFPATH)/VMMR3/VMMR3.def
 endif
 
 
@@ -585,6 +601,7 @@ if defined(VBOX_WITH_RAW_MODE) && !defined(VBOX_ONLY_EXTPACKS)
  	VMMRZ/DBGFRZ.cpp \
  	VMMRZ/PGMRZDynMap.cpp \
  	VMMRZ/VMMRZ.cpp \
+ 	VMMAll/APICAll.cpp \
  	VMMAll/CPUMAllRegs.cpp \
  	VMMAll/CPUMAllMsrs.cpp \
  	VMMAll/DBGFAll.cpp \
@@ -599,6 +616,8 @@ if defined(VBOX_WITH_RAW_MODE) && !defined(VBOX_ONLY_EXTPACKS)
  	VMMAll/GIMAll.cpp \
  	VMMAll/GIMAllHv.cpp \
  	VMMAll/GIMAllKvm.cpp \
+	VMMAll/HMAll.cpp \
+	VMMAll/HMSVMAll.cpp \
  	VMMAll/MMAll.cpp \
  	VMMAll/MMAllHyper.cpp \
  	VMMAll/PDMAll.cpp \
@@ -629,10 +648,6 @@ if defined(VBOX_WITH_RAW_MODE) && !defined(VBOX_ONLY_EXTPACKS)
  endif
  ifeq ($(VBOX_LDR_FMT32),lx)
   VMMRC_SOURCES += $(VMMRCImp_0_OUTDIR)/VMMRC.def
- endif
- ifdef VBOX_WITH_NEW_APIC
-  VMMRC_SOURCES += \
-  	VMMAll/APICAll.cpp
  endif
  ifdef VBOX_WITH_REM
   VMMRC_SOURCES += \
@@ -736,6 +751,7 @@ ifndef VBOX_ONLY_EXTPACKS
  	VMMRZ/CPUMRZA.asm \
  	VMMRZ/DBGFRZ.cpp \
  	VMMRZ/VMMRZ.cpp \
+ 	VMMAll/APICAll.cpp \
  	VMMAll/CPUMAllRegs.cpp \
  	VMMAll/CPUMAllMsrs.cpp \
  	VMMAll/CPUMStack.cpp \
@@ -747,6 +763,7 @@ ifndef VBOX_ONLY_EXTPACKS
  	VMMAll/GIMAllHv.cpp \
  	VMMAll/GIMAllKvm.cpp \
  	VMMAll/HMAll.cpp \
+ 	VMMAll/HMSVMAll.cpp \
  	VMMAll/IEMAll.cpp \
  	VMMAll/IEMAllAImpl.asm \
  	VMMAll/IEMAllAImplC.cpp \
@@ -785,10 +802,6 @@ ifndef VBOX_ONLY_EXTPACKS
  ifdef VBOX_WITH_NETSHAPER
   VMMR0_SOURCES += \
  	VMMAll/PDMAllNetShaper.cpp
- endif
- ifdef VBOX_WITH_NEW_APIC
-  VMMR0_SOURCES += \
- 	VMMAll/APICAll.cpp
  endif
  ifdef VBOX_WITH_REM
   VMMR0_SOURCES += \
@@ -868,15 +881,18 @@ if !defined(VBOX_ONLY_EXTPACKS) \
  	$(VMMLibDTrace_0_OUTDIR)/cpumctx.d \
  	$(VMMLibDTrace_0_OUTDIR)/cpum.d \
  	$(VMMLibDTrace_0_OUTDIR)/CPUMInternal.d \
- 	$(VMMLibDTrace_0_OUTDIR)/x86.d \
+ 	$(VMMLibDTrace_0_OUTDIR)/x86.d
+ $(call KB_FN_DO_PASS0_ON_TARGET,VMMLibDTrace)
 
 
  ##
  # Turn the header $2 into the DTrace library script $1.
  #
  define def_vmm_lib_dtrace_preprocess
-  $$$$(VMMLibDTrace_0_OUTDIR)/$1: $2 $$(VBOX_VBOXCPP) | $$$$(dir $$$$@)
-	$$(QUIET)$$(call MSG_GENERATE,VMMLibDTrace,$$@,$$<)
+  $$(call KB_FN_AUTO_CMD_DEPS,$$(VMMLibDTrace_0_OUTDIR)/$1)
+  $$(VMMLibDTrace_0_OUTDIR)/$1: $2 $$(VBOX_VBOXCPP) | $$$$(dir $$$$@)
+	$$(call KB_FN_AUTO_CMD_DEPS_COMMANDS)
+	$$(QUIET)$$(call MSG_GENERATE,VMMLibDTrace,$$@,$2)
 	$$(QUIET)$(VBOX_VBOXCPP) -d \
 		-D VBOX_FOR_DTRACE_LIB \
 		-D VBOX_FOR_DTRACE_LIB_$(toupper $(KBUILD_TARGET_ARCH)) \
@@ -896,7 +912,7 @@ if !defined(VBOX_ONLY_EXTPACKS) \
 			$$(VMM_COMMON_DEFS) \
 			$$(ARCH_BITS_DEFS)\
 		   ,-D '$$(def)') \
-		$$< \
+		$2 \
 		$$@
 	$$(QUIET)$$(CHMOD) 644 $$@
  endef
@@ -980,8 +996,9 @@ if1of ($(SYSMODS),VMMRC)
  test-undef-rc:: $(PATH_TARGET)/undef-rc.run
  OTHERS      += $(PATH_TARGET)/undef-rc.run
  CLEANS      += $(PATH_TARGET)/undef-rc.run
- $(PATH_TARGET)/undef-rc.run: \
-		$$(VMMRC_1_TARGET)
+ $(call KB_FN_AUTO_CMD_DEPS,$(PATH_TARGET)/undef-rc.run)
+ $(PATH_TARGET)/undef-rc.run: $$(VMMRC_1_TARGET)
+	$(call KB_FN_AUTO_CMD_DEPS_COMMANDS)
  ifn1of ($(KBUILD_TARGET), linux solaris)
  else
 	$(call MSG_L1,VMM: Testing for undefined symbols in VMMRC using nm...)

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2612,7 +2612,7 @@ VMMR3DECL(int) TMR3TimerSave(PTMTIMERR3 pTimer, PSSMHANDLE pSSM)
             AssertMsgFailed(("u64Expire is being updated! (%s)\n", pTimer->pszDesc));
             if (!RTThreadYield())
                 RTThreadSleep(1);
-            /* fall thru */
+            RT_FALL_THRU();
         case TMTIMERSTATE_ACTIVE:
         case TMTIMERSTATE_PENDING_SCHEDULE:
         case TMTIMERSTATE_PENDING_RESCHEDULE:
@@ -2651,11 +2651,12 @@ VMMR3DECL(int) TMR3TimerLoad(PTMTIMERR3 pTimer, PSSMHANDLE pSSM)
     int rc = SSMR3GetU8(pSSM, &u8State);
     if (RT_FAILURE(rc))
         return rc;
-#if 1 /* Workaround for accidental state shift in r47786 (2009-05-26 19:12:12). */  /** @todo remove this in a few weeks! */
+
+    /* TMTIMERSTATE_SAVED_XXX: Workaround for accidental state shift in r47786 (2009-05-26 19:12:12). */
     if (    u8State == TMTIMERSTATE_SAVED_PENDING_STOP + 1
         ||  u8State == TMTIMERSTATE_SAVED_PENDING_SCHEDULE + 1)
         u8State--;
-#endif
+
     if (    u8State != TMTIMERSTATE_SAVED_PENDING_STOP
         &&  u8State != TMTIMERSTATE_SAVED_PENDING_SCHEDULE)
     {
@@ -2705,6 +2706,53 @@ VMMR3DECL(int) TMR3TimerLoad(PTMTIMERR3 pTimer, PSSMHANDLE pSSM)
      */
     if (RT_FAILURE(rc))
         rc = SSMR3HandleSetStatus(pSSM, rc);
+    return rc;
+}
+
+
+/**
+ * Skips the state of a timer in a given saved state.
+ *
+ * @returns VBox status.
+ * @param   pSSM            Save State Manager handle.
+ * @param   pfActive        Where to store whether the timer was active
+ *                          when the state was saved.
+ */
+VMMR3DECL(int) TMR3TimerSkip(PSSMHANDLE pSSM, bool *pfActive)
+{
+    Assert(pSSM); AssertPtr(pfActive);
+    LogFlow(("TMR3TimerSkip: pSSM=%p pfActive=%p\n", pSSM, pfActive));
+
+    /*
+     * Load the state and validate it.
+     */
+    uint8_t u8State;
+    int rc = SSMR3GetU8(pSSM, &u8State);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    /* TMTIMERSTATE_SAVED_XXX: Workaround for accidental state shift in r47786 (2009-05-26 19:12:12). */
+    if (    u8State == TMTIMERSTATE_SAVED_PENDING_STOP + 1
+        ||  u8State == TMTIMERSTATE_SAVED_PENDING_SCHEDULE + 1)
+        u8State--;
+
+    if (    u8State != TMTIMERSTATE_SAVED_PENDING_STOP
+        &&  u8State != TMTIMERSTATE_SAVED_PENDING_SCHEDULE)
+    {
+        AssertLogRelMsgFailed(("u8State=%d\n", u8State));
+        return SSMR3HandleSetStatus(pSSM, VERR_TM_LOAD_STATE);
+    }
+
+    *pfActive = (u8State == TMTIMERSTATE_SAVED_PENDING_SCHEDULE);
+    if (*pfActive)
+    {
+        /*
+         * Load the expire time.
+         */
+        uint64_t u64Expire;
+        rc = SSMR3GetU64(pSSM, &u64Expire);
+    }
+
     return rc;
 }
 

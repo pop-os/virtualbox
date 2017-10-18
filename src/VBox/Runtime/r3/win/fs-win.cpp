@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -409,6 +409,8 @@ RTR3DECL(int) RTFsQueryType(const char *pszFsPath, PRTFSTYPE penmType)
                     *penmType = RTFSTYPE_FAT;
                 else if (IS_FS("FAT32"))
                     *penmType = RTFSTYPE_FAT;
+                else if (IS_FS("EXFAT"))
+                    *penmType = RTFSTYPE_EXFAT;
                 else if (IS_FS("VBoxSharedFolderFS"))
                     *penmType = RTFSTYPE_VBOXSHF;
 #undef IS_FS

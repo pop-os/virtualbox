@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2016 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -156,7 +156,7 @@ EIPRTFailure::EIPRTFailure(int aRC, const char *pcszContext, ...)
     RTStrAPrintfV(&pszContext2, pcszContext, args);
     va_end(args);
     char *newMsg;
-    RTStrAPrintf(&newMsg, "%s: %d(%s)", pszContext2, aRC, RTErrGetShort(aRC));
+    RTStrAPrintf(&newMsg, "%s: %d (%s)", pszContext2, aRC, RTErrGetShort(aRC));
     setWhat(newMsg);
     RTStrFree(newMsg);
     RTStrFree(pszContext2);
@@ -1282,6 +1282,42 @@ ContentNode *ElementNode::addContent(const char *pcszContent)
 }
 
 /**
+ * Changes the contents of node and appends it to the list of 
+ * children
+ *
+ * @param pcszContent
+ * @return
+ */
+ContentNode *ElementNode::setContent(const char *pcszContent)
+{
+//  1. Update content
+    xmlNodeSetContent(m_pLibNode, (const xmlChar*)pcszContent);
+
+//  2. Remove Content node from the list
+    /* Check that the order is right. */
+    xml::Node * pNode;
+    RTListForEachCpp(&m_children, pNode, xml::Node, m_listEntry)
+    {
+        bool fLast = RTListNodeIsLast(&m_children, &pNode->m_listEntry);
+
+        if (pNode->isContent())
+        {
+            RTListNodeRemove(&pNode->m_listEntry);
+        }
+
+        if (fLast)
+            break;
+    }
+
+//  3. Create a new node and append to the list
+    // now wrap this in C++
+    ContentNode *pCNode = new ContentNode(this, &m_children, m_pLibNode);
+    RTListAppend(&m_children, &pCNode->m_listEntry);
+
+    return pCNode;
+}
+
+/**
  * Sets the given attribute; overloaded version for const char *.
  *
  * If an attribute with the given name exists, it is overwritten,
@@ -1809,6 +1845,120 @@ void XmlMemWriter::write(const Document &doc, void **ppvBuf, size_t *pcbSize)
     *ppvBuf = m_pBuf;
     *pcbSize = size;
 }
+
+
+////////////////////////////////////////////////////////////////////////////////
+//
+// XmlStringWriter class
+//
+////////////////////////////////////////////////////////////////////////////////
+
+XmlStringWriter::XmlStringWriter()
+  : m_pStrDst(NULL), m_fOutOfMemory(false)
+{
+}
+
+int XmlStringWriter::write(const Document &rDoc, RTCString *pStrDst)
+{
+    /*
+     * Clear the output string and take the global libxml2 lock so we can
+     * safely configure the output formatting.
+     */
+    pStrDst->setNull();
+
+    GlobalLock lock;
+
+    xmlIndentTreeOutput = 1;
+    xmlTreeIndentString = "  ";
+    xmlSaveNoEmptyTags  = 0;
+
+    /*
+     * Do a pass to calculate the size.
+     */
+    size_t cbOutput = 1; /* zero term */
+
+    xmlSaveCtxtPtr pSaveCtx= xmlSaveToIO(WriteCallbackForSize, CloseCallback, &cbOutput, NULL /*pszEncoding*/, XML_SAVE_FORMAT);
+    if (!pSaveCtx)
+        return VERR_NO_MEMORY;
+
+    long rcXml = xmlSaveDoc(pSaveCtx, rDoc.m->plibDocument);
+    xmlSaveClose(pSaveCtx);
+    if (rcXml == -1)
+        return VERR_GENERAL_FAILURE;
+
+    /*
+     * Try resize the string.
+     */
+    int rc = pStrDst->reserveNoThrow(cbOutput);
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Do the real run where we feed output to the string.
+         */
+        m_pStrDst      = pStrDst;
+        m_fOutOfMemory = false;
+        pSaveCtx = xmlSaveToIO(WriteCallbackForReal, CloseCallback, this, NULL /*pszEncoding*/, XML_SAVE_FORMAT);
+        if (pSaveCtx)
+        {
+            rcXml = xmlSaveDoc(pSaveCtx, rDoc.m->plibDocument);
+            xmlSaveClose(pSaveCtx);
+            m_pStrDst = NULL;
+            if (rcXml != -1)
+            {
+                if (!m_fOutOfMemory)
+                    return VINF_SUCCESS;
+
+                rc = VERR_NO_STR_MEMORY;
+            }
+            else
+                rc = VERR_GENERAL_FAILURE;
+        }
+        else
+            rc = VERR_NO_MEMORY;
+        pStrDst->setNull();
+        m_pStrDst = NULL;
+    }
+    return rc;
+}
+
+/*static*/ int XmlStringWriter::WriteCallbackForSize(void *pvUser, const char *pachBuf, int cbToWrite)
+{
+    if (cbToWrite > 0)
+        *(size_t *)pvUser += (unsigned)cbToWrite;
+    RT_NOREF(pachBuf);
+    return cbToWrite;
+}
+
+/*static*/ int XmlStringWriter::WriteCallbackForReal(void *pvUser, const char *pachBuf, int cbToWrite)
+{
+    XmlStringWriter *pThis = static_cast<XmlStringWriter*>(pvUser);
+    if (!pThis->m_fOutOfMemory)
+    {
+        if (cbToWrite > 0)
+        {
+            try
+            {
+                pThis->m_pStrDst->append(pachBuf, (size_t)cbToWrite);
+            }
+            catch (std::bad_alloc)
+            {
+                pThis->m_fOutOfMemory = true;
+                return -1;
+            }
+        }
+        return cbToWrite;
+    }
+    return -1; /* failure */
+}
+
+int XmlStringWriter::CloseCallback(void *pvUser)
+{
+    /* Nothing to do here. */
+    RT_NOREF(pvUser);
+    return 0;
+}
+
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //

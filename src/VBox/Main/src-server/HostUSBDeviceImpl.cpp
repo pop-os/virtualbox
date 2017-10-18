@@ -201,11 +201,7 @@ HRESULT HostUSBDevice::getPort(USHORT *aPort)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-#if !defined(RT_OS_WINDOWS) /// @todo check up the bPort value on Windows before enabling this.
     *aPort = mUsb->bPort;
-#else
-    *aPort = 0;
-#endif
 
     return S_OK;
 }
@@ -508,6 +504,7 @@ HRESULT HostUSBDevice::i_requestCaptureForVM(SessionMachine *aMachine, bool aSet
  * @retval  E_* as appropriate.
  *
  * @param   aMachine        Machine this device should be attach to.
+ * @param   aCaptureFilename Filename to capture the USB traffic to.
  * @param   aMaskedIfs      The interfaces to hide from the guest.
  */
 HRESULT HostUSBDevice::i_attachToVM(SessionMachine *aMachine, const com::Utf8Str &aCaptureFilename,
@@ -1138,7 +1135,7 @@ bool HostUSBDevice::i_updateState(PCUSBDEVICE aDev, bool *aRunFilters, SessionMa
     const USBDEVICESTATE enmOldState = mUsb->enmState; NOREF(enmOldState);
     if (mUsb != aDev)
     {
-#ifdef RT_OS_WINDOWS
+#if defined(RT_OS_WINDOWS)
         /* we used this logic of string comparison in HostUSBDevice::compare
          * now we need to preserve strings from the old device if the new device has zero strings
          * this ensures the device is correctly matched later on
@@ -1194,10 +1191,10 @@ bool HostUSBDevice::i_updateState(PCUSBDEVICE aDev, bool *aRunFilters, SessionMa
         mUsb = aDev;
     }
 
-/** @def HOSTUSBDEVICE_FUZZY_STATE
+/*
  * Defined on hosts where we have a driver that keeps proper device states.
  */
-# if defined(RT_OS_LINUX) || defined(DOXYGEN_RUNNING)
+# if defined(RT_OS_LINUX)
 #  define HOSTUSBDEVICE_FUZZY_STATE 1
 # else
 #  undef  HOSTUSBDEVICE_FUZZY_STATE
@@ -1292,7 +1289,7 @@ bool HostUSBDevice::i_updateState(PCUSBDEVICE aDev, bool *aRunFilters, SessionMa
                     /* Changed! */
                     case kHostUSBDeviceState_UsedByHost:
                         fIsImportant = true;
-                        /* fall thru */
+                        RT_FALL_THRU();
                     case kHostUSBDeviceState_Unused:
                         LogThisFunc(("{%s} %s -> %s\n", mName, i_getStateName(), i_stateName(kHostUSBDeviceState_Capturable)));
                         *aRunFilters = i_setState(kHostUSBDeviceState_Capturable);
@@ -1860,7 +1857,7 @@ bool HostUSBDevice::i_setState(HostUSBDeviceState aNewState,
                 case kHostUSBDeviceState_Capturable:
                 case kHostUSBDeviceState_Unused:
                     fFilters = true;
-                    /* fall thru */
+                    RT_FALL_THRU();
                 case kHostUSBDeviceState_PhysDetached:
                     Assert(aNewPendingState == kHostUSBDeviceState_Invalid);
                     Assert(aNewSubState == kHostUSBDeviceSubState_Default);
@@ -1880,7 +1877,7 @@ bool HostUSBDevice::i_setState(HostUSBDeviceState aNewState,
                 /* Host changes. */
                 case kHostUSBDeviceState_Unused:
                     fFilters = true; /* Wildcard only... */
-                    /* fall thru */
+                    RT_FALL_THRU();
                 case kHostUSBDeviceState_UsedByHost:
                 case kHostUSBDeviceState_PhysDetached:
                     Assert(aNewPendingState == kHostUSBDeviceState_Invalid);
@@ -2135,7 +2132,7 @@ bool HostUSBDevice::i_setState(HostUSBDeviceState aNewState,
                 case kHostUSBDeviceState_HeldByProxy:
                     Assert(aNewPendingState == kHostUSBDeviceState_Invalid);
                     Assert(aNewSubState == kHostUSBDeviceSubState_Default);
-                    Assert(mPendingUniState == kHostUSBDeviceState_Unused);
+                    Assert(mPendingUniState == kHostUSBDeviceState_UsedByVM);
                     break;
 
                 /* Success */
@@ -2233,7 +2230,7 @@ bool HostUSBDevice::i_setState(HostUSBDeviceState aNewState,
  * A convenience for entering a transitional state.
 
  * @param   aNewState       The new state (transitional).
- * @param   aFinalSubState  The final state of the transition (non-transitional).
+ * @param   aFinalState     The final state of the transition (non-transitional).
  * @param   aNewSubState    The new sub-state when applicable.
  *
  * @returns Always false because filters are never applied for the start of a transition.
@@ -2300,7 +2297,7 @@ bool HostUSBDevice::i_advanceTransition(bool aSkipReAttach /* = false */)
                     break;
                 case kHostUSBDeviceSubState_AwaitingReAttach:
                     enmSub = kHostUSBDeviceSubState_Default;
-                    /* fall thru */
+                    RT_FALL_THRU();
                 case kHostUSBDeviceSubState_Default:
                     switch (enmPending)
                     {
@@ -2329,7 +2326,7 @@ bool HostUSBDevice::i_advanceTransition(bool aSkipReAttach /* = false */)
                     break;
                 case kHostUSBDeviceSubState_AwaitingReAttach:
                     enmSub = kHostUSBDeviceSubState_Default;
-                    /* fall thru */
+                    RT_FALL_THRU();
                 case kHostUSBDeviceSubState_Default:
                     switch (enmPending)
                     {
@@ -2358,7 +2355,7 @@ bool HostUSBDevice::i_advanceTransition(bool aSkipReAttach /* = false */)
                     break;
                 case kHostUSBDeviceSubState_AwaitingReAttach:
                     enmSub = kHostUSBDeviceSubState_Default;
-                    /* fall thru */
+                    RT_FALL_THRU();
                 case kHostUSBDeviceSubState_Default:
                     switch (enmPending)
                     {
@@ -2384,7 +2381,7 @@ bool HostUSBDevice::i_advanceTransition(bool aSkipReAttach /* = false */)
                     break;
                 case kHostUSBDeviceSubState_AwaitingReAttach:
                     enmSub = kHostUSBDeviceSubState_Default;
-                    /* fall thru */
+                    RT_FALL_THRU();
                 case kHostUSBDeviceSubState_Default:
                     switch (enmPending)
                     {
@@ -2473,7 +2470,7 @@ bool HostUSBDevice::i_failTransition(HostUSBDeviceState a_enmStateHint)
             {
                 case kHostUSBDeviceSubState_AwaitingDetach:
                     enmSub = kHostUSBDeviceSubState_Default;
-                    /* fall thru */
+                    RT_FALL_THRU();
                 case kHostUSBDeviceSubState_Default:
                     enmState = mPrevUniState;
                     break;

@@ -38,7 +38,7 @@
 #include <iprt/uuid.h>
 #include <iprt/mem.h>
 
-#include <VBox/VBoxVideo.h> /* required by DevVGA.h */
+#include <VBoxVideo.h> /* required by DevVGA.h */
 
 /* should go BEFORE any other DevVGA include to make all DevVGA.h config defines be visible */
 #include "DevVGA.h"
@@ -847,6 +847,20 @@ int vmsvga3dPowerOn(PVGASTATE pThis)
      *
      */
     /** @todo distinguish between vertex and pixel shaders??? */
+    const char *pszShadingLanguageVersion = (const char *)glGetString(GL_SHADING_LANGUAGE_VERSION);
+    float v = pszShadingLanguageVersion ? atof(pszShadingLanguageVersion) : 0.0f;
+    if (v >= 3.30f)
+    {
+        pState->caps.vertexShaderVersion   = SVGA3DVSVERSION_40;
+        pState->caps.fragmentShaderVersion = SVGA3DPSVERSION_40;
+    }
+    else
+    if (v >= 1.20f)
+    {
+        pState->caps.vertexShaderVersion   = SVGA3DVSVERSION_20;
+        pState->caps.fragmentShaderVersion = SVGA3DPSVERSION_20;
+    }
+    else
     if (   vmsvga3dCheckGLExtension(pState, 0.0f, " GL_NV_gpu_program4 ")
         || strstr(pState->pszOtherExtensions, " GL_NV_gpu_program4 "))
     {
@@ -4187,8 +4201,7 @@ int vmsvga3dSetRenderState(PVGASTATE pThis, uint32_t cid, uint32_t cRenderStates
 
             if (pContext->state.aRenderState[SVGA3D_RS_BLENDENABLE].uintValue != 0)
                 continue;   /* ignore if blend is already enabled */
-            /* no break */
-        }
+        }  RT_FALL_THRU();
 
         case SVGA3D_RS_BLENDENABLE:            /* SVGA3dBool */
             enableCap = GL_BLEND;
@@ -5782,7 +5795,7 @@ int vmsvga3dVertexDecl2OGL(SVGA3dVertexArrayIdentity &identity, GLint &size, GLe
 
     case SVGA3D_DECLTYPE_UBYTE4N:
         normalized = GL_TRUE;
-        /* no break */
+        RT_FALL_THRU();
     case SVGA3D_DECLTYPE_UBYTE4:
         size = 4;
         type = GL_UNSIGNED_BYTE;
@@ -5790,7 +5803,7 @@ int vmsvga3dVertexDecl2OGL(SVGA3dVertexArrayIdentity &identity, GLint &size, GLe
 
     case SVGA3D_DECLTYPE_SHORT2N:
         normalized = GL_TRUE;
-        /* no break */
+        RT_FALL_THRU();
     case SVGA3D_DECLTYPE_SHORT2:
         size = 2;
         type = GL_SHORT;
@@ -5798,7 +5811,7 @@ int vmsvga3dVertexDecl2OGL(SVGA3dVertexArrayIdentity &identity, GLint &size, GLe
 
     case SVGA3D_DECLTYPE_SHORT4N:
         normalized = GL_TRUE;
-        /* no break */
+        RT_FALL_THRU();
     case SVGA3D_DECLTYPE_SHORT4:
         size = 4;
         type = GL_SHORT;
@@ -6193,6 +6206,7 @@ int vmsvga3dDrawPrimitives(PVGASTATE pThis, uint32_t cid, uint32_t numVertexDecl
         {
             case SVGA3D_DECLUSAGE_POSITIONT:
                 Log(("ShaderSetPositionTransformed: (%d,%d)\n", pContext->state.RectViewPort.w, pContext->state.RectViewPort.h));
+                RT_FALL_THRU();
             case SVGA3D_DECLUSAGE_POSITION:
                 ShaderSetPositionTransformed(pContext->pShaderContext, pContext->state.RectViewPort.w,
                                              pContext->state.RectViewPort.h,
@@ -6405,7 +6419,7 @@ internal_error:
             }
 # else
             PVMSVGA3DSURFACE pTexture = pState->papSurfaces[pContext->aSidActiveTexture[i]];
-            AssertMsg(pTexture->id == pContext->aSidActiveTexture[i], ("%x vs %x\n", pTexture->id == pContext->aSidActiveTexture[i]));
+            AssertMsg(pTexture->id == pContext->aSidActiveTexture[i], ("%x vs %x\n", pTexture->id, pContext->aSidActiveTexture[i]));
             AssertMsg(pTexture->oglId.texture == (GLuint)activeTexture,
                       ("%x vs %x unit %d (active unit %d) sid=%x\n", pTexture->oglId.texture, activeTexture, i,
                        activeTextureUnit - GL_TEXTURE0, pContext->aSidActiveTexture[i]));

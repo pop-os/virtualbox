@@ -7,7 +7,7 @@ Test Manager - Scheduling Group.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard python imports.
@@ -375,10 +375,10 @@ class SchedGroupDataEx(SchedGroupData):
             aoNewMembers.append(oNewMember);
 
             dErrors = oNewMember.validateAndConvert(oDb, ModelDataBase.ksValidateFor_Other);
-            if len(dErrors) > 0:
+            if dErrors:
                 asErrors.append(str(dErrors));
 
-        if len(asErrors) == 0:
+        if not asErrors:
             for i, _ in enumerate(aoNewMembers):
                 idTestGroup = aoNewMembers[i];
                 for j in range(i + 1, len(aoNewMembers)):
@@ -386,7 +386,7 @@ class SchedGroupDataEx(SchedGroupData):
                         asErrors.append('Duplicate test group #%d!' % (idTestGroup, ));
                         break;
 
-        return (aoNewMembers, None if len(asErrors) == 0 else '<br>\n'.join(asErrors));
+        return (aoNewMembers, None if not asErrors else '<br>\n'.join(asErrors));
 
     def _validateAndConvertWorker(self, asAllowNullAttributes, oDb, enmValidateFor = ModelDataBase.ksValidateFor_Other):
         dErrors = SchedGroupData._validateAndConvertWorker(self, asAllowNullAttributes, oDb, enmValidateFor);
@@ -425,17 +425,22 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
     SchedGroup logic.
     """
 
+    def __init__(self, oDb):
+        ModelLogicBase.__init__(self, oDb);
+        self.dCache = None;
+
     #
     # Standard methods.
     #
 
-    def fetchForListing(self, iStart, cMaxRows, tsNow):
+    def fetchForListing(self, iStart, cMaxRows, tsNow, aiSortColumns = None):
         """
         Fetches build sources.
 
         Returns an array (list) of BuildSourceData items, empty list if none.
         Raises exception on error.
         """
+        _ = aiSortColumns;
 
         if tsNow is None:
             self._oDb.execute('SELECT   *\n'
@@ -465,7 +470,7 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
         # Validate.
         #
         dDataErrors = oData.validateAndConvert(self._oDb, oData.ksValidateFor_Add);
-        if len(dDataErrors) > 0:
+        if dDataErrors:
             raise TMInvalidData('Invalid data passed to addEntry: %s' % (dDataErrors,));
         if self.exists(oData.sName):
             raise TMRowAlreadyExists('Scheduling group "%s" already exists.' % (oData.sName,));
@@ -509,7 +514,7 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
         # Validate input and retrieve the old data.
         #
         dErrors = oData.validateAndConvert(self._oDb, oData.ksValidateFor_Edit);
-        if len(dErrors) > 0:
+        if dErrors:
             raise TMInvalidData('editEntry got invalid data: %s' % (dErrors,));
         self._assertUnique(oData.sName, oData.idSchedGroup);
         oOldData = SchedGroupDataEx().initFromDbWithId(self._oDb, oData.idSchedGroup);
@@ -566,7 +571,7 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
         # We use cascade a little different here... We don't actually delete
         # associated testboxes or testgroups.
         #
-        if len(oData.aoTestBoxes) > 0:
+        if oData.aoTestBoxes:
             if fCascade is not True:
                 # Complain about there being associated testboxes.
                 asTestBoxes = ['%s (#%d)' % (oTestBox.sName, oTestBox.idTestBox) for oTestBox in oData.aoTestBoxes];
@@ -581,7 +586,7 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
                     oTbLogic.editEntry(oTbCopy, uidAuthor, fCommit = False);
 
                 oData = SchedGroupDataEx().initFromDbWithId(self._oDb, idSchedGroup);
-                if len(oData.aoTestBoxes) != 0:
+                if oData.aoTestBoxes:
                     raise TMRowInUse('More testboxes was added to the scheduling group as we were trying to delete it.');
 
         #
@@ -609,6 +614,40 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
         self._oDb.maybeCommit(fCommit)
         return True;
 
+
+    def cachedLookup(self, idSchedGroup):
+        """
+        Looks up the most recent SchedGroupData object for idSchedGroup
+        via an object cache.
+
+        Returns a shared SchedGroupData object.  None if not found.
+        Raises exception on DB error.
+        """
+        if self.dCache is None:
+            self.dCache = self._oDb.getCache('SchedGroup');
+
+        oEntry = self.dCache.get(idSchedGroup, None);
+        if oEntry is None:
+            self._oDb.execute('SELECT   *\n'
+                              'FROM     SchedGroups\n'
+                              'WHERE    idSchedGroup = %s\n'
+                              '     AND tsExpire = \'infinity\'::TIMESTAMP\n'
+                              , (idSchedGroup, ));
+            if self._oDb.getRowCount() == 0:
+                # Maybe it was deleted, try get the last entry.
+                self._oDb.execute('SELECT   *\n'
+                                  'FROM     SchedGroups\n'
+                                  'WHERE    idSchedGroup = %s\n'
+                                  'ORDER BY tsExpire DESC\n'
+                                  'LIMIT 1\n'
+                                  , (idSchedGroup, ));
+            elif self._oDb.getRowCount() > 1:
+                raise self._oDb.integrityException('%s infinity rows for %s' % (self._oDb.getRowCount(), idSchedGroup));
+
+            if self._oDb.getRowCount() == 1:
+                oEntry = SchedGroupData().initFromDbRow(self._oDb.fetchOne());
+                self.dCache[idSchedGroup] = oEntry;
+        return oEntry;
 
 
     #
@@ -684,7 +723,7 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
         Gets the scheduling groups members for the given scheduling group.
 
         Returns an array of SchedGroupMemberDataEx instances (sorted by
-        priority and idTestGroup).  May raise exception DB error.
+        priority (descending) and idTestGroup).  May raise exception DB error.
         """
 
         if tsEffective is None:
@@ -694,7 +733,7 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
                               '     AND SchedGroupMembers.tsExpire     = \'infinity\'::TIMESTAMP\n'
                               '     AND TestGroups.idTestGroup         = SchedGroupMembers.idTestGroup\n'
                               '     AND TestGroups.tsExpire            = \'infinity\'::TIMESTAMP\n'
-                              'ORDER BY SchedGroupMembers.iSchedPriority, SchedGroupMembers.idTestGroup\n'
+                              'ORDER BY SchedGroupMembers.iSchedPriority DESC, SchedGroupMembers.idTestGroup\n'
                               , (idSchedGroup,));
         else:
             self._oDb.execute('SELECT   *\n'
@@ -717,8 +756,8 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
         """
         Gets the enabled testcases w/ testgroup+priority for the given scheduling group.
 
-        Returns an array TestCaseData instance (group id, testcase priority and
-        testcase ids) with an extra iSchedPriority member.
+        Returns an array of TestCaseData instances (ordered by group id, descending
+        testcase priority, and testcase IDs) with an extra iSchedPriority member.
         May raise exception on DB error or if the result exceeds cMax.
         """
 
@@ -733,7 +772,7 @@ class SchedGroupLogic(ModelLogicBase): # pylint: disable=R0903
                           '     AND TestCases.idTestCase           = TestGroupMembers.idTestCase\n'
                           '     AND TestCases.tsExpire             = \'infinity\'::TIMESTAMP\n'
                           '     AND TestCases.fEnabled             = TRUE\n'
-                          'ORDER BY TestGroupMembers.idTestGroup, TestGroupMembers.iSchedPriority, TestCases.idTestCase\n'
+                          'ORDER BY TestGroupMembers.idTestGroup, TestGroupMembers.iSchedPriority DESC, TestCases.idTestCase\n'
                           , (idSchedGroup,));
 
         if cMax is not None  and  self._oDb.getRowCount() > cMax:

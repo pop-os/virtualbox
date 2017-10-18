@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,9 +27,7 @@
 #include <VBox/vmm/iom.h>
 #include <VBox/vmm/hm.h>
 #include <VBox/vmm/cfgm.h>
-#ifdef VBOX_WITH_NEW_APIC
-# include <VBox/vmm/apic.h>
-#endif
+#include <VBox/vmm/apic.h>
 #ifdef VBOX_WITH_REM
 # include <VBox/vmm/rem.h>
 #endif
@@ -425,22 +423,8 @@ int pdmR3DevInitComplete(PVM pVM)
     int rc;
 
     /*
-     *
-     * PCI BIOS Fake and Init Complete.
-     *
+     * Iterate thru the device instances and work the callback.
      */
-    if (pVM->pdm.s.aPciBuses[0].pDevInsR3)
-    {
-        pdmLock(pVM);
-        rc = pVM->pdm.s.aPciBuses[0].pfnFakePCIBIOSR3(pVM->pdm.s.aPciBuses[0].pDevInsR3);
-        pdmUnlock(pVM);
-        if (RT_FAILURE(rc))
-        {
-            AssertMsgFailed(("PCI BIOS fake failed rc=%Rrc\n", rc));
-            return rc;
-        }
-    }
-
     for (PPDMDEVINS pDevIns = pVM->pdm.s.pDevInstances; pDevIns; pDevIns = pDevIns->Internal.s.pNextR3)
     {
         if (pDevIns->pReg->pfnInitComplete)
@@ -503,13 +487,11 @@ static int pdmR3DevLoadModules(PVM pVM)
     RegCB.pVM              = pVM;
     RegCB.pCfgNode         = NULL;
 
-#ifdef VBOX_WITH_NEW_APIC
     /*
      * Load the internal VMM APIC device.
      */
     int rc2 = pdmR3DevReg_Register(&RegCB.Core, &g_DeviceAPIC);
     AssertRCReturn(rc2, rc2);
-#endif
 
     /*
      * Load the builtin module.

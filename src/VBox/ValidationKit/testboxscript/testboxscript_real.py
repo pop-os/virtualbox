@@ -8,7 +8,7 @@ TestBox Script - main().
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109027 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard python imports.
@@ -232,7 +232,7 @@ class TestBoxScript(object):
         os.environ['TESTBOX_TIMEOUT']           = '0';
         os.environ['TESTBOX_TIMEOUT_ABS']       = '0';
 
-        if utils.getHostOs() is 'win':
+        if utils.getHostOs() == 'win':
             os.environ['COMSPEC']            = os.path.join(os.environ['SystemRoot'], 'System32', 'cmd.exe');
         # Currently omitting any kBuild tools.
 
@@ -259,7 +259,7 @@ class TestBoxScript(object):
             return True;
 
         # Test if already mounted.
-        sTestFile = os.path.join(sMountPoint + os.path.sep, sShare + '.txt');
+        sTestFile = os.path.join(sMountPoint + os.path.sep, sShare + '-new.txt');
         if os.path.isfile(sTestFile):
             return True;
 
@@ -879,10 +879,10 @@ class TestBoxScript(object):
                 oConnection.close();
 
             # Automatically reboot if scratch init fails.
-            if self._cReinitScratchErrors > 8 and self.reinitScratch(cRetries = 3) is False:
-                testboxcommons.log('Scratch does not initialize cleanly after %d attempts, rebooting...'
-                                   % ( self._cReinitScratchErrors, ));
-                self._oCommand.doReboot();
+            #if self._cReinitScratchErrors > 8 and self.reinitScratch(cRetries = 3) is False:
+            #    testboxcommons.log('Scratch does not initialize cleanly after %d attempts, rebooting...'
+            #                       % ( self._cReinitScratchErrors, ));
+            #    self._oCommand.doReboot();
 
             # delay a wee bit before looping.
             ## @todo We shouldn't bother the server too frequently.  We should try combine the test reporting done elsewhere
@@ -904,15 +904,16 @@ class TestBoxScript(object):
         #
         # Parse arguments.
         #
+        sDefShareType = 'nfs' if utils.getHostOs() == 'solaris' else 'cifs';
         if utils.getHostOs() in ('win', 'os2'):
-            sDefTestRsrc = 'T:';
-            sDefBuilds   = 'U:';
+            sDefTestRsrc  = 'T:';
+            sDefBuilds    = 'U:';
         elif utils.getHostOs() == 'darwin':
-            sDefTestRsrc = '/Volumes/testrsrc';
-            sDefBuilds   = '/Volumes/builds';
+            sDefTestRsrc  = '/Volumes/testrsrc';
+            sDefBuilds    = '/Volumes/builds';
         else:
-            sDefTestRsrc = '/mnt/testrsrc';
-            sDefBuilds   = '/mnt/builds';
+            sDefTestRsrc  = '/mnt/testrsrc';
+            sDefBuilds    = '/mnt/builds';
 
         class MyOptionParser(OptionParser):
             """ We need to override the exit code on --help, error and so on. """
@@ -929,10 +930,11 @@ class TestBoxScript(object):
                               dest=sPrefix + 'Path',         metavar='<abs-path>', default=sDefault,
                               help='Where ' + sDesc + ' can be found');
             parser.add_option('--' + sLower + '-server-type',
-                              dest=sPrefix + 'ServerType',   metavar='<nfs|cifs>', default=None,
-                              help='The type of server, cifs or nfs. If empty (default), we won\'t try mount anything.');
+                              dest=sPrefix + 'ServerType',   metavar='<nfs|cifs>', default=sDefShareType,
+                              help='The type of server, cifs (default) or nfs. If empty, we won\'t try mount anything.');
             parser.add_option('--' + sLower + '-server-name',
-                              dest=sPrefix + 'ServerName',   metavar='<server>',   default='solserv.de.oracle.com',
+                              dest=sPrefix + 'ServerName',   metavar='<server>',
+                              default='vboxstor.de.oracle.com' if sLower == 'builds' else 'teststor.de.oracle.com',
                               help='The name of the server with the builds.');
             parser.add_option('--' + sLower + '-server-share',
                               dest=sPrefix + 'ServerShare',  metavar='<share>',    default=sLower,
@@ -1008,7 +1010,7 @@ class TestBoxScript(object):
 
         for sPrefix in ['sBuilds', 'sTestRsrc']:
             sType = getattr(oOptions, sPrefix + 'ServerType');
-            if sType is None or len(sType.strip()) == 0:
+            if sType is None or not sType.strip():
                 setattr(oOptions, sPrefix + 'ServerType', None);
             elif sType not in ['cifs', 'nfs']:
                 print('Syntax error: Invalid server type "%s"' % (sType,));

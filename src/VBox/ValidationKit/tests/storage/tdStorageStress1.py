@@ -7,7 +7,7 @@ Storage testcase using xfstests.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -395,7 +395,7 @@ class tdStorageStress(vbox.TestDriver):                                      # p
             self.logVmInfo(oVM);
             oSession, oTxsSession = self.startVmAndConnectToTxsViaTcp(sVmName, fCdWait = False, fNatForwardingForTxs = True);
             if oSession is not None:
-                self.addTask(oSession);
+                self.addTask(oTxsSession);
 
                 # Fudge factor - Allow the guest to finish starting up.
                 self.sleep(5);

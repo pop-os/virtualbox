@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -112,12 +112,20 @@ int main()
     RTTestSub(hTest, "Basics");
 
     /* simple */
+    static const char s_szSimpleExpect[] = "u32=16 u64=256 u64=0x100";
     size_t cch = RTStrPrintf(pszBuf, BUF_SIZE, "u32=%d u64=%lld u64=%#llx", u32, u64, u64);
-    if (strcmp(pszBuf, "u32=16 u64=256 u64=0x100"))
-    {
+    if (strcmp(pszBuf, s_szSimpleExpect))
         RTTestIFailed("error: '%s'\n"
-                      "wanted 'u32=16 u64=256 u64=0x100'\n", pszBuf);
-    }
+                      "wanted '%s'\n", pszBuf, s_szSimpleExpect);
+    else if (cch != sizeof(s_szSimpleExpect) - 1)
+        RTTestIFailed("error: got %zd, expected %zd (#1)\n", cch, sizeof(s_szSimpleExpect) - 1);
+
+    ssize_t cch2 = RTStrPrintf2(pszBuf, BUF_SIZE, "u32=%d u64=%lld u64=%#llx", u32, u64, u64);
+    if (strcmp(pszBuf, "u32=16 u64=256 u64=0x100"))
+        RTTestIFailed("error: '%s' (#2)\n"
+                      "wanted '%s' (#2)\n", pszBuf, s_szSimpleExpect);
+    else if (cch2 != sizeof(s_szSimpleExpect) - 1)
+        RTTestIFailed("error: got %zd, expected %zd (#2)\n", cch2, sizeof(s_szSimpleExpect) - 1);
 
     /* just big. */
     u64 = UINT64_C(0x7070605040302010);
@@ -170,35 +178,80 @@ int main()
      */
     RTTestSub(hTest, "RTStrAPrintf");
     char *psz = (char *)~0;
-    int cch2 = RTStrAPrintf(&psz, "Hey there! %s%s", "This is a test", "!");
-    if (cch2 < 0)
-        RTTestIFailed("RTStrAPrintf failed, cch2=%d\n", cch2);
+    int cch3 = RTStrAPrintf(&psz, "Hey there! %s%s", "This is a test", "!");
+    if (cch3 < 0)
+        RTTestIFailed("RTStrAPrintf failed, cch3=%d\n", cch3);
     else if (strcmp(psz, "Hey there! This is a test!"))
         RTTestIFailed("RTStrAPrintf failed\n"
                       "got   : '%s'\n"
                       "wanted: 'Hey there! This is a test!'\n",
                       psz);
-    else if ((int)strlen(psz) != cch2)
-        RTTestIFailed("RTStrAPrintf failed, cch2 == %d expected %u\n", cch2, strlen(psz));
+    else if ((int)strlen(psz) != cch3)
+        RTTestIFailed("RTStrAPrintf failed, cch3 == %d expected %u\n", cch3, strlen(psz));
     RTStrFree(psz);
 
+/* This used to be very simple, but is not doing overflow handling checks and two APIs. */
 #define CHECK42(fmt, arg, out) \
     do { \
-        cch = RTStrPrintf(pszBuf, BUF_SIZE, fmt " 42=%d " fmt " 42=%d", arg, 42, arg, 42); \
-        if (strcmp(pszBuf, out " 42=42 " out " 42=42")) \
+        static const char g_szCheck42Fmt[]    = fmt " 42=%d " fmt " 42=%d" ; \
+        static const char g_szCheck42Expect[] = out " 42=42 " out " 42=42" ; \
+        \
+        cch = RTStrPrintf(pszBuf, BUF_SIZE, g_szCheck42Fmt, arg, 42, arg, 42); \
+        if (memcmp(pszBuf, g_szCheck42Expect, sizeof(g_szCheck42Expect)) != 0) \
             RTTestIFailed("at line %d: format '%s'\n" \
                           "    output: '%s'\n"  \
                           "    wanted: '%s'\n", \
-                          __LINE__, fmt, pszBuf, out " 42=42 " out " 42=42"); \
-        else if (cch != sizeof(out " 42=42 " out " 42=42") - 1) \
+                          __LINE__, fmt, pszBuf, g_szCheck42Expect); \
+        else if (cch != sizeof(g_szCheck42Expect) - 1) \
             RTTestIFailed("at line %d: Invalid length %d returned, expected %u!\n", \
-                          __LINE__, cch, sizeof(out " 42=42 " out " 42=42") - 1); \
+                          __LINE__, cch, sizeof(g_szCheck42Expect) - 1); \
+        \
+        RTTestIDisableAssertions(); \
+        for (size_t cbBuf = 0; cbBuf <= BUF_SIZE; cbBuf++) \
+        { \
+            memset(pszBuf, 0xcc, BUF_SIZE); \
+            const char   chAfter    = cbBuf != 0 ? '\0' : 0xcc; \
+            const size_t cchCompare = cbBuf >= sizeof(g_szCheck42Expect) ? sizeof(g_szCheck42Expect) - 1 \
+                                    : cbBuf > 0 ? cbBuf - 1 : 0; \
+            size_t       cch1Expect = cchCompare; \
+            ssize_t      cch2Expect = cbBuf >= sizeof(g_szCheck42Expect) \
+                                    ? sizeof(g_szCheck42Expect) - 1 : -(ssize_t)sizeof(g_szCheck42Expect); \
+            \
+            cch = RTStrPrintf(pszBuf, cbBuf, g_szCheck42Fmt, arg, 42, arg, 42);\
+            if (   memcmp(pszBuf, g_szCheck42Expect, cchCompare) != 0 \
+                || pszBuf[cchCompare] != chAfter) \
+                RTTestIFailed("at line %d: format '%s' (#1, cbBuf=%zu)\n" \
+                              "    output: '%s'\n"  \
+                              "    wanted: '%s'\n", \
+                              __LINE__, fmt, cbBuf, cbBuf ? pszBuf : "", g_szCheck42Expect); \
+            if (cch != cch1Expect) \
+                 RTTestIFailed("at line %d: Invalid length %d returned for cbBuf=%zu, expected %zd! (#1)\n", \
+                               __LINE__, cch, cbBuf, cch1Expect); \
+            \
+            cch2 = RTStrPrintf2(pszBuf, cbBuf, g_szCheck42Fmt, arg, 42, arg, 42);\
+            if (   memcmp(pszBuf, g_szCheck42Expect, cchCompare) != 0 \
+                || pszBuf[cchCompare] != chAfter) \
+                RTTestIFailed("at line %d: format '%s' (#2, cbBuf=%zu)\n" \
+                              "    output: '%s'\n"  \
+                              "    wanted: '%s'\n", \
+                              __LINE__, fmt, cbBuf, cbBuf ? pszBuf : "", g_szCheck42Expect); \
+            if (cch2 != cch2Expect) \
+                RTTestIFailed("at line %d: Invalid length %d returned for cbBuf=%zu, expected %zd! (#2)\n", \
+                               __LINE__, cch2, cbBuf, cch2Expect); \
+        } \
+        RTTestIRestoreAssertions(); \
     } while (0)
 
 #define CHECKSTR(Correct) \
     if (strcmp(pszBuf, Correct)) \
         RTTestIFailed("error:    '%s'\n" \
-                      "expected: '%s'\n", pszBuf, Correct); \
+                      "expected: '%s'\n", pszBuf, Correct);
+
+    /*
+     * Test the waters.
+     */
+    CHECK42("%d", 127, "127");
+    CHECK42("%s", "721", "721");
 
     /*
      * Runtime extensions.
@@ -459,18 +512,15 @@ int main()
     CHECK42("%RTproc", (RTPROCESS)0xffffff, "00ffffff");
     CHECK42("%RTproc", (RTPROCESS)0x43455443, "43455443");
 
-    if (sizeof(RTUINTPTR) == 8)
-    {
-        CHECK42("%RTptr", (RTUINTPTR)0, "0000000000000000");
-        CHECK42("%RTptr", ~(RTUINTPTR)0, "ffffffffffffffff");
-        CHECK42("%RTptr", (RTUINTPTR)0x84342134, "0000000084342134");
-    }
-    else
-    {
-        CHECK42("%RTptr", (RTUINTPTR)0, "00000000");
-        CHECK42("%RTptr", ~(RTUINTPTR)0, "ffffffff");
-        CHECK42("%RTptr", (RTUINTPTR)0x84342134, "84342134");
-    }
+#if (HC_ARCH_BITS == 64 || GC_ARCH_BITS == 64)
+    CHECK42("%RTptr", (RTUINTPTR)0, "0000000000000000");
+    CHECK42("%RTptr", ~(RTUINTPTR)0, "ffffffffffffffff");
+    CHECK42("%RTptr", (RTUINTPTR)(uintptr_t)0x84342134, "0000000084342134");
+#else
+    CHECK42("%RTptr", (RTUINTPTR)0, "00000000");
+    CHECK42("%RTptr", ~(RTUINTPTR)0, "ffffffff");
+    CHECK42("%RTptr", (RTUINTPTR)(uintptr_t)0x84342134, "84342134");
+#endif
 
 #if ARCH_BITS == 64
     AssertCompileSize(RTCCUINTREG, 8);
@@ -490,32 +540,26 @@ int main()
     CHECK42("%RTsel", (RTSEL)0x543, "0543");
     CHECK42("%RTsel", (RTSEL)0xf8f8, "f8f8");
 
-    if (sizeof(RTSEMEVENT) == 8)
-    {
-        CHECK42("%RTsem", (RTSEMEVENT)0, "0000000000000000");
-        CHECK42("%RTsem", (RTSEMEVENT)0x23484342134ULL, "0000023484342134");
-    }
-    else
-    {
-        CHECK42("%RTsem", (RTSEMEVENT)0, "00000000");
-        CHECK42("%RTsem", (RTSEMEVENT)0x84342134, "84342134");
-    }
+#if ARCH_BITS == 64
+    CHECK42("%RTsem", (RTSEMEVENT)0, "0000000000000000");
+    CHECK42("%RTsem", (RTSEMEVENT)(uintptr_t)0x23484342134ULL, "0000023484342134");
+#else
+    CHECK42("%RTsem", (RTSEMEVENT)0, "00000000");
+    CHECK42("%RTsem", (RTSEMEVENT)(uintptr_t)0x84342134, "84342134");
+#endif
 
-    CHECK42("%RTsock", (RTSOCKET)12234, "12234");
-    CHECK42("%RTsock", (RTSOCKET)584854543, "584854543");
+    CHECK42("%RTsock", (RTSOCKET)(uintptr_t)12234, "12234");
+    CHECK42("%RTsock", (RTSOCKET)(uintptr_t)584854543, "584854543");
 
-    if (sizeof(RTTHREAD) == 8)
-    {
-        CHECK42("%RTthrd", (RTTHREAD)0, "0000000000000000");
-        CHECK42("%RTthrd", (RTTHREAD)~(uintptr_t)0, "ffffffffffffffff");
-        CHECK42("%RTthrd", (RTTHREAD)0x63484342134ULL, "0000063484342134");
-    }
-    else
-    {
-        CHECK42("%RTthrd", (RTTHREAD)0, "00000000");
-        CHECK42("%RTthrd", (RTTHREAD)~(uintptr_t)0, "ffffffff");
-        CHECK42("%RTthrd", (RTTHREAD)0x54342134, "54342134");
-    }
+#if ARCH_BITS == 64
+    CHECK42("%RTthrd", (RTTHREAD)0, "0000000000000000");
+    CHECK42("%RTthrd", (RTTHREAD)~(uintptr_t)0, "ffffffffffffffff");
+    CHECK42("%RTthrd", (RTTHREAD)(uintptr_t)0x63484342134ULL, "0000063484342134");
+#else
+    CHECK42("%RTthrd", (RTTHREAD)0, "00000000");
+    CHECK42("%RTthrd", (RTTHREAD)~(uintptr_t)0, "ffffffff");
+    CHECK42("%RTthrd", (RTTHREAD)(uintptr_t)0x54342134, "54342134");
+#endif
 
     CHECK42("%RTuid", (RTUID)-2, "-2");
     CHECK42("%RTuid", (RTUID)90344, "90344");

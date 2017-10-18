@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1111,7 +1111,10 @@ whose vector indexed a bit set in the EOI-exit bitmap. */
 /** Memory type that must be used for the VMCS. */
 #define MSR_IA32_VMX_BASIC_INFO_VMCS_MEM_TYPE(a)                (((a) >> 50) & 0xF)
 /** Whether the processor provides additional information for exits due to INS/OUTS. */
-#define MSR_IA32_VMX_BASIC_INFO_VMCS_INS_OUTS(a)                RT_BOOL((a) & RT_BIT_64(54))
+#define MSR_IA32_VMX_BASIC_INFO_VMCS_INS_OUTS(a)                ((a) & RT_BIT_64(54))
+/** Whether default 1 bits in control MSRs (pin/proc/exit/entry) may be
+ *  cleared to 0 and that 'true' control MSRs are supported. */
+#define MSR_IA32_VMX_BASIC_INFO_TRUE_CONTROLS(a)                ((a) & RT_BIT_64(55))
 /** @} */
 
 

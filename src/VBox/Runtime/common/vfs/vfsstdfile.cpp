@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,9 +31,11 @@
 #include <iprt/vfs.h>
 #include <iprt/vfslowlevel.h>
 
+#include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/file.h>
 #include <iprt/poll.h>
+#include <iprt/string.h>
 #include <iprt/thread.h>
 
 
@@ -507,4 +509,89 @@ RTDECL(int) RTVfsIoStrmOpenNormal(const char *pszFilename, uint64_t fOpen, PRTVF
     }
     return rc;
 }
+
+
+
+/**
+ * @interface_method_impl{RTVFSCHAINELEMENTREG,pfnValidate}
+ */
+static DECLCALLBACK(int) rtVfsChainStdFile_Validate(PCRTVFSCHAINELEMENTREG pProviderReg, PRTVFSCHAINSPEC pSpec,
+                                                    PRTVFSCHAINELEMSPEC pElement, uint32_t *poffError, PRTERRINFO pErrInfo)
+{
+    RT_NOREF(pProviderReg);
+
+    /*
+     * Basic checks.
+     */
+    if (pElement->enmTypeIn != RTVFSOBJTYPE_INVALID)
+        return VERR_VFS_CHAIN_MUST_BE_FIRST_ELEMENT;
+    if (   pElement->enmType != RTVFSOBJTYPE_FILE
+        && pElement->enmType != RTVFSOBJTYPE_IO_STREAM)
+        return VERR_VFS_CHAIN_ONLY_FILE_OR_IOS;
+
+    /*
+     * Join common cause with the 'open' provider.
+     */
+    return RTVfsChainValidateOpenFileOrIoStream(pSpec, pElement, poffError, pErrInfo);
+}
+
+
+/**
+ * @interface_method_impl{RTVFSCHAINELEMENTREG,pfnInstantiate}
+ */
+static DECLCALLBACK(int) rtVfsChainStdFile_Instantiate(PCRTVFSCHAINELEMENTREG pProviderReg, PCRTVFSCHAINSPEC pSpec,
+                                                       PCRTVFSCHAINELEMSPEC pElement, RTVFSOBJ hPrevVfsObj,
+                                                       PRTVFSOBJ phVfsObj, uint32_t *poffError, PRTERRINFO pErrInfo)
+{
+    RT_NOREF(pProviderReg, pSpec, poffError, pErrInfo);
+    AssertReturn(hPrevVfsObj == NIL_RTVFSOBJ, VERR_VFS_CHAIN_IPE);
+
+    RTVFSFILE hVfsFile;
+    int rc = RTVfsFileOpenNormal(pElement->paArgs[0].psz, pElement->uProvider, &hVfsFile);
+    if (RT_SUCCESS(rc))
+    {
+        *phVfsObj = RTVfsObjFromFile(hVfsFile);
+        RTVfsFileRelease(hVfsFile);
+        if (*phVfsObj != NIL_RTVFSOBJ)
+            return VINF_SUCCESS;
+        rc = VERR_VFS_CHAIN_CAST_FAILED;
+    }
+    return rc;
+}
+
+
+/**
+ * @interface_method_impl{RTVFSCHAINELEMENTREG,pfnCanReuseElement}
+ */
+static DECLCALLBACK(bool) rtVfsChainStdFile_CanReuseElement(PCRTVFSCHAINELEMENTREG pProviderReg,
+                                                            PCRTVFSCHAINSPEC pSpec, PCRTVFSCHAINELEMSPEC pElement,
+                                                            PCRTVFSCHAINSPEC pReuseSpec, PCRTVFSCHAINELEMSPEC pReuseElement)
+{
+    RT_NOREF(pProviderReg, pSpec, pReuseSpec);
+    if (strcmp(pElement->paArgs[0].psz, pReuseElement->paArgs[0].psz) == 0)
+        if (pElement->paArgs[0].uProvider == pReuseElement->paArgs[0].uProvider)
+            return true;
+    return false;
+}
+
+
+/** VFS chain element 'file'. */
+static RTVFSCHAINELEMENTREG g_rtVfsChainStdFileReg =
+{
+    /* uVersion = */            RTVFSCHAINELEMENTREG_VERSION,
+    /* fReserved = */           0,
+    /* pszName = */             "stdfile",
+    /* ListEntry = */           { NULL, NULL },
+    /* pszHelp = */             "Open a real file, providing either a file or an I/O stream object. Initial element.\n"
+                                "First argument is the filename path.\n"
+                                "Second argument is access mode, optional: r, w, rw.\n"
+                                "Third argument is open disposition, optional: create, create-replace, open, open-create, open-append, open-truncate.\n"
+                                "Forth argument is file sharing, optional: nr, nw, nrw, d.",
+    /* pfnValidate = */         rtVfsChainStdFile_Validate,
+    /* pfnInstantiate = */      rtVfsChainStdFile_Instantiate,
+    /* pfnCanReuseElement = */  rtVfsChainStdFile_CanReuseElement,
+    /* uEndMarker = */          RTVFSCHAINELEMENTREG_VERSION
+};
+
+RTVFSCHAIN_AUTO_REGISTER_ELEMENT_PROVIDER(&g_rtVfsChainStdFileReg, rtVfsChainStdFileReg);
 

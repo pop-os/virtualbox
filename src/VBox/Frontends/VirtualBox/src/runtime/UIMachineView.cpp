@@ -71,9 +71,7 @@
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-#if QT_VERSION >= 0x050000
 # include <QAbstractNativeEventFilter>
-#endif
 
 /* GUI includes: */
 #ifdef VBOX_WS_MAC
@@ -90,7 +88,7 @@
 
 /* Other VBox includes: */
 #include <VBox/VBoxOGL.h>
-#include <VBox/VBoxVideo.h>
+#include <VBoxVideo.h>
 #ifdef VBOX_WS_MAC
 # include <VBox/err.h>
 #endif /* VBOX_WS_MAC */
@@ -99,24 +97,10 @@
 #include <math.h>
 #ifdef VBOX_WS_MAC
 # include <Carbon/Carbon.h>
-#endif /* VBOX_WS_MAC */
+#endif
 #ifdef VBOX_WS_X11
-# if QT_VERSION < 0x050000
-#  include <X11/XKBlib.h>
-#  ifdef KeyPress
-const int XFocusIn = FocusIn;
-const int XFocusOut = FocusOut;
-const int XKeyPress = KeyPress;
-const int XKeyRelease = KeyRelease;
-#   undef KeyRelease
-#   undef KeyPress
-#   undef FocusOut
-#   undef FocusIn
-#  endif /* KeyPress */
-# else /* QT_VERSION >= 0x050000 */
 #  include <xcb/xcb.h>
-# endif /* QT_VERSION >= 0x050000 */
-#endif /* VBOX_WS_X11 */
+#endif
 
 #ifdef DEBUG_andy
 /* Macro for debugging drag and drop actions which usually would
@@ -127,7 +111,6 @@ const int XKeyRelease = KeyRelease;
 #endif
 
 
-#if QT_VERSION >= 0x050000
 /** QAbstractNativeEventFilter extension
   * allowing to pre-process native platform events. */
 class UINativeEventFilter : public QAbstractNativeEventFilter
@@ -150,7 +133,6 @@ private:
     /** Holds the passed parent reference. */
     UIMachineView *m_pParent;
 };
-#endif
 
 
 /* static */
@@ -651,7 +633,7 @@ UIMachineView::UIMachineView(  UIMachineWindow *pMachineWindow
 #ifdef VBOX_WS_MAC
     , m_iHostScreenNumber(0)
 #endif /* VBOX_WS_MAC */
-    , m_maxGuestSizePolicy(MaxGuestSizePolicy_Invalid)
+    , m_maxGuestSizePolicy(MaxGuestResolutionPolicy_Automatic)
     , m_u64MaxGuestSize(0)
 #ifdef VBOX_WITH_VIDEOHWACCEL
     , m_fAccelerate2DVideo(bAccelerate2DVideo)
@@ -659,9 +641,7 @@ UIMachineView::UIMachineView(  UIMachineWindow *pMachineWindow
 #ifdef VBOX_WITH_DRAG_AND_DROP_GH
     , m_fIsDraggingFromGuest(false)
 #endif
-#if QT_VERSION >= 0x050000
     , m_pNativeEventFilter(0)
-#endif
 {
 }
 
@@ -669,20 +649,11 @@ void UIMachineView::loadMachineViewSettings()
 {
     /* Global settings: */
     {
-        /* Remember the maximum guest size policy for telling the guest about
-         * video modes we like: */
-        QString maxGuestSize = vboxGlobal().settings().publicProperty("GUI/MaxGuestResolution");
-        if ((maxGuestSize == QString::null) || (maxGuestSize == "auto"))
-            m_maxGuestSizePolicy = MaxGuestSizePolicy_Automatic;
-        else if (maxGuestSize == "any")
-            m_maxGuestSizePolicy = MaxGuestSizePolicy_Any;
-        else  /** @todo Mea culpa, but what about error checking? */
-        {
-            int width  = maxGuestSize.section(',', 0, 0).toInt();
-            int height = maxGuestSize.section(',', 1, 1).toInt();
-            m_maxGuestSizePolicy = MaxGuestSizePolicy_Fixed;
-            m_fixedMaxGuestSize = QSize(width, height);
-        }
+        /* Remember the maximum guest size policy for
+         * telling the guest about video modes we like: */
+        m_maxGuestSizePolicy = gEDataManager->maxGuestResolutionPolicy();
+        if (m_maxGuestSizePolicy == MaxGuestResolutionPolicy_Fixed)
+            m_fixedMaxGuestSize = gEDataManager->maxGuestResolutionForPolicyFixed();
     }
 }
 
@@ -896,7 +867,6 @@ void UIMachineView::cleanupFrameBuffer()
 
 void UIMachineView::cleanupNativeFilters()
 {
-#if QT_VERSION >= 0x050000
     /* If native event filter exists: */
     if (m_pNativeEventFilter)
     {
@@ -905,7 +875,6 @@ void UIMachineView::cleanupNativeFilters()
         delete m_pNativeEventFilter;
         m_pNativeEventFilter = 0;
     }
-#endif
 }
 
 UISession* UIMachineView::uisession() const
@@ -1016,17 +985,13 @@ void UIMachineView::setMaxGuestSize(const QSize &minimumSizeHint /* = QSize() */
     QSize maxSize;
     switch (m_maxGuestSizePolicy)
     {
-        case MaxGuestSizePolicy_Fixed:
+        case MaxGuestResolutionPolicy_Fixed:
             maxSize = m_fixedMaxGuestSize;
             break;
-        case MaxGuestSizePolicy_Automatic:
+        case MaxGuestResolutionPolicy_Automatic:
             maxSize = calculateMaxGuestSize().expandedTo(minimumSizeHint);
             break;
-        case MaxGuestSizePolicy_Any:
-        default:
-            AssertMsg(m_maxGuestSizePolicy == MaxGuestSizePolicy_Any,
-                      ("Invalid maximum guest size policy %d!\n",
-                       m_maxGuestSizePolicy));
+        case MaxGuestResolutionPolicy_Any:
             /* (0, 0) means any of course. */
             maxSize = QSize(0, 0);
     }
@@ -1537,11 +1502,7 @@ void UIMachineView::paintEvent(QPaintEvent *pPaintEvent)
     if (!pausePixmap().isNull())
     {
         /* We have a snapshot for the paused state: */
-#if QT_VERSION >= 0x050000
         QRect rect = pPaintEvent->rect().intersected(viewport()->rect());
-#else /* QT_VERSION < 0x050000 */
-        QRect rect = pPaintEvent->rect().intersect(viewport()->rect());
-#endif /* QT_VERSION < 0x050000 */
         QPainter painter(viewport());
         /* Take the scale-factor into account: */
         if (frameBuffer()->scaleFactor() == 1.0 && !frameBuffer()->scaledSize().isValid())
@@ -1565,7 +1526,6 @@ void UIMachineView::paintEvent(QPaintEvent *pPaintEvent)
 #endif /* VBOX_WS_MAC */
 }
 
-#if QT_VERSION >= 0x050000
 void UIMachineView::focusInEvent(QFocusEvent *pEvent)
 {
     /* Call to base-class: */
@@ -1594,7 +1554,6 @@ void UIMachineView::focusOutEvent(QFocusEvent *pEvent)
     /* Call to base-class: */
     QAbstractScrollArea::focusOutEvent(pEvent);
 }
-#endif
 
 #ifdef VBOX_WITH_DRAG_AND_DROP
 bool UIMachineView::dragAndDropCanAccept(void) const
@@ -1776,135 +1735,6 @@ void UIMachineView::dropEvent(QDropEvent *pEvent)
 }
 #endif /* VBOX_WITH_DRAG_AND_DROP */
 
-#if QT_VERSION < 0x050000
-# if defined(VBOX_WS_MAC)
-
-bool UIMachineView::macEvent(const void *pvCocoaEvent, EventRef event)
-{
-    /* Make sure arguments valid: */
-    AssertPtrReturn(pvCocoaEvent, false);
-    AssertReturn(event != NULL, false);
-
-    /* Check if some system event should be filtered out.
-     * Returning @c true means filtering-out,
-     * Returning @c false means passing event to Qt. */
-    bool fResult = false; /* Pass to Qt by default. */
-    switch (::GetEventClass(event))
-    {
-        /* Watch for keyboard-events: */
-        case kEventClassKeyboard:
-        {
-            switch (::GetEventKind(event))
-            {
-                /* Watch for key-events: */
-                case kEventRawKeyDown:
-                case kEventRawKeyRepeat:
-                case kEventRawKeyUp:
-                case kEventRawKeyModifiersChanged:
-                {
-                    /* Filter using keyboard-filter? */
-                    bool fKeyboardFilteringResult =
-                        machineLogic()->keyboardHandler()->macEventFilter(pvCocoaEvent, event, screenId());
-                    /* Keyboard filter rules the result? */
-                    fResult = fKeyboardFilteringResult;
-                    break;
-                }
-                default:
-                    break;
-            }
-            break;
-        }
-        default:
-            break;
-    }
-
-    /* Return result: */
-    return fResult;
-}
-
-# elif defined(VBOX_WS_WIN)
-
-bool UIMachineView::winEvent(MSG *pMsg, long* /* piResult */)
-{
-    /* Make sure arguments valid: */
-    AssertPtrReturn(pMsg, false);
-
-    /* Check if some system event should be filtered out.
-     * Returning @c true means filtering-out,
-     * Returning @c false means passing event to Qt. */
-    bool fResult = false; /* Pass to Qt by default. */
-    switch (pMsg->message)
-    {
-        /* Watch for key-events: */
-        case WM_KEYDOWN:
-        case WM_KEYUP:
-        case WM_SYSKEYDOWN:
-        case WM_SYSKEYUP:
-        {
-            /* Can't do COM inter-process calls from a SendMessage handler,
-             * see http://support.microsoft.com/kb/131056. */
-            if (vboxGlobal().isSeparateProcess() && InSendMessage())
-            {
-                PostMessage(pMsg->hwnd, pMsg->message, pMsg->wParam, pMsg->lParam);
-                fResult = true;
-                break;
-            }
-            /* Filter using keyboard filter? */
-            bool fKeyboardFilteringResult =
-                machineLogic()->keyboardHandler()->winEventFilter(pMsg, screenId());
-            /* Keyboard filter rules the result? */
-            fResult = fKeyboardFilteringResult;
-            break;
-        }
-        default:
-            break;
-    }
-
-    /* Return result: */
-    return fResult;
-}
-
-# elif defined(VBOX_WS_X11)
-
-bool UIMachineView::x11Event(XEvent *pEvent)
-{
-    /* Make sure arguments valid: */
-    AssertPtrReturn(pEvent, false);
-
-    /* Check if some system event should be filtered out.
-     * Returning @c true means filtering-out,
-     * Returning @c false means passing event to Qt. */
-    bool fResult = false; /* Pass to Qt by default. */
-    switch (pEvent->type)
-    {
-        /* Watch for focus-events: */
-        case XFocusIn:
-        case XFocusOut:
-        /* Watch for key-events: */
-        case XKeyPress:
-        case XKeyRelease:
-        {
-            /* Filter using keyboard-filter? */
-            bool fKeyboardFilteringResult =
-                machineLogic()->keyboardHandler()->x11EventFilter(pEvent, screenId());
-            /* Filter using mouse-filter? */
-            bool fMouseFilteringResult =
-                machineLogic()->mouseHandler()->x11EventFilter(pEvent, screenId());
-            /* If at least one of filters wants to filter event out then the result is true. */
-            fResult = fKeyboardFilteringResult || fMouseFilteringResult;
-            break;
-        }
-        default:
-            break;
-    }
-
-    /* Return result: */
-    return fResult;
-}
-
-# endif /* VBOX_WS_X11 */
-#else /* QT_VERSION >= 0x050000 */
-
 bool UIMachineView::nativeEventPreprocessor(const QByteArray &eventType, void *pMessage)
 {
     /* Check if some event should be filtered out.
@@ -2035,8 +1865,6 @@ bool UIMachineView::nativeEventPreprocessor(const QByteArray &eventType, void *p
     /* Filter nothing by default: */
     return false;
 }
-
-#endif /* QT_VERSION >= 0x050000 */
 
 QSize UIMachineView::scaledForward(QSize size) const
 {

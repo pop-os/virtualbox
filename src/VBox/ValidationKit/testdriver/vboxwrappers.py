@@ -8,7 +8,7 @@ VirtualBox Wrapper Classes
 
 __copyright__ = \
 """
-Copyright (C) 2010-2016 Oracle Corporation
+Copyright (C) 2010-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,11 +27,10 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109760 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard Python imports.
-import array
 import os
 import socket
 
@@ -542,6 +541,7 @@ class SessionWrapper(TdTaskBase):
         self.sLogFile               = sLogFile;
         self.oConsoleEventHandler   = None;
         self.uPid                   = None;
+        self.fPidFile               = True;
         self.fHostMemoryLow         = False;    # see signalHostMemoryLow; read-only for outsiders.
 
         try:
@@ -866,8 +866,14 @@ class SessionWrapper(TdTaskBase):
                 except:
                     reporter.logXcpt();
 
-                if self.uPid is not None:
+                if self.uPid is not None and self.fPidFile:
                     self.oTstDrv.pidFileRemove(self.uPid);
+                    self.fPidFile = False;
+
+        # It's only logical to deregister the event handler after the session
+        # is closed. It also avoids circular references between the session
+        # and the listener, which causes trouble with garbage collection.
+        self.deregisterEventHandlerForTask();
 
         self.oTstDrv.processPendingEvents();
         return fRc;
@@ -1162,6 +1168,22 @@ class SessionWrapper(TdTaskBase):
             fRc = False;
         else:
             reporter.log('set firmwareType=%s for "%s"' % (eType, self.sName));
+        self.oTstDrv.processPendingEvents();
+        return fRc;
+
+    def setChipsetType(self, eType):
+        """
+        Sets the chipset type.
+        Returns True on success and False on failure.  Error information is logged.
+        """
+        fRc = True;
+        try:
+            self.o.machine.chipsetType = eType;
+        except:
+            reporter.errorXcpt('failed to set chipsetType=%s for "%s"' % (eType, self.sName));
+            fRc = False;
+        else:
+            reporter.log('set chipsetType=%s for "%s"' % (eType, self.sName));
         self.oTstDrv.processPendingEvents();
         return fRc;
 
@@ -1500,11 +1522,11 @@ class SessionWrapper(TdTaskBase):
             sHostName = ''
             try:
                 sHostName = socket.getfqdn()
-                if '.' not in sHostName:
+                if '.' not in sHostName and not sHostName.startswith('localhost'):
                     # somewhat misconfigured system, needs expensive approach to guessing FQDN
                     for aAI in socket.getaddrinfo(sHostName, None):
                         sName, _ = socket.getnameinfo(aAI[4], 0)
-                        if '.' in sName and not set(sName).issubset(set('0123456789.')):
+                        if '.' in sName and not set(sName).issubset(set('0123456789.')) and not sName.startswith('localhost'):
                             sHostName = sName
                             break
 
@@ -1516,27 +1538,27 @@ class SessionWrapper(TdTaskBase):
                     reporter.log('warning: host IP for "%s" is %s, most likely not unique.' % (sHostName, sHostIP))
             except:
                 reporter.errorXcpt('failed to determine the host IP for "%s".' % (sHostName,))
-                abHostIP = array.array('B', (0x80, 0x86, 0x00, 0x00)).tostring()
+                return False
             sDefaultMac = '%02X%02X%02X%02X%02X%02X' \
                 % (0x02, ord(abHostIP[0]), ord(abHostIP[1]), ord(abHostIP[2]), ord(abHostIP[3]), iNic)
             sMacAddr = sDefaultMac[0:(12 - cchMacAddr)] + sMacAddr
 
         # Get the NIC object and try set it address.
         try:
-            oNic = self.o.machine.getNetworkAdapter(iNic);
+            oNic = self.o.machine.getNetworkAdapter(iNic)
         except:
-            reporter.errorXcpt('getNetworkAdapter(%s) failed for "%s"' % (iNic, self.sName));
-            return False;
+            reporter.errorXcpt('getNetworkAdapter(%s) failed for "%s"' % (iNic, self.sName))
+            return False
 
         try:
-            oNic.MACAddress = sMacAddr;
+            oNic.MACAddress = sMacAddr
         except:
             reporter.errorXcpt('failed to set the MAC address on slot %s to "%s" for VM "%s"' \
-                % (iNic, sMacAddr, self.sName));
-            return False;
+                % (iNic, sMacAddr, self.sName))
+            return False
 
-        reporter.log('set MAC address on slot %s to %s for VM "%s"' % (iNic, sMacAddr, self.sName));
-        return True;
+        reporter.log('set MAC address on slot %s to %s for VM "%s"' % (iNic, sMacAddr, self.sName))
+        return True
 
     def setRamSize(self, cMB):
         """
@@ -1634,6 +1656,21 @@ class SessionWrapper(TdTaskBase):
             reporter.log('unable to set storage controller "%s" ports count to %d' % (sController, iPortCount))
 
         return False
+
+    def setStorageControllerHostIoCache(self, sController, fUseHostIoCache):
+        """
+        Set maximum ports count for storage controller
+        """
+        try:
+            oCtl = self.o.machine.getStorageControllerByName(sController);
+            oCtl.useHostIOCache = fUseHostIoCache;
+            self.oTstDrv.processPendingEvents();
+            reporter.log('set controller "%s" host I/O cache setting to %r' % (sController, fUseHostIoCache));
+            return True;
+        except:
+            reporter.log('unable to set storage controller "%s" host I/O cache setting to %r' % (sController, fUseHostIoCache));
+
+        return False;
 
     def setBootOrder(self, iPosition, eType):
         """
@@ -1822,6 +1859,18 @@ class SessionWrapper(TdTaskBase):
         Creates a differencing HD.
         Returns Medium object on success and None on failure.  Error information is logged.
         """
+        # Detect the proper format if requested
+        if sFmt is None:
+            try:
+                oHdFmt = oParentHd.mediumFormat;
+                lstCaps = self.oVBoxMgr.getArray(oHdFmt, 'capabilities');
+                if vboxcon.MediumFormatCapabilities_Differencing in lstCaps:
+                    sFmt = oHdFmt.id;
+                else:
+                    sFmt = 'VDI';
+            except:
+                reporter.errorXcpt('failed to get preferred diff format for "%s"' % (sHd));
+                return None;
         try:
             if self.fpApiVer >= 5.0:
                 oHd = self.oVBox.createMedium(sFmt, sHd, vboxcon.AccessMode_ReadWrite, vboxcon.DeviceType_HardDisk);
@@ -2001,7 +2050,16 @@ class SessionWrapper(TdTaskBase):
             oAudioAdapter = self.o.machine.audioAdapter;
 
             oAudioAdapter.audioController = eAudioCtlType;
-            oAudioAdapter.audioDriver = vboxcon.AudioDriverType_Null;
+
+            sHost = utils.getHostOs()
+            if   sHost == 'darwin':    oAudioAdapter.audioDriver = vboxcon.AudioDriverType_CoreAudio;
+            elif sHost == 'win':       oAudioAdapter.audioDriver = vboxcon.AudioDriverType_DirectSound;
+            elif sHost == 'linux':     oAudioAdapter.audioDriver = vboxcon.AudioDriverType_Pulse;
+            elif sHost == 'solaris':   oAudioAdapter.audioDriver = vboxcon.AudioDriverType_OSS;
+            else:
+                reporter.error('Unsupported host "%s".' % (sHost,));
+                oAudioAdapter.audioDriver = vboxcon.AudioDriverType_Null;
+
             # Disable by default
             oAudioAdapter.enabled = False;
         except:
@@ -2449,6 +2507,42 @@ class SessionWrapper(TdTaskBase):
 
         return True
 
+    def attachUsbDevice(self, sUuid, sCaptureFilename = None):
+        """
+        Attach given USB device UUID to the VM.
+
+        Returns True on success
+        Returns False on failure.
+        """
+        fRc = True;
+        try:
+            if sCaptureFilename is None:
+                self.o.console.attachUSBDevice(sUuid, '');
+            else:
+                self.o.console.attachUSBDevice(sUuid, sCaptureFilename);
+        except:
+            reporter.logXcpt('Unable to attach USB device %s' % (sUuid,));
+            fRc = False;
+
+        return fRc;
+
+    def detachUsbDevice(self, sUuid):
+        """
+        Detach given USB device UUID from the VM.
+
+        Returns True on success
+        Returns False on failure.
+        """
+        fRc = True;
+        try:
+            _ = self.o.console.detachUSBDevice(sUuid);
+        except:
+            reporter.logXcpt('Unable to detach USB device %s' % (sUuid,));
+            fRc = False;
+
+        return fRc;
+
+
     #
     # IMachineDebugger wrappers.
     #
@@ -2581,7 +2675,8 @@ class SessionWrapper(TdTaskBase):
                     reporter.log2Xcpt();
             if self.uPid is not None:
                 reporter.log2('getPid: %u' % (self.uPid,));
-                self.oTstDrv.pidFileAdd(self.uPid);
+                self.fPidFile = self.oTstDrv.pidFileAdd(self.uPid, 'vm_%s' % (self.sName,), # Set-uid-to-root is similar to SUDO.
+                                                        fSudo = True);
         return self.uPid;
 
     def addLogsToReport(self, cReleaseLogs = 1):
@@ -2761,7 +2856,9 @@ class TxsConnectTask(TdTaskBase):
             reporter.log2('onGuestPropertyChange(,%s,%s,%s,%s)' % (sMachineId, sName, sValue, sFlags));
             if    sMachineId == self.sMachineId \
               and sName  == '/VirtualBox/GuestInfo/Net/0/V4/IP':
-                self.oParentTask._setIp(sValue);                                # pylint: disable=W0212
+                oParentTask = self.oParentTask;
+                if oParentTask:
+                    oParentTask._setIp(sValue);                                # pylint: disable=W0212
 
 
     def __init__(self, oSession, cMsTimeout, sIpAddr, sMacAddr, fReversedSetup):
@@ -2771,10 +2868,8 @@ class TxsConnectTask(TdTaskBase):
         self.sNextIpAddr        = None;
         self.sMacAddr           = sMacAddr;
         self.fReversedSetup     = fReversedSetup;
-        self.oVBox              = oSession.oVBox;
         self.oVBoxEventHandler  = None;
         self.oTxsSession        = None;
-        self.fpApiVer           = oSession.fpApiVer;
 
         # Skip things we don't implement.
         if sMacAddr is not None:
@@ -2801,7 +2896,7 @@ class TxsConnectTask(TdTaskBase):
 
             # 1. Register the callback / event listener object.
             dArgs = {'oParentTask':self, 'sMachineId':oSession.o.machine.id};
-            self.oVBoxEventHandler = self.oVBox.registerDerivedEventHandler(self.TxsConnectTaskVBoxCallback, dArgs);
+            self.oVBoxEventHandler = oSession.oVBox.registerDerivedEventHandler(self.TxsConnectTaskVBoxCallback, dArgs);
 
             # 2. Query the guest properties.
             try:
@@ -2822,16 +2917,18 @@ class TxsConnectTask(TdTaskBase):
 
     def toString(self):
         return '<%s cMsTimeout=%s, sIpAddr=%s, sNextIpAddr=%s, sMacAddr=%s, fReversedSetup=%s,' \
-               ' oTxsSession=%s oVBoxEventHandler=%s, oVBox=%s>' \
+               ' oTxsSession=%s oVBoxEventHandler=%s>' \
              % (TdTaskBase.toString(self), self.cMsTimeout, self.sIpAddr, self.sNextIpAddr, self.sMacAddr, self.fReversedSetup,
-                self.oTxsSession, self.oVBoxEventHandler, self.oVBox);
+                self.oTxsSession, self.oVBoxEventHandler);
 
     def _deregisterEventHandler(self):
         """Deregisters the event handler."""
         fRc = True;
-        if self.oVBoxEventHandler is not None:
-            fRc = self.oVBoxEventHandler.unregister();
+        oVBoxEventHandler = self.oVBoxEventHandler;
+        if oVBoxEventHandler is not None:
             self.oVBoxEventHandler = None;
+            fRc = oVBoxEventHandler.unregister();
+            oVBoxEventHandler.oParentTask = None; # Try avoid cylic deps.
         return fRc;
 
     def _setIp(self, sIpAddr, fInitCall = False):
@@ -2897,15 +2994,21 @@ class TxsConnectTask(TdTaskBase):
             fSuccess = False;
 
         # Signal done, or retry?
+        fDeregister = False;
         if   fSuccess \
           or self.fReversedSetup \
           or self.getAgeAsMs() >= self.cMsTimeout:
             self.signalTaskLocked();
+            fDeregister = True;
         else:
             sIpAddr = self.sNextIpAddr if self.sNextIpAddr is not None else self.sIpAddr;
             self._openTcpSession(sIpAddr, cMsIdleFudge = 5000);
 
         self.oCv.release();
+
+        # If we're done, deregister the callback (w/o owning lock).  It will
+        if fDeregister:
+            self._deregisterEventHandler();
         return True;
 
     #
@@ -2927,6 +3030,7 @@ class TxsConnectTask(TdTaskBase):
 
     def cancelTask(self):
         """ Cancels the task. """
+        self._deregisterEventHandler(); # (make sure to avoid cyclic fun)
         self.oCv.acquire();
         if not self.fSignalled:
             oTxsSession = self.oTxsSession;

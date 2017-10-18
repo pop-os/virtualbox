@@ -7,7 +7,7 @@ Test Manager - Report models.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Validation Kit imports.
@@ -37,7 +37,18 @@ from testmanager.core.failurereason import FailureReasonLogic;
 from testmanager.core.testbox       import TestBoxLogic, TestBoxData;
 from testmanager.core.testcase      import TestCaseLogic;
 from testmanager.core.testcaseargs  import TestCaseArgsLogic;
+from testmanager.core.testresults   import TestResultLogic, TestResultFilter;
 from common                         import constants;
+
+
+
+class ReportFilter(TestResultFilter):
+    """
+    Same as TestResultFilter for now.
+    """
+
+    def __init__(self):
+        TestResultFilter.__init__(self);
 
 
 
@@ -72,7 +83,7 @@ class ReportModelBase(ModelLogicBase): # pylint: disable=R0903
     ## @}
 
 
-    def __init__(self, oDb, tsNow, cPeriods, cHoursPerPeriod, sSubject, aidSubjects):
+    def __init__(self, oDb, tsNow, cPeriods, cHoursPerPeriod, sSubject, aidSubjects, oFilter):
         ModelLogicBase.__init__(self, oDb);
         # Public so the report generator can easily access them.
         self.tsNow           = tsNow;               # (Can be None.)
@@ -81,14 +92,29 @@ class ReportModelBase(ModelLogicBase): # pylint: disable=R0903
         self.cHoursPerPeriod = cHoursPerPeriod;
         self.sSubject        = sSubject;
         self.aidSubjects     = aidSubjects;
+        self.oFilter         = oFilter;
+        if self.oFilter is None:
+            class DummyFilter(object):
+                """ Dummy """
+                def getTableJoins(self, sExtraIndent = '', iOmit = -1, dOmitTables = None):
+                    """ Dummy """
+                    _ = sExtraIndent; _ = iOmit; _ = dOmitTables; # pylint: disable=redefined-variable-type
+                    return '';
+                def getWhereConditions(self, sExtraIndent = '', iOmit = -1):
+                    """ Dummy """
+                    _ = sExtraIndent; _ = iOmit; # pylint: disable=redefined-variable-type
+                    return '';
+                def isJoiningWithTable(self, sTable):
+                    """ Dummy """;
+                    _ = sTable;
+                    return False;
+            self.oFilter = DummyFilter();
 
     def getExtraSubjectTables(self):
         """
-        Returns a string with any extra tables needed by the subject. Each
-        table name is prefixed by a comma, so can be appended to a FROM
-        statement.
+        Returns a list of additional tables needed by the subject.
         """
-        return '';
+        return [];
 
     def getExtraSubjectWhereExpr(self):
         """
@@ -116,7 +142,7 @@ class ReportModelBase(ModelLogicBase): # pylint: disable=R0903
         if len(self.aidSubjects) == 1:
             sWhere += self._oDb.formatBindArgs(' = %s\n', (self.aidSubjects[0],));
         else:
-            assert len(self.aidSubjects) > 0;
+            assert self.aidSubjects;
             sWhere += self._oDb.formatBindArgs(' IN (%s', (self.aidSubjects[0],));
             for i in range(1, len(self.aidSubjects)):
                 sWhere += self._oDb.formatBindArgs(', %s', (self.aidSubjects[i],));
@@ -505,7 +531,6 @@ class ReportLazyModel(ReportModelBase): # pylint: disable=R0903
     if/when it becomes necessary.
     """
 
-
     kdsStatusSimplificationMap = {
         ReportModelBase.ksTestStatus_Running:       ReportModelBase.ksTestStatus_Running,
         ReportModelBase.ksTestStatus_Success:       ReportModelBase.ksTestStatus_Success,
@@ -526,15 +551,18 @@ class ReportLazyModel(ReportModelBase): # pylint: disable=R0903
         the number of occurences of each final status (i.e. not running).
         """
 
+        sBaseQuery  = 'SELECT   TestSets.enmStatus, COUNT(TestSets.idTestSet)\n' \
+                      'FROM     TestSets\n' \
+                    + self.oFilter.getTableJoins();
+        for sTable in self.getExtraSubjectTables():
+            sBaseQuery = sBaseQuery[:-1] + ',\n         ' + sTable + '\n';
+        sBaseQuery += 'WHERE    enmStatus <> \'running\'\n' \
+                    + self.oFilter.getWhereConditions() \
+                    + self.getExtraSubjectWhereExpr();
+
         adPeriods = [];
         for iPeriod in xrange(self.cPeriods):
-            self._oDb.execute('SELECT   enmStatus, COUNT(TestSets.idTestSet)\n'
-                              'FROM     TestSets' + self.getExtraSubjectTables() +'\n'
-                              'WHERE    enmStatus <> \'running\'\n'
-                              + self.getExtraSubjectWhereExpr()
-                              + self.getExtraWhereExprForPeriod(iPeriod)
-                              +
-                              'GROUP BY enmStatus\n');
+            self._oDb.execute(sBaseQuery + self.getExtraWhereExprForPeriod(iPeriod) + 'GROUP BY enmStatus\n');
 
             dRet = \
             {
@@ -566,34 +594,44 @@ class ReportLazyModel(ReportModelBase): # pylint: disable=R0903
 
         oFailureReasonLogic = FailureReasonLogic(self._oDb);
 
+        #
         # Create a temporary table
+        #
         sTsNow   = 'CURRENT_TIMESTAMP' if self.tsNow is None else self._oDb.formatBindArgs('%s::TIMESTAMP', (self.tsNow,));
         sTsFirst = '(%s - interval \'%s hours\')' \
                  % (sTsNow, self.cHoursPerPeriod * self.cPeriods,);
-        self._oDb.execute('CREATE TEMPORARY TABLE TmpReasons ON COMMIT DROP AS\n'
-                          'SELECT   TestResultFailures.idFailureReason AS idFailureReason,\n'
-                          '         TestResultFailures.idTestResult    AS idTestResult,\n'
-                          '         TestSets.idTestSet                 AS idTestSet,\n'
-                          '         TestSets.tsDone                    AS tsDone,\n'
-                          '         TestSets.tsCreated                 AS tsCreated,\n'
-                          '         TestSets.idBuild                   AS idBuild\n'
-                          'FROM     TestResultFailures,\n'
-                          '         TestResults,\n'
-                          '         TestSets' + self.getExtraSubjectTables() + '\n'
-                          'WHERE    TestResultFailures.idTestResult = TestResults.idTestResult\n'
-                          '     AND TestResultFailures.tsExpire     = \'infinity\'::TIMESTAMP\n'
-                          '     AND TestResultFailures.tsEffective >= ' + sTsFirst + '\n'
-                          '     AND TestResults.enmStatus          <> \'running\'\n'
-                          '     AND TestResults.enmStatus          <> \'success\'\n'
-                          '     AND TestResults.tsCreated          >= ' + sTsFirst + '\n'
-                          '     AND TestResults.tsCreated          <  ' + sTsNow + '\n'
-                          '     AND TestResults.idTestSet           = TestSets.idTestSet\n'
-                          '     AND TestSets.tsDone                >= ' + sTsFirst + '\n'
-                          '     AND TestSets.tsDone                <  ' + sTsNow + '\n'
-                          + self.getExtraSubjectWhereExpr());
+        sQuery   = 'CREATE TEMPORARY TABLE TmpReasons ON COMMIT DROP AS\n' \
+                   'SELECT   TestResultFailures.idFailureReason AS idFailureReason,\n' \
+                   '         TestResultFailures.idTestResult    AS idTestResult,\n' \
+                   '         TestSets.idTestSet                 AS idTestSet,\n' \
+                   '         TestSets.tsDone                    AS tsDone,\n' \
+                   '         TestSets.tsCreated                 AS tsCreated,\n' \
+                   '         TestSets.idBuild                   AS idBuild\n' \
+                   'FROM     TestResultFailures,\n' \
+                   '         TestResults,\n' \
+                   '         TestSets\n' \
+                   + self.oFilter.getTableJoins(dOmitTables = {'TestResults': True, 'TestResultFailures': True});
+        for sTable in self.getExtraSubjectTables():
+            if sTable not in [ 'TestResults', 'TestResultFailures' ] and not self.oFilter.isJoiningWithTable(sTable):
+                sQuery = sQuery[:-1] + ',\n         ' + sTable + '\n';
+        sQuery  += 'WHERE    TestResultFailures.idTestResult = TestResults.idTestResult\n' \
+                   '     AND TestResultFailures.tsExpire     = \'infinity\'::TIMESTAMP\n' \
+                   '     AND TestResultFailures.tsEffective >= ' + sTsFirst + '\n' \
+                   '     AND TestResults.enmStatus          <> \'running\'\n' \
+                   '     AND TestResults.enmStatus          <> \'success\'\n' \
+                   '     AND TestResults.tsCreated          >= ' + sTsFirst + '\n' \
+                   '     AND TestResults.tsCreated          <  ' + sTsNow + '\n' \
+                   '     AND TestResults.idTestSet           = TestSets.idTestSet\n' \
+                   '     AND TestSets.tsDone                >= ' + sTsFirst + '\n' \
+                   '     AND TestSets.tsDone                <  ' + sTsNow + '\n' \
+                   + self.oFilter.getWhereConditions() \
+                   + self.getExtraSubjectWhereExpr();
+        self._oDb.execute(sQuery);
         self._oDb.execute('SELECT idFailureReason FROM TmpReasons;');
 
+        #
         # Retrieve the period results.
+        #
         oSet = ReportFailureReasonSet();
         for iPeriod in xrange(self.cPeriods):
             self._oDb.execute('SELECT   idFailureReason,\n'
@@ -734,18 +772,23 @@ class ReportLazyModel(ReportModelBase): # pylint: disable=R0903
         oLogic = oCacheLogicType(self._oDb);
         oSet = ReportPeriodSetWithTotalBase(sIdColumn if sIdAttr is None else sIdAttr);
 
+        # Construct base query.
+        sBaseQuery  = 'SELECT   TestSets.' + sIdColumn + ',\n' \
+                      '         COUNT(CASE WHEN TestSets.enmStatus >= \'failure\' THEN 1 END),\n' \
+                      '         MIN(TestSets.tsDone),\n' \
+                      '         MAX(TestSets.tsDone),\n' \
+                      '         COUNT(TestSets.idTestResult)\n' \
+                      'FROM     TestSets\n' \
+                      + self.oFilter.getTableJoins();
+        for sTable in self.getExtraSubjectTables():
+            sBaseQuery = sBaseQuery[:-1] + ',\n         ' + sTable + '\n';
+        sBaseQuery += 'WHERE    TRUE\n' \
+                    + self.oFilter.getWhereConditions() \
+                    + self.getExtraSubjectWhereExpr() + '\n';
+
         # Retrieve the period results.
         for iPeriod in xrange(self.cPeriods):
-            self._oDb.execute('SELECT   ' + sIdColumn + ',\n'
-                              '         COUNT(CASE WHEN enmStatus >= \'failure\' THEN 1 END),\n'
-                              '         MIN(tsDone),\n'
-                              '         MAX(tsDone),\n'
-                              '         COUNT(idTestResult)\n'
-                              'FROM     TestSets' + self.getExtraSubjectTables() + '\n'
-                              'WHERE    TRUE\n'
-                              + self.getExtraWhereExprForPeriod(iPeriod)
-                              + self.getExtraSubjectWhereExpr() + '\n'
-                              'GROUP BY ' + sIdColumn + '\n');
+            self._oDb.execute(sBaseQuery + self.getExtraWhereExprForPeriod(iPeriod) + 'GROUP BY TestSets.' + sIdColumn + '\n');
             aaoRows = self._oDb.fetchAll()
 
             oPeriod = ReportPeriodWithTotalBase(oSet, iPeriod, self.getStraightPeriodDesc(iPeriod),
@@ -796,27 +839,33 @@ class ReportLazyModel(ReportModelBase): # pylint: disable=R0903
 
         """
         sSorting = 'ASC' if fEnter else 'DESC';
-        self._oDb.execute('SELECT   TestSets.idTestResult,\n'
-                          '         TestSets.idTestSet,\n'
-                          '         TestSets.tsDone,\n'
-                          '         TestSets.idBuild,\n'
-                          '         Builds.iRevision,\n'
-                          '         BuildCategories.sRepository\n'
-                          'FROM     TestSets,\n'
-                          '         Builds,\n'
-                          '         BuildCategories' + self.getExtraSubjectTables() + '\n'
-                          'WHERE    TestSets.' + sIdColumn + '      = %s\n'
-                          '     AND TestSets.idBuild          = Builds.idBuild\n'
-                          '     AND TestSets.enmStatus       >= \'failure\'\n'
-                          + self.getExtraWhereExprForPeriod(iPeriod) +
-                          '     AND Builds.tsExpire           > TestSets.tsCreated\n'
-                          '     AND Builds.tsEffective       <= TestSets.tsCreated\n'
-                          '     AND Builds.idBuildCategory    = BuildCategories.idBuildCategory'
-                          + self.getExtraSubjectWhereExpr() + '\n'
-                          'ORDER BY Builds.iRevision ' + sSorting + ',\n'
-                          '         TestSets.tsCreated ' + sSorting + '\n'
-                          'LIMIT 1\n'
-                          , ( idSubject, ));
+        sQuery   = 'SELECT   TestSets.idTestResult,\n' \
+                   '         TestSets.idTestSet,\n' \
+                   '         TestSets.tsDone,\n' \
+                   '         TestSets.idBuild,\n' \
+                   '         Builds.iRevision,\n' \
+                   '         BuildCategories.sRepository\n' \
+                   'FROM     TestSets\n' \
+                   + self.oFilter.getTableJoins(dOmitTables = {'Builds': True, 'BuildCategories': True});
+        sQuery   = sQuery[:-1] + ',\n' \
+                   '         Builds,\n' \
+                   '         BuildCategories\n';
+        for sTable in self.getExtraSubjectTables():
+            if sTable not in [ 'Builds', 'BuildCategories' ] and not self.oFilter.isJoiningWithTable(sTable):
+                sQuery = sQuery[:-1] + ',\n         ' + sTable + '\n';
+        sQuery  += 'WHERE    TestSets.' + sIdColumn + '      = ' + str(idSubject) + '\n' \
+                   '     AND TestSets.idBuild          = Builds.idBuild\n' \
+                   '     AND TestSets.enmStatus       >= \'failure\'\n' \
+                   + self.getExtraWhereExprForPeriod(iPeriod) + \
+                   '     AND Builds.tsExpire           > TestSets.tsCreated\n' \
+                   '     AND Builds.tsEffective       <= TestSets.tsCreated\n' \
+                   '     AND Builds.idBuildCategory    = BuildCategories.idBuildCategory\n' \
+                   + self.oFilter.getWhereConditions() \
+                   + self.getExtraSubjectWhereExpr() + '\n' \
+                   'ORDER BY Builds.iRevision ' + sSorting + ',\n' \
+                   '         TestSets.tsCreated ' + sSorting + '\n' \
+                   'LIMIT 1\n';
+        self._oDb.execute(sQuery);
         aoRow = self._oDb.fetchOne();
         if aoRow is None:
             return ReportTransientBase(-1, -1, 'internal-error', -1, -1, self._oDb.getCurrentTimestamp(),
@@ -825,7 +874,11 @@ class ReportLazyModel(ReportModelBase): # pylint: disable=R0903
                                    idTestSet = aoRow[1], idTestResult = aoRow[0], tsDone = aoRow[2],
                                    iPeriod = iPeriod, fEnter = fEnter, idSubject = idSubject, oSubject = oSubject);
 
-
+    def fetchPossibleFilterOptions(self, oFilter, tsNow, sPeriod):
+        """
+        Fetches possible filtering options.
+        """
+        return TestResultLogic(self._oDb).fetchPossibleFilterOptions(oFilter, tsNow, sPeriod, oReportModel = self);
 
 
 
@@ -919,7 +972,7 @@ class ReportGraphModel(ReportModelBase): # pylint: disable=R0903
     def __init__(self, oDb, tsNow, cPeriods, cHoursPerPeriod, sSubject, aidSubjects, # pylint: disable=R0913
                  aidTestBoxes, aidBuildCats, aidTestCases, fSepTestVars):
         assert(sSubject == self.ksSubEverything); # dummy
-        ReportModelBase.__init__(self, oDb, tsNow, cPeriods, cHoursPerPeriod, sSubject, aidSubjects);
+        ReportModelBase.__init__(self, oDb, tsNow, cPeriods, cHoursPerPeriod, sSubject, aidSubjects, oFilter = None);
         self.aidTestBoxes = aidTestBoxes;
         self.aidBuildCats = aidBuildCats;
         self.aidTestCases = aidTestCases;
@@ -1076,17 +1129,17 @@ class ReportGraphModel(ReportModelBase): # pylint: disable=R0903
 
             if len(self.aidTestBoxes) == 1:
                 sQuery += '     AND TestSets.idTestBox = %u\n' % (self.aidTestBoxes[0],);
-            elif len(self.aidTestBoxes) > 0:
+            elif self.aidTestBoxes:
                 sQuery += '     AND TestSets.idTestBox IN (' + ','.join([str(i) for i in self.aidTestBoxes]) + ')\n';
 
             if len(self.aidBuildCats) == 1:
                 sQuery += '     AND TestSets.idBuildCategory = %u\n' % (self.aidBuildCats[0],);
-            elif len(self.aidBuildCats) > 0:
+            elif self.aidBuildCats:
                 sQuery += '     AND TestSets.idBuildCategory IN (' + ','.join([str(i) for i in self.aidBuildCats]) + ')\n';
 
             if len(self.aidTestCases) == 1:
                 sQuery += '     AND TestSets.idTestCase = %u\n' % (self.aidTestCases[0],);
-            elif len(self.aidTestCases) > 0:
+            elif self.aidTestCases:
                 sQuery += '     AND TestSets.idTestCase IN (' + ','.join([str(i) for i in self.aidTestCases]) + ')\n';
 
             if oLookup.sType == self.ksTypeElapsed:
@@ -1190,7 +1243,7 @@ class ReportGraphModel(ReportModelBase): # pylint: disable=R0903
 
         # 2. Query all the testbox data in one go.
         aoRet = [];
-        if len(asIdGenTestBoxes) > 0:
+        if asIdGenTestBoxes:
             self._oDb.execute('SELECT   *\n'
                               'FROM     TestBoxesWithStrings\n'
                               'WHERE    idGenTestBox IN (' + ','.join(asIdGenTestBoxes) + ')\n'
@@ -1213,7 +1266,7 @@ class ReportGraphModel(ReportModelBase): # pylint: disable=R0903
         # any testbox or testcase filtering.
 
         sSelectedBuildCats = '';
-        if len(self.aidBuildCats) > 0:
+        if self.aidBuildCats:
             sSelectedBuildCats = '   OR idBuildCategory IN (' + ','.join([str(i) for i in self.aidBuildCats]) + ')\n';
 
         self._oDb.execute('SELECT   DISTINCT *\n'

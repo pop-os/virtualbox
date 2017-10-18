@@ -28,27 +28,25 @@
 #import <AppKit/NSFont.h>
 #import <AppKit/NSImage.h>
 #import <AppKit/NSSegmentedControl.h>
-#if QT_VERSION >= 0x050000
-# import <AppKit/NSEvent.h>
-# import <AppKit/NSColor.h>
-# import <AppKit/NSSearchFieldCell.h>
-# import <AppKit/NSSearchField.h>
-# import <AppKit/NSSegmentedCell.h>
-#endif /* QT_VERSION >= 0x050000 */
+#import <AppKit/NSEvent.h>
+#import <AppKit/NSColor.h>
+#import <AppKit/NSSearchFieldCell.h>
+#import <AppKit/NSSearchField.h>
+#import <AppKit/NSSegmentedCell.h>
 
 /* Qt includes */
+#include <QAccessibleWidget>
 #include <QApplication>
 #include <QIcon>
 #include <QKeyEvent>
 #include <QMacCocoaViewContainer>
 
-#if 0 /* This is a built-in according to clang. Not sure how it relates to QT_VERSION... */
-/* Interface Builder Constant,
- * hmm, where is it declared with Qt4? */
-#if QT_VERSION >= 0x050000
-# define IBAction void
-#endif /* QT_VERSION >= 0x050000 */
-#endif
+/* Other VBox includes: */
+#include <iprt/assert.h>
+
+/* Forward declarations: */
+class UIAccessibilityInterfaceForUICocoaSegmentedButton;
+
 
 /*
  * Private interfaces
@@ -348,9 +346,158 @@ void UICocoaButton::onClicked()
     emit clicked(false);
 }
 
+
+/** QAccessibleInterface extension used as an accessibility interface for segmented-button segment. */
+class UIAccessibilityInterfaceForUICocoaSegmentedButtonSegment : public QAccessibleInterface
+{
+public:
+
+    /** Constructs an accessibility interface.
+      * @param  pParent  Brings the parent interface we are linked to.
+      * @param  iIndex   Brings the index of segment we are referring to. */
+    UIAccessibilityInterfaceForUICocoaSegmentedButtonSegment(UIAccessibilityInterfaceForUICocoaSegmentedButton *pParent, int iIndex)
+        : m_pParent(pParent)
+        , m_iIndex(iIndex)
+    {}
+
+    /** Returns whether the interface is valid. */
+    virtual bool isValid() const /* override */ { return true; }
+
+    /** Returns the wrapped object. */
+    virtual QObject *object() const /* override */ { return 0; }
+    /** Returns the parent. */
+    virtual QAccessibleInterface *parent() const /* override */;
+
+    /** Returns the number of children. */
+    virtual int childCount() const /* override */ { return 0; }
+    /** Returns the child with the passed @a iIndex. */
+    virtual QAccessibleInterface *child(int /* iIndex */) const /* override */ { return 0; }
+    /** Returns the child at position QPoint(@a x, @a y). */
+    virtual QAccessibleInterface *childAt(int /* x */, int /* y */) const /* override */ { return 0; }
+    /** Returns the index of the passed @a pChild. */
+    virtual int indexOfChild(const QAccessibleInterface * /* pChild */) const /* override */ { return -1; }
+
+    /** Returns the rect. */
+    virtual QRect rect() const /* override */;
+
+    /** Defines a @a strText for the passed @a enmTextRole. */
+    virtual void setText(QAccessible::Text /* enmTextRole */, const QString & /* strText */) /* override */ {}
+    /** Returns a text for the passed @a enmTextRole. */
+    virtual QString text(QAccessible::Text /* enmTextRole */) const /* override */;
+
+    /** Returns the role. */
+    virtual QAccessible::Role role() const /* override */ { return QAccessible::RadioButton; }
+    /** Returns the state. */
+    virtual QAccessible::State state() const /* override */;
+
+private:
+
+    /** Holds the parent interface we are linked to. */
+    UIAccessibilityInterfaceForUICocoaSegmentedButton *m_pParent;
+    /** Holds the index of segment we are referring to. */
+    const int m_iIndex;
+};
+
+
+/** QAccessibleWidget extension used as an accessibility interface for segmented-button. */
+class UIAccessibilityInterfaceForUICocoaSegmentedButton : public QAccessibleWidget
+{
+public:
+
+    /** Returns an accessibility interface for passed @a strClassname and @a pObject. */
+    static QAccessibleInterface *pFactory(const QString &strClassname, QObject *pObject)
+    {
+        /* Creating segmented-button accessibility interface: */
+        if (pObject && strClassname == QLatin1String("UICocoaSegmentedButton"))
+            return new UIAccessibilityInterfaceForUICocoaSegmentedButton(qobject_cast<QWidget*>(pObject));
+
+        /* Null by default: */
+        return 0;
+    }
+
+    /** Constructs an accessibility interface passing @a pWidget to the base-class. */
+    UIAccessibilityInterfaceForUICocoaSegmentedButton(QWidget *pWidget)
+        : QAccessibleWidget(pWidget, QAccessible::ToolBar)
+    {
+        /* Prepare: */
+        prepare();
+    }
+
+    /** Destructs an accessibility interface. */
+    ~UIAccessibilityInterfaceForUICocoaSegmentedButton()
+    {
+        /* Cleanup: */
+        cleanup();
+    }
+
+    /** Returns the number of children. */
+    virtual int childCount() const /* override */ { return m_children.size(); }
+    /** Returns the child with the passed @a iIndex. */
+    virtual QAccessibleInterface *child(int iIndex) const /* override */ { return m_children.at(iIndex); }
+
+    /** Returns corresponding segmented-button. */
+    UICocoaSegmentedButton *button() const { return qobject_cast<UICocoaSegmentedButton*>(widget()); }
+
+private:
+
+    /** Prepares all. */
+    void prepare()
+    {
+        /* Prepare the list of children interfaces: */
+        for (int i = 0; i < button()->count(); ++i)
+            m_children << new UIAccessibilityInterfaceForUICocoaSegmentedButtonSegment(this, i);
+    }
+
+    /** Cleanups all. */
+    void cleanup()
+    {
+        /* Cleanup the list of children interfaces: */
+        qDeleteAll(m_children);
+        m_children.clear();
+    }
+
+    /** Holds the list of children interfaces. */
+    QList<UIAccessibilityInterfaceForUICocoaSegmentedButtonSegment*> m_children;
+};
+
+
+QAccessibleInterface *UIAccessibilityInterfaceForUICocoaSegmentedButtonSegment::parent() const
+{
+    return m_pParent;
+}
+
+QRect UIAccessibilityInterfaceForUICocoaSegmentedButtonSegment::rect() const
+{
+    // TODO: Return the -=real=- segment rectangle.
+    const QRect myRect = m_pParent->rect();
+    return QRect(myRect.x() + myRect.width() / 2 * m_iIndex,
+                 myRect.y(), myRect.width() / 2, myRect.height());
+}
+
+QString UIAccessibilityInterfaceForUICocoaSegmentedButtonSegment::text(QAccessible::Text /* enmTextRole */) const
+{
+    /* Return the segment description: */
+    return m_pParent->button()->description(m_iIndex);
+}
+
+QAccessible::State UIAccessibilityInterfaceForUICocoaSegmentedButtonSegment::state() const
+{
+    /* Compose the segment state: */
+    QAccessible::State state;
+    state.checkable = true;
+    state.checked = m_pParent->button()->isSelected(m_iIndex);
+
+    /* Return the segment state: */
+    return state;
+}
+
+
 UICocoaSegmentedButton::UICocoaSegmentedButton(QWidget *pParent, int count, CocoaSegmentType type /* = RoundRectSegment */)
     : QMacCocoaViewContainer(0, pParent)
 {
+    /* Install segmented-button accessibility interface factory: */
+    QAccessible::installFactory(UIAccessibilityInterfaceForUICocoaSegmentedButton::pFactory);
+
     /* Prepare auto-release pool: */
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 
@@ -403,8 +550,29 @@ UICocoaSegmentedButton::UICocoaSegmentedButton(QWidget *pParent, int count, Coco
     [pool release];
 }
 
-UICocoaSegmentedButton::~UICocoaSegmentedButton()
+int UICocoaSegmentedButton::count() const
 {
+    return [nativeRef() segmentCount];
+}
+
+bool UICocoaSegmentedButton::isSelected(int iSegment) const
+{
+    /* Return whether the segment is selected if segment index inside the bounds: */
+    if (iSegment >=0 && iSegment < count())
+        return [nativeRef() isSelectedForSegment: iSegment];
+
+    /* False by default: */
+    return false;
+}
+
+QString UICocoaSegmentedButton::description(int iSegment) const
+{
+    /* Return segment description if segment index inside the bounds: */
+    if (iSegment >=0 && iSegment < count())
+        return ::darwinNSStringToQString([nativeRef() labelForSegment: iSegment]);
+
+    /* Null-string by default: */
+    return QString();
 }
 
 QSize UICocoaSegmentedButton::sizeHint() const
@@ -443,6 +611,11 @@ void UICocoaSegmentedButton::setEnabled(int iSegment, bool fEnabled)
     [[nativeRef() cell] setEnabled: fEnabled forSegment: iSegment];
 }
 
+void UICocoaSegmentedButton::setSelected(int iSegment)
+{
+    [nativeRef() setSelectedSegment: iSegment];
+}
+
 void UICocoaSegmentedButton::animateClick(int iSegment)
 {
     [nativeRef() setSelectedSegment: iSegment];
@@ -454,9 +627,45 @@ void UICocoaSegmentedButton::onClicked(int iSegment)
     emit clicked(iSegment, false);
 }
 
+
+/** QAccessibleWidget extension used as an accessibility interface for search-field. */
+class UIAccessibilityInterfaceForUICocoaSearchField : public QAccessibleWidget
+{
+public:
+
+    /** Returns an accessibility interface for passed @a strClassname and @a pObject. */
+    static QAccessibleInterface *pFactory(const QString &strClassname, QObject *pObject)
+    {
+        /* Creating segmented-button accessibility interface: */
+        if (pObject && strClassname == QLatin1String("UICocoaSearchField"))
+            return new UIAccessibilityInterfaceForUICocoaSearchField(qobject_cast<QWidget*>(pObject));
+
+        /* Null by default: */
+        return 0;
+    }
+
+    /** Constructs an accessibility interface passing @a pWidget to the base-class. */
+    UIAccessibilityInterfaceForUICocoaSearchField(QWidget *pWidget)
+        : QAccessibleWidget(pWidget, QAccessible::EditableText)
+    {
+        // For now this class doesn't implement interface casting.
+        // Which means there will be no editable text accessible
+        // in basic accessibility layer, only in advanced one.
+    }
+
+private:
+
+    /** Returns corresponding search-field. */
+    UICocoaSearchField *field() const { return qobject_cast<UICocoaSearchField*>(widget()); }
+};
+
+
 UICocoaSearchField::UICocoaSearchField(QWidget *pParent)
     : QMacCocoaViewContainer(0, pParent)
 {
+    /* Install segmented-button accessibility interface factory: */
+    QAccessible::installFactory(UIAccessibilityInterfaceForUICocoaSearchField::pFactory);
+
     /* Prepare auto-release pool: */
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
 

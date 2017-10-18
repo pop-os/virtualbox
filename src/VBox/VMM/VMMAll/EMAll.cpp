@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -303,7 +303,7 @@ VMM_INT_DECL(int) EMUnhaltAndWakeUp(PVM pVM, PVMCPU pVCpuDst)
     /* We might be here with preemption disabled or enabled (i.e. depending on
        thread-context hooks being used), so don't try obtaining the GVMMR0 used
        lock here. See @bugref{7270#c148}. */
-    int rc = GVMMR0SchedWakeUpEx(pVM, pVCpuDst->idCpu, false /* fTakeUsedLock */);
+    int rc = GVMMR0SchedWakeUpNoGVMNoLock(pVM, pVCpuDst->idCpu);
     AssertRC(rc);
 
 #elif defined(IN_RING3)
@@ -1291,7 +1291,7 @@ VMM_INT_DECL(int) EMInterpretCpuId(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame
 
     /* Note: operates the same in 64 and non-64 bits mode. */
     CPUMGetGuestCpuId(pVCpu, iLeaf, iSubLeaf, &pRegFrame->eax, &pRegFrame->ebx, &pRegFrame->ecx, &pRegFrame->edx);
-    Log(("Emulate: CPUID %x -> %08x %08x %08x %08x\n", iLeaf, pRegFrame->eax, pRegFrame->ebx, pRegFrame->ecx, pRegFrame->edx));
+    Log(("Emulate: CPUID %x/%x -> %08x %08x %08x %08x\n", iLeaf, iSubLeaf, pRegFrame->eax, pRegFrame->ebx, pRegFrame->ecx, pRegFrame->edx));
     return VINF_SUCCESS;
 }
 
@@ -2562,7 +2562,7 @@ static int emInterpretMov(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE
         case DISQPV_TYPE_IMMEDIATE:
             if(!(param1.flags  & (DISQPV_FLAG_32|DISQPV_FLAG_64)))
                 return VERR_EM_INTERPRETER;
-            /* fallthru */
+            RT_FALL_THRU();
 
         case DISQPV_TYPE_ADDRESS:
             pDest = (RTGCPTR)param1.val.val64;
@@ -2635,7 +2635,7 @@ static int emInterpretMov(PVM pVM, PVMCPU pVCpu, PDISCPUSTATE pDis, PCPUMCTXCORE
         case DISQPV_TYPE_IMMEDIATE:
             if(!(param2.flags & (DISQPV_FLAG_32|DISQPV_FLAG_64)))
                 return VERR_EM_INTERPRETER;
-            /* fallthru */
+            RT_FALL_THRU();
 
         case DISQPV_TYPE_ADDRESS:
             pSrc = (RTGCPTR)param2.val.val64;
@@ -3307,7 +3307,7 @@ static int emUpdateCRx(PVM pVM, PVMCPU pVCpu, PCPUMCTXCORE pRegFrame, uint32_t D
         return rc2 == VINF_SUCCESS ? rc : rc2;
 
     case DISCREG_CR8:
-        return PDMApicSetTPR(pVCpu, val << 4);  /* cr8 bits 3-0 correspond to bits 7-4 of the task priority mmio register. */
+        return APICSetTpr(pVCpu, val << 4);  /* cr8 bits 3-0 correspond to bits 7-4 of the task priority mmio register. */
 
     default:
         AssertFailed();

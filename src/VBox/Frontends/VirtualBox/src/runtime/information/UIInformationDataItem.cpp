@@ -24,77 +24,62 @@
 # include <QTimer>
 
 /* GUI includes: */
+# include "VBoxGlobal.h"
 # include "UIMachine.h"
 # include "UISession.h"
-# include "UIIconPool.h"
-# include "VBoxGlobal.h"
 # include "UIConverter.h"
-# include "UIMessageCenter.h"
 # include "UIInformationItem.h"
 # include "UIInformationModel.h"
 # include "UIInformationDataItem.h"
-# include "UIGraphicsRotatorButton.h"
 
 /* COM includes: */
-# include "COMEnums.h"
 # include "CMedium.h"
-# include "CMachine.h"
-# include "CVRDEServer.h"
 # include "CSerialPort.h"
+# include "CVRDEServer.h"
 # include "CAudioAdapter.h"
-# include "CParallelPort.h"
 # include "CSharedFolder.h"
 # include "CUSBController.h"
 # include "CNetworkAdapter.h"
 # include "CVRDEServerInfo.h"
 # include "CUSBDeviceFilter.h"
 # include "CMediumAttachment.h"
-# include "CUSBDeviceFilters.h"
 # include "CSystemProperties.h"
+# include "CUSBDeviceFilters.h"
 # include "CStorageController.h"
-
-/* Other VBox includes: */
-# include <iprt/time.h>
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
-UIInformationDataItem::UIInformationDataItem(InformationElementType type, const CMachine &machine, const CConsole &console, UIInformationModel *pModel)
-    : m_type(type)
+/*********************************************************************************************************************************
+*   Class UIInformationDataItem implementation.                                                                                  *
+*********************************************************************************************************************************/
+
+UIInformationDataItem::UIInformationDataItem(InformationElementType enmType, const CMachine &machine, const CConsole &console, UIInformationModel *pModel)
+    : m_enmType(enmType)
     , m_machine(machine)
     , m_console(console)
     , m_pModel(pModel)
 {
 }
 
-UIInformationDataItem::~UIInformationDataItem()
+QVariant UIInformationDataItem::data(const QModelIndex & /* index */, int role) const
 {
-}
-
-QVariant UIInformationDataItem::data(const QModelIndex &index, int role) const
-{
-    RT_NOREF(index);
+    /* For particular role: */
     switch (role)
     {
-        case Qt::DisplayRole:
-        {
-            return gpConverter->toString(m_type);
-        }
-        break;
-
-        case Qt::UserRole + 2:
-        {
-            return m_type;
-        }
-        break;
-
-        default:
-        break;
+        case Qt::DisplayRole:  return gpConverter->toString(m_enmType);
+        case Qt::UserRole + 2: return m_enmType;
+        default:               break;
     }
 
     /* Return null QVariant by default: */
     return QVariant();
 }
+
+
+/*********************************************************************************************************************************
+*   Class UIInformationDataGeneral implementation.                                                                               *
+*********************************************************************************************************************************/
 
 UIInformationDataGeneral::UIInformationDataGeneral(const CMachine &machine, const CConsole &console, UIInformationModel *pModel)
     : UIInformationDataItem(InformationElementType_General, machine, console, pModel)
@@ -103,13 +88,13 @@ UIInformationDataGeneral::UIInformationDataGeneral(const CMachine &machine, cons
 
 QVariant UIInformationDataGeneral::data(const QModelIndex &index, int role) const
 {
+    /* For particular role: */
     switch (role)
     {
         case Qt::DecorationRole:
         {
             return QString(":/machine_16px.png");
         }
-        break;
 
         case Qt::UserRole + 1:
         {
@@ -118,15 +103,19 @@ QVariant UIInformationDataGeneral::data(const QModelIndex &index, int role) cons
             p_text << UITextTableLine(tr("OS Type", "details report"), vboxGlobal().vmGuestOSTypeDescription(m_machine.GetOSTypeId()));
             return QVariant::fromValue(p_text);
         }
-        break;
 
         default:
-        break;
+            break;
     }
 
     /* Call to base-class: */
     return UIInformationDataItem::data(index, role);
 }
+
+
+/*********************************************************************************************************************************
+*   Class UIInformationDataSystem implementation.                                                                                *
+*********************************************************************************************************************************/
 
 UIInformationDataSystem::UIInformationDataSystem(const CMachine &machine, const CConsole &console, UIInformationModel *pModel)
     : UIInformationDataItem(InformationElementType_System, machine, console, pModel)
@@ -135,13 +124,13 @@ UIInformationDataSystem::UIInformationDataSystem(const CMachine &machine, const 
 
 QVariant UIInformationDataSystem::data(const QModelIndex &index, int role) const
 {
+    /* For particular role: */
     switch (role)
     {
         case Qt::DecorationRole:
         {
             return QString(":/chipset_16px.png");
         }
-        break;
 
         case Qt::UserRole + 1:
         {
@@ -207,15 +196,19 @@ QVariant UIInformationDataSystem::data(const QModelIndex &index, int role) const
 
             return QVariant::fromValue(p_text);
         }
-        break;
 
         default:
-        break;
+            break;
     }
 
     /* Call to base-class: */
     return UIInformationDataItem::data(index, role);
 }
+
+
+/*********************************************************************************************************************************
+*   Class UIInformationDataDisplay implementation.                                                                               *
+*********************************************************************************************************************************/
 
 UIInformationDataDisplay::UIInformationDataDisplay(const CMachine &machine, const CConsole &console, UIInformationModel *pModel)
     : UIInformationDataItem(InformationElementType_Display, machine, console, pModel)
@@ -224,15 +217,15 @@ UIInformationDataDisplay::UIInformationDataDisplay(const CMachine &machine, cons
 
 QVariant UIInformationDataDisplay::data(const QModelIndex &index, int role) const
 {
+    /* For particular role: */
     switch (role)
     {
         case Qt::DecorationRole:
         {
             return QString(":/vrdp_16px.png");
         }
-        break;
 
-        case Qt::UserRole+1:
+        case Qt::UserRole + 1:
         {
             UITextTable p_text;
             /* Video tab: */
@@ -266,15 +259,19 @@ QVariant UIInformationDataDisplay::data(const QModelIndex &index, int role) cons
 
             return QVariant::fromValue(p_text);
         }
-        break;
 
         default:
-        break;
+            break;
     }
 
     /* Call to base-class: */
     return UIInformationDataItem::data(index, role);
 }
+
+
+/*********************************************************************************************************************************
+*   Class UIInformationDataStorage implementation.                                                                               *
+*********************************************************************************************************************************/
 
 UIInformationDataStorage::UIInformationDataStorage(const CMachine &machine, const CConsole &console, UIInformationModel *pModel)
     : UIInformationDataItem(InformationElementType_Storage, machine, console, pModel)
@@ -283,16 +280,15 @@ UIInformationDataStorage::UIInformationDataStorage(const CMachine &machine, cons
 
 QVariant UIInformationDataStorage::data(const QModelIndex &index, int role) const
 {
+    /* For particular role: */
     switch (role)
     {
-
         case Qt::DecorationRole:
         {
             return QString(":/hd_16px.png");
         }
-        break;
 
-        case Qt::UserRole+1:
+        case Qt::UserRole + 1:
         {
             UITextTable p_text;
 
@@ -330,15 +326,19 @@ QVariant UIInformationDataStorage::data(const QModelIndex &index, int role) cons
 
             return QVariant::fromValue(p_text);
         }
-        break;
 
         default:
-        break;
+            break;
     }
 
     /* Call to base-class: */
     return UIInformationDataItem::data(index, role);
 }
+
+
+/*********************************************************************************************************************************
+*   Class UIInformationDataAudio implementation.                                                                                 *
+*********************************************************************************************************************************/
 
 UIInformationDataAudio::UIInformationDataAudio(const CMachine &machine, const CConsole &console, UIInformationModel *pModel)
     : UIInformationDataItem(InformationElementType_Audio, machine, console, pModel)
@@ -347,13 +347,13 @@ UIInformationDataAudio::UIInformationDataAudio(const CMachine &machine, const CC
 
 QVariant UIInformationDataAudio::data(const QModelIndex &index, int role) const
 {
+    /* For particular role: */
     switch (role)
     {
         case Qt::DecorationRole:
         {
             return QString(":/sound_16px.png");
         }
-        break;
 
         case Qt::UserRole + 1:
         {
@@ -368,15 +368,19 @@ QVariant UIInformationDataAudio::data(const QModelIndex &index, int role) const
 
             return QVariant::fromValue(p_text);
         }
-        break;
 
         default:
-        break;
+            break;
     }
 
     /* Call to base-class: */
     return UIInformationDataItem::data(index, role);
 }
+
+
+/*********************************************************************************************************************************
+*   Class UIInformationDataNetwork implementation.                                                                               *
+*********************************************************************************************************************************/
 
 UIInformationDataNetwork::UIInformationDataNetwork(const CMachine &machine, const CConsole &console, UIInformationModel *pModel)
     : UIInformationDataItem(InformationElementType_Network, machine, console, pModel)
@@ -385,15 +389,15 @@ UIInformationDataNetwork::UIInformationDataNetwork(const CMachine &machine, cons
 
 QVariant UIInformationDataNetwork::data(const QModelIndex &index, int role) const
 {
+    /* For particular role: */
     switch (role)
     {
         case Qt::DecorationRole:
         {
             return QString(":/nw_16px.png");
         }
-        break;
 
-        case Qt::UserRole+1:
+        case Qt::UserRole + 1:
         {
             UITextTable p_text;
 
@@ -404,28 +408,28 @@ QVariant UIInformationDataNetwork::data(const QModelIndex &index, int role) cons
                 if (adapter.GetEnabled())
                 {
                     KNetworkAttachmentType type = adapter.GetAttachmentType();
-                    QString attType = gpConverter->toString (adapter.GetAdapterType())
-                                      .replace (QRegExp ("\\s\\(.+\\)"), " (%1)");
+                    QString attType = gpConverter->toString(adapter.GetAdapterType())
+                                      .replace(QRegExp ("\\s\\(.+\\)"), " (%1)");
                     /* don't use the adapter type string for types that have
                      * an additional symbolic network/interface name field, use
                      * this name instead */
                     if (type == KNetworkAttachmentType_Bridged)
-                        attType = attType.arg (tr ("Bridged adapter, %1",
-                            "details report (network)").arg (adapter.GetBridgedInterface()));
+                        attType = attType.arg(tr("Bridged adapter, %1",
+                            "details report (network)").arg(adapter.GetBridgedInterface()));
                     else if (type == KNetworkAttachmentType_Internal)
-                        attType = attType.arg (tr ("Internal network, '%1'",
-                            "details report (network)").arg (adapter.GetInternalNetwork()));
+                        attType = attType.arg(tr("Internal network, '%1'",
+                            "details report (network)").arg(adapter.GetInternalNetwork()));
                     else if (type == KNetworkAttachmentType_HostOnly)
-                        attType = attType.arg (tr ("Host-only adapter, '%1'",
-                            "details report (network)").arg (adapter.GetHostOnlyInterface()));
+                        attType = attType.arg(tr("Host-only adapter, '%1'",
+                            "details report (network)").arg(adapter.GetHostOnlyInterface()));
                     else if (type == KNetworkAttachmentType_Generic)
-                        attType = attType.arg (tr ("Generic, '%1'",
-                            "details report (network)").arg (adapter.GetGenericDriver()));
+                        attType = attType.arg(tr("Generic, '%1'",
+                            "details report (network)").arg(adapter.GetGenericDriver()));
                     else if (type == KNetworkAttachmentType_NATNetwork)
-                        attType = attType.arg (tr ("NAT network, '%1'",
-                            "details report (network)").arg (adapter.GetNATNetwork()));
+                        attType = attType.arg(tr("NAT network, '%1'",
+                            "details report (network)").arg(adapter.GetNATNetwork()));
                     else
-                        attType = attType.arg (gpConverter->toString (type));
+                        attType = attType.arg(gpConverter->toString(type));
 
                     p_text << UITextTableLine(tr("Adapter %1", "details report (network)").arg(adapter.GetSlot() + 1), attType);
                 }
@@ -433,15 +437,19 @@ QVariant UIInformationDataNetwork::data(const QModelIndex &index, int role) cons
 
             return QVariant::fromValue(p_text);
         }
-        break;
 
         default:
-        break;
+            break;
     }
 
     /* Call to base-class: */
     return UIInformationDataItem::data(index, role);
 }
+
+
+/*********************************************************************************************************************************
+*   Class UIInformationDataSerialPorts implementation.                                                                           *
+*********************************************************************************************************************************/
 
 UIInformationDataSerialPorts::UIInformationDataSerialPorts(const CMachine &machine, const CConsole &console, UIInformationModel *pModel)
     : UIInformationDataItem(InformationElementType_Serial, machine, console, pModel)
@@ -450,13 +458,13 @@ UIInformationDataSerialPorts::UIInformationDataSerialPorts(const CMachine &machi
 
 QVariant UIInformationDataSerialPorts::data(const QModelIndex &index, int role) const
 {
+    /* For particular role: */
     switch (role)
     {
         case Qt::DecorationRole:
         {
             return QString(":/serial_port_16px.png");
         }
-        break;
 
         case Qt::UserRole + 1:
         {
@@ -465,18 +473,18 @@ QVariant UIInformationDataSerialPorts::data(const QModelIndex &index, int role) 
 
             for (ulong slot = 0; slot < count; slot++)
             {
-                CSerialPort port = m_machine.GetSerialPort (slot);
+                CSerialPort port = m_machine.GetSerialPort(slot);
                 if (port.GetEnabled())
                 {
                     KPortMode mode = port.GetHostMode();
-                    QString data = vboxGlobal().toCOMPortName (port.GetIRQ(), port.GetIOBase()) + ", ";
+                    QString data = vboxGlobal().toCOMPortName(port.GetIRQ(), port.GetIOBase()) + ", ";
                     if (mode == KPortMode_HostPipe ||
                         mode == KPortMode_HostDevice ||
                         mode == KPortMode_TCP ||
                         mode == KPortMode_RawFile)
-                        data += QString ("%1 (<nobr>%2</nobr>)")
-                                .arg (gpConverter->toString (mode))
-                                .arg (QDir::toNativeSeparators (port.GetPath()));
+                        data += QString("%1 (<nobr>%2</nobr>)")
+                                       .arg(gpConverter->toString(mode))
+                                       .arg(QDir::toNativeSeparators(port.GetPath()));
                     else
                         data += gpConverter->toString(mode);
 
@@ -486,57 +494,19 @@ QVariant UIInformationDataSerialPorts::data(const QModelIndex &index, int role) 
 
             return QVariant::fromValue(p_text);
         }
-        break;
 
         default:
-        break;
+            break;
     }
 
     /* Call to base-class: */
     return UIInformationDataItem::data(index, role);
 }
 
-#ifdef VBOX_WITH_PARALLEL_PORTS
-UIInformationDataParallelPorts::UIInformationDataParallelPorts(const CMachine &machine, const CConsole &console, UIInformationModel *pModel)
-    : UIInformationDataItem(InformationElementType_Parallel, machine, console, pModel)
-{
-}
 
-QVariant UIInformationDataParallelPorts::data(const QModelIndex &index, int role) const
-{
-    switch (role)
-    {
-        case Qt::DecorationRole:
-        {
-            return QString(":/parallel_port_16px.png");
-        }
-        break;
-
-        case Qt::UserRole + 1:
-        {
-            ulong count = vboxGlobal().virtualBox().GetSystemProperties().GetParallelPortCount();
-            for (ulong slot = 0; slot < count; slot ++)
-            {
-                CParallelPort port = m_machine.GetParallelPort(slot);
-                if (port.GetEnabled())
-                {
-                    QString data = vboxGlobal().toLPTPortName (port.GetIRQ(), port.GetIOBase()) +
-                        QString (" (<nobr>%1</nobr>)")
-                        .arg (QDir::toNativeSeparators (port.GetPath()));
-                    p_text << UITextTableLine(tr("Port %1", "details report (parallel ports)").arg(port.GetSlot() + 1), data);
-                }
-            }
-            if (p_text.count() == 0)
-                p_text << UITextTableLine(tr("Disabled", "details report (parallel ports)"), QString());
-        }
-        break;
-
-        default:
-        break;
-    }
-    return QVariant();
-}
-#endif /* VBOX_WITH_PARALLEL_PORTS */
+/*********************************************************************************************************************************
+*   Class UIInformationDataUSB implementation.                                                                                   *
+*********************************************************************************************************************************/
 
 UIInformationDataUSB::UIInformationDataUSB(const CMachine &machine, const CConsole &console, UIInformationModel *pModel)
     : UIInformationDataItem(InformationElementType_USB, machine, console, pModel)
@@ -545,13 +515,13 @@ UIInformationDataUSB::UIInformationDataUSB(const CMachine &machine, const CConso
 
 QVariant UIInformationDataUSB::data(const QModelIndex &index, int role) const
 {
+    /* For particular role: */
     switch (role)
     {
         case Qt::DecorationRole:
         {
             return QString(":/usb_16px.png");
         }
-        break;
 
         case Qt::UserRole + 1:
         {
@@ -573,19 +543,23 @@ QVariant UIInformationDataUSB::data(const QModelIndex &index, int role) const
                             active ++;
 
                     p_text << UITextTableLine(tr("Device Filters", "details report (USB)"), tr("%1 (%2 active)", "details report (USB)")
-                                                 .arg(coll.size()).arg(active));
+                                                                                              .arg(coll.size()).arg(active));
                 }
             }
         }
-        break;
 
         default:
-        break;
+            break;
     }
 
     /* Call to base-class: */
     return UIInformationDataItem::data(index, role);
 }
+
+
+/*********************************************************************************************************************************
+*   Class UIInformationDataSharedFolders implementation.                                                                         *
+*********************************************************************************************************************************/
 
 UIInformationDataSharedFolders::UIInformationDataSharedFolders(const CMachine &machine, const CConsole &console, UIInformationModel *pModel)
     : UIInformationDataItem(InformationElementType_SharedFolders, machine, console, pModel)
@@ -595,13 +569,13 @@ UIInformationDataSharedFolders::UIInformationDataSharedFolders(const CMachine &m
 
 QVariant UIInformationDataSharedFolders::data(const QModelIndex &index, int role) const
 {
+    /* For particular role: */
     switch (role)
     {
         case Qt::DecorationRole:
         {
             return QString(":/sf_16px.png");
         }
-        break;
 
         case Qt::UserRole + 1:
         {
@@ -613,10 +587,9 @@ QVariant UIInformationDataSharedFolders::data(const QModelIndex &index, int role
 
             return QVariant::fromValue(p_text);
         }
-        break;
 
         default:
-        break;
+            break;
     }
 
     /* Call to base-class: */
@@ -628,6 +601,11 @@ void UIInformationDataSharedFolders::updateData()
     m_pModel->updateData(this);
 }
 
+
+/*********************************************************************************************************************************
+*   Class UIInformationDataRuntimeAttributes implementation.                                                                     *
+*********************************************************************************************************************************/
+
 UIInformationDataRuntimeAttributes::UIInformationDataRuntimeAttributes(const CMachine &machine, const CConsole &console, UIInformationModel *pModel)
     : UIInformationDataItem(InformationElementType_RuntimeAttributes, machine, console, pModel)
 {
@@ -635,13 +613,13 @@ UIInformationDataRuntimeAttributes::UIInformationDataRuntimeAttributes(const CMa
 
 QVariant UIInformationDataRuntimeAttributes::data(const QModelIndex &index, int role) const
 {
+    /* For particular role: */
     switch (role)
     {
         case Qt::DecorationRole:
         {
             return QString(":/state_running_16px.png");
         }
-        break;
 
         case Qt::UserRole + 1:
         {
@@ -760,15 +738,19 @@ QVariant UIInformationDataRuntimeAttributes::data(const QModelIndex &index, int 
 
             return QVariant::fromValue(p_text);
         }
-        break;
 
         default:
-        break;
+            break;
     }
 
     /* Call to base-class: */
     return UIInformationDataItem::data(index, role);
 }
+
+
+/*********************************************************************************************************************************
+*   Class UIInformationDataNetworkStatistics implementation.                                                                     *
+*********************************************************************************************************************************/
 
 UIInformationDataNetworkStatistics::UIInformationDataNetworkStatistics(const CMachine &machine, const CConsole &console, UIInformationModel *pModel)
     : UIInformationDataItem(InformationElementType_NetworkStatistics, machine, console, pModel)
@@ -810,7 +792,7 @@ UIInformationDataNetworkStatistics::UIInformationDataNetworkStatistics(const CMa
             << QString("/Devices/%1%2/ReceiveBytes").arg(name).arg(i);
     }
 
-     m_pTimer = new QTimer(this);
+    m_pTimer = new QTimer(this);
 
     connect(m_pTimer, SIGNAL(timeout()), this, SLOT(sltProcessStatistics()));
 
@@ -821,13 +803,13 @@ UIInformationDataNetworkStatistics::UIInformationDataNetworkStatistics(const CMa
 
 QVariant UIInformationDataNetworkStatistics::data(const QModelIndex &index, int role) const
 {
+    /* For particular role: */
     switch (role)
     {
         case Qt::DecorationRole:
         {
             return QString(":/nw_16px.png");
         }
-        break;
 
         case Qt::UserRole + 1:
         {
@@ -849,10 +831,9 @@ QVariant UIInformationDataNetworkStatistics::data(const QModelIndex &index, int 
             }
             return QVariant::fromValue(p_text);
         }
-        break;
 
         default:
-        break;
+            break;
     }
 
     /* Call to base-class: */
@@ -917,16 +898,23 @@ void UIInformationDataNetworkStatistics::sltProcessStatistics()
     m_pModel->updateData(index);
 }
 
+
+/*********************************************************************************************************************************
+*   Class UIInformationDataStorageStatistics implementation.                                                                     *
+*********************************************************************************************************************************/
+
 UIInformationDataStorageStatistics::UIInformationDataStorageStatistics(const CMachine &machine, const CConsole &console, UIInformationModel *pModel)
     : UIInformationDataItem(InformationElementType_StorageStatistics, machine, console, pModel)
 {
     /* Storage statistics: */
     CSystemProperties sp = vboxGlobal().virtualBox().GetSystemProperties();
     CStorageControllerVector controllers = m_machine.GetStorageControllers();
-    int iIDECount = 0, iSATACount = 0, iSCSICount = 0, iUSBCount = 0, iSASCount = 0;
+    int iIDECount = 0;
     foreach (const CStorageController &controller, controllers)
     {
-        switch (controller.GetBus())
+        KStorageBus enmBus = controller.GetBus();
+
+        switch (enmBus)
         {
             case KStorageBus_IDE:
             {
@@ -965,113 +953,39 @@ UIInformationDataStorageStatistics::UIInformationDataStorageStatistics(const CMa
                 ++iIDECount;
                 break;
             }
-            case KStorageBus_SATA:
-            {
-                for (ULONG i = 0; i < sp.GetMaxPortCountForStorageBus(KStorageBus_SATA); ++i)
-                {
-                    for (ULONG j = 0; j < sp.GetMaxDevicesPerPortForStorageBus(KStorageBus_SATA); ++j)
-                    {
-                        /* Names: */
-                        m_names[QString("/Devices/SATA%1/Port%2/DMA").arg(iSATACount).arg(i)]
-                            = tr("DMA Transfers");
-                        m_names[QString("/Devices/SATA%1/Port%2/ReadBytes").arg(iSATACount).arg(i)]
-                            = tr("Data Read");
-                        m_names[QString("/Devices/SATA%1/Port%2/WrittenBytes").arg(iSATACount).arg(i)]
-                            = tr("Data Written");
-
-                        /* Units: */
-                        m_units[QString("/Devices/SATA%1/Port%2/DMA").arg(iSATACount).arg(i)] = "";
-                        m_units[QString("/Devices/SATA%1/Port%2/ReadBytes").arg(iSATACount).arg(i)] = "B";
-                        m_units[QString("/Devices/SATA%1/Port%2/WrittenBytes").arg(iSATACount).arg(i)] = "B";
-
-                        /* Belongs to: */
-                        m_links[QString("/Devices/SATA%1/Port%2").arg(iSATACount).arg(i)] = QStringList()
-                            << QString("/Devices/SATA%1/Port%2/DMA").arg(iSATACount).arg(i)
-                            << QString("/Devices/SATA%1/Port%2/ReadBytes").arg(iSATACount).arg(i)
-                            << QString("/Devices/SATA%1/Port%2/WrittenBytes").arg(iSATACount).arg(i);
-                    }
-                }
-                ++iSATACount;
-                break;
-            }
-            case KStorageBus_SCSI:
-            {
-                for (ULONG i = 0; i < sp.GetMaxPortCountForStorageBus(KStorageBus_SCSI); ++i)
-                {
-                    for (ULONG j = 0; j < sp.GetMaxDevicesPerPortForStorageBus(KStorageBus_SCSI); ++j)
-                    {
-                        /* Names: */
-                        m_names[QString("/Devices/SCSI%1/%2/ReadBytes").arg(iSCSICount).arg(i)]
-                            = tr("Data Read");
-                        m_names[QString("/Devices/SCSI%1/%2/WrittenBytes").arg(iSCSICount).arg(i)]
-                            = tr("Data Written");
-
-                        /* Units: */
-                        m_units[QString("/Devices/SCSI%1/%2/ReadBytes").arg(iSCSICount).arg(i)] = "B";
-                        m_units[QString("/Devices/SCSI%1/%2/WrittenBytes").arg(iSCSICount).arg(i)] = "B";
-
-                        /* Belongs to: */
-                        m_links[QString("/Devices/SCSI%1/%2").arg(iSCSICount).arg(i)] = QStringList()
-                            << QString("/Devices/SCSI%1/%2/ReadBytes").arg(iSCSICount).arg(i)
-                            << QString("/Devices/SCSI%1/%2/WrittenBytes").arg(iSCSICount).arg(i);
-                    }
-                }
-                ++iSCSICount;
-                break;
-            }
-            case KStorageBus_USB:
-            {
-                for (ULONG i = 0; i < sp.GetMaxPortCountForStorageBus(KStorageBus_USB); ++i)
-                {
-                    for (ULONG j = 0; j < sp.GetMaxDevicesPerPortForStorageBus(KStorageBus_USB); ++j)
-                    {
-                        /* Names: */
-                        m_names[QString("/Devices/USB%1/%2/ReadBytes").arg(iUSBCount).arg(i)]
-                            = tr("Data Read");
-                        m_names[QString("/Devices/USB%1/%2/WrittenBytes").arg(iUSBCount).arg(i)]
-                            = tr("Data Written");
-
-                        /* Units: */
-                        m_units[QString("/Devices/USB%1/%2/ReadBytes").arg(iUSBCount).arg(i)] = "B";
-                        m_units[QString("/Devices/USB%1/%2/WrittenBytes").arg(iUSBCount).arg(i)] = "B";
-
-                        /* Belongs to: */
-                        m_links[QString("/Devices/USB%1/%2").arg(iUSBCount).arg(i)] = QStringList()
-                            << QString("/Devices/USB%1/%2/ReadBytes").arg(iUSBCount).arg(i)
-                            << QString("/Devices/USB%1/%2/WrittenBytes").arg(iUSBCount).arg(i);
-                    }
-                }
-                ++iUSBCount;
-                break;
-            }
-            case KStorageBus_SAS:
-            {
-                for (ULONG i = 0; i < sp.GetMaxPortCountForStorageBus(KStorageBus_SAS); ++i)
-                {
-                    for (ULONG j = 0; j < sp.GetMaxDevicesPerPortForStorageBus(KStorageBus_SAS); ++j)
-                    {
-                        /* Names: */
-                        m_names[QString("/Devices/SAS%1/%2/ReadBytes").arg(iSASCount).arg(i)]
-                            = tr("Data Read");
-                        m_names[QString("/Devices/SAS%1/%2/WrittenBytes").arg(iSASCount).arg(i)]
-                            = tr("Data Written");
-
-                        /* Units: */
-                        m_units[QString("/Devices/SAS%1/%2/ReadBytes").arg(iSASCount).arg(i)] = "B";
-                        m_units[QString("/Devices/SAS%1/%2/WrittenBytes").arg(iSASCount).arg(i)] = "B";
-
-                        /* Belongs to: */
-                        m_links[QString("/Devices/SAS%1/%2").arg(iSASCount).arg(i)] = QStringList()
-                            << QString("/Devices/SAS%1/%2/ReadBytes").arg(iSASCount).arg(i)
-                            << QString("/Devices/SAS%1/%2/WrittenBytes").arg(iSASCount).arg(i);
-
-                    }
-                }
-                ++iSASCount;
-                break;
-            }
             default:
+            {
+                /* Common code for the non IDE controllers. */
+                uint32_t iInstance = controller.GetInstance();
+                const char *pszCtrl = storCtrlType2Str(controller.GetControllerType());
+
+                for (ULONG i = 0; i < sp.GetMaxPortCountForStorageBus(enmBus); ++i)
+                {
+                    for (ULONG j = 0; j < sp.GetMaxDevicesPerPortForStorageBus(enmBus); ++j)
+                    {
+                        /* Names: */
+                        m_names[QString("/Devices/%1%2/Port%3/ReqsSubmitted").arg(pszCtrl).arg(iInstance).arg(i)]
+                            = tr("Requests");
+                        m_names[QString("/Devices/%1%2/Port%3/ReadBytes").arg(pszCtrl).arg(iInstance).arg(i)]
+                            = tr("Data Read");
+                        m_names[QString("/Devices/%1%2/Port%3/WrittenBytes").arg(pszCtrl).arg(iInstance).arg(i)]
+                            = tr("Data Written");
+
+                        /* Units: */
+                        m_units[QString("/Devices/%1%2/Port%3/ReqsSubmitted").arg(pszCtrl).arg(iInstance).arg(i)] = "";
+                        m_units[QString("/Devices/%1%2/Port%3/ReadBytes").arg(pszCtrl).arg(iInstance).arg(i)] = "B";
+                        m_units[QString("/Devices/%1%2/Port%3/WrittenBytes").arg(pszCtrl).arg(iInstance).arg(i)] = "B";
+
+                        /* Belongs to: */
+                        m_links[QString("/Devices/%1%2/Port%3").arg(pszCtrl).arg(iInstance).arg(i)] = QStringList()
+                            << QString("/Devices/%1%2/Port%3/ReqsSubmitted").arg(pszCtrl).arg(iInstance).arg(i)
+                            << QString("/Devices/%1%2/Port%3/ReadBytes").arg(pszCtrl).arg(iInstance).arg(i)
+                            << QString("/Devices/%1%2/Port%3/WrittenBytes").arg(pszCtrl).arg(iInstance).arg(i);
+                    }
+                }
+
                 break;
+            }
         }
     }
 
@@ -1084,20 +998,20 @@ UIInformationDataStorageStatistics::UIInformationDataStorageStatistics(const CMa
 
 QVariant UIInformationDataStorageStatistics::data(const QModelIndex &index, int role) const
 {
+    /* For particular role: */
     switch (role)
     {
         case Qt::DecorationRole:
         {
             return QString(":/hd_16px.png");
         }
-        break;
 
         case Qt::UserRole + 1:
         {
             UITextTable p_text;
 
             CStorageControllerVector controllers = m_machine.GetStorageControllers();
-            int iIDECount = 0, iSATACount = 0, iSCSICount = 0, iUSBCount = 0, iSASCount = 0;
+            int iIDECount = 0;
             foreach (const CStorageController &controller, controllers)
             {
                 /* Get controller attributes: */
@@ -1111,7 +1025,6 @@ QVariant UIInformationDataStorageStatistics::data(const QModelIndex &index, int 
                     QString strControllerName = QApplication::translate("UIMachineSettingsStorage", "Controller: %1");
                     p_text << UITextTableLine(strControllerName.arg(controller.GetName()), QString());
 
-                    int iSCSIIndex = 0;
                     /* Enumerate storage-attachments: */
                     foreach (const CMediumAttachment &attachment, attachments)
                     {
@@ -1133,41 +1046,16 @@ QVariant UIInformationDataStorageStatistics::data(const QModelIndex &index, int 
                                 break;
 
                             }
-                            case KStorageBus_SATA:
-                            {
-                                QStringList keys = m_links[QString("/Devices/SATA%1/Port%2").arg(iSATACount).arg(iPort)];
-                                foreach (QString strKey, keys)
-                                    p_text << UITextTableLine(m_names[strKey], QString("%1 %2").arg(m_values[strKey]).arg(m_units[strKey]));
-                                break;
-                            }
-
-                            case KStorageBus_SCSI:
-                            {
-                                QStringList keys = m_links[QString("/Devices/SCSI%1/%2").arg(iSCSICount).arg(iSCSIIndex)];
-                                foreach (QString strKey, keys)
-                                    p_text << UITextTableLine(m_names[strKey], QString("%1 %2").arg(m_values[strKey]).arg(m_units[strKey]));
-                                ++iSCSIIndex;
-                                break;
-                            }
-
-                            case KStorageBus_USB:
-                            {
-                                QStringList keys = m_links[QString("/Devices/USB%1/%2").arg(iUSBCount).arg(iPort)];
-                                foreach (QString strKey, keys)
-                                    p_text << UITextTableLine(m_names[strKey], QString("%1 %2").arg(m_values[strKey]).arg(m_units[strKey]));
-                                break;
-                            }
-
-                            case KStorageBus_SAS:
-                            {
-                                QStringList keys = m_links[QString("/Devices/SAS%1/%2").arg(iSASCount).arg(iPort)];
-                                foreach (QString strKey, keys)
-                                    p_text << UITextTableLine(m_names[strKey], QString("%1 %2").arg(m_values[strKey]).arg(m_units[strKey]));
-                                break;
-                            }
-
                             default:
+                            {
+                                uint32_t iInstance = ctr.GetInstance();
+                                const KStorageControllerType enmCtrl = ctr.GetControllerType();
+                                const char *pszCtrl = storCtrlType2Str(enmCtrl);
+                                QStringList keys = m_links[QString("/Devices/%1%2/Port%3").arg(pszCtrl).arg(iInstance).arg(iPort)];
+                                foreach (QString strKey, keys)
+                                    p_text << UITextTableLine(m_names[strKey], QString("%1 %2").arg(m_values[strKey]).arg(m_units[strKey]));
                                 break;
+                            }
                         }
                     }
                 }
@@ -1175,19 +1063,14 @@ QVariant UIInformationDataStorageStatistics::data(const QModelIndex &index, int 
                 switch (busType)
                 {
                     case KStorageBus_IDE:  ++iIDECount; break;
-                    case KStorageBus_SATA: ++iSATACount; break;
-                    case KStorageBus_SCSI: ++iSCSICount; break;
-                    case KStorageBus_USB:  ++iUSBCount; break;
-                    case KStorageBus_SAS:  ++iSASCount; break;
                     default: break;
                 }
             }
             return QVariant::fromValue(p_text);
         }
-        break;
 
         default:
-        break;
+            break;
     }
 
     /* Call to base-class: */
@@ -1233,6 +1116,46 @@ QString UIInformationDataStorageStatistics::parseStatistics(const QString &strTe
     }
 
     return QString::number(uSumm);
+}
+
+const char *UIInformationDataStorageStatistics::storCtrlType2Str(const KStorageControllerType enmCtrlType) const
+{
+    const char *pszCtrl = NULL;
+    switch (enmCtrlType)
+    {
+        case KStorageControllerType_LsiLogic:
+            pszCtrl = "LSILOGIC";
+            break;
+        case KStorageControllerType_BusLogic:
+            pszCtrl = "BUSLOGIC";
+            break;
+        case KStorageControllerType_IntelAhci:
+            pszCtrl = "AHCI";
+            break;
+        case KStorageControllerType_PIIX3:
+        case KStorageControllerType_PIIX4:
+        case KStorageControllerType_ICH6:
+            pszCtrl = "PIIX3IDE";
+            break;
+        case KStorageControllerType_I82078:
+            pszCtrl = "I82078";
+            break;
+        case KStorageControllerType_LsiLogicSas:
+            pszCtrl = "LSILOGICSAS";
+            break;
+        case KStorageControllerType_USB:
+            pszCtrl = "MSD";
+            break;
+        case KStorageControllerType_NVMe:
+            pszCtrl = "NVME";
+            break;
+        default:
+            AssertFailed();
+            pszCtrl = "<INVALID>";
+            break;
+    }
+
+    return pszCtrl;
 }
 
 void UIInformationDataStorageStatistics::sltProcessStatistics()

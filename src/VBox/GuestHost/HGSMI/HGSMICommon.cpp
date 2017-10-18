@@ -4,24 +4,38 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+ * THE COPYRIGHT HOLDER(S) OR AUTHOR(S) BE LIABLE FOR ANY CLAIM, DAMAGES OR
+ * OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+ * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+ * OTHER DEALINGS IN THE SOFTWARE.
  */
 
 #define LOG_DISABLED /* Maybe we can enabled it all the time now? */
+/** @note commented out all logging statements to avoid pulling the logging
+ * sub-system into places like the Linux kernel driver.  Perhaps the best
+ * thing would be to use return enough information for callers to log what
+ * is needed. */
 #define LOG_GROUP LOG_GROUP_HGSMI
-#include <iprt/heap.h>
-#include <iprt/string.h>
 
-#include <VBox/HGSMI/HGSMI.h>
-#include <VBox/log.h>
+#include <VBoxVideoIPRT.h>
+
+#include <HGSMI.h>
+// #include <VBox/log.h>
 
 
 /* Channel flags. */
@@ -37,6 +51,15 @@
 #define HGSMI_STRICT_ASSERT_FAILED() do {} while (0)
 #define HGSMI_STRICT_ASSERT(expr) do {} while (0)
 #endif /* !HGSMI_STRICT */
+
+/*
+ * We do not want assertions in Linux kernel code to reduce symbol dependencies.
+ */
+#if defined(IN_RING0) && defined(RT_OS_LINUX)
+# define HGSMI_ASSERT_PTR_RETURN(a, b) if (!(a)) return (b)
+#else
+# define HGSMI_ASSERT_PTR_RETURN(a, b) if (!(a)) return (b)
+#endif /* !IN_RING0 && RT_OS_LINUX */
 
 /* One-at-a-Time Hash from
  * http://www.burtleburtle.net/bob/hash/doobs.html
@@ -184,8 +207,8 @@ int HGSMIHeapSetup(HGSMIHEAP *pHeap,
                    HGSMIOFFSET offBase,
                    const HGSMIENV *pEnv)
 {
-    AssertPtrReturn(pHeap, VERR_INVALID_PARAMETER);
-    AssertPtrReturn(pvBase, VERR_INVALID_PARAMETER);
+    HGSMI_ASSERT_PTR_RETURN(pHeap, VERR_INVALID_PARAMETER);
+    HGSMI_ASSERT_PTR_RETURN(pvBase, VERR_INVALID_PARAMETER);
 
     int rc = HGSMIAreaInitialize(&pHeap->area, pvBase, cbArea, offBase);
     if (RT_SUCCESS(rc))
@@ -271,16 +294,16 @@ static int hgsmiVerifyBuffer(const HGSMIAREA *pArea,
                              HGSMIOFFSET offBuffer,
                              HGSMIBUFFERCONTEXT *pBufferContext)
 {
-    LogFlowFunc(("buffer 0x%x, area %p %x [0x%x;0x%x]\n",
-                 offBuffer, pArea->pu8Base, pArea->cbArea, pArea->offBase, pArea->offLast));
+    // LogFlowFunc(("buffer 0x%x, area %p %x [0x%x;0x%x]\n",
+    //              offBuffer, pArea->pu8Base, pArea->cbArea, pArea->offBase, pArea->offLast));
 
     int rc = VINF_SUCCESS;
 
     if (   offBuffer < pArea->offBase
         || offBuffer > pArea->offLast)
     {
-        LogFunc(("offset 0x%x is outside the area [0x%x;0x%x]!!!\n",
-                 offBuffer, pArea->offBase, pArea->offLast));
+        // LogFunc(("offset 0x%x is outside the area [0x%x;0x%x]!!!\n",
+        //          offBuffer, pArea->offBase, pArea->offLast));
         rc = VERR_INVALID_PARAMETER;
         HGSMI_STRICT_ASSERT_FAILED();
     }
@@ -292,8 +315,8 @@ static int hgsmiVerifyBuffer(const HGSMIAREA *pArea,
         /* Quick check of the data size, it should be less than the maximum
          * data size for the buffer at this offset.
          */
-        LogFlowFunc(("datasize check: header.u32DataSize = 0x%x pArea->offLast - offBuffer = 0x%x\n",
-                     header.u32DataSize, pArea->offLast - offBuffer));
+        // LogFlowFunc(("datasize check: header.u32DataSize = 0x%x pArea->offLast - offBuffer = 0x%x\n",
+        //              header.u32DataSize, pArea->offLast - offBuffer));
 
         if (header.u32DataSize <= pArea->offLast - offBuffer)
         {
@@ -301,8 +324,8 @@ static int hgsmiVerifyBuffer(const HGSMIAREA *pArea,
 
             /* At least both header and tail structures are in the area. Check the checksum. */
             uint32_t u32Checksum = HGSMIChecksum(offBuffer, &header, &tail);
-            LogFlowFunc(("checksum check: u32Checksum = 0x%x pTail->u32Checksum = 0x%x\n",
-                         u32Checksum, tail.u32Checksum));
+            // LogFlowFunc(("checksum check: u32Checksum = 0x%x pTail->u32Checksum = 0x%x\n",
+            //              u32Checksum, tail.u32Checksum));
             if (u32Checksum == tail.u32Checksum)
             {
                 /* Success. */
@@ -312,16 +335,16 @@ static int hgsmiVerifyBuffer(const HGSMIAREA *pArea,
             }
             else
             {
-                LogFunc(("invalid checksum 0x%x, expected 0x%x!!!\n",
-                         u32Checksum, tail.u32Checksum));
+                // LogFunc(("invalid checksum 0x%x, expected 0x%x!!!\n",
+                //          u32Checksum, tail.u32Checksum));
                 rc = VERR_INVALID_STATE;
                 HGSMI_STRICT_ASSERT_FAILED();
             }
         }
         else
         {
-            LogFunc(("invalid data size 0x%x, maximum is 0x%x!!!\n",
-                     header.u32DataSize, pArea->offLast - offBuffer));
+            // LogFunc(("invalid data size 0x%x, maximum is 0x%x!!!\n",
+            //          header.u32DataSize, pArea->offLast - offBuffer));
             rc = VERR_TOO_MUCH_DATA;
             HGSMI_STRICT_ASSERT_FAILED();
         }
@@ -361,10 +384,10 @@ int HGSMIBufferProcess(const HGSMIAREA *pArea,
                        HGSMICHANNELINFO *pChannelInfo,
                        HGSMIOFFSET offBuffer)
 {
-    LogFlowFunc(("pArea %p, offBuffer 0x%x\n", pArea, offBuffer));
+    // LogFlowFunc(("pArea %p, offBuffer 0x%x\n", pArea, offBuffer));
 
-    AssertPtrReturn(pArea, VERR_INVALID_PARAMETER);
-    AssertPtrReturn(pChannelInfo, VERR_INVALID_PARAMETER);
+    HGSMI_ASSERT_PTR_RETURN(pArea, VERR_INVALID_PARAMETER);
+    HGSMI_ASSERT_PTR_RETURN(pChannelInfo, VERR_INVALID_PARAMETER);
 
     /* Guest has prepared a command description at 'offBuffer'. */
     HGSMIBUFFERCONTEXT bufferContext = { NULL, NULL, 0 }; /* Makes old GCC happier. */

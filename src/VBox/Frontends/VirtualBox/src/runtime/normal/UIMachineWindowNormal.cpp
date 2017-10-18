@@ -70,7 +70,7 @@ void UIMachineWindowNormal::sltMachineStateChanged()
     UIMachineWindow::sltMachineStateChanged();
 
     /* Update indicator-pool and virtualization stuff: */
-    updateAppearanceOf(UIVisualElement_IndicatorPoolStuff | UIVisualElement_FeaturesStuff);
+    updateAppearanceOf(UIVisualElement_IndicatorPoolStuff | UIVisualElement_VideoCapture | UIVisualElement_FeaturesStuff);
 }
 
 void UIMachineWindowNormal::sltMediumChange(const CMediumAttachment &attachment)
@@ -95,6 +95,12 @@ void UIMachineWindowNormal::sltUSBDeviceStateChange()
 {
     /* Update USB stuff: */
     updateAppearanceOf(UIVisualElement_USBStuff);
+}
+
+void UIMachineWindowNormal::sltAudioAdapterChange()
+{
+    /* Update audio stuff: */
+    updateAppearanceOf(UIVisualElement_AudioStuff);
 }
 
 void UIMachineWindowNormal::sltNetworkAdapterChange()
@@ -124,7 +130,10 @@ void UIMachineWindowNormal::sltCPUExecutionCapChange()
 void UIMachineWindowNormal::sltHandleSessionInitialized()
 {
     /* Update virtualization stuff: */
-    updateAppearanceOf(UIVisualElement_FeaturesStuff);
+    updateAppearanceOf(  UIVisualElement_FeaturesStuff
+                       | UIVisualElement_HDStuff
+                       | UIVisualElement_CDStuff
+                       | UIVisualElement_FDStuff);
 }
 
 #ifndef RT_OS_DARWIN
@@ -204,6 +213,7 @@ void UIMachineWindowNormal::sltHandleIndicatorContextMenuRequest(IndicatorType i
         case IndicatorType_HardDisks:     pAction = actionPool()->action(UIActionIndexRT_M_Devices_M_HardDrives);     break;
         case IndicatorType_OpticalDisks:  pAction = actionPool()->action(UIActionIndexRT_M_Devices_M_OpticalDevices); break;
         case IndicatorType_FloppyDisks:   pAction = actionPool()->action(UIActionIndexRT_M_Devices_M_FloppyDevices);  break;
+        case IndicatorType_Audio:         pAction = actionPool()->action(UIActionIndexRT_M_Devices_M_Audio);          break;
         case IndicatorType_Network:       pAction = actionPool()->action(UIActionIndexRT_M_Devices_M_Network);        break;
         case IndicatorType_USB:           pAction = actionPool()->action(UIActionIndexRT_M_Devices_M_USBDevices);     break;
         case IndicatorType_SharedFolders: pAction = actionPool()->action(UIActionIndexRT_M_Devices_M_SharedFolders);  break;
@@ -238,6 +248,8 @@ void UIMachineWindowNormal::prepareSessionConnections()
             this, SLOT(sltUSBControllerChange()));
     connect(machineLogic()->uisession(), SIGNAL(sigUSBDeviceStateChange(const CUSBDevice &, bool, const CVirtualBoxErrorInfo &)),
             this, SLOT(sltUSBDeviceStateChange()));
+    connect(machineLogic()->uisession(), &UISession::sigAudioAdapterChange,
+            this, &UIMachineWindowNormal::sltAudioAdapterChange);
     connect(machineLogic()->uisession(), SIGNAL(sigNetworkAdapterChange(const CNetworkAdapter &)),
             this, SLOT(sltNetworkAdapterChange()));
     connect(machineLogic()->uisession(), SIGNAL(sigSharedFolderChange()),
@@ -373,14 +385,14 @@ void UIMachineWindowNormal::loadSettings()
             {
                 /* Restore window geometry: */
                 m_normalGeometry = geo;
-                setGeometry(m_normalGeometry);
+                VBoxGlobal::setTopLevelGeometry(this, m_normalGeometry);
             }
             /* If previous machine-state was NOT SAVED: */
             else
             {
                 /* Restore only window position: */
                 m_normalGeometry = QRect(geo.x(), geo.y(), width(), height());
-                setGeometry(m_normalGeometry);
+                VBoxGlobal::setTopLevelGeometry(this, m_normalGeometry);
                 /* And normalize to the optimal-size: */
                 normalizeGeometry(false /* adjust position */);
             }
@@ -402,7 +414,7 @@ void UIMachineWindowNormal::loadSettings()
             /* Move newly created window to the screen-center: */
             m_normalGeometry = geometry();
             m_normalGeometry.moveCenter(availableGeo.center());
-            setGeometry(m_normalGeometry);
+            VBoxGlobal::setTopLevelGeometry(this, m_normalGeometry);
         }
 
         /* Normalize to the optimal size: */
@@ -447,6 +459,8 @@ void UIMachineWindowNormal::cleanupSessionConnections()
                this, SLOT(sltUSBDeviceStateChange()));
     disconnect(machineLogic()->uisession(), SIGNAL(sigNetworkAdapterChange(const CNetworkAdapter &)),
                this, SLOT(sltNetworkAdapterChange()));
+    disconnect(machineLogic()->uisession(), &UISession::sigAudioAdapterChange,
+               this, &UIMachineWindowNormal::sltAudioAdapterChange);
     disconnect(machineLogic()->uisession(), SIGNAL(sigSharedFolderChange()),
                this, SLOT(sltSharedFolderChange()));
     disconnect(machineLogic()->uisession(), SIGNAL(sigVideoCaptureChange()),
@@ -464,11 +478,11 @@ bool UIMachineWindowNormal::event(QEvent *pEvent)
     {
         case QEvent::Resize:
         {
-#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+#ifdef VBOX_WS_X11
             /* Prevent handling if fake screen detected: */
             if (gpDesktop->isFakeScreenDetected())
                 break;
-#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
+#endif /* VBOX_WS_X11 */
 
             QResizeEvent *pResizeEvent = static_cast<QResizeEvent*>(pEvent);
             if (!isMaximizedChecked())
@@ -484,11 +498,11 @@ bool UIMachineWindowNormal::event(QEvent *pEvent)
         }
         case QEvent::Move:
         {
-#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+#ifdef VBOX_WS_X11
             /* Prevent handling if fake screen detected: */
             if (gpDesktop->isFakeScreenDetected())
                 break;
-#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
+#endif /* VBOX_WS_X11 */
 
             if (!isMaximizedChecked())
             {
@@ -579,8 +593,8 @@ void UIMachineWindowNormal::normalizeGeometry(bool fAdjustPosition)
         frGeo = VBoxGlobal::normalizeGeometry(frGeo, gpDesktop->overallAvailableRegion());
 
     /* Finally, set the frame geometry: */
-    setGeometry(frGeo.left() + dl, frGeo.top() + dt,
-                frGeo.width() - dl - dr, frGeo.height() - dt - db);
+    VBoxGlobal::setTopLevelGeometry(this, frGeo.left() + dl, frGeo.top() + dt,
+                                    frGeo.width() - dl - dr, frGeo.height() - dt - db);
 #else /* VBOX_GUI_WITH_CUSTOMIZATIONS1 */
     /* Customer request: There should no be
      * machine-window resize/move on machine-view resize: */
@@ -596,27 +610,37 @@ void UIMachineWindowNormal::updateAppearanceOf(int iElement)
     /* Set status-bar indicator-pool auto update timer: */
     if (iElement & UIVisualElement_IndicatorPoolStuff)
         m_pIndicatorsPool->setAutoUpdateIndicatorStates(statusBar()->isVisible() && uisession()->isRunning());
-    /* Update status-bar indicator-pool appearance only when status-bar is visible and VM is running: */
-    if (statusBar()->isVisible() && uisession()->isRunning())
+    /* Update status-bar indicator-pool appearance only when status-bar is visible: */
+    if (statusBar()->isVisible())
     {
-        if (iElement & UIVisualElement_HDStuff)
-            m_pIndicatorsPool->updateAppearance(IndicatorType_HardDisks);
-        if (iElement & UIVisualElement_CDStuff)
-            m_pIndicatorsPool->updateAppearance(IndicatorType_OpticalDisks);
-        if (iElement & UIVisualElement_FDStuff)
-            m_pIndicatorsPool->updateAppearance(IndicatorType_FloppyDisks);
-        if (iElement & UIVisualElement_NetworkStuff)
-            m_pIndicatorsPool->updateAppearance(IndicatorType_Network);
-        if (iElement & UIVisualElement_USBStuff)
-            m_pIndicatorsPool->updateAppearance(IndicatorType_USB);
-        if (iElement & UIVisualElement_SharedFolderStuff)
-            m_pIndicatorsPool->updateAppearance(IndicatorType_SharedFolders);
-        if (iElement & UIVisualElement_Display)
-            m_pIndicatorsPool->updateAppearance(IndicatorType_Display);
-        if (iElement & UIVisualElement_VideoCapture)
-            m_pIndicatorsPool->updateAppearance(IndicatorType_VideoCapture);
-        if (iElement & UIVisualElement_FeaturesStuff)
-            m_pIndicatorsPool->updateAppearance(IndicatorType_Features);
+        /* If VM is running: */
+        if (uisession()->isRunning())
+        {
+            if (iElement & UIVisualElement_HDStuff)
+                m_pIndicatorsPool->updateAppearance(IndicatorType_HardDisks);
+            if (iElement & UIVisualElement_CDStuff)
+                m_pIndicatorsPool->updateAppearance(IndicatorType_OpticalDisks);
+            if (iElement & UIVisualElement_FDStuff)
+                m_pIndicatorsPool->updateAppearance(IndicatorType_FloppyDisks);
+            if (iElement & UIVisualElement_AudioStuff)
+                m_pIndicatorsPool->updateAppearance(IndicatorType_Audio);
+            if (iElement & UIVisualElement_NetworkStuff)
+                m_pIndicatorsPool->updateAppearance(IndicatorType_Network);
+            if (iElement & UIVisualElement_USBStuff)
+                m_pIndicatorsPool->updateAppearance(IndicatorType_USB);
+            if (iElement & UIVisualElement_SharedFolderStuff)
+                m_pIndicatorsPool->updateAppearance(IndicatorType_SharedFolders);
+            if (iElement & UIVisualElement_Display)
+                m_pIndicatorsPool->updateAppearance(IndicatorType_Display);
+            if (iElement & UIVisualElement_FeaturesStuff)
+                m_pIndicatorsPool->updateAppearance(IndicatorType_Features);
+        }
+        /* If VM is running or paused: */
+        if (uisession()->isRunning() || uisession()->isPaused())
+        {
+            if (iElement & UIVisualElement_VideoCapture)
+                m_pIndicatorsPool->updateAppearance(IndicatorType_VideoCapture);
+        }
     }
 }
 

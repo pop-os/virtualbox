@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -106,7 +106,7 @@
 /* Pending interrupts (PBA) */
 #define VBOX_MSIX_PAGE_PENDING                (VBOX_MSIX_PAGE_SIZE / 2)
 /* Maximum number of vectors, per device/function */
-#define VBOX_MSIX_MAX_ENTRIES                 32
+#define VBOX_MSIX_MAX_ENTRIES                 2048
 /* Size of MSI-X PCI capability */
 #define VBOX_MSIX_CAP_SIZE                    12
 /* Offsets in MSI-X PCI capability structure (VBOX_PCI_CAP_ID_MSIX) */

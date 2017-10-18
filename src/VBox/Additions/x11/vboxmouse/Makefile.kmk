@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2016 Oracle Corporation
+# Copyright (C) 2006-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -45,15 +45,10 @@ if1of ($(KBUILD_TARGET), linux)
 	BUILDDEBUG X_BYTE_ORDER=X_LITTLE_ENDIAN DNDEBUG FUNCPROTO=15 NARROWPROTO \
 	IN_MODULE XFree86Module PNP_MOUSE IN_XF86_MODULE
  vboxmouse_drv_INCS := \
-	$(VBOX_PATH_X11_XFREE_4_3)/include \
-	$(VBOX_PATH_X11_XFREE_4_3)/include/extensions \
-	$(VBOX_PATH_X11_XFREE_4_3)/include/X11 \
-	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/hw/xfree86 \
-	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/hw/xfree86/common \
-	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/hw/xfree86/os-support \
-	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/hw/xfree86/os-support/bus \
-	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/mi \
-	$(VBOX_PATH_X11_XFREE_4_3)/programs/Xserver/include \
+	$(VBOX_PATH_X11_ROOT)/XFree86-4.3 \
+	$(VBOX_PATH_X11_ROOT)/XFree86-4.3/X11 \
+	$(VBOX_PATH_X11_ROOT)/XFree86-4.3/X11/extensions \
+	$(VBOX_PATH_X11_ROOT)/XFree86-4.3/Xserver \
 	$(PATH_SUB_CURRENT)
  vboxmouse_drv_SOURCES = \
 	vboxmouse.c

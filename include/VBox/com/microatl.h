@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2016 Oracle Corporation
+ * Copyright (C) 2016-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -693,9 +693,6 @@ public:
         // Catch refcount screwups by setting refcount to -(LONG_MAX/2).
         m_iRef = -(LONG_MAX/2);
         FinalRelease();
-#ifdef _ATL_DEBUG_INTERFACES
-        _AtlDebugInterfacesModule.DeleteNonAddRefThunk(_GetRawUnknown());
-#endif
     }
     STDMETHOD_(ULONG, AddRef)() throw()
     {

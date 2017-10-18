@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,32 +23,101 @@
 # include <QHeaderView>
 
 /* GUI includes: */
+# include "QIFileDialog.h"
 # include "UIGlobalSettingsExtension.h"
 # include "UIIconPool.h"
-# include "QIFileDialog.h"
-# include "VBoxGlobal.h"
 # include "UIMessageCenter.h"
+# include "VBoxGlobal.h"
 # include "VBoxLicenseViewer.h"
 
 /* COM includes: */
-# include "CExtPackManager.h"
 # include "CExtPack.h"
 # include "CExtPackFile.h"
+# include "CExtPackManager.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
+/** Global settings: Extension page item data structure. */
+struct UIDataSettingsGlobalExtensionItem
+{
+    /** Constructs data. */
+    UIDataSettingsGlobalExtensionItem()
+        : m_strName(QString())
+        , m_strDescription(QString())
+        , m_strVersion(QString())
+        , m_uRevision(0)
+        , m_fIsUsable(false)
+        , m_strWhyUnusable(QString())
+    {}
+
+    /** Returns whether the @a other passed data is equal to this one. */
+    bool equal(const UIDataSettingsGlobalExtensionItem &other) const
+    {
+        return true
+               && (m_strName == other.m_strName)
+               && (m_strDescription == other.m_strDescription)
+               && (m_strVersion == other.m_strVersion)
+               && (m_uRevision == other.m_uRevision)
+               && (m_fIsUsable == other.m_fIsUsable)
+               && (m_strWhyUnusable == other.m_strWhyUnusable)
+               ;
+    }
+
+    /** Returns whether the @a other passed data is equal to this one. */
+    bool operator==(const UIDataSettingsGlobalExtensionItem &other) const { return equal(other); }
+    /** Returns whether the @a other passed data is different from this one. */
+    bool operator!=(const UIDataSettingsGlobalExtensionItem &other) const { return !equal(other); }
+
+    /** Holds the extension item name. */
+    QString m_strName;
+    /** Holds the extension item description. */
+    QString m_strDescription;
+    /** Holds the extension item version. */
+    QString m_strVersion;
+    /** Holds the extension item revision. */
+    ULONG m_uRevision;
+    /** Holds whether the extension item usable. */
+    bool m_fIsUsable;
+    /** Holds why the extension item is unusable. */
+    QString m_strWhyUnusable;
+};
+
+
+/** Global settings: Extension page data structure. */
+struct UIDataSettingsGlobalExtension
+{
+    /** Constructs data. */
+    UIDataSettingsGlobalExtension()
+        : m_items(QList<UIDataSettingsGlobalExtensionItem>())
+    {}
+
+    /** Returns whether the @a other passed data is equal to this one. */
+    bool equal(const UIDataSettingsGlobalExtension &other) const
+    {
+        return true
+               && (m_items == other.m_items)
+               ;
+    }
+
+    /** Returns whether the @a other passed data is equal to this one. */
+    bool operator==(const UIDataSettingsGlobalExtension &other) const { return equal(other); }
+    /** Returns whether the @a other passed data is different from this one. */
+    bool operator!=(const UIDataSettingsGlobalExtension &other) const { return !equal(other); }
+
+    /** Holds the extension items. */
+    QList<UIDataSettingsGlobalExtensionItem> m_items;
+};
+
+
 /* Extension package item: */
-class UIExtensionPackageItem : public QTreeWidgetItem
+class UIExtensionPackageItem : public QITreeWidgetItem
 {
 public:
 
-    /* Extension package item type: */
-    enum { UIItemType = QTreeWidgetItem::UserType + 1 };
-
     /* Extension package item constructor: */
-    UIExtensionPackageItem(QTreeWidget *pParent, const UISettingsCacheGlobalExtensionItem &data)
-        : QTreeWidgetItem(pParent, UIItemType)
+    UIExtensionPackageItem(QITreeWidget *pParent, const UIDataSettingsGlobalExtensionItem &data)
+        : QITreeWidgetItem(pParent)
         , m_data(data)
     {
         /* Icon: */
@@ -65,7 +134,7 @@ public:
         /* workaround for http://qt.gitorious.org/qt/qt/commit/7fc63dd0ff368a637dcd17e692b9d6b26278b538 */
         if (m_data.m_strVersion.contains(QRegExp("[-_]")))
             strAppend = m_data.m_strVersion.section(QRegExp("[-_]"), 1, -1, QString::SectionIncludeLeadingSep);
-        setText(2, QString("%1r%2%3").arg(strVersion).arg(m_data.m_strRevision).arg(strAppend));
+        setText(2, QString("%1r%2%3").arg(strVersion).arg(m_data.m_uRevision).arg(strAppend));
 
         /* Tool-tip: */
         QString strTip = m_data.m_strDescription;
@@ -81,61 +150,44 @@ public:
 
     QString name() const { return m_data.m_strName; }
 
+    /** Returns default text. */
+    virtual QString defaultText() const /* override */
+    {
+        return m_data.m_fIsUsable ?
+               tr("%1, %2: %3, %4", "col.2 text, col.3 name: col.3 text, col.1 name")
+                 .arg(text(1))
+                 .arg(parentTree()->headerItem()->text(2)).arg(text(2))
+                 .arg(parentTree()->headerItem()->text(0)) :
+               tr("%1, %2: %3",     "col.2 text, col.3 name: col.3 text")
+                 .arg(text(1))
+                 .arg(parentTree()->headerItem()->text(2)).arg(text(2));
+    }
+
 private:
 
-    UISettingsCacheGlobalExtensionItem m_data;
+    UIDataSettingsGlobalExtensionItem m_data;
 };
 
-/* Extension page constructor: */
+
 UIGlobalSettingsExtension::UIGlobalSettingsExtension()
     : m_pActionAdd(0), m_pActionRemove(0)
+    , m_pCache(0)
 {
-    /* Apply UI decorations: */
-    Ui::UIGlobalSettingsExtension::setupUi(this);
+    /* Prepare: */
+    prepare();
+}
 
-    /* Setup tree-widget: */
-    //m_pPackagesTree->header()->hide();
-    m_pPackagesTree->header()->setStretchLastSection(false);
-#if QT_VERSION >= 0x050000
-    m_pPackagesTree->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-    m_pPackagesTree->header()->setSectionResizeMode(1, QHeaderView::Stretch);
-    m_pPackagesTree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-#else /* QT_VERSION < 0x050000 */
-    m_pPackagesTree->header()->setResizeMode(0, QHeaderView::ResizeToContents);
-    m_pPackagesTree->header()->setResizeMode(1, QHeaderView::Stretch);
-    m_pPackagesTree->header()->setResizeMode(2, QHeaderView::ResizeToContents);
-#endif /* QT_VERSION < 0x050000 */
-    m_pPackagesTree->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(m_pPackagesTree, SIGNAL(currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)),
-            this, SLOT(sltHandleCurrentItemChange(QTreeWidgetItem*)));
-    connect(m_pPackagesTree, SIGNAL(customContextMenuRequested(const QPoint&)),
-            this, SLOT(sltShowContextMenu(const QPoint&)));
-
-    /* Determine icon metric: */
-    const QStyle *pStyle = QApplication::style();
-    const int iIconMetric = pStyle->pixelMetric(QStyle::PM_SmallIconSize);
-
-    /* Setup tool-bar: */
-    m_pPackagesToolbar->setIconSize(QSize(iIconMetric, iIconMetric));
-    m_pPackagesToolbar->setOrientation(Qt::Vertical);
-    m_pActionAdd = m_pPackagesToolbar->addAction(UIIconPool::iconSet(":/extension_pack_install_16px.png",
-                                                                     ":/extension_pack_install_disabled_16px.png"),
-                                                 QString(), this, SLOT(sltInstallPackage()));
-    m_pActionRemove = m_pPackagesToolbar->addAction(UIIconPool::iconSet(":/extension_pack_uninstall_16px.png",
-                                                                        ":/extension_pack_uninstall_disabled_16px.png"),
-                                                    QString(), this, SLOT(sltRemovePackage()));
-
-    /* Apply language settings: */
-    retranslateUi();
+UIGlobalSettingsExtension::~UIGlobalSettingsExtension()
+{
+    /* Cleanup: */
+    cleanup();
 }
 
 /* static */
 void UIGlobalSettingsExtension::doInstallation(QString const &strFilePath, QString const &strDigest,
                                                QWidget *pParent, QString *pstrExtPackName)
 {
-    /*
-     * Open the extpack tarball via IExtPackManager.
-     */
+    /* Open the extpack tarball via IExtPackManager: */
     CExtPackManager manager = vboxGlobal().virtualBox().GetExtensionPackManager();
     CExtPackFile extPackFile;
     if (strDigest.isEmpty())
@@ -157,15 +209,12 @@ void UIGlobalSettingsExtension::doInstallation(QString const &strFilePath, QStri
         return;
     }
 
-    QString strPackName = extPackFile.GetName();
-    QString strPackDescription = extPackFile.GetDescription();
-    QString strPackVersion = QString("%1r%2%3").arg(extPackFile.GetVersion()).arg(extPackFile.GetRevision()).arg(extPackFile.GetEdition());
+    const QString strPackName = extPackFile.GetName();
+    const QString strPackDescription = extPackFile.GetDescription();
+    const QString strPackVersion = QString("%1r%2%3").arg(extPackFile.GetVersion()).arg(extPackFile.GetRevision()).arg(extPackFile.GetEdition());
 
-    /*
-     * Check if there is a version of the extension pack already
-     * installed on the system and let the user decide what to do about
-     * it.
-     */
+    /* Check if there is a version of the extension pack already
+     * installed on the system and let the user decide what to do about it. */
     CExtPack extPackCur = manager.Find(strPackName);
     bool fReplaceIt = extPackCur.isOk();
     if (fReplaceIt)
@@ -174,18 +223,14 @@ void UIGlobalSettingsExtension::doInstallation(QString const &strFilePath, QStri
         if (!msgCenter().confirmReplaceExtensionPack(strPackName, strPackVersion, strPackVersionCur, strPackDescription, pParent))
             return;
     }
-    /*
-     * If it's a new package just ask for general confirmation.
-     */
+    /* If it's a new package just ask for general confirmation. */
     else
     {
         if (!msgCenter().confirmInstallExtensionPack(strPackName, strPackVersion, strPackDescription, pParent))
             return;
     }
 
-    /*
-     * Display the license dialog if required by the extension pack.
-     */
+    /* Display the license dialog if required by the extension pack. */
     if (extPackFile.GetShowLicense())
     {
         QString strLicense = extPackFile.GetLicense();
@@ -194,17 +239,14 @@ void UIGlobalSettingsExtension::doInstallation(QString const &strFilePath, QStri
             return;
     }
 
-    /*
-     * Install the selected package.
-     *
-     * Set the package name return value before doing this as the caller should
-     * do a refresh even on failure.
-     */
+    /* Install the selected package.
+     * Set the package name return value before doing
+     * this as the caller should do a refresh even on failure. */
     QString displayInfo;
 #ifdef VBOX_WS_WIN
     if (pParent)
         displayInfo.sprintf("hwnd=%#llx", (uint64_t)(uintptr_t)pParent->winId());
-#endif /* VBOX_WS_WIN */
+#endif
     /* Prepare installation progress: */
     CProgress progress = extPackFile.Install(fReplaceIt, displayInfo);
     if (extPackFile.isOk())
@@ -226,30 +268,42 @@ void UIGlobalSettingsExtension::doInstallation(QString const &strFilePath, QStri
         *pstrExtPackName = strPackName;
 }
 
-/* Load data to cache from corresponding external object(s),
- * this task COULD be performed in other than GUI thread: */
 void UIGlobalSettingsExtension::loadToCacheFrom(QVariant &data)
 {
-    /* Fetch data to properties & settings: */
+    /* Fetch data to properties: */
     UISettingsPageGlobal::fetchData(data);
 
-    /* Load to cache: */
-    const CExtPackManager &manager = vboxGlobal().virtualBox().GetExtensionPackManager();
-    const CExtPackVector &packages = manager.GetInstalledExtPacks();
-    for (int i = 0; i < packages.size(); ++i)
-        m_cache.m_items << fetchData(packages[i]);
+    /* Clear cache initially: */
+    m_pCache->clear();
 
-    /* Upload properties & settings to data: */
+    /* Prepare old extension data: */
+    UIDataSettingsGlobalExtension oldExtensionData;
+
+    /* Gather old extension data: */
+    const CExtPackVector &packages = vboxGlobal().virtualBox().
+                                     GetExtensionPackManager().GetInstalledExtPacks();
+    foreach (const CExtPack &package, packages)
+    {
+        UIDataSettingsGlobalExtensionItem item;
+        loadData(package, item);
+        oldExtensionData.m_items << item;
+    }
+
+    /* Cache old extension data: */
+    m_pCache->cacheInitialData(oldExtensionData);
+
+    /* Upload properties to data: */
     UISettingsPageGlobal::uploadData(data);
 }
 
-/* Load data to corresponding widgets from cache,
- * this task SHOULD be performed in GUI thread only: */
 void UIGlobalSettingsExtension::getFromCache()
 {
-    /* Fetch from cache: */
-    for (int i = 0; i < m_cache.m_items.size(); ++i)
-        new UIExtensionPackageItem(m_pPackagesTree, m_cache.m_items[i]);
+    /* Get old extension data from the cache: */
+    const UIDataSettingsGlobalExtension &oldExtensionData = m_pCache->base();
+
+    /* Load old extension data from the cache: */
+    foreach (const UIDataSettingsGlobalExtensionItem &item, oldExtensionData.m_items)
+        new UIExtensionPackageItem(m_pPackagesTree, item);
     /* If at least one item present: */
     if (m_pPackagesTree->topLevelItemCount())
         m_pPackagesTree->setCurrentItem(m_pPackagesTree->topLevelItem(0));
@@ -257,30 +311,20 @@ void UIGlobalSettingsExtension::getFromCache()
     sltHandleCurrentItemChange(m_pPackagesTree->currentItem());
 }
 
-/* Save data from corresponding widgets to cache,
- * this task SHOULD be performed in GUI thread only: */
 void UIGlobalSettingsExtension::putToCache()
 {
-    /* Nothing to put to cache... */
+    /* Nothing to cache... */
 }
 
-/* Save data from cache to corresponding external object(s),
- * this task COULD be performed in other than GUI thread: */
 void UIGlobalSettingsExtension::saveFromCacheTo(QVariant &data)
 {
-    /* Fetch data to properties & settings: */
+    /* Fetch data to properties: */
     UISettingsPageGlobal::fetchData(data);
 
-    /* Nothing to save from cache... */
+    /* Nothing to save from the cache... */
 
-    /* Upload properties & settings to data: */
+    /* Upload properties to data: */
     UISettingsPageGlobal::uploadData(data);
-}
-
-void UIGlobalSettingsExtension::setOrderAfter(QWidget *pWidget)
-{
-    /* Setup tab-order: */
-    setTabOrder(pWidget, m_pPackagesTree);
 }
 
 void UIGlobalSettingsExtension::retranslateUi()
@@ -302,11 +346,10 @@ void UIGlobalSettingsExtension::retranslateUi()
 void UIGlobalSettingsExtension::sltHandleCurrentItemChange(QTreeWidgetItem *pCurrentItem)
 {
     /* Check action's availability: */
-    //m_pActionAdd->setEnabled(true);
     m_pActionRemove->setEnabled(pCurrentItem);
 }
 
-void UIGlobalSettingsExtension::sltShowContextMenu(const QPoint &position)
+void UIGlobalSettingsExtension::sltHandleContextMenuRequest(const QPoint &position)
 {
     QMenu menu;
     if (m_pPackagesTree->itemAt(position))
@@ -321,14 +364,11 @@ void UIGlobalSettingsExtension::sltShowContextMenu(const QPoint &position)
     menu.exec(m_pPackagesTree->viewport()->mapToGlobal(position));
 }
 
-void UIGlobalSettingsExtension::sltInstallPackage()
+void UIGlobalSettingsExtension::sltAddPackage()
 {
-    /*
-     * Open file-open window to let user to choose package file.
-     *
+    /* Open file-open window to let user to choose package file.
      * The default location is the user's Download or Downloads directory with
-     * the user's home directory as a fallback.  ExtPacks are downloaded.
-     */
+     * the user's home directory as a fallback. ExtPacks are downloaded. */
     QString strBaseFolder = QDir::homePath() + "/Downloads";
     if (!QDir(strBaseFolder).exists())
     {
@@ -336,41 +376,39 @@ void UIGlobalSettingsExtension::sltInstallPackage()
         if (!QDir(strBaseFolder).exists())
             strBaseFolder = QDir::homePath();
     }
-    QString strTitle = tr("Select an extension package file");
+    const QString strTitle = tr("Select an extension package file");
     QStringList extensions;
     for (int i = 0; i < VBoxExtPackFileExts.size(); ++i)
         extensions << QString("*.%1").arg(VBoxExtPackFileExts[i]);
-    QString strFilter = tr("Extension package files (%1)").arg(extensions.join(" "));
+    const QString strFilter = tr("Extension package files (%1)").arg(extensions.join(" "));
 
-    QStringList fileNames = QIFileDialog::getOpenFileNames(strBaseFolder, strFilter, this, strTitle, 0, true, true);
+    const QStringList fileNames = QIFileDialog::getOpenFileNames(strBaseFolder, strFilter, this, strTitle, 0, true, true);
 
     QString strFilePath;
     if (!fileNames.isEmpty())
         strFilePath = fileNames.at(0);
 
-    /*
-     * Install the chosen package.
-     */
+    /* Install the chosen package: */
     if (!strFilePath.isEmpty())
     {
         QString strExtPackName;
         doInstallation(strFilePath, QString(), this, &strExtPackName);
 
-        /*
-         * Since we might be reinstalling an existing package, we have to
-         * do a little refreshing regardless of what the user chose.
-         */
+        /* Since we might be reinstalling an existing package, we have to
+         * do a little refreshing regardless of what the user chose. */
         if (!strExtPackName.isNull())
         {
-            /* Remove it from the cache. */
-            for (int i = 0; i < m_cache.m_items.size(); i++)
-                if (!strExtPackName.compare(m_cache.m_items[i].m_strName, Qt::CaseInsensitive))
+            /* Remove it from the cache: */
+            for (int i = 0; i < m_pCache->data().m_items.size(); ++i)
+            {
+                if (!strExtPackName.compare(m_pCache->data().m_items.at(i).m_strName, Qt::CaseInsensitive))
                 {
-                    m_cache.m_items.removeAt(i);
+                    m_pCache->data().m_items.removeAt(i);
                     break;
                 }
+            }
 
-            /* Remove it from the tree. */
+            /* Remove it from the tree: */
             const int cItems = m_pPackagesTree->topLevelItemCount();
             for (int i = 0; i < cItems; i++)
             {
@@ -382,14 +420,16 @@ void UIGlobalSettingsExtension::sltInstallPackage()
                 }
             }
 
-            /* Reinsert it into the cache and tree. */
+            /* Reinsert it into the cache and tree: */
             CExtPackManager manager = vboxGlobal().virtualBox().GetExtensionPackManager();
             const CExtPack &package = manager.Find(strExtPackName);
             if (package.isOk())
             {
-                m_cache.m_items << fetchData(package);
+                UIDataSettingsGlobalExtensionItem item;
+                loadData(package, item);
+                m_pCache->data().m_items << item;
 
-                UIExtensionPackageItem *pItem = new UIExtensionPackageItem(m_pPackagesTree, m_cache.m_items.last());
+                UIExtensionPackageItem *pItem = new UIExtensionPackageItem(m_pPackagesTree, m_pCache->data().m_items.last());
                 m_pPackagesTree->setCurrentItem(pItem);
                 m_pPackagesTree->sortByColumn(1, Qt::AscendingOrder);
             }
@@ -401,21 +441,18 @@ void UIGlobalSettingsExtension::sltRemovePackage()
 {
     /* Get current item: */
     UIExtensionPackageItem *pItem = m_pPackagesTree &&
-                                    m_pPackagesTree->currentItem() &&
-                                    m_pPackagesTree->currentItem()->type() == UIExtensionPackageItem::UIItemType ?
+                                    m_pPackagesTree->currentItem() ?
                                     static_cast<UIExtensionPackageItem*>(m_pPackagesTree->currentItem()) : 0;
 
     /* Uninstall chosen package: */
     if (pItem)
     {
         /* Get name of current package: */
-        QString strSelectedPackageName = pItem->name();
+        const QString strSelectedPackageName = pItem->name();
         /* Ask the user about package removing: */
         if (msgCenter().confirmRemoveExtensionPack(strSelectedPackageName, this))
         {
-            /*
-             * Uninstall the package.
-             */
+            /* Uninstall the package: */
             CExtPackManager manager = vboxGlobal().virtualBox().GetExtensionPackManager();
             /** @todo Refuse this if any VMs are running. */
             QString displayInfo;
@@ -430,12 +467,12 @@ void UIGlobalSettingsExtension::sltRemovePackage()
                 msgCenter().showModalProgressDialog(progress, tr("Extensions"), ":/progress_install_guest_additions_90px.png", this);
                 if (progress.isOk() && progress.GetResultCode() == 0)
                 {
-                    /* Remove selected package from cache: */
-                    for (int i = 0; i < m_cache.m_items.size(); ++i)
+                    /* Remove selected package from the cache: */
+                    for (int i = 0; i < m_pCache->data().m_items.size(); ++i)
                     {
-                        if (!strSelectedPackageName.compare(m_cache.m_items[i].m_strName, Qt::CaseInsensitive))
+                        if (!strSelectedPackageName.compare(m_pCache->data().m_items.at(i).m_strName, Qt::CaseInsensitive))
                         {
-                            m_cache.m_items.removeAt(i);
+                            m_pCache->data().m_items.removeAt(i);
                             break;
                         }
                     }
@@ -451,16 +488,71 @@ void UIGlobalSettingsExtension::sltRemovePackage()
     }
 }
 
-UISettingsCacheGlobalExtensionItem UIGlobalSettingsExtension::fetchData(const CExtPack &package) const
+void UIGlobalSettingsExtension::prepare()
 {
-    UISettingsCacheGlobalExtensionItem item;
+    /* Apply UI decorations: */
+    Ui::UIGlobalSettingsExtension::setupUi(this);
+
+    /* Prepare cache: */
+    m_pCache = new UISettingsCacheGlobalExtension;
+    AssertPtrReturnVoid(m_pCache);
+
+    /* Layout created in the .ui file. */
+    {
+        /* Tree-widget created in the .ui file. */
+        AssertPtrReturnVoid(m_pPackagesTree);
+        {
+            /* Configure tree-widget: */
+            m_pPackagesTree->header()->setStretchLastSection(false);
+            m_pPackagesTree->header()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
+            m_pPackagesTree->header()->setSectionResizeMode(1, QHeaderView::Stretch);
+            m_pPackagesTree->header()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
+            m_pPackagesTree->setContextMenuPolicy(Qt::CustomContextMenu);
+            connect(m_pPackagesTree, SIGNAL(currentItemChanged(QTreeWidgetItem *, QTreeWidgetItem *)),
+                    this, SLOT(sltHandleCurrentItemChange(QTreeWidgetItem *)));
+            connect(m_pPackagesTree, SIGNAL(customContextMenuRequested(const QPoint &)),
+                    this, SLOT(sltHandleContextMenuRequest(const QPoint &)));
+        }
+
+        /* Tool-bar created in the .ui file. */
+        AssertPtrReturnVoid(m_pPackagesToolbar);
+        {
+            /* Configure toolbar: */
+            const int iIconMetric = QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize);
+            m_pPackagesToolbar->setOrientation(Qt::Vertical);
+            m_pPackagesToolbar->setIconSize(QSize(iIconMetric, iIconMetric));
+
+            /* Create 'Add Package' action: */
+            m_pActionAdd = m_pPackagesToolbar->addAction(UIIconPool::iconSet(":/extension_pack_install_16px.png",
+                                                                             ":/extension_pack_install_disabled_16px.png"),
+                                                         QString(), this, SLOT(sltAddPackage()));
+
+            /* Create 'Remove Package' action: */
+            m_pActionRemove = m_pPackagesToolbar->addAction(UIIconPool::iconSet(":/extension_pack_uninstall_16px.png",
+                                                                                ":/extension_pack_uninstall_disabled_16px.png"),
+                                                            QString(), this, SLOT(sltRemovePackage()));
+        }
+    }
+
+    /* Apply language settings: */
+    retranslateUi();
+}
+
+void UIGlobalSettingsExtension::cleanup()
+{
+    /* Cleanup cache: */
+    delete m_pCache;
+    m_pCache = 0;
+}
+
+void UIGlobalSettingsExtension::loadData(const CExtPack &package, UIDataSettingsGlobalExtensionItem &item) const
+{
     item.m_strName = package.GetName();
     item.m_strDescription = package.GetDescription();
     item.m_strVersion = package.GetVersion();
-    item.m_strRevision = package.GetRevision();
+    item.m_uRevision = package.GetRevision();
     item.m_fIsUsable = package.GetUsable();
     if (!item.m_fIsUsable)
         item.m_strWhyUnusable = package.GetWhyUnusable();
-    return item;
 }
 

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,13 +27,8 @@
 #define ___VBox_VBoxGuestLib_h
 
 #include <VBox/types.h>
-#include <VBox/VMMDev2.h>
-#include <VBox/VMMDev.h>     /* grumble */
-#ifdef IN_RING0
-# include <VBox/VBoxGuest.h>
-# include <VBox/VBoxGuest2.h>
-#endif
-
+#include <VBox/VMMDevCoreTypes.h>
+#include <VBox/VBoxGuestCoreTypes.h>
 
 /** @defgroup grp_vboxguest_lib     VirtualBox Guest Additions Library
  * @ingroup grp_vboxguest
@@ -87,7 +82,7 @@ typedef uint32_t HGCMCLIENTID;
 /** @defgroup grp_vboxguest_lib_r0     Ring-0 interface.
  * @{
  */
-#if defined(IN_RING0) && !defined(IN_RING0_AGNOSTIC)
+#ifdef IN_RING0
 /** @def DECLR0VBGL
  * Declare a VBGL ring-0 API with the right calling convention and visibilitiy.
  * @param type      Return type.  */
@@ -99,17 +94,19 @@ typedef uint32_t HGCMCLIENTID;
 # define DECLVBGL(type) DECLR0VBGL(type)
 
 
-# ifdef VBGL_VBOXGUEST
-
 /**
- * The library initialization function to be used by the main
- * VBoxGuest system driver.
+ * The library initialization function to be used by the main VBoxGuest driver.
  *
  * @return VBox status code.
  */
-DECLVBGL(int) VbglInitPrimary(RTIOPORT portVMMDev, struct VMMDevMemory *pVMMDevMemory);
+DECLR0VBGL(int)     VbglR0InitPrimary(RTIOPORT portVMMDev, struct VMMDevMemory *pVMMDevMemory);
 
-# else
+/**
+ * The library termination function to be used by the main VBoxGuest driver.
+ *
+ * @author bird (2017-08-23)
+ */
+DECLR0VBGL(void)    VbglR0TerminatePrimary(void);
 
 /**
  * The library initialization function to be used by all drivers
@@ -117,14 +114,42 @@ DECLVBGL(int) VbglInitPrimary(RTIOPORT portVMMDev, struct VMMDevMemory *pVMMDevM
  *
  * @return VBox status code.
  */
-DECLVBGL(int) VbglInitClient(void);
-
-# endif
+DECLR0VBGL(int)     VbglR0InitClient(void);
 
 /**
  * The library termination function.
  */
-DECLVBGL(void) VbglTerminate (void);
+DECLR0VBGL(void)    VbglR0TerminateClient(void);
+
+
+/** @name The IDC Client Interface
+ * @{
+ */
+
+/**
+ * Inter-Driver Communication Handle.
+ */
+typedef union VBGLIDCHANDLE
+{
+    /** Padding for opaque usage.
+     * Must be greater or equal in size than the private struct. */
+    void *apvPadding[4];
+#ifdef VBGLIDCHANDLEPRIVATE_DECLARED
+    /** The private view. */
+    struct VBGLIDCHANDLEPRIVATE s;
+#endif
+} VBGLIDCHANDLE;
+/** Pointer to a handle. */
+typedef VBGLIDCHANDLE *PVBGLIDCHANDLE;
+
+DECLR0VBGL(int) VbglR0IdcOpen(PVBGLIDCHANDLE pHandle, uint32_t uReqVersion, uint32_t uMinVersion,
+                              uint32_t *puSessionVersion, uint32_t *puDriverVersion, uint32_t *puDriverRevision);
+struct VBGLREQHDR;
+DECLR0VBGL(int) VbglR0IdcCallRaw(PVBGLIDCHANDLE pHandle, uintptr_t uReq, struct VBGLREQHDR *pReqHdr, uint32_t cbReq);
+DECLR0VBGL(int) VbglR0IdcCall(PVBGLIDCHANDLE pHandle, uintptr_t uReq, struct VBGLREQHDR *pReqHdr, uint32_t cbReq);
+DECLR0VBGL(int) VbglR0IdcClose(PVBGLIDCHANDLE pHandle);
+
+/** @} */
 
 
 /** @name Generic request functions.
@@ -139,7 +164,11 @@ DECLVBGL(void) VbglTerminate (void);
  * @param   cbReq       Size of memory block required for the request.
  * @param   enmReqType  the generic request type.
  */
-DECLVBGL(int) VbglGRAlloc(VMMDevRequestHeader **ppReq, size_t cbReq, VMMDevRequestType enmReqType);
+# if defined(___VBox_VMMDev_h) || defined(DOXYGEN_RUNNING)
+DECLR0VBGL(int) VbglR0GRAlloc(struct VMMDevRequestHeader **ppReq, size_t cbReq, VMMDevRequestType enmReqType);
+# else
+DECLR0VBGL(int) VbglR0GRAlloc(struct VMMDevRequestHeader **ppReq, size_t cbReq, int32_t enmReqType);
+# endif
 
 /**
  * Perform the generic request.
@@ -148,7 +177,7 @@ DECLVBGL(int) VbglGRAlloc(VMMDevRequestHeader **ppReq, size_t cbReq, VMMDevReque
  *
  * @return VBox status code.
  */
-DECLVBGL(int) VbglGRPerform (VMMDevRequestHeader *pReq);
+DECLR0VBGL(int) VbglR0GRPerform(struct VMMDevRequestHeader *pReq);
 
 /**
  * Free the generic request memory.
@@ -157,7 +186,7 @@ DECLVBGL(int) VbglGRPerform (VMMDevRequestHeader *pReq);
  *
  * @return VBox status code.
  */
-DECLVBGL(void) VbglGRFree (VMMDevRequestHeader *pReq);
+DECLR0VBGL(void) VbglR0GRFree(struct VMMDevRequestHeader *pReq);
 
 /**
  * Verify the generic request header.
@@ -169,10 +198,12 @@ DECLVBGL(void) VbglGRFree (VMMDevRequestHeader *pReq);
  *
  * @return VBox status code.
  */
-DECLVBGL(int) VbglGRVerify (const VMMDevRequestHeader *pReq, size_t cbReq);
+DECLR0VBGL(int) VbglGR0Verify(const struct VMMDevRequestHeader *pReq, size_t cbReq);
+
 /** @} */
 
 # ifdef VBOX_WITH_HGCM
+struct VBGLIOCHGCMCALL;
 
 #  ifdef VBGL_VBOXGUEST
 
@@ -189,12 +220,15 @@ typedef DECLCALLBACK(int) FNVBGLHGCMCALLBACK(VMMDevHGCMRequestHeader *pHeader, v
 typedef FNVBGLHGCMCALLBACK *PFNVBGLHGCMCALLBACK;
 
 /**
- * Perform a connect request. That is locate required service and
- * obtain a client identifier for future access.
+ * Perform a connect request.
+ *
+ * That is locate required service and obtain a client identifier for future
+ * access.
  *
  * @note This function can NOT handle cancelled requests!
  *
- * @param   pConnectInfo        The request data.
+ * @param   pLoc                The service to connect to.
+ * @param   pidClient           Where to return the client ID on success.
  * @param   pfnAsyncCallback    Required pointer to function that is calledwhen
  *                              host returns VINF_HGCM_ASYNC_EXECUTE. VBoxGuest
  *                              implements waiting for an IRQ in this function.
@@ -203,18 +237,18 @@ typedef FNVBGLHGCMCALLBACK *PFNVBGLHGCMCALLBACK;
  *
  * @return  VBox status code.
  */
-
-DECLR0VBGL(int) VbglR0HGCMInternalConnect (VBoxGuestHGCMConnectInfo *pConnectInfo,
-                                           PFNVBGLHGCMCALLBACK pfnAsyncCallback, void *pvAsyncData, uint32_t u32AsyncData);
+DECLR0VBGL(int) VbglR0HGCMInternalConnect(HGCMServiceLocation const *pLoc, HGCMCLIENTID *pidClient,
+                                          PFNVBGLHGCMCALLBACK pfnAsyncCallback, void *pvAsyncData, uint32_t u32AsyncData);
 
 
 /**
- * Perform a disconnect request. That is tell the host that
- * the client will not call the service anymore.
+ * Perform a disconnect request.
+ *
+ * That is tell the host that the client will not call the service anymore.
  *
  * @note This function can NOT handle cancelled requests!
  *
- * @param   pDisconnectInfo     The request data.
+ * @param   idClient            The client ID to disconnect.
  * @param   pfnAsyncCallback    Required pointer to function that is called when
  *                              host returns VINF_HGCM_ASYNC_EXECUTE. VBoxGuest
  *                              implements waiting for an IRQ in this function.
@@ -225,8 +259,8 @@ DECLR0VBGL(int) VbglR0HGCMInternalConnect (VBoxGuestHGCMConnectInfo *pConnectInf
  * @return  VBox status code.
  */
 
-DECLR0VBGL(int) VbglR0HGCMInternalDisconnect (VBoxGuestHGCMDisconnectInfo *pDisconnectInfo,
-                                              PFNVBGLHGCMCALLBACK pfnAsyncCallback, void *pvAsyncData, uint32_t u32AsyncData);
+DECLR0VBGL(int) VbglR0HGCMInternalDisconnect(HGCMCLIENTID idClient,
+                                             PFNVBGLHGCMCALLBACK pfnAsyncCallback, void *pvAsyncData, uint32_t u32AsyncData);
 
 /** Call a HGCM service.
  *
@@ -242,8 +276,8 @@ DECLR0VBGL(int) VbglR0HGCMInternalDisconnect (VBoxGuestHGCMDisconnectInfo *pDisc
  *
  * @return VBox status code.
  */
-DECLR0VBGL(int) VbglR0HGCMInternalCall (VBoxGuestHGCMCallInfo *pCallInfo, uint32_t cbCallInfo, uint32_t fFlags,
-                                        PFNVBGLHGCMCALLBACK pfnAsyncCallback, void *pvAsyncData, uint32_t u32AsyncData);
+DECLR0VBGL(int) VbglR0HGCMInternalCall(struct VBGLIOCHGCMCALL *pCallInfo, uint32_t cbCallInfo, uint32_t fFlags,
+                                       PFNVBGLHGCMCALLBACK pfnAsyncCallback, void *pvAsyncData, uint32_t u32AsyncData);
 
 /** Call a HGCM service. (32 bits packet structure in a 64 bits guest)
  *
@@ -259,8 +293,8 @@ DECLR0VBGL(int) VbglR0HGCMInternalCall (VBoxGuestHGCMCallInfo *pCallInfo, uint32
  *
  * @return  VBox status code.
  */
-DECLR0VBGL(int) VbglR0HGCMInternalCall32 (VBoxGuestHGCMCallInfo *pCallInfo, uint32_t cbCallInfo, uint32_t fFlags,
-                                          PFNVBGLHGCMCALLBACK pfnAsyncCallback, void *pvAsyncData, uint32_t u32AsyncData);
+DECLR0VBGL(int) VbglR0HGCMInternalCall32(struct VBGLIOCHGCMCALL *pCallInfo, uint32_t cbCallInfo, uint32_t fFlags,
+                                         PFNVBGLHGCMCALLBACK pfnAsyncCallback, void *pvAsyncData, uint32_t u32AsyncData);
 
 /** @name VbglR0HGCMInternalCall flags
  * @{ */
@@ -287,28 +321,48 @@ typedef struct VBGLHGCMHANDLEDATA *VBGLHGCMHANDLE;
  */
 
 /**
- * Connect to a service.
- *
- * @param pHandle     Pointer to variable that will hold a handle to be used
- *                    further in VbglHGCMCall and VbglHGCMClose.
- * @param pData       Connection information structure.
+ * Initializes HGCM in the R0 guest library.  Must be called before any HGCM
+ * connections are made.  Is called by VbglInitClient().
  *
  * @return VBox status code.
  */
-DECLVBGL(int) VbglHGCMConnect (VBGLHGCMHANDLE *pHandle, VBoxGuestHGCMConnectInfo *pData);
+DECLR0VBGL(int) VbglR0HGCMInit(void);
+
+/**
+ * Terminates HGCM in the R0 guest library.  Is called by VbglTerminate().
+ *
+ * @return VBox status code.
+ */
+DECLR0VBGL(int) VbglR0HGCMTerminate(void);
+
+/**
+ * Connect to a service.
+ *
+ * @param pHandle           Pointer to variable that will hold a handle to be used
+ *                          further in VbglHGCMCall and VbglHGCMClose.
+ * @param pszServiceName    The service to connect to.
+ * @param pidClient         Where to return the client ID for the connection.
+ *
+ * @return VBox status code.
+ *
+ * @todo consider baking the client Id into the handle.
+ */
+DECLR0VBGL(int) VbglR0HGCMConnect(VBGLHGCMHANDLE *pHandle, const char *pszServiceName, HGCMCLIENTID *pidClient);
 
 /**
  * Connect to a service.
  *
  * @param handle      Handle of the connection.
- * @param pData       Disconnect request information structure.
+ * @param idClient    The ID of the client connection.
  *
  * @return VBox status code.
+ *
+ * @todo consider baking the client Id into the handle.
  */
-DECLVBGL(int) VbglHGCMDisconnect (VBGLHGCMHANDLE handle, VBoxGuestHGCMDisconnectInfo *pData);
+DECLR0VBGL(int) VbglR0HGCMDisconnect(VBGLHGCMHANDLE handle, HGCMCLIENTID idClient);
 
 /**
- * Call to a service.
+ * Call to a service, returning only the I/O control status code.
  *
  * @param handle      Handle of the connection.
  * @param pData       Call request information structure, including function parameters.
@@ -316,7 +370,19 @@ DECLVBGL(int) VbglHGCMDisconnect (VBGLHGCMHANDLE handle, VBoxGuestHGCMDisconnect
  *
  * @return VBox status code.
  */
-DECLVBGL(int) VbglHGCMCall (VBGLHGCMHANDLE handle, VBoxGuestHGCMCallInfo *pData, uint32_t cbData);
+DECLR0VBGL(int) VbglR0HGCMCallRaw(VBGLHGCMHANDLE handle, struct VBGLIOCHGCMCALL*pData, uint32_t cbData);
+
+/**
+ * Call to a service, returning the HGCM status code.
+ *
+ * @param handle      Handle of the connection.
+ * @param pData       Call request information structure, including function parameters.
+ * @param cbData      Length in bytes of data.
+ *
+ * @return VBox status code.  Either the I/O control status code if that failed,
+ *         or the HGCM status code (pData->Hdr.rc).
+ */
+DECLR0VBGL(int) VbglR0HGCMCall(VBGLHGCMHANDLE handle, struct VBGLIOCHGCMCALL*pData, uint32_t cbData);
 
 /**
  * Call to a service with user-mode data received by the calling driver from the User-Mode process.
@@ -328,30 +394,21 @@ DECLVBGL(int) VbglHGCMCall (VBGLHGCMHANDLE handle, VBoxGuestHGCMCallInfo *pData,
  *
  * @return VBox status code.
  */
-DECLVBGL(int) VbglHGCMCallUserData (VBGLHGCMHANDLE handle, VBoxGuestHGCMCallInfo *pData, uint32_t cbData);
+DECLR0VBGL(int) VbglR0HGCMCallUserDataRaw(VBGLHGCMHANDLE handle, struct VBGLIOCHGCMCALL*pData, uint32_t cbData);
 
-/**
- * Call to a service with timeout.
- *
- * @param handle      Handle of the connection.
- * @param pData       Call request information structure, including function parameters.
- * @param cbData      Length in bytes of data.
- * @param cMillies    Timeout in milliseconds.  Use RT_INDEFINITE_WAIT to wait forever.
- *
- * @return VBox status code.
- */
-DECLVBGL(int) VbglHGCMCallTimed(VBGLHGCMHANDLE handle, VBoxGuestHGCMCallInfoTimed *pData, uint32_t cbData);
 /** @} */
 
 /** @name Undocumented helpers for talking to the Chromium OpenGL Host Service
  * @{ */
 typedef VBGLHGCMHANDLE VBGLCRCTLHANDLE;
-DECLVBGL(int) VbglR0CrCtlCreate(VBGLCRCTLHANDLE *phCtl);
-DECLVBGL(int) VbglR0CrCtlDestroy(VBGLCRCTLHANDLE hCtl);
-DECLVBGL(int) VbglR0CrCtlConConnect(VBGLCRCTLHANDLE hCtl, HGCMCLIENTID *pidClient);
-DECLVBGL(int) VbglR0CrCtlConDisconnect(VBGLCRCTLHANDLE hCtl, HGCMCLIENTID idClient);
-DECLVBGL(int) VbglR0CrCtlConCall(VBGLCRCTLHANDLE hCtl, struct VBoxGuestHGCMCallInfo *pCallInfo, int cbCallInfo);
-DECLVBGL(int) VbglR0CrCtlConCallUserData(VBGLCRCTLHANDLE hCtl, struct VBoxGuestHGCMCallInfo *pCallInfo, int cbCallInfo);
+DECLR0VBGL(int) VbglR0CrCtlCreate(VBGLCRCTLHANDLE *phCtl);
+DECLR0VBGL(int) VbglR0CrCtlDestroy(VBGLCRCTLHANDLE hCtl);
+DECLR0VBGL(int) VbglR0CrCtlConConnect(VBGLCRCTLHANDLE hCtl, HGCMCLIENTID *pidClient);
+DECLR0VBGL(int) VbglR0CrCtlConDisconnect(VBGLCRCTLHANDLE hCtl, HGCMCLIENTID idClient);
+struct VBGLIOCHGCMCALL;
+DECLR0VBGL(int) VbglR0CrCtlConCallRaw(VBGLCRCTLHANDLE hCtl, struct VBGLIOCHGCMCALL *pCallInfo, int cbCallInfo);
+DECLR0VBGL(int) VbglR0CrCtlConCall(VBGLCRCTLHANDLE hCtl, struct VBGLIOCHGCMCALL *pCallInfo, int cbCallInfo);
+DECLR0VBGL(int) VbglR0CrCtlConCallUserDataRaw(VBGLCRCTLHANDLE hCtl, struct VBGLIOCHGCMCALL *pCallInfo, int cbCallInfo);
 /** @} */
 
 #  endif /* !VBGL_VBOXGUEST */
@@ -364,12 +421,12 @@ DECLVBGL(int) VbglR0CrCtlConCallUserData(VBGLCRCTLHANDLE hCtl, struct VBoxGuestH
  *
  * @returns VBox status code.
  */
-DECLVBGL(int) VbglPhysHeapInit (void);
+DECLR0VBGL(int)     VbglR0PhysHeapInit(void);
 
 /**
  * Shutdown the heap.
  */
-DECLVBGL(void) VbglPhysHeapTerminate (void);
+DECLR0VBGL(void)    VbglR0PhysHeapTerminate(void);
 
 /**
  * Allocate a memory block.
@@ -377,7 +434,7 @@ DECLVBGL(void) VbglPhysHeapTerminate (void);
  * @returns Virtual address of the allocated memory block.
  * @param cbSize    Size of block to be allocated.
  */
-DECLVBGL(void *) VbglPhysHeapAlloc (uint32_t cbSize);
+DECLR0VBGL(void *)  VbglR0PhysHeapAlloc(uint32_t cbSize);
 
 /**
  * Get physical address of memory block pointed by the virtual address.
@@ -391,28 +448,28 @@ DECLVBGL(void *) VbglPhysHeapAlloc (uint32_t cbSize);
  * @param   pv      Virtual address of memory block.
  * @returns Physical address of the memory block.
  */
-DECLVBGL(uint32_t)  VbglPhysHeapGetPhysAddr(void *pv);
+DECLR0VBGL(uint32_t) VbglR0PhysHeapGetPhysAddr(void *pv);
 
 /**
  * Free a memory block.
  *
  * @param   pv    Virtual address of memory block.
  */
-DECLVBGL(void)      VbglPhysHeapFree(void *pv);
+DECLR0VBGL(void)    VbglR0PhysHeapFree(void *pv);
 
-DECLVBGL(int) VbglQueryVMMDevMemory (VMMDevMemory **ppVMMDevMemory);
-DECLR0VBGL(bool) VbglR0CanUsePhysPageList(void);
+DECLR0VBGL(int)     VbglR0QueryVMMDevMemory(struct VMMDevMemory **ppVMMDevMemory);
+DECLR0VBGL(bool)    VbglR0CanUsePhysPageList(void);
 
 # ifndef VBOX_GUEST
 /** @name Mouse
  * @{ */
-DECLVBGL(int)     VbglSetMouseNotifyCallback(PFNVBOXGUESTMOUSENOTIFY pfnNotify, void *pvUser);
-DECLVBGL(int)     VbglGetMouseStatus(uint32_t *pfFeatures, uint32_t *px, uint32_t *py);
-DECLVBGL(int)     VbglSetMouseStatus(uint32_t fFeatures);
+DECLR0VBGL(int)     VbglR0SetMouseNotifyCallback(PFNVBOXGUESTMOUSENOTIFY pfnNotify, void *pvUser);
+DECLR0VBGL(int)     VbglR0GetMouseStatus(uint32_t *pfFeatures, uint32_t *px, uint32_t *py);
+DECLR0VBGL(int)     VbglR0SetMouseStatus(uint32_t fFeatures);
 /** @}  */
 # endif /* VBOX_GUEST */
 
-#endif /* IN_RING0 && !IN_RING0_AGNOSTIC */
+#endif /* IN_RING0 */
 
 /** @} */
 
@@ -443,6 +500,7 @@ VBGLR3DECL(int)     VbglR3Daemonize(bool fNoChDir, bool fNoClose, bool fRespawn,
 VBGLR3DECL(int)     VbglR3PidFile(const char *pszPath, PRTFILE phFile);
 VBGLR3DECL(void)    VbglR3ClosePidFile(const char *pszPath, RTFILE hFile);
 VBGLR3DECL(int)     VbglR3SetGuestCaps(uint32_t fOr, uint32_t fNot);
+VBGLR3DECL(int)     VbglR3AcquireGuestCaps(uint32_t fOr, uint32_t fNot, bool fConfig);
 VBGLR3DECL(int)     VbglR3WaitEvent(uint32_t fMask, uint32_t cMillies, uint32_t *pfEvents);
 
 VBGLR3DECL(int)     VbglR3ReportAdditionsStatus(VBoxGuestFacilityType Facility, VBoxGuestFacilityStatus StatusCurrent,
@@ -491,7 +549,7 @@ VBGLR3DECL(int)     VbglR3SetPointerShapeReq(struct VMMDevReqMousePointer *pReq)
  * @{ */
 /** The folder for the video mode hint unix domain socket on Unix-like guests.
  * @note This can be safely changed as all users are rebuilt in lock-step. */
-#define VBGLR3HOSTDISPSOCKETPATH "/tmp/.VBoxService"
+#define VBGLR3HOSTDISPSOCKETPATH    "/tmp/.VBoxService"
 /** The path to the video mode hint unix domain socket on Unix-like guests. */
 #define VBGLR3HOSTDISPSOCKET        VBGLR3VIDEOMODEHINTSOCKETPATH "/VideoModeHint"
 
@@ -508,12 +566,19 @@ VBGLR3DECL(int)     VbglR3SaveVideoMode(unsigned cScreen, unsigned cx, unsigned 
                                         unsigned x, unsigned y, bool fEnabled);
 VBGLR3DECL(int)     VbglR3RetrieveVideoMode(unsigned cScreen, unsigned *pcx, unsigned *pcy, unsigned *pcBits,
                                             unsigned *px, unsigned *py, bool *pfEnabled);
-/** @}  */
+/** @} */
+
+/** @name VRDP
+ * @{ */
+VBGLR3DECL(int)     VbglR3VrdpGetChangeRequest(bool *pfActive, uint32_t *puExperienceLevel);
+/** @} */
 
 /** @name VM Statistics
  * @{ */
 VBGLR3DECL(int)     VbglR3StatQueryInterval(uint32_t *pu32Interval);
+# if defined(___VBox_VMMDev_h) || defined(DOXYGEN_RUNNING)
 VBGLR3DECL(int)     VbglR3StatReport(VMMDevReportGuestStats *pReq);
+# endif
 /** @}  */
 
 /** @name Memory ballooning
@@ -641,7 +706,7 @@ typedef struct VBGLR3GUESTCTRLCMDCTX
 
 /* General message handling on the guest. */
 VBGLR3DECL(int) VbglR3GuestCtrlConnect(uint32_t *pidClient);
-VBGLR3DECL(int) VbglR3GuestCtrlDisconnect(uint32_t uClientId);
+VBGLR3DECL(int) VbglR3GuestCtrlDisconnect(uint32_t idClient);
 VBGLR3DECL(int) VbglR3GuestCtrlMsgFilterSet(uint32_t uClientId, uint32_t uValue, uint32_t uMaskAdd, uint32_t uMaskRemove);
 VBGLR3DECL(int) VbglR3GuestCtrlMsgFilterUnset(uint32_t uClientId);
 VBGLR3DECL(int) VbglR3GuestCtrlMsgReply(PVBGLR3GUESTCTRLCMDCTX pCtx, int rc);
@@ -732,8 +797,9 @@ VBGLR3DECL(int)     VbglR3CpuHotPlugWaitForEvent(VMMDevCpuEventType *penmEventTy
 
 /** @name Page sharing
  * @{ */
+struct VMMDEVSHAREDREGIONDESC;
 VBGLR3DECL(int)     VbglR3RegisterSharedModule(char *pszModuleName, char *pszVersion, RTGCPTR64  GCBaseAddr, uint32_t cbModule,
-                                               unsigned cRegions, VMMDEVSHAREDREGIONDESC *pRegions);
+                                               unsigned cRegions, struct VMMDEVSHAREDREGIONDESC *pRegions);
 VBGLR3DECL(int)     VbglR3UnregisterSharedModule(char *pszModuleName, char *pszVersion, RTGCPTR64  GCBaseAddr, uint32_t cbModule);
 VBGLR3DECL(int)     VbglR3CheckSharedModules(void);
 VBGLR3DECL(bool)    VbglR3PageSharingIsEnabled(void);
@@ -810,8 +876,8 @@ VBGLR3DECL(int)     VbglR3DnDGHSendError(PVBGLR3GUESTDNDCMDCTX pCtx, int rcOp);
 # endif /* VBOX_WITH_DRAG_AND_DROP */
 
 /* Generic Host Channel Service. */
-VBGLR3DECL(int)  VbglR3HostChannelInit(uint32_t *pu32HGCMClientId);
-VBGLR3DECL(void) VbglR3HostChannelTerm(uint32_t u32HGCMClientId);
+VBGLR3DECL(int)  VbglR3HostChannelInit(uint32_t *pidClient);
+VBGLR3DECL(void) VbglR3HostChannelTerm(uint32_t idClient);
 VBGLR3DECL(int)  VbglR3HostChannelAttach(uint32_t *pu32ChannelHandle, uint32_t u32HGCMClientId,
                                          const char *pszName, uint32_t u32Flags);
 VBGLR3DECL(void) VbglR3HostChannelDetach(uint32_t u32ChannelHandle, uint32_t u32HGCMClientId);
@@ -845,6 +911,8 @@ VBGLR3DECL(int) VbglR3WriteVideoMode(unsigned cDisplay, unsigned cx,
  * @{ */
 VBGLR3DECL(int)     VbglR3HGCMConnect(const char *pszServiceName, HGCMCLIENTID *pidClient);
 VBGLR3DECL(int)     VbglR3HGCMDisconnect(HGCMCLIENTID idClient);
+struct VBGLIOCHGCMCALL;
+VBGLR3DECL(int)     VbglR3HGCMCall(struct VBGLIOCHGCMCALL *pInfo, size_t cbInfo);
 /** @} */
 
 #endif /* IN_RING3 */

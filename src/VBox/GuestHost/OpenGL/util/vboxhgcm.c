@@ -38,15 +38,11 @@
 
 #include <iprt/thread.h>
 
-#if 1 /** @todo Try use the Vbgl interface instead of talking directly to the driver? */
-# include <VBox/VBoxGuest.h>
-#else
-# include <VBox/VBoxGuestLib.h>
-#endif
+#include <VBox/VBoxGuestLib.h>
 #include <VBox/HostServices/VBoxCrOpenGLSvc.h>
 
 #if defined(VBOX_WITH_CRHGSMI) && defined(IN_GUEST)
-#include <VBox/VBoxCrHgsmi.h>
+#include <VBoxCrHgsmi.h>
 #endif
 
 /*@todo move define somewhere else, and make sure it's less than VBGLR0_MAX_HGCM_KERNEL_PARM*/
@@ -179,10 +175,7 @@ typedef struct {
     CRNetReceiveFuncList *recv_list;
     CRNetCloseFuncList   *close_list;
 #ifdef RT_OS_WINDOWS
-    HANDLE               hGuestDrv;
     LPDIRECTDRAW         pDirectDraw;
-#else
-    int                  iGuestDrv;
 #endif
 #ifdef IN_GUEST
     uint32_t             u32HostCaps;
@@ -587,108 +580,53 @@ static bool _crVBoxHGCMWriteBytes(CRConnection *conn, const void *buf, uint32_t 
  * @param   pvData      Data pointer
  * @param   cbData      Data size
  */
-/** @todo use vbglR3DoIOCtl here instead */
-static int crVBoxHGCMCall(CRConnection *conn, void *pvData, unsigned cbData)
+static int crVBoxHGCMCall(CRConnection *conn, PVBGLIOCHGCMCALL pData, unsigned cbData)
 {
 #ifdef IN_GUEST
+    int rc;
 # ifndef VBOX_WITH_CRHGSMI
     RT_NOREF(conn);
 # else
     PCRVBOXHGSMI_CLIENT pClient = g_crvboxhgcm.bHgsmiOn ? _crVBoxHGSMIClientGet(conn) : NULL;
     if (pClient)
-    {
-        return VBoxCrHgsmiCtlConCall(pClient->pHgsmi, (struct VBoxGuestHGCMCallInfo *)pvData, cbData);
-    }
+        rc = VBoxCrHgsmiCtlConCall(pClient->pHgsmi, pData, cbData);
     else
 # endif
-    {
-# ifdef RT_OS_WINDOWS
-    DWORD cbReturned, lerr;
-
-    if (DeviceIoControl (g_crvboxhgcm.hGuestDrv,
-                         VBOXGUEST_IOCTL_HGCM_CALL(cbData),
-                         pvData, cbData,
-                         pvData, cbData,
-                         &cbReturned,
-                         NULL))
-    {
-        return VINF_SUCCESS;
-    }
-    lerr=GetLastError();
-    crDebug("vboxCall failed with %x\n", lerr);
-    /*On windows if we exceed max buffer len, we only get ERROR_GEN_FAILURE, and parms.hdr.result isn't changed.
-     *Before every call here we set it to VERR_WRONG_ORDER, so checking it here as well.
-     */
-    if (ERROR_GEN_FAILURE==lerr && VERR_WRONG_ORDER==((VBoxGuestHGCMCallInfo*)pvData)->result)
-    {
-        return VERR_OUT_OF_RANGE;
-    }
-    else
-    {
-        return VERR_NOT_SUPPORTED;
-    }
-# else
-    int rc;
-#  if defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
-    VBGLBIGREQ Hdr;
-    Hdr.u32Magic = VBGLBIGREQ_MAGIC;
-    Hdr.cbData = cbData;
-    Hdr.pvDataR3 = pvData;
-#   if HC_ARCH_BITS == 32
-    Hdr.u32Padding = 0;
-#   endif
-    rc = ioctl(g_crvboxhgcm.iGuestDrv, VBOXGUEST_IOCTL_HGCM_CALL(cbData), &Hdr);
-#  else
-    rc = ioctl(g_crvboxhgcm.iGuestDrv, VBOXGUEST_IOCTL_HGCM_CALL(cbData), pvData);
-#  endif
-#  ifdef RT_OS_LINUX
-    if (rc == 0)
-#  else
-    if (rc >= 0)
-#  endif
-    {
-        return VINF_SUCCESS;
-    }
-#  ifdef RT_OS_LINUX
-    if (rc >= 0) /* positive values are negated VBox error status codes. */
-    {
-        crWarning("vboxCall failed with VBox status code %d\n", -rc);
-        if (rc==VINF_INTERRUPTED)
+    {        
+        rc = VbglR3HGCMCall(pData, cbData);
+        if (RT_SUCCESS(rc))
+        { /* likely */ }
+        else
         {
-            RTMSINTERVAL sl;
-            int i;
-
-            for (i=0, sl=50; i<6; i++, sl=sl*2)
+            crWarning("vboxCall failed with VBox status code %Rrc\n", rc);
+# ifndef RT_OS_WINDOWS
+            if (rc == VERR_INTERRUPTED)
             {
-                RTThreadSleep(sl);
-                rc = ioctl(g_crvboxhgcm.iGuestDrv, VBOXGUEST_IOCTL_HGCM_CALL(cbData), pvData);
-                if (rc==0)
+                /* Not sure why we're doing the sleep stuff here.  The original coder didn't
+                   bother to mention why he thought it necessary.  :-( */
+                RTMSINTERVAL msSleep;
+                int i;
+                for (i = 0, msSleep = 50; i < 6; i++, msSleep = msSleep * 2)
                 {
-                    crWarning("vboxCall retry(%i) succeeded", i+1);
-                    return VINF_SUCCESS;
-                }
-                else if (rc==VINF_INTERRUPTED)
-                {
-                    continue;
-                }
-                else
-                {
-                    crWarning("vboxCall retry(%i) failed with VBox status code %d", i+1, -rc);
-                    break;
+                    RTThreadSleep(msSleep);
+                    rc = VbglR3HGCMCall(pData, cbData);
+                    if (rc != VERR_INTERRUPTED)
+                    {
+                        if (RT_SUCCESS(rc))
+                            crWarning("vboxCall retry(%i) succeeded", i + 1);
+                        else
+                            crWarning("vboxCall retry(%i) failed with VBox status code %Rrc", i + 1, rc);
+                        break;
+                    }
                 }
             }
-        }
-        return -rc;
-    }
-    else
 #  endif
-        crWarning("vboxCall failed with %x\n", errno);
-    return VERR_NOT_SUPPORTED;
-# endif /*#ifdef RT_OS_WINDOWS*/
+        }
     }
+    return rc;
 
 #else  /* IN_GUEST */
-    RT_NOREF(conn, pvData, cbData);
+    RT_NOREF(conn, pData, cbData);
     crError("crVBoxHGCMCall called on host side!");
     CRASSERT(FALSE);
     return VERR_NOT_SUPPORTED;
@@ -756,10 +694,7 @@ static void _crVBoxHGCMWriteExact(CRConnection *conn, const void *buf, unsigned 
     {
         CRVBOXHGCMINJECT parms;
 
-        parms.hdr.result      = VERR_WRONG_ORDER;
-        parms.hdr.u32ClientID = conn->u32ClientID;
-        parms.hdr.u32Function = SHCRGL_GUEST_FN_INJECT;
-        parms.hdr.cParms      = SHCRGL_CPARMS_INJECT;
+        VBGL_HGCM_HDR_INIT(&parms.hdr, conn->u32ClientID, SHCRGL_GUEST_FN_INJECT, SHCRGL_CPARMS_INJECT);
 
         parms.u32ClientID.type       = VMMDevHGCMParmType_32bit;
         parms.u32ClientID.u.value32  = conn->u32InjectClientID;
@@ -768,25 +703,22 @@ static void _crVBoxHGCMWriteExact(CRConnection *conn, const void *buf, unsigned 
         parms.pBuffer.u.Pointer.size         = len;
         parms.pBuffer.u.Pointer.u.linearAddr = (uintptr_t) buf;
 
-        rc = crVBoxHGCMCall(conn, &parms, sizeof(parms));
-        callRes = parms.hdr.result;
+        rc = crVBoxHGCMCall(conn, &parms.hdr, sizeof(parms));
+        callRes = parms.hdr.Hdr.rc;
     }
     else
 #endif
     {
         CRVBOXHGCMWRITE parms;
 
-        parms.hdr.result      = VERR_WRONG_ORDER;
-        parms.hdr.u32ClientID = conn->u32ClientID;
-        parms.hdr.u32Function = SHCRGL_GUEST_FN_WRITE;
-        parms.hdr.cParms      = SHCRGL_CPARMS_WRITE;
+        VBGL_HGCM_HDR_INIT(&parms.hdr, conn->u32ClientID, SHCRGL_GUEST_FN_WRITE, SHCRGL_CPARMS_WRITE);
 
         parms.pBuffer.type                   = VMMDevHGCMParmType_LinAddr_In;
         parms.pBuffer.u.Pointer.size         = len;
         parms.pBuffer.u.Pointer.u.linearAddr = (uintptr_t) buf;
 
-        rc = crVBoxHGCMCall(conn, &parms, sizeof(parms));
-        callRes = parms.hdr.result;
+        rc = crVBoxHGCMCall(conn, &parms.hdr, sizeof(parms));
+        callRes = parms.hdr.Hdr.rc;
     }
 
     if (RT_FAILURE(rc) || RT_FAILURE(callRes))
@@ -814,10 +746,7 @@ static void crVBoxHGCMReadExact( CRConnection *conn, const void *buf, unsigned i
     int rc;
     RT_NOREF(buf, len);
 
-    parms.hdr.result      = VERR_WRONG_ORDER;
-    parms.hdr.u32ClientID = conn->u32ClientID;
-    parms.hdr.u32Function = SHCRGL_GUEST_FN_READ;
-    parms.hdr.cParms      = SHCRGL_CPARMS_READ;
+    VBGL_HGCM_HDR_INIT(&parms.hdr, conn->u32ClientID, SHCRGL_GUEST_FN_READ, SHCRGL_CPARMS_READ);
 
     CRASSERT(!conn->pBuffer); /* make sure there's no data to process */
     parms.pBuffer.type                   = VMMDevHGCMParmType_LinAddr_Out;
@@ -827,11 +756,11 @@ static void crVBoxHGCMReadExact( CRConnection *conn, const void *buf, unsigned i
     parms.cbBuffer.type      = VMMDevHGCMParmType_32bit;
     parms.cbBuffer.u.value32 = 0;
 
-    rc = crVBoxHGCMCall(conn, &parms, sizeof(parms));
+    rc = crVBoxHGCMCall(conn, &parms.hdr, sizeof(parms));
 
-    if (RT_FAILURE(rc) || RT_FAILURE(parms.hdr.result))
+    if (RT_FAILURE(rc) || RT_FAILURE(parms.hdr.Hdr.rc))
     {
-        crWarning("SHCRGL_GUEST_FN_READ failed with %x %x\n", rc, parms.hdr.result);
+        crWarning("SHCRGL_GUEST_FN_READ failed with %x %x\n", rc, parms.hdr.Hdr.rc);
         return;
     }
 
@@ -857,10 +786,7 @@ crVBoxHGCMWriteReadExact(CRConnection *conn, const void *buf, unsigned int len, 
     CRVBOXHGCMWRITEREAD parms;
     int rc;
 
-    parms.hdr.result      = VERR_WRONG_ORDER;
-    parms.hdr.u32ClientID = conn->u32ClientID;
-    parms.hdr.u32Function = SHCRGL_GUEST_FN_WRITE_READ;
-    parms.hdr.cParms      = SHCRGL_CPARMS_WRITE_READ;
+    VBGL_HGCM_HDR_INIT(&parms.hdr, conn->u32ClientID, SHCRGL_GUEST_FN_WRITE_READ, SHCRGL_CPARMS_WRITE_READ);
 
     parms.pBuffer.type                   = VMMDevHGCMParmType_LinAddr_In;
     parms.pBuffer.u.Pointer.size         = len;
@@ -874,7 +800,7 @@ crVBoxHGCMWriteReadExact(CRConnection *conn, const void *buf, unsigned int len, 
     parms.cbWriteback.type      = VMMDevHGCMParmType_32bit;
     parms.cbWriteback.u.value32 = 0;
 
-    rc = crVBoxHGCMCall(conn, &parms, sizeof(parms));
+    rc = crVBoxHGCMCall(conn, &parms.hdr, sizeof(parms));
 
 #if defined(RT_OS_LINUX) || defined(RT_OS_WINDOWS)
     if (VERR_OUT_OF_RANGE==rc && CR_VBOXHGCM_USERALLOCATED==bufferKind)
@@ -882,10 +808,7 @@ crVBoxHGCMWriteReadExact(CRConnection *conn, const void *buf, unsigned int len, 
         /*Buffer is too big, so send it in split chunks*/
         CRVBOXHGCMWRITEBUFFER wbParms;
 
-        wbParms.hdr.result = VERR_WRONG_ORDER;
-        wbParms.hdr.u32ClientID = conn->u32ClientID;
-        wbParms.hdr.u32Function = SHCRGL_GUEST_FN_WRITE_BUFFER;
-        wbParms.hdr.cParms = SHCRGL_CPARMS_WRITE_BUFFER;
+        VBGL_HGCM_HDR_INIT(&wbParms.hdr, conn->u32ClientID, SHCRGL_GUEST_FN_WRITE_BUFFER, SHCRGL_CPARMS_WRITE_BUFFER);
 
         wbParms.iBufferID.type = VMMDevHGCMParmType_32bit;
         wbParms.iBufferID.u.value32 = 0;
@@ -910,10 +833,10 @@ crVBoxHGCMWriteReadExact(CRConnection *conn, const void *buf, unsigned int len, 
         {
             crDebug("SHCRGL_GUEST_FN_WRITE_BUFFER, offset=%u, size=%u", wbParms.ui32Offset.u.value32, wbParms.pBuffer.u.Pointer.size);
 
-            rc = crVBoxHGCMCall(conn, &wbParms, sizeof(wbParms));
-            if (RT_FAILURE(rc) || RT_FAILURE(wbParms.hdr.result))
+            rc = crVBoxHGCMCall(conn, &wbParms.hdr, sizeof(wbParms));
+            if (RT_FAILURE(rc) || RT_FAILURE(wbParms.hdr.Hdr.rc))
             {
-                crError("SHCRGL_GUEST_FN_WRITE_BUFFER (%i) failed with %x %x\n", wbParms.pBuffer.u.Pointer.size, rc, wbParms.hdr.result);
+                crError("SHCRGL_GUEST_FN_WRITE_BUFFER (%i) failed with %x %x\n", wbParms.pBuffer.u.Pointer.size, rc, wbParms.hdr.Hdr.rc);
                 return;
             }
 
@@ -926,29 +849,26 @@ crVBoxHGCMWriteReadExact(CRConnection *conn, const void *buf, unsigned int len, 
         {
             CRVBOXHGCMWRITEREADBUFFERED wrbParms;
 
-            wrbParms.hdr.result = VERR_WRONG_ORDER;
-            wrbParms.hdr.u32ClientID = conn->u32ClientID;
-            wrbParms.hdr.u32Function = SHCRGL_GUEST_FN_WRITE_READ_BUFFERED;
-            wrbParms.hdr.cParms = SHCRGL_CPARMS_WRITE_READ_BUFFERED;
+            VBGL_HGCM_HDR_INIT(&wrbParms.hdr, conn->u32ClientID, SHCRGL_GUEST_FN_WRITE_READ_BUFFERED, SHCRGL_CPARMS_WRITE_READ_BUFFERED);
 
             crMemcpy(&wrbParms.iBufferID, &wbParms.iBufferID, sizeof(HGCMFunctionParameter));
             crMemcpy(&wrbParms.pWriteback, &parms.pWriteback, sizeof(HGCMFunctionParameter));
             crMemcpy(&wrbParms.cbWriteback, &parms.cbWriteback, sizeof(HGCMFunctionParameter));
 
-            rc = crVBoxHGCMCall(conn, &wrbParms, sizeof(wrbParms));
+            rc = crVBoxHGCMCall(conn, &wrbParms.hdr, sizeof(wrbParms));
 
             /*bit of hack to reuse code below*/
-            parms.hdr.result = wrbParms.hdr.result;
+            parms.hdr.Hdr.rc = wrbParms.hdr.Hdr.rc;
             crMemcpy(&parms.cbWriteback, &wrbParms.cbWriteback, sizeof(HGCMFunctionParameter));
             crMemcpy(&parms.pWriteback, &wrbParms.pWriteback, sizeof(HGCMFunctionParameter));
         }
     }
 #endif
 
-    if (RT_FAILURE(rc) || RT_FAILURE(parms.hdr.result))
+    if (RT_FAILURE(rc) || RT_FAILURE(parms.hdr.Hdr.rc))
     {
 
-        if ((VERR_BUFFER_OVERFLOW == parms.hdr.result) && RT_SUCCESS(rc))
+        if ((VERR_BUFFER_OVERFLOW == parms.hdr.Hdr.rc) && RT_SUCCESS(rc))
         {
             /* reallocate buffer and retry */
 
@@ -966,7 +886,7 @@ crVBoxHGCMWriteReadExact(CRConnection *conn, const void *buf, unsigned int len, 
         }
         else
         {
-            crWarning("SHCRGL_GUEST_FN_WRITE_READ (%i) failed with %x %x\n", len, rc, parms.hdr.result);
+            crWarning("SHCRGL_GUEST_FN_WRITE_READ (%i) failed with %x %x\n", len, rc, parms.hdr.Hdr.rc);
             return;
         }
     }
@@ -1059,10 +979,7 @@ static void crVBoxHGCMPollHost(CRConnection *conn)
 
     CRASSERT(!conn->pBuffer);
 
-    parms.hdr.result      = VERR_WRONG_ORDER;
-    parms.hdr.u32ClientID = conn->u32ClientID;
-    parms.hdr.u32Function = SHCRGL_GUEST_FN_READ;
-    parms.hdr.cParms      = SHCRGL_CPARMS_READ;
+    VBGL_HGCM_HDR_INIT(&parms.hdr, conn->u32ClientID, SHCRGL_GUEST_FN_READ, SHCRGL_CPARMS_READ);
 
     parms.pBuffer.type                   = VMMDevHGCMParmType_LinAddr_Out;
     parms.pBuffer.u.Pointer.size         = conn->cbHostBufferAllocated;
@@ -1071,11 +988,11 @@ static void crVBoxHGCMPollHost(CRConnection *conn)
     parms.cbBuffer.type      = VMMDevHGCMParmType_32bit;
     parms.cbBuffer.u.value32 = 0;
 
-    rc = crVBoxHGCMCall(conn, &parms, sizeof(parms));
+    rc = crVBoxHGCMCall(conn, &parms.hdr, sizeof(parms));
 
-    if (RT_FAILURE(rc) || RT_FAILURE(parms.hdr.result))
+    if (RT_FAILURE(rc) || RT_FAILURE(parms.hdr.Hdr.rc))
     {
-        crDebug("SHCRGL_GUEST_FN_READ failed with %x %x\n", rc, parms.hdr.result);
+        crDebug("SHCRGL_GUEST_FN_READ failed with %x %x\n", rc, parms.hdr.Hdr.rc);
         return;
     }
 
@@ -1265,21 +1182,18 @@ static int crVBoxHGCMSetVersion(CRConnection *conn, unsigned int vMajor, unsigne
     int rc;
     RT_NOREF(vMajor, vMinor);
 
-    parms.hdr.result      = VERR_WRONG_ORDER;
-    parms.hdr.u32ClientID = conn->u32ClientID;
-    parms.hdr.u32Function = SHCRGL_GUEST_FN_SET_VERSION;
-    parms.hdr.cParms      = SHCRGL_CPARMS_SET_VERSION;
+    VBGL_HGCM_HDR_INIT(&parms.hdr, conn->u32ClientID, SHCRGL_GUEST_FN_SET_VERSION, SHCRGL_CPARMS_SET_VERSION);
 
     parms.vMajor.type      = VMMDevHGCMParmType_32bit;
     parms.vMajor.u.value32 = CR_PROTOCOL_VERSION_MAJOR;
     parms.vMinor.type      = VMMDevHGCMParmType_32bit;
     parms.vMinor.u.value32 = CR_PROTOCOL_VERSION_MINOR;
 
-    rc = crVBoxHGCMCall(conn, &parms, sizeof(parms));
+    rc = crVBoxHGCMCall(conn, &parms.hdr, sizeof(parms));
 
     if (RT_SUCCESS(rc))
     {
-        rc =  parms.hdr.result;
+        rc =  parms.hdr.Hdr.rc;
         if (RT_SUCCESS(rc))
         {
             conn->vMajor = CR_PROTOCOL_VERSION_MAJOR;
@@ -1302,19 +1216,16 @@ static int crVBoxHGCMGetHostCapsLegacy(CRConnection *conn, uint32_t *pu32HostCap
     CRVBOXHGCMGETCAPS caps;
     int rc;
 
-    caps.hdr.result      = VERR_WRONG_ORDER;
-    caps.hdr.u32ClientID = conn->u32ClientID;
-    caps.hdr.u32Function = SHCRGL_GUEST_FN_GET_CAPS_LEGACY;
-    caps.hdr.cParms      = SHCRGL_CPARMS_GET_CAPS_LEGACY;
+    VBGL_HGCM_HDR_INIT(&caps.hdr, conn->u32ClientID, SHCRGL_GUEST_FN_GET_CAPS_LEGACY, SHCRGL_CPARMS_GET_CAPS_LEGACY);
 
     caps.Caps.type       = VMMDevHGCMParmType_32bit;
     caps.Caps.u.value32  = 0;
 
-    rc = crVBoxHGCMCall(conn, &caps, sizeof(caps));
+    rc = crVBoxHGCMCall(conn, &caps.hdr, sizeof(caps));
 
     if (RT_SUCCESS(rc))
     {
-        rc =  caps.hdr.result;
+        rc = caps.hdr.Hdr.rc;
         if (RT_SUCCESS(rc))
         {
             *pu32HostCaps = caps.Caps.u.value32;
@@ -1337,17 +1248,14 @@ static int crVBoxHGCMSetPID(CRConnection *conn, unsigned long long pid)
     CRVBOXHGCMSETPID parms;
     int rc;
 
-    parms.hdr.result      = VERR_WRONG_ORDER;
-    parms.hdr.u32ClientID = conn->u32ClientID;
-    parms.hdr.u32Function = SHCRGL_GUEST_FN_SET_PID;
-    parms.hdr.cParms      = SHCRGL_CPARMS_SET_PID;
+    VBGL_HGCM_HDR_INIT(&parms.hdr, conn->u32ClientID, SHCRGL_GUEST_FN_SET_PID, SHCRGL_CPARMS_SET_PID);
 
-    parms.u64PID.type     = VMMDevHGCMParmType_64bit;
+    parms.u64PID.type      = VMMDevHGCMParmType_64bit;
     parms.u64PID.u.value64 = pid;
 
-    rc = crVBoxHGCMCall(conn, &parms, sizeof(parms));
+    rc = crVBoxHGCMCall(conn, &parms.hdr, sizeof(parms));
 
-    if (RT_FAILURE(rc) || RT_FAILURE(parms.hdr.result))
+    if (RT_FAILURE(rc) || RT_FAILURE(parms.hdr.Hdr.rc))
     {
         crWarning("SHCRGL_GUEST_FN_SET_PID failed!");
         return FALSE;
@@ -1361,78 +1269,19 @@ static int crVBoxHGCMSetPID(CRConnection *conn, unsigned long long pid)
  * guests in vbox case.
  * Servers go through crVBoxHGCMAccept;
  */
-/*@todo use vbglR3Something here */
 static int crVBoxHGCMDoConnect( CRConnection *conn )
 {
 #ifdef IN_GUEST
-    VBoxGuestHGCMConnectInfo info;
-
-#ifdef RT_OS_WINDOWS
-    DWORD cbReturned;
-
+    int rc;
     VBOXCRHGSMIPROFILE_FUNC_PROLOGUE();
-
-    if (g_crvboxhgcm.hGuestDrv == INVALID_HANDLE_VALUE)
+    rc = VbglR3InitUser();
+    if (RT_SUCCESS(rc))
     {
-        /* open VBox guest driver */
-        g_crvboxhgcm.hGuestDrv = CreateFile(VBOXGUEST_DEVICE_NAME,
-                                        GENERIC_READ | GENERIC_WRITE,
-                                        FILE_SHARE_READ | FILE_SHARE_WRITE,
-                                        NULL,
-                                        OPEN_EXISTING,
-                                        FILE_ATTRIBUTE_NORMAL,
-                                        NULL);
-
-        /* @todo check if we could rollback to softwareopengl */
-        if (g_crvboxhgcm.hGuestDrv == INVALID_HANDLE_VALUE)
+        uint32_t idClient;
+        rc = VbglR3HGCMConnect("VBoxSharedCrOpenGL", &idClient);
+        if (RT_SUCCESS(rc))
         {
-            crWarning("could not open VBox Guest Additions driver! rc = %d\n", GetLastError());
-            VBOXCRHGSMIPROFILE_FUNC_EPILOGUE();
-            return FALSE;
-        }
-    }
-#else
-    VBOXCRHGSMIPROFILE_FUNC_PROLOGUE();
-    if (g_crvboxhgcm.iGuestDrv == INVALID_HANDLE_VALUE)
-    {
-        g_crvboxhgcm.iGuestDrv = open(VBOXGUEST_USER_DEVICE_NAME, O_RDWR, 0);
-        if (g_crvboxhgcm.iGuestDrv == INVALID_HANDLE_VALUE)
-        {
-            crDebug("could not open Guest Additions kernel module! rc = %d\n", errno);
-            VBOXCRHGSMIPROFILE_FUNC_EPILOGUE();
-            return FALSE;
-        }
-    }
-#endif
-
-    memset (&info, 0, sizeof (info));
-    info.Loc.type = VMMDevHGCMLoc_LocalHost_Existing;
-    strcpy (info.Loc.u.host.achName, "VBoxSharedCrOpenGL");
-
-#ifdef RT_OS_WINDOWS
-    if (DeviceIoControl(g_crvboxhgcm.hGuestDrv,
-                        VBOXGUEST_IOCTL_HGCM_CONNECT,
-                        &info, sizeof (info),
-                        &info, sizeof (info),
-                        &cbReturned,
-                        NULL))
-#elif defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
-    VBGLBIGREQ Hdr;
-    Hdr.u32Magic = VBGLBIGREQ_MAGIC;
-    Hdr.cbData = sizeof(info);
-    Hdr.pvDataR3 = &info;
-# if HC_ARCH_BITS == 32
-    Hdr.u32Padding = 0;
-# endif
-    if (ioctl(g_crvboxhgcm.iGuestDrv, VBOXGUEST_IOCTL_HGCM_CONNECT, &Hdr) >= 0)
-#else
-    if (ioctl(g_crvboxhgcm.iGuestDrv, VBOXGUEST_IOCTL_HGCM_CONNECT, &info, sizeof (info)) == 0)
-#endif
-    {
-        if (info.result == VINF_SUCCESS)
-        {
-            int rc;
-            conn->u32ClientID = info.u32ClientID;
+            conn->u32ClientID = idClient;
             crDebug("HGCM connect was successful: client id =0x%x\n", conn->u32ClientID);
 
             rc = crVBoxHGCMSetVersion(conn, CR_PROTOCOL_VERSION_MAJOR, CR_PROTOCOL_VERSION_MINOR);
@@ -1448,7 +1297,7 @@ static int crVBoxHGCMDoConnect( CRConnection *conn )
 #endif
             if (RT_FAILURE(rc))
             {
-                WARN(("crVBoxHGCMSetPID failed %d", rc));
+                WARN(("crVBoxHGCMSetPID failed %Rrc", rc));
                 return FALSE;
             }
 
@@ -1457,13 +1306,12 @@ static int crVBoxHGCMDoConnect( CRConnection *conn )
                 rc = crVBoxHGCMGetHostCapsLegacy(conn, &g_crvboxhgcm.u32HostCaps);
                 if (RT_FAILURE(rc))
                 {
-                    WARN(("VBoxCrHgsmiCtlConGetHostCaps failed %d", rc));
+                    WARN(("VBoxCrHgsmiCtlConGetHostCaps failed %Rrc", rc));
                     g_crvboxhgcm.u32HostCaps = 0;
                 }
 
                 /* host may not support it, ignore any failures */
                 g_crvboxhgcm.fHostCapsInitialized = true;
-                rc = VINF_SUCCESS;
             }
 
             if (g_crvboxhgcm.u32HostCaps & CR_VBOX_CAP_HOST_CAPS_NOT_SUFFICIENT)
@@ -1474,29 +1322,23 @@ static int crVBoxHGCMDoConnect( CRConnection *conn )
             }
 
             VBOXCRHGSMIPROFILE_FUNC_EPILOGUE();
-            return RT_SUCCESS(rc);
+            return TRUE;
         }
-        crDebug("HGCM connect failed with rc=0x%x\n", info.result);
 
-        VBOXCRHGSMIPROFILE_FUNC_EPILOGUE();
-        return FALSE;
+        crDebug("HGCM connect failed: %Rrc\n", rc);
+        VbglR3Term();
     }
-#ifdef RT_OS_WINDOWS
-    {
-        DWORD winEr = GetLastError();
-        crDebug("IOCTL for HGCM connect failed with rc=0x%x\n", winEr);
-    }
-#else
-    crDebug("IOCTL for HGCM connect failed with rc=0x%x\n", errno);
-#endif
+    else
+        crDebug("Failed to initialize VbglR3 library: %Rrc\n", rc);
+
     VBOXCRHGSMIPROFILE_FUNC_EPILOGUE();
     return FALSE;
 
-#else /*#ifdef IN_GUEST*/
+#else  /* !IN_GUEST */
     crError("crVBoxHGCMDoConnect called on host side!");
     CRASSERT(FALSE);
     return FALSE;
-#endif
+#endif /* !IN_GUEST */
 }
 
 static bool _crVBoxCommonDoDisconnectLocked( CRConnection *conn )
@@ -1536,12 +1378,6 @@ static bool _crVBoxCommonDoDisconnectLocked( CRConnection *conn )
 /*@todo same, replace DeviceIoControl with vbglR3DoIOCtl */
 static void crVBoxHGCMDoDisconnect( CRConnection *conn )
 {
-#ifdef IN_GUEST
-    VBoxGuestHGCMDisconnectInfo info;
-# ifdef RT_OS_WINDOWS
-    DWORD cbReturned;
-# endif
-#endif
     bool fHasActiveCons = false;
 
     if (!g_crvboxhgcm.initialized) return;
@@ -1558,48 +1394,12 @@ static void crVBoxHGCMDoDisconnect( CRConnection *conn )
 #else /* IN_GUEST */
     if (conn->u32ClientID)
     {
-        memset (&info, 0, sizeof (info));
-        info.u32ClientID = conn->u32ClientID;
-
-# ifdef RT_OS_WINDOWS
-        if ( !DeviceIoControl(g_crvboxhgcm.hGuestDrv,
-                               VBOXGUEST_IOCTL_HGCM_DISCONNECT,
-                               &info, sizeof (info),
-                               &info, sizeof (info),
-                               &cbReturned,
-                               NULL) )
-        {
-            crDebug("Disconnect failed with %x\n", GetLastError());
-        }
-# elif defined(RT_OS_SOLARIS) || defined(RT_OS_FREEBSD)
-        VBGLBIGREQ Hdr;
-        Hdr.u32Magic = VBGLBIGREQ_MAGIC;
-        Hdr.cbData = sizeof(info);
-        Hdr.pvDataR3 = &info;
-#  if HC_ARCH_BITS == 32
-        Hdr.u32Padding = 0;
-#  endif
-        if (ioctl(g_crvboxhgcm.iGuestDrv, VBOXGUEST_IOCTL_HGCM_DISCONNECT, &Hdr) >= 0)
-# else
-        if (ioctl(g_crvboxhgcm.iGuestDrv, VBOXGUEST_IOCTL_HGCM_DISCONNECT, &info, sizeof (info)) < 0)
-        {
-            crDebug("Disconnect failed with %x\n", errno);
-        }
-# endif
-
+        int rc = VbglR3HGCMDisconnect(conn->u32ClientID);
+        if (RT_FAILURE(rc))
+            crDebug("Disconnect failed with %Rrc\n", rc);
         conn->u32ClientID = 0;
-    }
 
-    /* close guest additions driver*/
-    if (!fHasActiveCons)
-    {
-# ifdef RT_OS_WINDOWS
-        CloseHandle(g_crvboxhgcm.hGuestDrv);
-        g_crvboxhgcm.hGuestDrv = INVALID_HANDLE_VALUE;
-# else
-        close(g_crvboxhgcm.iGuestDrv);
-        g_crvboxhgcm.iGuestDrv = INVALID_HANDLE_VALUE;
-# endif
+        VbglR3Term();
     }
 #endif /* IN_GUEST */
 
@@ -1940,7 +1740,7 @@ _crVBoxHGSMIWriteReadExact(CRConnection *conn, PCRVBOXHGSMI_CLIENT pClient, void
             rc = parms->hdr.result;
 #ifdef DEBUG_misha
             /* catch it here to test the buffer */
-            Assert(RT_SUCCESS(parms->hdr.result) || parms->hdr.result == VERR_BUFFER_OVERFLOW);
+            Assert(RT_SUCCESS(parms->hdr.Hdr.rc) || parms->hdr.Hdr.rc == VERR_BUFFER_OVERFLOW);
 #endif
             _crVBoxHGSMICmdBufferUnlock(pClient);
 #ifdef DEBUG
@@ -2391,10 +2191,7 @@ void crVBoxHGCMInit(CRNetReceiveFuncList *rfl, CRNetCloseFuncList *cfl, unsigned
     /*@todo as we have 2 dll versions, can do it now.*/
 
 #ifdef RT_OS_WINDOWS
-    g_crvboxhgcm.hGuestDrv = INVALID_HANDLE_VALUE;
     g_crvboxhgcm.pDirectDraw = NULL;
-#else
-    g_crvboxhgcm.iGuestDrv = INVALID_HANDLE_VALUE;
 #endif
 
 #ifdef CHROMIUM_THREADSAFE

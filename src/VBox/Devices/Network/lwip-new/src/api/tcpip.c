@@ -203,7 +203,6 @@ tcpip_input(struct pbuf *p, struct netif *inp)
   }
   msg = (struct tcpip_msg *)memp_malloc(MEMP_TCPIP_MSG_INPKT);
   if (msg == NULL) {
-    LogRel2(("TCPIP_MSG_INPKT alloc failed\n"));
     return ERR_MEM;
   }
 
@@ -211,7 +210,6 @@ tcpip_input(struct pbuf *p, struct netif *inp)
   msg->msg.inp.p = p;
   msg->msg.inp.netif = inp;
   if (sys_mbox_trypost(&mbox, msg) != ERR_OK) {
-    LogRel2(("tcpip trypost failed\n"));
     memp_free(MEMP_TCPIP_MSG_INPKT, msg);
     return ERR_MEM;
   }

@@ -1,10 +1,10 @@
-/* $Id$ */
+/* $Id: DevHDA.h $ */
 /** @file
- * DevHDA.h - Header file for VBox Intel HD Audio Controller.
+ * DevHDA.h - VBox Intel HD Audio Controller.
  */
 
 /*
- * Copyright (C) 2017 Oracle Corporation
+ * Copyright (C) 2016-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,159 +18,208 @@
 #ifndef DEV_HDA_H
 #define DEV_HDA_H
 
-#include <iprt/circbuf.h>
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
+#include <VBox/vmm/pdmdev.h>
+
+#include "AudioMixer.h"
+
+#include "HDACodec.h"
+#include "HDAStream.h"
+#include "HDAStreamMap.h"
+#include "HDAStreamPeriod.h"
+
+
+/*********************************************************************************************************************************
+*   Defines                                                                                                                      *
+*********************************************************************************************************************************/
+
+
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 
 /**
- * Internal state of a Buffer Descriptor List Entry (BDLE),
- * needed to keep track of the data needed for the actual device
- * emulation.
- */
-typedef struct HDABDLESTATE
-{
-    /** Own index within the BDL (Buffer Descriptor List). */
-    uint32_t     u32BDLIndex;
-    /** Number of bytes below the stream's FIFO watermark (SDFIFOW).
-     *  Used to check if we need fill up the FIFO again. */
-    uint32_t     cbBelowFIFOW;
-    /** Current offset in BDLE buffer (in samples). */
-    uint32_t     u32BufOff;
-    uint32_t     Padding;
-} HDABDLESTATE, *PHDABDLESTATE;
-
-/**
- * BDL description structure.
- * Do not touch this, as this must match to the HDA specs.
- */
-typedef struct HDABDLEDESC
-{
-    /** Starting address of the actual buffer. Must be 128-bit aligned. */
-    uint64_t     u64BufAdr;
-    /** Size of the actual buffer (in bytes). */
-    uint32_t     u32BufSize;
-    /** Bit 0: Interrupt on completion; the controller will generate
-     *  an interrupt when the last byte of the buffer has been
-     *  fetched by the DMA engine.
-     *
-     *  Rest is reserved for further use and must be 0. */
-    uint32_t     fFlags;
-} HDABDLEDESC, *PHDABDLEDESC;
-AssertCompileSize(HDABDLEDESC, 16); /* Always 16 byte. Also must be aligned on 128-byte boundary. */
-
-/**
- * Buffer Descriptor List Entry (BDLE) (3.6.3).
+ * Structure defining an HDA mixer sink.
+ * Its purpose is to know which audio mixer sink is bound to
+ * which SDn (SDI/SDO) device stream.
  *
- * Contains only register values which do *not* change until a
- * stream reset occurs.
- */
-typedef struct HDABDLE
-{
-    /** The actual BDL description. */
-    HDABDLEDESC    Desc;
-    /** Internal state of this BDLE.
-     *  Not part of the actual BDLE registers. */
-    HDABDLESTATE   State;
-} HDABDLE, *PHDABDLE;
-
-struct HDASTREAMPERIOD;
-
-/**
- * Internal state of a HDA stream.
- */
-typedef struct HDASTREAMSTATE
-{
-    /** Current BDLE to use. Wraps around to 0 if
-     *  maximum (cBDLE) is reached. Zero-based. */
-    uint16_t                uCurBDLE;
-    /** Flag indicating whether this stream is in an
-     *  active (operative) state or not. */
-    volatile bool           fRunning;
-    /** Flag indicating whether this stream currently is
-     *  in reset mode and therefore not acccessible by the guest. */
-    volatile bool           fInReset;
-    /** Unused, padding. */
-    bool                    fPadding;
-    /** Current BDLE (Buffer Descriptor List Entry). */
-    HDABDLE                 BDLE;
-    /** The stream's internal FIFO buffer. */
-    R3PTRTYPE(PRTCIRCBUF)   pCircBuf;
-    /** Timestamp of the last success DMA data transfer.
-     *  Used to calculate the time actually elapsed between two transfers. */
-    uint64_t                uTimerTS;
-    /** The stream's period. Need for timing.  */
-    HDASTREAMPERIOD         Period;
-    /** The stream's current configuration.
-     *  Should match SDFMT. */
-    PDMAUDIOSTREAMCFG       strmCfg;
-# ifdef HDA_USE_DMA_ACCESS_HANDLER
-    /** List of DMA handlers. */
-    RTLISTANCHORR3          lstDMAHandlers;
-#endif
-} HDASTREAMSTATE, *PHDASTREAMSTATE;
-
-#if defined (DEBUG) || defined(HDA_USE_DMA_ACCESS_HANDLER)
-typedef struct HDASTREAMDBGINFO
-{
-    /** Critical section to serialize access if needed. */
-    RTCRITSECT              CritSect;
-    uint32_t                Padding1[2];
-    /** Number of total read accesses. */
-    uint64_t                cReadsTotal;
-    /** Number of total DMA bytes read. */
-    uint64_t                cbReadTotal;
-    /** Timestamp (in ns) of last read access. */
-    uint64_t                tsLastReadNs;
-    /** Number of total write accesses. */
-    uint64_t                cWritesTotal;
-    /** Number of total DMA bytes written. */
-    uint64_t                cbWrittenTotal;
-    /** Number of total write accesses since last iteration (Hz). */
-    uint64_t                cWritesHz;
-    /** Number of total DMA bytes written since last iteration (Hz). */
-    uint64_t                cbWrittenHz;
-    /** Timestamp (in ns) of beginning a new write slot. */
-    uint64_t                tsWriteSlotBegin;
-    /** Number of current silence samples in a (consecutive) row. */
-    uint64_t                csSilence;
-    /** Number of silent samples in a row to consider an audio block as audio gap (silence). */
-    uint64_t                cSilenceThreshold;
-    /** How many bytes to skip in an audio stream before detecting silence.
-     *  (useful for intros and silence at the beginning of a song). */
-    uint64_t                cbSilenceReadMin;
-} HDASTREAMDBGINFO ,*PHDASTREAMDBGINFO;
-#endif /* defined (DEBUG) || defined(HDA_USE_DMA_ACCESS_HANDLER) */
-
-/**
- * Structure for keeping a HDA stream state.
+ * This is needed in order to handle interleaved streams
+ * (that is, multiple channels in one stream) or non-interleaved
+ * streams (each channel has a dedicated stream).
  *
- * Contains only register values which do *not* change until a
- * stream reset occurs.
+ * This is only known to the actual device emulation level.
  */
-typedef struct HDASTREAM
+typedef struct HDAMIXERSINK
 {
-    /** Stream descriptor number (SDn). */
-    uint8_t          u8SD;
-    uint8_t          Padding0[7];
-    /** DMA base address (SDnBDPU - SDnBDPL). */
-    uint64_t         u64BDLBase;
-    /** Cyclic Buffer Length (SDnCBL).
-     *  Represents the size of the complete cyclic buffer (in bytes). */
-    uint32_t         u32CBL;
-    /** FIFO Size (FIFOS).
-     *  Maximum number of bytes that may have been DMA'd into
-     *  memory but not yet transmitted on the link.
-     *
-     *  Must be a power of two. */
-    uint16_t         u16FIFOS;
-    /** Last Valid Index (SDnLVI). Zero-based. */
-    uint16_t         u16LVI;
-    uint16_t         Padding1[3];
-    /** Internal state of this stream. */
-    HDASTREAMSTATE   State;
+    /** SDn ID this sink is assigned to. 0 if not assigned. */
+    uint8_t                uSD;
+    /** Channel ID of SDn ID. Only valid if SDn ID is valid. */
+    uint8_t                uChannel;
+    uint8_t                Padding[3];
+    /** Pointer to the actual audio mixer sink. */
+    R3PTRTYPE(PAUDMIXSINK) pMixSink;
+} HDAMIXERSINK, *PHDAMIXERSINK;
+
+/**
+ * Structure for mapping a stream tag to an HDA stream.
+ */
+typedef struct HDATAG
+{
+    /** Own stream tag. */
+    uint8_t               uTag;
+    uint8_t               Padding[7];
+    /** Pointer to associated stream. */
+    R3PTRTYPE(PHDASTREAM) pStream;
+} HDATAG, *PHDATAG;
+
 #ifdef DEBUG
-    /** Debug information. */
-    HDASTREAMDBGINFO Dbg;
+/** @todo Make STAM values out of this? */
+typedef struct HDASTATEDBGINFO
+{
+    /** Timestamp (in ns) of the last timer callback (hdaTimer).
+     * Used to calculate the time actually elapsed between two timer callbacks. */
+    uint64_t                           tsTimerLastCalledNs;
+    /** IRQ debugging information. */
+    struct
+    {
+        /** Timestamp (in ns) of last processed (asserted / deasserted) IRQ. */
+        uint64_t                       tsProcessedLastNs;
+        /** Timestamp (in ns) of last asserted IRQ. */
+        uint64_t                       tsAssertedNs;
+        /** How many IRQs have been asserted already. */
+        uint64_t                       cAsserted;
+        /** Accumulated elapsed time (in ns) of all IRQ being asserted. */
+        uint64_t                       tsAssertedTotalNs;
+        /** Timestamp (in ns) of last deasserted IRQ. */
+        uint64_t                       tsDeassertedNs;
+        /** How many IRQs have been deasserted already. */
+        uint64_t                       cDeasserted;
+        /** Accumulated elapsed time (in ns) of all IRQ being deasserted. */
+        uint64_t                       tsDeassertedTotalNs;
+    } IRQ;
+} HDASTATEDBGINFO, *PHDASTATEDBGINFO;
 #endif
-} HDASTREAM, *PHDASTREAM;
+
+/**
+ * ICH Intel HD Audio Controller state.
+ */
+typedef struct HDASTATE
+{
+    /** The PCI device structure. */
+    PDMPCIDEV                          PciDev;
+    /** R3 Pointer to the device instance. */
+    PPDMDEVINSR3                       pDevInsR3;
+    /** R0 Pointer to the device instance. */
+    PPDMDEVINSR0                       pDevInsR0;
+    /** R0 Pointer to the device instance. */
+    PPDMDEVINSRC                       pDevInsRC;
+    /** Padding for alignment. */
+    uint32_t                           u32Padding;
+    /** Critical section protecting the HDA state. */
+    PDMCRITSECT                        CritSect;
+    /** The base interface for LUN\#0. */
+    PDMIBASE                           IBase;
+    RTGCPHYS                           MMIOBaseAddr;
+    /** The HDA's register set. */
+    uint32_t                           au32Regs[HDA_NUM_REGS];
+    /** Internal stream states. */
+    HDASTREAM                          aStreams[HDA_MAX_STREAMS];
+    /** Mapping table between stream tags and stream states. */
+    HDATAG                             aTags[HDA_MAX_TAGS];
+    /** CORB buffer base address. */
+    uint64_t                           u64CORBBase;
+    /** RIRB buffer base address. */
+    uint64_t                           u64RIRBBase;
+    /** DMA base address.
+     *  Made out of DPLBASE + DPUBASE (3.3.32 + 3.3.33). */
+    uint64_t                           u64DPBase;
+    /** Pointer to CORB buffer. */
+    R3PTRTYPE(uint32_t *)              pu32CorbBuf;
+    /** Size in bytes of CORB buffer. */
+    uint32_t                           cbCorbBuf;
+    /** Padding for alignment. */
+    uint32_t                           u32Padding1;
+    /** Pointer to RIRB buffer. */
+    R3PTRTYPE(uint64_t *)              pu64RirbBuf;
+    /** Size in bytes of RIRB buffer. */
+    uint32_t                           cbRirbBuf;
+    /** DMA position buffer enable bit. */
+    bool                               fDMAPosition;
+    /** Flag whether the R0 part is enabled. */
+    bool                               fR0Enabled;
+    /** Flag whether the RC part is enabled. */
+    bool                               fRCEnabled;
+    /** Number of active (running) SDn streams. */
+    uint8_t                            cStreamsActive;
+#ifndef VBOX_WITH_AUDIO_HDA_CALLBACKS
+    /** The timer for pumping data thru the attached LUN drivers. */
+    PTMTIMERR3                         pTimer;
+    /** Flag indicating whether the timer is active or not. */
+    bool                               fTimerActive;
+    uint8_t                            u8Padding1[7];
+    /** Timer ticks per Hz. */
+    uint64_t                           cTimerTicks;
+    /** The current timer expire time (in timer ticks). */
+    uint64_t                           tsTimerExpire;
+#endif
+#ifdef VBOX_WITH_STATISTICS
+# ifndef VBOX_WITH_AUDIO_HDA_CALLBACKS
+    STAMPROFILE                        StatTimer;
+# endif
+    STAMPROFILE                        StatIn;
+    STAMPROFILE                        StatOut;
+    STAMCOUNTER                        StatBytesRead;
+    STAMCOUNTER                        StatBytesWritten;
+#endif
+    /** Pointer to HDA codec to use. */
+    R3PTRTYPE(PHDACODEC)               pCodec;
+    /** List of associated LUN drivers (HDADRIVER). */
+    RTLISTANCHORR3                     lstDrv;
+    /** The device' software mixer. */
+    R3PTRTYPE(PAUDIOMIXER)             pMixer;
+    /** HDA sink for (front) output. */
+    HDAMIXERSINK                       SinkFront;
+#ifdef VBOX_WITH_AUDIO_HDA_51_SURROUND
+    /** HDA sink for center / LFE output. */
+    HDAMIXERSINK                       SinkCenterLFE;
+    /** HDA sink for rear output. */
+    HDAMIXERSINK                       SinkRear;
+#endif
+    /** HDA mixer sink for line input. */
+    HDAMIXERSINK                       SinkLineIn;
+#ifdef VBOX_WITH_AUDIO_HDA_MIC_IN
+    /** Audio mixer sink for microphone input. */
+    HDAMIXERSINK                       SinkMicIn;
+#endif
+    /** Last updated wall clock (WALCLK) counter. */
+    uint64_t                           u64WalClk;
+#ifdef VBOX_STRICT
+    /** Wall clock (WALCLK) stale count.
+     *  This indicates the number of set wall clock
+     *  values which did not actually move the counter forward (stale). */
+    uint8_t                            u8WalClkStaleCnt;
+    uint8_t                            au8Padding2[7];
+#endif
+    /** Response Interrupt Count (RINTCNT). */
+    uint8_t                            u8RespIntCnt;
+    /** Current IRQ level. */
+    uint8_t                            u8IRQL;
+    /** Padding for alignment. */
+    uint8_t                            au8Padding3[6];
+#ifdef DEBUG
+    HDASTATEDBGINFO                    Dbg;
+#endif
+} HDASTATE, *PHDASTATE;
+
+#ifdef VBOX_WITH_AUDIO_HDA_CALLBACKS
+typedef struct HDACALLBACKCTX
+{
+    PHDASTATE  pThis;
+    PHDADRIVER pDriver;
+} HDACALLBACKCTX, *PHDACALLBACKCTX;
+#endif
 
 #endif /* !DEV_HDA_H */
 

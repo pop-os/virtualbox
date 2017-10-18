@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,6 +20,7 @@
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
+# include <QAccessibleWidget>
 # include <QTimer>
 # include <QPainter>
 # include <QHBoxLayout>
@@ -39,6 +40,7 @@
 # include "VBoxGlobal.h"
 
 /* COM includes: */
+# include "CAudioAdapter.h"
 # include "CConsole.h"
 # include "CMachine.h"
 # include "CSystemProperties.h"
@@ -59,7 +61,6 @@
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
-
 /** QIStateStatusBarIndicator extension for Runtime UI. */
 class UISessionStateStatusBarIndicator : public QIWithRetranslateUI<QIStateStatusBarIndicator>
 {
@@ -68,16 +69,112 @@ class UISessionStateStatusBarIndicator : public QIWithRetranslateUI<QIStateStatu
 public:
 
     /** Constructor which remembers passed @a session object. */
-    UISessionStateStatusBarIndicator(UISession *pSession) : m_pSession(pSession) {}
+    UISessionStateStatusBarIndicator(IndicatorType enmType, UISession *pSession);
+
+    /** Returns the indicator type. */
+    IndicatorType type() const { return m_enmType; }
+
+    /** Returns the indicator description. */
+    virtual QString description() const { return m_strDescription; }
 
     /** Abstract update routine. */
     virtual void updateAppearance() = 0;
 
 protected:
 
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */;
+
+    /** Holds the indicator type. */
+    const IndicatorType m_enmType;
+
     /** Holds the session UI reference. */
     UISession *m_pSession;
+
+    /** Holds the indicator description. */
+    QString m_strDescription;
+
+    /** Holds the table format. */
+    static const QString s_strTable;
+    /** Holds the table row format 1. */
+    static const QString s_strTableRow1;
+    /** Holds the table row format 2. */
+    static const QString s_strTableRow2;
+    /** Holds the table row format 3. */
+    static const QString s_strTableRow3;
+    /** Holds the table row format 4. */
+    static const QString s_strTableRow4;
 };
+
+
+/* static */
+const QString UISessionStateStatusBarIndicator::s_strTable = QString("<table cellspacing=5 style='white-space:pre'>%1</table>");
+/* static */
+const QString UISessionStateStatusBarIndicator::s_strTableRow1 = QString("<tr><td colspan='2'><nobr><b>%1</b></nobr></td></tr>");
+/* static */
+const QString UISessionStateStatusBarIndicator::s_strTableRow2 = QString("<tr><td><nobr>%1:</nobr></td><td><nobr>%2</nobr></td></tr>");
+/* static */
+const QString UISessionStateStatusBarIndicator::s_strTableRow3 = QString("<tr><td><nobr>%1</nobr></td><td><nobr>%2</nobr></td></tr>");
+/* static */
+const QString UISessionStateStatusBarIndicator::s_strTableRow4 = QString("<tr><td><nobr>&nbsp;%1:</nobr></td><td><nobr>%2</nobr></td></tr>");
+
+
+/** QAccessibleWidget extension used as an accessibility interface for UISessionStateStatusBarIndicator. */
+class QIAccessibilityInterfaceForUISessionStateStatusBarIndicator : public QAccessibleWidget
+{
+public:
+
+    /** Returns an accessibility interface for passed @a strClassname and @a pObject. */
+    static QAccessibleInterface *pFactory(const QString &strClassname, QObject *pObject)
+    {
+        /* Creating UISessionStateStatusBarIndicator accessibility interface: */
+        if (pObject && strClassname == QLatin1String("UISessionStateStatusBarIndicator"))
+            return new QIAccessibilityInterfaceForUISessionStateStatusBarIndicator(qobject_cast<QWidget*>(pObject));
+
+        /* Null by default: */
+        return 0;
+    }
+
+    /** Constructs an accessibility interface passing @a pWidget to the base-class. */
+    QIAccessibilityInterfaceForUISessionStateStatusBarIndicator(QWidget *pWidget)
+        : QAccessibleWidget(pWidget, QAccessible::Button)
+    {}
+
+    /** Returns a text for the passed @a enmTextRole. */
+    virtual QString text(QAccessible::Text /* enmTextRole */) const /* override */
+    {
+        /* Sanity check: */
+        AssertPtrReturn(indicator(), 0);
+
+        /* Return the indicator description: */
+        return indicator()->description();
+    }
+
+private:
+
+    /** Returns corresponding UISessionStateStatusBarIndicator. */
+    UISessionStateStatusBarIndicator *indicator() const { return qobject_cast<UISessionStateStatusBarIndicator*>(widget()); }
+};
+
+
+UISessionStateStatusBarIndicator::UISessionStateStatusBarIndicator(IndicatorType enmType, UISession *pSession)
+    : m_enmType(enmType)
+    , m_pSession(pSession)
+{
+    /* Install UISessionStateStatusBarIndicator accessibility interface factory: */
+    QAccessible::installFactory(QIAccessibilityInterfaceForUISessionStateStatusBarIndicator::pFactory);
+}
+
+void UISessionStateStatusBarIndicator::retranslateUi()
+{
+    /* Translate description: */
+    m_strDescription = tr("%1 status-bar indicator", "like 'hard-disk status-bar indicator'")
+                         .arg(gpConverter->toString(type()));
+
+    /* Update appearance finally: */
+    updateAppearance();
+}
+
 
 /** UISessionStateStatusBarIndicator extension for Runtime UI: Hard-drive indicator. */
 class UIIndicatorHardDrive : public UISessionStateStatusBarIndicator
@@ -88,7 +185,7 @@ public:
 
     /** Constructor, passes @a pSession to the UISessionStateStatusBarIndicator constructor. */
     UIIndicatorHardDrive(UISession *pSession)
-        : UISessionStateStatusBarIndicator(pSession)
+        : UISessionStateStatusBarIndicator(IndicatorType_HardDisks, pSession)
     {
         /* Assign state-icons: */
         setStateIcon(KDeviceActivity_Idle,    UIIconPool::iconSet(":/hd_16px.png"));
@@ -101,12 +198,6 @@ public:
 
 private:
 
-    /** Retranslation routine. */
-    void retranslateUi()
-    {
-        updateAppearance();
-    }
-
     /** Update routine. */
     void updateAppearance()
     {
@@ -114,9 +205,6 @@ private:
         const CMachine machine = m_pSession->machine();
 
         /* Prepare tool-tip: */
-        QString strToolTip = QApplication::translate("UIIndicatorsPool",
-                                                     "<p style='white-space:pre'><nobr>Indicates the activity "
-                                                     "of the hard disks:</nobr>%1</p>", "HDD tooltip");
         QString strFullData;
 
         /* Enumerate all the controllers: */
@@ -131,14 +219,14 @@ private:
                 if (attachment.GetType() != KDeviceType_HardDisk)
                     continue;
                 /* Append attachment data: */
-                strAttData += QString("<br>&nbsp;<nobr>%1:&nbsp;%2</nobr>")
+                strAttData += s_strTableRow4
                     .arg(gpConverter->toString(StorageSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
                     .arg(UIMedium(attachment.GetMedium(), UIMediumType_HardDisk).location());
                 fAttachmentsPresent = true;
             }
             /* Append controller data: */
             if (!strAttData.isNull())
-                strFullData += QString("<br><nobr><b>%1</b></nobr>").arg(controller.GetName()) + strAttData;
+                strFullData += s_strTableRow1.arg(controller.GetName()) + strAttData;
         }
 
         /* Hide indicator if there are no attachments: */
@@ -146,11 +234,12 @@ private:
             hide();
 
         /* Update tool-tip: */
-        setToolTip(strToolTip.arg(strFullData));
+        setToolTip(s_strTable.arg(strFullData));
         /* Update indicator state: */
         setState(fAttachmentsPresent ? KDeviceActivity_Idle : KDeviceActivity_Null);
     }
 };
+
 
 /** UISessionStateStatusBarIndicator extension for Runtime UI: Optical-drive indicator. */
 class UIIndicatorOpticalDisks : public UISessionStateStatusBarIndicator
@@ -161,7 +250,7 @@ public:
 
     /** Constructor, passes @a pSession to the UISessionStateStatusBarIndicator constructor. */
     UIIndicatorOpticalDisks(UISession *pSession)
-        : UISessionStateStatusBarIndicator(pSession)
+        : UISessionStateStatusBarIndicator(IndicatorType_OpticalDisks, pSession)
     {
         /* Assign state-icons: */
         setStateIcon(KDeviceActivity_Idle,    UIIconPool::iconSet(":/cd_16px.png"));
@@ -174,12 +263,6 @@ public:
 
 private:
 
-    /** Retranslation routine. */
-    void retranslateUi()
-    {
-        updateAppearance();
-    }
-
     /** Update routine. */
     void updateAppearance()
     {
@@ -187,9 +270,6 @@ private:
         const CMachine machine = m_pSession->machine();
 
         /* Prepare tool-tip: */
-        QString strToolTip = QApplication::translate("UIIndicatorsPool",
-                                                     "<p style='white-space:pre'><nobr>Indicates the activity "
-                                                     "of the optical drives:</nobr>%1</p>", "CD tooltip");
         QString strFullData;
 
         /* Enumerate all the controllers: */
@@ -206,7 +286,7 @@ private:
                     continue;
                 /* Append attachment data: */
                 UIMedium vboxMedium(attachment.GetMedium(), UIMediumType_DVD);
-                strAttData += QString("<br>&nbsp;<nobr>%1:&nbsp;%2</nobr>")
+                strAttData += s_strTableRow4
                     .arg(gpConverter->toString(StorageSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
                     .arg(vboxMedium.isNull() || vboxMedium.isHostDrive() ? vboxMedium.name() : vboxMedium.location());
                 fAttachmentsPresent = true;
@@ -215,7 +295,7 @@ private:
             }
             /* Append controller data: */
             if (!strAttData.isNull())
-                strFullData += QString("<br><nobr><b>%1</b></nobr>").arg(controller.GetName()) + strAttData;
+                strFullData += s_strTableRow1.arg(controller.GetName()) + strAttData;
         }
 
         /* Hide indicator if there are no attachments: */
@@ -223,11 +303,12 @@ private:
             hide();
 
         /* Update tool-tip: */
-        setToolTip(strToolTip.arg(strFullData));
+        setToolTip(s_strTable.arg(strFullData));
         /* Update indicator state: */
         setState(fAttachmentsMounted ? KDeviceActivity_Idle : KDeviceActivity_Null);
     }
 };
+
 
 /** UISessionStateStatusBarIndicator extension for Runtime UI: Floppy-drive indicator. */
 class UIIndicatorFloppyDisks : public UISessionStateStatusBarIndicator
@@ -238,7 +319,7 @@ public:
 
     /** Constructor, passes @a pSession to the UISessionStateStatusBarIndicator constructor. */
     UIIndicatorFloppyDisks(UISession *pSession)
-        : UISessionStateStatusBarIndicator(pSession)
+        : UISessionStateStatusBarIndicator(IndicatorType_FloppyDisks, pSession)
     {
         /* Assign state-icons: */
         setStateIcon(KDeviceActivity_Idle,    UIIconPool::iconSet(":/fd_16px.png"));
@@ -251,12 +332,6 @@ public:
 
 private:
 
-    /** Retranslation routine. */
-    void retranslateUi()
-    {
-        updateAppearance();
-    }
-
     /** Update routine. */
     void updateAppearance()
     {
@@ -264,9 +339,6 @@ private:
         const CMachine machine = m_pSession->machine();
 
         /* Prepare tool-tip: */
-        QString strToolTip = QApplication::translate("UIIndicatorsPool",
-                                                     "<p style='white-space:pre'><nobr>Indicates the activity "
-                                                     "of the floppy drives:</nobr>%1</p>", "FD tooltip");
         QString strFullData;
 
         /* Enumerate all the controllers: */
@@ -283,7 +355,7 @@ private:
                     continue;
                 /* Append attachment data: */
                 UIMedium vboxMedium(attachment.GetMedium(), UIMediumType_Floppy);
-                strAttData += QString("<br>&nbsp;<nobr>%1:&nbsp;%2</nobr>")
+                strAttData += s_strTableRow4
                     .arg(gpConverter->toString(StorageSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice())))
                     .arg(vboxMedium.isNull() || vboxMedium.isHostDrive() ? vboxMedium.name() : vboxMedium.location());
                 fAttachmentsPresent = true;
@@ -292,7 +364,7 @@ private:
             }
             /* Append controller data: */
             if (!strAttData.isNull())
-                strFullData += QString("<br><nobr><b>%1</b></nobr>").arg(controller.GetName()) + strAttData;
+                strFullData += s_strTableRow1.arg(controller.GetName()) + strAttData;
         }
 
         /* Hide indicator if there are no attachments: */
@@ -300,11 +372,85 @@ private:
             hide();
 
         /* Update tool-tip: */
-        setToolTip(strToolTip.arg(strFullData));
+        setToolTip(s_strTable.arg(strFullData));
         /* Update indicator state: */
         setState(fAttachmentsMounted ? KDeviceActivity_Idle : KDeviceActivity_Null);
     }
 };
+
+
+/** UISessionStateStatusBarIndicator extension for Runtime UI: Audio indicator. */
+class UIIndicatorAudio : public UISessionStateStatusBarIndicator
+{
+    Q_OBJECT;
+
+public:
+
+    /** Audio states. */
+    enum AudioState
+    {
+        AudioState_AllOff   = 0,
+        AudioState_OutputOn = RT_BIT(0),
+        AudioState_InputOn  = RT_BIT(1),
+        AudioState_AllOn    = AudioState_InputOn | AudioState_OutputOn
+    };
+
+    /** Constructor, passes @a pSession to the UISessionStateStatusBarIndicator constructor. */
+    UIIndicatorAudio(UISession *pSession)
+        : UISessionStateStatusBarIndicator(IndicatorType_Audio, pSession)
+    {
+        /* Assign state-icons: */
+        setStateIcon(AudioState_AllOff, UIIconPool::iconSet(":/audio_all_off_16px.png"));
+        setStateIcon(AudioState_OutputOn, UIIconPool::iconSet(":/audio_input_off_16px.png"));
+        setStateIcon(AudioState_InputOn, UIIconPool::iconSet(":/audio_output_off_16px.png"));
+        setStateIcon(AudioState_AllOn, UIIconPool::iconSet(":/audio_16px.png"));
+        /* Translate finally: */
+        retranslateUi();
+    }
+
+private:
+
+    /** Update routine. */
+    void updateAppearance()
+    {
+        /* Get machine: */
+        const CMachine comMachine = m_pSession->machine();
+
+        /* Prepare tool-tip: */
+        QString strFullData;
+
+        /* Get audio adapter: */
+        const CAudioAdapter comAdapter = comMachine.GetAudioAdapter();
+        const bool fAudioEnabled = comAdapter.GetEnabled();
+        if (fAudioEnabled)
+        {
+            const bool fEnabledOutput = comAdapter.GetEnabledOut();
+            const bool fEnabledInput = comAdapter.GetEnabledIn();
+            strFullData = QString(s_strTableRow2).arg(QApplication::translate("UIGDetails", "Audio Output", "details (audio)"),
+                                                      fEnabledOutput ?
+                                                      QApplication::translate("UIGDetails", "Enabled", "details (audio/output)") :
+                                                      QApplication::translate("UIGDetails", "Disabled", "details (audio/output)"))
+                        + QString(s_strTableRow2).arg(QApplication::translate("UIGDetails", "Audio Input", "details (audio)"),
+                                                      fEnabledInput ?
+                                                      QApplication::translate("UIGDetails", "Enabled", "details (audio/input)") :
+                                                      QApplication::translate("UIGDetails", "Disabled", "details (audio/input)"));
+            AudioState enmState = AudioState_AllOff;
+            if (fEnabledOutput)
+                enmState = (AudioState)(enmState | AudioState_OutputOn);
+            if (fEnabledInput)
+                enmState = (AudioState)(enmState | AudioState_InputOn);
+            setState(enmState);
+        }
+
+        /* Hide indicator if adapter is disabled: */
+        if (!fAudioEnabled)
+            hide();
+
+        /* Update tool-tip: */
+        setToolTip(s_strTable.arg(strFullData));
+    }
+};
+
 
 /** UISessionStateStatusBarIndicator extension for Runtime UI: Network indicator. */
 class UIIndicatorNetwork : public UISessionStateStatusBarIndicator
@@ -315,7 +461,7 @@ public:
 
     /** Constructor, passes @a pSession to the UISessionStateStatusBarIndicator constructor. */
     UIIndicatorNetwork(UISession *pSession)
-        : UISessionStateStatusBarIndicator(pSession)
+        : UISessionStateStatusBarIndicator(IndicatorType_Network, pSession)
         , m_pTimerAutoUpdate(0)
         , m_cMaxNetworkAdapters(0)
     {
@@ -367,12 +513,6 @@ private slots:
 
 private:
 
-    /** Retranslation routine. */
-    void retranslateUi()
-    {
-        updateAppearance();
-    }
-
     /** Update routine. */
     void updateAppearance()
     {
@@ -380,9 +520,6 @@ private:
         const CMachine machine = m_pSession->machine();
 
         /* Prepare tool-tip: */
-        QString strToolTip = QApplication::translate("UIIndicatorsPool",
-                                                     "<p style='white-space:pre'><nobr>Indicates the activity of the "
-                                                     "network interfaces:</nobr>%1</p>", "Network adapters tooltip");
         QString strFullData;
 
         /* Gather adapter properties: */
@@ -425,27 +562,26 @@ private:
                 if (fCablesDisconnected && fCableConnected)
                     fCablesDisconnected = false;
                 /* Append adapter data: */
-                strFullData += QApplication::translate("UIIndicatorsPool",
-                    "<br><nobr><b>Adapter %1 (%2)</b>: %3 cable %4</nobr>", "Network adapters tooltip")
-                    .arg(uSlot + 1)
-                    .arg(gpConverter->toString(adapter.GetAttachmentType()))
-                    .arg(strGuestIp.isEmpty() ? "" : "IP " + strGuestIp + ", ")
+                strFullData += s_strTableRow1
+                    .arg(QApplication::translate("UIIndicatorsPool", "Adapter %1 (%2)", "Network tooltip")
+                            .arg(uSlot + 1).arg(gpConverter->toString(adapter.GetAttachmentType())));
+                if (!strGuestIp.isEmpty())
+                    strFullData += s_strTableRow4
+                        .arg(QApplication::translate("UIIndicatorsPool", "IP", "Network tooltip"), strGuestIp);
+                strFullData += s_strTableRow4
+                    .arg(QApplication::translate("UIIndicatorsPool", "Cable", "Network tooltip"))
                     .arg(fCableConnected ?
-                         QApplication::translate("UIIndicatorsPool", "connected", "Network adapters tooltip") :
-                         QApplication::translate("UIIndicatorsPool", "disconnected", "Network adapters tooltip"));
+                         QApplication::translate("UIIndicatorsPool", "Connected", "cable (Network tooltip)") :
+                         QApplication::translate("UIIndicatorsPool", "Disconnected", "cable (Network tooltip)"));
             }
         }
-        /* Handle 'no-adapters' case: */
-        if (strFullData.isNull())
-            strFullData = QApplication::translate("UIIndicatorsPool",
-                              "<br><nobr><b>All network adapters are disabled</b></nobr>", "Network adapters tooltip");
 
         /* Hide indicator if there are no enabled adapters: */
         if (!fAdaptersPresent)
             hide();
 
         /* Update tool-tip: */
-        setToolTip(strToolTip.arg(strFullData));
+        setToolTip(s_strTable.arg(strFullData));
         /* Update indicator state: */
         setState(fAdaptersPresent && !fCablesDisconnected ? KDeviceActivity_Idle : KDeviceActivity_Null);
     }
@@ -456,6 +592,7 @@ private:
     ulong m_cMaxNetworkAdapters;
 };
 
+
 /** UISessionStateStatusBarIndicator extension for Runtime UI: USB indicator. */
 class UIIndicatorUSB : public UISessionStateStatusBarIndicator
 {
@@ -465,7 +602,7 @@ public:
 
     /** Constructor, passes @a pSession to the UISessionStateStatusBarIndicator constructor. */
     UIIndicatorUSB(UISession *pSession)
-        : UISessionStateStatusBarIndicator(pSession)
+        : UISessionStateStatusBarIndicator(IndicatorType_USB, pSession)
     {
         /* Assign state-icons: */
         setStateIcon(KDeviceActivity_Idle,    UIIconPool::iconSet(":/usb_16px.png"));
@@ -478,12 +615,6 @@ public:
 
 private:
 
-    /** Retranslation routine. */
-    void retranslateUi()
-    {
-        updateAppearance();
-    }
-
     /** Update routine. */
     void updateAppearance()
     {
@@ -491,9 +622,6 @@ private:
         const CMachine machine = m_pSession->machine();
 
         /* Prepare tool-tip: */
-        QString strToolTip = QApplication::translate("UIIndicatorsPool",
-                                                     "<p style='white-space:pre'><nobr>Indicates the activity of "
-                                                     "the attached USB devices:</nobr>%1</p>", "USB device tooltip");
         QString strFullData;
 
         /* Check whether there is at least one USB controller with an available proxy. */
@@ -505,10 +633,11 @@ private:
             /* Enumerate all the USB devices: */
             const CConsole console = m_pSession->console();
             foreach (const CUSBDevice &usbDevice, console.GetUSBDevices())
-                strFullData += QString("<br><b><nobr>%1</nobr></b>").arg(vboxGlobal().details(usbDevice));
+                strFullData += s_strTableRow1.arg(vboxGlobal().details(usbDevice));
             /* Handle 'no-usb-devices' case: */
             if (strFullData.isNull())
-                strFullData = QApplication::translate("UIIndicatorsPool", "<br><nobr><b>No USB devices attached</b></nobr>", "USB device tooltip");
+                strFullData = s_strTableRow1
+                    .arg(QApplication::translate("UIIndicatorsPool", "No USB devices attached", "USB tooltip"));
         }
 
         /* Hide indicator if there are USB controllers: */
@@ -516,11 +645,12 @@ private:
             hide();
 
         /* Update tool-tip: */
-        setToolTip(strToolTip.arg(strFullData));
+        setToolTip(s_strTable.arg(strFullData));
         /* Update indicator state: */
         setState(fUSBEnabled ? KDeviceActivity_Idle : KDeviceActivity_Null);
     }
 };
+
 
 /** UISessionStateStatusBarIndicator extension for Runtime UI: Shared-folders indicator. */
 class UIIndicatorSharedFolders : public UISessionStateStatusBarIndicator
@@ -531,7 +661,7 @@ public:
 
     /** Constructor, passes @a pSession to the UISessionStateStatusBarIndicator constructor. */
     UIIndicatorSharedFolders(UISession *pSession)
-        : UISessionStateStatusBarIndicator(pSession)
+        : UISessionStateStatusBarIndicator(IndicatorType_SharedFolders, pSession)
     {
         /* Assign state-icons: */
         setStateIcon(KDeviceActivity_Idle,    UIIconPool::iconSet(":/sf_16px.png"));
@@ -544,12 +674,6 @@ public:
 
 private:
 
-    /** Retranslation routine. */
-    void retranslateUi()
-    {
-        updateAppearance();
-    }
-
     /** Update routine. */
     void updateAppearance()
     {
@@ -559,9 +683,6 @@ private:
         const CGuest guest = m_pSession->guest();
 
         /* Prepare tool-tip: */
-        QString strToolTip = QApplication::translate("UIIndicatorsPool",
-                                                     "<p style='white-space:pre'><nobr>Indicates the activity of "
-                                                     "the machine's shared folders:</nobr>%1</p>", "Shared folders tooltip");
         QString strFullData;
 
         /* Enumerate all the folders: */
@@ -576,22 +697,22 @@ private:
         {
             /* Select slashes depending on the OS type: */
             if (VBoxGlobal::isDOSType(guest.GetOSTypeId()))
-                strFullData += QString("<br><nobr><b>\\\\vboxsvr\\%1&nbsp;</b></nobr><nobr>%2</nobr>")
-                                       .arg(it.key(), it.value());
+                strFullData += s_strTableRow2.arg(QString("<b>\\\\vboxsvr\\%1</b>").arg(it.key()), it.value());
             else
-                strFullData += QString("<br><nobr><b>%1&nbsp;</b></nobr><nobr>%2</nobr>")
-                                       .arg(it.key(), it.value());
+                strFullData += s_strTableRow2.arg(QString("<b>%1</b>").arg(it.key()), it.value());
         }
         /* Handle 'no-folders' case: */
         if (sfs.isEmpty())
-            strFullData = QApplication::translate("UIIndicatorsPool", "<br><nobr><b>No shared folders</b></nobr>", "Shared folders tooltip");
+            strFullData = s_strTableRow1
+                .arg(QApplication::translate("UIIndicatorsPool", "No shared folders", "Shared folders tooltip"));
 
         /* Update tool-tip: */
-        setToolTip(strToolTip.arg(strFullData));
+        setToolTip(s_strTable.arg(strFullData));
         /* Update indicator state: */
         setState(!sfs.isEmpty() ? KDeviceActivity_Idle : KDeviceActivity_Null);
     }
 };
+
 
 /** UISessionStateStatusBarIndicator extension for Runtime UI: Display indicator. */
 class UIIndicatorDisplay : public UISessionStateStatusBarIndicator
@@ -602,7 +723,7 @@ public:
 
     /** Constructor, passes @a pSession to the UISessionStateStatusBarIndicator constructor. */
     UIIndicatorDisplay(UISession *pSession)
-        : UISessionStateStatusBarIndicator(pSession)
+        : UISessionStateStatusBarIndicator(IndicatorType_Display, pSession)
     {
         /* Assign state-icons: */
         setStateIcon(KDeviceActivity_Null,    UIIconPool::iconSet(":/display_software_16px.png"));
@@ -614,12 +735,6 @@ public:
 
 private:
 
-    /** Retranslation routine. */
-    void retranslateUi()
-    {
-        updateAppearance();
-    }
-
     /** Update routine. */
     void updateAppearance()
     {
@@ -627,43 +742,41 @@ private:
         const CMachine machine = m_pSession->machine();
 
         /* Prepare tool-tip: */
-        QString strToolTip = QApplication::translate("UIIndicatorsPool",
-                                                     "<p style='white-space:pre'>"
-                                                     "<nobr>Indicates the activity of the display:</nobr>%1</p>");
         QString strFullData;
 
         /* Video Memory: */
         const ULONG uVRAMSize = machine.GetVRAMSize();
         const QString strVRAMSize = VBoxGlobal::tr("<nobr>%1 MB</nobr>", "details report").arg(uVRAMSize);
-        strFullData += QString("<br><nobr><b>%1:</b>&nbsp;%2</nobr>")
-                               .arg(VBoxGlobal::tr("Video Memory", "details report"), strVRAMSize);
+        strFullData += s_strTableRow2
+            .arg(QApplication::translate("UIIndicatorsPool", "Video memory", "Display tooltip"), strVRAMSize);
 
         /* Monitor Count: */
         const ULONG uMonitorCount = machine.GetMonitorCount();
         if (uMonitorCount > 1)
         {
             const QString strMonitorCount = QString::number(uMonitorCount);
-            strFullData += QString("<br><nobr><b>%1:</b>&nbsp;%2</nobr>")
-                                   .arg(VBoxGlobal::tr("Screens", "details report"), strMonitorCount);
+            strFullData += s_strTableRow2
+                .arg(QApplication::translate("UIIndicatorsPool", "Screens", "Display tooltip"), strMonitorCount);
         }
 
         /* 3D acceleration: */
         const bool fAcceleration3D = machine.GetAccelerate3DEnabled() && vboxGlobal().is3DAvailable();
         if (fAcceleration3D)
         {
-            const QString strAcceleration3D = fAcceleration3D
-                ? VBoxGlobal::tr("Enabled", "details report (3D Acceleration)")
-                : VBoxGlobal::tr("Disabled", "details report (3D Acceleration)");
-            strFullData += QString("<br><nobr><b>%1:</b>&nbsp;%2</nobr>")
-                                   .arg(VBoxGlobal::tr("3D Acceleration", "details report"), strAcceleration3D);
+            const QString strAcceleration3D = fAcceleration3D ?
+                VBoxGlobal::tr("Enabled", "details report (3D Acceleration)") :
+                VBoxGlobal::tr("Disabled", "details report (3D Acceleration)");
+            strFullData += s_strTableRow2
+                .arg(QApplication::translate("UIIndicatorsPool", "3D acceleration", "Display tooltip"), strAcceleration3D);
         }
 
         /* Update tool-tip: */
-        setToolTip(strToolTip.arg(strFullData));
+        setToolTip(s_strTable.arg(strFullData));
         /* Set initial indicator state: */
         setState(fAcceleration3D ? KDeviceActivity_Idle : KDeviceActivity_Null);
     }
 };
+
 
 /** UISessionStateStatusBarIndicator extension for Runtime UI: Video-capture indicator. */
 class UIIndicatorVideoCapture : public UISessionStateStatusBarIndicator
@@ -677,20 +790,22 @@ class UIIndicatorVideoCapture : public UISessionStateStatusBarIndicator
     enum UIIndicatorStateVideoCapture
     {
         UIIndicatorStateVideoCapture_Disabled = 0,
-        UIIndicatorStateVideoCapture_Enabled  = 1
+        UIIndicatorStateVideoCapture_Enabled  = 1,
+        UIIndicatorStateVideoCapture_Paused   = 2
     };
 
 public:
 
     /** Constructor, passes @a pSession to the UISessionStateStatusBarIndicator constructor. */
     UIIndicatorVideoCapture(UISession *pSession)
-        : UISessionStateStatusBarIndicator(pSession)
+        : UISessionStateStatusBarIndicator(IndicatorType_VideoCapture, pSession)
         , m_pAnimation(0)
         , m_dRotationAngle(0)
     {
         /* Assign state-icons: */
         setStateIcon(UIIndicatorStateVideoCapture_Disabled, UIIconPool::iconSet(":/video_capture_16px.png"));
         setStateIcon(UIIndicatorStateVideoCapture_Enabled,  UIIconPool::iconSet(":/movie_reel_16px.png"));
+        setStateIcon(UIIndicatorStateVideoCapture_Paused,   UIIconPool::iconSet(":/movie_reel_16px.png"));
         /* Create *enabled* state animation: */
         m_pAnimation = UIAnimationLoop::installAnimationLoop(this, "rotationAngle",
                                                                    "rotationAngleStart", "rotationAngleFinal",
@@ -714,6 +829,9 @@ private slots:
             case UIIndicatorStateVideoCapture_Enabled:
                 m_pAnimation->start();
                 break;
+            case UIIndicatorStateVideoCapture_Paused:
+                m_pAnimation->stop();
+                break;
             default:
                 break;
         }
@@ -722,12 +840,6 @@ private slots:
     }
 
 private:
-
-    /** Retranslation routine. */
-    void retranslateUi()
-    {
-        updateAppearance();
-    }
 
     /** Paint-event handler. */
     void paintEvent(QPaintEvent*)
@@ -756,20 +868,32 @@ private:
     {
         /* Get machine: */
         const CMachine machine = m_pSession->machine();
+        const bool fMachinePaused = m_pSession->isPaused();
+
+        /* Update indicator state early: */
+        if (!machine.GetVideoCaptureEnabled())
+            setState(UIIndicatorStateVideoCapture_Disabled);
+        else if (!fMachinePaused)
+            setState(UIIndicatorStateVideoCapture_Enabled);
+        else
+            setState(UIIndicatorStateVideoCapture_Paused);
 
         /* Prepare tool-tip: */
-        QString strToolTip = QApplication::translate("UIIndicatorsPool", "<nobr>Indicates video capturing activity:</nobr><br>%1");
+        QString strFullData;
         switch (state())
         {
             case UIIndicatorStateVideoCapture_Disabled:
             {
-                strToolTip = strToolTip.arg(QApplication::translate("UIIndicatorsPool", "<nobr><b>Video capture disabled</b></nobr>"));
+                strFullData += s_strTableRow1
+                    .arg(QApplication::translate("UIIndicatorsPool", "Video capture disabled", "Video capture tooltip"));
                 break;
             }
             case UIIndicatorStateVideoCapture_Enabled:
+            case UIIndicatorStateVideoCapture_Paused:
             {
-                strToolTip = strToolTip.arg(QApplication::translate("UIIndicatorsPool", "<nobr><b>Video capture file:</b> %1</nobr>"));
-                strToolTip = strToolTip.arg(machine.GetVideoCaptureFile());
+                strFullData += s_strTableRow2
+                    .arg(QApplication::translate("UIIndicatorsPool", "Video capture file", "Video capture tooltip"))
+                    .arg(machine.GetVideoCaptureFile());
                 break;
             }
             default:
@@ -777,9 +901,7 @@ private:
         }
 
         /* Update tool-tip: */
-        setToolTip(strToolTip);
-        /* Update indicator state: */
-        setState(machine.GetVideoCaptureEnabled());
+        setToolTip(s_strTable.arg(strFullData));
     }
 
     /** Returns rotation start angle. */
@@ -797,6 +919,7 @@ private:
     double m_dRotationAngle;
 };
 
+
 /** UISessionStateStatusBarIndicator extension for Runtime UI: Features indicator. */
 class UIIndicatorFeatures : public UISessionStateStatusBarIndicator
 {
@@ -806,7 +929,7 @@ public:
 
     /** Constructor, passes @a pSession to the UISessionStateStatusBarIndicator constructor. */
     UIIndicatorFeatures(UISession *pSession)
-        : UISessionStateStatusBarIndicator(pSession)
+        : UISessionStateStatusBarIndicator(IndicatorType_Features, pSession)
     {
         /* Assign state-icons: */
         setStateIcon(0, UIIconPool::iconSet(":/vtx_amdv_disabled_16px.png"));
@@ -816,12 +939,6 @@ public:
     }
 
 private:
-
-    /** Retranslation routine. */
-    void retranslateUi()
-    {
-        updateAppearance();
-    }
 
     /** Update routine. */
     void updateAppearance()
@@ -851,36 +968,23 @@ private:
         const QString strParavirt = gpConverter->toString(m_pSession->paraVirtProvider());
 
         /* Prepare tool-tip: */
-        QString tip(QApplication::translate("UIIndicatorsPool",
-                                            "Additional feature status:"
-                                            "<br><nobr><b>%1:</b>&nbsp;%2</nobr>"
-                                            "<br><nobr><b>%3:</b>&nbsp;%4</nobr>"
-                                            "<br><nobr><b>%5:</b>&nbsp;%6</nobr>"
-                                            "<br><nobr><b>%7:</b>&nbsp;%8%</nobr>",
-                                            "Virtualization Stuff LED")
-                    .arg(VBoxGlobal::tr("VT-x/AMD-V", "details report"), strVirtualization)
-                    .arg(VBoxGlobal::tr("Nested Paging"), strNestedPaging)
-                    .arg(VBoxGlobal::tr("Unrestricted Execution"), strUnrestrictExec)
-                    .arg(VBoxGlobal::tr("Execution Cap", "details report"), strCPUExecCap));
-
-        /// @todo We had to use that large NLS above for now.
-        //       Later it should be reworked to be well-maintainable..
-        /* Separately add information about paravirtualization interface feature: */
-        tip += QApplication::translate("UIIndicatorsPool", "<br><nobr><b>%1:</b>&nbsp;%2</nobr>", "Virtualization Stuff LED")
-                                      .arg(VBoxGlobal::tr("Paravirtualization Interface", "details report"), strParavirt);
-
-        /* CPU count: */
-        int cpuCount = machine.GetCPUCount();
+        QString strFullData;
+        strFullData += s_strTableRow2.arg(VBoxGlobal::tr("VT-x/AMD-V", "details report"),                   strVirtualization);
+        strFullData += s_strTableRow2.arg(VBoxGlobal::tr("Nested Paging"),                                  strNestedPaging);
+        strFullData += s_strTableRow2.arg(VBoxGlobal::tr("Unrestricted Execution"),                         strUnrestrictExec);
+        strFullData += s_strTableRow2.arg(VBoxGlobal::tr("Execution Cap", "details report"),                strCPUExecCap);
+        strFullData += s_strTableRow2.arg(VBoxGlobal::tr("Paravirtualization Interface", "details report"), strParavirt);
+        const int cpuCount = machine.GetCPUCount();
         if (cpuCount > 1)
-            tip += QApplication::translate("UIIndicatorsPool", "<br><nobr><b>%1:</b>&nbsp;%2</nobr>", "Virtualization Stuff LED")
-                      .arg(VBoxGlobal::tr("Processor(s)", "details report")).arg(cpuCount);
+            strFullData += s_strTableRow2.arg(VBoxGlobal::tr("Processor(s)", "details report"), QString::number(cpuCount));
 
         /* Update tool-tip: */
-        setToolTip(tip);
+        setToolTip(s_strTable.arg(strFullData));
         /* Update indicator state: */
         setState(m_pSession->isHWVirtExEnabled());
     }
 };
+
 
 /** UISessionStateStatusBarIndicator extension for Runtime UI: Mouse indicator. */
 class UIIndicatorMouse : public UISessionStateStatusBarIndicator
@@ -891,7 +995,7 @@ public:
 
     /** Constructor, using @a pSession for state-update routine. */
     UIIndicatorMouse(UISession *pSession)
-        : UISessionStateStatusBarIndicator(pSession)
+        : UISessionStateStatusBarIndicator(IndicatorType_Mouse, pSession)
     {
         /* Assign state-icons: */
         setStateIcon(0, UIIconPool::iconSet(":/mouse_disabled_16px.png"));
@@ -925,21 +1029,36 @@ private slots:
 
 private:
 
-    /** Retranslation routine. */
-    void retranslateUi()
-    {
-        setToolTip(QApplication::translate("UIIndicatorsPool",
-                   "Indicates whether the host mouse pointer is captured by the guest OS:<br>"
-                   "<nobr><img src=:/mouse_disabled_16px.png/>&nbsp;&nbsp;pointer is not captured</nobr><br>"
-                   "<nobr><img src=:/mouse_16px.png/>&nbsp;&nbsp;pointer is captured</nobr><br>"
-                   "<nobr><img src=:/mouse_seamless_16px.png/>&nbsp;&nbsp;mouse integration (MI) is On</nobr><br>"
-                   "<nobr><img src=:/mouse_can_seamless_16px.png/>&nbsp;&nbsp;MI is Off, pointer is captured</nobr><br>"
-                   "<nobr><img src=:/mouse_can_seamless_uncaptured_16px.png/>&nbsp;&nbsp;MI is Off, pointer is not captured</nobr><br>"
-                   "Note that the mouse integration feature requires Guest Additions to be installed in the guest OS."));
-    }
-
     /** Update routine. */
-    void updateAppearance() {}
+    void updateAppearance()
+    {
+        const QString strToolTip = QApplication::translate("UIIndicatorsPool",
+                                                           "Indicates whether the host mouse pointer is "
+                                                           "captured by the guest OS:%1", "Mouse tooltip");
+        QString strFullData;
+        strFullData += s_strTableRow3
+            .arg(QString("<img src=:/mouse_disabled_16px.png/>"))
+            .arg(QApplication::translate("UIIndicatorsPool", "pointer is not captured", "Mouse tooltip"));
+        strFullData += s_strTableRow3
+            .arg(QString("<img src=:/mouse_16px.png/>"))
+            .arg(QApplication::translate("UIIndicatorsPool", "pointer is captured", "Mouse tooltip"));
+        strFullData += s_strTableRow3
+            .arg(QString("<img src=:/mouse_seamless_16px.png/>"))
+            .arg(QApplication::translate("UIIndicatorsPool", "mouse integration (MI) is On", "Mouse tooltip"));
+        strFullData += s_strTableRow3
+            .arg(QString("<img src=:/mouse_can_seamless_16px.png/>"))
+            .arg(QApplication::translate("UIIndicatorsPool", "MI is Off, pointer is captured", "Mouse tooltip"));
+        strFullData += s_strTableRow3
+            .arg(QString("<img src=:/mouse_can_seamless_uncaptured_16px.png/>"))
+            .arg(QApplication::translate("UIIndicatorsPool", "MI is Off, pointer is not captured", "Mouse tooltip"));
+        strFullData = s_strTable.arg(strFullData);
+        strFullData += QApplication::translate("UIIndicatorsPool",
+                                               "Note that the mouse integration feature requires Guest "
+                                               "Additions to be installed in the guest OS.", "Mouse tooltip");
+
+        /* Update tool-tip: */
+        setToolTip(strToolTip.arg(strFullData));
+    }
 };
 
 /** UISessionStateStatusBarIndicator extension for Runtime UI: Keyboard indicator. */
@@ -951,7 +1070,7 @@ public:
 
     /** Constructor, using @a pSession for state-update routine. */
     UIIndicatorKeyboard(UISession *pSession)
-        : UISessionStateStatusBarIndicator(pSession)
+        : UISessionStateStatusBarIndicator(IndicatorType_Keyboard, pSession)
     {
         /* Assign state-icons: */
         setStateIcon(0, UIIconPool::iconSet(":/hostkey_16px.png"));
@@ -967,17 +1086,24 @@ public:
 
 private:
 
-    /** Retranslation routine. */
-    void retranslateUi()
-    {
-        setToolTip(QApplication::translate("UIIndicatorsPool",
-                   "Indicates whether the host keyboard is captured by the guest OS:<br>"
-                   "<nobr><img src=:/hostkey_16px.png/>&nbsp;&nbsp;keyboard is not captured</nobr><br>"
-                   "<nobr><img src=:/hostkey_captured_16px.png/>&nbsp;&nbsp;keyboard is captured</nobr>"));
-    }
-
     /** Update routine. */
-    void updateAppearance() {}
+    void updateAppearance()
+    {
+        const QString strToolTip = QApplication::translate("UIIndicatorsPool",
+                                                           "Indicates whether the host keyboard is "
+                                                           "captured by the guest OS:%1", "Keyboard tooltip");
+        QString strFullData;
+        strFullData += s_strTableRow3
+            .arg(QString("<img src=:/hostkey_16px.png/>"))
+            .arg(QApplication::translate("UIIndicatorsPool", "keyboard is not captured", "Keyboard tooltip"));
+        strFullData += s_strTableRow3
+            .arg(QString("<img src=:/hostkey_captured_16px.png/>"))
+            .arg(QApplication::translate("UIIndicatorsPool", "keyboard is captured", "Keyboard tooltip"));
+        strFullData = s_strTable.arg(strFullData);
+
+        /* Update tool-tip: */
+        setToolTip(strToolTip.arg(strFullData));
+    }
 };
 
 /** QITextStatusBarIndicator extension for Runtime UI: Keyboard-extension indicator. */
@@ -991,7 +1117,7 @@ public:
     UIIndicatorKeyboardExtension()
     {
         /* Make sure host-combination label will be updated: */
-        connect(&vboxGlobal().settings(), SIGNAL(propertyChanged(const char *, const char *)),
+        connect(gEDataManager, SIGNAL(sigRuntimeUIHostKeyCombinationChange()),
                 this, SLOT(sltUpdateAppearance()));
         /* Translate finally: */
         retranslateUi();
@@ -1002,7 +1128,7 @@ public slots:
     /** Update routine. */
     void sltUpdateAppearance()
     {
-        setText(UIHostCombo::toReadableString(vboxGlobal().settings().hostCombo()));
+        setText(UIHostCombo::toReadableString(gEDataManager->hostKeyCombination()));
     }
 
 private:
@@ -1254,6 +1380,7 @@ void UIIndicatorsPool::updatePool()
                 case IndicatorType_HardDisks:         m_pool[indicatorType] = new UIIndicatorHardDrive(m_pSession);     break;
                 case IndicatorType_OpticalDisks:      m_pool[indicatorType] = new UIIndicatorOpticalDisks(m_pSession);  break;
                 case IndicatorType_FloppyDisks:       m_pool[indicatorType] = new UIIndicatorFloppyDisks(m_pSession);   break;
+                case IndicatorType_Audio:             m_pool[indicatorType] = new UIIndicatorAudio(m_pSession);         break;
                 case IndicatorType_Network:           m_pool[indicatorType] = new UIIndicatorNetwork(m_pSession);       break;
                 case IndicatorType_USB:               m_pool[indicatorType] = new UIIndicatorUSB(m_pSession);           break;
                 case IndicatorType_SharedFolders:     m_pool[indicatorType] = new UIIndicatorSharedFolders(m_pSession); break;

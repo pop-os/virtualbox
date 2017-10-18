@@ -7,7 +7,7 @@ Test Manager Web-UI - Graph Helpers - Simple/Stub Implementation.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 # Validation Kit imports.
 from common.webutils                    import escapeAttr, escapeElem;
@@ -84,20 +84,25 @@ class WuiHlpBarGraph(WuiHlpGraphBase):
                 cxBar  = int(float(oValue) * self.cxMaxBar / fpMax);
                 sValue = escapeElem(oRow.asValues[j]);
                 sColor = self.kasColors[j % len(self.kasColors)];
+                sInvColor = 'white';
+                if sColor[0] == '#' and len(sColor) == 7:
+                    sInvColor = '#%06x' % (~int(sColor[1:],16) & 0xffffff,);
 
                 sReport += '        <tr><td>\n' \
                            '          <table class="tmbargraphl3" height="100%%" border="0" cellspacing="0" cellpadding="0">\n' \
                            '            <tr>\n';
                 if cPct >= 99:
-                    sReport += '              <td width="%spx" nowrap bgcolor="%s" align="right">%s&nbsp;</td>\n' \
-                             % (cxBar, sColor, sValue);
+                    sReport += '              <td width="%spx" nowrap bgcolor="%s" align="right" style="color:%s;">' \
+                               '%s&nbsp;</td>\n' \
+                             % (cxBar, sColor, sInvColor, sValue);
                 elif cPct < 1:
                     sReport += '              <td width="%spx" nowrap style="color:%s;">%s</td>\n' \
                              % (self.cxMaxBar - cxBar, sColor, sValue);
                 elif cPct >= 50:
-                    sReport += '              <td width="%spx" nowrap bgcolor="%s" align="right">%s&nbsp;</td>\n' \
+                    sReport += '              <td width="%spx" nowrap bgcolor="%s" align="right" style="color:%s;">' \
+                               '%s&nbsp;</td>\n' \
                                '              <td width="%spx" nowrap><div>&nbsp;</div></td>\n' \
-                             % (cxBar, sColor, sValue, self.cxMaxBar - cxBar);
+                             % (cxBar, sColor, sInvColor, sValue, self.cxMaxBar - cxBar);
                 else:
                     sReport += '              <td width="%spx" nowrap bgcolor="%s"></td>\n' \
                                '              <td width="%spx" nowrap>&nbsp;%s</td>\n' \

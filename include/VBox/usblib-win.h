@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -301,9 +301,9 @@ USBLIB_DECL(int) USBLibGetDevices(PUSBDEVICE *ppDevices, uint32_t *pcbNumDevices
 
 USBLIB_DECL(int) USBLibWaitChange(RTMSINTERVAL cMillies);
 
-USBLIB_DECL(int) USBLibInterruptWaitChange();
+USBLIB_DECL(int) USBLibInterruptWaitChange(void);
 
-USBLIB_DECL(int) USBLibRunFilters();
+USBLIB_DECL(int) USBLibRunFilters(void);
 
 /** @} */
 #endif

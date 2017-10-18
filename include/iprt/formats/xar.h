@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2013-2016 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,6 +27,14 @@
 #ifndef ___iprt_formats_xar_h
 #define ___iprt_formats_xar_h
 
+#include <iprt/types.h>
+#include <iprt/assertcompile.h>
+
+
+/** @defgroup grp_rt_formats_xar   Extensible Archive (XAR) format
+ * @ingroup grp_rt_formats
+ *
+ * @{ */
 
 #pragma pack(4) /* Misdesigned header, not 8-byte aligned size. */
 typedef struct XARHEADER
@@ -45,6 +53,7 @@ typedef struct XARHEADER
     uint32_t    uHashFunction;
 } XARHEADER;
 #pragma pack()
+AssertCompileSize(XARHEADER, 28);
 /** Pointer to a XAR header. */
 typedef XARHEADER *PXARHEADER;
 /** Pointer to a const XAR header. */
@@ -63,6 +72,7 @@ typedef XARHEADER const *PCXARHEADER;
 #define XAR_HASH_MAX            2
 /** @} */
 
+/** @} */
 
 #endif
 

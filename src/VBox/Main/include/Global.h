@@ -90,6 +90,12 @@ public:
     static const char *OSTypeId(VBOXOSTYPE aOSType);
 
     /**
+     * Maps an OS type ID string to index into sOSTypes.
+     * @returns index on success, UINT32_MAX if not found.
+     */
+    static uint32_t getOSTypeIndexFromId(const char *pszId);
+
+    /**
      * Get the network adapter limit for each chipset type.
      */
     static uint32_t getMaxNetworkAdapters(ChipsetType_T aChipsetType);
@@ -98,7 +104,7 @@ public:
      * Returns @c true if the given machine state is an online state. This is a
      * recommended way to detect if the VM is online (being executed in a
      * dedicated process) or not. Note that some online states are also
-     * transitional states (see #IsTransitional()).
+     * transitional states (see #IsTransient()).
      */
     static bool IsOnline(MachineState_T aState)
     {
@@ -121,7 +127,7 @@ public:
 
     /**
      * Shortcut to <tt>IsOnline(aState) || IsTransient(aState)</tt>. When it returns
-     * @false, the VM is turned off (no VM process) and not busy with
+     * @c false, the VM is turned off (no VM process) and not busy with
      * another exclusive operation.
      */
     static bool IsOnlineOrTransient(MachineState_T aState)

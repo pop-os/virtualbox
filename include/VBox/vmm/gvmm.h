@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2016 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -159,26 +159,28 @@ GVMMR0DECL(int)     GVMMR0SetConfig(PSUPDRVSESSION pSession, const char *pszName
 GVMMR0DECL(int)     GVMMR0QueryConfig(PSUPDRVSESSION pSession, const char *pszName, uint64_t *pu64Value);
 
 GVMMR0DECL(int)     GVMMR0CreateVM(PSUPDRVSESSION pSession, uint32_t cCpus, PVM *ppVM);
-GVMMR0DECL(int)     GVMMR0InitVM(PVM pVM);
-GVMMR0DECL(void)    GVMMR0DoneInitVM(PVM pVM);
-GVMMR0DECL(bool)    GVMMR0DoingTermVM(PVM pVM, PGVM pGVM);
+GVMMR0DECL(int)     GVMMR0InitVM(PGVM pGVM);
+GVMMR0DECL(void)    GVMMR0DoneInitVM(PGVM pGVM);
+GVMMR0DECL(bool)    GVMMR0DoingTermVM(PGVM pGVM);
 GVMMR0DECL(int)     GVMMR0DestroyVM(PGVM pGVM, PVM pVM);
 GVMMR0DECL(int)     GVMMR0RegisterVCpu(PGVM pGVM, PVM pVM, VMCPUID idCpu);
+GVMMR0DECL(int)     GVMMR0DeregisterVCpu(PGVM pGVM, PVM pVM, VMCPUID idCpu);
 GVMMR0DECL(PGVM)    GVMMR0ByHandle(uint32_t hGVM);
-GVMMR0DECL(int)     GVMMR0ByVM(PVM pVM, PGVM *ppGVM);
-GVMMR0DECL(int)     GVMMR0ByVMAndEMT(PVM pVM, VMCPUID idCpu, PGVM *ppGVM);
-GVMMR0DECL(PVM)     GVMMR0GetVMByHandle(uint32_t hGVM);
+GVMMR0DECL(int)     GVMMR0ValidateGVMandVM(PGVM pGVM, PVM pVM);
+GVMMR0DECL(int)     GVMMR0ValidateGVMandVMandEMT(PGVM pGVM, PVM pVM, VMCPUID idCpu);
 GVMMR0DECL(PVM)     GVMMR0GetVMByEMT(RTNATIVETHREAD hEMT);
-GVMMR0DECL(int)     GVMMR0SchedHalt(PVM pVM, VMCPUID idCpu, uint64_t u64ExpireGipTime);
-GVMMR0DECL(int)     GVMMR0SchedWakeUp(PVM pVM, VMCPUID idCpu);
-GVMMR0DECL(int)     GVMMR0SchedWakeUpEx(PVM pVM, VMCPUID idCpu, bool fTakeUsedLock);
-GVMMR0DECL(int)     GVMMR0SchedPoke(PVM pVM, VMCPUID idCpu);
-GVMMR0DECL(int)     GVMMR0SchedPokeEx(PVM pVM, VMCPUID idCpu, bool fTakeUsedLock);
-GVMMR0DECL(int)     GVMMR0SchedWakeUpAndPokeCpus(PVM pVM, PCVMCPUSET pSleepSet, PCVMCPUSET pPokeSet);
-GVMMR0DECL(int)     GVMMR0SchedPoll(PVM pVM, VMCPUID idCpu, bool fYield);
+GVMMR0DECL(int)     GVMMR0SchedHalt(PGVM pGVM, PVM pVM, VMCPUID idCpu, uint64_t u64ExpireGipTime);
+GVMMR0DECL(int)     GVMMR0SchedWakeUp(PGVM pGVM, PVM pVM, VMCPUID idCpu);
+GVMMR0DECL(int)     GVMMR0SchedWakeUpEx(PGVM pGVM, PVM pVM, VMCPUID idCpu, bool fTakeUsedLock);
+GVMMR0DECL(int)     GVMMR0SchedWakeUpNoGVMNoLock(PVM pVM, VMCPUID idCpu);
+GVMMR0DECL(int)     GVMMR0SchedPoke(PGVM pGVM, PVM pVM, VMCPUID idCpu);
+GVMMR0DECL(int)     GVMMR0SchedPokeEx(PGVM pGVM, PVM pVM, VMCPUID idCpu, bool fTakeUsedLock);
+GVMMR0DECL(int)     GVMMR0SchedPokeNoGVMNoLock(PVM pVM, VMCPUID idCpu);
+GVMMR0DECL(int)     GVMMR0SchedWakeUpAndPokeCpus(PGVM pGVM, PVM pVM, PCVMCPUSET pSleepSet, PCVMCPUSET pPokeSet);
+GVMMR0DECL(int)     GVMMR0SchedPoll(PGVM pGVM, PVM pVM, VMCPUID idCpu, bool fYield);
 GVMMR0DECL(void)    GVMMR0SchedUpdatePeriodicPreemptionTimer(PVM pVM, RTCPUID idHostCpu, uint32_t uHz);
-GVMMR0DECL(int)     GVMMR0QueryStatistics(PGVMMSTATS pStats, PSUPDRVSESSION pSession, PVM pVM);
-GVMMR0DECL(int)     GVMMR0ResetStatistics(PCGVMMSTATS pStats, PSUPDRVSESSION pSession, PVM pVM);
+GVMMR0DECL(int)     GVMMR0QueryStatistics(PGVMMSTATS pStats, PSUPDRVSESSION pSession, PGVM pGVM, PVM pVM);
+GVMMR0DECL(int)     GVMMR0ResetStatistics(PCGVMMSTATS pStats, PSUPDRVSESSION pSession, PGVM pGVM, PVM pVM);
 
 
 /**
@@ -219,7 +221,7 @@ typedef struct GVMMSCHEDWAKEUPANDPOKECPUSREQ /* nice and unreadable... */
 /** Pointer to a GVMMR0QueryStatisticsReq / VMMR0_DO_GVMM_QUERY_STATISTICS request buffer. */
 typedef GVMMSCHEDWAKEUPANDPOKECPUSREQ *PGVMMSCHEDWAKEUPANDPOKECPUSREQ;
 
-GVMMR0DECL(int)     GVMMR0SchedWakeUpAndPokeCpusReq(PVM pVM, PGVMMSCHEDWAKEUPANDPOKECPUSREQ pReq);
+GVMMR0DECL(int)     GVMMR0SchedWakeUpAndPokeCpusReq(PGVM pGVM, PVM pVM, PGVMMSCHEDWAKEUPANDPOKECPUSREQ pReq);
 
 
 /**
@@ -238,7 +240,7 @@ typedef struct GVMMQUERYSTATISTICSSREQ
 /** Pointer to a GVMMR0QueryStatisticsReq / VMMR0_DO_GVMM_QUERY_STATISTICS request buffer. */
 typedef GVMMQUERYSTATISTICSSREQ *PGVMMQUERYSTATISTICSSREQ;
 
-GVMMR0DECL(int)     GVMMR0QueryStatisticsReq(PVM pVM, PGVMMQUERYSTATISTICSSREQ pReq, PSUPDRVSESSION pSession);
+GVMMR0DECL(int)     GVMMR0QueryStatisticsReq(PGVM pGVM, PVM pVM, PGVMMQUERYSTATISTICSSREQ pReq, PSUPDRVSESSION pSession);
 
 
 /**
@@ -258,7 +260,7 @@ typedef struct GVMMRESETSTATISTICSSREQ
 /** Pointer to a GVMMR0ResetStatisticsReq / VMMR0_DO_GVMM_RESET_STATISTICS request buffer. */
 typedef GVMMRESETSTATISTICSSREQ *PGVMMRESETSTATISTICSSREQ;
 
-GVMMR0DECL(int)     GVMMR0ResetStatisticsReq(PVM pVM, PGVMMRESETSTATISTICSSREQ pReq, PSUPDRVSESSION pSession);
+GVMMR0DECL(int)     GVMMR0ResetStatisticsReq(PGVM pGVM, PVM pVM, PGVMMRESETSTATISTICSSREQ pReq, PSUPDRVSESSION pSession);
 
 
 /** @} */

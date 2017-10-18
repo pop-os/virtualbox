@@ -20,7 +20,6 @@
 
 /* Qt includes: */
 #include <QWidget>
-#include <QListView>
 
 /* COM includes: */
 #include "COMEnums.h"
@@ -31,6 +30,7 @@
 class QVBoxLayout;
 class UIInformationView;
 class UIInformationModel;
+
 
 /** QWidget extension
   * providing GUI with configuration-information tab in session-information window. */
@@ -47,8 +47,8 @@ public:
 
 private:
 
-    /** Prepares main-layout. */
-    void prepareMainLayout();
+    /** Prepares layout. */
+    void prepareLayout();
 
     /** Prepares model. */
     void prepareModel();
@@ -60,7 +60,7 @@ private:
     CMachine m_machine;
     /** Holds the console instance. */
     CConsole m_console;
-    /** Holds the instance of main-layout we create. */
+    /** Holds the instance of layout we create. */
     QVBoxLayout *m_pMainLayout;
     /** Holds the instance of model we create. */
     UIInformationModel *m_pModel;

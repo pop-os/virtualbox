@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016 Oracle Corporation
+ * Copyright (C) 2016-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -62,6 +62,7 @@
 #define XAPIC_IN_X2APIC_MODE(a_pVCpu)        (   (  ((a_pVCpu)->apic.s.uApicBaseMsr) \
                                                   & (MSR_IA32_APICBASE_EN | MSR_IA32_APICBASE_EXTD)) \
                                               ==    (MSR_IA32_APICBASE_EN | MSR_IA32_APICBASE_EXTD) )
+
 /** Get an xAPIC page offset for an x2APIC MSR value. */
 #define X2APIC_GET_XAPIC_OFF(a_uMsr)         ((((a_uMsr) - MSR_IA32_X2APIC_START) << 4) & UINT32_C(0xff0))
 /** Get an x2APIC MSR for an xAPIC page offset. */
@@ -1040,6 +1041,8 @@ typedef enum APICMSRACCESS
     APICMSRACCESS_WRITE_INVALID,
     /** MSR write disallowed due to incompatible config. */
     APICMSRACCESS_WRITE_DISALLOWED_CONFIG,
+    /** MSR read disallowed due to incompatible config. */
+    APICMSRACCESS_READ_DISALLOWED_CONFIG,
     /* Count of enum members (don't use). */
     APICMSRACCESS_COUNT
 } APICMSRACCESS;
@@ -1069,15 +1072,6 @@ typedef enum XAPICTIMERMODE
  * See Intel spec. 10.6.1 "Interrupt Command Register (ICR)".
  * See Intel spec. 10.5.1 "Local Vector Table".
  * @{ */
-/**
- * xAPIC trigger mode.
- */
-typedef enum XAPICTRIGGERMODE
-{
-    XAPICTRIGGERMODE_EDGE = 0,
-    XAPICTRIGGERMODE_LEVEL
-} XAPICTRIGGERMODE;
-
 /**
  * xAPIC destination shorthand.
  */
@@ -1122,17 +1116,30 @@ typedef enum XAPICDELIVERYMODE
 } XAPICDELIVERYMODE;
 /** @} */
 
+/** @def APIC_CACHE_LINE_SIZE
+ * Padding (in bytes) for aligning data in different cache lines. Present
+ * generation x86 CPUs use 64-byte cache lines[1]. However, Intel NetBurst
+ * architecture supposedly uses 128-byte cache lines[2]. Since 128 is a
+ * multiple of 64, we use the larger one here.
+ *
+ * [1] - Intel spec "Table 11-1. Characteristics of the Caches, TLBs, Store
+ *       Buffer, and Write Combining Buffer in Intel 64 and IA-32 Processors"
+ * [2] - Intel spec. 8.10.6.7 "Place Locks and Semaphores in Aligned, 128-Byte
+ *       Blocks of Memory".
+ */
+#define APIC_CACHE_LINE_SIZE              128
+
 /**
  * APIC Pending-Interrupt Bitmap (PIB).
  */
 typedef struct APICPIB
 {
-    uint64_t volatile aVectorBitmap[4];
+    uint64_t volatile au64VectorBitmap[4];
     uint32_t volatile fOutstandingNotification;
-    uint8_t           au8Reserved[28];
+    uint8_t           au8Reserved[APIC_CACHE_LINE_SIZE - sizeof(uint32_t) - (sizeof(uint64_t) * 4)];
 } APICPIB;
 AssertCompileMemberOffset(APICPIB, fOutstandingNotification, 256 / 8);
-AssertCompileSize(APICPIB, 64);
+AssertCompileSize(APICPIB, APIC_CACHE_LINE_SIZE);
 /** Pointer to a pending-interrupt bitmap. */
 typedef APICPIB *PAPICPIB;
 /** Pointer to a const pending-interrupt bitmap. */
@@ -1145,30 +1152,16 @@ typedef struct APICDEV
 {
     /** The device instance - R3 Ptr. */
     PPDMDEVINSR3                pDevInsR3;
-    /** The APIC helpers - R3 Ptr. */
-    PCPDMAPICHLPR3              pApicHlpR3;
-    /** The PDM critical section - R3 Ptr. */
-    R3PTRTYPE(PPDMCRITSECT)     pCritSectR3;
     /** Alignment padding. */
     R3PTRTYPE(void *)           pvAlignment0;
 
     /** The device instance - R0 Ptr. */
     PPDMDEVINSR0                pDevInsR0;
-    /** The APIC helpers - R0 Ptr. */
-    PCPDMAPICHLPR0              pApicHlpR0;
-    /** The PDM critical section - R0 Ptr. */
-    R0PTRTYPE(PPDMCRITSECT)     pCritSectR0;
     /** Alignment padding. */
     R0PTRTYPE(void *)           pvAlignment1;
 
     /** The device instance - RC Ptr. */
     PPDMDEVINSRC                pDevInsRC;
-    /** The APIC helpers - RC Ptr. */
-    PCPDMAPICHLPRC              pApicHlpRC;
-    /** The PDM critical section - RC Ptr. */
-    RCPTRTYPE(PPDMCRITSECT) pCritSectRC;
-    /** Alignment padding. */
-    RCPTRTYPE(void *)           pvAlignment2;
 } APICDEV;
 /** Pointer to an APIC device. */
 typedef APICDEV *PAPICDEV;
@@ -1226,16 +1219,24 @@ typedef struct APIC
     bool                        fIoApicPresent;
     /** Whether RZ is enabled or not (applies to MSR handling as well). */
     bool                        fRZEnabled;
+    /** Whether Hyper-V x2APIC compatibility mode is enabled. */
+    bool                        fHyperVCompatMode;
     /** Alignment padding. */
-    bool                        afAlignment0[7];
+    bool                        afAlignment[2];
     /** The max supported APIC mode from CFGM.  */
     PDMAPICMODE                 enmMaxMode;
+    /** Alignment padding. */
+    uint32_t                    u32Alignment1;
     /** @} */
 } APIC;
 /** Pointer to APIC VM instance data. */
 typedef APIC *PAPIC;
 /** Pointer to const APIC VM instance data. */
 typedef APIC const *PCAPIC;
+AssertCompileMemberAlignment(APIC, cbApicPib, 8);
+AssertCompileMemberAlignment(APIC, fVirtApicRegsEnabled, 8);
+AssertCompileMemberAlignment(APIC, enmMaxMode, 8);
+AssertCompileSizeAlignment(APIC, 8);
 
 /**
  * APIC VMCPU Instance data.
@@ -1284,12 +1285,18 @@ typedef struct APICCPU
     RTRCPTR                     RCPtrAlignment1;
     /** The APIC PIB for level-sensitive interrupts. */
     APICPIB                     ApicPibLevel;
+    /** @} */
+
+    /** @name Other miscellaneous data.
+     * @{ */
     /** Whether the LINT0 interrupt line is active. */
     bool volatile               fActiveLint0;
     /** Whether the LINT1 interrupt line is active. */
     bool volatile               fActiveLint1;
     /** Alignment padding. */
     uint8_t                     auAlignment0[6];
+    /** The source tags corresponding to each interrupt vector (debugging). */
+    uint32_t                    auSrcTags[256];
     /** @} */
 
     /** @name The APIC timer.
@@ -1360,6 +1367,10 @@ typedef struct APICCPU
     STAMCOUNTER                 StatTimerIcrWrite;
     /** Number of times the ICR Lo (send IPI) is written. */
     STAMCOUNTER                 StatIcrLoWrite;
+    /** Number of times the ICR Hi is written. */
+    STAMCOUNTER                 StatIcrHiWrite;
+    /** Number of times the full ICR (x2APIC send IPI) is written. */
+    STAMCOUNTER                 StatIcrFullWrite;
     /** @} */
 #endif
 } APICCPU;
@@ -1430,9 +1441,9 @@ APICBOTHCBDECL(VBOXSTRICTRC)  apicWriteMsr(PPDMDEVINS pDevIns, PVMCPU pVCpu, uin
 APICBOTHCBDECL(int)           apicGetInterrupt(PPDMDEVINS pDevIns,  PVMCPU pVCpu, uint8_t *puVector, uint32_t *puTagSrc);
 APICBOTHCBDECL(VBOXSTRICTRC)  apicLocalInterrupt(PPDMDEVINS pDevIns, PVMCPU pVCpu, uint8_t u8Pin, uint8_t u8Level, int rcRZ);
 APICBOTHCBDECL(int)           apicBusDeliver(PPDMDEVINS pDevIns, uint8_t uDest, uint8_t uDestMode, uint8_t uDeliveryMode,
-                                             uint8_t uVector, uint8_t uPolarity, uint8_t uTriggerMode, uint32_t uTagSrc);
+                                             uint8_t uVector, uint8_t uPolarity, uint8_t uTriggerMode, uint32_t uSrcTag);
 
-VMM_INT_DECL(bool)            apicPostInterrupt(PVMCPU pVCpu, uint8_t uVector, XAPICTRIGGERMODE enmTriggerMode);
+VMM_INT_DECL(bool)            apicPostInterrupt(PVMCPU pVCpu, uint8_t uVector, XAPICTRIGGERMODE enmTriggerMode, uint32_t uSrcTag);
 VMM_INT_DECL(void)            apicStartTimer(PVMCPU pVCpu, uint32_t uInitialCount);
 VMM_INT_DECL(void)            apicStopTimer(PVMCPU pVCpu);
 VMM_INT_DECL(void)            apicSetInterruptFF(PVMCPU pVCpu, PDMAPICIRQ enmType);

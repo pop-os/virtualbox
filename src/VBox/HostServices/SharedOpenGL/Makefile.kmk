@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2008-2016 Oracle Corporation
+# Copyright (C) 2008-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -58,6 +58,7 @@ ifdef VBOX_WITH_XPCOM
 endif
 VBoxSharedCrOpenGL_INTERMEDIATES = \
 	$(TEMPLATE_VBOXMAINEXE_INTERMEDIATES)
+VBoxSharedCrOpenGL_INCS = $(VBOX_GRAPHICS_INCS)
 VBoxSharedCrOpenGL_INCS.win = \
 	$(VBOX_PATH_SDK)/bindings/mscom/include
 ifdef VBOX_WITH_XPCOM
@@ -105,7 +106,8 @@ endif
 VBoxOGLcrserverlib_TEMPLATE = VBOXCROGLR3HOSTLIB
 VBoxOGLcrserverlib_INCS  = \
 	. \
-	crserverlib
+	crserverlib \
+	$(VBOX_GRAPHICS_INCS)
 VBoxOGLcrserverlib_INTERMEDIATES = \
 	$(VBOX_PATH_CROGL_GENFILES)/spu_dispatch_table.h \
 	$(VBOX_PATH_CROGL_GENFILES)/server_dispatch.h \
@@ -211,7 +213,8 @@ $(VBOX_PATH_CROGL_GENFILES)/server_simpleget.c: $(addprefix $(PATH_SUB_CURRENT)/
 #
 VBoxOGLcrunpacker_TEMPLATE       = VBOXCROGLR3HOSTLIB
 VBoxOGLcrunpacker_INCS           = \
-	unpacker
+	unpacker \
+	$(VBOX_GRAPHICS_INCS)
 VBoxOGLcrunpacker_INTERMEDIATES  = \
 	$(VBOX_PATH_CROGL_GENFILES)/spu_dispatch_table.h \
 	$(VBOX_PATH_CROGL_GENFILES)/cr_opcodes.h \
@@ -363,6 +366,7 @@ VBoxOGLrenderspu_TEMPLATE = VBOXCROGLR3HOSTDLL
 VBoxOGLrenderspu_INTERMEDIATES = \
 	$(VBOX_PATH_CROGL_GENFILES)/state/cr_currentpointers.h \
 	$(VBOX_PATH_CROGL_GENFILES)/state/cr_statefuncs.h
+VBoxOGLrenderspu_INCS = $(VBOX_GRAPHICS_INCS)
 VBoxOGLrenderspu_SOURCES = \
 	render/renderspu.c \
 	render/renderspu_config.c \
@@ -415,11 +419,7 @@ if (   defined(VBOX_WITH_QTGUI) \
     && !defined(VBOX_WITH_DEBUG_VCC_CRT))
  ifneq ($(KBUILD_TARGET),darwin)
   ifdef VBOX_WITH_VIDEOHWACCEL
-   ifndef VBOX_WITH_QTGUI_V5
-    USES += qt4
-   else # VBOX_WITH_QTGUI_V5
-    USES += qt5
-   endif # VBOX_WITH_QTGUI_V5
+   USES += qt5
   endif
   PROGRAMS += VBoxTestOGL
   VBoxTestOGL_TEMPLATE = $(if $(VBOX_WITH_VIDEOHWACCEL),$(if $(VBOX_WITH_HARDENING),VBOXQTGUI,VBOXQTGUIEXE),VBOXMAINEXE)
@@ -434,17 +434,12 @@ if (   defined(VBOX_WITH_QTGUI) \
   VBoxTestOGL_DEFS += \
     VBOX_BUILD_TARGET=\"$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)\" \
     $(if $(VBOX_WITH_CROGL), VBOX_WITH_CROGL,) \
-    $(if $(VBOX_WITH_VIDEOHWACCEL), VBOX_WITH_VIDEOHWACCEL,) \
-    $(if $(VBOX_BLEEDING_EDGE),VBOX_BLEEDING_EDGE=\"$(VBOX_BLEEDING_EDGE)\",)
+    $(if $(VBOX_WITH_VIDEOHWACCEL), VBOX_WITH_VIDEOHWACCEL,)
   ifdef VBOX_WITH_VIDEOHWACCEL
-   VBoxTestOGL_QT_MODULES     += Core Gui OpenGL
-   ifdef VBOX_WITH_QTGUI_V5
-    # Qt5 requires additional modules:
-    VBoxTestOGL_QT_MODULES += Widgets
-    VBoxTestOGL_LIBS.linux   += xcb
-    VBoxTestOGL_LIBS.solaris += xcb
-    VBoxTestOGL_LIBS.freebsd += xcb
-   endif # VBOX_WITH_QTGUI_V5
+   VBoxTestOGL_QT_MODULES   += Core Gui OpenGL Widgets
+   VBoxTestOGL_LIBS.linux   += xcb
+   VBoxTestOGL_LIBS.solaris += xcb
+   VBoxTestOGL_LIBS.freebsd += xcb
    VBoxTestOGL_LDFLAGS.darwin += -framework OpenGL
    VBoxTestOGL_LIBS.win       += $(PATH_SDK_$(VBOX_WINPSDK)_LIB)/Opengl32.lib
    if1of ($(KBUILD_TARGET), solaris linux freebsd)

@@ -392,7 +392,7 @@
           </listitem>
 
           <listitem>
-            <para>Do<screen>for %i in (vbox*.cer) do VBoxCertUtil add-trusted-publisher %i --root %i</screen></para>
+            <para>Do<screen>VBoxCertUtil.exe add-trusted-publisher vbox*.cer --root vbox*.cer</screen></para>
             <para>This will install the certificates to the certificate store. When installing the same certificate
             more than once, an appropriate error will be displayed.</para>
           </listitem>
@@ -1067,7 +1067,7 @@ $</screen>
 
     <para>For security reasons drag and drop can be configured at runtime on a
     per-VM basis either using the "Drag and Drop" menu item in the "Devices" menu
-    of the virtual machine or VBoxManage: The following four modes are
+    of the virtual machine or VBoxManage. The following four modes are
     available:</para>
 
     <para><mediaobject>

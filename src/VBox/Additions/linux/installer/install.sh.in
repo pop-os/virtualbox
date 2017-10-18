@@ -20,8 +20,9 @@
 # * After successful installation, 0 is returned if the vboxguest module version
 #   built matches the one loaded and 2 is returned otherwise.  E.g. VBoxClient
 #   running will prevent vboxguest reloading.
-# * If the kernel modules cannot be built (run the installer with KERN_DIR=/) or
-#   loaded (run with KERN_VER=<installed non-current version>) then 1 is returned.
+# * If the kernel modules cannot be built (run the installer with KERN_VER=none)
+#   or loaded (run with KERN_VER=<installed non-current version>) then 1 is
+#   returned.
 
 PATH=$PATH:/bin:/sbin:/usr/sbin
 
@@ -31,9 +32,7 @@ PACKAGE_NAME="VirtualBox Guest Additions"
 UNINSTALL="uninstall.sh"
 PUBLIC_UNINSTALL_HOOK="/usr/sbin/vbox-uninstall-guest-additions"
 ROUTINES="routines.sh"
-ARCH="_ARCH_"
 INSTALLATION_VER="_VERSION_"
-INSTALLATION_REV="_SVNREV_"
 BUILD_TYPE="_BUILDTYPE_"
 USERNAME="_USERNAME_"
 UNINSTALL_SCRIPTS="vboxadd-x11 vboxvfs vboxadd-timesync vboxadd-service vboxadd"
@@ -43,7 +42,7 @@ CONFIG_DIR="/var/lib/$PACKAGE"
 CONFIG="config"
 CONFIG_FILES="filelist"
 SELF=$1
-LOGFILE="/var/log/$PACKAGE.log"
+LOGFILE="/var/log/vboxadd-install.log"
 
 ## Were we able to stop any previously running Additions kernel modules?
 MODULES_STOPPED=1
@@ -389,7 +388,6 @@ link_into_fs "bin" "/usr/bin"
 link_into_fs "sbin" "/usr/sbin"
 link_into_fs "lib" "$lib_path"
 add_symlink "$INSTALLATION_DIR/lib/$PACKAGE" /usr/lib/"$PACKAGE"
-link_into_fs "share" "/usr/share"
 link_into_fs "src" "/usr/src"
 
 if [ -d "$INSTALLATION_MODULES_DIR" ]; then
@@ -426,7 +424,6 @@ INSTALL_MODULES_LIST='$INSTALLATION_MODULES_LIST'
 UNINSTALLER='$UNINSTALL'
 # Package version
 INSTALL_VER='$INSTALLATION_VER'
-INSTALL_REV='$INSTALLATION_REV'
 # Build type and user name for logging purposes
 BUILD_TYPE='$BUILD_TYPE'
 USERNAME='$USERNAME'
@@ -442,22 +439,13 @@ if [ -n "${INSTALLATION_MODULES_LIST}" ]; then
   done
 fi
 
-# Install, set up and start init scripts.
-# Note: vboxadd-x11 must come first because it's called by vboxadd!
-for i in "$INSTALLATION_DIR/init/vboxadd-x11" \
-    "$INSTALLATION_DIR/init/vboxadd" "$INSTALLATION_DIR/init/vboxadd-service"; do
-  if test -r "$i"; then
+"$INSTALLATION_DIR/init/vboxadd" setup 1>&2 2>> "${LOGFILE}"
+
+# Install, set up and start init scripts
+for i in "$INSTALLATION_DIR/init/vboxadd" "$INSTALLATION_DIR/init/vboxadd-service"; do
     install_init_script "$i" "`basename "$i"`" 2>> "${LOGFILE}"
     addrunlevel "`basename "$i"`" 2>> "${LOGFILE}"
-    if test -n "$DO_SETUP" && grep -q '^# *setup_script *$' "${i}"; then
-        if "${i}" setup 1>&2 2>> "${LOGFILE}"; then
-            start_init_script "`basename "$i"`" 2>> "${LOGFILE}"
-        else
-            echo 1>&2 "Failed to set up service `basename "$i"`, please check the log file"
-            echo 1>&2 "${LOGFILE} for details."
-        fi
-    fi
-  fi
+    start_init_script "`basename "$i"`" 2>> "${LOGFILE}"
 done
 
 cp $ROUTINES $INSTALLATION_DIR
@@ -467,7 +455,7 @@ cat > $INSTALLATION_DIR/$UNINSTALL << EOF
 # Auto-generated uninstallation file
 
 PATH=\$PATH:/bin:/sbin:/usr/sbin
-LOGFILE="/var/log/$PACKAGE-uninstall.log"
+LOGFILE="/var/log/vboxadd-uninstall.log"
 
 # Read routines.sh
 if ! test -r "$INSTALLATION_DIR/$ROUTINES"; then
@@ -492,8 +480,7 @@ fi
 test -r "$CONFIG_DIR/$CONFIG_FILES" || abort "Required file $CONFIG_FILES not found.  Aborting..."
 
 # Stop and clean up all services
-for i in "$INSTALLATION_DIR/init/vboxadd-x11" "$INSTALLATION_DIR/init/vboxadd-service" \
-    "$INSTALLATION_DIR/init/vboxadd"; do
+for i in "$INSTALLATION_DIR/init/vboxadd-service" "$INSTALLATION_DIR/init/vboxadd"; do
     if test -r "\$i"; then
         stop_init_script "\`basename "\$i"\`" 2>> "${LOGFILE}"
         test -z "\${NO_CLEANUP}" && grep -q '^# *cleanup_script *$' "\${i}" && "\${i}" cleanup 2>> "\$LOGFILE"

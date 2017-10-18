@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016 Oracle Corporation
+ * Copyright (C) 2016-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,9 +52,13 @@
 #ifdef VBOX_WITH_STATISTICS
 # define X2APIC_MSRRANGE(a_uFirst, a_uLast, a_szName) \
     { (a_uFirst), (a_uLast), kCpumMsrRdFn_Ia32X2ApicN, kCpumMsrWrFn_Ia32X2ApicN, 0, 0, 0, 0, 0, a_szName, { 0 }, { 0 }, { 0 }, { 0 } }
+# define X2APIC_MSRRANGE_INVALID(a_uFirst, a_uLast, a_szName) \
+    { (a_uFirst), (a_uLast), kCpumMsrRdFn_WriteOnly, kCpumMsrWrFn_ReadOnly, 0, 0, 0, 0, UINT64_MAX /*fWrGpMask*/, a_szName, { 0 }, { 0 }, { 0 }, { 0 } }
 #else
 # define X2APIC_MSRRANGE(a_uFirst, a_uLast, a_szName) \
     { (a_uFirst), (a_uLast), kCpumMsrRdFn_Ia32X2ApicN, kCpumMsrWrFn_Ia32X2ApicN, 0, 0, 0, 0, 0, a_szName }
+# define X2APIC_MSRRANGE_INVALID(a_uFirst, a_uLast, a_szName) \
+    { (a_uFirst), (a_uLast), kCpumMsrRdFn_WriteOnly, kCpumMsrWrFn_ReadOnly, 0, 0, 0, 0, UINT64_MAX /*fWrGpMask*/, a_szName }
 #endif
 
 
@@ -66,7 +70,9 @@
  * See Intel spec. 10.12.2 "x2APIC Register Availability".
  */
 static CPUMMSRRANGE const g_MsrRange_x2Apic = X2APIC_MSRRANGE(MSR_IA32_X2APIC_START, MSR_IA32_X2APIC_END, "x2APIC range");
+static CPUMMSRRANGE const g_MsrRange_x2Apic_Invalid = X2APIC_MSRRANGE_INVALID(MSR_IA32_X2APIC_START, MSR_IA32_X2APIC_END, "x2APIC range invalid");
 #undef X2APIC_MSRRANGE
+#undef X2APIC_MSRRANGE_GP
 
 /** Saved state field descriptors for XAPICPAGE. */
 static const SSMFIELD g_aXApicPageFields[] =
@@ -243,6 +249,37 @@ static void apicR3InitIpi(PVMCPU pVCpu)
 
 
 /**
+ * Sets the CPUID feature bits for the APIC mode.
+ *
+ * @param   pVM             The cross context VM structure.
+ * @param   enmMode         The APIC mode.
+ */
+static void apicR3SetCpuIdFeatureLevel(PVM pVM, PDMAPICMODE enmMode)
+{
+    switch (enmMode)
+    {
+        case PDMAPICMODE_NONE:
+            CPUMR3ClearGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_X2APIC);
+            CPUMR3ClearGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_APIC);
+            break;
+
+        case PDMAPICMODE_APIC:
+            CPUMR3ClearGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_X2APIC);
+            CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_APIC);
+            break;
+
+        case PDMAPICMODE_X2APIC:
+            CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_APIC);
+            CPUMR3SetGuestCpuIdFeature(pVM, CPUMCPUIDFEATURE_X2APIC);
+            break;
+
+        default:
+            AssertMsgFailed(("Unknown/invalid APIC mode: %d\n", (int)enmMode));
+    }
+}
+
+
+/**
  * Resets the APIC base MSR.
  *
  * @param   pVCpu           The cross context virtual CPU structure.
@@ -354,6 +391,29 @@ VMMR3_INT_DECL(void) APICR3InitIpi(PVMCPU pVCpu)
 
 
 /**
+ * Sets whether Hyper-V compatibility mode (MSR interface) is enabled or not.
+ *
+ * This mode is a hybrid of xAPIC and x2APIC modes, some caveats:
+ * 1. MSRs are used even ones that are missing (illegal) in x2APIC like DFR.
+ * 2. A single ICR is used by the guest to send IPIs rather than 2 ICR writes.
+ * 3. It is unclear what the behaviour will be when invalid bits are set,
+ *    currently we follow x2APIC behaviour of causing a \#GP.
+ *
+ * @param   pVM                 The cross context VM structure.
+ * @param   fHyperVCompatMode   Whether the compatibility mode is enabled.
+ */
+VMMR3_INT_DECL(void) APICR3HvSetCompatMode(PVM pVM, bool fHyperVCompatMode)
+{
+    Assert(pVM);
+    PAPIC pApic = VM_TO_APIC(pVM);
+    pApic->fHyperVCompatMode = fHyperVCompatMode;
+
+    int rc = CPUMR3MsrRangesInsert(pVM, &g_MsrRange_x2Apic);
+    AssertLogRelRC(rc);
+}
+
+
+/**
  * Helper for dumping an APIC 256-bit sparse register.
  *
  * @param   pApicReg        The APIC 256-bit spare register.
@@ -412,11 +472,11 @@ static void apicR3DbgInfoPib(PCAPICPIB pApicPib, PCDBGFINFOHLP pHlp)
     XAPIC256BITREG ApicReg;
     RT_ZERO(ApicReg);
     ssize_t const cFragmentsDst = RT_ELEMENTS(ApicReg.u);
-    ssize_t const cFragmentsSrc = RT_ELEMENTS(pApicPib->aVectorBitmap);
-    AssertCompile(RT_ELEMENTS(ApicReg.u) == 2 * RT_ELEMENTS(pApicPib->aVectorBitmap));
+    ssize_t const cFragmentsSrc = RT_ELEMENTS(pApicPib->au64VectorBitmap);
+    AssertCompile(RT_ELEMENTS(ApicReg.u) == 2 * RT_ELEMENTS(pApicPib->au64VectorBitmap));
     for (ssize_t idxPib = cFragmentsSrc - 1, idxReg = cFragmentsDst - 1; idxPib >= 0; idxPib--, idxReg -= 2)
     {
-        uint64_t const uFragment   = pApicPib->aVectorBitmap[idxPib];
+        uint64_t const uFragment   = pApicPib->au64VectorBitmap[idxPib];
         uint32_t const uFragmentLo = RT_LO_U32(uFragment);
         uint32_t const uFragmentHi = RT_HI_U32(uFragment);
         ApicReg.u[idxReg].u32Reg     = uFragmentHi;
@@ -1046,23 +1106,6 @@ static int apicR3LoadLegacyVCpuData(PVMCPU pVCpu, PSSMHANDLE pSSM, uint32_t uVer
     return rc;
 }
 
-#if 0 /** @todo not referenced and will cause assertion in apicR3LoadExec (VERR_WRONG_ORDER). */
-/**
- * @copydoc FNSSMDEVLIVEEXEC
- */
-static DECLCALLBACK(int) apicR3LiveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uPass)
-{
-    PAPICDEV pApicDev = PDMINS_2_DATA(pDevIns, PAPICDEV);
-    PVM      pVM      = PDMDevHlpGetVM(pApicDev->pDevInsR3);
-    RT_NOREF1(uPass);
-
-    LogFlow(("APIC: apicR3LiveExec: uPass=%u\n", uPass));
-
-    int rc = apicR3SaveVMData(pVM, pSSM);
-    AssertRCReturn(rc, rc);
-    return VINF_SSM_DONT_CALL_AGAIN;
-}
-#endif
 
 /**
  * @copydoc FNSSMDEVSAVEEXEC
@@ -1242,7 +1285,7 @@ static DECLCALLBACK(void) apicR3TimerCallback(PPDMDEVINS pDevIns, PTMTIMER pTime
     {
         uint8_t uVector = XAPIC_LVT_GET_VECTOR(uLvtTimer);
         Log2(("APIC%u: apicR3TimerCallback: Raising timer interrupt. uVector=%#x\n", pVCpu->idCpu, uVector));
-        apicPostInterrupt(pVCpu, uVector, XAPICTRIGGERMODE_EDGE);
+        apicPostInterrupt(pVCpu, uVector, XAPICTRIGGERMODE_EDGE, 0 /* uSrcTag */);
     }
 
     XAPICTIMERMODE enmTimerMode = XAPIC_LVT_GET_TIMER_MODE(uLvtTimer);
@@ -1315,9 +1358,7 @@ static DECLCALLBACK(void) apicR3Relocate(PPDMDEVINS pDevIns, RTGCINTPTR offDelta
 
     LogFlow(("APIC: apicR3Relocate: pVM=%p pDevIns=%p offDelta=%RGi\n", pVM, pDevIns, offDelta));
 
-    pApicDev->pDevInsRC   = PDMDEVINS_2_RCPTR(pDevIns);
-    pApicDev->pApicHlpRC  = pApicDev->pApicHlpR3->pfnGetRCHelpers(pDevIns);
-    pApicDev->pCritSectRC = pApicDev->pApicHlpR3->pfnGetRCCritSect(pDevIns);
+    pApicDev->pDevInsRC = PDMDEVINS_2_RCPTR(pDevIns);
 
     pApic->pApicDevRC   = PDMINS_2_DATA_RCPTR(pDevIns);
     pApic->pvApicPibRC += offDelta;
@@ -1624,12 +1665,7 @@ static DECLCALLBACK(int) apicR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
     switch ((PDMAPICMODE)uMaxMode)
     {
         case PDMAPICMODE_NONE:
-#if 1
-            /** @todo permanently disabling the APIC won't really work (needs
-             *        fixing in HM, CPUM, PDM and possibly other places). See
-             *        @bugref{8353}. */
-            return VMR3SetError(pVM->pUVM, VERR_INVALID_PARAMETER, RT_SRC_POS, "APIC mode 'none' is not supported yet.");
-#endif
+            LogRel(("APIC: APIC maximum mode configured as 'None', effectively disabled/not-present!\n"));
         case PDMAPICMODE_APIC:
         case PDMAPICMODE_X2APIC:
             break;
@@ -1647,67 +1683,27 @@ static DECLCALLBACK(int) apicR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
     /*
      * Register the APIC with PDM.
      */
-    PDMAPICREG ApicReg;
-    RT_ZERO(ApicReg);
-    ApicReg.u32Version              = PDM_APICREG_VERSION;
-    ApicReg.pfnGetInterruptR3       = apicGetInterrupt;
-    ApicReg.pfnSetBaseMsrR3         = apicSetBaseMsr;
-    ApicReg.pfnGetBaseMsrR3         = apicGetBaseMsr;
-    ApicReg.pfnSetTprR3             = apicSetTpr;
-    ApicReg.pfnGetTprR3             = apicGetTpr;
-    ApicReg.pfnWriteMsrR3           = apicWriteMsr;
-    ApicReg.pfnReadMsrR3            = apicReadMsr;
-    ApicReg.pfnBusDeliverR3         = apicBusDeliver;
-    ApicReg.pfnLocalInterruptR3     = apicLocalInterrupt;
-    ApicReg.pfnGetTimerFreqR3       = apicGetTimerFreq;
-
-    /*
-     * We always require R0 functionality (e.g. apicGetTpr() called by HMR0 VT-x/AMD-V code).
-     * Hence, 'fRZEnabled' strictly only applies to MMIO and MSR read/write handlers returning
-     * to ring-3. We still need other handlers like apicGetTpr() in ring-0 for now.
-     */
-    {
-        ApicReg.pszGetInterruptRC   = "apicGetInterrupt";
-        ApicReg.pszSetBaseMsrRC     = "apicSetBaseMsr";
-        ApicReg.pszGetBaseMsrRC     = "apicGetBaseMsr";
-        ApicReg.pszSetTprRC         = "apicSetTpr";
-        ApicReg.pszGetTprRC         = "apicGetTpr";
-        ApicReg.pszWriteMsrRC       = "apicWriteMsr";
-        ApicReg.pszReadMsrRC        = "apicReadMsr";
-        ApicReg.pszBusDeliverRC     = "apicBusDeliver";
-        ApicReg.pszLocalInterruptRC = "apicLocalInterrupt";
-        ApicReg.pszGetTimerFreqRC   = "apicGetTimerFreq";
-
-        ApicReg.pszGetInterruptR0   = "apicGetInterrupt";
-        ApicReg.pszSetBaseMsrR0     = "apicSetBaseMsr";
-        ApicReg.pszGetBaseMsrR0     = "apicGetBaseMsr";
-        ApicReg.pszSetTprR0         = "apicSetTpr";
-        ApicReg.pszGetTprR0         = "apicGetTpr";
-        ApicReg.pszWriteMsrR0       = "apicWriteMsr";
-        ApicReg.pszReadMsrR0        = "apicReadMsr";
-        ApicReg.pszBusDeliverR0     = "apicBusDeliver";
-        ApicReg.pszLocalInterruptR0 = "apicLocalInterrupt";
-        ApicReg.pszGetTimerFreqR0   = "apicGetTimerFreq";
-    }
-
-    rc = PDMDevHlpAPICRegister(pDevIns, &ApicReg, &pApicDev->pApicHlpR3);
+    rc = PDMDevHlpAPICRegister(pDevIns);
     AssertLogRelRCReturn(rc, rc);
-    pApicDev->pCritSectR3 = pApicDev->pApicHlpR3->pfnGetR3CritSect(pDevIns);
 
     /*
      * Initialize the APIC state.
      */
-    /* First insert the MSR range of the x2APIC if enabled. */
     if (pApic->enmMaxMode == PDMAPICMODE_X2APIC)
     {
         rc = CPUMR3MsrRangesInsert(pVM, &g_MsrRange_x2Apic);
         AssertLogRelRCReturn(rc, rc);
     }
+    else
+    {
+        /* We currently don't have a function to remove the range, so we register an range which will cause a #GP. */
+        rc = CPUMR3MsrRangesInsert(pVM, &g_MsrRange_x2Apic_Invalid);
+        AssertLogRelRCReturn(rc, rc);
+    }
 
     /* Tell CPUM about the APIC feature level so it can adjust APICBASE MSR GP mask and CPUID bits. */
-    pApicDev->pApicHlpR3->pfnSetFeatureLevel(pDevIns, pApic->enmMaxMode);
-
-    /* Initialize the state. */
+    apicR3SetCpuIdFeatureLevel(pVM, pApic->enmMaxMode);
+    /* Finally, initialize the state. */
     rc = apicR3InitState(pVM);
     AssertRCReturn(rc, rc);
 
@@ -1725,15 +1721,11 @@ static DECLCALLBACK(int) apicR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
 
     if (pApic->fRZEnabled)
     {
-        pApicDev->pApicHlpRC  = pApicDev->pApicHlpR3->pfnGetRCHelpers(pDevIns);
-        pApicDev->pCritSectRC = pApicDev->pApicHlpR3->pfnGetRCCritSect(pDevIns);
         rc = PDMDevHlpMMIORegisterRC(pDevIns, GCPhysApicBase, sizeof(XAPICPAGE), NIL_RTRCPTR /*pvUser*/,
                                      "apicWriteMmio", "apicReadMmio");
         if (RT_FAILURE(rc))
             return rc;
 
-        pApicDev->pApicHlpR0  = pApicDev->pApicHlpR3->pfnGetR0Helpers(pDevIns);
-        pApicDev->pCritSectR0 = pApicDev->pApicHlpR3->pfnGetR0CritSect(pDevIns);
         rc = PDMDevHlpMMIORegisterR0(pDevIns, GCPhysApicBase, sizeof(XAPICPAGE), NIL_RTR0PTR /*pvUser*/,
                                      "apicWriteMmio", "apicReadMmio");
         if (RT_FAILURE(rc))
@@ -1831,6 +1823,10 @@ static DECLCALLBACK(int) apicR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
                          "/Devices/APIC/%u/TimerIcrWrite");
         APIC_REG_COUNTER(&pApicCpu->StatIcrLoWrite,    "Number of times the ICR Lo (send IPI) is written.",
                          "/Devices/APIC/%u/IcrLoWrite");
+        APIC_REG_COUNTER(&pApicCpu->StatIcrHiWrite,    "Number of times the ICR Hi is written.",
+                         "/Devices/APIC/%u/IcrHiWrite");
+        APIC_REG_COUNTER(&pApicCpu->StatIcrFullWrite,  "Number of times the ICR full (send IPI, x2APIC) is written.",
+                         "/Devices/APIC/%u/IcrFullWrite");
     }
 # undef APIC_PROF_COUNTER
 # undef APIC_REG_ACCESS_COUNTER

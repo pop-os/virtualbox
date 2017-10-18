@@ -33,7 +33,7 @@
 # include "UIIconPool.h"
 # include "UIConverter.h"
 # include "UIGraphicsTextPane.h"
-# include "UIMessageCenter.h"
+# include "UIErrorString.h"
 
 /* COM includes: */
 # include "COMEnums.h"
@@ -45,7 +45,6 @@
 # include "CAudioAdapter.h"
 # include "CNetworkAdapter.h"
 # include "CSerialPort.h"
-# include "CParallelPort.h"
 # include "CUSBController.h"
 # include "CUSBDeviceFilters.h"
 # include "CUSBDeviceFilter.h"
@@ -321,6 +320,32 @@ void UIGDetailsUpdateTaskSystem::run()
             bootOrder << gpConverter->toString(KDeviceType_Null);
         table << UITextTableLine(QApplication::translate("UIGDetails", "Boot Order", "details (system)"), bootOrder.join(", "));
 
+        /* Chipset type: */
+        const KChipsetType enmChipsetType = machine.GetChipsetType();
+        if (enmChipsetType == KChipsetType_ICH9)
+            table << UITextTableLine(QApplication::translate("UIGDetails", "Chipset Type", "details (system)"),
+                                     gpConverter->toString(enmChipsetType));
+
+        /* Firware type: */
+        switch (machine.GetFirmwareType())
+        {
+            case KFirmwareType_EFI:
+            case KFirmwareType_EFI32:
+            case KFirmwareType_EFI64:
+            case KFirmwareType_EFIDUAL:
+            {
+                table << UITextTableLine(QApplication::translate("UIGDetails", "EFI", "details (system)"),
+                                         QApplication::translate("UIGDetails", "Enabled", "details (system/EFI)"));
+                break;
+            }
+            default:
+            {
+                // For NLS purpose:
+                QApplication::translate("UIGDetails", "Disabled", "details (system/EFI)");
+                break;
+            }
+        }
+
         /* Acceleration: */
         QStringList acceleration;
         if (vboxGlobal().virtualBox().GetHost().GetProcessorFeature(KProcessorFeature_HWVirtEx))
@@ -488,7 +513,7 @@ void UIGDetailsUpdateTaskStorage::run()
                 StorageSlot attachmentSlot(controller.GetBus(), attachment.GetPort(), attachment.GetDevice());
                 AssertMsg(controller.isOk(),
                           ("Unable to acquire controller data: %s\n",
-                           msgCenter().formatRC(controller.lastRC()).toUtf8().constData()));
+                           UIErrorString::formatRC(controller.lastRC()).toUtf8().constData()));
                 if (!controller.isOk())
                     continue;
                 /* Prepare attachment information: */
@@ -562,6 +587,20 @@ void UIGDetailsUpdateTaskAudio::run()
             /* Controller: */
             table << UITextTableLine(QApplication::translate("UIGDetails", "Controller", "details (audio)"),
                                      gpConverter->toString(audio.GetAudioController()));
+
+#ifdef VBOX_WITH_AUDIO_INOUT_INFO
+            /* Output: */
+            table << UITextTableLine(QApplication::translate("UIGDetails", "Audio Output", "details (audio)"),
+                                     audio.GetEnabledOut() ?
+                                     QApplication::translate("UIGDetails", "Enabled", "details (audio/output)") :
+                                     QApplication::translate("UIGDetails", "Disabled", "details (audio/output)"));
+
+            /* Input: */
+            table << UITextTableLine(QApplication::translate("UIGDetails", "Audio Input", "details (audio)"),
+                                     audio.GetEnabledIn() ?
+                                     QApplication::translate("UIGDetails", "Enabled", "details (audio/input)") :
+                                     QApplication::translate("UIGDetails", "Disabled", "details (audio/input)"));
+#endif /* VBOX_WITH_AUDIO_INOUT_INFO */
         }
         else
             table << UITextTableLine(QApplication::translate("UIGDetails", "Disabled", "details (audio)"),
@@ -713,45 +752,6 @@ void UIGDetailsUpdateTaskSerial::run()
     /* Save the table as property: */
     setProperty("table", QVariant::fromValue(table));
 }
-
-
-#ifdef VBOX_WITH_PARALLEL_PORTS
-void UIGDetailsUpdateTaskParallel::run()
-{
-    /* Acquire corresponding machine: */
-    CMachine machine = property("machine").value<CMachine>();
-    if (machine.isNull())
-        return;
-
-    /* Prepare table: */
-    UITextTable table;
-
-    /* Gather information: */
-    if (machine.GetAccessible())
-    {
-        bool fSomeInfo = false;
-        ulong uCount = vboxGlobal().virtualBox().GetSystemProperties().GetParallelPortCount();
-        for (ulong uSlot = 0; uSlot < uCount; ++uSlot)
-        {
-            const CParallelPort &port = machine.GetParallelPort(uSlot);
-            if (port.GetEnabled())
-            {
-                QString data = vboxGlobal().toLPTPortName(port.GetIRQ(), port.GetIOBase()) +
-                               QString(" (<nobr>%1</nobr>)").arg(QDir::toNativeSeparators(port.GetPath()));
-                table << UITextTableLine(QApplication::translate("UIGDetails", "Port %1", "details (parallel)").arg(port.GetSlot() + 1), data);
-                fSomeInfo = true;
-            }
-        }
-        if (!fSomeInfo)
-            table << UITextTableLine(QApplication::translate("UIGDetails", "Disabled", "details (parallel)"), QString());
-    }
-    else
-        table << UITextTableLine(QApplication::translate("UIGDetails", "Information Inaccessible", "details"), QString());
-
-    /* Save the table as property: */
-    setProperty("table", QVariant::fromValue(table));
-}
-#endif /* VBOX_WITH_PARALLEL_PORTS */
 
 
 void UIGDetailsUpdateTaskUSB::run()

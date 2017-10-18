@@ -7,7 +7,7 @@ TestBox Script - Upgrade from local file ZIP.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 # Standard python imports.
 import os
@@ -123,7 +123,7 @@ def _doUpgradeTestRun(sUpgradeDir):
     """
     asArgs = [os.path.join(sUpgradeDir, 'testboxscript', 'testboxscript', 'testboxscript.py'), '--version' ];
     testboxcommons.log('Testing the new testbox script (%s)...' % (asArgs[0],));
-    if sys.executable is not None and len(sys.executable) > 0:
+    if sys.executable:
         asArgs.insert(0, sys.executable);
     oChild = subprocess.Popen(asArgs, shell = False, stdout=subprocess.PIPE, stderr=subprocess.STDOUT);
 

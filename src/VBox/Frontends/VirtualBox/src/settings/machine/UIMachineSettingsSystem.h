@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2016 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,109 +15,19 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIMachineSettingsSystem_h__
-#define __UIMachineSettingsSystem_h__
+#ifndef ___UIMachineSettingsSystem_h___
+#define ___UIMachineSettingsSystem_h___
 
 /* GUI includes: */
 #include "UISettingsPage.h"
 #include "UIMachineSettingsSystem.gen.h"
 
-/* Machine settings / System page / Data / Boot item: */
-struct UIBootItemData
-{
-    /* Constructor: */
-    UIBootItemData() : m_type(KDeviceType_Null), m_fEnabled(false) {}
-
-    /* Operator==: */
-    bool operator==(const UIBootItemData &other) const
-    {
-        return (m_type == other.m_type) &&
-               (m_fEnabled == other.m_fEnabled);
-    }
-
-    /* Variables: */
-    KDeviceType m_type;
-    bool m_fEnabled;
-};
-
-/* Machine settings / System page / Data: */
-struct UIDataSettingsMachineSystem
-{
-    /* Constructor: */
-    UIDataSettingsMachineSystem()
-        /* Support flags: */
-        : m_fSupportedPAE(false)
-        , m_fSupportedHwVirtEx(false)
-        /* Motherboard data: */
-        , m_iMemorySize(-1)
-        , m_bootItems(QList<UIBootItemData>())
-        , m_chipsetType(KChipsetType_Null)
-        , m_pointingHIDType(KPointingHIDType_None)
-        , m_fEnabledIoApic(false)
-        , m_fEnabledEFI(false)
-        , m_fEnabledUTC(false)
-        /* CPU data: */
-        , m_cCPUCount(-1)
-        , m_iCPUExecCap(-1)
-        , m_fEnabledPAE(false)
-        /* Acceleration data: */
-        , m_paravirtProvider(KParavirtProvider_None)
-        , m_fEnabledHwVirtEx(false)
-        , m_fEnabledNestedPaging(false)
-    {}
-
-    /* Functions: */
-    bool equal(const UIDataSettingsMachineSystem &other) const
-    {
-        return /* Support flags: */
-               (m_fSupportedPAE == other.m_fSupportedPAE) &&
-               (m_fSupportedHwVirtEx == other.m_fSupportedHwVirtEx) &&
-               /* Motherboard data: */
-               (m_iMemorySize == other.m_iMemorySize) &&
-               (m_bootItems == other.m_bootItems) &&
-               (m_chipsetType == other.m_chipsetType) &&
-               (m_pointingHIDType == other.m_pointingHIDType) &&
-               (m_fEnabledIoApic == other.m_fEnabledIoApic) &&
-               (m_fEnabledEFI == other.m_fEnabledEFI) &&
-               (m_fEnabledUTC == other.m_fEnabledUTC) &&
-               /* CPU data: */
-               (m_cCPUCount == other.m_cCPUCount) &&
-               (m_iCPUExecCap == other.m_iCPUExecCap) &&
-               (m_fEnabledPAE == other.m_fEnabledPAE) &&
-                /* Acceleration data: */
-               (m_paravirtProvider == other.m_paravirtProvider) &&
-               (m_fEnabledHwVirtEx == other.m_fEnabledHwVirtEx) &&
-               (m_fEnabledNestedPaging == other.m_fEnabledNestedPaging);
-    }
-
-    /* Operators: */
-    bool operator==(const UIDataSettingsMachineSystem &other) const { return equal(other); }
-    bool operator!=(const UIDataSettingsMachineSystem &other) const { return !equal(other); }
-
-    /* Variables: Support flags: */
-    bool m_fSupportedPAE;
-    bool m_fSupportedHwVirtEx;
-
-    /* Variables: Motherboard data: */
-    int m_iMemorySize;
-    QList<UIBootItemData> m_bootItems;
-    KChipsetType m_chipsetType;
-    KPointingHIDType m_pointingHIDType;
-    bool m_fEnabledIoApic;
-    bool m_fEnabledEFI;
-    bool m_fEnabledUTC;
-    /* Variables: CPU data: */
-    int m_cCPUCount;
-    int m_iCPUExecCap;
-    bool m_fEnabledPAE;
-    /* Variables: Acceleration data: */
-    KParavirtProvider m_paravirtProvider;
-    bool m_fEnabledHwVirtEx;
-    bool m_fEnabledNestedPaging;
-};
+/* Forward declarations: */
+struct UIDataSettingsMachineSystem;
 typedef UISettingsCache<UIDataSettingsMachineSystem> UISettingsCacheMachineSystem;
 
-/* Machine settings / System page: */
+
+/** Machine settings: System page. */
 class UIMachineSettingsSystem : public UISettingsPageMachine,
                                 public Ui::UIMachineSettingsSystem
 {
@@ -125,99 +35,133 @@ class UIMachineSettingsSystem : public UISettingsPageMachine,
 
 public:
 
-    /* Constructor: */
+    /** Constructs System settings page. */
     UIMachineSettingsSystem();
+    /** Destructs System settings page. */
+    ~UIMachineSettingsSystem();
 
-    /* API: Correlation stuff: */
+    /** Returns whether the HW Virt Ex is enabled. */
     bool isHWVirtExEnabled() const;
+
+    /** Returns whether the HID is enabled. */
     bool isHIDEnabled() const;
+
+    /** Returns the chipset type. */
     KChipsetType chipsetType() const;
+
+    /** Defines whether the USB is enabled. */
     void setUSBEnabled(bool fEnabled);
 
 protected:
 
-    /* API: Cache stuff: */
-    bool changed() const { return m_cache.wasChanged(); }
+    /** Returns whether the page content was changed. */
+    virtual bool changed() const /* override */;
 
-    /* API: Load data to cache from corresponding external object(s),
-     * this task COULD be performed in other than GUI thread: */
-    void loadToCacheFrom(QVariant &data);
-    /* API: Load data to corresponding widgets from cache,
-     * this task SHOULD be performed in GUI thread only: */
-    void getFromCache();
+    /** Loads data into the cache from corresponding external object(s),
+      * this task COULD be performed in other than the GUI thread. */
+    virtual void loadToCacheFrom(QVariant &data) /* override */;
+    /** Loads data into corresponding widgets from the cache,
+      * this task SHOULD be performed in the GUI thread only. */
+    virtual void getFromCache() /* override */;
 
-    /* API: Save data from corresponding widgets to cache,
-     * this task SHOULD be performed in GUI thread only: */
-    void putToCache();
-    /* API: Save data from cache to corresponding external object(s),
-     * this task COULD be performed in other than GUI thread: */
-    void saveFromCacheTo(QVariant &data);
+    /** Saves data from corresponding widgets to the cache,
+      * this task SHOULD be performed in the GUI thread only. */
+    virtual void putToCache() /* override */;
+    /** Saves data from the cache to corresponding external object(s),
+      * this task COULD be performed in other than the GUI thread. */
+    virtual void saveFromCacheTo(QVariant &data) /* overrride */;
 
-    /* API: Validation stuff: */
-    bool validate(QList<UIValidationMessage> &messages);
+    /** Performs validation, updates @a messages list if something is wrong. */
+    virtual bool validate(QList<UIValidationMessage> &messages) /* override */;
 
-    /* Helper: Navigation stuff: */
-    void setOrderAfter(QWidget *pWidget);
+    /** Defines TAB order for passed @a pWidget. */
+    virtual void setOrderAfter(QWidget *pWidget) /* override */;
 
-    /* Helper: Translation stuff: */
-    void retranslateUi();
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */;
 
-    /* Helper: Polishing stuff: */
-    void polishPage();
+    /** Performs final page polishing. */
+    virtual void polishPage() /* override */;
+
+    /** Preprocesses any Qt @a pEvent for passed @a pObject. */
+    virtual bool eventFilter(QObject *pObject, QEvent *pEvent) /* override */;
 
 private slots:
 
-    /* Handlers: Memory-size stuff: */
+    /** Handles memory size slider change. */
     void sltHandleMemorySizeSliderChange();
+    /** Handles memory size editor change. */
     void sltHandleMemorySizeEditorChange();
 
-    /* Handler: Boot-table stuff: */
-    void sltCurrentBootItemChanged(int iCurrentIndex);
+    /** Handle current boot item change to @a iCurrentIndex. */
+    void sltHandleCurrentBootItemChange(int iCurrentIndex);
 
-    /* Handlers: CPU stuff: */
+    /** Handles CPU count slider change. */
     void sltHandleCPUCountSliderChange();
+    /** Handles CPU count editor change. */
     void sltHandleCPUCountEditorChange();
+    /** Handles CPU execution cap slider change. */
     void sltHandleCPUExecCapSliderChange();
+    /** Handles CPU execution cap editor change. */
     void sltHandleCPUExecCapEditorChange();
 
 private:
 
-    /* Helpers: Prepare stuff: */
+    /** Prepares all. */
     void prepare();
+    /** Prepares 'Motherboard' tab. */
     void prepareTabMotherboard();
+    /** Prepares 'Processor' tab. */
     void prepareTabProcessor();
+    /** Prepares 'Acceleration' tab. */
     void prepareTabAcceleration();
-    void prepareValidation();
+    /** Prepares connections. */
+    void prepareConnections();
+    /** Cleanups all. */
+    void cleanup();
 
-    /* Helper: Pointing HID type combo stuff: */
+    /** Repopulates Pointing HID type combo-box. */
     void repopulateComboPointingHIDType();
 
-    /* Helpers: Translation stuff: */
+    /** Retranslates Chipset type combo-box. */
     void retranslateComboChipsetType();
+    /** Retranslates Pointing HID type combo-box. */
     void retranslateComboPointingHIDType();
+    /** Retranslates Paravirtualization providers combo-box. */
     void retranslateComboParavirtProvider();
 
-    /* Helper: Boot-table stuff: */
+    /** Adjusts boot-order tree-widget size. */
     void adjustBootOrderTWSize();
 
-    /* Handler: Event-filtration stuff: */
-    bool eventFilter(QObject *aObject, QEvent *aEvent);
+    /** Saves existing system data from the cache. */
+    bool saveSystemData();
+    /** Saves existing 'Motherboard' data from the cache. */
+    bool saveMotherboardData();
+    /** Saves existing 'Processor' data from the cache. */
+    bool saveProcessorData();
+    /** Saves existing 'Acceleration' data from the cache. */
+    bool saveAccelerationData();
 
-    /* Variable: Boot-table stuff: */
-    QList<KDeviceType> m_possibleBootItems;
+    /** Holds the list of all possible boot items. */
+    QList<KDeviceType>  m_possibleBootItems;
 
-    /* Variables: CPU stuff: */
-    uint m_uMinGuestCPU;
-    uint m_uMaxGuestCPU;
-    uint m_uMinGuestCPUExecCap;
-    uint m_uMedGuestCPUExecCap;
-    uint m_uMaxGuestCPUExecCap;
+    /** Holds the minimum guest CPU count. */
+    uint  m_uMinGuestCPU;
+    /** Holds the maximum guest CPU count. */
+    uint  m_uMaxGuestCPU;
+    /** Holds the minimum guest CPU execution cap. */
+    uint  m_uMinGuestCPUExecCap;
+    /** Holds the medium guest CPU execution cap. */
+    uint  m_uMedGuestCPUExecCap;
+    /** Holds the maximum guest CPU execution cap. */
+    uint  m_uMaxGuestCPUExecCap;
 
-    /* Variable: Correlation stuff: */
+    /** Holds whether the USB is enabled. */
     bool m_fIsUSBEnabled;
 
-    /* Cache: */
-    UISettingsCacheMachineSystem m_cache;
+    /** Holds the page data cache instance. */
+    UISettingsCacheMachineSystem *m_pCache;
 };
 
-#endif // __UIMachineSettingsSystem_h__
+#endif /* !___UIMachineSettingsSystem_h___ */
+

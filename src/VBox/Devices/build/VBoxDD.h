@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,9 +34,7 @@ extern const PDMDEVREG g_DevicePCI;
 extern const PDMDEVREG g_DevicePciIch9;
 extern const PDMDEVREG g_DevicePcArch;
 extern const PDMDEVREG g_DevicePcBios;
-#ifdef VBOX_WITH_NEW_IOAPIC
 extern const PDMDEVREG g_DeviceIOAPIC;
-#endif
 extern const PDMDEVREG g_DevicePS2KeyboardMouse;
 extern const PDMDEVREG g_DeviceI8254;
 extern const PDMDEVREG g_DeviceI8259;
@@ -59,7 +57,7 @@ extern const PDMDEVREG g_DeviceINIP;
 #endif
 extern const PDMDEVREG g_DeviceICHAC97;
 extern const PDMDEVREG g_DeviceSB16;
-extern const PDMDEVREG g_DeviceICH6_HDA;
+extern const PDMDEVREG g_DeviceHDA;
 extern const PDMDEVREG g_DeviceOHCI;
 extern const PDMDEVREG g_DeviceEHCI;
 extern const PDMDEVREG g_DeviceXHCI;
@@ -156,6 +154,7 @@ extern const PDMDRVREG g_DrvHostParallel;
 extern const PDMDRVREG g_DrvHostSerial;
 #ifdef VBOX_WITH_DRV_DISK_INTEGRITY
 extern const PDMDRVREG g_DrvDiskIntegrity;
+extern const PDMDRVREG g_DrvRamDisk;
 #endif
 #ifdef VBOX_WITH_PCI_PASSTHROUGH_IMPL
 extern const PDMDRVREG g_DrvPciRaw;
@@ -176,9 +175,6 @@ extern const PDMUSBREG g_DevWebcam;
 
 #ifdef VBOX_WITH_SCSI
 extern const PDMDRVREG g_DrvSCSI;
-# if defined(RT_OS_LINUX)
-extern const PDMDRVREG g_DrvSCSIHost;
-# endif
 #endif
 
 

@@ -24,6 +24,7 @@
 # include <QTextBrowser>
 # include <QPushButton>
 # include <QPointer>
+# include <QLabel>
 
 /* Local includes: */
 # include "UIWizardImportAppPageBasic2.h"
@@ -110,7 +111,7 @@ void UIWizardImportAppPageBasic2::retranslateUi()
             break;
         default:
             AssertFailed();
-            /* fall thru */
+            RT_FALL_THRU();
         case kCertText_Uninitialized:
             m_pCertLabel->setText("<uninitialized page>");
             break;

@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2010-2016 Oracle Corporation
+; Copyright (C) 2010-2017 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -43,6 +43,7 @@ EXPORTS
     NtDuplicateObject                     ;;= _NtDuplicateObject@28
     NtEnumerateKey                        ;;= _NtEnumerateKey@24
     NtFlushBuffersFile                    ;;= _NtFlushBuffersFile@8
+    NtFlushVirtualMemory                  ;;= _NtFlushVirtualMemory@16
     NtFreeVirtualMemory                   ;;= _NtFreeVirtualMemory@16
     NtGetContextThread                    ;;= _NtGetContextThread@8
     NtMapViewOfSection                    ;;= _NtMapViewOfSection@40
@@ -55,8 +56,10 @@ EXPORTS
     NtOpenThread                          ;;= _NtOpenThread@16
     NtOpenThreadToken                     ;;= _NtOpenThreadToken@16
     NtProtectVirtualMemory                ;;= _NtProtectVirtualMemory@20
+    NtQueryAttributesFile                 ;;= _NtQueryAttributesFile@8
     NtQueryDirectoryFile                  ;;= _NtQueryDirectoryFile@44
     NtQueryDirectoryObject                ;;= _NtQueryDirectoryObject@28
+    NtQueryFullAttributesFile             ;;= _NtQueryFullAttributesFile@8
     NtQueryEvent                          ;;= _NtQueryEvent@20
     NtQueryInformationFile                ;;= _NtQueryInformationFile@20
     NtQueryInformationProcess             ;;= _NtQueryInformationProcess@20
@@ -94,19 +97,19 @@ EXPORTS
     NtWriteVirtualMemory                  ;;= _NtWriteVirtualMemory@20
     NtYieldExecution                      ;;= _NtYieldExecution@0
 
-    LdrInitializeThunk                      ;;= _LdrInitializeThunk@12
-    LdrRegisterDllNotification              ;;= _LdrRegisterDllNotification@16
-    LdrLoadDll                              ;;= _LdrLoadDll@16
-    LdrUnloadDll                            ;;= _LdrUnloadDll@4
-    LdrGetDllHandle                         ;;= _LdrGetDllHandle@16
-    LdrGetDllHandleEx                       ;;= _LdrGetDllHandleEx@20
-    LdrGetDllHandleByMapping                ;;= _LdrGetDllHandleByMapping@8
-    LdrGetDllHandleByName                   ;;= _LdrGetDllHandleByName@12
-    LdrAddRefDll                            ;;= _LdrAddRefDll@8
-    LdrGetProcedureAddress                  ;;= _LdrGetProcedureAddress@12
-    LdrGetProcedureAddressEx                ;;= _LdrGetProcedureAddressEx@16
-    LdrLockLoaderLock                       ;;= _LdrLockLoaderLock@12
-    LdrUnlockLoaderLock                     ;;= _LdrUnlockLoaderLock@8
+    LdrInitializeThunk                    ;;= _LdrInitializeThunk@12
+    LdrRegisterDllNotification            ;;= _LdrRegisterDllNotification@16
+    LdrLoadDll                            ;;= _LdrLoadDll@16
+    LdrUnloadDll                          ;;= _LdrUnloadDll@4
+    LdrGetDllHandle                       ;;= _LdrGetDllHandle@16
+    LdrGetDllHandleEx                     ;;= _LdrGetDllHandleEx@20
+    LdrGetDllHandleByMapping              ;;= _LdrGetDllHandleByMapping@8
+    LdrGetDllHandleByName                 ;;= _LdrGetDllHandleByName@12
+    LdrAddRefDll                          ;;= _LdrAddRefDll@8
+    LdrGetProcedureAddress                ;;= _LdrGetProcedureAddress@12
+    LdrGetProcedureAddressEx              ;;= _LdrGetProcedureAddressEx@16
+    LdrLockLoaderLock                     ;;= _LdrLockLoaderLock@12
+    LdrUnlockLoaderLock                   ;;= _LdrUnlockLoaderLock@8
 
     RtlAddAccessAllowedAce                ;;= _RtlAddAccessAllowedAce@16
     RtlAddAccessDeniedAce                 ;;= _RtlAddAccessDeniedAce@16

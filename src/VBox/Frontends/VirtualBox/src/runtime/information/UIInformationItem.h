@@ -19,25 +19,23 @@
 #define ___UIInformationItem_h___
 
 /* Qt includes: */
-#include <QIcon>
-#include <QTextLayout>
 #include <QStyledItemDelegate>
-#include <QStyleOptionViewItem>
 
 /* GUI includes: */
-#include "UIGDetailsItem.h"
-#include "UIExtraDataDefs.h"
 #include "QIWithRetranslateUI.h"
+#include "UIExtraDataDefs.h"
+#include "UIGDetailsItem.h"
 
 /* Forward declarations: */
-class QTextLayout;
+class QStyleOptionViewItem;
 class QTextDocument;
 
-/* Typedefs: */
+/* Type definitions: */
 typedef QPair<QString, QString> UITextTableLine;
 typedef QList<UITextTableLine> UITextTable;
 
 Q_DECLARE_METATYPE(UITextTable);
+
 
 /** QStyledItemDelegate extension
   * providing GUI with delegate implementation for information-view in session-information window. */
@@ -47,7 +45,7 @@ class UIInformationItem : public QStyledItemDelegate
 
 public:
 
-    /** Constructs information-item by passing @a pParent to the base-class. */
+    /** Constructs information-item passing @a pParent to the base-class. */
     UIInformationItem(QObject *pParent = 0);
 
     /** Defines the icon of information-item as @a icon. */
@@ -57,23 +55,26 @@ public:
     void setName(const QString &strName) const;
 
     /** Returns the text-data of information-item. */
-    const UITextTable& text() const;
-    /** Defines the text-data of information-item. */
+    const UITextTable &text() const;
+    /** Defines the text-data of information-item as @a text. */
     void setText(const UITextTable &text) const;
 
-    /** Paint routine. */
-    void paint(QPainter *pPainter, const QStyleOptionViewItem &option, const QModelIndex &index) const;
-
-    /** Size-hint calculation routine. */
-    QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const;
-
-    /** Updates data for the item with @a index. */
+    /** Updates data for information-item with @a index. */
     void updateData(const QModelIndex &index) const;
 
-    /** returns html data. */
-    QString htmlData();
+    /** Returns html data. */
+    QString htmlData() const;
+
+protected:
+
+    /** Performs painting for @a index using @a pPainter and @a option set. */
+    virtual void paint(QPainter *pPainter, const QStyleOptionViewItem &option, const QModelIndex &index) const /* override */;
+
+    /** Calculates size-hint for @a index using @a option set. */
+    virtual QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const /* override */;
 
 private:
+
     /** Updates text-layout. */
     void updateTextLayout() const;
 

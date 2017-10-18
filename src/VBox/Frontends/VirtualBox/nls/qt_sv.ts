@@ -111,40 +111,6 @@ att du har libgstreamer-plugins-base installerat.</translation>
         <source>Plugin codec installation failed for codec: %0</source>
         <translation type="vanished">Installering av insticksprogram för avkodning misslyckades för: %0</translation>
     </message>
-    <message>
-        <source>A required codec is missing. You need to install the following codec(s) to play this content: %0</source>
-        <translation>En nödvändig kodek saknas. Du behöver installera följande kodek(ar) för att spela upp detta innehåll: %0</translation>
-    </message>
-    <message>
-        <source>Could not open media source.</source>
-        <translation>Kunde inte öppna mediakälla.</translation>
-    </message>
-    <message>
-        <source>Invalid source type.</source>
-        <translation>Ogiltig källtyp.</translation>
-    </message>
-    <message>
-        <source>Could not locate media source.</source>
-        <translation>Kunde inte hitta mediakälla.</translation>
-    </message>
-    <message>
-        <source>Could not open audio device. The device is already in use.</source>
-        <translation>Kunde inte öppna ljudenhet. Enheten används redan.</translation>
-    </message>
-    <message>
-        <source>Could not decode media source.</source>
-        <translation>Kunde inte avkoda mediakälla.</translation>
-    </message>
-    <message>
-        <source>Cannot start playback. 
-
-Check your Gstreamer installation and make sure you 
-have libgstreamer-plugins-base installed.</source>
-        <translation type="obsolete">Kan inte starta uppspelningen. 
-
-Kontrollera din Gstreamer-installation och försäkra dig om 
-att du har libgstreamer-plugins-base installerat.</translation>
-    </message>
 </context>
 <context>
     <name>Phonon::MMF</name>
@@ -458,14 +424,6 @@ att du har libgstreamer-plugins-base installerat.</translation>
     <message>
         <source>Muted</source>
         <translation type="vanished">Tyst</translation>
-    </message>
-    <message>
-        <source>Volume: %1%</source>
-        <translation>Volym: %1%</translation>
-    </message>
-    <message>
-        <source>Use this slider to adjust the volume. The leftmost position is 0%, the rightmost is %1%</source>
-        <translation>Använd denna draglist för att justera volymen. Längst till vänster är 0% och längst till höger är %1%</translation>
     </message>
 </context>
 <context>
@@ -2621,10 +2579,6 @@ Press ESC to cancel</source>
 <context>
     <name>QDialog</name>
     <message>
-        <source>Done</source>
-        <translation>Färdig</translation>
-    </message>
-    <message>
         <source>What&apos;s This?</source>
         <translation>Vad är det här?</translation>
     </message>
@@ -2678,10 +2632,6 @@ Press ESC to cancel</source>
     <message>
         <source>Don&apos;t Save</source>
         <translation type="vanished">Spara inte</translation>
-    </message>
-    <message>
-        <source>Close without Saving</source>
-        <translation>Stäng utan att spara</translation>
     </message>
     <message>
         <source>Discard</source>
@@ -2865,10 +2815,6 @@ Press ESC to cancel</source>
         <source>Close</source>
         <extracomment>Accessible name for button closing a dock widget</extracomment>
         <translation type="unfinished">Stäng</translation>
-    </message>
-    <message>
-        <source>Dock</source>
-        <translation>Docka</translation>
     </message>
     <message>
         <source>Float</source>
@@ -3492,10 +3438,6 @@ Kontrollera att det korrekta filnamnet angavs</translation>
         <extracomment>The word for &quot;Extra&quot; as in &quot;Extra Bold, Extra Thin&quot; used as a pattern for string searches</extracomment>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>Normal</source>
-        <translation>Normal</translation>
-    </message>
 </context>
 <context>
     <name>QFontDialog</name>
@@ -3737,26 +3679,6 @@ Kontrollera att det korrekta filnamnet angavs</translation>
         <translation type="vanished">Servern stängde oväntat anslutningen</translation>
     </message>
     <message>
-        <source>Connection refused (or timed out)</source>
-        <translation>Anslutningen nekades (eller översteg tidsgräns)</translation>
-    </message>
-    <message>
-        <source>Unknown authentication method</source>
-        <translation>Värden kräver autentisering</translation>
-    </message>
-    <message>
-        <source>Proxy authentication required</source>
-        <translation>Proxyautentisering krävs</translation>
-    </message>
-    <message>
-        <source>Authentication required</source>
-        <translation>Autentisering krävs</translation>
-    </message>
-    <message>
-        <source>Error writing response to device</source>
-        <translation>Fel vid skrivning av svar till enhet</translation>
-    </message>
-    <message>
         <source>Connection refused</source>
         <translation>Anslutningen nekades</translation>
     </message>
@@ -3827,10 +3749,6 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     <message>
         <source>Insecure redirect</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>HTTPS connection requested but SSL support not compiled in</source>
-        <translation>HTTPS-anslutning begärd men SSL-stöd inte inkompilerat</translation>
     </message>
 </context>
 <context>
@@ -4167,10 +4085,6 @@ Kontrollera att det korrekta filnamnet angavs</translation>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>The plugin &apos;%1&apos; uses incompatible Qt library. Expected build key &quot;%2&quot;, got &quot;%3&quot;</source>
-        <translation>Insticksmodulen \&quot;%1\&quot; använder ett inkompatibelt Qt-bibliotek. Förväntad byggnyckel &quot;%2&quot;, fick &quot;%3&quot;</translation>
-    </message>
-    <message>
         <source>The plugin &apos;%1&apos; uses incompatible Qt library. (Cannot mix debug and release libraries.)</source>
         <translation type="unfinished"></translation>
     </message>
@@ -4237,18 +4151,6 @@ Kontrollera att det korrekta filnamnet angavs</translation>
     <message>
         <source>&apos;%1&apos; is not a Qt plugin</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Could not mmap &apos;%1&apos;: %2</source>
-        <translation type="obsolete">Kunde inte mmap \&quot;%1\&quot;: %2</translation>
-    </message>
-    <message>
-        <source>Plugin verification data mismatch in &apos;%1&apos;</source>
-        <translation>Dataverifieringsfel av insticksmodul i \&quot;%1\&quot;</translation>
-    </message>
-    <message>
-        <source>Could not unmap &apos;%1&apos;: %2</source>
-        <translation type="obsolete">Kunde inte unmap \&quot;%1\&quot;: %2</translation>
     </message>
 </context>
 <context>
@@ -4890,10 +4792,6 @@ Kontrollera att det korrekta filnamnet angavs</translation>
         <source>backend start error.</source>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>Error downloading %1 - server replied: %2</source>
-        <translation>Fel vid hämtning av %1 - servern svarade: %2</translation>
-    </message>
 </context>
 <context>
     <name>QNetworkReplyHttpImpl</name>
@@ -5106,34 +5004,6 @@ Kontrollera att det korrekta filnamnet angavs</translation>
         <source>invalid query: &quot;%1&quot;</source>
         <translation type="vanished">ogiltig förfrågan: &quot;%1&quot;</translation>
     </message>
-    <message>
-        <source>Operation not supported on %1</source>
-        <translation type="obsolete">Åtgärden stöds inte på %1</translation>
-    </message>
-    <message>
-        <source>Invalid URI: %1</source>
-        <translation type="obsolete">Ogiltig URI: %1</translation>
-    </message>
-    <message>
-        <source>Write error writing to %1: %2</source>
-        <translation type="obsolete">Skrivfel vid skrivning till %1: %2</translation>
-    </message>
-    <message>
-        <source>Read error reading from %1: %2</source>
-        <translation type="obsolete">Läsfel vid läsning från %1: %2</translation>
-    </message>
-    <message>
-        <source>Socket error on %1: %2</source>
-        <translation type="obsolete">Uttagsfel på %1: %2</translation>
-    </message>
-    <message>
-        <source>Remote host closed the connection prematurely on %1</source>
-        <translation type="obsolete">Fjärrvärden stängde anslutningen i förtid på %1</translation>
-    </message>
-    <message>
-        <source>Protocol error: packet of size 0 received</source>
-        <translation type="obsolete">Protokollfel: paket med storlek 0 togs emot</translation>
-    </message>
 </context>
 <context>
     <name>QPPDOptionsModel</name>
@@ -5319,10 +5189,6 @@ Kontrollera att det korrekta filnamnet angavs</translation>
         <source>CC</source>
         <extracomment>Unit &apos;Cicero&apos;</extracomment>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Centimeters (cm)</source>
-        <translation>Centimeter (cm)</translation>
     </message>
 </context>
 <context>
@@ -5904,14 +5770,6 @@ Kontrollera att det korrekta filnamnet angavs</translation>
         <translation type="vanished">okänt</translation>
     </message>
     <message>
-        <source>File exists</source>
-        <translation>Filen finns redan</translation>
-    </message>
-    <message>
-        <source>&lt;qt&gt;Do you want to overwrite it?&lt;/qt&gt;</source>
-        <translation>&lt;qt&gt;Vill du skriva över den?&lt;/qt&gt;</translation>
-    </message>
-    <message>
         <source>A0 (841 x 1189 mm)</source>
         <translation type="vanished">A0 (841 x 1189 mm)</translation>
     </message>
@@ -6032,10 +5890,6 @@ Kontrollera att det korrekta filnamnet angavs</translation>
         <translation type="vanished">US Common #10 Envelope (105 x 241 mm)</translation>
     </message>
     <message>
-        <source>Print selection</source>
-        <translation>Utskriftsval</translation>
-    </message>
-    <message>
         <source>Print current page</source>
         <translation type="vanished">Skriv ut aktuell sida</translation>
     </message>
@@ -6093,16 +5947,8 @@ Please choose a different file name.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Print to File (Postscript)</source>
-        <translation>Skriv ut till fil (Postscript)</translation>
-    </message>
-    <message>
         <source>Local file</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Write %1 file</source>
-        <translation>Skriv %1-fil</translation>
     </message>
     <message>
         <source>The &apos;From&apos; value cannot be greater than the &apos;To&apos; value.</source>
@@ -6289,130 +6135,6 @@ Please turn one of those options off.</source>
         <source>Automatic</source>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>A0</source>
-        <translation>A0</translation>
-    </message>
-    <message>
-        <source>A1</source>
-        <translation>A1</translation>
-    </message>
-    <message>
-        <source>A2</source>
-        <translation>A2</translation>
-    </message>
-    <message>
-        <source>A3</source>
-        <translation>A3</translation>
-    </message>
-    <message>
-        <source>A4</source>
-        <translation>A4</translation>
-    </message>
-    <message>
-        <source>A5</source>
-        <translation>A5</translation>
-    </message>
-    <message>
-        <source>A6</source>
-        <translation>A6</translation>
-    </message>
-    <message>
-        <source>A7</source>
-        <translation>A7</translation>
-    </message>
-    <message>
-        <source>A8</source>
-        <translation>A8</translation>
-    </message>
-    <message>
-        <source>A9</source>
-        <translation>A9</translation>
-    </message>
-    <message>
-        <source>B0</source>
-        <translation>B0</translation>
-    </message>
-    <message>
-        <source>B1</source>
-        <translation>B1</translation>
-    </message>
-    <message>
-        <source>B2</source>
-        <translation>B2</translation>
-    </message>
-    <message>
-        <source>B3</source>
-        <translation>B3</translation>
-    </message>
-    <message>
-        <source>B4</source>
-        <translation>B4</translation>
-    </message>
-    <message>
-        <source>B5</source>
-        <translation>B5</translation>
-    </message>
-    <message>
-        <source>B6</source>
-        <translation>B6</translation>
-    </message>
-    <message>
-        <source>B7</source>
-        <translation>B7</translation>
-    </message>
-    <message>
-        <source>B8</source>
-        <translation>B8</translation>
-    </message>
-    <message>
-        <source>B9</source>
-        <translation>B9</translation>
-    </message>
-    <message>
-        <source>B10</source>
-        <translation>B10</translation>
-    </message>
-    <message>
-        <source>C5E</source>
-        <translation>C5E</translation>
-    </message>
-    <message>
-        <source>DLE</source>
-        <translation>DLE</translation>
-    </message>
-    <message>
-        <source>Executive</source>
-        <translation>Executive</translation>
-    </message>
-    <message>
-        <source>Folio</source>
-        <translation>Folie</translation>
-    </message>
-    <message>
-        <source>Ledger</source>
-        <translation>Ledger</translation>
-    </message>
-    <message>
-        <source>Legal</source>
-        <translation>Legal</translation>
-    </message>
-    <message>
-        <source>Letter</source>
-        <translation>Brev</translation>
-    </message>
-    <message>
-        <source>Tabloid</source>
-        <translation>Tablå</translation>
-    </message>
-    <message>
-        <source>US Common #10 Envelope</source>
-        <translation>US Common #10 Envelope</translation>
-    </message>
-    <message>
-        <source>Custom</source>
-        <translation>Anpassat</translation>
-    </message>
 </context>
 <context>
     <name>QPrintPreviewDialog</name>
@@ -6496,10 +6218,6 @@ Please turn one of those options off.</source>
         <source>Export to PDF</source>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>Export to PostScript</source>
-        <translation>Exportera till Postscript</translation>
-    </message>
 </context>
 <context>
     <name>QPrintPropertiesDialog</name>
@@ -6533,10 +6251,6 @@ Please turn one of those options off.</source>
     <message>
         <source>Page</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Advanced</source>
-        <translation>Avancerat</translation>
     </message>
 </context>
 <context>
@@ -7601,10 +7315,6 @@ Please turn one of those options off.</source>
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>%1: doesn&apos;t exists</source>
-        <translation>%1: finns inte</translation>
-    </message>
-    <message>
         <source>%1: permission denied</source>
         <translation type="unfinished">%1: åtkomst nekad</translation>
     </message>
@@ -7663,10 +7373,6 @@ Please turn one of those options off.</source>
     <message>
         <source>%1: bad name</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1: unix key file doesn&apos;t exists</source>
-        <translation type="obsolete">%1: unix-nyckelfil finns inte</translation>
     </message>
 </context>
 <context>
@@ -9367,10 +9073,6 @@ Role of an accessible object</extracomment>
         <source>Unable to init SSL Context: %1</source>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>Private key does not certificate public key, %1</source>
-        <translation type="obsolete">Privat nyckel certifierar inte publik nyckel, %1</translation>
-    </message>
 </context>
 <context>
     <name>QStandardPaths</name>
@@ -9709,40 +9411,12 @@ Role of an accessible object</extracomment>
         <source>Frame load interrupted by policy change</source>
         <translation type="vanished">Raminläsning avbröts av policyändring</translation>
     </message>
-    <message>
-        <source>Request cancelled</source>
-        <translation>Begäran avbröts</translation>
-    </message>
-    <message>
-        <source>Request blocked</source>
-        <translation>Begäran blockeras</translation>
-    </message>
-    <message>
-        <source>Cannot show URL</source>
-        <translation>Kan inte visa URL</translation>
-    </message>
-    <message>
-        <source>Cannot show mimetype</source>
-        <translation>Kan inte visa mime-typ</translation>
-    </message>
-    <message>
-        <source>File does not exist</source>
-        <translation>Filen finns inte</translation>
-    </message>
-    <message>
-        <source>Frame load interruped by policy change</source>
-        <translation type="obsolete">Raminläsning avbröts av policyändring</translation>
-    </message>
 </context>
 <context>
     <name>QWebPage</name>
     <message>
         <source>Redirection limit reached</source>
         <translation type="vanished">Omdirigeringsgräns uppnådd</translation>
-    </message>
-    <message>
-        <source>Bad HTTP request</source>
-        <translation>Felaktig HTTP-begäran</translation>
     </message>
     <message>
         <source>Reset</source>
@@ -9787,26 +9461,6 @@ Stop context menu item</comment>
         <translation type="vanished">Höger till vänster</translation>
     </message>
     <message>
-        <source>Inspect</source>
-        <comment>Inspect Element context menu item</comment>
-        <translation>Inspektera</translation>
-    </message>
-    <message>
-        <source>No recent searches</source>
-        <comment>Label for only item in menu that appears when clicking on the search field image, when no searches have been performed</comment>
-        <translation>Inga tidigare sökningar</translation>
-    </message>
-    <message>
-        <source>Recent searches</source>
-        <comment>label for first item in the menu that appears when clicking on the search field image, used as embedded menu title</comment>
-        <translation>Tidigare sökningar</translation>
-    </message>
-    <message>
-        <source>Clear recent searches</source>
-        <comment>menu item in Recent Searches menu that empties menu&apos;s contents</comment>
-        <translation>Töm tidigare sökningar</translation>
-    </message>
-    <message>
         <source>Missing Plug-in</source>
         <comment>Label text to be used when a plug-in is missing</comment>
         <translation type="vanished">Saknar insticksprogram</translation>
@@ -9815,11 +9469,6 @@ Stop context menu item</comment>
         <source>Unknown</source>
         <comment>Unknown filesize FTP directory listing item</comment>
         <translation type="obsolete">Okänt</translation>
-    </message>
-    <message>
-        <source>%1 (%2x%3 pixels)</source>
-        <comment>Title string for images</comment>
-        <translation>%1 (%2x%3 bildpunkter)</translation>
     </message>
     <message>
         <source>Loading...</source>
@@ -10134,341 +9783,6 @@ Unknown filesize FTP directory listing item</comment>
         <source>Align Right</source>
         <translation type="vanished">Högerjustera</translation>
     </message>
-    <message>
-        <source>Submit</source>
-        <comment>default label for Submit buttons in forms on web pages</comment>
-        <translation>Skicka</translation>
-    </message>
-    <message>
-        <source>Submit</source>
-        <comment>Submit (input element) alt text for &lt;input&gt; elements with no alt, title, or value</comment>
-        <translation>Skicka</translation>
-    </message>
-    <message>
-        <source>This is a searchable index. Enter search keywords: </source>
-        <comment>text that appears at the start of nearly-obsolete web pages in the form of a &apos;searchable index&apos;</comment>
-        <translation>Detta är ett sökbart index. Ange sökord: </translation>
-    </message>
-    <message>
-        <source>Choose File</source>
-        <comment>title for file button used in HTML forms</comment>
-        <translation>Välj fil</translation>
-    </message>
-    <message>
-        <source>No file selected</source>
-        <comment>text to display in file button used in HTML forms when no file is selected</comment>
-        <translation>Ingen fil vald</translation>
-    </message>
-    <message>
-        <source>Open in New Window</source>
-        <comment>Open in New Window context menu item</comment>
-        <translation>Öppna i nytt fönster</translation>
-    </message>
-    <message>
-        <source>Save Link...</source>
-        <comment>Download Linked File context menu item</comment>
-        <translation>Spara länk...</translation>
-    </message>
-    <message>
-        <source>Copy Link</source>
-        <comment>Copy Link context menu item</comment>
-        <translation>Kopiera länk</translation>
-    </message>
-    <message>
-        <source>Open Image</source>
-        <comment>Open Image in New Window context menu item</comment>
-        <translation>Öppna bild</translation>
-    </message>
-    <message>
-        <source>Save Image</source>
-        <comment>Download Image context menu item</comment>
-        <translation>Spara bild</translation>
-    </message>
-    <message>
-        <source>Copy Image</source>
-        <comment>Copy Link context menu item</comment>
-        <translation>Kopiera bild</translation>
-    </message>
-    <message>
-        <source>Open Frame</source>
-        <comment>Open Frame in New Window context menu item</comment>
-        <translation>Öppna ram</translation>
-    </message>
-    <message>
-        <source>Copy</source>
-        <comment>Copy context menu item</comment>
-        <translation>Kopiera</translation>
-    </message>
-    <message>
-        <source>Go Back</source>
-        <comment>Back context menu item</comment>
-        <translation>Gå bakåt</translation>
-    </message>
-    <message>
-        <source>Go Forward</source>
-        <comment>Forward context menu item</comment>
-        <translation>Gå framåt</translation>
-    </message>
-    <message>
-        <source>Reload</source>
-        <comment>Reload context menu item</comment>
-        <translation>Läs om</translation>
-    </message>
-    <message>
-        <source>Cut</source>
-        <comment>Cut context menu item</comment>
-        <translation>Klipp ut</translation>
-    </message>
-    <message>
-        <source>Paste</source>
-        <comment>Paste context menu item</comment>
-        <translation>Klistra in</translation>
-    </message>
-    <message>
-        <source>No Guesses Found</source>
-        <comment>No Guesses Found context menu item</comment>
-        <translation>Inga gissningar hittades</translation>
-    </message>
-    <message>
-        <source>Add To Dictionary</source>
-        <comment>Learn Spelling context menu item</comment>
-        <translation>Lägg till i ordbok</translation>
-    </message>
-    <message>
-        <source>Search The Web</source>
-        <comment>Search The Web context menu item</comment>
-        <translation>Sök på nätet</translation>
-    </message>
-    <message>
-        <source>Look Up In Dictionary</source>
-        <comment>Look Up in Dictionary context menu item</comment>
-        <translation>Slå upp i ordbok</translation>
-    </message>
-    <message>
-        <source>Open Link</source>
-        <comment>Open Link context menu item</comment>
-        <translation>Öppna länk</translation>
-    </message>
-    <message>
-        <source>Spelling</source>
-        <comment>Spelling and Grammar context sub-menu item</comment>
-        <translation>Stavning</translation>
-    </message>
-    <message>
-        <source>Show Spelling and Grammar</source>
-        <comment>menu item title</comment>
-        <translation>Visa Stavning och grammatik</translation>
-    </message>
-    <message>
-        <source>Hide Spelling and Grammar</source>
-        <comment>menu item title</comment>
-        <translation>Dölj Stavning och grammatik</translation>
-    </message>
-    <message>
-        <source>Check Spelling</source>
-        <comment>Check spelling context menu item</comment>
-        <translation>Kontrollera stavning</translation>
-    </message>
-    <message>
-        <source>Check Spelling While Typing</source>
-        <comment>Check spelling while typing context menu item</comment>
-        <translation>Kontrollera stavning automatiskt</translation>
-    </message>
-    <message>
-        <source>Check Grammar With Spelling</source>
-        <comment>Check grammar with spelling context menu item</comment>
-        <translation>Kontrollera grammatik med stavning</translation>
-    </message>
-    <message>
-        <source>Fonts</source>
-        <comment>Font context sub-menu item</comment>
-        <translation>Typsnitt</translation>
-    </message>
-    <message>
-        <source>Bold</source>
-        <comment>Bold context menu item</comment>
-        <translation>Fet</translation>
-    </message>
-    <message>
-        <source>Italic</source>
-        <comment>Italic context menu item</comment>
-        <translation>Kursiv</translation>
-    </message>
-    <message>
-        <source>Underline</source>
-        <comment>Underline context menu item</comment>
-        <translation>Understruken</translation>
-    </message>
-    <message>
-        <source>Outline</source>
-        <comment>Outline context menu item</comment>
-        <translation>Kontur</translation>
-    </message>
-    <message>
-        <source>Direction</source>
-        <comment>Writing direction context sub-menu item</comment>
-        <translation>Riktning</translation>
-    </message>
-    <message>
-        <source>Text Direction</source>
-        <comment>Text direction context sub-menu item</comment>
-        <translation>Textriktning</translation>
-    </message>
-    <message>
-        <source>Default</source>
-        <comment>Default writing direction context menu item</comment>
-        <translation>Standard</translation>
-    </message>
-    <message>
-        <source>LTR</source>
-        <comment>Left to Right context menu item</comment>
-        <translation type="obsolete">VTH</translation>
-    </message>
-    <message>
-        <source>RTL</source>
-        <comment>Right to Left context menu item</comment>
-        <translation type="obsolete">HTV</translation>
-    </message>
-    <message>
-        <source>Web Inspector - %2</source>
-        <translation>Webbinspektör - %2</translation>
-    </message>
-    <message numerus="yes">
-        <source>%n file(s)</source>
-        <comment>number of chosen file</comment>
-        <translation>
-            <numerusform>%n fil</numerusform>
-            <numerusform>%n filer</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>JavaScript Alert - %1</source>
-        <translation>Javascript-larm - %1</translation>
-    </message>
-    <message>
-        <source>JavaScript Confirm - %1</source>
-        <translation>Javascript-bekräftelse - %1</translation>
-    </message>
-    <message>
-        <source>JavaScript Prompt - %1</source>
-        <translation>Javascript-fråga - %1</translation>
-    </message>
-    <message>
-        <source>Move the cursor to the next character</source>
-        <translation>Flytta markören till nästa tecken</translation>
-    </message>
-    <message>
-        <source>Move the cursor to the previous character</source>
-        <translation>Flytta markören till föregående tecken</translation>
-    </message>
-    <message>
-        <source>Move the cursor to the next word</source>
-        <translation>Flytta markören till nästa ord</translation>
-    </message>
-    <message>
-        <source>Move the cursor to the previous word</source>
-        <translation>Flytta markören till föregående ord</translation>
-    </message>
-    <message>
-        <source>Move the cursor to the next line</source>
-        <translation>Flytta markören till nästa rad</translation>
-    </message>
-    <message>
-        <source>Move the cursor to the previous line</source>
-        <translation>Flytta markören till föregående rad</translation>
-    </message>
-    <message>
-        <source>Move the cursor to the start of the line</source>
-        <translation>Flytta markören till radens början</translation>
-    </message>
-    <message>
-        <source>Move the cursor to the end of the line</source>
-        <translation>Flytta markören till radens slut</translation>
-    </message>
-    <message>
-        <source>Move the cursor to the start of the block</source>
-        <translation>Flytta markören till blockets början</translation>
-    </message>
-    <message>
-        <source>Move the cursor to the end of the block</source>
-        <translation>Flytta markören till blockets slut</translation>
-    </message>
-    <message>
-        <source>Move the cursor to the start of the document</source>
-        <translation>Flytta markören till dokumentets början</translation>
-    </message>
-    <message>
-        <source>Move the cursor to the end of the document</source>
-        <translation>Flytta markören till dokumentets slut</translation>
-    </message>
-    <message>
-        <source>Select all</source>
-        <translation>Markera alla</translation>
-    </message>
-    <message>
-        <source>Select to the next character</source>
-        <translation>Markera till nästa tecken</translation>
-    </message>
-    <message>
-        <source>Select to the previous character</source>
-        <translation>Markera till föregående tecken</translation>
-    </message>
-    <message>
-        <source>Select to the next word</source>
-        <translation>Markera till nästa ord</translation>
-    </message>
-    <message>
-        <source>Select to the previous word</source>
-        <translation>Markera till föregående ord</translation>
-    </message>
-    <message>
-        <source>Select to the next line</source>
-        <translation>Markera till nästa rad</translation>
-    </message>
-    <message>
-        <source>Select to the previous line</source>
-        <translation>Markera till föregående rad</translation>
-    </message>
-    <message>
-        <source>Select to the start of the line</source>
-        <translation>Markera till radens början</translation>
-    </message>
-    <message>
-        <source>Select to the end of the line</source>
-        <translation>Markera till radens slut</translation>
-    </message>
-    <message>
-        <source>Select to the start of the block</source>
-        <translation>Markera till blockets början</translation>
-    </message>
-    <message>
-        <source>Select to the end of the block</source>
-        <translation>Markera till blockets slut</translation>
-    </message>
-    <message>
-        <source>Select to the start of the document</source>
-        <translation>Markera till dokumentets början</translation>
-    </message>
-    <message>
-        <source>Select to the end of the document</source>
-        <translation>Markera till dokumentets slut</translation>
-    </message>
-    <message>
-        <source>Delete to the start of the word</source>
-        <translation>Ta bort till ordets början</translation>
-    </message>
-    <message>
-        <source>Delete to the end of the word</source>
-        <translation>Ta bort till ordets slut</translation>
-    </message>
-    <message>
-        <source>Insert a new paragraph</source>
-        <translation>Infoga ett nytt stycke</translation>
-    </message>
-    <message>
-        <source>Insert a new line</source>
-        <translation>Infoga en ny rad</translation>
-    </message>
 </context>
 <context>
     <name>QWhatsThisAction</name>
@@ -10779,10 +10093,6 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <source>Attribute redefined.</source>
-        <translation>Attributet omdefinierat.</translation>
-    </message>
-    <message>
         <source>Unexpected character &apos;%1&apos; in public id literal.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -10914,10 +10224,6 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
         <translation type="vanished">Målnamnet i en processinstruktion kan inte vara %1 i någon kombination av gemener och versaler. Därför är %2 ogiltig.</translation>
     </message>
     <message>
-        <source>%1 is not a valid target name in a processing instruction. It must be a %2 value, e.g. %3.</source>
-        <translation>%1 är inte ett giltigt målnamn i en processinstruktion. Den måste vara ett %2-värde, t.ex. %3.</translation>
-    </message>
-    <message>
         <source>W3C XML Schema identity constraint selector</source>
         <translation type="vanished">W3C XML Schema identitetsbegränsningsväljare</translation>
     </message>
@@ -10934,72 +10240,16 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
         <translation type="vanished">En mall med namnet %1 har redan deklarerats.</translation>
     </message>
     <message>
-        <source>%1 is not a valid numeric literal.</source>
-        <translation>%1 är inte en giltig numerisk literal.</translation>
-    </message>
-    <message>
         <source>No variable with name %1 exists</source>
         <translation type="vanished">Ingen variabel med namnet %1 finns</translation>
-    </message>
-    <message>
-        <source>Version %1 is not supported. The supported XQuery version is 1.0.</source>
-        <translation>Version %1 stöds inte. Version som stöds är XQuery 1.0.</translation>
-    </message>
-    <message>
-        <source>The encoding %1 is invalid. It must contain Latin characters only, must not contain whitespace, and must match the regular expression %2.</source>
-        <translation>Teckenkodningen %1 är ogiltig. Den får endast innehålla latinska tecken och utskrivbara tecken samt måste matcha det reguljära uttrycket %2.</translation>
-    </message>
-    <message>
-        <source>No function with signature %1 is available</source>
-        <translation>Ingen funktion med signaturen %1 finns tillgänglig</translation>
-    </message>
-    <message>
-        <source>A default namespace declaration must occur before function, variable, and option declarations.</source>
-        <translation>En standardnamnrymdsdeklaration måste ske innan deklarationer av function, variable och option.</translation>
-    </message>
-    <message>
-        <source>Namespace declarations must occur before function, variable, and option declarations.</source>
-        <translation>Namnrymdsdeklarationer måste ske innan deklarationer av function, variable och option.</translation>
-    </message>
-    <message>
-        <source>Module imports must occur before function, variable, and option declarations.</source>
-        <translation>Modulimporter måste ske innan deklarationer av function, variable och option.</translation>
-    </message>
-    <message>
-        <source>The keyword %1 cannot occur with any other mode name.</source>
-        <translation>Nyckelordet %1 kan inte förekomma med något annat lägesnamn.</translation>
     </message>
     <message>
         <source>The value of attribute %1 must be of type %2, which %3 isn&apos;t.</source>
         <translation type="vanished">Värdet av egenskapen %1 måste ha typen %2, vilket %3 inte har.</translation>
     </message>
     <message>
-        <source>It is not possible to redeclare prefix %1.</source>
-        <translation>Det är inte möjligt att deklarera om prefixet %1.</translation>
-    </message>
-    <message>
         <source>The prefix %1 cannot be bound. By default, it is already bound to the namespace %2.</source>
         <translation type="vanished">Prefixet %1 kan inte bindas. Normalt är det redan bundet till namnrymden %2.</translation>
-    </message>
-    <message>
-        <source>Prefix %1 is already declared in the prolog.</source>
-        <translation>Prefixet %1 är redan deklarerat i prologen.</translation>
-    </message>
-    <message>
-        <source>The name of an option must have a prefix. There is no default namespace for options.</source>
-        <translation>Namnet för option måste ha ett prefix. Det finns inga standardnamnrymder för dessa.</translation>
-    </message>
-    <message>
-        <source>The Schema Import feature is not supported, and therefore %1 declarations cannot occur.</source>
-        <translation>Funktionen Schema Import stöds inte och därför kan inte deklarationen %1 ske.</translation>
-    </message>
-    <message>
-        <source>The target namespace of a %1 cannot be empty.</source>
-        <translation>Målnamnrymden för en %1 får inte vara tom.</translation>
-    </message>
-    <message>
-        <source>The module import feature is not supported</source>
-        <translation>Funktionen för modulimport stöds inte</translation>
     </message>
     <message>
         <source>A variable with name %1 has already been declared.</source>
@@ -11010,144 +10260,16 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
         <translation type="vanished">Något värde är inte tillgängligt för den externa variabeln med namnet %1.</translation>
     </message>
     <message>
-        <source>A stylesheet function must have a prefixed name.</source>
-        <translation>En funktion i en stilmall måste ha ett namn med prefix.</translation>
-    </message>
-    <message>
-        <source>The namespace for a user defined function cannot be empty (try the predefined prefix %1 which exists for cases like this)</source>
-        <translation>Namnrymden för en användardefinierad funktion kan inte vara tom (försök med det fördefinierade prefixet %1, som finns för dessa fall)</translation>
-    </message>
-    <message>
-        <source>The namespace %1 is reserved; therefore user defined functions may not use it. Try the predefined prefix %2, which exists for these cases.</source>
-        <translation>Namnrymden %1 är reserverad; därför kan inte användardefinierade funktioner använda den. Prova det fördefinierade prefixet %2 som finns för dessa situationer.</translation>
-    </message>
-    <message>
-        <source>The namespace of a user defined function in a library module must be equivalent to the module namespace. In other words, it should be %1 instead of %2</source>
-        <translation>Namnrymden för en användardefinierad funktion i en biblioteksmodul måste motsvara modulens namnrymd. Med andra ord, den måste vara %1 istället för %2</translation>
-    </message>
-    <message>
-        <source>A function already exists with the signature %1.</source>
-        <translation>En funktion med signaturen %1 finns redan.</translation>
-    </message>
-    <message>
-        <source>No external functions are supported. All supported functions can be used directly, without first declaring them as external</source>
-        <translation>Inga externa funktioner stöds. Alla funktioner som stöds kan användas direkt utan att först deklarera dem som externa</translation>
-    </message>
-    <message>
         <source>An argument with name %1 has already been declared. Every argument name must be unique.</source>
         <translation type="vanished">Ett argument med namnet %1 har redan deklarerats. Varje argumentnamn måste vara unikt.</translation>
-    </message>
-    <message>
-        <source>When function %1 is used for matching inside a pattern, the argument must be a variable reference or a string literal.</source>
-        <translation>När funktionen %1 används för att matcha inne i ett mönster, måste argumentet vara en variabelreferens eller en stränglitteral.</translation>
-    </message>
-    <message>
-        <source>In an XSL-T pattern, the first argument to function %1 must be a string literal, when used for matching.</source>
-        <translation>I ett XSL-T mönster måste första argumentet till funktionen %1 vara en stränglitteral, vid användning för matchning.</translation>
-    </message>
-    <message>
-        <source>In an XSL-T pattern, the first argument to function %1 must be a literal or a variable reference, when used for matching.</source>
-        <translation>I ett XSL-T mönster måste första argumentet till funktionen %1 vara en litteral eller variabelreferens, vid användning för matchning.</translation>
-    </message>
-    <message>
-        <source>In an XSL-T pattern, function %1 cannot have a third argument.</source>
-        <translation>I ett XSL-T mönster kan inte funktionen %1 ha ett tredje argument.</translation>
-    </message>
-    <message>
-        <source>In an XSL-T pattern, only function %1 and %2, not %3, can be used for matching.</source>
-        <translation>I ett XSL-T mönster kan bara funktionerna %1 och %2, inte %3, användas för matchning.</translation>
-    </message>
-    <message>
-        <source>In an XSL-T pattern, axis %1 cannot be used, only axis %2 or %3 can.</source>
-        <translation>I ett XSL-T mönster kan inte axeln %1 användas, utan bara axlarna %2 eller %3.</translation>
-    </message>
-    <message>
-        <source>%1 is an invalid template mode name.</source>
-        <translation>%1 är ett ogiltigt lägesnamn för mallen.</translation>
-    </message>
-    <message>
-        <source>The name of a variable bound in a for-expression must be different from the positional variable. Hence, the two variables named %1 collide.</source>
-        <translation>Namnet på en variabelbindning i ett for-uttryck måste skilja sig från den positionella variabeln. Därav kolliderar de två variablerna %1.</translation>
-    </message>
-    <message>
-        <source>The Schema Validation Feature is not supported. Hence, %1-expressions may not be used.</source>
-        <translation>Funktionen Schema Validation Feature stöds inte. Därav kan inte %1-uttryck användas.</translation>
-    </message>
-    <message>
-        <source>None of the pragma expressions are supported. Therefore, a fallback expression must be present</source>
-        <translation>Inga av pragma-uttrycken stöds. Därfär måste ett uttryck att falla tillbaka på finnas</translation>
-    </message>
-    <message>
-        <source>Each name of a template parameter must be unique; %1 is duplicated.</source>
-        <translation>Varje namn i en mallparameter måste vara unikt. %1 är duplicerat.</translation>
-    </message>
-    <message>
-        <source>The %1-axis is unsupported in XQuery</source>
-        <translation>%1-axeln stöds inte i XQuery</translation>
     </message>
     <message>
         <source>No function with name %1 is available.</source>
         <translation type="vanished">Någon funktion med namnet %1 är inte tillgänglig.</translation>
     </message>
     <message>
-        <source>The namespace URI cannot be the empty string when binding to a prefix, %1.</source>
-        <translation>Namnrymds-URI:n får inte vara den tomma strängen vid bindning till ett prefix, %1.</translation>
-    </message>
-    <message>
-        <source>%1 is an invalid namespace URI.</source>
-        <translation>%1 är en ogiltig namnrymds-URI.</translation>
-    </message>
-    <message>
-        <source>It is not possible to bind to the prefix %1</source>
-        <translation>Det är inte möjligt att binda till prefixet %1</translation>
-    </message>
-    <message>
-        <source>Namespace %1 can only be bound to %2 (and it is, in either case, pre-declared).</source>
-        <translation>Namnrymden %1 kan endast bindas till %2 (och den är, oavsett, fördeklarerad).</translation>
-    </message>
-    <message>
-        <source>Prefix %1 can only be bound to %2 (and it is, in either case, pre-declared).</source>
-        <translation>Prefixet %1 kan endast bindas till %2 (och det är, oavsett, fördeklarerat).</translation>
-    </message>
-    <message>
-        <source>Two namespace declaration attributes have the same name: %1.</source>
-        <translation>Två attribut för namnrymdsdeklaration har samma namn: %1.</translation>
-    </message>
-    <message>
-        <source>The namespace URI must be a constant and cannot use enclosed expressions.</source>
-        <translation>Namnrymds-URI:n måste vara en constant och kan inte använda bifogade uttryck.</translation>
-    </message>
-    <message>
         <source>An attribute with name %1 has already appeared on this element.</source>
         <translation type="vanished">En egenskap med namnet %1 har redan funnits för den här komponenten.</translation>
-    </message>
-    <message>
-        <source>A direct element constructor is not well-formed. %1 is ended with %2.</source>
-        <translation>En direkt element constructor är inte korrekt formulerad. %1 slutar med %2.</translation>
-    </message>
-    <message>
-        <source>The name %1 does not refer to any schema type.</source>
-        <translation>Namnet %1 refererar inte till någon schematyp.</translation>
-    </message>
-    <message>
-        <source>%1 is an complex type. Casting to complex types is not possible. However, casting to atomic types such as %2 works.</source>
-        <translation>%1 är en komplex typ. Typkonvertering till komplexa typer är inte möjlig. Dock fungerar typkonverteringar till odelbara typer såsom %2.</translation>
-    </message>
-    <message>
-        <source>%1 is not an atomic type. Casting is only possible to atomic types.</source>
-        <translation>%1 är inte en odelbar typ. Typkonvertering är endast möjlig för odelbara typer.</translation>
-    </message>
-    <message>
-        <source>%1 is not a valid name for a processing-instruction.</source>
-        <translation>%1 är inte ett giltigt namn för en behandlingsinstruktion.</translation>
-    </message>
-    <message>
-        <source>%1 is not in the in-scope attribute declarations. Note that the schema import feature is not supported.</source>
-        <translation>%1 är inte i in-scope attributdeklarationerna. Observera att schemaimportfunktionen inte stöds.</translation>
-    </message>
-    <message>
-        <source>The name of an extension expression must be in a namespace.</source>
-        <translation>Namnet på ett utökningsuttryck måste finnas i en namnrymd.</translation>
     </message>
     <message>
         <source>Only the prefix %1 can be declared to bind the namespace %2. By default, it is already bound to the prefix %1.</source>
@@ -12236,682 +11358,6 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <message>
         <source>&apos;%1&apos; attribute contains invalid QName content: %2.</source>
         <translation type="vanished">Egenskapen &apos;%1&apos; innehåller ogiltigt QName innehåll: %2.</translation>
-    </message>
-    <message>
-        <source>An %1-attribute with value %2 has already been declared.</source>
-        <translation type="obsolete">Ett %1-attribut med värdet %2 har redan deklarerats.</translation>
-    </message>
-    <message>
-        <source>An %1-attribute must have a valid %2 as value, which %3 isn&apos;t.</source>
-        <translation type="obsolete">Ett %1-attribut måste ha en giltig %2 som värde, som %3 inte är.</translation>
-    </message>
-    <message>
-        <source>Network timeout.</source>
-        <translation>Nätverkstidsgräns överskreds.</translation>
-    </message>
-    <message>
-        <source>Element %1 can&apos;t be serialized because it appears outside the document element.</source>
-        <translation>Elementet %1 kan inte serialiseras därför att det finns utanför dokumentelementet.</translation>
-    </message>
-    <message>
-        <source>Attribute %1 can&apos;t be serialized because it appears at the top level.</source>
-        <translation>Egenskapen %1 kan inte serialiseras eftersom den uppträder på toppnivå.</translation>
-    </message>
-    <message>
-        <source>Year %1 is invalid because it begins with %2.</source>
-        <translation>Året %1 är ogiltigt eftersom det börjar med %2.</translation>
-    </message>
-    <message>
-        <source>Day %1 is outside the range %2..%3.</source>
-        <translation>Dagen %1 är utanför intervallet %2..%3.</translation>
-    </message>
-    <message>
-        <source>Month %1 is outside the range %2..%3.</source>
-        <translation>Månaden %1 är utanför intervallet %2..%3.</translation>
-    </message>
-    <message>
-        <source>Overflow: Can&apos;t represent date %1.</source>
-        <translation>Överflode: Kan inte representera datumet %1.</translation>
-    </message>
-    <message>
-        <source>Day %1 is invalid for month %2.</source>
-        <translation>Dagen %1 är ogiltig för månaden %2.</translation>
-    </message>
-    <message>
-        <source>Time 24:%1:%2.%3 is invalid. Hour is 24, but minutes, seconds, and milliseconds are not all 0; </source>
-        <translation>Tiden 24:%1:%2.%3 är ogiltig. Timmen är 24 men minuter, sekunder och millisekunder är inte alla 0; </translation>
-    </message>
-    <message>
-        <source>Time %1:%2:%3.%4 is invalid.</source>
-        <translation>Tiden %1:%2:%3.%4 är ogiltig.</translation>
-    </message>
-    <message>
-        <source>Overflow: Date can&apos;t be represented.</source>
-        <translation>Överflöde: Datumet kan inte representeras.</translation>
-    </message>
-    <message>
-        <source>At least one component must be present.</source>
-        <translation>Åtminstone en komponent måste finnas.</translation>
-    </message>
-    <message>
-        <source>At least one time component must appear after the %1-delimiter.</source>
-        <translation>Åtminstone en tidskomponent måste finnas efter %1-avgränsaren.</translation>
-    </message>
-    <message>
-        <source>No operand in an integer division, %1, can be %2.</source>
-        <translation type="obsolete">Ingen operand i en heltalsdivision, %1, kan vara %2.</translation>
-    </message>
-    <message>
-        <source>The first operand in an integer division, %1, cannot be infinity (%2).</source>
-        <translation type="obsolete">Första operanden i en heltalsdivision, %1, kan inte vara oändlig (%2).</translation>
-    </message>
-    <message>
-        <source>The second operand in a division, %1, cannot be zero (%2).</source>
-        <translation type="obsolete">Andra operanden i en division, %1, kan inte vara noll (%2).</translation>
-    </message>
-    <message>
-        <source>%1 is not a valid value of type %2.</source>
-        <translation>%1 är inte ett giltigt värde för typen %2.</translation>
-    </message>
-    <message>
-        <source>When casting to %1 from %2, the source value cannot be %3.</source>
-        <translation>Vid typkonvertering till %1 från %2 kan inte källvärdet vara %3.</translation>
-    </message>
-    <message>
-        <source>Integer division (%1) by zero (%2) is undefined.</source>
-        <translation>Heltalsdivision (%1) med noll (%2) är odefinierad.</translation>
-    </message>
-    <message>
-        <source>Division (%1) by zero (%2) is undefined.</source>
-        <translation>Division (%1) med noll (%2) är odefinierad.</translation>
-    </message>
-    <message>
-        <source>Modulus division (%1) by zero (%2) is undefined.</source>
-        <translation>Modulusdividering (%1) med noll (%2) är odefinierad.</translation>
-    </message>
-    <message>
-        <source>Dividing a value of type %1 by %2 (not-a-number) is not allowed.</source>
-        <translation>Dividering av ett värde av typen %1 med %2 (inte ett tal) tillåts inte.</translation>
-    </message>
-    <message>
-        <source>Dividing a value of type %1 by %2 or %3 (plus or minus zero) is not allowed.</source>
-        <translation>Dividering av ett värde av typen %1 med %2 eller %3 (plus eller minus noll) tillåts inte.</translation>
-    </message>
-    <message>
-        <source>Multiplication of a value of type %1 by %2 or %3 (plus or minus infinity) is not allowed.</source>
-        <translation>Multiplicering av ett värde av typen %1 med %2 eller %3 (plus eller minus oändligt) tillåts inte.</translation>
-    </message>
-    <message>
-        <source>A value of type %1 cannot have an Effective Boolean Value.</source>
-        <translation>Ett värde av typen %1 kan inte ha ett effektivt booleskt värde.</translation>
-    </message>
-    <message>
-        <source>Effective Boolean Value cannot be calculated for a sequence containing two or more atomic values.</source>
-        <translation>Effektivt booleskt värde kan inte beräknas för en sekvens som innehåller två eller flera odelbara värden.</translation>
-    </message>
-    <message>
-        <source>Value %1 of type %2 exceeds maximum (%3).</source>
-        <translation>Värdet %1 av typen %2 överstiger maximum (%3).</translation>
-    </message>
-    <message>
-        <source>Value %1 of type %2 is below minimum (%3).</source>
-        <translation>Värdet %1 av typen %2 är under minimum (%3).</translation>
-    </message>
-    <message>
-        <source>A value of type %1 must contain an even number of digits. The value %2 does not.</source>
-        <translation>Ett värde av typen %1 måste innehålla ett jämnt antal siffror. Värdet %2 gör inte det.</translation>
-    </message>
-    <message>
-        <source>%1 is not valid as a value of type %2.</source>
-        <translation>%1 är inte giltig som ett värde av typen %2.</translation>
-    </message>
-    <message>
-        <source>Operator %1 cannot be used on type %2.</source>
-        <translation>Operatorn %1 kan inte användas på typen %2.</translation>
-    </message>
-    <message>
-        <source>Operator %1 cannot be used on atomic values of type %2 and %3.</source>
-        <translation>Operatorn %1 kan inte användas på odelbara värden av typen %2 och %3.</translation>
-    </message>
-    <message>
-        <source>The namespace URI in the name for a computed attribute cannot be %1.</source>
-        <translation>Namnrymds-URI:n i namnet för ett beräknat attribut kan inte vara %1.</translation>
-    </message>
-    <message>
-        <source>The name for a computed attribute cannot have the namespace URI %1 with the local name %2.</source>
-        <translation>Namnet för ett beräknat attribut kan inte ha namnrymds-URI:n %1 med lokala namnet %2.</translation>
-    </message>
-    <message>
-        <source>Type error in cast, expected %1, received %2.</source>
-        <translation>Typfel i typkonvertering, förväntade %1, fick %2.</translation>
-    </message>
-    <message>
-        <source>When casting to %1 or types derived from it, the source value must be of the same type, or it must be a string literal. Type %2 is not allowed.</source>
-        <translation>När typkonvertering görs till %1 eller typer härledda från den, måste källvärde vara av samma typ, eller så måste den vara en strängliteral. Typen %2 är inte tillåten.</translation>
-    </message>
-    <message>
-        <source>No casting is possible with %1 as the target type.</source>
-        <translation type="obsolete">Ingen typkonvertering är möjlig med %1 som måltypen.</translation>
-    </message>
-    <message>
-        <source>It is not possible to cast from %1 to %2.</source>
-        <translation type="obsolete">Det är inte möjligt att typkonvertera från %1 till %2.</translation>
-    </message>
-    <message>
-        <source>Casting to %1 is not possible because it is an abstract type, and can therefore never be instantiated.</source>
-        <translation type="obsolete">Typkonvertering till %1 är inte möjlig därför att det är en abstrakt typ och kan därför aldrig exemplifieras.</translation>
-    </message>
-    <message>
-        <source>It&apos;s not possible to cast the value %1 of type %2 to %3</source>
-        <translation type="obsolete">Det är inte möjligt att typkonvertera värdet %1 av typen %2 till %3</translation>
-    </message>
-    <message>
-        <source>Failure when casting from %1 to %2: %3</source>
-        <translation type="obsolete">Typkonvertering från %1 till %2 misslyckades: %3</translation>
-    </message>
-    <message>
-        <source>A comment cannot contain %1</source>
-        <translation>En kommentar får inte innehålla %1</translation>
-    </message>
-    <message>
-        <source>A comment cannot end with a %1.</source>
-        <translation>En kommentar får inte sluta med ett %1.</translation>
-    </message>
-    <message>
-        <source>No comparisons can be done involving the type %1.</source>
-        <translation type="obsolete">Inga jämförelser kan göras som infattar typen %1.</translation>
-    </message>
-    <message>
-        <source>Operator %1 is not available between atomic values of type %2 and %3.</source>
-        <translation type="obsolete">Operatorn %1 är inte tillgänglig mellan odelbara värden av typen %2 och %3.</translation>
-    </message>
-    <message>
-        <source>An attribute node cannot be a child of a document node. Therefore, the attribute %1 is out of place.</source>
-        <translation>En attributnod kan inte vara ett barn till en dokumentnod. Därför är attributet %1 felplacerat.</translation>
-    </message>
-    <message>
-        <source>A library module cannot be evaluated directly. It must be imported from a main module.</source>
-        <translation>En biblioteksmodul kan inte evalueras direkt. Den måste importeras från en huvudmodul.</translation>
-    </message>
-    <message>
-        <source>No template by name %1 exists.</source>
-        <translation>Någon mall med namnet %1 finns inte.</translation>
-    </message>
-    <message>
-        <source>A value of type %1 cannot be a predicate. A predicate must have either a numeric type or an Effective Boolean Value type.</source>
-        <translation>Ett värde av typen %1 kan inte vara ett predikat. Ett predikat måste ha antingen ett numeriskt värde eller en effektivt booleskt värde-typ.</translation>
-    </message>
-    <message>
-        <source>A positional predicate must evaluate to a single numeric value.</source>
-        <translation>Ett positionellt predikat måste evalueras till ett enstaka numeriskt värde.</translation>
-    </message>
-    <message>
-        <source>The target name in a processing instruction cannot be %1 in any combination of upper and lower case. Therefore, is %2 invalid.</source>
-        <translation type="obsolete">Målnamnet i en processinstruktion kan inte vara %1 i någon kombination av gemener och versaler. Därför är %2 ogiltig.</translation>
-    </message>
-    <message>
-        <source>The last step in a path must contain either nodes or atomic values. It cannot be a mixture between the two.</source>
-        <translation>Sista steget i en sökvägen måste innehålla antingen noder eller odelbara värden. Det kan inte vara en blandning mellan de två.</translation>
-    </message>
-    <message>
-        <source>The data of a processing instruction cannot contain the string %1</source>
-        <translation>Datat för en processinstruktion får inte innehålla strängen %1</translation>
-    </message>
-    <message>
-        <source>No namespace binding exists for the prefix %1</source>
-        <translation>Ingen namnrymdsbindning finns för prefixet %1</translation>
-    </message>
-    <message>
-        <source>No namespace binding exists for the prefix %1 in %2</source>
-        <translation>Ingen namnrymdsbindning finns för prefixet %1 i %2</translation>
-    </message>
-    <message>
-        <source>%1 is an invalid %2</source>
-        <translation>%1 är en ogiltig %2</translation>
-    </message>
-    <message numerus="yes">
-        <source>%1 takes at most %n argument(s). %2 is therefore invalid.</source>
-        <translation>
-            <numerusform>%1 tar som mest %n argument. %2 är därför ogiltig.</numerusform>
-            <numerusform>%1 tar som mest %n argument. %2 är därför ogiltig.</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>%1 requires at least %n argument(s). %2 is therefore invalid.</source>
-        <translation>
-            <numerusform>%1 kräver minst %n argument. %2 är därför ogiltig.</numerusform>
-            <numerusform>%1 kräver minst %n argument. %2 är därför ogiltig.</numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>The first argument to %1 cannot be of type %2. It must be a numeric type, xs:yearMonthDuration or xs:dayTimeDuration.</source>
-        <translation>Först argumentet till %1 kan inte vara av typen %2. Det måste vara en numerisk typ, xs:yearMonthDuration eller xs:dayTimeDuration.</translation>
-    </message>
-    <message>
-        <source>The first argument to %1 cannot be of type %2. It must be of type %3, %4, or %5.</source>
-        <translation>Första argumentet till %1 kan inte vara av typen %2. Det måste vara av typen %3, %4 eller %5.</translation>
-    </message>
-    <message>
-        <source>The second argument to %1 cannot be of type %2. It must be of type %3, %4, or %5.</source>
-        <translation>Andra argumentet till %1 kan inte vara av typen %2. Det måste vara av typen %3, %4 eller %5.</translation>
-    </message>
-    <message>
-        <source>%1 is not a valid XML 1.0 character.</source>
-        <translation>%1 är inte ett giltigt XML 1.0-tecken.</translation>
-    </message>
-    <message>
-        <source>The first argument to %1 cannot be of type %2.</source>
-        <translation type="obsolete">Första argumentet till %1 kan inte vara av typen %2.</translation>
-    </message>
-    <message>
-        <source>If both values have zone offsets, they must have the same zone offset. %1 and %2 are not the same.</source>
-        <translation>Om båda värden har zonpositioner så måste de ha samma zonposition. %1 och %2 är inte samma.</translation>
-    </message>
-    <message>
-        <source>%1 was called.</source>
-        <translation>%1 anropades.</translation>
-    </message>
-    <message>
-        <source>%1 must be followed by %2 or %3, not at the end of the replacement string.</source>
-        <translation>%1 måste följas av %2 eller %3, inte i slutet av ersättningssträngen.</translation>
-    </message>
-    <message>
-        <source>In the replacement string, %1 must be followed by at least one digit when not escaped.</source>
-        <translation>I ersättningssträngen måste %1 följas av minst en siffra när den inte inleds med escape-tecken.</translation>
-    </message>
-    <message>
-        <source>In the replacement string, %1 can only be used to escape itself or %2, not %3</source>
-        <translation>I ersättningssträngen kan %1 endast användas för att undanta (escape) sig själv eller %2, inte %3</translation>
-    </message>
-    <message>
-        <source>%1 matches newline characters</source>
-        <translation>%1 matchar nyradstecken</translation>
-    </message>
-    <message>
-        <source>%1 and %2 match the start and end of a line.</source>
-        <translation>%1 och %2 matchar början och slutet av en rad.</translation>
-    </message>
-    <message>
-        <source>Matches are case insensitive</source>
-        <translation>Matchningar är skiftlägesokänsliga</translation>
-    </message>
-    <message>
-        <source>Whitespace characters are removed, except when they appear in character classes</source>
-        <translation>Icke-utskrivbara tecken tas bort, förutom när de finns i teckenklasser</translation>
-    </message>
-    <message>
-        <source>%1 is an invalid regular expression pattern: %2</source>
-        <translation>%1 är ett ogiltigt reguljärt uttrycksmönster: %2</translation>
-    </message>
-    <message>
-        <source>%1 is an invalid flag for regular expressions. Valid flags are:</source>
-        <translation>%1 är en ogiltig flagga för reguljära uttryck. Giltiga flaggor är:</translation>
-    </message>
-    <message>
-        <source>If the first argument is the empty sequence or a zero-length string (no namespace), a prefix cannot be specified. Prefix %1 was specified.</source>
-        <translation>Om första argumentet är den tomma sekvensen eller en noll-längdssträng (ingen namnrymd) kan ett prefix inte anges. Prefixet %1 angavs.</translation>
-    </message>
-    <message>
-        <source>It will not be possible to retrieve %1.</source>
-        <translation>Det var inte möjligt att hämta %1.</translation>
-    </message>
-    <message>
-        <source>The root node of the second argument to function %1 must be a document node. %2 is not a document node.</source>
-        <translation>Rotnoden för det andra argumentet till funktionen %1 måste vara en dokumentnod. %2 är inte en dokumentnod.</translation>
-    </message>
-    <message>
-        <source>The default collection is undefined</source>
-        <translation>Standardsamlingen är inte definierad</translation>
-    </message>
-    <message>
-        <source>%1 cannot be retrieved</source>
-        <translation>%1 kan inte hämtas</translation>
-    </message>
-    <message>
-        <source>The normalization form %1 is unsupported. The supported forms are %2, %3, %4, and %5, and none, i.e. the empty string (no normalization).</source>
-        <translation>Normaliseringsformatet %1 stöds inte. De format som stöds är %2, %3, %4 och %5, samt none, alltså den tomma strängen (ingen normalisering).</translation>
-    </message>
-    <message>
-        <source>A zone offset must be in the range %1..%2 inclusive. %3 is out of range.</source>
-        <translation>En zonposition måste vara inom intervallet %1..%2 inklusive. %3 är utanför intervallet.</translation>
-    </message>
-    <message>
-        <source>%1 is not a whole number of minutes.</source>
-        <translation>%1 är inte en helt antal minuter.</translation>
-    </message>
-    <message>
-        <source>Required cardinality is %1; got cardinality %2.</source>
-        <translation>Nödvändig cardinality är %1; fick cardinality %2.</translation>
-    </message>
-    <message>
-        <source>The item %1 did not match the required type %2.</source>
-        <translation>Objektet %1 matchade inte den nödvändiga typen %2.</translation>
-    </message>
-    <message>
-        <source>%1 is an unknown schema type.</source>
-        <translation>%1 är en okänd schematyp.</translation>
-    </message>
-    <message>
-        <source>Only one %1 declaration can occur in the query prolog.</source>
-        <translation>Endast en %1-deklaration kan ske i frågesatsprologen.</translation>
-    </message>
-    <message>
-        <source>The initialization of variable %1 depends on itself</source>
-        <translation>Initiering av variabeln %1 är beroende av sig själv</translation>
-    </message>
-    <message>
-        <source>No variable by name %1 exists</source>
-        <translation type="obsolete">Ingen variabel med namnet %1 finns</translation>
-    </message>
-    <message>
-        <source>The variable %1 is unused</source>
-        <translation>Variablen %1 är oanvänd</translation>
-    </message>
-    <message>
-        <source>No value is available for the external variable by name %1.</source>
-        <translation type="obsolete">Inget värde är tillgängligt för den externa variabeln med namnet %1.</translation>
-    </message>
-    <message>
-        <source>An argument by name %1 has already been declared. Every argument name must be unique.</source>
-        <translation type="obsolete">Ett argument med namnet %1 har redan deklarerats. Varje argumentnamn måste vara unikt.</translation>
-    </message>
-    <message>
-        <source>No function by name %1 is available.</source>
-        <translation type="obsolete">Ingen funktion med namnet %1 finns tillgänglig.</translation>
-    </message>
-    <message>
-        <source>An attribute by name %1 has already appeared on this element.</source>
-        <translation type="obsolete">Ett attribut med namnet %1 har redan angivits i detta element.</translation>
-    </message>
-    <message>
-        <source>empty</source>
-        <translation>tom</translation>
-    </message>
-    <message>
-        <source>zero or one</source>
-        <translation>noll eller en</translation>
-    </message>
-    <message>
-        <source>exactly one</source>
-        <translation>exakt en</translation>
-    </message>
-    <message>
-        <source>one or more</source>
-        <translation>en eller mera</translation>
-    </message>
-    <message>
-        <source>zero or more</source>
-        <translation>noll eller mera</translation>
-    </message>
-    <message>
-        <source>Required type is %1, but %2 was found.</source>
-        <translation>Nödvändig typ är %1 men %2 hittades.</translation>
-    </message>
-    <message>
-        <source>Promoting %1 to %2 may cause loss of precision.</source>
-        <translation>Promotering av %1 till %2 kan innebära minskad precision.</translation>
-    </message>
-    <message>
-        <source>The focus is undefined.</source>
-        <translation>Fokus är odefinierad.</translation>
-    </message>
-    <message>
-        <source>It&apos;s not possible to add attributes after any other kind of node.</source>
-        <translation>Det är inte möjligt att lägga till attribut efter någon annan sorts nod.</translation>
-    </message>
-    <message>
-        <source>An attribute by name %1 has already been created.</source>
-        <translation>Ett attribut med namnet %1 har redan skapats.</translation>
-    </message>
-    <message>
-        <source>Only the Unicode Codepoint Collation is supported(%1). %2 is unsupported.</source>
-        <translation>Endast Unicode Codepoint Collation stöds(%1). %2 stöds inte.</translation>
-    </message>
-    <message>
-        <source>%1 is an unsupported encoding.</source>
-        <translation>%1 är en ogiltig kodning.</translation>
-    </message>
-    <message>
-        <source>%1 contains octets which are disallowed in the requested encoding %2.</source>
-        <translation>%1 innehåller oktetter som inte godkänns i den begärda kodningen %2.</translation>
-    </message>
-    <message>
-        <source>The codepoint %1, occurring in %2 using encoding %3, is an invalid XML character.</source>
-        <translation>Kodvärdet %1, som förekommer i %2 med kodningen %3, är ett ogiltigt XML-tecken.</translation>
-    </message>
-    <message>
-        <source>Ambiguous rule match.</source>
-        <translation>Tvetydig regelträff.</translation>
-    </message>
-    <message>
-        <source>In a namespace constructor, the value for a namespace cannot be an empty string.</source>
-        <translation>I en namnrymdskonstruktor kan inte namnrymdens värde vara en tom sträng.</translation>
-    </message>
-    <message>
-        <source>The prefix must be a valid %1, which %2 is not.</source>
-        <translation>Prefixet måste vara giltig %1, vilket %2 inte är.</translation>
-    </message>
-    <message>
-        <source>The prefix %1 cannot be bound.</source>
-        <translation>Prefixet %1 kan inte bindas.</translation>
-    </message>
-    <message>
-        <source>Only the prefix %1 can be bound to %2 and vice versa.</source>
-        <translation>Bara prefixet %1 kan bindas till %2 och tvärtom.</translation>
-    </message>
-    <message>
-        <source>The parameter %1 is passed, but no corresponding %2 exists.</source>
-        <translation>Parametern %1 skickades, men motsvarande %2 finns inte.</translation>
-    </message>
-    <message>
-        <source>The parameter %1 is required, but no corresponding %2 is supplied.</source>
-        <translation>Parametern %1 krävs, men motsvarande %2 tillhandahålls inte.</translation>
-    </message>
-    <message>
-        <source>The URI cannot have a fragment</source>
-        <translation>Webbadressen kan inte innehålla ett fragment</translation>
-    </message>
-    <message>
-        <source>Element %1 is not allowed at this location.</source>
-        <translation>Komponenten %1 är inte tillåten på den här platsen.</translation>
-    </message>
-    <message>
-        <source>Text nodes are not allowed at this location.</source>
-        <translation>Textnoder är inte tillåtna på den här platsen.</translation>
-    </message>
-    <message>
-        <source>Parse error: %1</source>
-        <translation>Tolkningsfel: %1</translation>
-    </message>
-    <message>
-        <source>The value of the XSL-T version attribute must be a value of type %1, which %2 isn&apos;t.</source>
-        <translation>Värdet av XSL-T versionsegenskapen måste vara ett värde av typen %1, vilket %2 inte är.</translation>
-    </message>
-    <message>
-        <source>Running an XSL-T 1.0 stylesheet with a 2.0 processor.</source>
-        <translation>Kör en XSL-T 1.0 stilmall med en 2.0 behandlingsenhet.</translation>
-    </message>
-    <message>
-        <source>Unknown XSL-T attribute %1.</source>
-        <translation>Okänd XSL-T egenskap %1.</translation>
-    </message>
-    <message>
-        <source>Attribute %1 and %2 are mutually exclusive.</source>
-        <translation>Egenskaperna %1 och %2 är ömsesidigt uteslutande.</translation>
-    </message>
-    <message>
-        <source>In a simplified stylesheet module, attribute %1 must be present.</source>
-        <translation>I en förenklad stilmallsmodul måste egenskapen %1 ingå.</translation>
-    </message>
-    <message>
-        <source>If element %1 has no attribute %2, it cannot have attribute %3 or %4.</source>
-        <translation>Om komponenten %1 inte har egenskapen %2, kan den inte ha egenskapen %3 eller %4.</translation>
-    </message>
-    <message>
-        <source>Element %1 must have at least one of the attributes %2 or %3.</source>
-        <translation>Komponenten %1 måste ha minst en av egenskaperna %2 eller %3.</translation>
-    </message>
-    <message>
-        <source>At least one mode must be specified in the %1-attribute on element %2.</source>
-        <translation>Åtminstone ett läge måste anges i egenskapen %1 i komponenten %2.</translation>
-    </message>
-    <message>
-        <source>Element %1 must come last.</source>
-        <translation>Komponenten %1 måste komma sist.</translation>
-    </message>
-    <message>
-        <source>At least one %1-element must occur before %2.</source>
-        <translation>Åtminstone en %1-komponent måste förekomma innan %2.</translation>
-    </message>
-    <message>
-        <source>Only one %1-element can appear.</source>
-        <translation>Bara en %1-komponent kan förekomma.</translation>
-    </message>
-    <message>
-        <source>At least one %1-element must occur inside %2.</source>
-        <translation>Åtminstone en %1-komponent måste förekomma inne i %2.</translation>
-    </message>
-    <message>
-        <source>When attribute %1 is present on %2, a sequence constructor cannot be used.</source>
-        <translation>När egenskapen %1 är närvarande i %2, kan inte en sekvenskonstruktor användas.</translation>
-    </message>
-    <message>
-        <source>Element %1 must have either a %2-attribute or a sequence constructor.</source>
-        <translation>Komponenten %1 måste antingen ha en %2-egenskap eller en sekvenskonstruktor.</translation>
-    </message>
-    <message>
-        <source>When a parameter is required, a default value cannot be supplied through a %1-attribute or a sequence constructor.</source>
-        <translation>När en parameter krävs, kan inte ett förvalt värde tillhandahållas via en %1-egenskap eller en sekvenskonstruktor.</translation>
-    </message>
-    <message>
-        <source>Element %1 cannot have children.</source>
-        <translation>Komponenten %1 kan inte ha några underliggande objekt.</translation>
-    </message>
-    <message>
-        <source>Element %1 cannot have a sequence constructor.</source>
-        <translation>Komponenten %1 kan inte ha en sekvenskonstruktor.</translation>
-    </message>
-    <message>
-        <source>The attribute %1 cannot appear on %2, when it is a child of %3.</source>
-        <translation>Egenskapen %1 kan inte finnas i %2, när den är underliggande till %3.</translation>
-    </message>
-    <message>
-        <source>A parameter in a function cannot be declared to be a tunnel.</source>
-        <translation>En parameter i en funktion kan inte deklareras att vara en tunnel.</translation>
-    </message>
-    <message>
-        <source>This processor is not Schema-aware and therefore %1 cannot be used.</source>
-        <translation>Behandlingsenheten känner inte till Schema, och därför kan inte %1 användas.</translation>
-    </message>
-    <message>
-        <source>Top level stylesheet elements must be in a non-null namespace, which %1 isn&apos;t.</source>
-        <translation>Komponenter på stilmallens toppnivå får inte vara i namnrymden null, vilket %1 är.</translation>
-    </message>
-    <message>
-        <source>The value for attribute %1 on element %2 must either be %3 or %4, not %5.</source>
-        <translation>Värdet på egenskapen %1 i komponenten %2 måste antingen vara %3 eller %4, inte %5.</translation>
-    </message>
-    <message>
-        <source>Attribute %1 cannot have the value %2.</source>
-        <translation>Egenskapen %1 kan inte ha värdet %2.</translation>
-    </message>
-    <message>
-        <source>The attribute %1 can only appear on the first %2 element.</source>
-        <translation>Egenskapen %1 kan bara förekomma i den första %2-komponenten.</translation>
-    </message>
-    <message>
-        <source>At least one %1 element must appear as child of %2.</source>
-        <translation>Åtminstone en %1-komponent måste finnas som underliggande komponent till %2.</translation>
-    </message>
-</context>
-<context>
-    <name>AudioOutput</name>
-    <message>
-        <source>&lt;html&gt;The audio playback device &lt;b&gt;%1&lt;/b&gt; does not work.&lt;br/&gt;Falling back to &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</source>
-        <translation type="obsolete">&lt;html&gt;Ljuduppspelningsenheten &lt;b&gt;%1&lt;/b&gt; fungerar inte.&lt;br/&gt;Faller tillbaka på &lt;b&gt;%2&lt;/b&gt;.&lt;/html&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;html&gt;Switching to the audio playback device &lt;b&gt;%1&lt;/b&gt;&lt;br/&gt;which just became available and has higher preference.&lt;/html&gt;</source>
-        <translation type="obsolete">&lt;html&gt;Växlar till ljuduppspelningensenheten &lt;b&gt;%1&lt;/b&gt;&lt;br/&gt;som precis blev tillgänglig och har företräde.&lt;/html&gt;</translation>
-    </message>
-    <message>
-        <source>Revert back to device &apos;%1&apos;</source>
-        <translation type="obsolete">Återgå till enhet \&quot;%1\&quot;</translation>
-    </message>
-</context>
-<context>
-    <name>Phonon::</name>
-    <message>
-        <source>Notifications</source>
-        <translation>Notifieringar</translation>
-    </message>
-    <message>
-        <source>Music</source>
-        <translation>Musik</translation>
-    </message>
-    <message>
-        <source>Video</source>
-        <translation>Video</translation>
-    </message>
-    <message>
-        <source>Communication</source>
-        <translation>Kommunikation</translation>
-    </message>
-    <message>
-        <source>Games</source>
-        <translation>Spel</translation>
-    </message>
-    <message>
-        <source>Accessibility</source>
-        <translation>Tillgänglighet</translation>
-    </message>
-</context>
-<context>
-    <name>Phonon::Gstreamer::Backend</name>
-    <message>
-        <source>Warning: You do not seem to have the package gstreamer0.10-plugins-good installed.
-          Some video features have been disabled.</source>
-        <translation>Varning: Det verkar inte som om du har paketet gstreamer0.10-plugins-good installerat.
-          Vissa videofunktioner har inaktiverats.</translation>
-    </message>
-    <message>
-        <source>Warning: You do not seem to have the base GStreamer plugins installed.
-          All audio and video support has been disabled</source>
-        <translation>Varning: Det verkar inte som om du har de grundläggande GStreamer-insticksmodulerna installerade.
-          Allt stöd för ljud och video har inaktiverats</translation>
-    </message>
-</context>
-<context>
-    <name>QDial</name>
-    <message>
-        <source>QDial</source>
-        <translation>QDial</translation>
-    </message>
-    <message>
-        <source>SpeedoMeter</source>
-        <translation>Hastighetsmätare</translation>
-    </message>
-    <message>
-        <source>SliderHandle</source>
-        <translation>Draglisthandtag</translation>
-    </message>
-</context>
-<context>
-    <name>QNetworkAccessHttpBackend</name>
-    <message>
-        <source>No suitable proxy found</source>
-        <translation>Någon lämplig proxy hittades inte</translation>
-    </message>
-</context>
-<context>
-    <name>VolumeSlider</name>
-    <message>
-        <source>Muted</source>
-        <translation type="obsolete">Tyst</translation>
-    </message>
-    <message>
-        <source>Volume: %1%</source>
-        <translation type="obsolete">Volym: %1%</translation>
     </message>
 </context>
 </TS>

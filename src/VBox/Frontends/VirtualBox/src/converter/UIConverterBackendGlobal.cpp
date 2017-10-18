@@ -22,6 +22,7 @@
 /* Qt includes: */
 # include <QApplication>
 # include <QHash>
+# include <QRegularExpression>
 
 /* GUI includes: */
 # include "UIConverterBackend.h"
@@ -51,11 +52,13 @@ template<> bool canConvert<UIExtraDataMetaDefs::RuntimeMenuDebuggerActionType>()
 #ifdef VBOX_WS_MAC
 template<> bool canConvert<UIExtraDataMetaDefs::MenuWindowActionType>() { return true; }
 #endif /* VBOX_WS_MAC */
+template<> bool canConvert<ToolTypeMachine>() { return true; }
+template<> bool canConvert<ToolTypeGlobal>() { return true; }
 template<> bool canConvert<UIVisualStateType>() { return true; }
 template<> bool canConvert<DetailsElementType>() { return true; }
-template<> bool canConvert<InformationElementType>() { return true; }
 template<> bool canConvert<PreviewUpdateIntervalType>() { return true; }
 template<> bool canConvert<EventHandlingType>() { return true; }
+template<> bool canConvert<GUIFeatureType>() { return true; }
 template<> bool canConvert<GlobalSettingsPageType>() { return true; }
 template<> bool canConvert<MachineSettingsPageType>() { return true; }
 template<> bool canConvert<WizardType>() { return true; }
@@ -68,6 +71,8 @@ template<> bool canConvert<HiDPIOptimizationType>() { return true; }
 #ifndef VBOX_WS_MAC
 template<> bool canConvert<MiniToolbarAlignment>() { return true; }
 #endif /* !VBOX_WS_MAC */
+template<> bool canConvert<InformationElementType>() { return true; }
+template<> bool canConvert<MaxGuestResolutionPolicy>() { return true; }
 
 /* QString <= SizeSuffix: */
 template<> QString toString(const SizeSuffix &sizeSuffix)
@@ -726,6 +731,9 @@ template<> QString toInternalString(const UIExtraDataMetaDefs::RuntimeMenuDevice
         case UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_HardDrivesSettings:    strResult = "HardDrivesSettings"; break;
         case UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_OpticalDevices:        strResult = "OpticalDevices"; break;
         case UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_FloppyDevices:         strResult = "FloppyDevices"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_Audio:                 strResult = "Audio"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_AudioOutput:           strResult = "AudioOutput"; break;
+        case UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_AudioInput:            strResult = "AudioInput"; break;
         case UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_Network:               strResult = "Network"; break;
         case UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_NetworkSettings:       strResult = "NetworkSettings"; break;
         case UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_USBDevices:            strResult = "USBDevices"; break;
@@ -757,6 +765,9 @@ template<> UIExtraDataMetaDefs::RuntimeMenuDevicesActionType fromInternalString<
     keys << "HardDrivesSettings";    values << UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_HardDrivesSettings;
     keys << "OpticalDevices";        values << UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_OpticalDevices;
     keys << "FloppyDevices";         values << UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_FloppyDevices;
+    keys << "Audio";                 values << UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_Audio;
+    keys << "AudioOutput";           values << UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_AudioOutput;
+    keys << "AudioInput";            values << UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_AudioInput;
     keys << "Network";               values << UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_Network;
     keys << "NetworkSettings";       values << UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_NetworkSettings;
     keys << "USBDevices";            values << UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_USBDevices;
@@ -852,6 +863,72 @@ template<> UIExtraDataMetaDefs::MenuWindowActionType fromInternalString<UIExtraD
 }
 #endif /* VBOX_WS_MAC */
 
+/* QString <= ToolTypeMachine: */
+template<> QString toInternalString(const ToolTypeMachine &enmToolTypeMachine)
+{
+    QString strResult;
+    switch (enmToolTypeMachine)
+    {
+        case ToolTypeMachine_Invalid:   strResult = "None"; break;
+        case ToolTypeMachine_Details:   strResult = "Details"; break;
+        case ToolTypeMachine_Snapshots: strResult = "Snapshots"; break;
+        default:
+        {
+            AssertMsgFailed(("No text for machine tool type=%d", enmToolTypeMachine));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* ToolTypeMachine <= QString: */
+template<> ToolTypeMachine fromInternalString<ToolTypeMachine>(const QString &strToolTypeMachine)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;    QList<ToolTypeMachine> values;
+    keys << "None";      values << ToolTypeMachine_Invalid;
+    keys << "Details";   values << ToolTypeMachine_Details;
+    keys << "Snapshots"; values << ToolTypeMachine_Snapshots;
+    /* Invalid type for unknown words: */
+    if (!keys.contains(strToolTypeMachine, Qt::CaseInsensitive))
+        return ToolTypeMachine_Invalid;
+    /* Corresponding type for known words: */
+    return values.at(keys.indexOf(QRegExp(strToolTypeMachine, Qt::CaseInsensitive)));
+}
+
+/* QString <= ToolTypeGlobal: */
+template<> QString toInternalString(const ToolTypeGlobal &enmToolTypeGlobal)
+{
+    QString strResult;
+    switch (enmToolTypeGlobal)
+    {
+        case ToolTypeGlobal_VirtualMedia: strResult = "VirtualMedia"; break;
+        case ToolTypeGlobal_HostNetwork:  strResult = "HostNetwork"; break;
+        default:
+        {
+            AssertMsgFailed(("No text for global tool type=%d", enmToolTypeGlobal));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* ToolTypeGlobal <= QString: */
+template<> ToolTypeGlobal fromInternalString<ToolTypeGlobal>(const QString &strToolTypeGlobal)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;       QList<ToolTypeGlobal> values;
+    keys << "VirtualMedia"; values << ToolTypeGlobal_VirtualMedia;
+    keys << "HostNetwork";  values << ToolTypeGlobal_HostNetwork;
+    /* Invalid type for unknown words: */
+    if (!keys.contains(strToolTypeGlobal, Qt::CaseInsensitive))
+        return ToolTypeGlobal_Invalid;
+    /* Corresponding type for known words: */
+    return values.at(keys.indexOf(QRegExp(strToolTypeGlobal, Qt::CaseInsensitive)));
+}
+
 /* QString <= UIVisualStateType: */
 template<> QString toInternalString(const UIVisualStateType &visualStateType)
 {
@@ -904,9 +981,6 @@ template<> QString toString(const DetailsElementType &detailsElementType)
         case DetailsElementType_Audio:       strResult = QApplication::translate("VBoxGlobal", "Audio", "DetailsElementType"); break;
         case DetailsElementType_Network:     strResult = QApplication::translate("VBoxGlobal", "Network", "DetailsElementType"); break;
         case DetailsElementType_Serial:      strResult = QApplication::translate("VBoxGlobal", "Serial ports", "DetailsElementType"); break;
-#ifdef VBOX_WITH_PARALLEL_PORTS
-        case DetailsElementType_Parallel:    strResult = QApplication::translate("VBoxGlobal", "Parallel ports", "DetailsElementType"); break;
-#endif /* VBOX_WITH_PARALLEL_PORTS */
         case DetailsElementType_USB:         strResult = QApplication::translate("VBoxGlobal", "USB", "DetailsElementType"); break;
         case DetailsElementType_SF:          strResult = QApplication::translate("VBoxGlobal", "Shared folders", "DetailsElementType"); break;
         case DetailsElementType_UI:          strResult = QApplication::translate("VBoxGlobal", "User interface", "DetailsElementType"); break;
@@ -934,9 +1008,6 @@ template<> DetailsElementType fromString<DetailsElementType>(const QString &strD
     keys << QApplication::translate("VBoxGlobal", "Audio", "DetailsElementType");          values << DetailsElementType_Audio;
     keys << QApplication::translate("VBoxGlobal", "Network", "DetailsElementType");        values << DetailsElementType_Network;
     keys << QApplication::translate("VBoxGlobal", "Serial ports", "DetailsElementType");   values << DetailsElementType_Serial;
-#ifdef VBOX_WITH_PARALLEL_PORTS
-    keys << QApplication::translate("VBoxGlobal", "Parallel ports", "DetailsElementType"); values << DetailsElementType_Parallel;
-#endif /* VBOX_WITH_PARALLEL_PORTS */
     keys << QApplication::translate("VBoxGlobal", "USB", "DetailsElementType");            values << DetailsElementType_USB;
     keys << QApplication::translate("VBoxGlobal", "Shared folders", "DetailsElementType"); values << DetailsElementType_SF;
     keys << QApplication::translate("VBoxGlobal", "User interface", "DetailsElementType"); values << DetailsElementType_UI;
@@ -962,9 +1033,6 @@ template<> QString toInternalString(const DetailsElementType &detailsElementType
         case DetailsElementType_Audio:       strResult = "audio"; break;
         case DetailsElementType_Network:     strResult = "network"; break;
         case DetailsElementType_Serial:      strResult = "serialPorts"; break;
-#ifdef VBOX_WITH_PARALLEL_PORTS
-        case DetailsElementType_Parallel:    strResult = "parallelPorts"; break;
-#endif /* VBOX_WITH_PARALLEL_PORTS */
         case DetailsElementType_USB:         strResult = "usb"; break;
         case DetailsElementType_SF:          strResult = "sharedFolders"; break;
         case DetailsElementType_UI:          strResult = "userInterface"; break;
@@ -992,9 +1060,6 @@ template<> DetailsElementType fromInternalString<DetailsElementType>(const QStri
     keys << "audio";         values << DetailsElementType_Audio;
     keys << "network";       values << DetailsElementType_Network;
     keys << "serialPorts";   values << DetailsElementType_Serial;
-#ifdef VBOX_WITH_PARALLEL_PORTS
-    keys << "parallelPorts"; values << DetailsElementType_Parallel;
-#endif /* VBOX_WITH_PARALLEL_PORTS */
     keys << "usb";           values << DetailsElementType_USB;
     keys << "sharedFolders"; values << DetailsElementType_SF;
     keys << "userInterface"; values << DetailsElementType_UI;
@@ -1019,9 +1084,6 @@ template<> QIcon toIcon(const DetailsElementType &detailsElementType)
         case DetailsElementType_Audio:       return UIIconPool::iconSet(":/sound_16px.png");
         case DetailsElementType_Network:     return UIIconPool::iconSet(":/nw_16px.png");
         case DetailsElementType_Serial:      return UIIconPool::iconSet(":/serial_port_16px.png");
-#ifdef VBOX_WITH_PARALLEL_PORTS
-        case DetailsElementType_Parallel:    return UIIconPool::iconSet(":/parallel_port_16px.png");
-#endif /* VBOX_WITH_PARALLEL_PORTS */
         case DetailsElementType_USB:         return UIIconPool::iconSet(":/usb_16px.png");
         case DetailsElementType_SF:          return UIIconPool::iconSet(":/sf_16px.png");
         case DetailsElementType_UI:          return UIIconPool::iconSet(":/interface_16px.png");
@@ -1123,6 +1185,40 @@ template<> EventHandlingType fromInternalString<EventHandlingType>(const QString
     return values.at(keys.indexOf(QRegExp(strEventHandlingType, Qt::CaseInsensitive)));
 }
 
+/* QString <= GUIFeatureType: */
+template<> QString toInternalString(const GUIFeatureType &guiFeatureType)
+{
+    QString strResult;
+    switch (guiFeatureType)
+    {
+        case GUIFeatureType_NoSelector:  strResult = "noSelector"; break;
+        case GUIFeatureType_NoMenuBar:   strResult = "noMenuBar"; break;
+        case GUIFeatureType_NoStatusBar: strResult = "noStatusBar"; break;
+        default:
+        {
+            AssertMsgFailed(("No text for GUI feature type=%d", guiFeatureType));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* GUIFeatureType <= QString: */
+template<> GUIFeatureType fromInternalString<GUIFeatureType>(const QString &strGuiFeatureType)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys;      QList<GUIFeatureType> values;
+    keys << "noSelector";  values << GUIFeatureType_NoSelector;
+    keys << "noMenuBar";   values << GUIFeatureType_NoMenuBar;
+    keys << "noStatusBar"; values << GUIFeatureType_NoStatusBar;
+    /* None type for unknown words: */
+    if (!keys.contains(strGuiFeatureType, Qt::CaseInsensitive))
+        return GUIFeatureType_None;
+    /* Corresponding type for known words: */
+    return values.at(keys.indexOf(QRegExp(strGuiFeatureType, Qt::CaseInsensitive)));
+}
+
 /* QString <= GlobalSettingsPageType: */
 template<> QString toInternalString(const GlobalSettingsPageType &globalSettingsPageType)
 {
@@ -1211,7 +1307,6 @@ template<> QString toInternalString(const MachineSettingsPageType &machineSettin
         case MachineSettingsPageType_Network:   strResult = "Network"; break;
         case MachineSettingsPageType_Ports:     strResult = "Ports"; break;
         case MachineSettingsPageType_Serial:    strResult = "Serial"; break;
-        case MachineSettingsPageType_Parallel:  strResult = "Parallel"; break;
         case MachineSettingsPageType_USB:       strResult = "USB"; break;
         case MachineSettingsPageType_SF:        strResult = "SharedFolders"; break;
         case MachineSettingsPageType_Interface: strResult = "Interface"; break;
@@ -1238,7 +1333,6 @@ template<> MachineSettingsPageType fromInternalString<MachineSettingsPageType>(c
     keys << "Network";       values << MachineSettingsPageType_Network;
     keys << "Ports";         values << MachineSettingsPageType_Ports;
     keys << "Serial";        values << MachineSettingsPageType_Serial;
-    keys << "Parallel";      values << MachineSettingsPageType_Parallel;
     keys << "USB";           values << MachineSettingsPageType_USB;
     keys << "SharedFolders"; values << MachineSettingsPageType_SF;
     keys << "Interface";     values << MachineSettingsPageType_Interface;
@@ -1262,7 +1356,6 @@ template<> QPixmap toWarningPixmap(const MachineSettingsPageType &type)
         case MachineSettingsPageType_Network:   return UIIconPool::pixmap(":/nw_warning_16px.png");
         case MachineSettingsPageType_Ports:     return UIIconPool::pixmap(":/serial_port_warning_16px.png");
         case MachineSettingsPageType_Serial:    return UIIconPool::pixmap(":/serial_port_warning_16px.png");
-        case MachineSettingsPageType_Parallel:  return UIIconPool::pixmap(":/parallel_port_warning_16px.png");
         case MachineSettingsPageType_USB:       return UIIconPool::pixmap(":/usb_warning_16px.png");
         case MachineSettingsPageType_SF:        return UIIconPool::pixmap(":/sf_warning_16px.png");
         case MachineSettingsPageType_Interface: return UIIconPool::pixmap(":/interface_warning_16px.png");
@@ -1322,6 +1415,7 @@ template<> QString toInternalString(const IndicatorType &indicatorType)
         case IndicatorType_HardDisks:     strResult = "HardDisks"; break;
         case IndicatorType_OpticalDisks:  strResult = "OpticalDisks"; break;
         case IndicatorType_FloppyDisks:   strResult = "FloppyDisks"; break;
+        case IndicatorType_Audio:         strResult = "Audio"; break;
         case IndicatorType_Network:       strResult = "Network"; break;
         case IndicatorType_USB:           strResult = "USB"; break;
         case IndicatorType_SharedFolders: strResult = "SharedFolders"; break;
@@ -1348,6 +1442,7 @@ template<> IndicatorType fromInternalString<IndicatorType>(const QString &strInd
     keys << "HardDisks";     values << IndicatorType_HardDisks;
     keys << "OpticalDisks";  values << IndicatorType_OpticalDisks;
     keys << "FloppyDisks";   values << IndicatorType_FloppyDisks;
+    keys << "Audio";         values << IndicatorType_Audio;
     keys << "Network";       values << IndicatorType_Network;
     keys << "USB";           values << IndicatorType_USB;
     keys << "SharedFolders"; values << IndicatorType_SharedFolders;
@@ -1363,6 +1458,33 @@ template<> IndicatorType fromInternalString<IndicatorType>(const QString &strInd
     return values.at(keys.indexOf(QRegExp(strIndicatorType, Qt::CaseInsensitive)));
 }
 
+/* QString <= IndicatorType: */
+template<> QString toString(const IndicatorType &indicatorType)
+{
+    QString strResult;
+    switch (indicatorType)
+    {
+        case IndicatorType_HardDisks:     strResult = QApplication::translate("VBoxGlobal", "Hard Disks", "IndicatorType"); break;
+        case IndicatorType_OpticalDisks:  strResult = QApplication::translate("VBoxGlobal", "Optical Disks", "IndicatorType"); break;
+        case IndicatorType_FloppyDisks:   strResult = QApplication::translate("VBoxGlobal", "Floppy Disks", "IndicatorType"); break;
+        case IndicatorType_Audio:         strResult = QApplication::translate("VBoxGlobal", "Audio", "IndicatorType"); break;
+        case IndicatorType_Network:       strResult = QApplication::translate("VBoxGlobal", "Network", "IndicatorType"); break;
+        case IndicatorType_USB:           strResult = QApplication::translate("VBoxGlobal", "USB", "IndicatorType"); break;
+        case IndicatorType_SharedFolders: strResult = QApplication::translate("VBoxGlobal", "Shared Folders", "IndicatorType"); break;
+        case IndicatorType_Display:       strResult = QApplication::translate("VBoxGlobal", "Display", "IndicatorType"); break;
+        case IndicatorType_VideoCapture:  strResult = QApplication::translate("VBoxGlobal", "Video Capture", "IndicatorType"); break;
+        case IndicatorType_Features:      strResult = QApplication::translate("VBoxGlobal", "Features", "IndicatorType"); break;
+        case IndicatorType_Mouse:         strResult = QApplication::translate("VBoxGlobal", "Mouse", "IndicatorType"); break;
+        case IndicatorType_Keyboard:      strResult = QApplication::translate("VBoxGlobal", "Keyboard", "IndicatorType"); break;
+        default:
+        {
+            AssertMsgFailed(("No text for indicator type=%d", indicatorType));
+            break;
+        }
+    }
+    return strResult;
+}
+
 /* QIcon <= IndicatorType: */
 template<> QIcon toIcon(const IndicatorType &indicatorType)
 {
@@ -1371,6 +1493,7 @@ template<> QIcon toIcon(const IndicatorType &indicatorType)
         case IndicatorType_HardDisks:     return UIIconPool::iconSet(":/hd_16px.png");
         case IndicatorType_OpticalDisks:  return UIIconPool::iconSet(":/cd_16px.png");
         case IndicatorType_FloppyDisks:   return UIIconPool::iconSet(":/fd_16px.png");
+        case IndicatorType_Audio:         return UIIconPool::iconSet(":/audio_16px.png");
         case IndicatorType_Network:       return UIIconPool::iconSet(":/nw_16px.png");
         case IndicatorType_USB:           return UIIconPool::iconSet(":/usb_16px.png");
         case IndicatorType_SharedFolders: return UIIconPool::iconSet(":/sf_16px.png");
@@ -1600,9 +1723,6 @@ template<> QString toString(const InformationElementType &informationElementType
         case InformationElementType_Audio:             strResult = QApplication::translate("VBoxGlobal", "Audio", "InformationElementType"); break;
         case InformationElementType_Network:           strResult = QApplication::translate("VBoxGlobal", "Network", "InformationElementType"); break;
         case InformationElementType_Serial:            strResult = QApplication::translate("VBoxGlobal", "Serial ports", "InformationElementType"); break;
-#ifdef VBOX_WITH_PARALLEL_PORTS
-        case InformationElementType_Parallel:          strResult = QApplication::translate("VBoxGlobal", "Parallel ports", "InformationElementType"); break;
-#endif /* VBOX_WITH_PARALLEL_PORTS */
         case InformationElementType_USB:               strResult = QApplication::translate("VBoxGlobal", "USB", "InformationElementType"); break;
         case InformationElementType_SharedFolders:     strResult = QApplication::translate("VBoxGlobal", "Shared folders", "InformationElementType"); break;
         case InformationElementType_UI:                strResult = QApplication::translate("VBoxGlobal", "User interface", "InformationElementType"); break;
@@ -1633,9 +1753,6 @@ template<> InformationElementType fromString<InformationElementType>(const QStri
     keys << QApplication::translate("VBoxGlobal", "Audio", "InformationElementType");              values << InformationElementType_Audio;
     keys << QApplication::translate("VBoxGlobal", "Network", "InformationElementType");            values << InformationElementType_Network;
     keys << QApplication::translate("VBoxGlobal", "Serial ports", "InformationElementType");       values << InformationElementType_Serial;
-#ifdef VBOX_WITH_PARALLEL_PORTS
-    keys << QApplication::translate("VBoxGlobal", "Parallel ports", "InformationElementType");     values << InformationElementType_Parallel;
-#endif /* VBOX_WITH_PARALLEL_PORTS */
     keys << QApplication::translate("VBoxGlobal", "USB", "InformationElementType");                values << InformationElementType_USB;
     keys << QApplication::translate("VBoxGlobal", "Shared folders", "InformationElementType");     values << InformationElementType_SharedFolders;
     keys << QApplication::translate("VBoxGlobal", "User interface", "InformationElementType");     values << InformationElementType_UI;
@@ -1664,9 +1781,6 @@ template<> QString toInternalString(const InformationElementType &informationEle
         case InformationElementType_Audio:             strResult = "audio"; break;
         case InformationElementType_Network:           strResult = "network"; break;
         case InformationElementType_Serial:            strResult = "serialPorts"; break;
-#ifdef VBOX_WITH_PARALLEL_PORTS
-        case InformationElementType_Parallel:          strResult = "parallelPorts"; break;
-#endif /* VBOX_WITH_PARALLEL_PORTS */
         case InformationElementType_USB:               strResult = "usb"; break;
         case InformationElementType_SharedFolders:     strResult = "sharedFolders"; break;
         case InformationElementType_UI:                strResult = "userInterface"; break;
@@ -1695,9 +1809,6 @@ template<> InformationElementType fromInternalString<InformationElementType>(con
     keys << "audio";              values << InformationElementType_Audio;
     keys << "network";            values << InformationElementType_Network;
     keys << "serialPorts";        values << InformationElementType_Serial;
-#ifdef VBOX_WITH_PARALLEL_PORTS
-    keys << "parallelPorts";      values << InformationElementType_Parallel;
-#endif /* VBOX_WITH_PARALLEL_PORTS */
     keys << "usb";                values << InformationElementType_USB;
     keys << "sharedFolders";      values << InformationElementType_SharedFolders;
     keys << "userInterface";      values << InformationElementType_UI;
@@ -1723,9 +1834,6 @@ template<> QIcon toIcon(const InformationElementType &informationElementType)
         case InformationElementType_Audio:             return UIIconPool::iconSet(":/sound_16px.png");
         case InformationElementType_Network:           return UIIconPool::iconSet(":/nw_16px.png");
         case InformationElementType_Serial:            return UIIconPool::iconSet(":/serial_port_16px.png");
-#ifdef VBOX_WITH_PARALLEL_PORTS
-        case InformationElementType_Parallel:          return UIIconPool::iconSet(":/parallel_port_16px.png");
-#endif /* VBOX_WITH_PARALLEL_PORTS */
         case InformationElementType_USB:               return UIIconPool::iconSet(":/usb_16px.png");
         case InformationElementType_SharedFolders:     return UIIconPool::iconSet(":/sf_16px.png");
         case InformationElementType_UI:                return UIIconPool::iconSet(":/interface_16px.png");
@@ -1740,5 +1848,42 @@ template<> QIcon toIcon(const InformationElementType &informationElementType)
         }
     }
     return QIcon();
+}
+
+/* QString <= MaxGuestResolutionPolicy: */
+template<> QString toInternalString(const MaxGuestResolutionPolicy &enmMaxGuestResolutionPolicy)
+{
+    QString strResult;
+    switch (enmMaxGuestResolutionPolicy)
+    {
+        case MaxGuestResolutionPolicy_Automatic: strResult = ""; break;
+        case MaxGuestResolutionPolicy_Any:       strResult = "any"; break;
+        default:
+        {
+            AssertMsgFailed(("No text for max guest resolution policy=%d", enmMaxGuestResolutionPolicy));
+            break;
+        }
+    }
+    return strResult;
+}
+
+/* MaxGuestResolutionPolicy <= QString: */
+template<> MaxGuestResolutionPolicy fromInternalString<MaxGuestResolutionPolicy>(const QString &strMaxGuestResolutionPolicy)
+{
+    /* Here we have some fancy stuff allowing us
+     * to search through the keys using 'case-insensitive' rule: */
+    QStringList keys; QList<MaxGuestResolutionPolicy> values;
+    keys << "auto";   values << MaxGuestResolutionPolicy_Automatic;
+    /* Auto type for empty value: */
+    if (strMaxGuestResolutionPolicy.isEmpty())
+        return MaxGuestResolutionPolicy_Automatic;
+    /* Fixed type for value which can be parsed: */
+    if (QRegularExpression("[1-9]\\d*,[1-9]\\d*").match(strMaxGuestResolutionPolicy).hasMatch())
+        return MaxGuestResolutionPolicy_Fixed;
+    /* Any type for unknown words: */
+    if (!keys.contains(strMaxGuestResolutionPolicy, Qt::CaseInsensitive))
+        return MaxGuestResolutionPolicy_Any;
+    /* Corresponding type for known words: */
+    return values.at(keys.indexOf(QRegExp(strMaxGuestResolutionPolicy, Qt::CaseInsensitive)));
 }
 

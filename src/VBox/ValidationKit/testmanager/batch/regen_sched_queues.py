@@ -9,7 +9,7 @@ Interface used by the admin to regenerate scheduling queues.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -28,7 +28,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 # Standard python imports
 import sys;
@@ -82,7 +82,7 @@ class RegenSchedQueues(object): # pylint: disable=R0903
                 oDb.rollback();
                 print '  !!Hit exception processing "%s": %s' % (oGroup.sName, oXcpt,);
             else:
-                if len(aoErrors) == 0:
+                if not aoErrors:
                     if not self.oConfig.fQuiet:
                         print '  Successfully regenerated.';
                 else:
@@ -93,7 +93,7 @@ class RegenSchedQueues(object): # pylint: disable=R0903
                             print '  !!%s' % (oError[0],);
                         else:
                             print '  !!%s (%s)' % (oError[0], oError[1]);
-                if len(asMessages) > 0 and not self.oConfig.fQuiet:
+                if asMessages and not self.oConfig.fQuiet:
                     print '  %d messages:' % (len(asMessages),);
                     for sMsg in asMessages:
                         print '  ##%s' % (sMsg,);

@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2007-2016 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,6 +32,8 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #include <iprt/cpp/ministring.h>
+#include <iprt/ctype.h>
+#include <iprt/uni.h>
 
 
 /*********************************************************************************************************************************
@@ -45,6 +47,81 @@ const size_t RTCString::npos = ~(size_t)0;
 *********************************************************************************************************************************/
 /** Allocation block alignment used when appending bytes to a string. */
 #define IPRT_MINISTRING_APPEND_ALIGNMENT    64
+
+
+RTCString &RTCString::assign(const RTCString &a_rSrc)
+{
+    size_t const cchSrc = a_rSrc.length();
+    if (cchSrc > 0)
+    {
+        reserve(cchSrc + 1);
+        memcpy(m_psz, a_rSrc.c_str(), cchSrc);
+        m_psz[cchSrc] = '\0';
+        m_cch = cchSrc;
+        return *this;
+    }
+    setNull();
+    return *this;
+
+}
+
+RTCString &RTCString::assign(const char *a_pszSrc)
+{
+    if (a_pszSrc)
+    {
+        size_t cchSrc = strlen(a_pszSrc);
+        if (cchSrc)
+        {
+            reserve(cchSrc + 1);
+            memcpy(m_psz, a_pszSrc, cchSrc);
+            m_psz[cchSrc] = '\0';
+            m_cch = cchSrc;
+            return *this;
+        }
+    }
+    setNull();
+    return *this;
+}
+
+RTCString &RTCString::assign(const RTCString &a_rSrc, size_t a_offSrc, size_t a_cchSrc /*= npos*/)
+{
+    AssertReturn(&a_rSrc != this, *this);
+    if (a_offSrc < a_rSrc.length())
+    {
+        size_t cchMax = a_rSrc.length() - a_offSrc;
+        if (a_cchSrc > cchMax)
+            a_cchSrc = cchMax;
+        reserve(a_cchSrc + 1);
+        memcpy(m_psz, a_rSrc.c_str() + a_offSrc, a_cchSrc);
+        m_psz[a_cchSrc] = '\0';
+        m_cch = a_cchSrc;
+    }
+    else
+        setNull();
+    return *this;
+}
+
+RTCString &RTCString::assign(const char *a_pszSrc, size_t a_cchSrc)
+{
+    if (a_cchSrc)
+    {
+        a_cchSrc = RTStrNLen(a_pszSrc, a_cchSrc);
+        reserve(a_cchSrc + 1);
+        memcpy(m_psz, a_pszSrc, a_cchSrc);
+        m_psz[a_cchSrc] = '\0';
+        m_cch = a_cchSrc;
+    }
+    else
+        setNull();
+    return *this;
+}
+
+RTCString &RTCString::assign(size_t a_cTimes, char a_ch)
+{
+    reserve(a_cTimes + 1);
+    memset(m_psz, a_ch, a_cTimes);
+    return *this;
+}
 
 
 RTCString &RTCString::printf(const char *pszFormat, ...)
@@ -102,35 +179,36 @@ RTCString &RTCString::printfV(const char *pszFormat, va_list va)
 
 RTCString &RTCString::append(const RTCString &that)
 {
-    size_t cchThat = that.length();
-    if (cchThat)
-    {
-        size_t cchThis = length();
-        size_t cchBoth = cchThis + cchThat;
-
-        if (cchBoth >= m_cbAllocated)
-        {
-            reserve(RT_ALIGN_Z(cchBoth + 1, IPRT_MINISTRING_APPEND_ALIGNMENT));
-            // calls realloc(cchBoth + 1) and sets m_cbAllocated; may throw bad_alloc.
-#ifndef RT_EXCEPTIONS_ENABLED
-            AssertRelease(capacity() > cchBoth);
-#endif
-        }
-
-        memcpy(m_psz + cchThis, that.m_psz, cchThat);
-        m_psz[cchBoth] = '\0';
-        m_cch = cchBoth;
-    }
-    return *this;
+    Assert(&that != this);
+    return appendWorker(that.c_str(), that.length());
 }
 
 RTCString &RTCString::append(const char *pszThat)
 {
-    size_t cchThat = strlen(pszThat);
-    if (cchThat)
+    return appendWorker(pszThat, strlen(pszThat));
+}
+
+RTCString &RTCString::append(const RTCString &rThat, size_t offStart, size_t cchMax /*= RTSTR_MAX*/)
+{
+    if (offStart < rThat.length())
+    {
+        size_t cchLeft = rThat.length() - offStart;
+        return appendWorker(rThat.c_str() + offStart, RT_MIN(cchLeft, cchMax));
+    }
+    return *this;
+}
+
+RTCString &RTCString::append(const char *pszThat, size_t cchMax)
+{
+    return appendWorker(pszThat, RTStrNLen(pszThat, cchMax));
+}
+
+RTCString &RTCString::appendWorker(const char *pszSrc, size_t cchSrc)
+{
+    if (cchSrc)
     {
         size_t cchThis = length();
-        size_t cchBoth = cchThis + cchThat;
+        size_t cchBoth = cchThis + cchSrc;
 
         if (cchBoth >= m_cbAllocated)
         {
@@ -141,14 +219,14 @@ RTCString &RTCString::append(const char *pszThat)
 #endif
         }
 
-        memcpy(&m_psz[cchThis], pszThat, cchThat);
+        memcpy(&m_psz[cchThis], pszSrc, cchSrc);
         m_psz[cchBoth] = '\0';
         m_cch = cchBoth;
     }
     return *this;
 }
 
-RTCString& RTCString::append(char ch)
+RTCString &RTCString::append(char ch)
 {
     Assert((unsigned char)ch < 0x80);                  /* Don't create invalid UTF-8. */
     if (ch)
@@ -199,16 +277,142 @@ RTCString &RTCString::appendCodePoint(RTUNICP uc)
     return *this;
 }
 
-size_t RTCString::find(const char *pcszFind, size_t pos /*= 0*/) const
+RTCString &RTCString::erase(size_t offStart /*= 0*/, size_t cchLength /*= npos*/)
 {
-    if (pos < length())
+    size_t cch = length();
+    if (offStart < cch)
+    {
+        if (cchLength >= cch - offStart)
+        {
+            /* Trail removal, nothing to move.  */
+            m_cch = offStart;
+            m_psz[offStart] = '\0';
+        }
+        else if (cchLength > 0)
+        {
+            /* Pull up the tail to offStart. */
+            size_t cchAfter = cch - offStart - cchLength;
+            memmove(&m_psz[offStart], &m_psz[offStart + cchLength], cchAfter);
+            m_cch = cch -= cchLength;
+            m_psz[cch] = '\0';
+        }
+    }
+    return *this;
+}
+
+RTCString &RTCString::replace(size_t offStart, size_t cchLength, const RTCString &rStrReplacement)
+{
+    return replaceWorker(offStart, cchLength, rStrReplacement.c_str(), rStrReplacement.length());
+}
+
+RTCString &RTCString::replace(size_t offStart, size_t cchLength, const RTCString &rStrReplacement,
+                              size_t offReplacement, size_t cchReplacement)
+{
+    Assert(this != &rStrReplacement);
+    if (cchReplacement > 0)
+    {
+        if (offReplacement < rStrReplacement.length())
+        {
+            size_t cchMaxReplacement = rStrReplacement.length() - offReplacement;
+            return replaceWorker(offStart, cchLength, rStrReplacement.c_str() + offReplacement,
+                                 RT_MIN(cchReplacement, cchMaxReplacement));
+        }
+        /* Our non-standard handling of out_of_range situations. */
+        AssertMsgFailed(("offReplacement=%zu (cchReplacement=%zu) rStrReplacement.length()=%zu\n",
+                         offReplacement, cchReplacement, rStrReplacement.length()));
+    }
+    return replaceWorker(offStart, cchLength, "", 0);
+}
+
+RTCString &RTCString::replace(size_t offStart, size_t cchLength, const char *pszReplacement)
+{
+    return replaceWorker(offStart, cchLength, pszReplacement, strlen(pszReplacement));
+}
+
+RTCString &RTCString::replace(size_t offStart, size_t cchLength, const char *pszReplacement, size_t cchReplacement)
+{
+    return replaceWorker(offStart, cchLength, pszReplacement, RTStrNLen(pszReplacement, cchReplacement));
+}
+
+RTCString &RTCString::replaceWorker(size_t offStart, size_t cchLength, const char *pszSrc, size_t cchSrc)
+{
+    /*
+     * Our non-standard handling of out_of_range situations.
+     */
+    size_t const cchOldLength = length();
+    AssertMsgReturn(offStart < cchOldLength, ("offStart=%zu (cchLength=%zu); length()=%zu\n", offStart, cchLength, cchOldLength),
+                    *this);
+
+    /*
+     * Correct the length parameter.
+     */
+    size_t cchMaxLength = cchOldLength - offStart;
+    if (cchMaxLength < cchLength)
+        cchLength = cchMaxLength;
+
+    /*
+     * Adjust string allocation if necessary.
+     */
+    size_t cchNew = cchOldLength - cchLength + cchSrc;
+    if (cchNew >= m_cbAllocated)
+    {
+        reserve(RT_ALIGN_Z(cchNew + 1, IPRT_MINISTRING_APPEND_ALIGNMENT));
+        // calls realloc(cchBoth + 1) and sets m_cbAllocated; may throw bad_alloc.
+#ifndef RT_EXCEPTIONS_ENABLED
+        AssertRelease(capacity() > cchNew);
+#endif
+    }
+
+    /*
+     * Make the change.
+     */
+    size_t cchAfter = cchOldLength - offStart - cchLength;
+    if (cchAfter > 0)
+        memmove(&m_psz[offStart + cchSrc], &m_psz[offStart + cchLength], cchAfter);
+    memcpy(&m_psz[offStart], pszSrc, cchSrc);
+    m_psz[cchNew] = '\0';
+    m_cch = cchNew;
+
+    return *this;
+}
+
+
+size_t RTCString::find(const char *pszNeedle, size_t offStart /*= 0*/) const
+{
+    if (offStart < length())
     {
         const char *pszThis = c_str();
         if (pszThis)
         {
-            const char *pszHit = strstr(pszThis + pos, pcszFind);
-            if (pszHit)
-                return pszHit - pszThis;
+            if (pszNeedle && *pszNeedle != '\0')
+            {
+                const char *pszHit = strstr(pszThis + offStart, pszNeedle);
+                if (pszHit)
+                    return pszHit - pszThis;
+            }
+        }
+    }
+
+    return npos;
+}
+
+size_t RTCString::find(const RTCString *pStrNeedle, size_t offStart /*= 0*/) const
+{
+    if (offStart < length())
+    {
+        const char *pszThis = c_str();
+        if (pszThis)
+        {
+            if (pStrNeedle)
+            {
+                const char *pszNeedle = pStrNeedle->c_str();
+                if (pszNeedle && *pszNeedle != '\0')
+                {
+                    const char *pszHit = strstr(pszThis + offStart, pszNeedle);
+                    if (pszHit)
+                        return pszHit - pszThis;
+                }
+            }
         }
     }
 
@@ -254,6 +458,51 @@ size_t RTCString::count(const RTCString *pStr, CaseSensitivity cs = CaseSensitiv
 
 }
 #endif
+
+
+RTCString &RTCString::strip()
+{
+    stripRight();
+    return stripLeft();
+}
+
+
+RTCString &RTCString::stripLeft()
+{
+    char        *psz = m_psz;
+    size_t const cch = m_cch;
+    size_t       off = 0;
+    while (off < cch && RT_C_IS_SPACE(psz[off]))
+        off++;
+    if (off > 0)
+    {
+        if (off != cch)
+        {
+            memmove(psz, &psz[off], cch - off + 1);
+            m_cch = cch - off;
+        }
+        else
+            setNull();
+    }
+    return *this;
+}
+
+
+RTCString &RTCString::stripRight()
+{
+    char  *psz = m_psz;
+    size_t cch = m_cch;
+    while (cch > 0 && RT_C_IS_SPACE(psz[cch - 1]))
+        cch--;
+    if (m_cch != cch)
+    {
+        m_cch = cch;
+        psz[cch] = '\0';
+    }
+    return *this;
+}
+
+
 
 RTCString RTCString::substrCP(size_t pos /*= 0*/, size_t n /*= npos*/) const
 {
@@ -336,6 +585,30 @@ bool RTCString::startsWith(const RTCString &that, CaseSensitivity cs /*= CaseSen
     return ::RTStrNICmp(m_psz, that.m_psz, l2) == 0;
 }
 
+bool RTCString::startsWithWord(const char *pszWord, CaseSensitivity enmCase /*= CaseSensitive*/) const
+{
+    const char *pszSrc  = RTStrStripL(c_str()); /** @todo RTStrStripL doesn't use RTUniCpIsSpace (nbsp) */
+    size_t      cchWord = strlen(pszWord);
+    if (  enmCase == CaseSensitive
+        ? RTStrNCmp(pszSrc, pszWord, cchWord) == 0
+        : RTStrNICmp(pszSrc, pszWord, cchWord) == 0)
+    {
+        if (   pszSrc[cchWord] == '\0'
+            || RT_C_IS_SPACE(pszSrc[cchWord])
+            || RT_C_IS_PUNCT(pszSrc[cchWord]) )
+            return true;
+        RTUNICP uc = RTStrGetCp(&pszSrc[cchWord]);
+        if (RTUniCpIsSpace(uc))
+            return true;
+    }
+    return false;
+}
+
+bool RTCString::startsWithWord(const RTCString &rThat, CaseSensitivity enmCase /*= CaseSensitive*/) const
+{
+    return startsWithWord(rThat.c_str(), enmCase);
+}
+
 bool RTCString::contains(const RTCString &that, CaseSensitivity cs /*= CaseSensitive*/) const
 {
     /** @todo r-bird: Not checking for NULL strings like startsWith does (and
@@ -343,6 +616,15 @@ bool RTCString::contains(const RTCString &that, CaseSensitivity cs /*= CaseSensi
     if (cs == CaseSensitive)
         return ::RTStrStr(m_psz, that.m_psz) != NULL;
     return ::RTStrIStr(m_psz, that.m_psz) != NULL;
+}
+
+bool RTCString::contains(const char *pszNeedle, CaseSensitivity cs /*= CaseSensitive*/) const
+{
+    /** @todo r-bird: Not checking for NULL strings like startsWith does (and
+     *        endsWith only does half way). */
+    if (cs == CaseSensitive)
+        return ::RTStrStr(m_psz, pszNeedle) != NULL;
+    return ::RTStrIStr(m_psz, pszNeedle) != NULL;
 }
 
 int RTCString::toInt(uint64_t &i) const

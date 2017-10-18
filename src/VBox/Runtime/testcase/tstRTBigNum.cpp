@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1445,6 +1445,11 @@ static void testUInt128Multiplication(void)
             RTUINT128_INIT_C(0x1111111111111111, 0x1111111111111111),
             RTUINT128_INIT_C(0x3000000000000000, 0x0000000000000000),
             RTUINT128_INIT_C(0x3000000000000000, 0x0000000000000000)
+        },
+        {
+            RTUINT128_INIT_C(0x0000000000000000, 0x6816816816816817),
+            RTUINT128_INIT_C(0x0000000000000000, 0x0000000000a0280a),
+            RTUINT128_INIT_C(0x0000000000411e58, 0x7627627627b1a8e6)
         },
     };
     for (uint32_t i = 0; i < RT_ELEMENTS(s_aTests); i++)

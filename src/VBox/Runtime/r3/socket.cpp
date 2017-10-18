@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -228,6 +228,7 @@ DECLHIDDEN(int) rtSocketResolverError(void)
             return VERR_TRY_AGAIN;
 
         default:
+            AssertLogRelMsgFailed(("Unhandled error %u\n", h_errno));
             return VERR_UNRESOLVED_ERROR;
     }
 #endif

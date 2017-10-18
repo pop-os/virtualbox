@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015-2016 Oracle Corporation
+ * Copyright (C) 2015-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -236,7 +236,7 @@ VMMR3_INT_DECL(int) gimR3KvmTerm(PVM pVM)
  * This is called when the VM is being reset.
  *
  * @param   pVM     The cross context VM structure.
- * @thread EMT(0).
+ * @thread EMT(0)
  */
 VMMR3_INT_DECL(void) gimR3KvmReset(PVM pVM)
 {

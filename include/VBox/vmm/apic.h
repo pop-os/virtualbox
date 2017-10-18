@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -140,6 +140,15 @@
 /** Offset of LVT extended range end (inclusive). */
 #define XAPIC_OFF_LVT_EXT_END                XAPIC_OFF_LVT_CMCI
 
+/**
+ * xAPIC trigger mode.
+ */
+typedef enum XAPICTRIGGERMODE
+{
+    XAPICTRIGGERMODE_EDGE = 0,
+    XAPICTRIGGERMODE_LEVEL
+} XAPICTRIGGERMODE;
+
 RT_C_DECLS_BEGIN
 
 #ifdef IN_RING3
@@ -147,22 +156,45 @@ RT_C_DECLS_BEGIN
  * @{
  */
 VMMR3_INT_DECL(void)        APICR3InitIpi(PVMCPU pVCpu);
+VMMR3_INT_DECL(void)        APICR3HvEnable(PVM pVM);
 /** @} */
 #endif /* IN_RING3 */
 
-#ifdef IN_RING0
-/** @defgroup grp_apic_r0  The APIC Host Context Ring-0 API
- * @{
- */
-VMMR0_INT_DECL(int)         APICR0InitVM(PVM pVM);
-VMMR0_INT_DECL(int)         APICR0TermVM(PVM pVM);
-/** @} */
-#endif /* IN_RING0 */
-
-VMMDECL(bool)               APICQueueInterruptToService(PVMCPU pVCpu, uint8_t u8PendingIntr);
-VMMDECL(void)               APICDequeueInterruptFromService(PVMCPU pVCpu, uint8_t u8PendingIntr);
+/* These functions are exported as they are called from external modules (recompiler). */
 VMMDECL(void)               APICUpdatePendingInterrupts(PVMCPU pVCpu);
-VMMDECL(bool)               APICGetHighestPendingInterrupt(PVMCPU pVCpu, uint8_t *pu8PendingIntr);
+VMMDECL(int)                APICGetTpr(PVMCPU pVCpu, uint8_t *pu8Tpr, bool *pfPending, uint8_t *pu8PendingIntr);
+VMMDECL(int)                APICSetTpr(PVMCPU pVCpu, uint8_t u8Tpr);
+
+/* These functions are VMM internal. */
+VMM_INT_DECL(bool)          APICIsEnabled(PVMCPU pVCpu);
+VMM_INT_DECL(bool)          APICGetHighestPendingInterrupt(PVMCPU pVCpu, uint8_t *pu8PendingIntr);
+VMM_INT_DECL(bool)          APICQueueInterruptToService(PVMCPU pVCpu, uint8_t u8PendingIntr);
+VMM_INT_DECL(void)          APICDequeueInterruptFromService(PVMCPU pVCpu, uint8_t u8PendingIntr);
+VMM_INT_DECL(VBOXSTRICTRC)  APICReadMsr(PVMCPU pVCpu, uint32_t u32Reg, uint64_t *pu64Value);
+VMM_INT_DECL(VBOXSTRICTRC)  APICWriteMsr(PVMCPU pVCpu, uint32_t u32Reg, uint64_t u64Value);
+VMM_INT_DECL(int)           APICGetTimerFreq(PVM pVM, uint64_t *pu64Value);
+VMM_INT_DECL(VBOXSTRICTRC)  APICLocalInterrupt(PVMCPU pVCpu, uint8_t u8Pin, uint8_t u8Level, int rcRZ);
+VMM_INT_DECL(uint64_t)      APICGetBaseMsrNoCheck(PVMCPU pVCpu);
+VMM_INT_DECL(VBOXSTRICTRC)  APICGetBaseMsr(PVMCPU pVCpu, uint64_t *pu64Value);
+VMM_INT_DECL(VBOXSTRICTRC)  APICSetBaseMsr(PVMCPU pVCpu, uint64_t u64BaseMsr);
+VMM_INT_DECL(int)           APICGetInterrupt(PVMCPU pVCpu, uint8_t *pu8Vector, uint32_t *pu32TagSrc);
+VMM_INT_DECL(int)           APICBusDeliver(PVM pVM, uint8_t uDest, uint8_t uDestMode, uint8_t uDeliveryMode, uint8_t uVector,
+                                           uint8_t uPolarity, uint8_t uTriggerMode, uint32_t uTagSrc);
+VMM_INT_DECL(int)           APICGetApicPageForCpu(PVMCPU pVCpu, PRTHCPHYS pHCPhys, PRTR0PTR pR0Ptr, PRTR3PTR pR3Ptr,
+                                                  PRTRCPTR pRCPtr);
+
+/** @name Hyper-V interface (Ring-3 and all-context API).
+ * @{ */
+#ifdef IN_RING3
+VMMR3_INT_DECL(void)        APICR3HvSetCompatMode(PVM pVM, bool fHyperVCompatMode);
+#endif
+VMM_INT_DECL(void)          APICHvSendInterrupt(PVMCPU pVCpu, uint8_t uVector, bool fAutoEoi, XAPICTRIGGERMODE enmTriggerMode);
+VMM_INT_DECL(VBOXSTRICTRC)  APICHvSetTpr(PVMCPU pVCpu, uint8_t uTpr);
+VMM_INT_DECL(uint8_t)       APICHvGetTpr(PVMCPU pVCpu);
+VMM_INT_DECL(VBOXSTRICTRC)  APICHvSetIcr(PVMCPU pVCpu, uint64_t uIcr);
+VMM_INT_DECL(uint64_t)      APICHvGetIcr(PVMCPU pVCpu);
+VMM_INT_DECL(VBOXSTRICTRC)  APICHvSetEoi(PVMCPU pVCpu, uint32_t uEoi);
+/** @} */
 
 RT_C_DECLS_END
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,10 +36,10 @@
 #include "BandwidthControlImpl.h"
 #include "BandwidthGroupImpl.h"
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
-#include "Performance.h"
-#include "PerformanceImpl.h"
-#include "ThreadTask.h"
-#endif /* VBOX_WITH_RESOURCE_USAGE_API */
+# include "Performance.h"
+# include "PerformanceImpl.h"
+# include "ThreadTask.h"
+#endif
 
 // generated header
 #include "SchemaDefs.h"
@@ -78,6 +78,9 @@ class SharedFolder;
 class HostUSBDevice;
 class StorageController;
 class SessionMachine;
+#ifdef VBOX_WITH_UNATTENDED
+class Unattended;
+#endif
 
 // Machine class
 ////////////////////////////////////////////////////////////////////////////////
@@ -231,6 +234,11 @@ public:
      *  Stored using the util::Backupable template in the |mHWData| variable.
      *
      *  SessionMachine instances can alter this data and discard changes.
+     *
+     *  @todo r=klaus move all "pointer" objects out of this struct, as they
+     *  need non-obvious handling when creating a new session or when taking
+     *  a snapshot. Better do this right straight away, not relying on the
+     *  template magic which doesn't work right in this case.
      */
     struct HWData
     {
@@ -289,8 +297,7 @@ public:
 
         BOOL                mCPUAttached[SchemaDefs::MaxCPUCount];
 
-        settings::CpuIdLeaf mCpuIdStdLeafs[11];
-        settings::CpuIdLeaf mCpuIdExtLeafs[11];
+        std::list<settings::CpuIdLeaf> mCpuIdLeafList;
 
         DeviceType_T        mBootOrder[SchemaDefs::MaxBootPosition];
 
@@ -323,23 +330,7 @@ public:
         Utf8Str             mDefaultFrontend;
     };
 
-    /**
-     *  Hard disk and other media data.
-     *
-     *  The usage policy is the same as for HWData, but a separate structure
-     *  is necessary because hard disk data requires different procedures when
-     *  taking or deleting snapshots, etc.
-     *
-     *  The data variable is |mMediaData|.
-     */
-    struct MediaData
-    {
-        MediaData();
-        ~MediaData();
-
-        typedef std::list<ComObjPtr<MediumAttachment> > AttachmentList;
-        AttachmentList mAttachments;
-    };
+    typedef std::list<ComObjPtr<MediumAttachment> > MediumAttachmentList;
 
     DECLARE_EMPTY_CTOR_DTOR(Machine)
 
@@ -513,6 +504,7 @@ public:
     virtual HRESULT i_onNATRedirectRuleChange(ULONG /* slot */, BOOL /* fRemove */ , IN_BSTR /* name */,
                                               NATProtocol_T /* protocol */, IN_BSTR /* host ip */, LONG /* host port */,
                                               IN_BSTR /* guest port */, LONG /* guest port */ ) { return S_OK; }
+    virtual HRESULT i_onAudioAdapterChange(IAudioAdapter * /* audioAdapter */) { return S_OK; }
     virtual HRESULT i_onSerialPortChange(ISerialPort * /* serialPort */) { return S_OK; }
     virtual HRESULT i_onParallelPortChange(IParallelPort * /* parallelPort */) { return S_OK; }
     virtual HRESULT i_onVRDEServerChange(BOOL /* aRestart */) { return S_OK; }
@@ -598,7 +590,7 @@ public:
                                          bool aSetError = false);
 
     HRESULT i_getMediumAttachmentsOfController(const Utf8Str &aName,
-                                               MediaData::AttachmentList &aAttachments);
+                                               MediumAttachmentList &aAttachments);
 
     HRESULT i_getUSBControllerByName(const Utf8Str &aName,
                                      ComObjPtr<USBController> &aUSBController,
@@ -665,7 +657,6 @@ protected:
     {
         /* flags for #saveSettings() */
         SaveS_ResetCurStateModified = 0x01,
-        SaveS_InformCallbacksAnyway = 0x02,
         SaveS_Force = 0x04,
         /* flags for #saveStateSettings() */
         SaveSTS_CurStateModified = 0x20,
@@ -692,13 +683,13 @@ protected:
                                   bool aOnline);
     HRESULT i_deleteImplicitDiffs(bool aOnline);
 
-    MediumAttachment* i_findAttachment(const MediaData::AttachmentList &ll,
+    MediumAttachment* i_findAttachment(const MediumAttachmentList &ll,
                                        const Utf8Str &aControllerName,
                                        LONG aControllerPort,
                                        LONG aDevice);
-    MediumAttachment* i_findAttachment(const MediaData::AttachmentList &ll,
+    MediumAttachment* i_findAttachment(const MediumAttachmentList &ll,
                                        ComObjPtr<Medium> pMedium);
-    MediumAttachment* i_findAttachment(const MediaData::AttachmentList &ll,
+    MediumAttachment* i_findAttachment(const MediumAttachmentList &ll,
                                        Guid &id);
 
     HRESULT i_detachDevice(MediumAttachment *pAttach,
@@ -760,7 +751,19 @@ protected:
 
     Backupable<UserData>    mUserData;
     Backupable<HWData>      mHWData;
-    Backupable<MediaData>   mMediaData;
+
+    /**
+     * Hard disk and other media data.
+     *
+     * The usage policy is the same as for mHWData, but a separate field
+     * is necessary because hard disk data requires different procedures when
+     * taking or deleting snapshots, etc.
+     *
+     * @todo r=klaus change this to a regular list and use the normal way to
+     * handle the settings when creating a session or taking a snapshot.
+     * Same thing applies to mStorageControllers and mUSBControllers.
+     */
+    Backupable<MediumAttachmentList> mMediumAttachments;
 
     // the following fields need special backup/rollback/commit handling,
     // so they cannot be a part of HWData
@@ -782,7 +785,7 @@ protected:
     typedef std::list<ComObjPtr<USBController> > USBControllerList;
     Backupable<USBControllerList>      mUSBControllers;
 
-    uint64_t                        uRegistryNeedsSaving;
+    uint64_t                           uRegistryNeedsSaving;
 
     /**
      * Abstract base class for all Machine or SessionMachine related
@@ -1085,17 +1088,24 @@ private:
                            BOOL *aValue);
     HRESULT setCPUProperty(CPUPropertyType_T aProperty,
                            BOOL aValue);
-    HRESULT getCPUIDLeaf(ULONG aId,
+    HRESULT getCPUIDLeafByOrdinal(ULONG aOrdinal,
+                                  ULONG *aIdx,
+                                  ULONG *aSubIdx,
+                                  ULONG *aValEax,
+                                  ULONG *aValEbx,
+                                  ULONG *aValEcx,
+                                  ULONG *aValEdx);
+    HRESULT getCPUIDLeaf(ULONG aIdx, ULONG aSubIdx,
                          ULONG *aValEax,
                          ULONG *aValEbx,
                          ULONG *aValEcx,
                          ULONG *aValEdx);
-    HRESULT setCPUIDLeaf(ULONG aId,
+    HRESULT setCPUIDLeaf(ULONG aIdx, ULONG aSubIdx,
                          ULONG aValEax,
                          ULONG aValEbx,
                          ULONG aValEcx,
                          ULONG aValEdx);
-    HRESULT removeCPUIDLeaf(ULONG aId);
+    HRESULT removeCPUIDLeaf(ULONG aIdx, ULONG aSubIdx);
     HRESULT removeAllCPUIDLeaves();
     HRESULT getHWVirtExProperty(HWVirtExPropertyType_T aProperty,
                                 BOOL *aValue);
@@ -1321,6 +1331,7 @@ public:
                                       IN_BSTR aGuestIp, LONG aGuestPort);
     HRESULT i_onStorageControllerChange();
     HRESULT i_onMediumChange(IMediumAttachment *aMediumAttachment, BOOL aForce);
+    HRESULT i_onAudioAdapterChange(IAudioAdapter *audioAdapter);
     HRESULT i_onSerialPortChange(ISerialPort *serialPort);
     HRESULT i_onParallelPortChange(IParallelPort *parallelPort);
     HRESULT i_onCPUChange(ULONG aCPU, BOOL aRemove);

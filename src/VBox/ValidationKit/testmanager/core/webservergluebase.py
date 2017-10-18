@@ -7,7 +7,7 @@ Test Manager Core - Web Server Abstraction Base Class.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard python imports.
@@ -259,7 +259,7 @@ class WebServerGlueBase(object):
         """
         if self._sBodyType is None:
             self._sBodyType = 'html';
-        elif self._sBodyType is not 'html':
+        elif self._sBodyType != 'html':
             raise WebServerGlueException('Cannot use writeParameter when body type is "%s"' % (self._sBodyType, ));
 
         self._sHtmlBody += sChunkOfHtml;
@@ -276,7 +276,7 @@ class WebServerGlueBase(object):
         """
         if self._sBodyType is None:
             self._sBodyType = 'html';
-        elif self._sBodyType is not 'html':
+        elif self._sBodyType != 'html':
             raise WebServerGlueException('Cannot use writeParameter when body type is "%s"' % (self._sBodyType, ));
 
         self.flushHeader();
@@ -303,7 +303,7 @@ class WebServerGlueBase(object):
                                              (self._dHeaderFields['Content-Type'],));
             self._sBodyType = 'form';
 
-        elif self._sBodyType is not 'form':
+        elif self._sBodyType != 'form':
             raise WebServerGlueException('Cannot use writeParams when body type is "%s"' % (self._sBodyType, ));
 
         for sKey in dParams:
@@ -581,9 +581,10 @@ class WebServerGlueBase(object):
                     self._oDbgFile.write('\n');
             else:
                 tsNow = utils.timestampMilli();
-                tsReq = tsNow - (self.tsStart / 1000000)
+                tsReq = tsNow - (self.tsStart / 1000000);
+                iPid  = os.getpid();
                 for sLine in sMessage.split('\n'):
-                    self._oDbgFile.write('%s/%03u: %s\n' % (tsNow, tsReq, sLine,));
+                    self._oDbgFile.write('%s/%03u,pid=%04x: %s\n' % (tsNow, tsReq, iPid, sLine,));
 
         return True;
 

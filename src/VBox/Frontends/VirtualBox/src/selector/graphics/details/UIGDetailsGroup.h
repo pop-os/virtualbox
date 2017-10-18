@@ -67,6 +67,9 @@ private:
         GroupData_Spacing
     };
 
+    /** Returns the description of the item. */
+    virtual QString description() const /* override */ { return QString(); }
+
     /* Data provider: */
     QVariant data(int iKey) const;
 

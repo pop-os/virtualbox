@@ -7,7 +7,7 @@ Test Manager WUI - Test Cases.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Validation Kit imports.
@@ -58,9 +58,9 @@ class WuiTestCaseList(WuiListContentBase):
     WUI test case list content generator.
     """
 
-    def __init__(self, aoEntries, iPage, cItemsPerPage, tsEffective, fnDPrint, oDisp):
-        WuiListContentBase.__init__(self, aoEntries, iPage, cItemsPerPage, tsEffective,
-                                    sTitle = 'Test Cases', fnDPrint = fnDPrint, oDisp = oDisp);
+    def __init__(self, aoEntries, iPage, cItemsPerPage, tsEffective, fnDPrint, oDisp, aiSelectedSortColumns = None):
+        WuiListContentBase.__init__(self, aoEntries, iPage, cItemsPerPage, tsEffective, sTitle = 'Test Cases',
+                                    fnDPrint = fnDPrint, oDisp = oDisp, aiSelectedSortColumns = aiSelectedSortColumns);
         self._asColumnHeaders = \
         [
             'Name', 'Active', 'Timeout', 'Base Command / Variations', 'Validation Kit Files',
@@ -88,7 +88,7 @@ class WuiTestCaseList(WuiListContentBase):
         fNoSubName = True;
         fAllDefaultTimeouts = True;
         for oVar in oEntry.aoTestCaseArgs:
-            if fNoSubName and oVar.sSubName is not None and len(oVar.sSubName.strip()) > 0:
+            if fNoSubName and oVar.sSubName is not None and oVar.sSubName.strip():
                 fNoSubName = False;
             if oVar.cGangMembers > 1:
                 fNoGang = False;
@@ -116,7 +116,7 @@ class WuiTestCaseList(WuiListContentBase):
                 sHtml += '<td>%s</td>' \
                        % (utils.formatIntervalSeconds(oTmp.cSecTimeout) if oTmp.cSecTimeout is not None else 'Default',)
             sHtml += u'<td>%s</td></tr>' \
-                % ( webutils.escapeElem(oTmp.sArgs.replace('-', u'\u2011')) if len(oTmp.sArgs) > 0 else u'\u2011',);
+                % ( webutils.escapeElem(oTmp.sArgs.replace('-', u'\u2011')) if oTmp.sArgs else u'\u2011',);
             sHtml += '</tr>\n';
         sHtml += '  </table>'
 
@@ -160,18 +160,19 @@ class WuiTestCaseList(WuiListContentBase):
         aoActions = [ WuiTmLink('Details', WuiAdmin.ksScriptName,
                                 { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestCaseDetails,
                                   TestCaseData.ksParam_idGenTestCase: oEntry.idGenTestCase }), ];
-        if isDbTimestampInfinity(oEntry.tsExpire):
-            aoActions.append(WuiTmLink('Modify', WuiAdmin.ksScriptName,
-                                       { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestCaseEdit,
-                                         TestCaseData.ksParam_idTestCase: oEntry.idTestCase }));
-        aoActions.append(WuiTmLink('Clone', WuiAdmin.ksScriptName,
-                                   { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestCaseClone,
-                                     TestCaseData.ksParam_idGenTestCase: oEntry.idGenTestCase }));
-        if isDbTimestampInfinity(oEntry.tsExpire):
-            aoActions.append(WuiTmLink('Remove', WuiAdmin.ksScriptName,
-                                       { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestCaseDoRemove,
-                                         TestCaseData.ksParam_idTestCase: oEntry.idTestCase },
-                                       sConfirm = 'Are you sure you want to remove test case #%d?' % (oEntry.idTestCase,)));
+        if self._oDisp is None or not self._oDisp.isReadOnlyUser():
+            if isDbTimestampInfinity(oEntry.tsExpire):
+                aoActions.append(WuiTmLink('Modify', WuiAdmin.ksScriptName,
+                                           { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestCaseEdit,
+                                             TestCaseData.ksParam_idTestCase: oEntry.idTestCase }));
+            aoActions.append(WuiTmLink('Clone', WuiAdmin.ksScriptName,
+                                       { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestCaseClone,
+                                         TestCaseData.ksParam_idGenTestCase: oEntry.idGenTestCase }));
+            if isDbTimestampInfinity(oEntry.tsExpire):
+                aoActions.append(WuiTmLink('Remove', WuiAdmin.ksScriptName,
+                                           { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestCaseDoRemove,
+                                             TestCaseData.ksParam_idTestCase: oEntry.idTestCase },
+                                           sConfirm = 'Are you sure you want to remove test case #%d?' % (oEntry.idTestCase,)));
         aoRet.append(aoActions);
 
         return aoRet;

@@ -1,3 +1,4 @@
+/* $Id: vboxfs_prov.c $ */
 /** @file
  * VirtualBox File System for Solaris Guests, provider implementation.
  * Portions contributed by: Ronald.
@@ -41,10 +42,9 @@
 #include <sys/sunddi.h>
 #include <sys/dirent.h>
 #include <sys/file.h>
+#undef u /* /usr/include/sys/user.h:249:1 is where this is defined to (curproc->p_user). very cool. */
+
 #include "vboxfs_prov.h"
-#ifdef u
-#undef u
-#endif
 
 #define	SFPROV_VERSION	1
 
@@ -923,7 +923,7 @@ sfprov_readdir(
 	int error;
 	char *cp;
 	int len;
-	SHFLSTRING *mask_str = NULL;	/* must be path with "/*" appended */
+	SHFLSTRING *mask_str = NULL;	/* must be path with "/ *" appended */
 	int mask_size;
 	sfp_file_t *fp;
 	uint32_t infobuff_alloc = 16384;

@@ -20,23 +20,24 @@
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-# include <QItemDelegate>
-# include <QSortFilterProxyModel>
-# include <QHeaderView>
-# include <QLineEdit>
-# include <QTextEdit>
-# include <QSpinBox>
 # include <QComboBox>
 # include <QDir>
+# include <QCheckBox>
+# include <QHeaderView>
+# include <QLabel>
+# include <QLineEdit>
+# include <QSpinBox>
+# include <QTextEdit>
 
 /* GUI includes: */
-# include "UIApplianceEditorWidget.h"
+# include "QITreeView.h"
 # include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
 # include "VBoxOSTypeSelectorButton.h"
-# include "UILineTextEdit.h"
+# include "UIApplianceEditorWidget.h"
 # include "UIConverter.h"
 # include "UIIconPool.h"
+# include "UILineTextEdit.h"
+# include "UIMessageCenter.h"
 
 /* COM includes: */
 # include "CSystemProperties.h"
@@ -44,126 +45,350 @@
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
-////////////////////////////////////////////////////////////////////////////////
-// ModelItem
+/** Describes the interface of Appliance item.
+  * Represented as a tree structure with a parent & multiple children. */
+class UIApplianceModelItem : public QITreeViewItem
+{
+public:
 
-/* This & the following derived classes represent the data items of a Virtual
-   System. All access/manipulation is done with the help of virtual functions
-   to keep the interface clean. ModelItem is able to handle tree structures
-   with a parent & several children's. */
-ModelItem::ModelItem(int number, ModelItem_type type, ModelItem *pParent /* = NULL */)
-  : m_number(number)
-  , m_type(type)
-  , m_pParentItem(pParent)
-{}
+    /** Constructs root item with specified @a iNumber, @a enmType and @a pParent. */
+    UIApplianceModelItem(int iNumber, ApplianceModelItemType enmType, QITreeView *pParent);
+    /** Constructs non-root item with specified @a iNumber, @a enmType and @a pParentItem. */
+    UIApplianceModelItem(int iNumber, ApplianceModelItemType enmType, UIApplianceModelItem *pParentItem);
+    /** Destructs item. */
+    virtual ~UIApplianceModelItem();
 
-ModelItem::~ModelItem()
+    /** Returns the item type. */
+    ApplianceModelItemType type() const { return m_enmType; }
+
+    /** Returns the parent of the item. */
+    UIApplianceModelItem *parent() const { return m_pParentItem; }
+
+    /** Appends the passed @a pChildItem to the item's list of children. */
+    void appendChild(UIApplianceModelItem *pChildItem);
+    /** Returns the child specified by the @a iIndex. */
+    virtual UIApplianceModelItem *childItem(int iIndex) const /* override */;
+
+    /** Returns the row of the item in the parent. */
+    int row() const;
+
+    /** Returns the number of children. */
+    virtual int childCount() const /* override */;
+    /** Returns the number of columns. */
+    int columnCount() const { return 3; }
+
+    /** Returns the item text. */
+    virtual QString text() const /* override */;
+
+    /** Returns the item flags for the given @a iColumn. */
+    virtual Qt::ItemFlags itemFlags(int /* iColumn */) const { return 0; }
+
+    /** Defines the @a iRole data for the item at @a iColumn to @a value. */
+    virtual bool setData(int /* iColumn */, const QVariant & /* value */, int /* iRole */) { return false; }
+    /** Returns the data stored under the given @a iRole for the item referred to by the @a iColumn. */
+    virtual QVariant data(int /* iColumn */, int /* iRole */) const { return QVariant(); }
+
+    /** Returns the widget used to edit the item specified by @a idx for editing.
+      * @param  pParent      Brings the parent to be assigned for newly created editor.
+      * @param  styleOption  Bring the style option set for the newly created editor. */
+    virtual QWidget *createEditor(QWidget * /* pParent */, const QStyleOptionViewItem & /* styleOption */, const QModelIndex & /* idx */) const { return 0; }
+
+    /** Defines the contents of the given @a pEditor to the data for the item at the given @a idx. */
+    virtual bool setEditorData(QWidget * /* pEditor */, const QModelIndex & /* idx */) const { return false; }
+    /** Defines the data for the item at the given @a idx in the @a pModel to the contents of the given @a pEditor. */
+    virtual bool setModelData(QWidget * /* pEditor */, QAbstractItemModel * /* pModel */, const QModelIndex & /* idx */) { return false; }
+
+    /** Restores the default values. */
+    virtual void restoreDefaults() {}
+
+    /** Cache currently stored values, such as @a finalStates, @a finalValues and @a finalExtraValues. */
+    virtual void putBack(QVector<BOOL> &finalStates, QVector<QString> &finalValues, QVector<QString> &finalExtraValues);
+
+protected:
+
+    /** Holds the item number. */
+    int                     m_iNumber;
+    /** Holds the item type. */
+    ApplianceModelItemType  m_enmType;
+
+    /** Holds the parent item reference. */
+    UIApplianceModelItem         *m_pParentItem;
+    /** Holds the list of children item instances. */
+    QList<UIApplianceModelItem*>  m_childItems;
+};
+
+
+/** UIApplianceModelItem subclass representing Appliance Virtual System item. */
+class UIVirtualSystemItem : public UIApplianceModelItem
+{
+public:
+
+    /** Constructs item passing @a iNumber and @a pParentItem to the base-class.
+      * @param  comDescription  Brings the Virtual System Description. */
+    UIVirtualSystemItem(int iNumber, CVirtualSystemDescription comDescription, UIApplianceModelItem *pParentItem);
+
+    /** Returns the data stored under the given @a iRole for the item referred to by the @a iColumn. */
+    virtual QVariant data(int iColumn, int iRole) const /* override */;
+
+    /** Cache currently stored values, such as @a finalStates, @a finalValues and @a finalExtraValues. */
+    virtual void putBack(QVector<BOOL> &finalStates, QVector<QString> &finalValues, QVector<QString> &finalExtraValues) /* override */;
+
+private:
+
+    /** Holds the Virtual System Description. */
+    CVirtualSystemDescription  m_comDescription;
+};
+
+
+/** UIApplianceModelItem subclass representing Appliance Virtual Hardware item. */
+class UIVirtualHardwareItem : public UIApplianceModelItem
+{
+    friend class UIApplianceSortProxyModel;
+
+    /** Data roles. */
+    enum
+    {
+        TypeRole = Qt::UserRole,
+        ModifiedRole
+    };
+
+public:
+
+    /** Constructs item passing @a iNumber and @a pParentItem to the base-class.
+      * @param  enmVSDType           Brings the Virtual System Description type.
+      * @param  strRef               Brings something totally useless.
+      * @param  strOrigValue         Brings the original value.
+      * @param  strConfigValue       Brings the configuration value.
+      * @param  strExtraConfigValue  Brings the extra configuration value. */
+    UIVirtualHardwareItem(int iNumber,
+                          KVirtualSystemDescriptionType enmVSDType,
+                          const QString &strRef,
+                          const QString &strOrigValue,
+                          const QString &strConfigValue,
+                          const QString &strExtraConfigValue,
+                          UIApplianceModelItem *pParentItem);
+
+    /** Returns the item flags for the given @a iColumn. */
+    virtual Qt::ItemFlags itemFlags(int iColumn) const /* override */;
+
+    /** Defines the @a iRole data for the item at @a iColumn to @a value. */
+    virtual bool setData(int iColumn, const QVariant &value, int iRole) /* override */;
+    /** Returns the data stored under the given @a iRole for the item referred to by the @a iColumn. */
+    virtual QVariant data(int iColumn, int iRole) const /* override */;
+
+    /** Returns the widget used to edit the item specified by @a idx for editing.
+      * @param  pParent      Brings the parent to be assigned for newly created editor.
+      * @param  styleOption  Bring the style option set for the newly created editor. */
+    virtual QWidget *createEditor(QWidget *pParent, const QStyleOptionViewItem &styleOption, const QModelIndex &idx) const /* override */;
+
+    /** Defines the contents of the given @a pEditor to the data for the item at the given @a idx. */
+    virtual bool setEditorData(QWidget *pEditor, const QModelIndex &idx) const /* override */;
+    /** Defines the data for the item at the given @a idx in the @a pModel to the contents of the given @a pEditor. */
+    virtual bool setModelData(QWidget *pEditor, QAbstractItemModel *pModel, const QModelIndex &idx) /* override */;
+
+    /** Restores the default values. */
+    virtual void restoreDefaults() /* override */;
+
+    /** Cache currently stored values, such as @a finalStates, @a finalValues and @a finalExtraValues. */
+    virtual void putBack(QVector<BOOL> &finalStates, QVector<QString> &finalValues, QVector<QString> &finalExtraValues) /* override */;
+
+private:
+
+    /** Holds the Virtual System Description type. */
+    KVirtualSystemDescriptionType  m_enmVSDType;
+    /** Holds something totally useless. */
+    QString                        m_strRef;
+    /** Holds the original value. */
+    QString                        m_strOrigValue;
+    /** Holds the configuration value. */
+    QString                        m_strConfigValue;
+    /** Holds the default configuration value. */
+    QString                        m_strConfigDefaultValue;
+    /** Holds the extra configuration value. */
+    QString                        m_strExtraConfigValue;
+    /** Holds the item check state. */
+    Qt::CheckState                 m_checkState;
+    /** Holds whether item was modified. */
+    bool                           m_fModified;
+};
+
+
+/*********************************************************************************************************************************
+*   Class UIApplianceModelItem implementation.                                                                                   *
+*********************************************************************************************************************************/
+
+UIApplianceModelItem::UIApplianceModelItem(int iNumber, ApplianceModelItemType enmType, QITreeView *pParent)
+    : QITreeViewItem(pParent)
+    , m_iNumber(iNumber)
+    , m_enmType(enmType)
+    , m_pParentItem(0)
+{
+}
+
+UIApplianceModelItem::UIApplianceModelItem(int iNumber, ApplianceModelItemType enmType, UIApplianceModelItem *pParentItem)
+    : QITreeViewItem(pParentItem)
+    , m_iNumber(iNumber)
+    , m_enmType(enmType)
+    , m_pParentItem(pParentItem)
+{
+}
+
+UIApplianceModelItem::~UIApplianceModelItem()
 {
     qDeleteAll(m_childItems);
 }
 
-void ModelItem::appendChild(ModelItem *pChild)
+void UIApplianceModelItem::appendChild(UIApplianceModelItem *pChildItem)
 {
-    AssertPtr(pChild);
-    m_childItems << pChild;
+    AssertPtr(pChildItem);
+    m_childItems << pChildItem;
 }
 
-ModelItem *ModelItem::child(int row) const
+UIApplianceModelItem *UIApplianceModelItem::childItem(int iIndex) const
 {
-    return m_childItems.value(row);
+    return m_childItems.value(iIndex);
 }
 
-int ModelItem::row() const
+int UIApplianceModelItem::row() const
 {
     if (m_pParentItem)
-        return m_pParentItem->m_childItems.indexOf(const_cast<ModelItem*>(this));
+        return m_pParentItem->m_childItems.indexOf(const_cast<UIApplianceModelItem*>(this));
 
     return 0;
 }
 
-int ModelItem::childCount() const
+int UIApplianceModelItem::childCount() const
 {
     return m_childItems.count();
 }
 
-void ModelItem::putBack(QVector<BOOL>& finalStates, QVector<QString>& finalValues, QVector<QString>& finalExtraValues)
+QString UIApplianceModelItem::text() const
+{
+    switch (type())
+    {
+        case ApplianceModelItemType_VirtualSystem:
+            return tr("%1", "col.1 text")
+                     .arg(data(ApplianceViewSection_Description, Qt::DisplayRole).toString());
+        case ApplianceModelItemType_VirtualHardware:
+            return tr("%1: %2", "col.1 text: col.2 text")
+                     .arg(data(ApplianceViewSection_Description, Qt::DisplayRole).toString())
+                     .arg(data(ApplianceViewSection_ConfigValue, Qt::DisplayRole).toString());
+        default:
+            break;
+    }
+    return QString();
+}
+
+void UIApplianceModelItem::putBack(QVector<BOOL> &finalStates, QVector<QString> &finalValues, QVector<QString> &finalExtraValues)
 {
     for (int i = 0; i < childCount(); ++i)
-        child(i)->putBack(finalStates, finalValues, finalExtraValues);
+        childItem(i)->putBack(finalStates, finalValues, finalExtraValues);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// VirtualSystemItem
 
-VirtualSystemItem::VirtualSystemItem(int number, CVirtualSystemDescription aDesc, ModelItem *pParent)
-  : ModelItem(number, VirtualSystem_type, pParent)
-  , m_desc(aDesc)
-{}
+/*********************************************************************************************************************************
+*   Class UIVirtualSystemItem implementation.                                                                                    *
+*********************************************************************************************************************************/
 
-QVariant VirtualSystemItem::data(int column, int role) const
+UIVirtualSystemItem::UIVirtualSystemItem(int iNumber, CVirtualSystemDescription comDescription, UIApplianceModelItem *pParentItem)
+    : UIApplianceModelItem(iNumber, ApplianceModelItemType_VirtualSystem, pParentItem)
+    , m_comDescription(comDescription)
 {
-    QVariant v;
-    if (column == DescriptionSection &&
-        role == Qt::DisplayRole)
-        v = UIApplianceEditorWidget::tr("Virtual System %1").arg(m_number + 1);
-    return v;
 }
 
-void VirtualSystemItem::putBack(QVector<BOOL>& finalStates, QVector<QString>& finalValues, QVector<QString>& finalExtraValues)
+QVariant UIVirtualSystemItem::data(int iColumn, int iRole) const
+{
+    QVariant value;
+    if (iColumn == ApplianceViewSection_Description &&
+        iRole == Qt::DisplayRole)
+        value = UIApplianceEditorWidget::tr("Virtual System %1").arg(m_iNumber + 1);
+    return value;
+}
+
+void UIVirtualSystemItem::putBack(QVector<BOOL> &finalStates, QVector<QString> &finalValues, QVector<QString> &finalExtraValues)
 {
     /* Resize the vectors */
-    unsigned long count = m_desc.GetCount();
-    finalStates.resize(count);
-    finalValues.resize(count);
-    finalExtraValues.resize(count);
+    unsigned long iCount = m_comDescription.GetCount();
+    finalStates.resize(iCount);
+    finalValues.resize(iCount);
+    finalExtraValues.resize(iCount);
     /* Recursively fill the vectors */
-    ModelItem::putBack(finalStates, finalValues, finalExtraValues);
+    UIApplianceModelItem::putBack(finalStates, finalValues, finalExtraValues);
     /* Set all final values at once */
-    m_desc.SetFinalValues(finalStates, finalValues, finalExtraValues);
+    m_comDescription.SetFinalValues(finalStates, finalValues, finalExtraValues);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// HardwareItem
 
-HardwareItem::HardwareItem(int number,
-                           KVirtualSystemDescriptionType type,
-                           const QString &strRef,
-                           const QString &aOrigValue,
-                           const QString &strConfigValue,
-                           const QString &strExtraConfigValue,
-                           ModelItem *pParent)
-  : ModelItem(number, HardwareType, pParent)
-  , m_type(type)
-  , m_strRef(strRef)
-  , m_strOrigValue(aOrigValue)
-  , m_strConfigValue(strConfigValue)
-  , m_strConfigDefaultValue(strConfigValue)
-  , m_strExtraConfigValue(strExtraConfigValue)
-  , m_checkState(Qt::Checked)
-  , m_fModified(false)
-{}
+/*********************************************************************************************************************************
+*   Class UIVirtualHardwareItem implementation.                                                                                  *
+*********************************************************************************************************************************/
 
-void HardwareItem::putBack(QVector<BOOL>& finalStates, QVector<QString>& finalValues, QVector<QString>& finalExtraValues)
+UIVirtualHardwareItem::UIVirtualHardwareItem(int iNumber,
+                                             KVirtualSystemDescriptionType enmVSDType,
+                                             const QString &strRef,
+                                             const QString &aOrigValue,
+                                             const QString &strConfigValue,
+                                             const QString &strExtraConfigValue,
+                                             UIApplianceModelItem *pParentItem)
+    : UIApplianceModelItem(iNumber, ApplianceModelItemType_VirtualHardware, pParentItem)
+    , m_enmVSDType(enmVSDType)
+    , m_strRef(strRef)
+    , m_strOrigValue(aOrigValue)
+    , m_strConfigValue(strConfigValue)
+    , m_strConfigDefaultValue(strConfigValue)
+    , m_strExtraConfigValue(strExtraConfigValue)
+    , m_checkState(Qt::Checked)
+    , m_fModified(false)
 {
-    finalStates[m_number]      = m_checkState == Qt::Checked;
-    finalValues[m_number]      = m_strConfigValue;
-    finalExtraValues[m_number] = m_strExtraConfigValue;
-    ModelItem::putBack(finalStates, finalValues, finalExtraValues);
 }
 
-bool HardwareItem::setData(int column, const QVariant &value, int role)
+Qt::ItemFlags UIVirtualHardwareItem::itemFlags(int iColumn) const
+{
+    Qt::ItemFlags enmFlags = 0;
+    if (iColumn == ApplianceViewSection_ConfigValue)
+    {
+        /* Some items are checkable */
+        if (m_enmVSDType == KVirtualSystemDescriptionType_Floppy ||
+            m_enmVSDType == KVirtualSystemDescriptionType_CDROM ||
+            m_enmVSDType == KVirtualSystemDescriptionType_USBController ||
+            m_enmVSDType == KVirtualSystemDescriptionType_SoundCard ||
+            m_enmVSDType == KVirtualSystemDescriptionType_NetworkAdapter)
+            enmFlags |= Qt::ItemIsUserCheckable;
+        /* Some items are editable */
+        if ((m_enmVSDType == KVirtualSystemDescriptionType_Name ||
+             m_enmVSDType == KVirtualSystemDescriptionType_Product ||
+             m_enmVSDType == KVirtualSystemDescriptionType_ProductUrl ||
+             m_enmVSDType == KVirtualSystemDescriptionType_Vendor ||
+             m_enmVSDType == KVirtualSystemDescriptionType_VendorUrl ||
+             m_enmVSDType == KVirtualSystemDescriptionType_Version ||
+             m_enmVSDType == KVirtualSystemDescriptionType_Description ||
+             m_enmVSDType == KVirtualSystemDescriptionType_License ||
+             m_enmVSDType == KVirtualSystemDescriptionType_OS ||
+             m_enmVSDType == KVirtualSystemDescriptionType_CPU ||
+             m_enmVSDType == KVirtualSystemDescriptionType_Memory ||
+             m_enmVSDType == KVirtualSystemDescriptionType_SoundCard ||
+             m_enmVSDType == KVirtualSystemDescriptionType_NetworkAdapter ||
+             m_enmVSDType == KVirtualSystemDescriptionType_HardDiskControllerIDE ||
+             m_enmVSDType == KVirtualSystemDescriptionType_HardDiskImage) &&
+            m_checkState == Qt::Checked) /* Item has to be enabled */
+            enmFlags |= Qt::ItemIsEditable;
+    }
+    return enmFlags;
+}
+
+bool UIVirtualHardwareItem::setData(int iColumn, const QVariant &value, int iRole)
 {
     bool fDone = false;
-    switch (role)
+    switch (iRole)
     {
         case Qt::CheckStateRole:
         {
-            if (column == ConfigValueSection &&
-                (m_type == KVirtualSystemDescriptionType_Floppy ||
-                 m_type == KVirtualSystemDescriptionType_CDROM ||
-                 m_type == KVirtualSystemDescriptionType_USBController ||
-                 m_type == KVirtualSystemDescriptionType_SoundCard ||
-                 m_type == KVirtualSystemDescriptionType_NetworkAdapter))
+            if (iColumn == ApplianceViewSection_ConfigValue &&
+                (m_enmVSDType == KVirtualSystemDescriptionType_Floppy ||
+                 m_enmVSDType == KVirtualSystemDescriptionType_CDROM ||
+                 m_enmVSDType == KVirtualSystemDescriptionType_USBController ||
+                 m_enmVSDType == KVirtualSystemDescriptionType_SoundCard ||
+                 m_enmVSDType == KVirtualSystemDescriptionType_NetworkAdapter))
             {
                 m_checkState = static_cast<Qt::CheckState>(value.toInt());
                 fDone = true;
@@ -172,9 +397,9 @@ bool HardwareItem::setData(int column, const QVariant &value, int role)
         }
         case Qt::EditRole:
         {
-            if (column == OriginalValueSection)
+            if (iColumn == ApplianceViewSection_OriginalValue)
                 m_strOrigValue = value.toString();
-            else if (column == ConfigValueSection)
+            else if (iColumn == ApplianceViewSection_ConfigValue)
                 m_strConfigValue = value.toString();
             break;
         }
@@ -183,229 +408,190 @@ bool HardwareItem::setData(int column, const QVariant &value, int role)
     return fDone;
 }
 
-QVariant HardwareItem::data(int column, int role) const
+QVariant UIVirtualHardwareItem::data(int iColumn, int iRole) const
 {
-    QVariant v;
-    switch (role)
+    QVariant value;
+    switch (iRole)
     {
         case Qt::EditRole:
         {
-            if (column == OriginalValueSection)
-                v = m_strOrigValue;
-            else if (column == ConfigValueSection)
-                v = m_strConfigValue;
+            if (iColumn == ApplianceViewSection_OriginalValue)
+                value = m_strOrigValue;
+            else if (iColumn == ApplianceViewSection_ConfigValue)
+                value = m_strConfigValue;
             break;
         }
         case Qt::DisplayRole:
         {
-            if (column == DescriptionSection)
+            if (iColumn == ApplianceViewSection_Description)
             {
-                switch (m_type)
+                switch (m_enmVSDType)
                 {
-                    case KVirtualSystemDescriptionType_Name:                   v = UIApplianceEditorWidget::tr("Name"); break;
-                    case KVirtualSystemDescriptionType_Product:                v = UIApplianceEditorWidget::tr("Product"); break;
-                    case KVirtualSystemDescriptionType_ProductUrl:             v = UIApplianceEditorWidget::tr("Product-URL"); break;
-                    case KVirtualSystemDescriptionType_Vendor:                 v = UIApplianceEditorWidget::tr("Vendor"); break;
-                    case KVirtualSystemDescriptionType_VendorUrl:              v = UIApplianceEditorWidget::tr("Vendor-URL"); break;
-                    case KVirtualSystemDescriptionType_Version:                v = UIApplianceEditorWidget::tr("Version"); break;
-                    case KVirtualSystemDescriptionType_Description:            v = UIApplianceEditorWidget::tr("Description"); break;
-                    case KVirtualSystemDescriptionType_License:                v = UIApplianceEditorWidget::tr("License"); break;
-                    case KVirtualSystemDescriptionType_OS:                     v = UIApplianceEditorWidget::tr("Guest OS Type"); break;
-                    case KVirtualSystemDescriptionType_CPU:                    v = UIApplianceEditorWidget::tr("CPU"); break;
-                    case KVirtualSystemDescriptionType_Memory:                 v = UIApplianceEditorWidget::tr("RAM"); break;
-                    case KVirtualSystemDescriptionType_HardDiskControllerIDE:  v = UIApplianceEditorWidget::tr("Storage Controller (IDE)"); break;
-                    case KVirtualSystemDescriptionType_HardDiskControllerSATA: v = UIApplianceEditorWidget::tr("Storage Controller (SATA)"); break;
-                    case KVirtualSystemDescriptionType_HardDiskControllerSCSI: v = UIApplianceEditorWidget::tr("Storage Controller (SCSI)"); break;
-                    case KVirtualSystemDescriptionType_HardDiskControllerSAS:  v = UIApplianceEditorWidget::tr("Storage Controller (SAS)"); break;
-                    case KVirtualSystemDescriptionType_CDROM:                  v = UIApplianceEditorWidget::tr("DVD"); break;
-                    case KVirtualSystemDescriptionType_Floppy:                 v = UIApplianceEditorWidget::tr("Floppy"); break;
-                    case KVirtualSystemDescriptionType_NetworkAdapter:         v = UIApplianceEditorWidget::tr("Network Adapter"); break;
-                    case KVirtualSystemDescriptionType_USBController:          v = UIApplianceEditorWidget::tr("USB Controller"); break;
-                    case KVirtualSystemDescriptionType_SoundCard:              v = UIApplianceEditorWidget::tr("Sound Card"); break;
-                    case KVirtualSystemDescriptionType_HardDiskImage:          v = UIApplianceEditorWidget::tr("Virtual Disk Image"); break;
-                    default:                                                   v = UIApplianceEditorWidget::tr("Unknown Hardware Item"); break;
+                    case KVirtualSystemDescriptionType_Name:                   value = UIApplianceEditorWidget::tr("Name"); break;
+                    case KVirtualSystemDescriptionType_Product:                value = UIApplianceEditorWidget::tr("Product"); break;
+                    case KVirtualSystemDescriptionType_ProductUrl:             value = UIApplianceEditorWidget::tr("Product-URL"); break;
+                    case KVirtualSystemDescriptionType_Vendor:                 value = UIApplianceEditorWidget::tr("Vendor"); break;
+                    case KVirtualSystemDescriptionType_VendorUrl:              value = UIApplianceEditorWidget::tr("Vendor-URL"); break;
+                    case KVirtualSystemDescriptionType_Version:                value = UIApplianceEditorWidget::tr("Version"); break;
+                    case KVirtualSystemDescriptionType_Description:            value = UIApplianceEditorWidget::tr("Description"); break;
+                    case KVirtualSystemDescriptionType_License:                value = UIApplianceEditorWidget::tr("License"); break;
+                    case KVirtualSystemDescriptionType_OS:                     value = UIApplianceEditorWidget::tr("Guest OS Type"); break;
+                    case KVirtualSystemDescriptionType_CPU:                    value = UIApplianceEditorWidget::tr("CPU"); break;
+                    case KVirtualSystemDescriptionType_Memory:                 value = UIApplianceEditorWidget::tr("RAM"); break;
+                    case KVirtualSystemDescriptionType_HardDiskControllerIDE:  value = UIApplianceEditorWidget::tr("Storage Controller (IDE)"); break;
+                    case KVirtualSystemDescriptionType_HardDiskControllerSATA: value = UIApplianceEditorWidget::tr("Storage Controller (SATA)"); break;
+                    case KVirtualSystemDescriptionType_HardDiskControllerSCSI: value = UIApplianceEditorWidget::tr("Storage Controller (SCSI)"); break;
+                    case KVirtualSystemDescriptionType_HardDiskControllerSAS:  value = UIApplianceEditorWidget::tr("Storage Controller (SAS)"); break;
+                    case KVirtualSystemDescriptionType_CDROM:                  value = UIApplianceEditorWidget::tr("DVD"); break;
+                    case KVirtualSystemDescriptionType_Floppy:                 value = UIApplianceEditorWidget::tr("Floppy"); break;
+                    case KVirtualSystemDescriptionType_NetworkAdapter:         value = UIApplianceEditorWidget::tr("Network Adapter"); break;
+                    case KVirtualSystemDescriptionType_USBController:          value = UIApplianceEditorWidget::tr("USB Controller"); break;
+                    case KVirtualSystemDescriptionType_SoundCard:              value = UIApplianceEditorWidget::tr("Sound Card"); break;
+                    case KVirtualSystemDescriptionType_HardDiskImage:          value = UIApplianceEditorWidget::tr("Virtual Disk Image"); break;
+                    default:                                                   value = UIApplianceEditorWidget::tr("Unknown Hardware Item"); break;
                 }
             }
-            else if (column == OriginalValueSection)
-                v = m_strOrigValue;
-            else if (column == ConfigValueSection)
+            else if (iColumn == ApplianceViewSection_OriginalValue)
+                value = m_strOrigValue;
+            else if (iColumn == ApplianceViewSection_ConfigValue)
             {
-                switch (m_type)
+                switch (m_enmVSDType)
                 {
                     case KVirtualSystemDescriptionType_Description:
                     case KVirtualSystemDescriptionType_License:
                     {
                         /* Shorten the big text if there is more than
                          * one line */
-                        QString tmp(m_strConfigValue);
-                        int i = tmp.indexOf('\n');
+                        QString strTmp(m_strConfigValue);
+                        int i = strTmp.indexOf('\n');
                         if (i > -1)
-                            tmp.replace(i, tmp.length(), "...");
-                        v = tmp; break;
+                            strTmp.replace(i, strTmp.length(), "...");
+                        value = strTmp; break;
                     }
-                    case KVirtualSystemDescriptionType_OS:             v = vboxGlobal().vmGuestOSTypeDescription(m_strConfigValue); break;
-                    case KVirtualSystemDescriptionType_Memory:         v = m_strConfigValue + " " + VBoxGlobal::tr("MB", "size suffix MBytes=1024 KBytes"); break;
-                    case KVirtualSystemDescriptionType_SoundCard:      v = gpConverter->toString(static_cast<KAudioControllerType>(m_strConfigValue.toInt())); break;
-                    case KVirtualSystemDescriptionType_NetworkAdapter: v = gpConverter->toString(static_cast<KNetworkAdapterType>(m_strConfigValue.toInt())); break;
-                    default:                                           v = m_strConfigValue; break;
+                    case KVirtualSystemDescriptionType_OS:             value = vboxGlobal().vmGuestOSTypeDescription(m_strConfigValue); break;
+                    case KVirtualSystemDescriptionType_Memory:         value = m_strConfigValue + " " + VBoxGlobal::tr("MB", "size suffix MBytes=1024 KBytes"); break;
+                    case KVirtualSystemDescriptionType_SoundCard:      value = gpConverter->toString(static_cast<KAudioControllerType>(m_strConfigValue.toInt())); break;
+                    case KVirtualSystemDescriptionType_NetworkAdapter: value = gpConverter->toString(static_cast<KNetworkAdapterType>(m_strConfigValue.toInt())); break;
+                    default:                                           value = m_strConfigValue; break;
                 }
             }
             break;
         }
         case Qt::ToolTipRole:
         {
-            if (column == ConfigValueSection)
+            if (iColumn == ApplianceViewSection_ConfigValue)
             {
                 if (!m_strOrigValue.isEmpty())
-                    v = UIApplianceEditorWidget::tr("<b>Original Value:</b> %1").arg(m_strOrigValue);
+                    value = UIApplianceEditorWidget::tr("<b>Original Value:</b> %1").arg(m_strOrigValue);
             }
             break;
         }
         case Qt::DecorationRole:
         {
-            if (column == DescriptionSection)
+            if (iColumn == ApplianceViewSection_Description)
             {
-                switch (m_type)
+                switch (m_enmVSDType)
                 {
-                    case KVirtualSystemDescriptionType_Name:                   v = UIIconPool::iconSet(":/name_16px.png"); break;
+                    case KVirtualSystemDescriptionType_Name:                   value = UIIconPool::iconSet(":/name_16px.png"); break;
                     case KVirtualSystemDescriptionType_Product:
                     case KVirtualSystemDescriptionType_ProductUrl:
                     case KVirtualSystemDescriptionType_Vendor:
                     case KVirtualSystemDescriptionType_VendorUrl:
                     case KVirtualSystemDescriptionType_Version:
                     case KVirtualSystemDescriptionType_Description:
-                    case KVirtualSystemDescriptionType_License:                v = UIIconPool::iconSet(":/description_16px.png"); break;
-                    case KVirtualSystemDescriptionType_OS:                     v = UIIconPool::iconSet(":/os_type_16px.png"); break;
-                    case KVirtualSystemDescriptionType_CPU:                    v = UIIconPool::iconSet(":/cpu_16px.png"); break;
-                    case KVirtualSystemDescriptionType_Memory:                 v = UIIconPool::iconSet(":/ram_16px.png"); break;
-                    case KVirtualSystemDescriptionType_HardDiskControllerIDE:  v = UIIconPool::iconSet(":/ide_16px.png"); break;
-                    case KVirtualSystemDescriptionType_HardDiskControllerSATA: v = UIIconPool::iconSet(":/sata_16px.png"); break;
-                    case KVirtualSystemDescriptionType_HardDiskControllerSCSI: v = UIIconPool::iconSet(":/scsi_16px.png"); break;
-                    case KVirtualSystemDescriptionType_HardDiskControllerSAS:  v = UIIconPool::iconSet(":/scsi_16px.png"); break;
-                    case KVirtualSystemDescriptionType_HardDiskImage:          v = UIIconPool::iconSet(":/hd_16px.png"); break;
-                    case KVirtualSystemDescriptionType_CDROM:                  v = UIIconPool::iconSet(":/cd_16px.png"); break;
-                    case KVirtualSystemDescriptionType_Floppy:                 v = UIIconPool::iconSet(":/fd_16px.png"); break;
-                    case KVirtualSystemDescriptionType_NetworkAdapter:         v = UIIconPool::iconSet(":/nw_16px.png"); break;
-                    case KVirtualSystemDescriptionType_USBController:          v = UIIconPool::iconSet(":/usb_16px.png"); break;
-                    case KVirtualSystemDescriptionType_SoundCard:              v = UIIconPool::iconSet(":/sound_16px.png"); break;
+                    case KVirtualSystemDescriptionType_License:                value = UIIconPool::iconSet(":/description_16px.png"); break;
+                    case KVirtualSystemDescriptionType_OS:                     value = UIIconPool::iconSet(":/os_type_16px.png"); break;
+                    case KVirtualSystemDescriptionType_CPU:                    value = UIIconPool::iconSet(":/cpu_16px.png"); break;
+                    case KVirtualSystemDescriptionType_Memory:                 value = UIIconPool::iconSet(":/ram_16px.png"); break;
+                    case KVirtualSystemDescriptionType_HardDiskControllerIDE:  value = UIIconPool::iconSet(":/ide_16px.png"); break;
+                    case KVirtualSystemDescriptionType_HardDiskControllerSATA: value = UIIconPool::iconSet(":/sata_16px.png"); break;
+                    case KVirtualSystemDescriptionType_HardDiskControllerSCSI: value = UIIconPool::iconSet(":/scsi_16px.png"); break;
+                    case KVirtualSystemDescriptionType_HardDiskControllerSAS:  value = UIIconPool::iconSet(":/scsi_16px.png"); break;
+                    case KVirtualSystemDescriptionType_HardDiskImage:          value = UIIconPool::iconSet(":/hd_16px.png"); break;
+                    case KVirtualSystemDescriptionType_CDROM:                  value = UIIconPool::iconSet(":/cd_16px.png"); break;
+                    case KVirtualSystemDescriptionType_Floppy:                 value = UIIconPool::iconSet(":/fd_16px.png"); break;
+                    case KVirtualSystemDescriptionType_NetworkAdapter:         value = UIIconPool::iconSet(":/nw_16px.png"); break;
+                    case KVirtualSystemDescriptionType_USBController:          value = UIIconPool::iconSet(":/usb_16px.png"); break;
+                    case KVirtualSystemDescriptionType_SoundCard:              value = UIIconPool::iconSet(":/sound_16px.png"); break;
                     default: break;
                 }
             }
-            else if (column == ConfigValueSection &&
-                     m_type == KVirtualSystemDescriptionType_OS)
-            {
-                const QStyle *pStyle = QApplication::style();
-                const int iIconMetric = pStyle->pixelMetric(QStyle::PM_SmallIconSize);
-                v = vboxGlobal().vmGuestOSTypeIcon(m_strConfigValue).scaledToHeight(iIconMetric, Qt::SmoothTransformation);
-            }
+            else if (iColumn == ApplianceViewSection_ConfigValue && m_enmVSDType == KVirtualSystemDescriptionType_OS)
+                value = vboxGlobal().vmGuestOSTypeIcon(m_strConfigValue);
             break;
         }
         case Qt::FontRole:
         {
             /* If the item is unchecked mark it with italic text. */
-            if (column == ConfigValueSection &&
+            if (iColumn == ApplianceViewSection_ConfigValue &&
                 m_checkState == Qt::Unchecked)
             {
                 QFont font = qApp->font();
                 font.setItalic(true);
-                v = font;
+                value = font;
             }
             break;
         }
         case Qt::ForegroundRole:
         {
             /* If the item is unchecked mark it with gray text. */
-            if (column == ConfigValueSection &&
+            if (iColumn == ApplianceViewSection_ConfigValue &&
                 m_checkState == Qt::Unchecked)
             {
                 QPalette pal = qApp->palette();
-                v = pal.brush(QPalette::Disabled, QPalette::WindowText);
+                value = pal.brush(QPalette::Disabled, QPalette::WindowText);
             }
             break;
         }
         case Qt::CheckStateRole:
         {
-            if (column == ConfigValueSection &&
-                (m_type == KVirtualSystemDescriptionType_Floppy ||
-                 m_type == KVirtualSystemDescriptionType_CDROM ||
-                 m_type == KVirtualSystemDescriptionType_USBController ||
-                 m_type == KVirtualSystemDescriptionType_SoundCard ||
-                 m_type == KVirtualSystemDescriptionType_NetworkAdapter))
-                v = m_checkState;
+            if (iColumn == ApplianceViewSection_ConfigValue &&
+                (m_enmVSDType == KVirtualSystemDescriptionType_Floppy ||
+                 m_enmVSDType == KVirtualSystemDescriptionType_CDROM ||
+                 m_enmVSDType == KVirtualSystemDescriptionType_USBController ||
+                 m_enmVSDType == KVirtualSystemDescriptionType_SoundCard ||
+                 m_enmVSDType == KVirtualSystemDescriptionType_NetworkAdapter))
+                value = m_checkState;
             break;
         }
-        case HardwareItem::TypeRole:
+        case UIVirtualHardwareItem::TypeRole:
         {
-            v = m_type;
+            value = m_enmVSDType;
             break;
         }
-        case HardwareItem::ModifiedRole:
+        case UIVirtualHardwareItem::ModifiedRole:
         {
-            if (column == ConfigValueSection)
-                v = m_fModified;
+            if (iColumn == ApplianceViewSection_ConfigValue)
+                value = m_fModified;
             break;
         }
     }
-    return v;
+    return value;
 }
 
-Qt::ItemFlags HardwareItem::itemFlags(int column) const
+QWidget *UIVirtualHardwareItem::createEditor(QWidget *pParent, const QStyleOptionViewItem & /* styleOption */, const QModelIndex &idx) const
 {
-    Qt::ItemFlags flags = 0;
-    if (column == ConfigValueSection)
+    QWidget *pEditor = 0;
+    if (idx.column() == ApplianceViewSection_ConfigValue)
     {
-        /* Some items are checkable */
-        if (m_type == KVirtualSystemDescriptionType_Floppy ||
-            m_type == KVirtualSystemDescriptionType_CDROM ||
-            m_type == KVirtualSystemDescriptionType_USBController ||
-            m_type == KVirtualSystemDescriptionType_SoundCard ||
-            m_type == KVirtualSystemDescriptionType_NetworkAdapter)
-            flags |= Qt::ItemIsUserCheckable;
-        /* Some items are editable */
-        if ((m_type == KVirtualSystemDescriptionType_Name ||
-             m_type == KVirtualSystemDescriptionType_Product ||
-             m_type == KVirtualSystemDescriptionType_ProductUrl ||
-             m_type == KVirtualSystemDescriptionType_Vendor ||
-             m_type == KVirtualSystemDescriptionType_VendorUrl ||
-             m_type == KVirtualSystemDescriptionType_Version ||
-             m_type == KVirtualSystemDescriptionType_Description ||
-             m_type == KVirtualSystemDescriptionType_License ||
-             m_type == KVirtualSystemDescriptionType_OS ||
-             m_type == KVirtualSystemDescriptionType_CPU ||
-             m_type == KVirtualSystemDescriptionType_Memory ||
-             m_type == KVirtualSystemDescriptionType_SoundCard ||
-             m_type == KVirtualSystemDescriptionType_NetworkAdapter ||
-             m_type == KVirtualSystemDescriptionType_HardDiskControllerIDE ||
-             m_type == KVirtualSystemDescriptionType_HardDiskImage) &&
-            m_checkState == Qt::Checked) /* Item has to be enabled */
-            flags |= Qt::ItemIsEditable;
-    }
-    return flags;
-}
-
-QWidget *HardwareItem::createEditor(QWidget *pParent, const QStyleOptionViewItem & /* styleOption */, const QModelIndex &idx) const
-{
-    QWidget *editor = NULL;
-    if (idx.column() == ConfigValueSection)
-    {
-        switch (m_type)
+        switch (m_enmVSDType)
         {
             case KVirtualSystemDescriptionType_OS:
             {
-                VBoxOSTypeSelectorButton *e = new VBoxOSTypeSelectorButton(pParent);
+                VBoxOSTypeSelectorButton *pButton = new VBoxOSTypeSelectorButton(pParent);
                 /* Fill the background with the highlight color in the case
                  * the button hasn't a rectangle shape. This prevents the
                  * display of parts from the current text on the Mac. */
 #ifdef VBOX_WS_MAC
                 /* Use the palette from the tree view, not the one from the
                  * editor. */
-                QPalette p = e->palette();
+                QPalette p = pButton->palette();
                 p.setBrush(QPalette::Highlight, pParent->palette().brush(QPalette::Highlight));
-                e->setPalette(p);
+                pButton->setPalette(p);
 #endif /* VBOX_WS_MAC */
-                e->setAutoFillBackground(true);
-                e->setBackgroundRole(QPalette::Highlight);
-                editor = e;
+                pButton->setAutoFillBackground(true);
+                pButton->setBackgroundRole(QPalette::Highlight);
+                pEditor = pButton;
                 break;
             }
             case KVirtualSystemDescriptionType_Name:
@@ -415,104 +601,104 @@ QWidget *HardwareItem::createEditor(QWidget *pParent, const QStyleOptionViewItem
             case KVirtualSystemDescriptionType_VendorUrl:
             case KVirtualSystemDescriptionType_Version:
             {
-                QLineEdit *e = new QLineEdit(pParent);
-                editor = e;
+                QLineEdit *pLineEdit = new QLineEdit(pParent);
+                pEditor = pLineEdit;
                 break;
             }
             case KVirtualSystemDescriptionType_Description:
             case KVirtualSystemDescriptionType_License:
             {
-                UILineTextEdit *e = new UILineTextEdit(pParent);
-                editor = e;
+                UILineTextEdit *pLineTextEdit = new UILineTextEdit(pParent);
+                pEditor = pLineTextEdit;
                 break;
             }
             case KVirtualSystemDescriptionType_CPU:
             {
-                QSpinBox *e = new QSpinBox(pParent);
-                e->setRange(UIApplianceEditorWidget::minGuestCPUCount(), UIApplianceEditorWidget::maxGuestCPUCount());
-                editor = e;
+                QSpinBox *pSpinBox = new QSpinBox(pParent);
+                pSpinBox->setRange(UIApplianceEditorWidget::minGuestCPUCount(), UIApplianceEditorWidget::maxGuestCPUCount());
+                pEditor = pSpinBox;
                 break;
             }
             case KVirtualSystemDescriptionType_Memory:
             {
-                QSpinBox *e = new QSpinBox(pParent);
-                e->setRange(UIApplianceEditorWidget::minGuestRAM(), UIApplianceEditorWidget::maxGuestRAM());
-                e->setSuffix(" " + VBoxGlobal::tr("MB", "size suffix MBytes=1024 KBytes"));
-                editor = e;
+                QSpinBox *pSpinBox = new QSpinBox(pParent);
+                pSpinBox->setRange(UIApplianceEditorWidget::minGuestRAM(), UIApplianceEditorWidget::maxGuestRAM());
+                pSpinBox->setSuffix(" " + VBoxGlobal::tr("MB", "size suffix MBytes=1024 KBytes"));
+                pEditor = pSpinBox;
                 break;
             }
             case KVirtualSystemDescriptionType_SoundCard:
             {
-                QComboBox *e = new QComboBox(pParent);
-                e->addItem(gpConverter->toString(KAudioControllerType_AC97), KAudioControllerType_AC97);
-                e->addItem(gpConverter->toString(KAudioControllerType_SB16), KAudioControllerType_SB16);
-                e->addItem(gpConverter->toString(KAudioControllerType_HDA),  KAudioControllerType_HDA);
-                editor = e;
+                QComboBox *pComboBox = new QComboBox(pParent);
+                pComboBox->addItem(gpConverter->toString(KAudioControllerType_AC97), KAudioControllerType_AC97);
+                pComboBox->addItem(gpConverter->toString(KAudioControllerType_SB16), KAudioControllerType_SB16);
+                pComboBox->addItem(gpConverter->toString(KAudioControllerType_HDA),  KAudioControllerType_HDA);
+                pEditor = pComboBox;
                 break;
             }
             case KVirtualSystemDescriptionType_NetworkAdapter:
             {
-                QComboBox *e = new QComboBox(pParent);
-                e->addItem(gpConverter->toString(KNetworkAdapterType_Am79C970A), KNetworkAdapterType_Am79C970A);
-                e->addItem(gpConverter->toString(KNetworkAdapterType_Am79C973), KNetworkAdapterType_Am79C973);
+                QComboBox *pComboBox = new QComboBox(pParent);
+                pComboBox->addItem(gpConverter->toString(KNetworkAdapterType_Am79C970A), KNetworkAdapterType_Am79C970A);
+                pComboBox->addItem(gpConverter->toString(KNetworkAdapterType_Am79C973), KNetworkAdapterType_Am79C973);
 #ifdef VBOX_WITH_E1000
-                e->addItem(gpConverter->toString(KNetworkAdapterType_I82540EM), KNetworkAdapterType_I82540EM);
-                e->addItem(gpConverter->toString(KNetworkAdapterType_I82543GC), KNetworkAdapterType_I82543GC);
-                e->addItem(gpConverter->toString(KNetworkAdapterType_I82545EM), KNetworkAdapterType_I82545EM);
+                pComboBox->addItem(gpConverter->toString(KNetworkAdapterType_I82540EM), KNetworkAdapterType_I82540EM);
+                pComboBox->addItem(gpConverter->toString(KNetworkAdapterType_I82543GC), KNetworkAdapterType_I82543GC);
+                pComboBox->addItem(gpConverter->toString(KNetworkAdapterType_I82545EM), KNetworkAdapterType_I82545EM);
 #endif /* VBOX_WITH_E1000 */
 #ifdef VBOX_WITH_VIRTIO
-                e->addItem(gpConverter->toString(KNetworkAdapterType_Virtio), KNetworkAdapterType_Virtio);
+                pComboBox->addItem(gpConverter->toString(KNetworkAdapterType_Virtio), KNetworkAdapterType_Virtio);
 #endif /* VBOX_WITH_VIRTIO */
-                editor = e;
+                pEditor = pComboBox;
                 break;
             }
             case KVirtualSystemDescriptionType_HardDiskControllerIDE:
             {
-                QComboBox *e = new QComboBox(pParent);
-                e->addItem(gpConverter->toString(KStorageControllerType_PIIX3), "PIIX3");
-                e->addItem(gpConverter->toString(KStorageControllerType_PIIX4), "PIIX4");
-                e->addItem(gpConverter->toString(KStorageControllerType_ICH6),  "ICH6");
-                editor = e;
+                QComboBox *pComboBox = new QComboBox(pParent);
+                pComboBox->addItem(gpConverter->toString(KStorageControllerType_PIIX3), "PIIX3");
+                pComboBox->addItem(gpConverter->toString(KStorageControllerType_PIIX4), "PIIX4");
+                pComboBox->addItem(gpConverter->toString(KStorageControllerType_ICH6),  "ICH6");
+                pEditor = pComboBox;
                 break;
             }
             case KVirtualSystemDescriptionType_HardDiskImage:
             {
                 /* disabled for now
-                   UIFilePathSelector *e = new UIFilePathSelector(pParent);
-                   e->setMode(UIFilePathSelector::Mode_File);
-                   e->setResetEnabled(false);
+                   UIFilePathSelector *pFileChooser = new UIFilePathSelector(pParent);
+                   pFileChooser->setMode(UIFilePathSelector::Mode_File);
+                   pFileChooser->setResetEnabled(false);
                    */
-                QLineEdit *e = new QLineEdit(pParent);
-                editor = e;
+                QLineEdit *pLineEdit = new QLineEdit(pParent);
+                pEditor = pLineEdit;
                 break;
             }
             default: break;
         }
     }
-    return editor;
+    return pEditor;
 }
 
-bool HardwareItem::setEditorData(QWidget *pEditor, const QModelIndex & /* idx */) const
+bool UIVirtualHardwareItem::setEditorData(QWidget *pEditor, const QModelIndex & /* idx */) const
 {
     bool fDone = false;
-    switch (m_type)
+    switch (m_enmVSDType)
     {
         case KVirtualSystemDescriptionType_OS:
         {
-            if (VBoxOSTypeSelectorButton *e = qobject_cast<VBoxOSTypeSelectorButton*>(pEditor))
+            if (VBoxOSTypeSelectorButton *pButton = qobject_cast<VBoxOSTypeSelectorButton*>(pEditor))
             {
-                e->setOSTypeId(m_strConfigValue);
+                pButton->setOSTypeId(m_strConfigValue);
                 fDone = true;
             }
             break;
         }
         case KVirtualSystemDescriptionType_HardDiskControllerIDE:
         {
-            if (QComboBox *e = qobject_cast<QComboBox*>(pEditor))
+            if (QComboBox *pComboBox = qobject_cast<QComboBox*>(pEditor))
             {
-                int i = e->findData(m_strConfigValue);
+                int i = pComboBox->findData(m_strConfigValue);
                 if (i != -1)
-                    e->setCurrentIndex(i);
+                    pComboBox->setCurrentIndex(i);
                 fDone = true;
             }
             break;
@@ -520,9 +706,9 @@ bool HardwareItem::setEditorData(QWidget *pEditor, const QModelIndex & /* idx */
         case KVirtualSystemDescriptionType_CPU:
         case KVirtualSystemDescriptionType_Memory:
         {
-            if (QSpinBox *e = qobject_cast<QSpinBox*>(pEditor))
+            if (QSpinBox *pSpinBox = qobject_cast<QSpinBox*>(pEditor))
             {
-                e->setValue(m_strConfigValue.toInt());
+                pSpinBox->setValue(m_strConfigValue.toInt());
                 fDone = true;
             }
             break;
@@ -534,9 +720,9 @@ bool HardwareItem::setEditorData(QWidget *pEditor, const QModelIndex & /* idx */
         case KVirtualSystemDescriptionType_VendorUrl:
         case KVirtualSystemDescriptionType_Version:
         {
-            if (QLineEdit *e = qobject_cast<QLineEdit*>(pEditor))
+            if (QLineEdit *pLineEdit = qobject_cast<QLineEdit*>(pEditor))
             {
-                e->setText(m_strConfigValue);
+                pLineEdit->setText(m_strConfigValue);
                 fDone = true;
             }
             break;
@@ -544,9 +730,9 @@ bool HardwareItem::setEditorData(QWidget *pEditor, const QModelIndex & /* idx */
         case KVirtualSystemDescriptionType_Description:
         case KVirtualSystemDescriptionType_License:
         {
-            if (UILineTextEdit *e = qobject_cast<UILineTextEdit*>(pEditor))
+            if (UILineTextEdit *pLineTextEdit = qobject_cast<UILineTextEdit*>(pEditor))
             {
-                e->setText(m_strConfigValue);
+                pLineTextEdit->setText(m_strConfigValue);
                 fDone = true;
             }
             break;
@@ -554,11 +740,11 @@ bool HardwareItem::setEditorData(QWidget *pEditor, const QModelIndex & /* idx */
         case KVirtualSystemDescriptionType_SoundCard:
         case KVirtualSystemDescriptionType_NetworkAdapter:
         {
-            if (QComboBox *e = qobject_cast<QComboBox*>(pEditor))
+            if (QComboBox *pComboBox = qobject_cast<QComboBox*>(pEditor))
             {
-                int i = e->findData(m_strConfigValue.toInt());
+                int i = pComboBox->findData(m_strConfigValue.toInt());
                 if (i != -1)
-                    e->setCurrentIndex(i);
+                    pComboBox->setCurrentIndex(i);
                 fDone = true;
             }
             break;
@@ -566,14 +752,14 @@ bool HardwareItem::setEditorData(QWidget *pEditor, const QModelIndex & /* idx */
         case KVirtualSystemDescriptionType_HardDiskImage:
         {
             /* disabled for now
-               if (UIFilePathSelector *e = qobject_cast<UIFilePathSelector*>(pEditor))
+               if (UIFilePathSelector *pFileChooser = qobject_cast<UIFilePathSelector*>(pEditor))
                {
-               e->setPath(m_strConfigValue);
+               pFileChooser->setPath(m_strConfigValue);
                }
                */
-            if (QLineEdit *e = qobject_cast<QLineEdit*>(pEditor))
+            if (QLineEdit *pLineEdit = qobject_cast<QLineEdit*>(pEditor))
             {
-                e->setText(m_strConfigValue);
+                pLineEdit->setText(m_strConfigValue);
                 fDone = true;
             }
             break;
@@ -583,25 +769,25 @@ bool HardwareItem::setEditorData(QWidget *pEditor, const QModelIndex & /* idx */
     return fDone;
 }
 
-bool HardwareItem::setModelData(QWidget *pEditor, QAbstractItemModel *pModel, const QModelIndex & idx)
+bool UIVirtualHardwareItem::setModelData(QWidget *pEditor, QAbstractItemModel *pModel, const QModelIndex & idx)
 {
     bool fDone = false;
-    switch (m_type)
+    switch (m_enmVSDType)
     {
         case KVirtualSystemDescriptionType_OS:
         {
-            if (VBoxOSTypeSelectorButton *e = qobject_cast<VBoxOSTypeSelectorButton*>(pEditor))
+            if (VBoxOSTypeSelectorButton *pButton = qobject_cast<VBoxOSTypeSelectorButton*>(pEditor))
             {
-                m_strConfigValue = e->osTypeId();
+                m_strConfigValue = pButton->osTypeId();
                 fDone = true;
             }
             break;
         }
         case KVirtualSystemDescriptionType_HardDiskControllerIDE:
         {
-            if (QComboBox *e = qobject_cast<QComboBox*>(pEditor))
+            if (QComboBox *pComboBox = qobject_cast<QComboBox*>(pEditor))
             {
-                m_strConfigValue = e->itemData(e->currentIndex()).toString();
+                m_strConfigValue = pComboBox->itemData(pComboBox->currentIndex()).toString();
                 fDone = true;
             }
             break;
@@ -609,16 +795,16 @@ bool HardwareItem::setModelData(QWidget *pEditor, QAbstractItemModel *pModel, co
         case KVirtualSystemDescriptionType_CPU:
         case KVirtualSystemDescriptionType_Memory:
         {
-            if (QSpinBox *e = qobject_cast<QSpinBox*>(pEditor))
+            if (QSpinBox *pSpinBox = qobject_cast<QSpinBox*>(pEditor))
             {
-                m_strConfigValue = QString::number(e->value());
+                m_strConfigValue = QString::number(pSpinBox->value());
                 fDone = true;
             }
             break;
         }
         case KVirtualSystemDescriptionType_Name:
         {
-            if (QLineEdit *e = qobject_cast<QLineEdit*>(pEditor))
+            if (QLineEdit *pLineEdit = qobject_cast<QLineEdit*>(pEditor))
             {
                 /* When the VM name is changed the path of the disk images
                  * should be also changed. So first of all find all disk
@@ -630,14 +816,14 @@ bool HardwareItem::setModelData(QWidget *pEditor, QAbstractItemModel *pModel, co
                 /* Query all items with the type HardDiskImage and which
                  * are child's of this item. */
                 QModelIndexList list = pModel->match(c0Index,
-                                                     HardwareItem::TypeRole,
+                                                     UIVirtualHardwareItem::TypeRole,
                                                      KVirtualSystemDescriptionType_HardDiskImage,
                                                      -1,
                                                      Qt::MatchExactly | Qt::MatchWrap | Qt::MatchRecursive);
                 for (int i = 0; i < list.count(); ++i)
                 {
                     /* Get the index for the config value column. */
-                    QModelIndex hdIndex = pModel->index(list.at(i).row(), ConfigValueSection, list.at(i).parent());
+                    QModelIndex hdIndex = pModel->index(list.at(i).row(), ApplianceViewSection_ConfigValue, list.at(i).parent());
                     /* Ignore it if was already modified by the user. */
                     if (!hdIndex.data(ModifiedRole).toBool())
                         /* Replace any occurrence of the old VM name with
@@ -648,7 +834,7 @@ bool HardwareItem::setModelData(QWidget *pEditor, QAbstractItemModel *pModel, co
 
                         foreach (QString a, splittedOriginalPath)
                         {
-                            (a.compare(m_strConfigValue) == 0) ? splittedNewPath << e->text() : splittedNewPath << a;
+                            (a.compare(m_strConfigValue) == 0) ? splittedNewPath << pLineEdit->text() : splittedNewPath << a;
                         }
 
                         QString newPath = splittedNewPath.join(QDir::separator());
@@ -658,7 +844,7 @@ bool HardwareItem::setModelData(QWidget *pEditor, QAbstractItemModel *pModel, co
                                         Qt::EditRole);
                     }
                 }
-                m_strConfigValue = e->text();
+                m_strConfigValue = pLineEdit->text();
                 fDone = true;
             }
             break;
@@ -669,9 +855,9 @@ bool HardwareItem::setModelData(QWidget *pEditor, QAbstractItemModel *pModel, co
         case KVirtualSystemDescriptionType_VendorUrl:
         case KVirtualSystemDescriptionType_Version:
         {
-            if (QLineEdit *e = qobject_cast<QLineEdit*>(pEditor))
+            if (QLineEdit *pLineEdit = qobject_cast<QLineEdit*>(pEditor))
             {
-                m_strConfigValue = e->text();
+                m_strConfigValue = pLineEdit->text();
                 fDone = true;
             }
             break;
@@ -679,9 +865,9 @@ bool HardwareItem::setModelData(QWidget *pEditor, QAbstractItemModel *pModel, co
         case KVirtualSystemDescriptionType_Description:
         case KVirtualSystemDescriptionType_License:
         {
-            if (UILineTextEdit *e = qobject_cast<UILineTextEdit*>(pEditor))
+            if (UILineTextEdit *pLineTextEdit = qobject_cast<UILineTextEdit*>(pEditor))
             {
-                m_strConfigValue = e->text();
+                m_strConfigValue = pLineTextEdit->text();
                 fDone = true;
             }
             break;
@@ -689,9 +875,9 @@ bool HardwareItem::setModelData(QWidget *pEditor, QAbstractItemModel *pModel, co
         case KVirtualSystemDescriptionType_SoundCard:
         case KVirtualSystemDescriptionType_NetworkAdapter:
         {
-            if (QComboBox *e = qobject_cast<QComboBox*>(pEditor))
+            if (QComboBox *pComboBox = qobject_cast<QComboBox*>(pEditor))
             {
-                m_strConfigValue = e->itemData(e->currentIndex()).toString();
+                m_strConfigValue = pComboBox->itemData(pComboBox->currentIndex()).toString();
                 fDone = true;
             }
             break;
@@ -699,14 +885,14 @@ bool HardwareItem::setModelData(QWidget *pEditor, QAbstractItemModel *pModel, co
         case KVirtualSystemDescriptionType_HardDiskImage:
         {
             /* disabled for now
-               if (UIFilePathSelector *e = qobject_cast<UIFilePathSelector*>(pEditor))
+               if (UIFilePathSelector *pFileChooser = qobject_cast<UIFilePathSelector*>(pEditor))
                {
-               m_strConfigValue = e->path();
+               m_strConfigValue = pFileChooser->path();
                }
                */
-            if (QLineEdit *e = qobject_cast<QLineEdit*>(pEditor))
+            if (QLineEdit *pLineEdit = qobject_cast<QLineEdit*>(pEditor))
             {
-                m_strConfigValue = e->text();
+                m_strConfigValue = pLineEdit->text();
                 fDone = true;
             }
             break;
@@ -719,22 +905,35 @@ bool HardwareItem::setModelData(QWidget *pEditor, QAbstractItemModel *pModel, co
     return fDone;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// VirtualSystemModel
-
-/* This class is a wrapper model for our ModelItem. It could be used with any
-   TreeView & forward mostly all calls to the methods of ModelItem. The
-   ModelItems itself are stored as internal pointers in the QModelIndex class. */
-VirtualSystemModel::VirtualSystemModel(QVector<CVirtualSystemDescription>& aVSDs, QObject *pParent /* = NULL */)
-   : QAbstractItemModel(pParent)
+void UIVirtualHardwareItem::restoreDefaults()
 {
-    m_pRootItem = new ModelItem(0, RootType);
-    for (int a = 0; a < aVSDs.size(); ++a)
-    {
-        CVirtualSystemDescription vs = aVSDs[a];
+    m_strConfigValue = m_strConfigDefaultValue;
+    m_checkState = Qt::Checked;
+}
 
-        VirtualSystemItem *vi = new VirtualSystemItem(a, vs, m_pRootItem);
-        m_pRootItem->appendChild(vi);
+void UIVirtualHardwareItem::putBack(QVector<BOOL> &finalStates, QVector<QString> &finalValues, QVector<QString> &finalExtraValues)
+{
+    finalStates[m_iNumber] = m_checkState == Qt::Checked;
+    finalValues[m_iNumber] = m_strConfigValue;
+    finalExtraValues[m_iNumber] = m_strExtraConfigValue;
+    UIApplianceModelItem::putBack(finalStates, finalValues, finalExtraValues);
+}
+
+
+/*********************************************************************************************************************************
+*   Class UIApplianceModel implementation.                                                                                       *
+*********************************************************************************************************************************/
+
+UIApplianceModel::UIApplianceModel(QVector<CVirtualSystemDescription>& aVSDs, QITreeView *pParent)
+    : QAbstractItemModel(pParent)
+    , m_pRootItem(new UIApplianceModelItem(0, ApplianceModelItemType_Root, pParent))
+{
+    for (int iVSDIndex = 0; iVSDIndex < aVSDs.size(); ++iVSDIndex)
+    {
+        CVirtualSystemDescription vsd = aVSDs[iVSDIndex];
+
+        UIVirtualSystemItem *pVirtualSystemItem = new UIVirtualSystemItem(iVSDIndex, vsd, m_pRootItem);
+        m_pRootItem->appendChild(pVirtualSystemItem);
 
         /** @todo ask Dmitry about include/COMDefs.h:232 */
         QVector<KVirtualSystemDescriptionType> types;
@@ -743,183 +942,172 @@ VirtualSystemModel::VirtualSystemModel(QVector<CVirtualSystemDescription>& aVSDs
         QVector<QString> configValues;
         QVector<QString> extraConfigValues;
 
-        QList<int> hdIndizies;
-        QMap<int, HardwareItem*> controllerMap;
-        vs.GetDescription(types, refs, origValues, configValues, extraConfigValues);
+        QList<int> hdIndexes;
+        QMap<int, UIVirtualHardwareItem*> controllerMap;
+        vsd.GetDescription(types, refs, origValues, configValues, extraConfigValues);
         for (int i = 0; i < types.size(); ++i)
         {
             /* We add the hard disk images in an second step, so save a
                reference to them. */
             if (types[i] == KVirtualSystemDescriptionType_HardDiskImage)
-                hdIndizies << i;
+                hdIndexes << i;
             else
             {
-                HardwareItem *hi = new HardwareItem(i, types[i], refs[i], origValues[i], configValues[i], extraConfigValues[i], vi);
-                vi->appendChild(hi);
+                UIVirtualHardwareItem *pHardwareItem = new UIVirtualHardwareItem(i, types[i], refs[i], origValues[i], configValues[i], extraConfigValues[i], pVirtualSystemItem);
+                pVirtualSystemItem->appendChild(pHardwareItem);
                 /* Save the hard disk controller types in an extra map */
                 if (types[i] == KVirtualSystemDescriptionType_HardDiskControllerIDE ||
                     types[i] == KVirtualSystemDescriptionType_HardDiskControllerSATA ||
                     types[i] == KVirtualSystemDescriptionType_HardDiskControllerSCSI ||
                     types[i] == KVirtualSystemDescriptionType_HardDiskControllerSAS)
-                    controllerMap[i] = hi;
+                    controllerMap[i] = pHardwareItem;
             }
         }
         QRegExp rx("controller=(\\d+);?");
         /* Now process the hard disk images */
-        for (int a = 0; a < hdIndizies.size(); ++a)
+        for (int iHDIndex = 0; iHDIndex < hdIndexes.size(); ++iHDIndex)
         {
-            int i = hdIndizies[a];
+            int i = hdIndexes[iHDIndex];
             QString ecnf = extraConfigValues[i];
             if (rx.indexIn(ecnf) != -1)
             {
                 /* Get the controller */
-                HardwareItem *ci = controllerMap[rx.cap(1).toInt()];
-                if (ci)
+                UIVirtualHardwareItem *pControllerItem = controllerMap[rx.cap(1).toInt()];
+                if (pControllerItem)
                 {
                     /* New hardware item as child of the controller */
-                    HardwareItem *hi = new HardwareItem(i, types[i], refs[i], origValues[i], configValues[i], extraConfigValues[i], ci);
-                    ci->appendChild(hi);
+                    UIVirtualHardwareItem *pStorageItem = new UIVirtualHardwareItem(i, types[i], refs[i], origValues[i], configValues[i], extraConfigValues[i], pControllerItem);
+                    pControllerItem->appendChild(pStorageItem);
                 }
             }
         }
     }
 }
 
-VirtualSystemModel::~VirtualSystemModel()
+UIApplianceModel::~UIApplianceModel()
 {
     if (m_pRootItem)
         delete m_pRootItem;
 }
 
-QModelIndex VirtualSystemModel::index(int row, int column, const QModelIndex &parentIdx /* = QModelIndex() */) const
+QModelIndex UIApplianceModel::root() const
 {
-    if (!hasIndex(row, column, parentIdx))
-        return QModelIndex();
-
-    ModelItem *parentItem;
-
-    if (!parentIdx.isValid())
-        parentItem = m_pRootItem;
-    else
-        parentItem = static_cast<ModelItem*>(parentIdx.internalPointer());
-
-    ModelItem *childItem = parentItem->child(row);
-    if (childItem)
-        return createIndex(row, column, childItem);
-    else
-        return QModelIndex();
+    return index(0, 0);
 }
 
-QModelIndex VirtualSystemModel::parent(const QModelIndex &idx) const
+QModelIndex UIApplianceModel::index(int iRow, int iColumn, const QModelIndex &parentIdx /* = QModelIndex() */) const
+{
+    if (!hasIndex(iRow, iColumn, parentIdx))
+        return QModelIndex();
+
+    UIApplianceModelItem *pItem = !parentIdx.isValid() ? m_pRootItem :
+                                  static_cast<UIApplianceModelItem*>(parentIdx.internalPointer())->childItem(iRow);
+
+    return pItem ? createIndex(iRow, iColumn, pItem) : QModelIndex();
+}
+
+QModelIndex UIApplianceModel::parent(const QModelIndex &idx) const
 {
     if (!idx.isValid())
         return QModelIndex();
 
-    ModelItem *childItem = static_cast<ModelItem*>(idx.internalPointer());
-    ModelItem *parentItem = childItem->parent();
+    UIApplianceModelItem *pItem = static_cast<UIApplianceModelItem*>(idx.internalPointer());
+    UIApplianceModelItem *pParentItem = pItem->parent();
 
-    if (parentItem == m_pRootItem)
+    if (pParentItem)
+        return createIndex(pParentItem->row(), 0, pParentItem);
+    else
         return QModelIndex();
-
-    return createIndex(parentItem->row(), 0, parentItem);
 }
 
-int VirtualSystemModel::rowCount(const QModelIndex &parentIdx /* = QModelIndex() */) const
+int UIApplianceModel::rowCount(const QModelIndex &parentIdx /* = QModelIndex() */) const
 {
-    ModelItem *parentItem;
-    if (parentIdx.column() > 0)
+    return !parentIdx.isValid() ? 1 /* only root item has invalid parent */ :
+           static_cast<UIApplianceModelItem*>(parentIdx.internalPointer())->childCount();
+}
+
+int UIApplianceModel::columnCount(const QModelIndex &parentIdx /* = QModelIndex() */) const
+{
+    return !parentIdx.isValid() ? m_pRootItem->columnCount() :
+           static_cast<UIApplianceModelItem*>(parentIdx.internalPointer())->columnCount();
+}
+
+Qt::ItemFlags UIApplianceModel::flags(const QModelIndex &idx) const
+{
+    if (!idx.isValid())
         return 0;
 
-    if (!parentIdx.isValid())
-        parentItem = m_pRootItem;
-    else
-        parentItem = static_cast<ModelItem*>(parentIdx.internalPointer());
+    UIApplianceModelItem *pItem = static_cast<UIApplianceModelItem*>(idx.internalPointer());
 
-    return parentItem->childCount();
+    return Qt::ItemIsEnabled | Qt::ItemIsSelectable | pItem->itemFlags(idx.column());
 }
 
-int VirtualSystemModel::columnCount(const QModelIndex &parentIdx /* = QModelIndex() */) const
+QVariant UIApplianceModel::headerData(int iSection, Qt::Orientation enmOrientation, int iRole) const
 {
-    if (parentIdx.isValid())
-        return static_cast<ModelItem*>(parentIdx.internalPointer())->columnCount();
-    else
-        return m_pRootItem->columnCount();
+    if (iRole != Qt::DisplayRole ||
+        enmOrientation != Qt::Horizontal)
+        return QVariant();
+
+    QString strTitle;
+    switch (iSection)
+    {
+        case ApplianceViewSection_Description: strTitle = UIApplianceEditorWidget::tr("Description"); break;
+        case ApplianceViewSection_ConfigValue: strTitle = UIApplianceEditorWidget::tr("Configuration"); break;
+    }
+    return strTitle;
 }
 
-bool VirtualSystemModel::setData(const QModelIndex &idx, const QVariant &value, int role)
+bool UIApplianceModel::setData(const QModelIndex &idx, const QVariant &value, int iRole)
 {
     if (!idx.isValid())
         return false;
 
-    ModelItem *item = static_cast<ModelItem*>(idx.internalPointer());
+    UIApplianceModelItem *pTtem = static_cast<UIApplianceModelItem*>(idx.internalPointer());
 
-    return item->setData(idx.column(), value, role);
+    return pTtem->setData(idx.column(), value, iRole);
 }
 
-QVariant VirtualSystemModel::data(const QModelIndex &idx, int role /* = Qt::DisplayRole */) const
+QVariant UIApplianceModel::data(const QModelIndex &idx, int iRole /* = Qt::DisplayRole */) const
 {
     if (!idx.isValid())
         return QVariant();
 
-    ModelItem *item = static_cast<ModelItem*>(idx.internalPointer());
+    UIApplianceModelItem *pTtem = static_cast<UIApplianceModelItem*>(idx.internalPointer());
 
-    return item->data(idx.column(), role);
+    return pTtem->data(idx.column(), iRole);
 }
 
-Qt::ItemFlags VirtualSystemModel::flags(const QModelIndex &idx) const
-{
-    if (!idx.isValid())
-        return 0;
-
-    ModelItem *item = static_cast<ModelItem*>(idx.internalPointer());
-
-    return Qt::ItemIsEnabled | Qt::ItemIsSelectable | item->itemFlags(idx.column());
-}
-
-QVariant VirtualSystemModel::headerData(int section, Qt::Orientation orientation, int role) const
-{
-    if (role != Qt::DisplayRole ||
-        orientation != Qt::Horizontal)
-        return QVariant();
-
-    QString title;
-    switch (section)
-    {
-        case DescriptionSection: title = UIApplianceEditorWidget::tr("Description"); break;
-        case ConfigValueSection: title = UIApplianceEditorWidget::tr("Configuration"); break;
-    }
-    return title;
-}
-
-QModelIndex VirtualSystemModel::buddy(const QModelIndex &idx) const
+QModelIndex UIApplianceModel::buddy(const QModelIndex &idx) const
 {
     if (!idx.isValid())
         return QModelIndex();
 
-    if (idx.column() == ConfigValueSection)
+    if (idx.column() == ApplianceViewSection_ConfigValue)
         return idx;
     else
-        return index(idx.row(), ConfigValueSection, idx.parent());
+        return index(idx.row(), ApplianceViewSection_ConfigValue, idx.parent());
 }
 
-void VirtualSystemModel::restoreDefaults(const QModelIndex &parentIdx /* = QModelIndex() */)
+void UIApplianceModel::restoreDefaults(QModelIndex parentIdx /* = QModelIndex() */)
 {
-    ModelItem *parentItem;
-
+    /* By default use the root: */
     if (!parentIdx.isValid())
-        parentItem = m_pRootItem;
-    else
-        parentItem = static_cast<ModelItem*>(parentIdx.internalPointer());
+        parentIdx = root();
 
-    for (int i = 0; i < parentItem->childCount(); ++i)
+    /* Get corresponding parent item and enumerate it's children: */
+    UIApplianceModelItem *pParentItem = static_cast<UIApplianceModelItem*>(parentIdx.internalPointer());
+    for (int i = 0; i < pParentItem->childCount(); ++i)
     {
-        parentItem->child(i)->restoreDefaults();
+        /* Reset children item data to default: */
+        pParentItem->childItem(i)->restoreDefaults();
+        /* Recursively process children item: */
         restoreDefaults(index(i, 0, parentIdx));
     }
-    emit dataChanged(index(0, 0, parentIdx), index(parentItem->childCount()-1, 0, parentIdx));
+    /* Notify the model about the changes: */
+    emit dataChanged(index(0, 0, parentIdx), index(pParentItem->childCount() - 1, 0, parentIdx));
 }
 
-void VirtualSystemModel::putBack()
+void UIApplianceModel::putBack()
 {
     QVector<BOOL> v1;
     QVector<QString> v2;
@@ -927,79 +1115,88 @@ void VirtualSystemModel::putBack()
     m_pRootItem->putBack(v1, v2, v3);
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// VirtualSystemDelegate
 
-/* The delegate is used for creating/handling the different editors for the
-   various types we support. This class forward the requests to the virtual
-   methods of our different ModelItems. If this is not possible the default
-   methods of QItemDelegate are used to get some standard behavior. Note: We
-   have to handle the proxy model ourself. I really don't understand why Qt is
-   not doing this for us. */
-VirtualSystemDelegate::VirtualSystemDelegate(QAbstractProxyModel *pProxy, QObject *pParent /* = NULL */)
-  : QItemDelegate(pParent)
-  , mProxy(pProxy)
-{}
+/*********************************************************************************************************************************
+*   Class UIApplianceDelegate implementation.                                                                                    *
+*********************************************************************************************************************************/
 
-QWidget *VirtualSystemDelegate::createEditor(QWidget *pParent, const QStyleOptionViewItem &styleOption, const QModelIndex &idx) const
+UIApplianceDelegate::UIApplianceDelegate(QAbstractProxyModel *pProxy, QObject *pParent /* = 0 */)
+    : QItemDelegate(pParent)
+    , m_pProxy(pProxy)
+{
+}
+
+QWidget *UIApplianceDelegate::createEditor(QWidget *pParent, const QStyleOptionViewItem &styleOption, const QModelIndex &idx) const
 {
     if (!idx.isValid())
         return QItemDelegate::createEditor(pParent, styleOption, idx);
 
     QModelIndex index(idx);
-    if (mProxy)
-        index = mProxy->mapToSource(idx);
+    if (m_pProxy)
+        index = m_pProxy->mapToSource(idx);
 
-    ModelItem *item = static_cast<ModelItem*>(index.internalPointer());
-    QWidget *editor = item->createEditor(pParent, styleOption, index);
+    UIApplianceModelItem *pItem = static_cast<UIApplianceModelItem*>(index.internalPointer());
+    QWidget *pEditor = pItem->createEditor(pParent, styleOption, index);
 
     /* Allow UILineTextEdit to commit data early: */
-    if (editor && qobject_cast<UILineTextEdit*>(editor))
-        connect(editor, SIGNAL(sigFinished(QWidget*)), this, SIGNAL(commitData(QWidget*)));
+    if (pEditor && qobject_cast<UILineTextEdit*>(pEditor))
+        connect(pEditor, SIGNAL(sigFinished(QWidget*)), this, SIGNAL(commitData(QWidget*)));
 
-    if (editor == NULL)
+    if (pEditor == 0)
         return QItemDelegate::createEditor(pParent, styleOption, index);
     else
-        return editor;
+        return pEditor;
 }
 
-void VirtualSystemDelegate::setEditorData(QWidget *pEditor, const QModelIndex &idx) const
+void UIApplianceDelegate::setEditorData(QWidget *pEditor, const QModelIndex &idx) const
 {
     if (!idx.isValid())
         return QItemDelegate::setEditorData(pEditor, idx);
 
     QModelIndex index(idx);
-    if (mProxy)
-        index = mProxy->mapToSource(idx);
+    if (m_pProxy)
+        index = m_pProxy->mapToSource(idx);
 
-    ModelItem *item = static_cast<ModelItem*>(index.internalPointer());
+    UIApplianceModelItem *pItem = static_cast<UIApplianceModelItem*>(index.internalPointer());
 
-    if (!item->setEditorData(pEditor, index))
+    if (!pItem->setEditorData(pEditor, index))
         QItemDelegate::setEditorData(pEditor, index);
 }
 
-void VirtualSystemDelegate::setModelData(QWidget *pEditor, QAbstractItemModel *pModel, const QModelIndex &idx) const
+void UIApplianceDelegate::setModelData(QWidget *pEditor, QAbstractItemModel *pModel, const QModelIndex &idx) const
 {
     if (!idx.isValid())
         return QItemDelegate::setModelData(pEditor, pModel, idx);
 
     QModelIndex index = pModel->index(idx.row(), idx.column());
-    if (mProxy)
-        index = mProxy->mapToSource(idx);
+    if (m_pProxy)
+        index = m_pProxy->mapToSource(idx);
 
-    ModelItem *item = static_cast<ModelItem*>(index.internalPointer());
-    if (!item->setModelData(pEditor, pModel, idx))
+    UIApplianceModelItem *pItem = static_cast<UIApplianceModelItem*>(index.internalPointer());
+    if (!pItem->setModelData(pEditor, pModel, idx))
         QItemDelegate::setModelData(pEditor, pModel, idx);
 }
 
-void VirtualSystemDelegate::updateEditorGeometry(QWidget *pEditor, const QStyleOptionViewItem &styleOption, const QModelIndex & /* idx */) const
+void UIApplianceDelegate::updateEditorGeometry(QWidget *pEditor, const QStyleOptionViewItem &styleOption, const QModelIndex & /* idx */) const
 {
     if (pEditor)
         pEditor->setGeometry(styleOption.rect);
 }
 
+QSize UIApplianceDelegate::sizeHint(const QStyleOptionViewItem &styleOption, const QModelIndex &idx) const
+{
+    QSize size = QItemDelegate::sizeHint(styleOption, idx);
 #ifdef VBOX_WS_MAC
-bool VirtualSystemDelegate::eventFilter(QObject *pObject, QEvent *pEvent)
+    int h = 28;
+#else
+    int h = 24;
+#endif
+    size.setHeight(RT_MAX(h, size.height()));
+    return size;
+}
+
+#ifdef VBOX_WS_MAC
+bool UIApplianceDelegate::eventFilter(QObject *pObject, QEvent *pEvent)
 {
     if (pEvent->type() == QEvent::FocusOut)
     {
@@ -1019,11 +1216,13 @@ bool VirtualSystemDelegate::eventFilter(QObject *pObject, QEvent *pEvent)
 }
 #endif /* VBOX_WS_MAC */
 
-////////////////////////////////////////////////////////////////////////////////
-// VirtualSystemSortProxyModel
 
-/* How to sort the items in the tree view */
-KVirtualSystemDescriptionType VirtualSystemSortProxyModel::m_sortList[] =
+/*********************************************************************************************************************************
+*   Class UIApplianceSortProxyModel implementation.                                                                              *
+*********************************************************************************************************************************/
+
+/* static */
+KVirtualSystemDescriptionType UIApplianceSortProxyModel::s_aSortList[] =
 {
     KVirtualSystemDescriptionType_Name,
     KVirtualSystemDescriptionType_Product,
@@ -1047,25 +1246,26 @@ KVirtualSystemDescriptionType VirtualSystemSortProxyModel::m_sortList[] =
     KVirtualSystemDescriptionType_HardDiskControllerSAS
 };
 
-VirtualSystemSortProxyModel::VirtualSystemSortProxyModel(QObject *pParent)
+UIApplianceSortProxyModel::UIApplianceSortProxyModel(QObject *pParent)
     : QSortFilterProxyModel(pParent)
-{}
+{
+}
 
-bool VirtualSystemSortProxyModel::filterAcceptsRow(int srcRow, const QModelIndex & srcParenIdx) const
+bool UIApplianceSortProxyModel::filterAcceptsRow(int iSourceRow, const QModelIndex &srcParenIdx) const
 {
     /* By default enable all, we will explicitly filter out below */
     if (srcParenIdx.isValid())
     {
-        QModelIndex i = srcParenIdx.child(srcRow, 0);
+        QModelIndex i = srcParenIdx.child(iSourceRow, 0);
         if (i.isValid())
         {
-            ModelItem *item = static_cast<ModelItem*>(i.internalPointer());
+            UIApplianceModelItem *pItem = static_cast<UIApplianceModelItem*>(i.internalPointer());
             /* We filter hardware types only */
-            if (item->type() == HardwareType)
+            if (pItem->type() == ApplianceModelItemType_VirtualHardware)
             {
-                HardwareItem *hwItem = static_cast<HardwareItem*>(item);
+                UIVirtualHardwareItem *hwItem = static_cast<UIVirtualHardwareItem*>(pItem);
                 /* The license type shouldn't be displayed */
-                if (m_filterList.contains(hwItem->m_type))
+                if (m_aFilteredList.contains(hwItem->m_enmVSDType))
                     return false;
             }
         }
@@ -1073,28 +1273,28 @@ bool VirtualSystemSortProxyModel::filterAcceptsRow(int srcRow, const QModelIndex
     return true;
 }
 
-bool VirtualSystemSortProxyModel::lessThan(const QModelIndex &leftIdx, const QModelIndex &rightIdx) const
+bool UIApplianceSortProxyModel::lessThan(const QModelIndex &leftIdx, const QModelIndex &rightIdx) const
 {
     if (!leftIdx.isValid() ||
         !rightIdx.isValid())
         return false;
 
-    ModelItem *pLeftItem = static_cast<ModelItem*>(leftIdx.internalPointer());
-    ModelItem *pRightItem = static_cast<ModelItem*>(rightIdx.internalPointer());
+    UIApplianceModelItem *pLeftItem = static_cast<UIApplianceModelItem*>(leftIdx.internalPointer());
+    UIApplianceModelItem *pRightItem = static_cast<UIApplianceModelItem*>(rightIdx.internalPointer());
 
     /* We sort hardware types only */
-    if (!(pLeftItem->type() == HardwareType &&
-          pRightItem->type() == HardwareType))
+    if (!(pLeftItem->type() == ApplianceModelItemType_VirtualHardware &&
+          pRightItem->type() == ApplianceModelItemType_VirtualHardware))
         return false;
 
-    HardwareItem *pHwLeft = static_cast<HardwareItem*>(pLeftItem);
-    HardwareItem *pHwRight = static_cast<HardwareItem*>(pRightItem);
+    UIVirtualHardwareItem *pHwLeft = static_cast<UIVirtualHardwareItem*>(pLeftItem);
+    UIVirtualHardwareItem *pHwRight = static_cast<UIVirtualHardwareItem*>(pRightItem);
 
-    for (unsigned int i = 0; i < RT_ELEMENTS(m_sortList); ++i)
-        if (pHwLeft->m_type == m_sortList[i])
+    for (unsigned int i = 0; i < RT_ELEMENTS(s_aSortList); ++i)
+        if (pHwLeft->m_enmVSDType == s_aSortList[i])
         {
             for (unsigned int a = 0; a <= i; ++a)
-                if (pHwRight->m_type == m_sortList[a])
+                if (pHwRight->m_enmVSDType == s_aSortList[a])
                     return true;
             return false;
         }
@@ -1102,40 +1302,108 @@ bool VirtualSystemSortProxyModel::lessThan(const QModelIndex &leftIdx, const QMo
     return true;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-// UIApplianceEditorWidget
 
-int UIApplianceEditorWidget::m_minGuestRAM      = -1;
-int UIApplianceEditorWidget::m_maxGuestRAM      = -1;
+/*********************************************************************************************************************************
+*   Class UIApplianceEditorWidget implementation.                                                                                *
+*********************************************************************************************************************************/
+
+/* static */
+int UIApplianceEditorWidget::m_minGuestRAM = -1;
+int UIApplianceEditorWidget::m_maxGuestRAM = -1;
 int UIApplianceEditorWidget::m_minGuestCPUCount = -1;
 int UIApplianceEditorWidget::m_maxGuestCPUCount = -1;
 
-UIApplianceEditorWidget::UIApplianceEditorWidget(QWidget *pParent /* = NULL */)
+UIApplianceEditorWidget::UIApplianceEditorWidget(QWidget *pParent /* = 0 */)
     : QIWithRetranslateUI<QWidget>(pParent)
-    , m_pAppliance(NULL)
-    , m_pModel(NULL)
+    , m_pAppliance(0)
+    , m_pModel(0)
 {
     /* Make sure all static content is properly initialized */
     initSystemSettings();
 
-    /* Apply UI decorations */
-    Ui::UIApplianceEditorWidget::setupUi(this);
+    /* Create layout: */
+    QVBoxLayout *pLayout = new QVBoxLayout(this);
+    {
+        /* Configure information layout: */
+        pLayout->setContentsMargins(0, 0, 0, 0);
 
-    /* Make the tree looking nicer */
-    m_pTvSettings->setRootIsDecorated(false);
-    m_pTvSettings->setAlternatingRowColors(true);
-    m_pTvSettings->setAllColumnsShowFocus(true);
-    m_pTvSettings->header()->setStretchLastSection(true);
-#if QT_VERSION >= 0x050000
-    m_pTvSettings->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
-#else /* QT_VERSION < 0x050000 */
-    m_pTvSettings->header()->setResizeMode(QHeaderView::ResizeToContents);
-#endif /* QT_VERSION < 0x050000 */
+        /* Create information pane: */
+        m_pPaneInformation = new QWidget;
+        {
+            /* Create information layout: */
+            QVBoxLayout *pLayoutInformation = new QVBoxLayout(m_pPaneInformation);
+            {
+                /* Configure information layout: */
+                pLayoutInformation->setContentsMargins(0, 0, 0, 0);
 
-    /* Hidden by default */
-    m_pReinitMACsCheckBox->setHidden(true);
+                /* Create tree-view: */
+                m_pTreeViewSettings = new QITreeView;
+                {
+                    /* Configure tree-view: */
+                    m_pTreeViewSettings->setAlternatingRowColors(true);
+                    m_pTreeViewSettings->setAllColumnsShowFocus(true);
+                    m_pTreeViewSettings->header()->setStretchLastSection(true);
+                    m_pTreeViewSettings->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::MinimumExpanding);
+                    m_pTreeViewSettings->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
 
-    /* Applying language settings */
+                    /* Add tree-view into information layout: */
+                    pLayoutInformation->addWidget(m_pTreeViewSettings);
+                }
+
+                /* Create check-box: */
+                m_pCheckBoxReinitMACs = new QCheckBox;
+                {
+                    /* Configure check-box: */
+                    m_pCheckBoxReinitMACs->setHidden(true);
+
+                    /* Add tree-view into information layout: */
+                    pLayoutInformation->addWidget(m_pCheckBoxReinitMACs);
+                }
+            }
+
+            /* Add information pane into layout: */
+            pLayout->addWidget(m_pPaneInformation);
+        }
+
+        /* Create warning pane: */
+        m_pPaneWarning  = new QWidget;
+        {
+            /* Configure warning pane: */
+            m_pPaneWarning->hide();
+            m_pPaneWarning->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+
+            /* Create warning layout: */
+            QVBoxLayout *pLayoutWarning = new QVBoxLayout(m_pPaneWarning);
+            {
+                /* Configure warning layout: */
+                pLayoutWarning->setContentsMargins(0, 0, 0, 0);
+
+                /* Create label: */
+                m_pLabelWarning = new QLabel;
+                {
+                    /* Add label into warning layout: */
+                    pLayoutWarning->addWidget(m_pLabelWarning);
+                }
+
+                /* Create text-edit: */
+                m_pTextEditWarning = new QTextEdit;
+                {
+                    /* Configure text-edit: */
+                    m_pTextEditWarning->setReadOnly(true);
+                    m_pTextEditWarning->setMaximumHeight(50);
+                    m_pTextEditWarning->setAutoFormatting(QTextEdit::AutoBulletList);
+
+                    /* Add text-edit into warning layout: */
+                    pLayoutWarning->addWidget(m_pTextEditWarning);
+                }
+            }
+
+            /* Add warning pane into layout: */
+            pLayout->addWidget(m_pPaneWarning);
+        }
+    }
+
+    /* Translate finally: */
     retranslateUi();
 }
 
@@ -1148,8 +1416,15 @@ void UIApplianceEditorWidget::restoreDefaults()
 
 void UIApplianceEditorWidget::retranslateUi()
 {
-    /* Translate uic generated strings */
-    Ui::UIApplianceEditorWidget::retranslateUi(this);
+    /* Translate information pane tree-view: */
+    m_pTreeViewSettings->setWhatsThis(tr("Detailed list of all components of all virtual machines of the current appliance"));
+
+    /* Translate information pane check-box: */
+    m_pCheckBoxReinitMACs->setText(tr("&Reinitialize the MAC address of all network cards"));
+    m_pCheckBoxReinitMACs->setToolTip(tr("When checked a new unique MAC address will assigned to all configured network cards."));
+
+    /* Translate warning pane label: */
+    m_pLabelWarning->setText(tr("Warnings:"));
 }
 
 /* static */

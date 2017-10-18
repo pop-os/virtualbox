@@ -7,12 +7,12 @@
  * ICH9 chipset doesn't have anything at bus=0, device=0, function=0.
  *
  * To enable this device for a particular VM:
- * VBoxManage setextradata vmname VBoxInternal/PDM/Devices/playground/Path .../obj/VBoxSampleDevice/VBoxSampleDevice
+ * VBoxManage setextradata vmname VBoxInternal/PDM/Devices/playground/Path .../obj/VBoxPlaygroundDevice/VBoxPlaygroundDevice
  * VBoxManage setextradata vmname VBoxInternal/Devices/playground/0/Config/Whatever1 0
  */
 
 /*
- * Copyright (C) 2009-2016 Oracle Corporation
+ * Copyright (C) 2009-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,6 +32,12 @@
 #include <VBox/version.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
+
+#include <VBox/com/assert.h>
+#include <VBox/com/defs.h>
+#include <VBox/com/string.h>
+#include <VBox/com/Guid.h>
+#include <VBox/com/VirtualBox.h>
 
 #include <iprt/assert.h>
 
@@ -66,23 +72,12 @@ typedef struct VBOXPLAYGROUNDDEVICE
 typedef VBOXPLAYGROUNDDEVICE *PVBOXPLAYGROUNDDEVICE;
 
 
+#define PLAYGROUND_SSM_VERSION 3
+
+
 /*********************************************************************************************************************************
 *   Device Functions                                                                                                             *
 *********************************************************************************************************************************/
-/**
- * @interface_method_impl{PDMDEVREG,pfnDestruct}
- */
-static DECLCALLBACK(int) devPlaygroundDestruct(PPDMDEVINS pDevIns)
-{
-    /*
-     * Check the versions here as well since the destructor is *always* called.
-     */
-    AssertMsgReturn(pDevIns->u32Version            == PDM_DEVINS_VERSION, ("%#x, expected %#x\n", pDevIns->u32Version,            PDM_DEVINS_VERSION), VERR_VERSION_MISMATCH);
-    AssertMsgReturn(pDevIns->pHlpR3->u32Version == PDM_DEVHLPR3_VERSION, ("%#x, expected %#x\n", pDevIns->pHlpR3->u32Version, PDM_DEVHLPR3_VERSION), VERR_VERSION_MISMATCH);
-
-    return VINF_SUCCESS;
-}
-
 
 PDMBOTHCBDECL(int) devPlaygroundMMIORead(PPDMDEVINS pDevIns, void *pvUser, RTGCPHYS GCPhysAddr, void *pv, unsigned cb)
 {
@@ -132,17 +127,69 @@ static DECLCALLBACK(int) devPlaygroundMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev
 
 
 /**
+ * @callback_method_impl{FNSSMDEVSAVEEXEC}
+ */
+static DECLCALLBACK(int) devPlaygroundSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
+{
+    PVBOXPLAYGROUNDDEVICE pThis = PDMINS_2_DATA(pDevIns, PVBOXPLAYGROUNDDEVICE);
+
+    /* dummy (real devices would need to save their state here) */
+    RT_NOREF(pThis);
+
+    /* Demo of some API stuff - very unusual, think twice if there's no better
+     * solution which doesn't need API interaction. */
+    HRESULT hrc = S_OK;
+    com::Bstr bstrSnapName;
+    com::Guid uuid(COM_IIDOF(ISnapshot));
+    ISnapshot *pSnap = (ISnapshot *)PDMDevHlpQueryGenericUserObject(pDevIns, uuid.raw());
+    if (pSnap)
+    {
+        hrc = pSnap->COMGETTER(Name)(bstrSnapName.asOutParam());
+        AssertComRCReturn(hrc, VERR_INVALID_STATE);
+    }
+    com::Utf8Str strSnapName(bstrSnapName);
+    SSMR3PutStrZ(pSSM, strSnapName.c_str());
+    LogRel(("Playground: saving state of snapshot '%s', hrc=%Rhrc\n", strSnapName.c_str(), hrc));
+
+    return VINF_SUCCESS;
+}
+
+/**
+ * @callback_method_impl{FNSSMDEVLOADEXEC}
+ */
+static DECLCALLBACK(int) devPlaygroundLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
+{
+    PVBOXPLAYGROUNDDEVICE pThis = PDMINS_2_DATA(pDevIns, PVBOXPLAYGROUNDDEVICE);
+
+    if (uVersion > PLAYGROUND_SSM_VERSION)
+        return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
+    Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
+
+    /* dummy (real devices would need to load their state here) */
+    RT_NOREF(pThis);
+
+    /* Reading the stuff written to saved state, just a demo. */
+    char szSnapName[256];
+    int rc = SSMR3GetStrZ(pSSM, szSnapName, sizeof(szSnapName));
+    AssertRCReturn(rc, rc);
+    LogRel(("Playground: loading state of snapshot '%s'\n", szSnapName));
+
+    return VINF_SUCCESS;
+}
+
+
+/**
  * @interface_method_impl{PDMDEVREG,pfnConstruct}
  */
 static DECLCALLBACK(int) devPlaygroundConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
-    NOREF(iInstance);
+    RT_NOREF(iInstance, pCfg);
+    int rc = VINF_SUCCESS;
 
     /*
      * Check that the device instance and device helper structures are compatible.
      */
-    AssertLogRelMsgReturn(pDevIns->u32Version            == PDM_DEVINS_VERSION, ("%#x, expected %#x\n", pDevIns->u32Version,            PDM_DEVINS_VERSION), VERR_VERSION_MISMATCH);
-    AssertLogRelMsgReturn(pDevIns->pHlpR3->u32Version == PDM_DEVHLPR3_VERSION, ("%#x, expected %#x\n", pDevIns->pHlpR3->u32Version, PDM_DEVHLPR3_VERSION), VERR_VERSION_MISMATCH);
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
 
     /*
      * Initialize the instance data so that the destructor won't mess up.
@@ -152,10 +199,7 @@ static DECLCALLBACK(int) devPlaygroundConstruct(PPDMDEVINS pDevIns, int iInstanc
     /*
      * Validate and read the configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfg,
-                              "Whatever1\0"
-                              "Whatever2\0"))
-        return VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES;
+    PDMDEV_VALIDATE_CONFIG_RETURN(pDevIns, "Whatever1|Whatever2", "");
 
     /*
      * PCI device setup.
@@ -174,33 +218,39 @@ static DECLCALLBACK(int) devPlaygroundConstruct(PPDMDEVINS pDevIns, int iInstanc
         if (iPciFun == 0)       /* only for the primary function */
             PCIDevSetHeaderType(&pFun->PciDev, 0x80); /* normal, multifunction device */
 
-        int rc = PDMDevHlpPCIRegisterEx(pDevIns, &pFun->PciDev, iPciFun, 0 /*fFlags*/, iPciDevNo, iPciFun,
+        rc = PDMDevHlpPCIRegisterEx(pDevIns, &pFun->PciDev, iPciFun, 0 /*fFlags*/, iPciDevNo, iPciFun,
                                         pThis->aPciFuns[iPciFun].szName);
         AssertLogRelRCReturn(rc, rc);
 
         /* First region. */
-        RTGCPHYS const cbFirst = iPciFun == 0 ? 8*_1G64 : iPciFun * _4K;
+        RTGCPHYS const cbFirst = iPciFun == 0 ? 8*_1M : iPciFun * _4K;
         rc = PDMDevHlpPCIIORegionRegisterEx(pDevIns, &pFun->PciDev, 0, cbFirst,
                                             (PCIADDRESSSPACE)(  PCI_ADDRESS_SPACE_MEM | PCI_ADDRESS_SPACE_BAR64
                                                               | (iPciFun == 0 ? PCI_ADDRESS_SPACE_MEM_PREFETCH : 0)),
                                             devPlaygroundMap);
         AssertLogRelRCReturn(rc, rc);
+        char *pszRegionName = NULL;
+        RTStrAPrintf(&pszRegionName, "PG-F%d-BAR0", iPciFun);
+        Assert(pszRegionName);
         rc = PDMDevHlpMMIOExPreRegister(pDevIns, &pFun->PciDev, 0, cbFirst,
-                                        IOMMMIO_FLAGS_READ_PASSTHRU | IOMMMIO_FLAGS_WRITE_PASSTHRU, "PG-BAR0",
+                                        IOMMMIO_FLAGS_READ_PASSTHRU | IOMMMIO_FLAGS_WRITE_PASSTHRU, pszRegionName,
                                         NULL /*pvUser*/,  devPlaygroundMMIOWrite, devPlaygroundMMIORead, NULL /*pfnFill*/,
                                         NIL_RTR0PTR /*pvUserR0*/, NULL /*pszWriteR0*/, NULL /*pszReadR0*/, NULL /*pszFillR0*/,
                                         NIL_RTRCPTR /*pvUserRC*/, NULL /*pszWriteRC*/, NULL /*pszReadRC*/, NULL /*pszFillRC*/);
         AssertLogRelRCReturn(rc, rc);
 
         /* Second region. */
-        RTGCPHYS const cbSecond = iPciFun == 0  ? 256*_1G64 : iPciFun * _32K;
+        RTGCPHYS const cbSecond = iPciFun == 0  ? 32*_1M : iPciFun * _32K;
         rc = PDMDevHlpPCIIORegionRegisterEx(pDevIns, &pFun->PciDev, 2, cbSecond,
                                             (PCIADDRESSSPACE)(  PCI_ADDRESS_SPACE_MEM | PCI_ADDRESS_SPACE_BAR64
                                                               | (iPciFun == 0 ? PCI_ADDRESS_SPACE_MEM_PREFETCH : 0)),
                                             devPlaygroundMap);
         AssertLogRelRCReturn(rc, rc);
+        pszRegionName = NULL;
+        RTStrAPrintf(&pszRegionName, "PG-F%d-BAR2", iPciFun);
+        Assert(pszRegionName);
         rc = PDMDevHlpMMIOExPreRegister(pDevIns, &pFun->PciDev, 2, cbSecond,
-                                        IOMMMIO_FLAGS_READ_PASSTHRU | IOMMMIO_FLAGS_WRITE_PASSTHRU, "PG-BAR2",
+                                        IOMMMIO_FLAGS_READ_PASSTHRU | IOMMMIO_FLAGS_WRITE_PASSTHRU, pszRegionName,
                                         NULL /*pvUser*/,  devPlaygroundMMIOWrite, devPlaygroundMMIORead, NULL /*pfnFill*/,
                                         NIL_RTR0PTR /*pvUserR0*/, NULL /*pszWriteR0*/, NULL /*pszReadR0*/, NULL /*pszFillR0*/,
                                         NIL_RTRCPTR /*pvUserRC*/, NULL /*pszWriteRC*/, NULL /*pszReadRC*/, NULL /*pszFillRC*/);
@@ -210,17 +260,35 @@ static DECLCALLBACK(int) devPlaygroundConstruct(PPDMDEVINS pDevIns, int iInstanc
         iPciDevNo = PDMPCIDEVREG_DEV_NO_SAME_AS_PREV;
     }
 
+    /*
+     * Save state handling.
+     */
+    rc = PDMDevHlpSSMRegister(pDevIns, PLAYGROUND_SSM_VERSION, sizeof(*pThis), devPlaygroundSaveExec, devPlaygroundLoadExec);
+    if (RT_FAILURE(rc))
+        return rc;
+
     return VINF_SUCCESS;
 }
 
-RT_C_DECLS_BEGIN
-extern const PDMDEVREG g_DevicePlayground;
-RT_C_DECLS_END
+
+/**
+ * @interface_method_impl{PDMDEVREG,pfnDestruct}
+ */
+static DECLCALLBACK(int) devPlaygroundDestruct(PPDMDEVINS pDevIns)
+{
+    /*
+     * Check the versions here as well since the destructor is *always* called.
+     */
+    PDMDEV_CHECK_VERSIONS_RETURN_QUIET(pDevIns);
+
+    return VINF_SUCCESS;
+}
+
 
 /**
  * The device registration structure.
  */
-const PDMDEVREG g_DevicePlayground =
+static const PDMDEVREG g_DevicePlayground =
 {
     /* u32Version */
     PDM_DEVREG_VERSION,
@@ -271,3 +339,26 @@ const PDMDEVREG g_DevicePlayground =
     /* u32VersionEnd */
     PDM_DEVREG_VERSION
 };
+
+
+/**
+ * Register devices provided by the plugin.
+ *
+ * @returns VBox status code.
+ * @param   pCallbacks      Pointer to the callback table.
+ * @param   u32Version      VBox version number.
+ */
+extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t u32Version)
+{
+    LogFlow(("VBoxPlaygroundDevice::VBoxDevicesRegister: u32Version=%#x pCallbacks->u32Version=%#x\n", u32Version, pCallbacks->u32Version));
+
+    AssertLogRelMsgReturn(u32Version >= VBOX_VERSION,
+                          ("VirtualBox version %#x, expected %#x or higher\n", u32Version, VBOX_VERSION),
+                          VERR_VERSION_MISMATCH);
+    AssertLogRelMsgReturn(pCallbacks->u32Version == PDM_DEVREG_CB_VERSION,
+                          ("callback version %#x, expected %#x\n", pCallbacks->u32Version, PDM_DEVREG_CB_VERSION),
+                          VERR_VERSION_MISMATCH);
+
+    return pCallbacks->pfnRegister(pCallbacks, &g_DevicePlayground);
+}
+

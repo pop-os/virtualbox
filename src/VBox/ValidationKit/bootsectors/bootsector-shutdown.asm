@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2007-2016 Oracle Corporation
+; Copyright (C) 2007-2017 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,8 @@
 ; terms and conditions of either the GPL or the CDDL or both.
 ;
 
+%include "VBox/bios.mac"
+
 
 BITS 16
 start:
@@ -36,10 +38,11 @@ the_code:
     cli
 
     ;
-    ; Boch shutdown request - write "Shutdown" byte by byte to port 08900h.
+    ; VBox/Bochs shutdown request - write "Shutdown" byte by byte to shutdown port.
     ;
     mov cx, 64
-    mov dx, 08900h
+    mov dx, VBOX_BIOS_SHUTDOWN_PORT
+    mov bx, VBOX_BIOS_OLD_SHUTDOWN_PORT
 retry:
     mov al, 'S'
     out dx, al
@@ -57,6 +60,7 @@ retry:
     out dx, al
     mov al, 'n'
     out dx, al
+    xchg dx, bx                         ; alternate between the new (VBox) and old (Bochs) ports.
     loop retry
 
     ;

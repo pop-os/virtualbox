@@ -20,24 +20,185 @@
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
+# include <QAccessibleObject>
 # include <QApplication>
 # include <QPainter>
 # include <QGraphicsScene>
 # include <QStyleOptionGraphicsItem>
 
 /* GUI includes: */
+# include "UIGraphicsTextPane.h"
 # include "UIGDetailsGroup.h"
 # include "UIGDetailsSet.h"
 # include "UIGDetailsElement.h"
 # include "UIGDetailsModel.h"
+# include "UIGDetailsView.h"
+# include "UIGDetails.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+
+/** QAccessibleObject extension used as an accessibility interface for Details-view items. */
+class UIAccessibilityInterfaceForUIGDetailsItem : public QAccessibleObject
+{
+public:
+
+    /** Returns an accessibility interface for passed @a strClassname and @a pObject. */
+    static QAccessibleInterface *pFactory(const QString &strClassname, QObject *pObject)
+    {
+        /* Creating Details-view accessibility interface: */
+        if (pObject && strClassname == QLatin1String("UIGDetailsItem"))
+            return new UIAccessibilityInterfaceForUIGDetailsItem(pObject);
+
+        /* Null by default: */
+        return 0;
+    }
+
+    /** Constructs an accessibility interface passing @a pObject to the base-class. */
+    UIAccessibilityInterfaceForUIGDetailsItem(QObject *pObject)
+        : QAccessibleObject(pObject)
+    {}
+
+    /** Returns the parent. */
+    virtual QAccessibleInterface *parent() const /* override */
+    {
+        /* Make sure item still alive: */
+        AssertPtrReturn(item(), 0);
+
+        /* Return the parent: */
+        switch (item()->type())
+        {
+            /* For a set: */
+            case UIGDetailsItemType_Set:
+            {
+                /* Always return parent view: */
+                return QAccessible::queryAccessibleInterface(item()->model()->details()->view());
+            }
+            /* For an element: */
+            case UIGDetailsItemType_Element:
+            {
+                /* What amount of children root has? */
+                const int cChildCount = item()->model()->root()->items().size();
+
+                /* Return our parent (if root has many of children): */
+                if (cChildCount > 1)
+                    return QAccessible::queryAccessibleInterface(item()->parentItem());
+
+                /* Return parent view (otherwise): */
+                return QAccessible::queryAccessibleInterface(item()->model()->details()->view());
+            }
+            default:
+                break;
+        }
+
+        /* Null by default: */
+        return 0;
+    }
+
+    /** Returns the number of children. */
+    virtual int childCount() const /* override */
+    {
+        /* Make sure item still alive: */
+        AssertPtrReturn(item(), 0);
+
+        /* Return the number of children: */
+        switch (item()->type())
+        {
+            case UIGDetailsItemType_Set:     return item()->items().size();
+            case UIGDetailsItemType_Element: return item()->toElement()->text().size();
+            default: break;
+        }
+
+        /* Zero by default: */
+        return 0;
+    }
+
+    /** Returns the child with the passed @a iIndex. */
+    virtual QAccessibleInterface *child(int iIndex) const /* override */
+    {
+        /* Make sure item still alive: */
+        AssertPtrReturn(item(), 0);
+        /* Make sure index is valid: */
+        AssertReturn(iIndex >= 0 && iIndex < childCount(), 0);
+
+        /* Return the child with the iIndex: */
+        switch (item()->type())
+        {
+            case UIGDetailsItemType_Set:     return QAccessible::queryAccessibleInterface(item()->items().at(iIndex));
+            case UIGDetailsItemType_Element: return QAccessible::queryAccessibleInterface(&item()->toElement()->text()[iIndex]);
+            default: break;
+        }
+
+        /* Null be default: */
+        return 0;
+    }
+
+    /** Returns the index of the passed @a pChild. */
+    virtual int indexOfChild(const QAccessibleInterface *pChild) const /* override */
+    {
+        /* Search for corresponding child: */
+        for (int i = 0; i < childCount(); ++i)
+            if (child(i) == pChild)
+                return i;
+
+        /* -1 by default: */
+        return -1;
+    }
+
+    /** Returns the rect. */
+    virtual QRect rect() const /* override */
+    {
+        /* Now goes the mapping: */
+        const QSize   itemSize         = item()->size().toSize();
+        const QPointF itemPosInScene   = item()->mapToScene(QPointF(0, 0));
+        const QPoint  itemPosInView    = item()->model()->details()->view()->mapFromScene(itemPosInScene);
+        const QPoint  itemPosInScreen  = item()->model()->details()->view()->mapToGlobal(itemPosInView);
+        const QRect   itemRectInScreen = QRect(itemPosInScreen, itemSize);
+        return itemRectInScreen;
+    }
+
+    /** Returns a text for the passed @a enmTextRole. */
+    virtual QString text(QAccessible::Text enmTextRole) const /* override */
+    {
+        /* Make sure item still alive: */
+        AssertPtrReturn(item(), QString());
+
+        /* Return the description: */
+        if (enmTextRole == QAccessible::Description)
+            return item()->description();
+
+        /* Null-string by default: */
+        return QString();
+    }
+
+    /** Returns the role. */
+    virtual QAccessible::Role role() const /* override */
+    {
+        /* Return the role: */
+        return QAccessible::List;
+    }
+
+    /** Returns the state. */
+    virtual QAccessible::State state() const /* override */
+    {
+        /* Return the state: */
+        return QAccessible::State();
+    }
+
+private:
+
+    /** Returns corresponding Details-view item. */
+    UIGDetailsItem *item() const { return qobject_cast<UIGDetailsItem*>(object()); }
+};
 
 
 UIGDetailsItem::UIGDetailsItem(UIGDetailsItem *pParent)
     : QIWithRetranslateUI4<QIGraphicsWidget>(pParent)
     , m_pParent(pParent)
 {
+    /* Install Details-view item accessibility interface factory: */
+    QAccessible::installFactory(UIAccessibilityInterfaceForUIGDetailsItem::pFactory);
+
     /* Basic item setup: */
     setOwnedByLayout(false);
     setAcceptDrops(false);

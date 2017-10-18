@@ -4,16 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
- *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
- * --------------------------------------------------------------------
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This code is based on:
  *
@@ -33,11 +24,11 @@
  *
  * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
  * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
- * CONECTIVA LINUX BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
- * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF
- * OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
- * SOFTWARE.
+ * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL
+ * THE COPYRIGHT HOLDERS, AUTHORS AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+ * USE OR OTHER DEALINGS IN THE SOFTWARE.
  *
  * Except as contained in this notice, the name of Conectiva Linux shall
  * not be used in advertising or otherwise to promote the sale, use or other
@@ -45,42 +36,41 @@
  * Conectiva Linux.
  *
  * Authors: Paulo César Pereira de Andrade <pcpa@conectiva.com.br>
- *
- * $XFree86: xc/programs/Xserver/hw/xfree86/drivers/vesa/vesa.h,v 1.9 2001/05/04 19:05:49 dawes Exp $
+ *          Michael Thayer <michael.thayer@oracle.com>
  */
 
 #ifndef _VBOXVIDEO_H_
 #define _VBOXVIDEO_H_
 
-#include <VBox/VBoxVideoGuest.h>
-#include <VBox/VBoxVideo.h>
+#include <VBoxVideoGuest.h>
+#include <VBoxVideo.h>
 #include "version-generated.h"
+
+#define VBOX_VENDORID 0x80EE
+#define VBOX_DEVICEID 0xBEEF
 
 #ifndef VBVA_SCREEN_F_BLANK
 # define VBVA_SCREEN_F_BLANK    0x0004
 #endif
 
+#include <VBoxVideoVBE.h>
+
+#include "xf86.h"
+#include "xf86str.h"
+#include "xf86Cursor.h"
+
 #ifdef DEBUG
 
-#define TRACE_ENTRY() \
-do { \
-    vbvxMsg(RT_GCC_EXTENSION __PRETTY_FUNCTION__); \
-    vbvxMsg(": entering\n"); \
-} while(0)
-#define TRACE_EXIT() \
-do { \
-    vbvxMsg(RT_GCC_EXTENSION __PRETTY_FUNCTION__); \
-    vbvxMsg(": leaving\n"); \
-} while(0)
+#define TRACE_ENTRY() do { xf86ErrorF("%s: entering\n", __func__); } while(0)
+#define TRACE_EXIT() do { xf86ErrorF("%s: leaving\n", __func__); } while(0)
+#define TRACE_LINE() \
+    do { xf86ErrorF("%s: line\n", __func__, __LINE__); } while(0)
 #define TRACE_LOG(...) \
 do { \
-    vbvxMsg("%s: ", RT_GCC_EXTENSION __PRETTY_FUNCTION__); \
-    vbvxMsg(__VA_ARGS__); \
+    xf86ErrorF("%s: ", __func__); \
+    xf86ErrorF(__VA_ARGS__); \
 } while(0)
-# define TRACE_LINE() do \
-{ \
-    vbvxMsg("%s: line %d\n", __FUNCTION__, __LINE__); \
-} while(0)
+
 #else  /* !DEBUG */
 
 #define TRACE_ENTRY()         do { } while (0)
@@ -89,25 +79,8 @@ do { \
 
 #endif  /* !DEBUG */
 
-/* Not just for debug builds.  If something is wrong we want to know at once. */
-#define VBVXASSERT(expr, out) \
-if (!(expr)) \
-{ \
-    vbvxMsg("\nAssertion failed!\n\n"); \
-    vbvxMsg("%s\n", #expr); \
-    vbvxMsg("at %s (%s:%d)\n", RT_GCC_EXTENSION __PRETTY_FUNCTION__, __FILE__, __LINE__); \
-    vbvxMsg out; \
-    vbvxAbortServer(); \
-}
-
-#define BOOL_STR(a) ((a) ? "TRUE" : "FALSE")
-
-#include <VBox/Hardware/VBoxVideoVBE.h>
-
-#include "xf86str.h"
-#include "xf86Cursor.h"
-
-#define VBOX_VERSION            VBOX_VERSION_MAJOR * 10000 + VBOX_VERSION_MINOR * 100 + VBOX_VERSION_BUILD
+#define VBOX_VERSION            VBOX_VERSION_MAJOR * 10000 \
+                              + VBOX_VERSION_MINOR * 100
 #define VBOX_NAME               "VBoxVideo"
 #define VBOX_DRIVER_NAME        "vboxvideo"
 
@@ -126,6 +99,15 @@ if (!(expr)) \
 # define ROOT_WINDOW(pScrn) screenInfo.screens[(pScrn)->scrnIndex]->root
 #else
 # define ROOT_WINDOW(pScrn) WindowTable[(pScrn)->scrnIndex]
+#endif
+
+/** ChangeWindowProperty for X.Org Server 1.19 and later */
+#if defined(XORG_VERSION_CURRENT) && XORG_VERSION_CURRENT < 70000000 \
+    && XORG_VERSION_CURRENT >= 11900000
+# define ChangeWindowProperty(pWin, property, type, format, mode, \
+                              len, value, sendevent) \
+        dixChangeWindowProperty(serverClient, pWin, property, type, format, \
+                                mode, len, value, sendevent)
 #endif
 
 /** Structure containing all virtual monitor-specific information. */
@@ -171,7 +153,7 @@ typedef struct VBOXRec
     /** The size of the framebuffer and the VBVA buffers at the end of it. */
     unsigned long cbView;
     /** Whether the pre-X-server mode was a VBE mode */
-    bool fSavedVBEMode;
+    Bool fSavedVBEMode;
     /** Paramters of the saved pre-X-server VBE mode, invalid if there is none
      */
     uint16_t cSavedWidth, cSavedHeight, cSavedPitch, cSavedBPP, fSavedFlags;
@@ -188,9 +170,9 @@ typedef struct VBOXRec
     /** Information about each virtual screen. */
     struct VBoxScreen *pScreens;
     /** Can we get mode hint and cursor integration information from HGSMI? */
-    bool fHaveHGSMIModeHints;
+    Bool fHaveHGSMIModeHints;
     /** Does the host support the screen blanking flag? */
-    bool fHostHasScreenBlankingFlag;
+    Bool fHostHasScreenBlankingFlag;
     /** Array of structures for receiving mode hints. */
     VBVAMODEHINT *paVBVAModeHints;
 #ifdef VBOXVIDEO_13
@@ -207,15 +189,7 @@ typedef struct VBOXRec
     Bool fAnyX;
 } VBOXRec, *VBOXPtr;
 
-/* helpers.c */
-extern void vbvxMsg(const char *pszFormat, ...);
-extern void vbvxMsgV(const char *pszFormat, va_list args);
-extern void vbvxAbortServer(void);
-extern VBOXPtr vbvxGetRec(ScrnInfoPtr pScrn);
-#define VBOXGetRec vbvxGetRec  /* Temporary */
-extern int vbvxGetIntegerPropery(ScrnInfoPtr pScrn, char *pszName, size_t *pcData, int32_t **ppaData);
-extern void vbvxSetIntegerPropery(ScrnInfoPtr pScrn, char *pszName, size_t cData, int32_t *paData, Bool fSendEvent);
-extern void vbvxReprobeCursor(ScrnInfoPtr pScrn);
+#define VBOXGetRec(pScrn) ((VBOXPtr)(pScrn)->driverPrivate)
 
 /* setmode.c */
 
@@ -235,8 +209,8 @@ struct vbvxFrameBuffer {
 };
 
 extern void vbvxClearVRAM(ScrnInfoPtr pScrn, size_t cbOldSize, size_t cbNewSize);
-extern void vbvxSetMode(ScrnInfoPtr pScrn, unsigned cDisplay, unsigned cWidth, unsigned cHeight, int x, int y, bool fEnabled,
-                        bool fConnected, struct vbvxFrameBuffer *pFrameBuffer);
+extern void vbvxSetMode(ScrnInfoPtr pScrn, unsigned cDisplay, unsigned cWidth, unsigned cHeight, int x, int y, Bool fEnabled,
+                        Bool fConnected, struct vbvxFrameBuffer *pFrameBuffer);
 extern void vbvxSetSolarisMouseRange(int width, int height);
 
 /* pointer.h */
@@ -252,8 +226,8 @@ extern void vboxDisableVbva(ScrnInfoPtr pScrn);
 /* getmode.c */
 extern void vboxAddModes(ScrnInfoPtr pScrn);
 extern void VBoxInitialiseSizeHints(ScrnInfoPtr pScrn);
-extern void vbvxReadSizesAndCursorIntegrationFromProperties(ScrnInfoPtr pScrn, bool *pfNeedUpdate);
-extern void vbvxReadSizesAndCursorIntegrationFromHGSMI(ScrnInfoPtr pScrn, bool *pfNeedUpdate);
+extern void vbvxReadSizesAndCursorIntegrationFromProperties(ScrnInfoPtr pScrn, Bool *pfNeedUpdate);
+extern void vbvxReadSizesAndCursorIntegrationFromHGSMI(ScrnInfoPtr pScrn, Bool *pfNeedUpdate);
 extern void vbvxSetUpLinuxACPI(ScreenPtr pScreen);
 extern void vbvxCleanUpLinuxACPI(ScreenPtr pScreen);
 

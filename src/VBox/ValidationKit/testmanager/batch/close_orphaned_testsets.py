@@ -9,7 +9,7 @@ Maintenance tool for closing orphaned testsets.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -28,7 +28,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 # Standard python imports
 import sys
@@ -68,7 +68,7 @@ class CloseOrphanedTestSets(object):
         # Get a list of orphans.
         oLogic = TestSetLogic(oDb);
         aoOrphans = oLogic.fetchOrphaned();
-        if len(aoOrphans) > 0:
+        if aoOrphans:
             # Complete them.
             if self.oConfig.fJustDoIt:
                 print 'Completing %u test sets as abandoned:' % (len(aoOrphans),);

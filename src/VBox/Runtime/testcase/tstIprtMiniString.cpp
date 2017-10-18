@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -442,7 +442,12 @@ static void test2(RTTEST hTest)
             - The small letter long s folds to ASCII S.
             - Greek prosgegrammeni folds to iota, which is a letter with both upper
               and lower case foldings of its own. */
-        if (uc == 0x131 || uc == 0x130 || uc == 0x17f || 0x1fbe)
+#if 0 /** @todo totally busted testcase, plz figure out how to fix. */
+        if (   uc == 0x131
+            || uc == 0x130
+            || uc == 0x17f
+            || uc == 0x1fbe
+            )
             continue;
 
         if (RTUniCpIsLower(uc))
@@ -455,6 +460,9 @@ static void test2(RTTEST hTest)
             RTTESTI_CHECK_MSG(uc < 0xd800 || (uc > 0xdfff && uc != 0xfffe && uc != 0xffff), ("%#x\n", uc));
             strUpper.appendCodePoint(uc);
         }
+#else
+        continue;
+#endif
     }
     RTTESTI_CHECK(strlen(strLower.c_str()) == strLower.length());
     RTTESTI_CHECK(strlen(strUpper.c_str()) == strUpper.length());

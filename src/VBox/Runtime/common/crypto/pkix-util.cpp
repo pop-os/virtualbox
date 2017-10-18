@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -62,7 +62,7 @@ RTDECL(const char *) RTCrPkixGetCiperOidFromSignatureAlgorithm(PCRTASN1OBJID pAl
                 case 14:
                     return RTCR_PKCS1_RSA_OID;
                 case 1: AssertFailed();
-                    /* fall thru */
+                    RT_FALL_THRU();
                 default:
                     return NULL;
             }

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2016 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,6 +38,7 @@ PFNRT g_apfnVBoxDDUDeps[] =
     (PFNRT)VDInit,
     (PFNRT)VDIfCreateVfsStream,
     (PFNRT)VDIfCreateFromVfsStream,
+    (PFNRT)VDCreateVfsFileFromDisk,
 #ifdef VBOX_WITH_USB
     (PFNRT)USBFilterInit,
     (PFNRT)USBLibHashSerial,

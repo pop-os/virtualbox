@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -260,13 +260,123 @@ RTDECL(int) RTZipGzipCompressIoStream(RTVFSIOSTREAM hVfsIosDst, uint32_t fFlags,
  *
  * @returns IPRT status code.
  *
- * @param   hVfsIosIn           The compressed input stream.  The reference is
- *                              not consumed, instead another one is retained.
+ * @param   hVfsIosIn           The input stream.  The reference is not
+ *                              consumed, instead another one is retained.
  * @param   fFlags              Flags, MBZ.
  * @param   phVfsFss            Where to return the handle to the TAR
  *                              filesystem stream.
  */
 RTDECL(int) RTZipTarFsStreamFromIoStream(RTVFSIOSTREAM hVfsIosIn, uint32_t fFlags, PRTVFSFSSTREAM phVfsFss);
+
+/** TAR format type. */
+typedef enum RTZIPTARFORMAT
+{
+    /** Customary invalid zero value. */
+    RTZIPTARFORMAT_INVALID = 0,
+    /** Default format (GNU). */
+    RTZIPTARFORMAT_DEFAULT,
+    /** The GNU format. */
+    RTZIPTARFORMAT_GNU,
+    /** USTAR format from POSIX.1-1988. */
+    RTZIPTARFORMAT_USTAR,
+    /** PAX format from POSIX.1-2001. */
+    RTZIPTARFORMAT_PAX,
+    /** End of valid formats. */
+    RTZIPTARFORMAT_END,
+    /** Make sure the type is at least 32 bits wide. */
+    RTZIPTARFORMAT_32BIT_HACK = 0x7fffffff
+} RTZIPTARFORMAT;
+
+/**
+ * Opens a TAR filesystem stream for the purpose of create a new TAR archive.
+ *
+ * @returns IPRT status code.
+ *
+ * @param   hVfsIosOut          The output stream, i.e. where the tar stuff is
+ *                              written.  The reference is not consumed, instead
+ *                              another one is retained.
+ * @param   enmFormat           The desired output format.
+ * @param   fFlags              RTZIPTAR_C_XXX.
+ * @param   phVfsFss            Where to return the handle to the TAR
+ *                              filesystem stream.
+ */
+RTDECL(int) RTZipTarFsStreamToIoStream(RTVFSIOSTREAM hVfsIosOut, RTZIPTARFORMAT enmFormat,
+                                       uint32_t fFlags, PRTVFSFSSTREAM phVfsFss);
+
+/** @name RTZIPTAR_C_XXX - TAR creation flags (RTZipTarFsStreamToIoStream).
+ * @{ */
+/** Check for sparse files.
+ * @note Only supported when adding file objects.  The files will be read
+ *       twice. */
+#define RTZIPTAR_C_SPARSE           RT_BIT_32(0)
+/** Valid bits. */
+#define RTZIPTAR_C_VALID_MASK       UINT32_C(0x00000001)
+/** @} */
+
+/**
+ * Set the owner to store the archive entries with.
+ *
+ * @returns IPRT status code.
+ * @param   hVfsFss             The handle to a TAR creator.
+ * @param   uid                 The UID value to set.  Passing NIL_RTUID makes
+ *                              it use the value found in RTFSOBJINFO.
+ * @param   pszOwner            The owner name to store.  Passing NULL makes it
+ *                              use the value found in RTFSOBJINFO.
+ */
+RTDECL(int) RTZipTarFsStreamSetOwner(RTVFSFSSTREAM hVfsFss, RTUID uid, const char *pszOwner);
+
+/**
+ * Set the group to store the archive entries with.
+ *
+ * @returns IPRT status code.
+ * @param   hVfsFss             The handle to a TAR creator.
+ * @param   gid                 The GID value to set.  Passing NIL_RTUID makes
+ *                              it use the value found in RTFSOBJINFO.
+ * @param   pszGroup            The group name to store.  Passing NULL makes it
+ *                              use the value found in RTFSOBJINFO.
+ */
+RTDECL(int) RTZipTarFsStreamSetGroup(RTVFSFSSTREAM hVfsFss, RTGID gid, const char *pszGroup);
+
+/**
+ * Set path prefix to store the archive entries with.
+ *
+ * @returns IPRT status code.
+ * @param   hVfsFss             The handle to a TAR creator.
+ * @param   pszPrefix           The path prefix to join the names with.  Pass
+ *                              NULL for no prefix.
+ */
+RTDECL(int) RTZipTarFsStreamSetPrefix(RTVFSFSSTREAM hVfsFss, const char *pszPrefix);
+
+/**
+ * Set the AND and OR masks to apply to file (non-dir) modes in the archive.
+ *
+ * @returns IPRT status code.
+ * @param   hVfsFss             The handle to a TAR creator.
+ * @param   fAndMode            The bits to keep
+ * @param   fOrMode             The bits to set.
+ */
+RTDECL(int) RTZipTarFsStreamSetFileMode(RTVFSFSSTREAM hVfsFss, RTFMODE fAndMode, RTFMODE fOrMode);
+
+/**
+ * Set the AND and OR masks to apply to directory modes in the archive.
+ *
+ * @returns IPRT status code.
+ * @param   hVfsFss             The handle to a TAR creator.
+ * @param   fAndMode            The bits to keep
+ * @param   fOrMode             The bits to set.
+ */
+RTDECL(int) RTZipTarFsStreamSetDirMode(RTVFSFSSTREAM hVfsFss, RTFMODE fAndMode, RTFMODE fOrMode);
+
+/**
+ * Set the modification time to store the archive entires with.
+ *
+ * @returns IPRT status code.
+ * @param   hVfsFss             The handle to a TAR creator.
+ * @param   pModificationTime   The modification time to use.  Pass NULL to use
+ *                              the value found in RTFSOBJINFO.
+ */
+RTDECL(int) RTZipTarFsStreamSetMTime(RTVFSFSSTREAM hVfsFss, PCRTTIMESPEC pModificationTime);
+
 
 /**
  * A mini TAR program.

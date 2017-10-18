@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -65,11 +65,9 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DevicePcBios);
     if (RT_FAILURE(rc))
         return rc;
-#ifdef VBOX_WITH_NEW_IOAPIC
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceIOAPIC);
     if (RT_FAILURE(rc))
         return rc;
-#endif
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DevicePS2KeyboardMouse);
     if (RT_FAILURE(rc))
         return rc;
@@ -126,7 +124,7 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceSB16);
     if (RT_FAILURE(rc))
         return rc;
-    rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceICH6_HDA);
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceHDA);
     if (RT_FAILURE(rc))
         return rc;
 #ifdef VBOX_WITH_VUSB
@@ -357,14 +355,13 @@ extern "C" DECLEXPORT(int) VBoxDriversRegister(PCPDMDRVREGCB pCallbacks, uint32_
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvSCSI);
     if (RT_FAILURE(rc))
         return rc;
-# if defined(RT_OS_LINUX)
-    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvSCSIHost);
-    if (RT_FAILURE(rc))
-        return rc;
-# endif
 #endif
 #ifdef VBOX_WITH_DRV_DISK_INTEGRITY
     rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvDiskIntegrity);
+    if (RT_FAILURE(rc))
+        return rc;
+
+    rc = pCallbacks->pfnRegister(pCallbacks, &g_DrvRamDisk);
     if (RT_FAILURE(rc))
         return rc;
 #endif

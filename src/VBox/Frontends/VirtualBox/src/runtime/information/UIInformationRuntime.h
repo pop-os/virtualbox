@@ -20,18 +20,18 @@
 
 /* Qt includes: */
 #include <QWidget>
-#include <QListView>
 
 /* COM includes: */
 #include "COMEnums.h"
 #include "CMachine.h"
 #include "CConsole.h"
 
-/* Forward declartions: */
-class UIVMItem;
+/* Forward declarations: */
 class QVBoxLayout;
 class UIInformationView;
 class UIInformationModel;
+class UIVMItem;
+
 
 /** QWidget extension
   * providing GUI with configuration-information tab in session-information window. */
@@ -48,7 +48,7 @@ public:
 
 private:
 
-    /** Prepares main-layout. */
+    /** Prepares layout. */
     void prepareLayout();
 
     /** Prepares model. */
@@ -61,7 +61,7 @@ private:
     CMachine m_machine;
     /** Holds the console instance. */
     CConsole m_console;
-    /** Holds the instance of main-layout we create. */
+    /** Holds the instance of layout we create. */
     QVBoxLayout *m_pMainLayout;
     /** Holds the instance of model we create. */
     UIInformationModel *m_pModel;

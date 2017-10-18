@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,20 +24,23 @@
 /* GUI includes: */
 #include "QIMainWindow.h"
 #include "QIWithRetranslateUI.h"
+#include "UIToolsPaneGlobal.h"
+#include "UIToolsPaneMachine.h"
+#include "VBoxGlobal.h"
 
 /* Forward declarations: */
+class QMenu;
+class QIManagerDialog;
+class QISplitter;
 class UIAction;
 class UIActionPool;
-class UIActionPolymorphic;
 class UIGChooser;
-class UIGDetails;
-class UIMainBar;
+class UISlidingWidget;
+class UITabBar;
 class UIToolBar;
-class UIVMDesktop;
+class UIToolsToolbar;
 class UIVMItem;
-class QISplitter;
-class QMenu;
-class QStackedWidget;
+
 
 /** Singleton QIMainWindow extension
   * used as VirtualBox Manager (selector-window) instance. */
@@ -69,25 +72,25 @@ protected:
 
 private slots:
 
-#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
-    /** Handles host-screen available-area change. */
-    void sltHandleHostScreenAvailableAreaChange();
-#elif QT_VERSION == 0
+    /** Handles polishing in the async way. */
+    void sltHandlePolishEvent();
+
+#if QT_VERSION == 0
     /** Stupid moc does not warn if it cannot find headers! */
     void QT_VERSION_NOT_DEFINED
-#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
+#elif defined(VBOX_WS_X11)
+    /** Handles host-screen available-area change. */
+    void sltHandleHostScreenAvailableAreaChange();
+#endif /* VBOX_WS_X11 */
 
     /** Handles selector-window context-menu call for passed @a position. */
     void sltShowSelectorWindowContextMenu(const QPoint &position);
 
-    /** Handles signal about Details-container @a iIndex change. */
-    void sltHandleDetailsContainerIndexChange(int iIndex);
-
     /** Handles signal about Chooser-pane index change.
-      * @param fRefreshDetails     brings whether details should be updated.
-      * @param fRefreshSnapshots   brings whether snapshots should be updated.
-      * @param fRefreshDescription brings whether description should be updated. */
-    void sltHandleChooserPaneIndexChange(bool fRefreshDetails = true, bool fRefreshSnapshots = true, bool fRefreshDescription = true);
+      * @param  fUpdateDetails    Brings whether details should be updated.
+      * @param  fUpdateSnapshots  Brings whether tools should be updated. */
+    void sltHandleChooserPaneIndexChange(bool fUpdateDetails = true,
+                                         bool fUpdateSnapshots = true);
 
     /** Handles signal about medium-enumeration finished. */
     void sltHandleMediumEnumerationFinish();
@@ -107,14 +110,18 @@ private slots:
       * @{ */
         /** Handles CVirtualBox event about state change for machine with @a strID. */
         void sltHandleStateChange(QString strID);
-        /** Handles CVirtualBox event about snapshot change for machine with @a strID. */
-        void sltHandleSnapshotChange(QString strID);
     /** @} */
 
     /** @name File menu stuff.
       * @{ */
-        /** Handles call to open Media Manager window. */
-        void sltOpenMediaManagerWindow();
+        /** Handles call to open Virtual Medium Manager window. */
+        void sltOpenVirtualMediumManagerWindow();
+        /** Handles call to close Virtual Medium Manager window. */
+        void sltCloseVirtualMediumManagerWindow();
+        /** Handles call to open Host Network Manager window. */
+        void sltOpenHostNetworkManagerWindow();
+        /** Handles call to close Host Network Manager window. */
+        void sltCloseHostNetworkManagerWindow();
         /** Handles call to open Import Appliance wizard.
           * @param strFileName can bring the name of file to import appliance from. */
         void sltOpenImportApplianceWizard(const QString &strFileName = QString());
@@ -178,6 +185,27 @@ private slots:
         void sltMachineCloseMenuAboutToShow();
     /** @} */
 
+    /** @name Tools stuff.
+      * @{ */
+        /** Handles tools type switch. */
+        void sltHandleToolsTypeSwitch();
+
+        /** Handles request to show Machine tab-bar. */
+        void sltHandleShowTabBarMachine();
+        /** Handles request to show Global tab-bar. */
+        void sltHandleShowTabBarGlobal();
+
+        /** Handles rquest to open Machine tool of passed @a enmType. */
+        void sltHandleToolOpenedMachine(ToolTypeMachine enmType);
+        /** Handles rquest to open Global tool of passed @a enmType. */
+        void sltHandleToolOpenedGlobal(ToolTypeGlobal enmType);
+
+        /** Handles rquest to close Machine tool of passed @a enmType. */
+        void sltHandleToolClosedMachine(ToolTypeMachine enmType);
+        /** Handles rquest to close Global tool of passed @a enmType. */
+        void sltHandleToolClosedGlobal(ToolTypeGlobal enmType);
+    /** @} */
+
 private:
 
     /** Returns current-item. */
@@ -226,6 +254,8 @@ private:
         void prepareMenuMachineClose(QMenu *pMenu);
         /** Prepares status-bar. */
         void prepareStatusBar();
+        /** Prepares toolbar. */
+        void prepareToolbar();
         /** Prepares widgets. */
         void prepareWidgets();
         /** Prepares connections. */
@@ -243,8 +273,16 @@ private:
         void cleanup();
     /** @} */
 
+    /** @name VM launching stuff.
+      * @{ */
+        /** Launches or shows virtual machines represented by passed @a items in corresponding @a enmLaunchMode (for launch). */
+        void performStartOrShowVirtualMachines(const QList<UIVMItem*> &items, VBoxGlobal::LaunchMode enmLaunchMode);
+    /** @} */
+
     /** @name Action update stuff.
       * @{ */
+        /** Performs update of actions visibility. */
+        void updateActionsVisibility();
         /** Performs update of actions appearance. */
         void updateActionsAppearance();
 
@@ -264,8 +302,12 @@ private:
         static bool isAtLeastOneItemInaccessible(const QList<UIVMItem*> &items);
         /** Returns whether at least one of passed @a items is removable. */
         static bool isAtLeastOneItemRemovable(const QList<UIVMItem*> &items);
+        /** Returns whether at least one of passed @a items can be started. */
+        static bool isAtLeastOneItemCanBeStarted(const QList<UIVMItem*> &items);
+        /** Returns whether at least one of passed @a items can be shown. */
+        static bool isAtLeastOneItemCanBeShown(const QList<UIVMItem*> &items);
         /** Returns whether at least one of passed @a items can be started or shown. */
-        static bool isAtLeastOneItemCanBeStartedOrShowed(const QList<UIVMItem*> &items);
+        static bool isAtLeastOneItemCanBeStartedOrShown(const QList<UIVMItem*> &items);
         /** Returns whether at least one of passed @a items can be discarded. */
         static bool isAtLeastOneItemDiscardable(const QList<UIVMItem*> &items);
         /** Returns whether at least one of passed @a items is started. */
@@ -285,25 +327,38 @@ private:
     /** Holds the action-pool instance. */
     UIActionPool *m_pActionPool;
 
+    /** Holds the sliding-widget isntance. */
+    UISlidingWidget *m_pSlidingWidget;
+
     /** Holds the central splitter instance. */
     QISplitter *m_pSplitter;
 
-#ifndef VBOX_WS_MAC
-    /** Holds the main bar instance. */
-    UIMainBar *m_pBar;
-#endif /* !VBOX_WS_MAC */
     /** Holds the main toolbar instance. */
     UIToolBar *m_pToolBar;
 
-    /** Holds the Details-container instance. */
-    QStackedWidget *m_pContainerDetails;
+    /** Holds the Machine tab-bar instance. */
+    UITabBar *m_pTabBarMachine;
+    /** Holds the Global tab-bar instance. */
+    UITabBar *m_pTabBarGlobal;
+    /** Holds the Machine tab-bar action reference. */
+    QAction *m_pActionTabBarMachine;
+    /** Holds the Global tab-bar action reference. */
+    QAction *m_pActionTabBarGlobal;
+
+    /** Holds the Tools-toolbar instance. */
+    UIToolsToolbar *m_pToolbarTools;
+
+    /** Holds the Machine Tools order. */
+    QList<ToolTypeMachine> m_orderMachine;
+    /** Holds the Global Tools order. */
+    QList<ToolTypeGlobal> m_orderGlobal;
 
     /** Holds the Chooser-pane instance. */
-    UIGChooser *m_pPaneChooser;
-    /** Holds the Details-pane instance. */
-    UIGDetails *m_pPaneDetails;
-    /** Holds the Desktop-pane instance. */
-    UIVMDesktop *m_pPaneDesktop;
+    UIGChooser         *m_pPaneChooser;
+    /** Holds the Machine Tools-pane instance. */
+    UIToolsPaneMachine *m_pPaneToolsMachine;
+    /** Holds the Global Tools-pane instance. */
+    UIToolsPaneGlobal  *m_pPaneToolsGlobal;
 
     /** Holds the list of Group menu actions. */
     QList<UIAction*> m_groupActions;
@@ -314,6 +369,11 @@ private:
     QList<UIAction*> m_machineActions;
     /** Holds the Machine menu parent action. */
     QAction *m_pMachineMenuAction;
+
+    /** Holds the Virtual Media Manager window instance. */
+    QIManagerDialog *m_pManagerVirtualMedia;
+    /** Holds the Host Network Manager window instance. */
+    QIManagerDialog *m_pManagerHostNetwork;
 };
 
 #define gpSelectorWindow UISelectorWindow::instance()

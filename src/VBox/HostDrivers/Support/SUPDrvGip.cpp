@@ -133,8 +133,8 @@ static int                  supdrvTscDeltaThreadInit(PSUPDRVDEVEXT pDevExt);
 static void                 supdrvTscDeltaTerm(PSUPDRVDEVEXT pDevExt);
 static void                 supdrvTscDeltaThreadStartMeasurement(PSUPDRVDEVEXT pDevExt, bool fForceAll);
 #else
-static int                  supdrvMeasureInitialTscDeltas(PSUPDRVDEVEXT pDevExt);
-static int                  supdrvMeasureTscDeltaOne(PSUPDRVDEVEXT pDevExt, uint32_t idxWorker);
+static int                  supdrvTscMeasureInitialDeltas(PSUPDRVDEVEXT pDevExt);
+static int                  supdrvTscMeasureDeltaOne(PSUPDRVDEVEXT pDevExt, uint32_t idxWorker);
 #endif
 
 
@@ -720,7 +720,7 @@ SUPDECL(PSUPGLOBALINFOPAGE) SUPGetGIP(void)
  */
 
 /**
- * Used by supdrvInitRefineInvariantTscFreqTimer and supdrvGipInitMeasureTscFreq
+ * Used by supdrvGipInitRefineInvariantTscFreqTimer and supdrvGipInitMeasureTscFreq
  * to update the TSC frequency related GIP variables.
  *
  * @param   pGip                The GIP.
@@ -771,7 +771,7 @@ static void supdrvGipInitSetCpuFreq(PSUPGLOBALINFOPAGE pGip, uint64_t nsElapsed,
  * @param   pvUser      Opaque pointer to the device instance data.
  * @param   iTick       The timer tick.
  */
-static DECLCALLBACK(void) supdrvInitRefineInvariantTscFreqTimer(PRTTIMER pTimer, void *pvUser, uint64_t iTick)
+static DECLCALLBACK(void) supdrvGipInitRefineInvariantTscFreqTimer(PRTTIMER pTimer, void *pvUser, uint64_t iTick)
 {
     PSUPDRVDEVEXT       pDevExt = (PSUPDRVDEVEXT)pvUser;
     PSUPGLOBALINFOPAGE  pGip = pDevExt->pGip;
@@ -912,7 +912,7 @@ static DECLCALLBACK(void) supdrvGipPowerNotificationCallback(RTPOWEREVENT enmEve
             supdrvTscDeltaThreadStartMeasurement(pDevExt, true /* fForceAll */);
 #else
             RTCpuSetCopy(&pDevExt->TscDeltaCpuSet, &pGip->OnlineCpuSet);
-            supdrvMeasureInitialTscDeltas(pDevExt);
+            supdrvTscMeasureInitialDeltas(pDevExt);
 #endif
         }
     }
@@ -980,7 +980,7 @@ static void supdrvGipInitStartTimerForRefiningInvariantTscFreq(PSUPDRVDEVEXT pDe
      */
     rc = RTTimerCreateEx(&pDevExt->pInvarTscRefineTimer, RT_NS_1SEC,
                          RTTIMER_FLAGS_CPU(RTMpCpuIdToSetIndex(pDevExt->idCpuInvarTscRefine)),
-                         supdrvInitRefineInvariantTscFreqTimer, pDevExt);
+                         supdrvGipInitRefineInvariantTscFreqTimer, pDevExt);
     if (RT_SUCCESS(rc))
     {
         rc = RTTimerStart(pDevExt->pInvarTscRefineTimer, 2*RT_NS_100MS);
@@ -992,7 +992,7 @@ static void supdrvGipInitStartTimerForRefiningInvariantTscFreq(PSUPDRVDEVEXT pDe
     if (rc == VERR_CPU_OFFLINE || rc == VERR_NOT_SUPPORTED)
     {
         rc = RTTimerCreateEx(&pDevExt->pInvarTscRefineTimer, RT_NS_1SEC, RTTIMER_FLAGS_CPU_ANY,
-                             supdrvInitRefineInvariantTscFreqTimer, pDevExt);
+                             supdrvGipInitRefineInvariantTscFreqTimer, pDevExt);
         if (RT_SUCCESS(rc))
         {
             rc = RTTimerStart(pDevExt->pInvarTscRefineTimer, 2*RT_NS_100MS);
@@ -1444,7 +1444,7 @@ static DECLCALLBACK(void) supdrvGipMpEvent(RTMPEVENT enmEvent, RTCPUID idCpu, vo
                     supdrvTscDeltaThreadStartMeasurement(pDevExt, false /* fForceAll */);
 #else
                     uint32_t iCpu = supdrvGipFindOrAllocCpuIndexForCpuId(pGip, idCpu);
-                    supdrvMeasureTscDeltaOne(pDevExt, iCpu);
+                    supdrvTscMeasureDeltaOne(pDevExt, iCpu);
 #endif
                 }
                 break;
@@ -1945,10 +1945,10 @@ int VBOXCALL supdrvGipCreate(PSUPDRVDEVEXT pDevExt)
              */
             RTCpuSetEmpty(&pDevExt->TscDeltaCpuSet);
             RTCpuSetEmpty(&pDevExt->TscDeltaObtainedCpuSet);
-#ifdef SUPDRV_USE_TSC_DELTA_THREAD
+    #ifdef SUPDRV_USE_TSC_DELTA_THREAD
             if (pGip->enmUseTscDelta > SUPGIPUSETSCDELTA_ZERO_CLAIMED)
                 rc = supdrvTscDeltaThreadInit(pDevExt);
-#endif
+    #endif
             if (RT_SUCCESS(rc))
             {
                 rc = RTMpNotificationRegister(supdrvGipMpEvent, pDevExt);
@@ -1961,9 +1961,9 @@ int VBOXCALL supdrvGipCreate(PSUPDRVDEVEXT pDevExt)
                     rc = RTMpOnAll(supdrvGipInitOnCpu, pDevExt, pGip);
                     if (RT_SUCCESS(rc))
                     {
-#ifdef SUPDRV_USE_TSC_DELTA_THREAD
+    #ifdef SUPDRV_USE_TSC_DELTA_THREAD
                         supdrvTscDeltaThreadStartMeasurement(pDevExt, true /* fForceAll */);
-#else
+    #else
                         uint16_t iCpu;
                         if (pGip->enmUseTscDelta > SUPGIPUSETSCDELTA_ZERO_CLAIMED)
                         {
@@ -1973,7 +1973,7 @@ int VBOXCALL supdrvGipCreate(PSUPDRVDEVEXT pDevExt)
                             int cTries = 5;
                             do
                             {
-                                rc = supdrvMeasureInitialTscDeltas(pDevExt);
+                                rc = supdrvTscMeasureInitialDeltas(pDevExt);
                                 if (   rc != VERR_TRY_AGAIN
                                     && rc != VERR_CPU_OFFLINE)
                                     break;
@@ -1987,7 +1987,7 @@ int VBOXCALL supdrvGipCreate(PSUPDRVDEVEXT pDevExt)
                                 AssertMsg(!pGip->aCPUs[iCpu].i64TSCDelta, ("iCpu=%u %lld mode=%d\n", iCpu, pGip->aCPUs[iCpu].i64TSCDelta, pGip->u32Mode));
                         }
                         if (RT_SUCCESS(rc))
-#endif
+    #endif
                         {
                             /*
                              * Create the timer.
@@ -2034,8 +2034,6 @@ int VBOXCALL supdrvGipCreate(PSUPDRVDEVEXT pDevExt)
         else
             OSDBGPRINT(("supdrvGipCreate: supdrvTscMeasureInitialDeltas failed. rc=%Rrc\n", rc));
     }
-    else
-        OSDBGPRINT(("supdrvGipCreate: supdrvMeasureInitialTscDeltas failed. rc=%Rrc\n", rc));
 
     /* Releases timer frequency increase too. */
     supdrvGipDestroy(pDevExt);
@@ -2665,7 +2663,7 @@ typedef SUPTSCDELTASYNC2 *PSUPTSCDELTASYNC2;
 
 
 /**
- * Argument package/state passed by supdrvMeasureTscDeltaOne() to the RTMpOn
+ * Argument package/state passed by supdrvTscMeasureDeltaOne() to the RTMpOn
  * callback worker.
  * @todo add
  */
@@ -2677,7 +2675,7 @@ typedef struct SUPDRVGIPTSCDELTARGS
     PSUPGIPCPU                  pWorker;
     /** Pointer to the GIP CPU array entry for the master. */
     PSUPGIPCPU                  pMaster;
-    /** The maximum number of ticks to spend in supdrvMeasureTscDeltaCallback.
+    /** The maximum number of ticks to spend in supdrvTscMeasureDeltaCallback.
      * (This is what we need a rough TSC frequency for.)  */
     uint64_t                    cMaxTscTicks;
     /** Used to abort synchronization setup. */
@@ -3554,7 +3552,7 @@ static int supdrvTscDeltaVerify(PSUPDRVGIPTSCDELTARGS pArgs, PSUPTSCDELTASYNC2 p
 
 /**
  * Handles the special abort procedure during synchronization setup in
- * supdrvMeasureTscDeltaCallbackUnwrapped().
+ * supdrvTscMeasureDeltaCallbackUnwrapped().
  *
  * @returns 0 (dummy, ignored)
  * @param   pArgs               Pointer to argument/state data.
@@ -3563,7 +3561,7 @@ static int supdrvTscDeltaVerify(PSUPDRVGIPTSCDELTARGS pArgs, PSUPTSCDELTASYNC2 p
  * @param   fTimeout            Set if it's a timeout.
  */
 DECL_NO_INLINE(static, int)
-supdrvMeasureTscDeltaCallbackAbortSyncSetup(PSUPDRVGIPTSCDELTARGS pArgs, PSUPTSCDELTASYNC2 pMySync, bool fIsMaster, bool fTimeout)
+supdrvTscMeasureDeltaCallbackAbortSyncSetup(PSUPDRVGIPTSCDELTARGS pArgs, PSUPTSCDELTASYNC2 pMySync, bool fIsMaster, bool fTimeout)
 {
     PSUPTSCDELTASYNC2 volatile *ppMySync    = fIsMaster ? &pArgs->pSyncMaster : &pArgs->pSyncWorker;
     PSUPTSCDELTASYNC2 volatile *ppOtherSync = fIsMaster ? &pArgs->pSyncWorker : &pArgs->pSyncMaster;
@@ -3596,7 +3594,7 @@ supdrvMeasureTscDeltaCallbackAbortSyncSetup(PSUPDRVGIPTSCDELTARGS pArgs, PSUPTSC
 
 
 /**
- * This is used by supdrvMeasureInitialTscDeltas() to read the TSC on two CPUs
+ * This is used by supdrvTscMeasureInitialDeltas() to read the TSC on two CPUs
  * and compute the delta between them.
  *
  * To reduce code size a good when timeout handling was added, a dummy return
@@ -3613,7 +3611,7 @@ supdrvMeasureTscDeltaCallbackAbortSyncSetup(PSUPDRVGIPTSCDELTARGS pArgs, PSUPTSC
  *          contention, SMI, pipelining etc. there is no guaranteed way of
  *          doing this on x86 CPUs.
  */
-static int supdrvMeasureTscDeltaCallbackUnwrapped(RTCPUID idCpu, PSUPDRVGIPTSCDELTARGS pArgs)
+static int supdrvTscMeasureDeltaCallbackUnwrapped(RTCPUID idCpu, PSUPDRVGIPTSCDELTARGS pArgs)
 {
     PSUPDRVDEVEXT               pDevExt          = pArgs->pDevExt;
     PSUPGIPCPU                  pGipCpuWorker    = pArgs->pWorker;
@@ -3659,10 +3657,10 @@ static int supdrvMeasureTscDeltaCallbackUnwrapped(RTCPUID idCpu, PSUPDRVGIPTSCDE
         ASMNopPause();
         if (   ASMAtomicReadBool(&pArgs->fAbortSetup)
             || !RTMpIsCpuOnline(fIsMaster ? pGipCpuWorker->idCpu : pGipCpuMaster->idCpu) )
-            return supdrvMeasureTscDeltaCallbackAbortSyncSetup(pArgs, &MySync, fIsMaster, false /*fTimeout*/);
+            return supdrvTscMeasureDeltaCallbackAbortSyncSetup(pArgs, &MySync, fIsMaster, false /*fTimeout*/);
         if (   (iTry++ & 0xff) == 0
             && ASMReadTSC() - MySync.uTscStart > pArgs->cMaxTscTicks)
-            return supdrvMeasureTscDeltaCallbackAbortSyncSetup(pArgs, &MySync, fIsMaster, true /*fTimeout*/);
+            return supdrvTscMeasureDeltaCallbackAbortSyncSetup(pArgs, &MySync, fIsMaster, true /*fTimeout*/);
         TSCDELTA_DBG_CHECK_LOOP();
         ASMNopPause();
     }
@@ -3670,7 +3668,7 @@ static int supdrvMeasureTscDeltaCallbackUnwrapped(RTCPUID idCpu, PSUPDRVGIPTSCDE
     /* I found my partner, waiting to be found... Special abort considerations. */
     if (fIsMaster)
         if (!ASMAtomicCmpXchgU32(&pOtherSync->uSyncVar, GIP_TSC_DELTA_SYNC2_READY, GIP_TSC_DELTA_SYNC2_PRESTART_WAIT)) /* parnaoia */
-            return supdrvMeasureTscDeltaCallbackAbortSyncSetup(pArgs, &MySync, fIsMaster, false /*fTimeout*/);
+            return supdrvTscMeasureDeltaCallbackAbortSyncSetup(pArgs, &MySync, fIsMaster, false /*fTimeout*/);
 
     iTry = 0;
     TSCDELTA_DBG_START_LOOP();
@@ -3678,21 +3676,21 @@ static int supdrvMeasureTscDeltaCallbackUnwrapped(RTCPUID idCpu, PSUPDRVGIPTSCDE
     {
         ASMNopPause();
         if (ASMAtomicReadBool(&pArgs->fAbortSetup))
-            return supdrvMeasureTscDeltaCallbackAbortSyncSetup(pArgs, &MySync, fIsMaster, false /*fTimeout*/);
+            return supdrvTscMeasureDeltaCallbackAbortSyncSetup(pArgs, &MySync, fIsMaster, false /*fTimeout*/);
         if (   (iTry++ & 0xff) == 0
             && ASMReadTSC() - MySync.uTscStart > pArgs->cMaxTscTicks)
         {
             if (   fIsMaster
                 && !ASMAtomicCmpXchgU32(&MySync.uSyncVar, GIP_TSC_DELTA_SYNC2_PRESTART_ABORT, GIP_TSC_DELTA_SYNC2_PRESTART_WAIT))
                 break; /* race #1: slave has moved on, handle timeout in loop instead. */
-            return supdrvMeasureTscDeltaCallbackAbortSyncSetup(pArgs, &MySync, fIsMaster, true /*fTimeout*/);
+            return supdrvTscMeasureDeltaCallbackAbortSyncSetup(pArgs, &MySync, fIsMaster, true /*fTimeout*/);
         }
         TSCDELTA_DBG_CHECK_LOOP();
     }
 
     if (!fIsMaster)
         if (!ASMAtomicCmpXchgU32(&pOtherSync->uSyncVar, GIP_TSC_DELTA_SYNC2_READY, GIP_TSC_DELTA_SYNC2_PRESTART_WAIT)) /* race #1 */
-            return supdrvMeasureTscDeltaCallbackAbortSyncSetup(pArgs, &MySync, fIsMaster, false /*fTimeout*/);
+            return supdrvTscMeasureDeltaCallbackAbortSyncSetup(pArgs, &MySync, fIsMaster, false /*fTimeout*/);
 
 /** @todo Add a resumable state to pArgs so we don't waste time if we time
  *        out or something.  Timeouts are legit, any of the two CPUs may get
@@ -3804,16 +3802,16 @@ static int supdrvMeasureTscDeltaCallbackUnwrapped(RTCPUID idCpu, PSUPDRVGIPTSCDE
 }
 
 /**
- * Callback used by supdrvMeasureInitialTscDeltas() to read the TSC on two CPUs
+ * Callback used by supdrvTscMeasureInitialDeltas() to read the TSC on two CPUs
  * and compute the delta between them.
  *
  * @param   idCpu       The CPU we are current scheduled on.
  * @param   pvUser1     Pointer to a parameter package (SUPDRVGIPTSCDELTARGS).
  * @param   pvUser2     Unused.
  */
-static DECLCALLBACK(void) supdrvMeasureTscDeltaCallback(RTCPUID idCpu, void *pvUser1, void *pvUser2)
+static DECLCALLBACK(void) supdrvTscMeasureDeltaCallback(RTCPUID idCpu, void *pvUser1, void *pvUser2)
 {
-    supdrvMeasureTscDeltaCallbackUnwrapped(idCpu, (PSUPDRVGIPTSCDELTARGS)pvUser1);
+    supdrvTscMeasureDeltaCallbackUnwrapped(idCpu, (PSUPDRVGIPTSCDELTARGS)pvUser1);
     RT_NOREF1(pvUser2);
 }
 
@@ -3831,7 +3829,7 @@ static DECLCALLBACK(void) supdrvMeasureTscDeltaCallback(RTCPUID idCpu, void *pvU
  *
  * @remarks This must be called with preemption enabled!
  */
-static int supdrvMeasureTscDeltaOne(PSUPDRVDEVEXT pDevExt, uint32_t idxWorker)
+static int supdrvTscMeasureDeltaOne(PSUPDRVDEVEXT pDevExt, uint32_t idxWorker)
 {
     int                 rc;
     int                 rc2;
@@ -3930,13 +3928,13 @@ static int supdrvMeasureTscDeltaOne(PSUPDRVDEVEXT pDevExt, uint32_t idxWorker)
 
             /*
              * Do the RTMpOnPair call.  We reset i64TSCDelta first so we
-             * and supdrvMeasureTscDeltaCallback can use it as a success check.
+             * and supdrvTscMeasureDeltaCallback can use it as a success check.
              */
             /** @todo Store the i64TSCDelta result in pArgs first?   Perhaps deals with
              *        that when doing the restart loop reorg.  */
             ASMAtomicWriteS64(&pGipCpuWorker->i64TSCDelta, INT64_MAX);
             rc = RTMpOnPair(pGipCpuMaster->idCpu, pGipCpuWorker->idCpu, RTMPON_F_CONCURRENT_EXEC,
-                            supdrvMeasureTscDeltaCallback, pArgs, NULL);
+                            supdrvTscMeasureDeltaCallback, pArgs, NULL);
             if (RT_SUCCESS(rc))
             {
 #if 0
@@ -4075,7 +4073,7 @@ static int supdrvTscPickMaster(PSUPDRVDEVEXT pDevExt, uint32_t *pidxMaster)
  *          idCpu, GIP's online CPU set which are populated in
  *          supdrvGipInitOnCpu().
  */
-static int supdrvMeasureInitialTscDeltas(PSUPDRVDEVEXT pDevExt)
+static int supdrvTscMeasureInitialDeltas(PSUPDRVDEVEXT pDevExt)
 {
     PSUPGIPCPU pGipCpuMaster;
     unsigned   iCpu;
@@ -4119,10 +4117,10 @@ static int supdrvMeasureInitialTscDeltas(PSUPDRVDEVEXT pDevExt)
                 && (iOddEven > 0 || (pGipCpuWorker->idApic & 1) == 0)
                 && RTCpuSetIsMemberByIndex(&pDevExt->TscDeltaCpuSet, pGipCpuWorker->iCpuSet))
             {
-                rc = supdrvMeasureTscDeltaOne(pDevExt, iCpu);
+                rc = supdrvTscMeasureDeltaOne(pDevExt, iCpu);
                 if (RT_FAILURE(rc))
                 {
-                    SUPR0Printf("supdrvMeasureTscDeltaOne failed. rc=%d CPU[%u].idCpu=%u Master[%u].idCpu=%u\n", rc, iCpu,
+                    SUPR0Printf("supdrvTscMeasureDeltaOne failed. rc=%d CPU[%u].idCpu=%u Master[%u].idCpu=%u\n", rc, iCpu,
                                 pGipCpuWorker->idCpu, idxMaster, pDevExt->idGipMaster, pGipCpuMaster->idCpu);
                     break;
                 }
@@ -4192,7 +4190,7 @@ static DECLCALLBACK(int) supdrvTscDeltaThread(RTTHREAD hThread, void *pvUser)
                 rc = RTSemEventSignal(pDevExt->hTscDeltaEvent);
                 if (RT_FAILURE(rc))
                     return supdrvTscDeltaThreadButchered(pDevExt, true /* fSpinlockHeld */, "RTSemEventSignal", rc);
-                /* fall thru */
+                RT_FALL_THRU();
             }
 
             case kTscDeltaThreadState_Listening:
@@ -4221,7 +4219,7 @@ static DECLCALLBACK(int) supdrvTscDeltaThread(RTTHREAD hThread, void *pvUser)
                     return supdrvTscDeltaThreadButchered(pDevExt, true /* fSpinlockHeld */, "RTSemEventSignal", rc);
                 RTSpinlockRelease(pDevExt->hTscDeltaSpinlock);
                 RTThreadSleep(1);
-                /* fall thru */
+                RT_FALL_THRU();
             }
 
             case kTscDeltaThreadState_Measuring:
@@ -4236,7 +4234,7 @@ static DECLCALLBACK(int) supdrvTscDeltaThread(RTTHREAD hThread, void *pvUser)
                     do
                     {
                         RTCpuSetCopy(&pDevExt->TscDeltaCpuSet, &pGip->OnlineCpuSet);
-                        rc = supdrvMeasureInitialTscDeltas(pDevExt);
+                        rc = supdrvTscMeasureInitialDeltas(pDevExt);
                         if (   RT_SUCCESS(rc)
                             || (   RT_FAILURE(rc)
                                 && rc != VERR_TRY_AGAIN
@@ -4262,7 +4260,7 @@ static DECLCALLBACK(int) supdrvTscDeltaThread(RTTHREAD hThread, void *pvUser)
                         {
                             if (pGipCpuWorker->i64TSCDelta == INT64_MAX)
                             {
-                                int rc2 = supdrvMeasureTscDeltaOne(pDevExt, iCpu);
+                                int rc2 = supdrvTscMeasureDeltaOne(pDevExt, iCpu);
                                 if (RT_FAILURE(rc2) && RT_SUCCESS(rc))
                                     rc = rc2;
                             }
@@ -4664,7 +4662,7 @@ SUPR0DECL(int) SUPR0TscDeltaMeasureBySetIndex(PSUPDRVSESSION pSession, uint32_t 
         }
 
         /* Measure it. */
-        rc = supdrvMeasureTscDeltaOne(pDevExt, iGipCpu);
+        rc = supdrvTscMeasureDeltaOne(pDevExt, iGipCpu);
         if (rc != VERR_SUPDRV_TSC_DELTA_MEASUREMENT_FAILED)
         {
             Assert(pGip->aCPUs[iGipCpu].i64TSCDelta != INT64_MAX || RT_FAILURE_NP(rc));
@@ -4801,7 +4799,7 @@ int VBOXCALL supdrvIOCtl_TscRead(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession,
                 }
 
                 /* Need to measure the delta an try again. */
-                rc = supdrvMeasureTscDeltaOne(pDevExt, iGipCpu);
+                rc = supdrvTscMeasureDeltaOne(pDevExt, iGipCpu);
                 Assert(pGip->aCPUs[iGipCpu].i64TSCDelta != INT64_MAX || RT_FAILURE_NP(rc));
                 /** @todo should probably delay on failure... dpc watchdogs */
             }

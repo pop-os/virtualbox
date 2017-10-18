@@ -1071,7 +1071,7 @@ int main(int argc, char **argv)
             else if (   !strcmp(psz, "--version")
                      || !strcmp(psz, "-V"))
             {
-                printf("$Revision: 112377 $\n");
+                printf("$Revision: 112347 $\n");
                 return RTEXITCODE_SUCCESS;
             }
             else

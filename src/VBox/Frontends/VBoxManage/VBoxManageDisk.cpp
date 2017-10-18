@@ -479,7 +479,8 @@ static const RTGETOPTDEF g_aModifyMediumOptions[] =
     { "compact",        'c', RTGETOPT_REQ_NOTHING },    // deprecated
     { "--resize",       'r', RTGETOPT_REQ_UINT64 },
     { "--resizebyte",   'R', RTGETOPT_REQ_UINT64 },
-    { "--move",         'm', RTGETOPT_REQ_STRING }
+    { "--move",         'm', RTGETOPT_REQ_STRING },
+    { "--description",  'd', RTGETOPT_REQ_STRING }
 };
 
 RTEXITCODE handleModifyMedium(HandlerArg *a)
@@ -504,6 +505,7 @@ RTEXITCODE handleModifyMedium(HandlerArg *a)
     bool fModifyResize = false;
     bool fModifyResizeMB = false;
     bool fModifyLocation = false;
+    bool fModifyDescription = false;
     uint64_t cbResize = 0;
     const char *pszFilenameOrUuid = NULL;
     char *pszNewLocation = NULL;
@@ -603,6 +605,12 @@ RTEXITCODE handleModifyMedium(HandlerArg *a)
                 fModifyLocation = true;
                 break;
 
+            case 'd':   // --description
+                /* Get a new description  */
+                pszNewLocation = RTStrDup(ValueUnion.psz);
+                fModifyDescription = true;
+                break;
+
             case VINF_GETOPT_NOT_OPTION:
                 if (!pszFilenameOrUuid)
                     pszFilenameOrUuid = ValueUnion.psz;
@@ -633,7 +641,13 @@ RTEXITCODE handleModifyMedium(HandlerArg *a)
     if (!pszFilenameOrUuid)
         return errorSyntax(USAGE_MODIFYMEDIUM, "Medium name or UUID required");
 
-    if (!fModifyMediumType && !fModifyAutoReset && !fModifyProperties && !fModifyCompact && !fModifyResize && !fModifyLocation)
+    if (!fModifyMediumType
+        && !fModifyAutoReset
+        && !fModifyProperties
+        && !fModifyCompact
+        && !fModifyResize
+        && !fModifyLocation
+        && !fModifyDescription)
         return errorSyntax(USAGE_MODIFYMEDIUM, "No operation specified");
 
     /* Always open the medium if necessary, there is no other way. */
@@ -760,6 +774,13 @@ RTEXITCODE handleModifyMedium(HandlerArg *a)
             RTPrintf("Move medium with UUID %s finished \n", Utf8Str(uuid).c_str());
         }
         while (0);
+    }
+
+    if (fModifyDescription)
+    {
+        CHECK_ERROR(pMedium, COMSETTER(Description)(Bstr(pszNewLocation).raw()));
+
+        RTPrintf("Medium description has been changed. \n");
     }
 
     return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
@@ -921,9 +942,24 @@ RTEXITCODE handleCloneMedium(HandlerArg *a)
         }
         else
         {
-            /* use the format of the source medium if unspecified */
+            /*
+             * In case the format is unspecified check that the source medium supports
+             * image creation and use the same format for the destination image.
+             * Use the default image format if it is not supported.
+             */
             if (format.isEmpty())
-                CHECK_ERROR_BREAK(pSrcMedium, COMGETTER(Format)(format.asOutParam()));
+            {
+                ComPtr<IMediumFormat> pMediumFmt;
+                com::SafeArray<MediumFormatCapabilities_T> l_caps;
+                CHECK_ERROR_BREAK(pSrcMedium, COMGETTER(MediumFormat)(pMediumFmt.asOutParam()));
+                CHECK_ERROR_BREAK(pMediumFmt, COMGETTER(Capabilities)(ComSafeArrayAsOutParam(l_caps)));
+                ULONG caps=0;
+                for (size_t i = 0; i < l_caps.size(); i++)
+                    caps |= l_caps[i];
+                if (caps & (  MediumFormatCapabilities_CreateDynamic
+                            | MediumFormatCapabilities_CreateFixed))
+                    CHECK_ERROR_BREAK(pMediumFmt, COMGETTER(Id)(format.asOutParam()));
+            }
             Utf8Str strFormat(format);
             if (cmd == CMD_DISK)
                 rc = createMedium(a, strFormat.c_str(), pszDst, DeviceType_HardDisk,
@@ -1041,7 +1077,7 @@ RTEXITCODE handleConvertFromRaw(HandlerArg *a)
     RTStrmPrintf(g_pStdErr, "Converting from raw image file=\"%s\" to file=\"%s\"...\n",
                  srcfilename, dstfilename);
 
-    PVBOXHDD pDisk = NULL;
+    PVDISK pDisk = NULL;
 
     PVDINTERFACE     pVDIfs = NULL;
     VDINTERFACEERROR vdInterfaceError;

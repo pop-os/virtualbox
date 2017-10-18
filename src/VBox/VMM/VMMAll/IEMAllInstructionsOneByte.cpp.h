@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2016 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -11519,7 +11519,7 @@ FNIEMOP_DEF_2(iemOpHlp_Grp5_far_Ep, uint8_t, bRm, FNIEMCIMPLFARBRANCH *, pfnCImp
                 return VINF_SUCCESS;
             }
             /* AMD falls thru. */
-            /* fall thru */
+            RT_FALL_THRU();
 
         case IEMMODE_32BIT:
             IEM_MC_BEGIN(3, 1);

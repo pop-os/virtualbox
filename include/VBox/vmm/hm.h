@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,6 +29,8 @@
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/vmm.h>
+#include <VBox/vmm/hm_svm.h>
+#include <VBox/vmm/trpm.h>
 #include <iprt/mp.h>
 
 
@@ -138,6 +140,8 @@ typedef enum HM64ON32OP
     HM64ON32OP_32BIT_HACK = 0x7fffffff
 } HM64ON32OP;
 
+/** @name All-context HM API.
+ * @{ */
 VMMDECL(bool)                   HMIsEnabledNotMacro(PVM pVM);
 VMM_INT_DECL(int)               HMInvalidatePage(PVMCPU pVCpu, RTGCPTR GCVirt);
 VMM_INT_DECL(bool)              HMHasPendingIrq(PVM pVM);
@@ -146,6 +150,25 @@ VMM_INT_DECL(int)               HMAmdIsSubjectToErratum170(uint32_t *pu32Family,
 VMM_INT_DECL(bool)              HMSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable);
 VMM_INT_DECL(void)              HMHypercallsEnable(PVMCPU pVCpu);
 VMM_INT_DECL(void)              HMHypercallsDisable(PVMCPU pVCpu);
+/** @} */
+
+/** @name All-context SVM helpers.
+ * @{ */
+VMM_INT_DECL(TRPMEVENT)         HMSvmEventToTrpmEventType(PCSVMEVENT pSvmEvent);
+VMM_INT_DECL(int)               HMSvmGetMsrpmOffsetAndBit(uint32_t idMsr, uint16_t *pbOffMsrpm, uint32_t *puMsrpmBit);
+VMM_INT_DECL(bool)              HMSvmIsIOInterceptActive(void *pvIoBitmap, uint16_t u16Port, SVMIOIOTYPE enmIoType, uint8_t cbReg,
+                                                         uint8_t cAddrSizeBits, uint8_t iEffSeg, bool fRep, bool fStrIo,
+                                                         PSVMIOIOEXITINFO pIoExitInfo);
+VMM_INT_DECL(VBOXSTRICTRC)      HMSvmVmmcall(PVMCPU pVCpu, PCPUMCTX pCtx, bool *pfRipUpdated);
+/** @} */
+
+/** @name Nested hardware virtualization.
+ * @{
+ */
+#ifdef VBOX_WITH_NESTED_HWVIRT
+VMM_INT_DECL(void)              HMSvmNstGstVmExitNotify(PVMCPU pVCpu, PSVMVMCB pVmcbNstGst);
+#endif
+/** @} */
 
 #ifndef IN_RC
 VMM_INT_DECL(int)               HMFlushTLB(PVMCPU pVCpu);
@@ -239,7 +262,7 @@ VMMR3_INT_DECL(int)             HMR3DisablePatching(PVM pVM, RTGCPTR pPatchMem, 
 VMMR3_INT_DECL(int)             HMR3PatchTprInstr(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
 VMMR3_INT_DECL(bool)            HMR3IsRescheduleRequired(PVM pVM, PCPUMCTX pCtx);
 VMMR3_INT_DECL(bool)            HMR3IsVmxPreemptionTimerUsed(PVM pVM);
-
+VMMR3_INT_DECL(void)            HMR3InfoSvmVmcbCtrl(PCDBGFINFOHLP pHlp, PCSVMVMCBCTRL pVmcbCtrl, const char *pszPrefix);
 /** @} */
 #endif /* IN_RING3 */
 

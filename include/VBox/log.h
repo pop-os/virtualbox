@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -267,6 +267,8 @@ typedef enum LOGGROUP
     LOG_GROUP_HM,
     /** IEM group. */
     LOG_GROUP_IEM,
+    /** I/O buffer management group. */
+    LOG_GROUP_IOBUFMGMT,
     /** IOM group. */
     LOG_GROUP_IOM,
     /** XPCOM IPC group. */
@@ -339,6 +341,8 @@ typedef enum LOGGROUP
     LOG_GROUP_MAIN_APPLIANCE,
     /** Main group, IAudioAdapter. */
     LOG_GROUP_MAIN_AUDIOADAPTER,
+    /** Main group, IAudioAdapterChangedEvent. */
+    LOG_GROUP_MAIN_AUDIOADAPTERCHANGEDEVENT,
     /** Main group, IBandwidthControl. */
     LOG_GROUP_MAIN_BANDWIDTHCONTROL,
     /** Main group, IBandwidthGroup. */
@@ -565,6 +569,12 @@ typedef enum LOGGROUP
     LOG_GROUP_MAIN_PROCESS,
     /** Main group, IProgress. */
     LOG_GROUP_MAIN_PROGRESS,
+    /** Main group, IProgressEvent. */
+    LOG_GROUP_MAIN_PROGRESSEVENT,
+    /** Main group, IProgressPercentageChangedEvent. */
+    LOG_GROUP_MAIN_PROGRESSPERCENTAGECHANGEDEVENT,
+    /** Main group, IProgressTaskCompletedEvent. */
+    LOG_GROUP_MAIN_PROGRESSTASKCOMPLETEDEVENT,
     /** Main group, IReusableEvent. */
     LOG_GROUP_MAIN_REUSABLEEVENT,
     /** Main group, IRuntimeErrorEvent. */
@@ -607,6 +617,8 @@ typedef enum LOGGROUP
     LOG_GROUP_MAIN_SYSTEMPROPERTIES,
     /** Main group, IToken. */
     LOG_GROUP_MAIN_TOKEN,
+    /** Main group, IUnattended. */
+    LOG_GROUP_MAIN_UNATTENDED,
     /** Main group, IUSBController. */
     LOG_GROUP_MAIN_USBCONTROLLER,
     /** Main group, IUSBControllerChangedEvent. */
@@ -633,8 +645,12 @@ typedef enum LOGGROUP
     LOG_GROUP_MAIN_VIRTUALBOX,
     /** Main group, IVirtualBoxClient. */
     LOG_GROUP_MAIN_VIRTUALBOXCLIENT,
+    /** Main group, IVirtualBoxSDS. */
+    LOG_GROUP_MAIN_VIRTUALBOXSDS,
     /** Main group, IVirtualSystemDescription. */
     LOG_GROUP_MAIN_VIRTUALSYSTEMDESCRIPTION,
+    /** Main group, VMM device interfaces. */
+    LOG_GROUP_MAIN_VMMDEVINTERFACES,
     /** Main group, IVRDEServer. */
     LOG_GROUP_MAIN_VRDESERVER,
     /** Main group, IVRDEServerChangedEvent. */
@@ -755,6 +771,8 @@ typedef enum LOGGROUP
     LOG_GROUP_VBGL,
     /** Generic virtual disk layer. */
     LOG_GROUP_VD,
+    /** CUE/BIN virtual disk backend. */
+    LOG_GROUP_VD_CUE,
     /** DMG virtual disk backend. */
     LOG_GROUP_VD_DMG,
     /** iSCSI virtual disk backend. */
@@ -912,6 +930,7 @@ typedef enum LOGGROUP
     "HGSMI",        \
     "HM",           \
     "IEM",          \
+    "IOBUFMGMT",    \
     "IOM",          \
     "IPC",          \
     "LWIP",            \
@@ -948,6 +967,7 @@ typedef enum LOGGROUP
     "MAIN_ADDITIONSSTATECHANGEDEVENT", \
     "MAIN_APPLIANCE", \
     "MAIN_AUDIOADAPTER", \
+    "MAIN_AUDIOADAPTERCHANGEDEVENT", \
     "MAIN_BANDWIDTHCONTROL", \
     "MAIN_BANDWIDTHGROUP", \
     "MAIN_BANDWIDTHGROUPCHANGEDEVENT", \
@@ -1061,6 +1081,9 @@ typedef enum LOGGROUP
     "MAIN_PERFORMANCEMETRIC", \
     "MAIN_PROCESS", \
     "MAIN_PROGRESS", \
+    "MAIN_PROGRESSEVENT", \
+    "MAIN_PROGRESSPERCENTAGECHANGEDEVENT", \
+    "MAIN_PROGRESSTASKCOMPLETEDEVENT", \
     "MAIN_REUSABLEEVENT", \
     "MAIN_RUNTIMEERROREVENT", \
     "MAIN_SERIALPORT", \
@@ -1082,6 +1105,7 @@ typedef enum LOGGROUP
     "MAIN_STORAGEDEVICECHANGEDEVENT", \
     "MAIN_SYSTEMPROPERTIES", \
     "MAIN_TOKEN", \
+    "MAIN_UNATTENDED", \
     "MAIN_USBCONTROLLER", \
     "MAIN_USBCONTROLLERCHANGEDEVENT", \
     "MAIN_USBDEVICE", \
@@ -1095,7 +1119,9 @@ typedef enum LOGGROUP
     "MAIN_VIDEOCAPTURECHANGEDEVENT", \
     "MAIN_VIRTUALBOX", \
     "MAIN_VIRTUALBOXCLIENT", \
+    "MAIN_VIRTUALBOXSDS", \
     "MAIN_VIRTUALSYSTEMDESCRIPTION", \
+    "MAIN_VMMDEVINTERFACES", \
     "MAIN_VRDESERVER", \
     "MAIN_VRDESERVERCHANGEDEVENT", \
     "MAIN_VRDESERVERINFO", \
@@ -1156,6 +1182,7 @@ typedef enum LOGGROUP
     "VGDRV",        \
     "VBGL",         \
     "VD",           \
+    "VD_CUE",       \
     "VD_DMG",       \
     "VD_ISCSI",     \
     "VD_PARALLELS", \

@@ -7,7 +7,7 @@ VirtualBox Test VMs
 
 __copyright__ = \
 """
-Copyright (C) 2010-2016 Oracle Corporation
+Copyright (C) 2010-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 # Standard Python imports.
 import re;
@@ -78,6 +78,7 @@ g_aaNameToDetails = \
     [ 'WindowsXP_64',   'WindowsXP_64',          g_k64,    1,  32, ['xp64',   'xp64sp[0-9]']],
     [ 'Windows2003',    'Windows2003',           g_k32,    1,  32, ['w2k3',   'w2k3sp[0-9]', 'win2k3', 'win2k3sp[0-9]']],
     [ 'WindowsVista',   'WindowsVista',          g_k32,    1,  32, ['vista',  'vistasp[0-9]']],
+    [ 'WindowsVista_64','WindowsVista_64',       g_k64,    1,  64, ['vista-64', 'vistasp[0-9]-64',]],  # max cpus/cores??
     [ 'Windows2008',    'Windows2008',           g_k32,    1,  64, ['w2k8',   'w2k8sp[0-9]', 'win2k8', 'win2k8sp[0-9]']],     # max cpus/cores??
     [ 'Windows2008_64', 'Windows2008_64',        g_k64,    1,  64, ['w2k8r2', 'w2k8r2sp[0-9]', 'win2k8r2', 'win2k8r2sp[0-9]']], # max cpus/cores??
     [ 'Windows7',       'Windows7',              g_k32,    1,  32, ['w7',     'w7sp[0-9]', 'win7',]],        # max cpus/cores??
@@ -177,13 +178,15 @@ class TestVm(object):
     def __init__(self, oSet, sVmName, sHd = None, sKind = None, acCpusSup = None, asVirtModesSup = None, # pylint: disable=R0913
                  fIoApic = None, fPae = None, sNic0AttachType = None, sHddControllerType = 'IDE Controller',
                  sFloppy = None, fVmmDevTestingPart = None, fVmmDevTestingMmio = False, asParavirtModesSup = None,
-                 fRandomPvPMode = False, sFirmwareType = 'bios'):
+                 fRandomPvPMode = False, sFirmwareType = 'bios', sChipsetType = 'piix3'):
         self.oSet                    = oSet;
         self.sVmName                 = sVmName;
         self.sHd                     = sHd;          # Relative to the testrsrc root.
         self.acCpusSup               = acCpusSup;
         self.asVirtModesSup          = asVirtModesSup;
         self.asParavirtModesSup      = asParavirtModesSup;
+        self.asParavirtModesSupOrg   = asParavirtModesSup; # HACK ALERT! Trick to make the 'effing random mess not get in the
+                                                           # way of actively selecting virtualization modes.
         self.sKind                   = sKind;
         self.sGuestOsType            = None;
         self.sDvdImage               = None;         # Relative to the testrsrc root.
@@ -195,6 +198,7 @@ class TestVm(object):
         self.fVmmDevTestingPart      = fVmmDevTestingPart;
         self.fVmmDevTestingMmio      = fVmmDevTestingMmio;
         self.sFirmwareType           = sFirmwareType;
+        self.sChipsetType            = sChipsetType;
 
         self.fSnapshotRestoreCurrent = False;        # Whether to restore execution on the current snapshot.
         self.fSkip                   = False;        # All VMs are included in the configured set by default.
@@ -291,6 +295,7 @@ class TestVm(object):
             self.asParavirtModesSup = g_kdaParavirtProvidersSupported[self.sGuestOsType];
             ## @todo Remove this hack as soon as we've got around to explictly configure test variations
             ## on the server side. Client side random is interesting but not the best option.
+            self.asParavirtModesSupOrg = self.asParavirtModesSup;
             if fRandomPvPMode:
                 random.seed();
                 self.asParavirtModesSup = (random.choice(self.asParavirtModesSup),);
@@ -315,6 +320,8 @@ class TestVm(object):
                 if self.is64bitRequired() and not fHostSupports64bit:
                     fRc = None; # Skip the test.
                 elif self.isViaIncompatible() and oTestDrv.isHostCpuVia():
+                    fRc = None; # Skip the test.
+                elif self.isP4Incompatible() and oTestDrv.isHostCpuP4():
                     fRc = None; # Skip the test.
                 else:
                     oSession = oTestDrv.openSession(oVM);
@@ -404,8 +411,30 @@ class TestVm(object):
               or self.sVmName.find('sp2') >= 0 \
               or self.sVmName.find('sp3') >= 0:
                 return True;
+        # XP x64 on a phyical VIA box hangs exactly like a VM.
+        if self.aInfo[g_iKind] in ['WindowsXP_64', 'Windows2003_64']:
+            return True;
+        # Vista 64 throws BSOD 0x5D (UNSUPPORTED_PROCESSOR)
+        if self.aInfo[g_iKind] in ['WindowsVista_64']:
+            return True;
+        # Solaris 11 hangs on VIA, tested on a physical box (testboxvqc)
+        if self.aInfo[g_iKind] in ['Solaris11_64']:
+            return True;
         return False;
 
+    def isP4Incompatible(self):
+        """
+        Identifies VMs that doesn't work on Pentium 4 / Pentium D.
+
+        Returns True if NOT supported on P4, False if it IS supported.
+        """
+        # Stupid 1 kHz timer. Too much for antique CPUs.
+        if self.sVmName.find('rhel5') >= 0:
+            return True;
+        # Due to the boot animation the VM takes forever to boot.
+        if self.aInfo[g_iKind] == 'Windows2000':
+            return True;
+        return False;
 
 
 class BootSectorTestVm(TestVm):
@@ -597,8 +626,12 @@ class TestVmSet(object):
                 if sPvMode not in g_kasParavirtProviders:
                     raise base.InvalidOption('The "--paravirt-modes" value "%s" is not valid; valid values are: %s'
                                              % (sPvMode, ', '.join(g_kasParavirtProviders),));
-            if len(self.asParavirtModes) == 0:
+            if not self.asParavirtModes:
                 self.asParavirtModes = None;
+
+            # HACK ALERT! Reset the random paravirt selection for members.
+            for oTestVm in self.aoTestVms:
+                oTestVm.asParavirtModesSup = oTestVm.asParavirtModesSupOrg;
 
         else:
             return iArg;
@@ -663,7 +696,8 @@ class TestVmSet(object):
                                             sFloppy            = oTestVm.sFloppy,
                                             fVmmDevTestingPart = oTestVm.fVmmDevTestingPart,
                                             fVmmDevTestingMmio = oTestVm.fVmmDevTestingPart,
-                                            sFirmwareType = oTestVm.sFirmwareType);
+                                            sFirmwareType = oTestVm.sFirmwareType,
+                                            sChipsetType = oTestVm.sChipsetType);
             if oVM is None:
                 return False;
 
@@ -835,6 +869,11 @@ class TestVmManager(object):
                          sKind = 'Windows10_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi');
         oSet.aoTestVms.append(oTestVm);
 
+        #oTestVm = TestVm(oSet, 'tst-win10-64-efi-ich9', sHd = '4.2/efi/win10-efi-amd64.vdi',
+        #                 sKind = 'Windows10_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi',
+        #                 sChipsetType = 'ich9');
+        #oSet.aoTestVms.append(oTestVm);
+
         oTestVm = TestVm(oSet, 'tst-ubuntu-15_10-64-efi', sHd = '4.2/efi/ubuntu-15_10-efi-amd64.vdi',
                          sKind = 'Ubuntu_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi');
         oSet.aoTestVms.append(oTestVm);
@@ -883,9 +922,13 @@ class TestVmManager(object):
                          sKind = 'Windows7', acCpusSup = range(1, 33), fIoApic = True);
         oSet.aoTestVms.append(oTestVm);
 
-        oTestVm = TestVm(oSet, 'tst-win8', sHd = '4.2/win8-32/t-win8.vdi',
-                         sKind = 'Windows8', acCpusSup = range(1, 33), fIoApic = True);
+        oTestVm = TestVm(oSet, 'tst-win8-64', sHd = '4.2/win8-64/t-win8-64.vdi',
+                         sKind = 'Windows8_64', acCpusSup = range(1, 33), fIoApic = True);
         oSet.aoTestVms.append(oTestVm);
+
+        #oTestVm = TestVm(oSet, 'tst-win8-64-ich9', sHd = '4.2/win8-64/t-win8-64.vdi',
+        #                 sKind = 'Windows8_64', acCpusSup = range(1, 33), fIoApic = True, sChipsetType = 'ich9');
+        #oSet.aoTestVms.append(oTestVm);
 
         return oSet;
 
@@ -903,6 +946,11 @@ class TestVmManager(object):
         oTestVm = TestVm(oSet, 'tst-win10-64-efi', sHd = '4.2/efi/win10-efi-amd64.vdi',
                          sKind = 'Windows10_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi');
         oSet.aoTestVms.append(oTestVm);
+
+        #oTestVm = TestVm(oSet, 'tst-win10-64-efi-ich9', sHd = '4.2/efi/win10-efi-amd64.vdi',
+        #                 sKind = 'Windows10_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi',
+        #                 sChipsetType = 'ich9');
+        #oSet.aoTestVms.append(oTestVm);
 
         oTestVm = TestVm(oSet, 'tst-ubuntu-15_10-64-efi', sHd = '4.2/efi/ubuntu-15_10-efi-amd64.vdi',
                          sKind = 'Ubuntu_64', acCpusSup = range(1, 33), fIoApic = True, sFirmwareType = 'efi',
@@ -937,6 +985,11 @@ class TestVmManager(object):
                          sKind = 'Solaris11_64', acCpusSup = range(1, 33), sNic0AttachType = 'nat',
                          fIoApic = True, sHddControllerType = 'SATA Controller');
         oSet.aoTestVms.append(oTestVm);
+
+        #oTestVm = TestVm(oSet, 'tst-sol11u1-ich9', sHd = '4.2/nat/sol11u1/t-sol11u1.vdi',
+        #                 sKind = 'Solaris11_64', acCpusSup = range(1, 33), sNic0AttachType = 'nat',
+        #                 fIoApic = True, sHddControllerType = 'SATA Controller', sChipsetType = 'ich9');
+        #oSet.aoTestVms.append(oTestVm);
 
         oTestVm = TestVm(oSet, 'tst-nt4sp6', sHd = '4.2/nt4sp6/t-nt4sp6.vdi',
                          sKind = 'WindowsNT4', acCpusSup = range(1, 33));
@@ -974,9 +1027,13 @@ class TestVmManager(object):
                          sKind = 'Windows7', acCpusSup = range(1, 33), fIoApic = True);
         oSet.aoTestVms.append(oTestVm);
 
-        oTestVm = TestVm(oSet, 'tst-win8', sHd = '4.2/win8-32/t-win8.vdi',
-                         sKind = 'Windows8', acCpusSup = range(1, 33), fIoApic = True);
+        oTestVm = TestVm(oSet, 'tst-win8-64', sHd = '4.2/win8-64/t-win8-64.vdi',
+                         sKind = 'Windows8_64', acCpusSup = range(1, 33), fIoApic = True);
         oSet.aoTestVms.append(oTestVm);
+
+        #oTestVm = TestVm(oSet, 'tst-win8-64-ich9', sHd = '4.2/win8-64/t-win8-64.vdi',
+        #                 sKind = 'Windows8_64', acCpusSup = range(1, 33), fIoApic = True, sChipsetType = 'ich9');
+        #oSet.aoTestVms.append(oTestVm);
 
         return oSet;
 

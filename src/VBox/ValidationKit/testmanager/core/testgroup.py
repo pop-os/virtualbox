@@ -7,7 +7,7 @@ Test Manager - Test groups management.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard python imports.
@@ -352,10 +352,10 @@ class TestGroupDataEx(TestGroupData):
             aoNewMembers.append(oNewMember);
 
             dErrors = oNewMember.validateAndConvert(oDb, ModelDataBase.ksValidateFor_Other);
-            if len(dErrors) > 0:
+            if dErrors:
                 asErrors.append(str(dErrors));
 
-        if len(asErrors) == 0:
+        if not asErrors:
             for i, _ in enumerate(aoNewMembers):
                 idTestCase = aoNewMembers[i];
                 for j in range(i + 1, len(aoNewMembers)):
@@ -363,7 +363,7 @@ class TestGroupDataEx(TestGroupData):
                         asErrors.append('Duplicate testcase #%d!' % (idTestCase, ));
                         break;
 
-        return (aoNewMembers, None if len(asErrors) == 0 else '<br>\n'.join(asErrors));
+        return (aoNewMembers, None if not asErrors else '<br>\n'.join(asErrors));
 
 
 class TestGroupLogic(ModelLogicBase):
@@ -371,17 +371,22 @@ class TestGroupLogic(ModelLogicBase):
     Test case management logic.
     """
 
+    def __init__(self, oDb):
+        ModelLogicBase.__init__(self, oDb)
+        self.dCache = None;
+
     #
     # Standard methods.
     #
 
-    def fetchForListing(self, iStart, cMaxRows, tsNow):
+    def fetchForListing(self, iStart, cMaxRows, tsNow, aiSortColumns = None):
         """
         Fetches test groups.
 
         Returns an array (list) of TestGroupDataEx items, empty list if none.
         Raises exception on error.
         """
+        _ = aiSortColumns;
         if tsNow is None:
             self._oDb.execute('SELECT   *\n'
                               'FROM     TestGroups\n'
@@ -413,7 +418,7 @@ class TestGroupLogic(ModelLogicBase):
         #
         assert isinstance(oData, TestGroupDataEx);
         dErrors = oData.validateAndConvert(self._oDb, oData.ksValidateFor_Add);
-        if len(dErrors) > 0:
+        if dErrors:
             raise TMInvalidData('addEntry invalid input: %s' % (dErrors,));
         self._assertUniq(oData, None);
 
@@ -447,7 +452,7 @@ class TestGroupLogic(ModelLogicBase):
         #
         assert isinstance(oData, TestGroupDataEx);
         dErrors = oData.validateAndConvert(self._oDb, oData.ksValidateFor_Edit);
-        if len(dErrors) > 0:
+        if dErrors:
             raise TMInvalidData('editEntry invalid input: %s' % (dErrors,));
         self._assertUniq(oData, oData.idTestGroup);
 
@@ -496,8 +501,8 @@ class TestGroupLogic(ModelLogicBase):
                                           'WHERE  idTestGroup = %s\n'
                                           '   AND tsExpire    = \'infinity\'::TIMESTAMP\n'
                                           , ( oData.idTestGroup, ));
-        if len(dNew) > 0:
-            sQuery += '   AND idTestCase NOT IN (%s)' % (', '.join([str(iKey) for iKey in dNew.keys()]),);
+        if dNew:
+            sQuery += '   AND idTestCase NOT IN (%s)' % (', '.join([str(iKey) for iKey in dNew]),);
         self._oDb.execute(sQuery);
 
         self._oDb.maybeCommit(fCommit);
@@ -521,7 +526,7 @@ class TestGroupLogic(ModelLogicBase):
                               '     AND SchedGroups.tsExpire          = \'infinity\'::TIMESTAMP\n'
                               , ( idTestGroup, ));
             aoGroups = self._oDb.fetchAll();
-            if len(aoGroups) > 0:
+            if aoGroups:
                 asGroups = ['%s (#%d)' % (sName, idSchedGroup) for idSchedGroup, sName in aoGroups];
                 raise TMRowInUse('Test group #%d is member of one or more scheduling groups: %s'
                                  % (idTestGroup, ', '.join(asGroups),));
@@ -548,6 +553,44 @@ class TestGroupLogic(ModelLogicBase):
 
         self._oDb.maybeCommit(fCommit)
         return True;
+
+    def cachedLookup(self, idTestGroup):
+        """
+        Looks up the most recent TestGroupDataEx object for idTestGroup
+        via an object cache.
+
+        Returns a shared TestGroupDataEx object.  None if not found.
+        Raises exception on DB error.
+        """
+        if self.dCache is None:
+            self.dCache = self._oDb.getCache('TestGroupDataEx');
+        oEntry = self.dCache.get(idTestGroup, None);
+        if oEntry is None:
+            fNeedTsNow = False;
+            self._oDb.execute('SELECT   *\n'
+                              'FROM     TestGroups\n'
+                              'WHERE    idTestGroup = %s\n'
+                              '     AND tsExpire    = \'infinity\'::TIMESTAMP\n'
+                              , (idTestGroup, ));
+            if self._oDb.getRowCount() == 0:
+                # Maybe it was deleted, try get the last entry.
+                self._oDb.execute('SELECT   *\n'
+                                  'FROM     TestGroups\n'
+                                  'WHERE    idTestGroup = %s\n'
+                                  'ORDER BY tsExpire DESC\n'
+                                  'LIMIT 1\n'
+                                  , (idTestGroup, ));
+                fNeedTsNow = True;
+            elif self._oDb.getRowCount() > 1:
+                raise self._oDb.integrityException('%s infinity rows for %s' % (self._oDb.getRowCount(), idTestGroup));
+
+            if self._oDb.getRowCount() == 1:
+                aaoRow = self._oDb.fetchOne();
+                oEntry = TestGroupDataEx();
+                tsNow  = oEntry.initFromDbRow(aaoRow).tsEffective if fNeedTsNow else None;
+                oEntry.initFromDbRowEx(aaoRow, self._oDb, tsNow);
+                self.dCache[idTestGroup] = oEntry;
+        return oEntry;
 
 
     #

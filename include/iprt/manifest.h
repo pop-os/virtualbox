@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2009-2016 Oracle Corporation
+ * Copyright (C) 2009-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -122,8 +122,10 @@ RTDECL(int) RTManifestEqualsEx(RTMANIFEST hManifest1, RTMANIFEST hManifest2, con
 /** Ignore attributes missing in the 1st manifest.
  * @todo implement this  */
 #define RTMANIFEST_EQUALS_IGN_MISSING_ATTRS_1ST     RT_BIT_32(1)
+/** Ignore missing entries in the 2nd manifest. */
+#define RTMANIFEST_EQUALS_IGN_MISSING_ENTRIES_2ND   RT_BIT_32(2)
 /** Mask of valid flags. */
-#define RTMANIFEST_EQUALS_VALID_MASK                UINT32_C(0x00000003)
+#define RTMANIFEST_EQUALS_VALID_MASK                UINT32_C(0x00000005)
 /** @}  */
 
 /**

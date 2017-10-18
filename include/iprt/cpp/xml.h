@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2007-2016 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -830,6 +830,12 @@ public:
         return addContent(strContent.c_str());
     }
 
+    ContentNode *setContent(const char *pcszContent);
+    ContentNode *setContent(const RTCString &strContent)
+    {
+        return setContent(strContent.c_str());
+    }
+
     AttributeNode *setAttribute(const char *pcszName, const char *pcszValue);
     AttributeNode *setAttribute(const char *pcszName, const RTCString &strValue)
     {
@@ -948,6 +954,7 @@ private:
     friend class XmlMemParser;
     friend class XmlFileParser;
     friend class XmlMemWriter;
+    friend class XmlStringWriter;
     friend class XmlFileWriter;
 
     void refreshInternals();
@@ -1007,11 +1014,9 @@ private:
     static int CloseCallback (void *aCtxt);
 };
 
-/*
- * XmlMemParser
- *
+/**
+ * XmlMemWriter
  */
-
 class RT_DECL_CLASS XmlMemWriter
 {
 public:
@@ -1024,11 +1029,32 @@ private:
     void* m_pBuf;
 };
 
-/*
- * XmlFileWriter
- *
- */
 
+/**
+ * XmlStringWriter - writes the XML to an RTCString instance.
+ */
+class RT_DECL_CLASS XmlStringWriter
+{
+public:
+    XmlStringWriter();
+
+    int write(const Document &rDoc, RTCString *pStrDst);
+
+private:
+    static int WriteCallbackForSize(void *pvUser, const char *pachBuf, int cbToWrite);
+    static int WriteCallbackForReal(void *pvUser, const char *pachBuf, int cbToWrite);
+    static int CloseCallback(void *pvUser);
+
+    /** Pointer to the destination string while we're in the write() call.   */
+    RTCString  *m_pStrDst;
+    /** Set by WriteCallback if we cannot grow the destination string. */
+    bool        m_fOutOfMemory;
+};
+
+
+/**
+ * XmlFileWriter
+ */
 class RT_DECL_CLASS XmlFileWriter
 {
 public:

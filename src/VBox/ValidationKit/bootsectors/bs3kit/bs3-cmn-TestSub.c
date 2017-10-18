@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2016 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,7 +37,7 @@
  * Equivalent to RTTestISubV.
  */
 #undef Bs3TestSubV
-BS3_CMN_DEF(void, Bs3TestSubV,(const char *pszFormat, va_list va))
+BS3_CMN_DEF(void, Bs3TestSubV,(const char *pszFormat, va_list BS3_FAR va))
 {
     size_t cch;
 

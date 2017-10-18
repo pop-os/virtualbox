@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,6 +28,10 @@
 
 #include <iprt/assert.h>
 
+/**
+ * @todo: Remove when the splitting code was removed from DevATA.
+ *        The limit doesn't belong here but is specific for each host platform.
+ */
 #ifdef RT_OS_FREEBSD
 /* The cam subsystem doesn't allow more */
 # define SCSI_MAX_BUFFER_SIZE (64  * _1K)
@@ -123,7 +127,8 @@ typedef enum SCSICMD
     SCSI_RELEASE_6                      = 0x17,
     SCSI_RESERVE_10                     = 0x56,
     SCSI_RELEASE_10                     = 0x57,
-    SCSI_READ_BLOCK_LIMITS              = 0x05
+    SCSI_READ_BLOCK_LIMITS              = 0x05,
+    SCSI_MAINTENANCE_IN                 = 0xa3
 } SCSICMD;
 
 /**
@@ -133,6 +138,14 @@ typedef enum SCSISVCACTIONIN
 {
     SCSI_SVC_ACTION_IN_READ_CAPACITY_16 = 0x10
 } SCSISVCACTIONIN;
+
+/**
+ * Maintenance in opcode identifiers
+ */
+typedef enum SCSIMAINTENANCEIN
+{
+    SCSI_MAINTENANCE_IN_REPORT_SUPP_OPC = 0x0c
+} SCSIMAINTENANCEIN;
 
 /* Mode page codes for mode sense/select commands. */
 #define SCSI_MODEPAGE_ERROR_RECOVERY   0x01
@@ -204,6 +217,7 @@ typedef enum SCSISVCACTIONIN
 #define SCSI_ASC_MEDIA_LOAD_OR_EJECT_FAILED                 0x53
 #define SCSI_ASC_LOGICAL_UNIT_DOES_NOT_RESPOND_TO_SELECTION 0x00
 #define SCSI_ASC_SYSTEM_RESOURCE_FAILURE                    0x55
+#define SCSI_ASC_ILLEGAL_MODE_FOR_THIS_TRACK                0x64
 
 /** Additional sense code qualifiers (ASCQ). */
 /* NB: The ASC/ASCQ combination determines the full meaning. */
@@ -218,6 +232,14 @@ typedef enum SCSISVCACTIONIN
 /** @name SCSI_INQUIRY
  * @{
  */
+
+/** Length of the SCSI INQUIRY vendor identifier (without termination). */
+#define SCSI_INQUIRY_VENDOR_ID_LENGTH   8
+/** Length of the SCSI INQUIRY product identifier (without termination). */
+#define SCSI_INQUIRY_PRODUCT_ID_LENGTH 16
+/** Length of the SCSI INQUIRY revision identifier (without termination). */
+#define SCSI_INQUIRY_REVISION_LENGTH    4
+
 #pragma pack(1)
 typedef struct SCSIINQUIRYCDB
 {
@@ -238,21 +260,21 @@ typedef const SCSIINQUIRYCDB *PCSCSIINQUIRYCDB;
 #pragma pack(1)
 typedef struct SCSIINQUIRYDATA
 {
-    unsigned u5PeripheralDeviceType : 5;    /**< 0x00 / 00 */
+    unsigned u5PeripheralDeviceType : 5;                    /**< 0x00 / 00 */
     unsigned u3PeripheralQualifier : 3;
-    unsigned u6DeviceTypeModifier : 7;      /**< 0x01 */
+    unsigned u6DeviceTypeModifier : 7;                      /**< 0x01 */
     unsigned fRMB : 1;
-    unsigned u3AnsiVersion : 3;             /**< 0x02 */
+    unsigned u3AnsiVersion : 3;                             /**< 0x02 */
     unsigned u3EcmaVersion : 3;
     unsigned u2IsoVersion : 2;
-    unsigned u4ResponseDataFormat : 4;      /**< 0x03 */
+    unsigned u4ResponseDataFormat : 4;                      /**< 0x03 */
     unsigned u2Reserved0 : 2;
     unsigned fTrmlOP : 1;
     unsigned fAEC : 1;
-    unsigned cbAdditional : 8;              /**< 0x04 */
-    unsigned u8Reserved1 : 8;               /**< 0x05 */
-    unsigned u8Reserved2 : 8;               /**< 0x06 */
-    unsigned fSftRe : 1;                    /**< 0x07 */
+    unsigned cbAdditional : 8;                              /**< 0x04 */
+    unsigned u8Reserved1 : 8;                               /**< 0x05 */
+    unsigned u8Reserved2 : 8;                               /**< 0x06 */
+    unsigned fSftRe : 1;                                    /**< 0x07 */
     unsigned fCmdQue : 1;
     unsigned fReserved3 : 1;
     unsigned fLinked : 1;
@@ -260,12 +282,12 @@ typedef struct SCSIINQUIRYDATA
     unsigned fWBus16 : 1;
     unsigned fWBus32 : 1;
     unsigned fRelAdr : 1;
-    int8_t   achVendorId[8];                /**< 0x08 */
-    int8_t   achProductId[16];              /**< 0x10 */
-    int8_t   achProductLevel[4];            /**< 0x20 */
-    uint8_t  abVendorSpecific[20];          /**< 0x24/36 - Optional it seems. */
+    int8_t   achVendorId[SCSI_INQUIRY_VENDOR_ID_LENGTH];    /**< 0x08 */
+    int8_t   achProductId[SCSI_INQUIRY_PRODUCT_ID_LENGTH];  /**< 0x10 */
+    int8_t   achProductLevel[SCSI_INQUIRY_REVISION_LENGTH]; /**< 0x20 */
+    uint8_t  abVendorSpecific[20];                          /**< 0x24/36 - Optional it seems. */
     uint8_t  abReserved4[40];
-    uint8_t  abVendorSpecificParameters[1]; /**< 0x60/96 - Variable size. */
+    uint8_t  abVendorSpecificParameters[1];                 /**< 0x60/96 - Variable size. */
 } SCSIINQUIRYDATA;
 #pragma pack()
 AssertCompileSize(SCSIINQUIRYDATA, 97);

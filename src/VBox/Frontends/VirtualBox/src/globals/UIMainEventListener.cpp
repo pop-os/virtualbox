@@ -57,6 +57,8 @@
 # include "CRuntimeErrorEvent.h"
 # include "CCanShowWindowEvent.h"
 # include "CShowWindowEvent.h"
+# include "CProgressPercentageChangedEvent.h"
+# include "CProgressTaskCompletedEvent.h"
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
@@ -398,10 +400,23 @@ STDMETHODIMP UIMainEventListener::HandleEvent(VBoxEventType_T /* type */, IEvent
             es.SetWinId(winId);
             break;
         }
-//        case KVBoxEventType_OnSerialPortChanged:
-//        case KVBoxEventType_OnParallelPortChanged:
-//        case KVBoxEventType_OnStorageControllerChanged:
-//        case KVBoxEventType_OnCPUChange:
+        case KVBoxEventType_OnAudioAdapterChanged:
+        {
+            emit sigAudioAdapterChange();
+            break;
+        }
+        case KVBoxEventType_OnProgressPercentageChanged:
+        {
+            CProgressPercentageChangedEvent es(pEvent);
+            emit sigProgressPercentageChange(es.GetProgressId(), (int)es.GetPercent());
+            break;
+        }
+        case KVBoxEventType_OnProgressTaskCompleted:
+        {
+            CProgressTaskCompletedEvent es(pEvent);
+            emit sigProgressTaskComplete(es.GetProgressId());
+            break;
+        }
 
         default: break;
     }

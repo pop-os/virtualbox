@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -582,7 +582,7 @@ typedef struct PDMPCIBUSREG
      * @param   pPciDev         The PCI device structure.
      * @param   iRegion         The region number.
      * @param   cbRegion        Size of the region.
-     * @param   iType           PCI_ADDRESS_SPACE_MEM, PCI_ADDRESS_SPACE_IO or PCI_ADDRESS_SPACE_MEM_PREFETCH.
+     * @param   enmType         PCI_ADDRESS_SPACE_MEM, PCI_ADDRESS_SPACE_IO or PCI_ADDRESS_SPACE_MEM_PREFETCH.
      * @param   pfnCallback     Callback for doing the mapping.
      * @remarks Caller enters the PDM critical section.
      */
@@ -599,7 +599,7 @@ typedef struct PDMPCIBUSREG
      *                          PCI config read function. This way, user can decide when (and if)
      *                          to call default PCI config read function. Can be NULL.
      * @param   pfnWrite        Pointer to the user defined PCI config write function.
-     * @param   pfnWriteOld     Pointer to function pointer which will receive the old (default)
+     * @param   ppfnWriteOld    Pointer to function pointer which will receive the old (default)
      *                          PCI config write function. This way, user can decide when (and if)
      *                          to call default PCI config write function. Can be NULL.
      * @remarks Caller enters the PDM critical section.
@@ -621,18 +621,6 @@ typedef struct PDMPCIBUSREG
      */
     DECLR3CALLBACKMEMBER(void, pfnSetIrqR3,(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, int iIrq, int iLevel, uint32_t uTagSrc));
 
-    /**
-     * Called to perform the job of the bios.
-     *
-     * This is only called for the first PCI Bus - it is expected to
-     * service all the PCI buses.
-     *
-     * @returns VBox status.
-     * @param   pDevIns     Device instance of the first bus.
-     * @remarks Caller enters the PDM critical section.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnFakePCIBIOSR3,(PPDMDEVINS pDevIns));
-
     /** The name of the SetIrq RC entry point. */
     const char         *pszSetIrqRC;
 
@@ -644,7 +632,7 @@ typedef struct PDMPCIBUSREG
 typedef PDMPCIBUSREG *PPDMPCIBUSREG;
 
 /** Current PDMPCIBUSREG version number. */
-#define PDM_PCIBUSREG_VERSION                   PDM_VERSION_MAKE(0xfffe, 6, 0)
+#define PDM_PCIBUSREG_VERSION                   PDM_VERSION_MAKE(0xfffe, 7, 0)
 
 /**
  * PCI Bus RC helpers.
@@ -1165,201 +1153,9 @@ typedef R3PTRTYPE(const PDMFWHLPR3 *) PCPDMFWHLPR3;
 
 
 /**
- * Advanced Programmable Interrupt Controller registration structure.
- */
-typedef struct PDMAPICREG
-{
-    /** Structure version number. PDM_APICREG_VERSION defines the current version. */
-    uint32_t            u32Version;
-
-    /**
-     * Get a pending interrupt.
-     *
-     * @returns VBox status code.
-     * @param   pDevIns         Device instance of the APIC.
-     * @param   pVCpu           The cross context virtual CPU structure.
-     * @param   pu8Vector       Where to store the vector.
-     * @param   pu32TagSrc      Where to return the tag source (tracing
-     *                          purposes).
-     * @remarks Caller enters the PDM critical section.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnGetInterruptR3,(PPDMDEVINS pDevIns, PVMCPU pVCpu, uint8_t *pu8Vector, uint32_t *pu32TagSrc));
-
-    /**
-     * Set the APIC base.
-     *
-     * @param   pDevIns         Device instance of the APIC.
-     * @param   pVCpu           The cross context virtual CPU structure.
-     * @param   u64BaseMsr      The base MSR value.
-     * @remarks Caller enters the PDM critical section (might not be the case with
-     *          the new APIC code)
-     */
-    DECLR3CALLBACKMEMBER(VBOXSTRICTRC, pfnSetBaseMsrR3,(PPDMDEVINS pDevIns, PVMCPU pVCpu, uint64_t u64BaseMsr));
-
-    /**
-     * Get the APIC base.
-     *
-     * @returns Current base.
-     * @param   pDevIns         Device instance of the APIC.
-     * @param   pVCpu           The cross context virtual CPU structure.
-     * @remarks Caller enters the PDM critical section.
-     */
-    DECLR3CALLBACKMEMBER(uint64_t, pfnGetBaseMsrR3,(PPDMDEVINS pDevIns, PVMCPU pVCpu));
-
-    /**
-     * Set the TPR (task priority register).
-     *
-     * @param   pDevIns         Device instance of the APIC.
-     * @param   pVCpu           The cross context virtual CPU structure.
-     * @param   u8Tpr           The new TPR.
-     * @remarks Caller enters the PDM critical section.
-     */
-    DECLR3CALLBACKMEMBER(void, pfnSetTprR3,(PPDMDEVINS pDevIns, PVMCPU pVCpu, uint8_t u8Tpr));
-
-    /**
-     * Get the TPR (task priority register).
-     *
-     * @returns The current TPR.
-     * @param   pDevIns         Device instance of the APIC.
-     * @param   pVCpu           The cross context virtual CPU structure.
-     * @param   pfPending       Where to store if there is an interrupt pending
-     *                          (optional, can be NULL).
-     * @param   pu8PendingIntr  Where to store the pending interrupt vector
-     *                          (optional, can be NULL).
-     * @remarks Caller enters the PDM critical section.
-     */
-    DECLR3CALLBACKMEMBER(uint8_t, pfnGetTprR3,(PPDMDEVINS pDevIns, PVMCPU pVCpu, bool *pfPending, uint8_t *pu8PendingIntr));
-
-    /**
-     * Write to a MSR in APIC range.
-     *
-     * @returns Strict VBox status code.
-     * @param   pDevIns         Device instance of the APIC.
-     * @param   pVCpu           The cross context virtual CPU structure.
-     * @param   u32Reg          The MSR begin written to.
-     * @param   u64Value        The value to write.
-     *
-     * @remarks Unlike the other callbacks, the PDM lock is not taken before
-     *          calling this method.
-     */
-    DECLR3CALLBACKMEMBER(VBOXSTRICTRC, pfnWriteMsrR3,(PPDMDEVINS pDevIns, PVMCPU pVCpu, uint32_t u32Reg, uint64_t u64Value));
-
-    /**
-     * Read from a MSR in APIC range.
-     *
-     * @returns Strict VBox status code.
-     * @param   pDevIns         Device instance of the APIC.
-     * @param   pVCpu           The cross context virtual CPU structure.
-     * @param   u32Reg          MSR to read.
-     * @param   pu64Value       Where to return the read value.
-     *
-     * @remarks Unlike the other callbacks, the PDM lock is not taken before
-     *          calling this method.
-     */
-    DECLR3CALLBACKMEMBER(VBOXSTRICTRC, pfnReadMsrR3,(PPDMDEVINS pDevIns, PVMCPU pVCpu, uint32_t u32Reg, uint64_t *pu64Value));
-
-    /**
-     * Private interface between the IOAPIC and APIC.
-     *
-     * This is a low-level, APIC/IOAPIC implementation specific interface which
-     * is registered with PDM only because it makes life so much simpler right
-     * now (GC bits).  This is a bad bad hack!  The correct way of doing this
-     * would involve some way of querying GC interfaces and relocating them.
-     * Perhaps doing some kind of device init in GC...
-     *
-     * @returns VBox status code.
-     * @param   pDevIns         Device instance of the APIC.
-     * @param   uDest           The destination mask.
-     * @param   uDestMode       The destination mode, see XAPICDESTMODE.
-     * @param   uDeliveryMode   The delivery mode, see XAPICDELIVERYMODE.
-     * @param   uVector         The interrupt vector.
-     * @param   uPolarity       The input pin polarity.
-     * @param   uTriggerMode    The trigger mode, see XAPICTRIGGERMODE.
-     * @param   uTagSrc         The IRQ tag and source (for tracing).
-     * @remarks Caller enters the PDM critical section.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnBusDeliverR3,(PPDMDEVINS pDevIns, uint8_t uDest, uint8_t uDestMode, uint8_t uDeliveryMode,
-                                               uint8_t uVector, uint8_t uPolarity, uint8_t uTriggerMode, uint32_t uTagSrc));
-
-    /**
-     * Deliver a signal to CPU's local interrupt pins (LINT0/LINT1).
-     *
-     * Used for virtual wire mode when interrupts from the PIC are passed through
-     * LAPIC.
-     *
-     * @returns Strict VBox status code.
-     * @param   pDevIns         Device instance of the APIC.
-     * @param   pVCpu           The cross context virtual CPU structure.
-     * @param   u8Pin           Local pin number (0 or 1 for current CPUs).
-     * @param   u8Level         The level.
-     * @param   rcRZ            The return code if the operation cannot be
-     *                          performed in the current context.
-     * @remarks Caller enters the PDM critical section
-     */
-    DECLR3CALLBACKMEMBER(VBOXSTRICTRC, pfnLocalInterruptR3,(PPDMDEVINS pDevIns, PVMCPU pVCpu, uint8_t u8Pin, uint8_t u8Level,
-                                                             int rcRZ));
-
-    /**
-     * Get the APIC timer frequency (in Hz).
-     *
-     * @returns The frequency of the APIC timer.
-     * @param   pDevIns         Device instance of the APIC.
-     */
-    DECLR3CALLBACKMEMBER(uint64_t, pfnGetTimerFreqR3,(PPDMDEVINS pDevIns));
-
-    /** The name of the RC GetInterrupt entry point. */
-    const char         *pszGetInterruptRC;
-    /** The name of the RC SetBaseMsr entry point. */
-    const char         *pszSetBaseMsrRC;
-    /** The name of the RC GetBaseMsr entry point. */
-    const char         *pszGetBaseMsrRC;
-    /** The name of the RC SetTpr entry point. */
-    const char         *pszSetTprRC;
-    /** The name of the RC GetTpr entry point. */
-    const char         *pszGetTprRC;
-    /** The name of the RC WriteMsr entry point. */
-    const char         *pszWriteMsrRC;
-    /** The name of the RC ReadMsr entry point. */
-    const char         *pszReadMsrRC;
-    /** The name of the RC BusDeliver entry point. */
-    const char         *pszBusDeliverRC;
-    /** The name of the RC LocalInterrupt entry point. */
-    const char         *pszLocalInterruptRC;
-    /** The name of the RC GetTimerFreq entry point. */
-    const char         *pszGetTimerFreqRC;
-
-    /** The name of the R0 GetInterrupt entry point. */
-    const char         *pszGetInterruptR0;
-    /** The name of the R0 SetBaseMsr entry point. */
-    const char         *pszSetBaseMsrR0;
-    /** The name of the R0 GetBaseMsr entry point. */
-    const char         *pszGetBaseMsrR0;
-    /** The name of the R0 SetTpr entry point. */
-    const char         *pszSetTprR0;
-    /** The name of the R0 GetTpr entry point. */
-    const char         *pszGetTprR0;
-    /** The name of the R0 WriteMsr entry point. */
-    const char         *pszWriteMsrR0;
-    /** The name of the R0 ReadMsr entry point. */
-    const char         *pszReadMsrR0;
-    /** The name of the R0 BusDeliver entry point. */
-    const char         *pszBusDeliverR0;
-    /** The name of the R0 LocalInterrupt entry point. */
-    const char         *pszLocalInterruptR0;
-    /** The name of the R0 GetTimerFreq entry point. */
-    const char         *pszGetTimerFreqR0;
-} PDMAPICREG;
-/** Pointer to an APIC registration structure. */
-typedef PDMAPICREG *PPDMAPICREG;
-
-/** Current PDMAPICREG version number. */
-#define PDM_APICREG_VERSION                     PDM_VERSION_MAKE(0xfff6, 4, 0)
-
-
-/**
- * APIC mode argument for pfnChangeFeature.
+ * APIC mode argument for apicR3SetCpuIdFeatureLevel.
  *
- * Also used in saved-states, don't change existing values.
+ * Also used in saved-states, CFGM don't change existing values.
  */
 typedef enum PDMAPICMODE
 {
@@ -1395,300 +1191,6 @@ typedef enum PDMAPICIRQ
     /** The usual 32-bit paranoia. */
     PDMAPICIRQ_32BIT_HACK = 0x7fffffff
 } PDMAPICIRQ;
-
-
-/**
- * APIC RC helpers.
- */
-typedef struct PDMAPICHLPRC
-{
-    /** Structure version. PDM_APICHLPRC_VERSION defines the current version. */
-    uint32_t                u32Version;
-
-    /**
-     * Set the interrupt force action flag.
-     *
-     * @param   pDevIns         Device instance of the APIC.
-     * @param   enmType         IRQ type.
-     * @param   idCpu           Virtual CPU to set flag upon.
-     */
-    DECLRCCALLBACKMEMBER(void, pfnSetInterruptFF,(PPDMDEVINS pDevIns, PDMAPICIRQ enmType, VMCPUID idCpu));
-
-    /**
-     * Clear the interrupt force action flag.
-     *
-     * @param   pDevIns         Device instance of the APIC.
-     * @param   enmType         IRQ type.
-     * @param   idCpu           Virtual CPU to clear flag upon.
-     */
-    DECLRCCALLBACKMEMBER(void, pfnClearInterruptFF,(PPDMDEVINS pDevIns, PDMAPICIRQ enmType, VMCPUID idCpu));
-
-    /**
-     * Broadcasts an EOI for an interrupt vector to the I/O APICs.
-     *
-     * @returns VBox status code.
-     * @param   pDevIns         The APIC device instance.
-     * @param   u8Vector        The interrupt vector.
-     */
-    DECLRCCALLBACKMEMBER(int, pfnBusBroadcastEoi,(PPDMDEVINS pDevIns, uint8_t u8Vector));
-
-    /**
-     * Calculates an IRQ tag for a timer, IPI or similar event.
-     *
-     * @returns The IRQ tag.
-     * @param   pDevIns         Device instance of the APIC.
-     * @param   u8Level         PDM_IRQ_LEVEL_HIGH or PDM_IRQ_LEVEL_FLIP_FLOP.
-     */
-    DECLRCCALLBACKMEMBER(uint32_t, pfnCalcIrqTag,(PPDMDEVINS pDevIns, uint8_t u8Level));
-
-    /**
-     * Acquires the PDM lock.
-     *
-     * @returns VINF_SUCCESS on success.
-     * @returns rc if we failed to acquire the lock.
-     * @param   pDevIns         The APIC device instance.
-     * @param   rc              What to return if we fail to acquire the lock.
-     */
-    DECLRCCALLBACKMEMBER(int,   pfnLock,(PPDMDEVINS pDevIns, int rc));
-
-    /**
-     * Releases the PDM lock.
-     *
-     * @param   pDevIns         The APIC device instance.
-     */
-    DECLRCCALLBACKMEMBER(void,  pfnUnlock,(PPDMDEVINS pDevIns));
-
-    /**
-     * Get the virtual CPU id corresponding to the current EMT.
-     *
-     * @param   pDevIns         The APIC device instance.
-     */
-    DECLRCCALLBACKMEMBER(VMCPUID, pfnGetCpuId,(PPDMDEVINS pDevIns));
-
-    /** Just a safety precaution. */
-    uint32_t                u32TheEnd;
-} PDMAPICHLPRC;
-/** Pointer to APIC GC helpers. */
-typedef RCPTRTYPE(PDMAPICHLPRC *) PPDMAPICHLPRC;
-/** Pointer to const APIC helpers. */
-typedef RCPTRTYPE(const PDMAPICHLPRC *) PCPDMAPICHLPRC;
-
-/** Current PDMAPICHLPRC version number. */
-#define PDM_APICHLPRC_VERSION                   PDM_VERSION_MAKE(0xfff5, 5, 0)
-
-
-/**
- * APIC R0 helpers.
- */
-typedef struct PDMAPICHLPR0
-{
-    /** Structure version. PDM_APICHLPR0_VERSION defines the current version. */
-    uint32_t                u32Version;
-
-    /**
-     * Set the interrupt force action flag.
-     *
-     * @param   pDevIns         Device instance of the APIC.
-     * @param   enmType         IRQ type.
-     * @param   idCpu           Virtual CPU to set flag upon.
-     */
-    DECLR0CALLBACKMEMBER(void, pfnSetInterruptFF,(PPDMDEVINS pDevIns, PDMAPICIRQ enmType, VMCPUID idCpu));
-
-    /**
-     * Clear the interrupt force action flag.
-     *
-     * @param   pDevIns         Device instance of the APIC.
-     * @param   enmType         IRQ type.
-     * @param   idCpu           Virtual CPU to clear flag upon.
-     */
-    DECLR0CALLBACKMEMBER(void, pfnClearInterruptFF,(PPDMDEVINS pDevIns, PDMAPICIRQ enmType, VMCPUID idCpu));
-
-    /**
-     * Broadcasts an EOI for an interrupt vector to the I/O APICs.
-     *
-     * @returns VBox status code.
-     * @param   pDevIns         The APIC device instance.
-     * @param   u8Vector        The interrupt vector.
-     */
-    DECLR0CALLBACKMEMBER(int, pfnBusBroadcastEoi,(PPDMDEVINS pDevIns, uint8_t u8Vector));
-
-    /**
-     * Calculates an IRQ tag for a timer, IPI or similar event.
-     *
-     * @returns The IRQ tag.
-     * @param   pDevIns         Device instance of the APIC.
-     * @param   u8Level         PDM_IRQ_LEVEL_HIGH or PDM_IRQ_LEVEL_FLIP_FLOP.
-     */
-    DECLR0CALLBACKMEMBER(uint32_t, pfnCalcIrqTag,(PPDMDEVINS pDevIns, uint8_t u8Level));
-
-    /**
-     * Acquires the PDM lock.
-     *
-     * @returns VINF_SUCCESS on success.
-     * @returns rc if we failed to acquire the lock.
-     * @param   pDevIns         The APIC device instance.
-     * @param   rc              What to return if we fail to acquire the lock.
-     */
-    DECLR0CALLBACKMEMBER(int,   pfnLock,(PPDMDEVINS pDevIns, int rc));
-
-    /**
-     * Releases the PDM lock.
-     *
-     * @param   pDevIns         The APIC device instance.
-     */
-    DECLR0CALLBACKMEMBER(void,  pfnUnlock,(PPDMDEVINS pDevIns));
-
-    /**
-     * Get the virtual CPU id corresponding to the current EMT.
-     *
-     * @param   pDevIns         The APIC device instance.
-     */
-    DECLR0CALLBACKMEMBER(VMCPUID, pfnGetCpuId,(PPDMDEVINS pDevIns));
-
-    /** Just a safety precaution. */
-    uint32_t                u32TheEnd;
-} PDMAPICHLPR0;
-/** Pointer to APIC GC helpers. */
-typedef RCPTRTYPE(PDMAPICHLPR0 *) PPDMAPICHLPR0;
-/** Pointer to const APIC helpers. */
-typedef R0PTRTYPE(const PDMAPICHLPR0 *) PCPDMAPICHLPR0;
-
-/** Current PDMAPICHLPR0 version number. */
-#define PDM_APICHLPR0_VERSION                   PDM_VERSION_MAKE(0xfff4, 5, 0)
-
-/**
- * APIC R3 helpers.
- */
-typedef struct PDMAPICHLPR3
-{
-    /** Structure version. PDM_APICHLPR3_VERSION defines the current version. */
-    uint32_t                u32Version;
-
-    /**
-     * Set the interrupt force action flag.
-     *
-     * @param   pDevIns         Device instance of the APIC.
-     * @param   enmType         IRQ type.
-     * @param   idCpu           Virtual CPU to set flag upon.
-     */
-    DECLR3CALLBACKMEMBER(void, pfnSetInterruptFF,(PPDMDEVINS pDevIns, PDMAPICIRQ enmType, VMCPUID idCpu));
-
-    /**
-     * Clear the interrupt force action flag.
-     *
-     * @param   pDevIns         Device instance of the APIC.
-     * @param   enmType         IRQ type.
-     * @param   idCpu           Virtual CPU to clear flag upon.
-     */
-    DECLR3CALLBACKMEMBER(void, pfnClearInterruptFF,(PPDMDEVINS pDevIns, PDMAPICIRQ enmType, VMCPUID idCpu));
-
-    /**
-     * Broadcasts an EOI for an interrupt vector to the I/O APICs.
-     *
-     * @returns VBox status code.
-     * @param   pDevIns         The APIC device instance.
-     * @param   u8Vector        The interrupt vector.
-     */
-    DECLR3CALLBACKMEMBER(int, pfnBusBroadcastEoi,(PPDMDEVINS pDevIns, uint8_t u8Vector));
-
-    /**
-     * Calculates an IRQ tag for a timer, IPI or similar event.
-     *
-     * @returns The IRQ tag.
-     * @param   pDevIns         Device instance of the APIC.
-     * @param   u8Level         PDM_IRQ_LEVEL_HIGH or PDM_IRQ_LEVEL_FLIP_FLOP.
-     */
-    DECLR3CALLBACKMEMBER(uint32_t, pfnCalcIrqTag,(PPDMDEVINS pDevIns, uint8_t u8Level));
-
-    /**
-     * Modifies APIC-related bits in the CPUID feature mask and preps MSRs.
-     *
-     * @param   pDevIns         Device instance of the APIC.
-     * @param   enmMode         Max supported APIC mode.
-     */
-    DECLR3CALLBACKMEMBER(void, pfnSetFeatureLevel,(PPDMDEVINS pDevIns, PDMAPICMODE enmMode));
-
-    /**
-     * Get the virtual CPU id corresponding to the current EMT.
-     *
-     * @param   pDevIns         The APIC device instance.
-     */
-    DECLR3CALLBACKMEMBER(VMCPUID, pfnGetCpuId,(PPDMDEVINS pDevIns));
-
-    /**
-     * Sends Startup IPI to given virtual CPU.
-     *
-     * @param   pDevIns         The APIC device instance.
-     * @param   idCpu           Virtual CPU to perform Startup IPI on.
-     * @param   uVector         Startup IPI vector.
-     */
-    DECLR3CALLBACKMEMBER(void,    pfnSendStartupIpi,(PPDMDEVINS pDevIns, VMCPUID idCpu, uint32_t uVector));
-
-    /**
-     * Sends INIT IPI to given virtual CPU, should result in reset and
-     * halting till Startup IPI.
-     *
-     * @param   pDevIns         The APIC device instance.
-     * @param   idCpu           Virtual CPU to perform INIT IPI on.
-     */
-    DECLR3CALLBACKMEMBER(void,    pfnSendInitIpi,(PPDMDEVINS pDevIns, VMCPUID idCpu));
-
-    /**
-     * Gets the address of the RC APIC helpers.
-     *
-     * This should be called at both construction and relocation time
-     * to obtain the correct address of the RC helpers.
-     *
-     * @returns GC pointer to the APIC helpers.
-     * @param   pDevIns         Device instance of the APIC.
-     */
-    DECLR3CALLBACKMEMBER(PCPDMAPICHLPRC, pfnGetRCHelpers,(PPDMDEVINS pDevIns));
-
-    /**
-     * Gets the address of the R0 APIC helpers.
-     *
-     * This should be called at both construction and relocation time
-     * to obtain the correct address of the R0 helpers.
-     *
-     * @returns R0 pointer to the APIC helpers.
-     * @param   pDevIns         Device instance of the APIC.
-     */
-    DECLR3CALLBACKMEMBER(PCPDMAPICHLPR0, pfnGetR0Helpers,(PPDMDEVINS pDevIns));
-
-    /**
-     * Get the critical section used to synchronize the PICs, PCI and stuff.
-     *
-     * @returns Ring-3 pointer to the critical section.
-     * @param   pDevIns         The APIC device instance.
-     */
-    DECLR3CALLBACKMEMBER(R3PTRTYPE(PPDMCRITSECT), pfnGetR3CritSect,(PPDMDEVINS pDevIns));
-
-    /**
-     * Get the critical section used to synchronize the PICs, PCI and stuff.
-     *
-     * @returns Raw-mode context pointer to the critical section.
-     * @param   pDevIns         The APIC device instance.
-     */
-    DECLR3CALLBACKMEMBER(RCPTRTYPE(PPDMCRITSECT), pfnGetRCCritSect,(PPDMDEVINS pDevIns));
-
-    /**
-     * Get the critical section used to synchronize the PICs, PCI and stuff.
-     *
-     * @returns Ring-0 pointer to the critical section.
-     * @param   pDevIns         The APIC device instance.
-     */
-    DECLR3CALLBACKMEMBER(R0PTRTYPE(PPDMCRITSECT), pfnGetR0CritSect,(PPDMDEVINS pDevIns));
-
-    /** Just a safety precaution. */
-    uint32_t                u32TheEnd;
-} PDMAPICHLPR3;
-/** Pointer to APIC helpers. */
-typedef R3PTRTYPE(PDMAPICHLPR3 *) PPDMAPICHLPR3;
-/** Pointer to const APIC helpers. */
-typedef R3PTRTYPE(const PDMAPICHLPR3 *) PCPDMAPICHLPR3;
-
-/** Current PDMAPICHLP version number. */
-#define PDM_APICHLPR3_VERSION                   PDM_VERSION_MAKE(0xfff3, 4, 0)
 
 
 /**
@@ -1774,13 +1276,13 @@ typedef struct PDMIOAPICHLPRC
      * @param   u8Dest          See APIC implementation.
      * @param   u8DestMode      See APIC implementation.
      * @param   u8DeliveryMode  See APIC implementation.
-     * @param   iVector         See APIC implementation.
+     * @param   uVector         See APIC implementation.
      * @param   u8Polarity      See APIC implementation.
      * @param   u8TriggerMode   See APIC implementation.
      * @param   uTagSrc         The IRQ tag and source (for tracing).
      */
     DECLRCCALLBACKMEMBER(int, pfnApicBusDeliver,(PPDMDEVINS pDevIns, uint8_t u8Dest, uint8_t u8DestMode, uint8_t u8DeliveryMode,
-                                                  uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode, uint32_t uTagSrc));
+                                                  uint8_t uVector, uint8_t u8Polarity, uint8_t u8TriggerMode, uint32_t uTagSrc));
 
     /**
      * Acquires the PDM lock.
@@ -1829,13 +1331,13 @@ typedef struct PDMIOAPICHLPR0
      * @param   u8Dest          See APIC implementation.
      * @param   u8DestMode      See APIC implementation.
      * @param   u8DeliveryMode  See APIC implementation.
-     * @param   iVector         See APIC implementation.
+     * @param   uVector         See APIC implementation.
      * @param   u8Polarity      See APIC implementation.
      * @param   u8TriggerMode   See APIC implementation.
      * @param   uTagSrc         The IRQ tag and source (for tracing).
      */
     DECLR0CALLBACKMEMBER(int, pfnApicBusDeliver,(PPDMDEVINS pDevIns, uint8_t u8Dest, uint8_t u8DestMode, uint8_t u8DeliveryMode,
-                                                  uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode, uint32_t uTagSrc));
+                                                  uint8_t uVector, uint8_t u8Polarity, uint8_t u8TriggerMode, uint32_t uTagSrc));
 
     /**
      * Acquires the PDM lock.
@@ -1883,13 +1385,13 @@ typedef struct PDMIOAPICHLPR3
      * @param   u8Dest          See APIC implementation.
      * @param   u8DestMode      See APIC implementation.
      * @param   u8DeliveryMode  See APIC implementation.
-     * @param   iVector         See APIC implementation.
+     * @param   uVector         See APIC implementation.
      * @param   u8Polarity      See APIC implementation.
      * @param   u8TriggerMode   See APIC implementation.
      * @param   uTagSrc         The IRQ tag and source (for tracing).
      */
     DECLR3CALLBACKMEMBER(int, pfnApicBusDeliver,(PPDMDEVINS pDevIns, uint8_t u8Dest, uint8_t u8DestMode, uint8_t u8DeliveryMode,
-                                                  uint8_t iVector, uint8_t u8Polarity, uint8_t u8TriggerMode, uint32_t uTagSrc));
+                                                  uint8_t uVector, uint8_t u8Polarity, uint8_t u8TriggerMode, uint32_t uTagSrc));
 
     /**
      * Acquires the PDM lock.
@@ -2204,7 +1706,7 @@ typedef struct PDMDMAREG
      * @param pDevIns               Device instance of the DMAC.
      * @param uChannel              Channel number.
      * @param pfnTransferHandler    Device specific transfer function.
-     * @param pvUSer                User pointer to be passed to the callback.
+     * @param pvUser                User pointer to be passed to the callback.
      * @remarks No locks held, called on an EMT.
      */
     DECLR3CALLBACKMEMBER(void, pfnRegister,(PPDMDEVINS pDevIns, unsigned uChannel, PFNDMATRANSFERHANDLER pfnTransferHandler, void *pvUser));
@@ -2214,6 +1716,7 @@ typedef struct PDMDMAREG
      *
      * @returns Number of bytes read.
      * @param pDevIns           Device instance of the DMAC.
+     * @param uChannel          Channel number.
      * @param pvBuffer          Pointer to target buffer.
      * @param off               DMA position.
      * @param cbBlock           Block size.
@@ -2226,6 +1729,7 @@ typedef struct PDMDMAREG
      *
      * @returns Number of bytes written.
      * @param pDevIns           Device instance of the DMAC.
+     * @param uChannel          Channel number.
      * @param pvBuffer          Memory to write.
      * @param off               DMA position.
      * @param cbBlock           Block size.
@@ -2371,6 +1875,9 @@ typedef const PDMRTCHLP *PCPDMRTCHLP;
 /** Valid flag mask. */
 # define PDMPCIDEVREG_F_VALID_MASK          UINT32_C(0x00000003)
 /** @}   */
+
+/** Current PDMDEVHLPR3 version number. */
+#define PDM_DEVHLPR3_VERSION                    PDM_VERSION_MAKE_PP(0xffe7, 22, 0)
 
 /**
  * PDM Device API.
@@ -2666,6 +2173,26 @@ typedef struct PDMDEVHLPR3
      * @thread  EMT.
      */
     DECLR3CALLBACKMEMBER(int, pfnMMIOExUnmap,(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion, RTGCPHYS GCPhys));
+
+    /**
+     * Reduces the length of a MMIO2 or pre-registered MMIO range.
+     *
+     * This is for implementations of PDMPCIDEV::pfnRegionLoadChangeHookR3 and will
+     * only work during saved state restore.  It will not call the PCI bus code, as
+     * that is expected to restore the saved resource configuration.
+     *
+     * It just adjusts the mapping length of the region so that when pfnMMIOExMap is
+     * called it will only map @a cbRegion bytes and not the value set during
+     * registration.
+     *
+     * @return VBox status code.
+     * @param   pDevIns             The device owning the range.
+     * @param   pPciDev             The PCI device the region is associated with, or
+     *                              NULL if not associated with any.
+     * @param   iRegion             The region.
+     * @param   cbRegion            The new size, must be smaller.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnMMIOExReduce,(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion, RTGCPHYS cbRegion));
 
     /**
      * Maps a portion of an MMIO2 region into the hypervisor region.
@@ -3479,15 +3006,18 @@ typedef struct PDMDEVHLPR3
     DECLR3CALLBACKMEMBER(int, pfnRTCRegister,(PPDMDEVINS pDevIns, PCPDMRTCREG pRtcReg, PCPDMRTCHLP *ppRtcHlp));
 
     /**
-     * Register the PCI Bus.
+     * Register a PCI Bus.
      *
-     * @returns VBox status code.
+     * @returns VBox status code, but the positive values 0..31 are used to indicate
+     *          bus number rather than informational status codes.
      * @param   pDevIns             The device instance.
      * @param   pPciBusReg          Pointer to PCI bus registration structure.
      * @param   ppPciHlpR3          Where to store the pointer to the PCI Bus
      *                              helpers.
+     * @param   piBus               Where to return the PDM bus number. Optional.
      */
-    DECLR3CALLBACKMEMBER(int, pfnPCIBusRegister,(PPDMDEVINS pDevIns, PPDMPCIBUSREG pPciBusReg, PCPDMPCIHLPR3 *ppPciHlpR3));
+    DECLR3CALLBACKMEMBER(int, pfnPCIBusRegister,(PPDMDEVINS pDevIns, PPDMPCIBUSREG pPciBusReg,
+                                                 PCPDMPCIHLPR3 *ppPciHlpR3, uint32_t *piBus));
 
     /**
      * Register the PIC device.
@@ -3505,10 +3035,8 @@ typedef struct PDMDEVHLPR3
      *
      * @returns VBox status code.
      * @param   pDevIns             The device instance.
-     * @param   pApicReg            Pointer to a APIC registration structure.
-     * @param   ppApicHlpR3         Where to store the pointer to the APIC helpers.
      */
-    DECLR3CALLBACKMEMBER(int, pfnAPICRegister,(PPDMDEVINS pDevIns, PPDMAPICREG pApicReg, PCPDMAPICHLPR3 *ppApicHlpR3));
+    DECLR3CALLBACKMEMBER(int, pfnAPICRegister,(PPDMDEVINS pDevIns));
 
     /**
      * Register the I/O APIC device.
@@ -3952,6 +3480,19 @@ typedef struct PDMDEVHLPR3
      */
     DECLR3CALLBACKMEMBER(PSUPDRVSESSION, pfnGetSupDrvSession,(PPDMDEVINS pDevIns));
 
+    /**
+     * Queries a generic object from the VMM user.
+     *
+     * @returns Pointer to the object if found, NULL if not.
+     * @param   pDevIns             The device instance.
+     * @param   pUuid               The UUID of what's being queried.  The UUIDs and
+     *                              the usage conventions are defined by the user.
+     *
+     * @note    It is strictly forbidden to call this internally in VBox!  This
+     *          interface is exclusively for hacks in externally developed devices.
+     */
+    DECLR3CALLBACKMEMBER(void *, pfnQueryGenericUserObject,(PPDMDEVINS pDevIns, PCRTUUID pUuid));
+
     /** @} */
 
     /** Just a safety precaution. (PDM_DEVHLPR3_VERSION) */
@@ -3962,9 +3503,6 @@ typedef struct PDMDEVHLPR3
 typedef R3PTRTYPE(struct PDMDEVHLPR3 *) PPDMDEVHLPR3;
 /** Pointer to the R3 PDM Device API, const variant. */
 typedef R3PTRTYPE(const struct PDMDEVHLPR3 *) PCPDMDEVHLPR3;
-
-/** Current PDMDEVHLPR3 version number. */
-#define PDM_DEVHLPR3_VERSION                    PDM_VERSION_MAKE(0xffe7, 20, 0)
 
 
 /**
@@ -4225,7 +3763,7 @@ typedef RCPTRTYPE(struct PDMDEVHLPRC *) PPDMDEVHLPRC;
 typedef RCPTRTYPE(const struct PDMDEVHLPRC *) PCPDMDEVHLPRC;
 
 /** Current PDMDEVHLP version number. */
-#define PDM_DEVHLPRC_VERSION                    PDM_VERSION_MAKE(0xffe6, 6, 0)
+#define PDM_DEVHLPRC_VERSION                    PDM_VERSION_MAKE(0xffe6, 7, 0)
 
 
 /**
@@ -4494,7 +4032,7 @@ typedef R0PTRTYPE(struct PDMDEVHLPR0 *) PPDMDEVHLPR0;
 typedef R0PTRTYPE(const struct PDMDEVHLPR0 *) PCPDMDEVHLPR0;
 
 /** Current PDMDEVHLP version number. */
-#define PDM_DEVHLPR0_VERSION                    PDM_VERSION_MAKE(0xffe5, 6, 0)
+#define PDM_DEVHLPR0_VERSION                    PDM_VERSION_MAKE(0xffe5, 7, 0)
 
 
 
@@ -4870,6 +4408,8 @@ DECLINLINE(int) PDMDevHlpMMIOExPreRegister(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDe
 
 /**
  * @copydoc PDMDEVHLPR3::pfnMMIOExDeregister
+ * @param   pPciDev             The PCI device the region is associated with, use
+ *                              NULL to indicate it is not associated with a device.
  */
 DECLINLINE(int) PDMDevHlpMMIOExDeregister(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion)
 {
@@ -4878,6 +4418,8 @@ DECLINLINE(int) PDMDevHlpMMIOExDeregister(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev
 
 /**
  * @copydoc PDMDEVHLPR3::pfnMMIOExMap
+ * @param   pPciDev             The PCI device the region is associated with, use
+ *                              NULL to indicate it is not associated with a device.
  */
 DECLINLINE(int) PDMDevHlpMMIOExMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion, RTGCPHYS GCPhys)
 {
@@ -4886,10 +4428,20 @@ DECLINLINE(int) PDMDevHlpMMIOExMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint3
 
 /**
  * @copydoc PDMDEVHLPR3::pfnMMIOExUnmap
+ * @param   pPciDev             The PCI device the region is associated with, use
+ *                              NULL to indicate it is not associated with a device.
  */
 DECLINLINE(int) PDMDevHlpMMIOExUnmap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion, RTGCPHYS GCPhys)
 {
     return pDevIns->pHlpR3->pfnMMIOExUnmap(pDevIns, pPciDev, iRegion, GCPhys);
+}
+
+/**
+ * @copydoc PDMDEVHLPR3::pfnMMIOExReduce
+ */
+DECLINLINE(int) PDMDevHlpMMIOExReduce(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion, RTGCPHYS cbRegion)
+{
+    return pDevIns->pHlpR3->pfnMMIOExReduce(pDevIns, pPciDev, iRegion, cbRegion);
 }
 
 /**
@@ -5268,7 +4820,7 @@ DECLINLINE(int) PDMDevHlpPCIIORegionRegisterEx(PPDMDEVINS pDevIns, PPDMPCIDEV pP
 }
 
 /**
- * Initialize MSI or MSI-X emulation support for the first PCI device.
+ * Initialize MSI emulation support for the first PCI device.
  *
  * @returns VBox status code.
  * @param   pDevIns             The device instance.
@@ -5542,9 +5094,9 @@ DECLINLINE(int) PDMDevHlpRTCRegister(PPDMDEVINS pDevIns, PCPDMRTCREG pRtcReg, PC
 /**
  * @copydoc PDMDEVHLPR3::pfnPCIBusRegister
  */
-DECLINLINE(int) PDMDevHlpPCIBusRegister(PPDMDEVINS pDevIns, PPDMPCIBUSREG pPciBusReg, PCPDMPCIHLPR3 *ppPciHlpR3)
+DECLINLINE(int) PDMDevHlpPCIBusRegister(PPDMDEVINS pDevIns, PPDMPCIBUSREG pPciBusReg, PCPDMPCIHLPR3 *ppPciHlpR3, uint32_t *piBus)
 {
-    return pDevIns->pHlpR3->pfnPCIBusRegister(pDevIns, pPciBusReg, ppPciHlpR3);
+    return pDevIns->pHlpR3->pfnPCIBusRegister(pDevIns, pPciBusReg, ppPciHlpR3, piBus);
 }
 
 /**
@@ -5558,9 +5110,9 @@ DECLINLINE(int) PDMDevHlpPICRegister(PPDMDEVINS pDevIns, PPDMPICREG pPicReg, PCP
 /**
  * @copydoc PDMDEVHLPR3::pfnAPICRegister
  */
-DECLINLINE(int) PDMDevHlpAPICRegister(PPDMDEVINS pDevIns, PPDMAPICREG pApicReg, PCPDMAPICHLPR3 *ppApicHlpR3)
+DECLINLINE(int) PDMDevHlpAPICRegister(PPDMDEVINS pDevIns)
 {
-    return pDevIns->pHlpR3->pfnAPICRegister(pDevIns, pApicReg, ppApicHlpR3);
+    return pDevIns->pHlpR3->pfnAPICRegister(pDevIns);
 }
 
 /**
@@ -5817,6 +5369,14 @@ DECLINLINE(void) PDMDevHlpGetCpuId(PPDMDEVINS pDevIns, uint32_t iLeaf, uint32_t 
 DECLINLINE(PSUPDRVSESSION) PDMDevHlpGetSupDrvSession(PPDMDEVINS pDevIns)
 {
     return pDevIns->pHlpR3->pfnGetSupDrvSession(pDevIns);
+}
+
+/**
+ * @copydoc PDMDEVHLPR3::pfnQueryGenericUserObject
+ */
+DECLINLINE(void *) PDMDevHlpQueryGenericUserObject(PPDMDEVINS pDevIns, PCRTUUID pUuid)
+{
+    return pDevIns->pHlpR3->pfnQueryGenericUserObject(pDevIns, pUuid);
 }
 
 #endif /* IN_RING3 */

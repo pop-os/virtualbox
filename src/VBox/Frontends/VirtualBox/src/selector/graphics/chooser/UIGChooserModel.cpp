@@ -45,6 +45,7 @@
 # include "UIWizardNewVM.h"
 # include "UISelectorWindow.h"
 # include "UIVirtualBoxEventHandler.h"
+# include "UIModalWindowManager.h"
 
 /* COM includes: */
 # include "CVirtualBox.h"
@@ -888,8 +889,14 @@ void UIGChooserModel::sltCreateNewMachine()
     if (pGroup)
         strGroupName = pGroup->fullName();
 
-    /* Prepare the new VM wizard: */
-    UISafePointerWizardNewVM pWizard = new UIWizardNewVM(m_pChooser->selector(), strGroupName);
+    /* Lock the action preventing cascade calls: */
+    actionPool()->action(UIActionIndexST_M_Machine_S_New)->setEnabled(false);
+    actionPool()->action(UIActionIndexST_M_Group_S_New)->setEnabled(false);
+
+    /* Use the "safe way" to open stack of Mac OS X Sheets: */
+    QWidget *pWizardParent = windowManager().realParentWindow(m_pChooser->selector());
+    UISafePointerWizardNewVM pWizard = new UIWizardNewVM(pWizardParent, strGroupName);
+    windowManager().registerNewParent(pWizard, pWizardParent);
     pWizard->prepare();
 
     /* Execute wizard and store created VM Id
@@ -899,6 +906,10 @@ void UIGChooserModel::sltCreateNewMachine()
 
     if (pWizard)
         delete pWizard;
+
+    /* Unlock the action allowing further calls: */
+    actionPool()->action(UIActionIndexST_M_Machine_S_New)->setEnabled(true);
+    actionPool()->action(UIActionIndexST_M_Group_S_New)->setEnabled(true);
 }
 
 void UIGChooserModel::sltGroupSelectedMachines()
@@ -1594,7 +1605,7 @@ bool UIGChooserModel::processContextMenuEvent(QGraphicsSceneContextMenuEvent *pE
                             return true;
                         }
                     }
-                    /* fall thru */
+                    RT_FALL_THRU();
                     case UIGChooserItemType_Machine:
                     {
                         /* Machine context menu for other Group/Machine cases: */
@@ -1625,7 +1636,7 @@ bool UIGChooserModel::processContextMenuEvent(QGraphicsSceneContextMenuEvent *pE
                             return true;
                         }
                     }
-                    /* fall thru */
+                    RT_FALL_THRU();
                     case UIGChooserItemType_Machine:
                     {
                         /* Machine context menu for other Group/Machine cases: */

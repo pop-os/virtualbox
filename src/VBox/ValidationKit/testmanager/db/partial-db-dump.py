@@ -9,7 +9,7 @@ Utility for dumping the last X days of data.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -28,7 +28,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109027 $"
+__version__ = "$Revision: 118412 $"
 
 # Standard python imports
 import sys;
@@ -90,6 +90,7 @@ class PartialDbDump(object): # pylint: disable=R0903
         'FailureCategories',
         'FailureReasons',
         'GlobalResources',
+        'TestBoxStrTab',
         'Testcases',
         'TestcaseArgs',
         'TestcaseDeps',
@@ -236,6 +237,7 @@ class PartialDbDump(object): # pylint: disable=R0903
             'TestGroups',
             'TestGroupMembers',
             'SchedGroups',
+            'TestBoxStrTab',
             'TestBoxes',
             'SchedGroupMembers',
             'SchedQueues',
@@ -260,7 +262,7 @@ class PartialDbDump(object): # pylint: disable=R0903
             oDb.execute('SELECT COUNT(*) FROM ' + sTable);
             cRows = oDb.fetchOne()[0];
             cMaxRows = 0;
-            if sTable in [ 'SchedGroups', 'TestResultStrTab', 'Users' ]:    cMaxRows =  1;
+            if sTable in [ 'SchedGroups', 'TestBoxStrTab', 'TestResultStrTab', 'Users' ]:    cMaxRows =  1;
             if cRows > cMaxRows:
                 print 'error: Table %s has %u rows which is more than %u - refusing to delete and load.' \
                     % (sTable, cRows, cMaxRows,);
@@ -268,7 +270,7 @@ class PartialDbDump(object): # pylint: disable=R0903
                 return 1;
 
         print 'Dropping default table content...\n'
-        for sTable in [ 'SchedGroups', 'TestResultStrTab', 'Users']:
+        for sTable in [ 'SchedGroups', 'TestBoxStrTab', 'TestResultStrTab', 'Users']:
             oDb.execute('DELETE FROM ' + sTable);
 
         oDb.execute('ALTER TABLE TestSets DROP CONSTRAINT IF EXISTS TestSets_idTestResult_fkey');
@@ -294,6 +296,7 @@ class PartialDbDump(object): # pylint: disable=R0903
             ( 'TestCaseArgsGenIdSeq',   'TestCaseArgs',         'idGenTestCaseArgs' ),
             ( 'TestGroupIdSeq',         'TestGroups',           'idTestGroup' ),
             ( 'SchedGroupIdSeq',        'SchedGroups',          'idSchedGroup' ),
+            ( 'TestBoxStrTabIdSeq',     'TestBoxStrTab',        'idStr' ),
             ( 'TestBoxIdSeq',           'TestBoxes',            'idTestBox' ),
             ( 'TestBoxGenIdSeq',        'TestBoxes',            'idGenTestBox' ),
             ( 'FailureCategoryIdSeq',   'FailureCategories',    'idFailureCategory' ),

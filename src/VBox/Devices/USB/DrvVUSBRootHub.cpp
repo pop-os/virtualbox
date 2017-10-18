@@ -94,7 +94,7 @@
  * control transfer. VUSB is not inspecting the request content or anything,
  * but passes it down the device.
  *
- * @subsection subsec_dev_vusb_urb_bulk  Isochronous
+ * @subsection subsec_dev_vusb_urb_isoc  Isochronous
  *
  * This kind of transfers hasn't yet been implemented.
  *
@@ -819,7 +819,6 @@ static DECLCALLBACK(int) vusbRhCancelAllUrbsWorker(PVUSBDEV pDev)
      * moment.
      */
     PVUSBURBVUSB pVUsbUrb, pVUsbUrbNext;
-
     RTListForEachSafe(&pDev->LstAsyncUrbs, pVUsbUrb, pVUsbUrbNext, VUSBURBVUSBINT, NdLst)
     {
         PVUSBURB pUrb = pVUsbUrb->pUrb;
@@ -860,7 +859,6 @@ static DECLCALLBACK(int) vusbRhAbortEpWorker(PVUSBDEV pDev, int EndPt, VUSBDIREC
      * Iterate the URBs, find ones corresponding to given EP, and cancel them.
      */
     PVUSBURBVUSB pVUsbUrb, pVUsbUrbNext;
-
     RTListForEachSafe(&pDev->LstAsyncUrbs, pVUsbUrb, pVUsbUrbNext, VUSBURBVUSBINT, NdLst)
     {
         PVUSBURB pUrb = pVUsbUrb->pUrb;
@@ -916,7 +914,7 @@ static DECLCALLBACK(int) vusbRhDetachDevice(PVUSBIROOTHUBCONNECTOR pInterface, P
 }
 
 
-/** @interface_method_impl{VUSBIROOTHUBCONNECTOR,pfnSetFrameProcessing} */
+/** @interface_method_impl{VUSBIROOTHUBCONNECTOR,pfnSetPeriodicFrameProcessing} */
 static DECLCALLBACK(int) vusbRhSetFrameProcessing(PVUSBIROOTHUBCONNECTOR pInterface, uint32_t uFrameRate)
 {
     int rc = VINF_SUCCESS;
@@ -983,11 +981,33 @@ static DECLCALLBACK(int) vusbRhSetFrameProcessing(PVUSBIROOTHUBCONNECTOR pInterf
 
 
 /** @interface_method_impl{VUSBIROOTHUBCONNECTOR,pfnGetPeriodicFrameRate} */
-static DECLCALLBACK(uint32_t) vusbRhGetPriodicFrameRate(PVUSBIROOTHUBCONNECTOR pInterface)
+static DECLCALLBACK(uint32_t) vusbRhGetPeriodicFrameRate(PVUSBIROOTHUBCONNECTOR pInterface)
 {
     PVUSBROOTHUB pThis = VUSBIROOTHUBCONNECTOR_2_VUSBROOTHUB(pInterface);
 
     return pThis->uFrameRate;
+}
+
+/** @interface_method_impl{VUSBIROOTHUBCONNECTOR,pfnUpdateIsocFrameDelta} */
+static DECLCALLBACK(uint32_t) vusbRhUpdateIsocFrameDelta(PVUSBIROOTHUBCONNECTOR pInterface, PVUSBIDEVICE pDevice,
+                                                         int EndPt, VUSBDIRECTION enmDir, uint16_t uNewFrameID, uint8_t uBits)
+{
+    PVUSBROOTHUB    pRh = VUSBIROOTHUBCONNECTOR_2_VUSBROOTHUB(pInterface);
+    AssertReturn(pRh, 0);
+    PVUSBDEV        pDev = (PVUSBDEV)pDevice;
+    PVUSBPIPE       pPipe = &pDev->aPipes[EndPt];
+    uint32_t        *puLastFrame;
+    int32_t         uFrameDelta;
+    uint32_t        uMaxVal = 1 << uBits;
+
+    puLastFrame  = enmDir == VUSBDIRECTION_IN ? &pPipe->uLastFrameIn : &pPipe->uLastFrameOut;
+    uFrameDelta  = uNewFrameID - *puLastFrame;
+    *puLastFrame = uNewFrameID;
+    /* Take care of wrap-around. */
+    if (uFrameDelta < 0)
+        uFrameDelta += uMaxVal;
+
+    return (uint16_t)uFrameDelta;
 }
 
 /* -=-=-=-=-=- VUSB Device methods (for the root hub) -=-=-=-=-=- */
@@ -1062,7 +1082,36 @@ static DECLCALLBACK(VUSBDEVICESTATE) vusbRhDevGetState(PVUSBIDEVICE pInterface)
 }
 
 
+static const char *vusbGetSpeedString(VUSBSPEED enmSpeed)
+{
+    const char  *pszSpeed = NULL;
 
+    switch (enmSpeed)
+    {
+        case VUSB_SPEED_LOW:
+            pszSpeed = "Low";
+            break;
+        case VUSB_SPEED_FULL:
+            pszSpeed = "Full";
+            break;
+        case VUSB_SPEED_HIGH:
+            pszSpeed = "High";
+            break;
+        case VUSB_SPEED_VARIABLE:
+            pszSpeed = "Variable";
+            break;
+        case VUSB_SPEED_SUPER:
+            pszSpeed = "Super";
+            break;
+        case VUSB_SPEED_SUPERPLUS:
+            pszSpeed = "SuperPlus";
+            break;
+        default:
+            pszSpeed = "Unknown";
+            break;
+    }
+    return pszSpeed;
+}
 
 /* -=-=-=-=-=- VUSB Hub methods -=-=-=-=-=- */
 
@@ -1103,7 +1152,8 @@ static int vusbRhHubOpAttach(PVUSBHUB pHub, PVUSBDEV pDev)
         pDev->pNext = pRh->pDevices;
         pRh->pDevices = pDev;
         RTCritSectLeave(&pRh->CritSectDevices);
-        LogRel(("VUSB: Attached '%s' to port %d\n", pDev->pUsbIns->pszName, iPort));
+        LogRel(("VUSB: Attached '%s' to port %d on %s (%sSpeed)\n", pDev->pUsbIns->pszName,
+                iPort, pHub->pszName, vusbGetSpeedString(pDev->pUsbIns->enmSpeed)));
     }
     else
     {
@@ -1150,7 +1200,7 @@ static void vusbRhHubOpDetach(PVUSBHUB pHub, PVUSBDEV pDev)
      */
     unsigned uPort = pDev->i16Port;
     pRh->pIRhPort->pfnDetach(pRh->pIRhPort, &pDev->IDevice, uPort);
-    LogRel(("VUSB: Detached '%s' from port %u\n", pDev->pUsbIns->pszName, uPort));
+    LogRel(("VUSB: Detached '%s' from port %u on %s\n", pDev->pUsbIns->pszName, uPort, pHub->pszName));
     ASMBitSet(&pRh->Bitmap, uPort);
     pHub->cDevices--;
 }
@@ -1294,7 +1344,8 @@ static DECLCALLBACK(int) vusbRhConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uin
     pThis->IRhConnector.pfnAttachDevice               = vusbRhAttachDevice;
     pThis->IRhConnector.pfnDetachDevice               = vusbRhDetachDevice;
     pThis->IRhConnector.pfnSetPeriodicFrameProcessing = vusbRhSetFrameProcessing;
-    pThis->IRhConnector.pfnGetPeriodicFrameRate       = vusbRhGetPriodicFrameRate;
+    pThis->IRhConnector.pfnGetPeriodicFrameRate       = vusbRhGetPeriodicFrameRate;
+    pThis->IRhConnector.pfnUpdateIsocFrameDelta       = vusbRhUpdateIsocFrameDelta;
     pThis->hSniffer                                   = VUSBSNIFFER_NIL;
     pThis->cbHci                                      = 0;
     pThis->cbHciTd                                    = 0;

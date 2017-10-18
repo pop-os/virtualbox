@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2014-2016 Oracle Corporation
+ * Copyright (C) 2014-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,6 +31,8 @@
 
 
 RT_C_DECLS_BEGIN
+
+struct RTCRPKCS7SETOFCERTS;
 
 
 /** @defgroup grp_rt_crypto Crypto

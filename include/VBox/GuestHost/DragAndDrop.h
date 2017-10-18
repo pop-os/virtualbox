@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2016 Oracle Corporation
+ * Copyright (C) 2014-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -231,5 +231,6 @@ protected:
      *        on 32-bit guests. */
     uint64_t                m_cbTotal;
 };
-#endif /* ___VBox_GuestHost_DragAndDrop_h */
+
+#endif /* !___VBox_GuestHost_DragAndDrop_h */
 

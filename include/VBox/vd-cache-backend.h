@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,10 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef __VBoxHDD_CachePlugin_h__
-#define __VBoxHDD_CachePlugin_h__
+#ifndef ___VBox_vd_cache_backend_h
+#define ___VBox_vd_cache_backend_h
 
 #include <VBox/vd.h>
+#include <VBox/vd-common.h>
 #include <VBox/vd-ifs-internal.h>
 
 /**
@@ -34,20 +35,12 @@
  */
 typedef struct VDCACHEBACKEND
 {
-    /**
-     * The name of the backend (constant string).
-     */
-    const char *pszBackendName;
-
-    /**
-     * The size of the structure.
-     */
-    uint32_t cbSize;
-
-    /**
-     * The capabilities of the backend.
-     */
-    uint64_t uBackendCaps;
+    /** Structure version. VD_CACHEBACKEND_VERSION defines the current version. */
+    uint32_t            u32Version;
+    /** The name of the backend (constant string). */
+    const char          *pszBackendName;
+    /** The capabilities of the backend. */
+    uint64_t            uBackendCaps;
 
     /**
      * Pointer to a NULL-terminated array of strings, containing the supported
@@ -62,7 +55,7 @@ typedef struct VDCACHEBACKEND
      * the configuration interface, so this pointer may just contain NULL.
      * Mandatory if the backend sets VD_CAP_CONFIG.
      */
-    PCVDCONFIGINFO paConfigInfo;
+    PCVDCONFIGINFO      paConfigInfo;
 
     /**
      * Probes the given image.
@@ -131,11 +124,11 @@ typedef struct VDCACHEBACKEND
      * @returns VBox status code.
      * @param   pBackendData    Opaque state data for this image.
      * @param   uOffset         The offset of the virtual disk to read from.
-     * @param   cbRead          How many bytes to read.
+     * @param   cbToRead        How many bytes to read.
      * @param   pIoCtx          I/O context associated with this request.
      * @param   pcbActuallyRead Pointer to returned number of bytes read.
      */
-    DECLR3CALLBACKMEMBER(int, pfnRead, (void *pBackendData, uint64_t uOffset, size_t cbRead,
+    DECLR3CALLBACKMEMBER(int, pfnRead, (void *pBackendData, uint64_t uOffset, size_t cbToRead,
                                         PVDIOCTX pIoCtx, size_t *pcbActuallyRead));
 
     /**
@@ -144,7 +137,7 @@ typedef struct VDCACHEBACKEND
      * @returns VBox status code.
      * @param   pBackendData    Opaque state data for this image.
      * @param   uOffset         The offset of the virtual disk to write to.
-     * @param   cbWrite         How many bytes to write.
+     * @param   cbToWrite       How many bytes to write.
      * @param   pIoCtx          I/O context associated with this request.
      * @param   pcbWriteProcess Pointer to returned number of bytes that could
      *                          be processed. In case the function returned
@@ -153,7 +146,7 @@ typedef struct VDCACHEBACKEND
      *                          when prefixed/postfixed by the appropriate
      *                          amount of (previously read) padding data.
      */
-    DECLR3CALLBACKMEMBER(int, pfnWrite, (void *pBackendData, uint64_t uOffset, size_t cbWrite,
+    DECLR3CALLBACKMEMBER(int, pfnWrite, (void *pBackendData, uint64_t uOffset, size_t cbToWrite,
                                          PVDIOCTX pIoCtx, size_t *pcbWriteProcess));
 
     /**
@@ -311,10 +304,16 @@ typedef struct VDCACHEBACKEND
      *  VD_CAP_FILE and NULL otherwise. */
     DECLR3CALLBACKMEMBER(int, pfnComposeName, (PVDINTERFACE pConfig, char **pszName));
 
+    /** Initialization safty marker. */
+    uint32_t            u32VersionEnd;
+
 } VDCACHEBACKEND;
 /** Pointer to VD cache backend. */
 typedef VDCACHEBACKEND *PVDCACHEBACKEND;
 /** Constant pointer to VD backend. */
 typedef const VDCACHEBACKEND *PCVDCACHEBACKEND;
+
+/** The current version of the VDCACHEBACKEND structure. */
+#define VD_CACHEBACKEND_VERSION                 VD_VERSION_MAKE(0xff03, 1, 0)
 
 #endif

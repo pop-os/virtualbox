@@ -64,6 +64,7 @@ void NetworkAdapter::FinalRelease()
  *  Initializes the network adapter object.
  *
  *  @param aParent  Handle of the parent object.
+ *  @param uSlot    Slot number this network adapter is plugged into.
  */
 HRESULT NetworkAdapter::init(Machine *aParent, ULONG uSlot)
 {
@@ -101,6 +102,8 @@ HRESULT NetworkAdapter::init(Machine *aParent, ULONG uSlot)
  *  (a kind of copy constructor). This object shares data with
  *  the object passed as an argument.
  *
+ *  @param  aParent     Parent object.
+ *  @param  aThat
  *  @param  aReshare
  *      When false, the original object will remain a data owner.
  *      Otherwise, data ownership will be transferred from the original
@@ -1040,7 +1043,8 @@ HRESULT NetworkAdapter::getProperties(const com::Utf8Str &aNames,
  *  Loads settings from the given adapter node.
  *  May be called once right after this object creation.
  *
- *  @param aAdapterNode <Adapter> node.
+ *  @param bwctl bandwidth control object.
+ *  @param data  Configuration settings.
  *
  *  @note Locks this object for writing.
  */
@@ -1096,7 +1100,7 @@ HRESULT NetworkAdapter::i_loadSettings(BandwidthControl *bwctl,
  *
  *  Note that the given Adapter node is completely empty on input.
  *
- *  @param aAdapterNode <Adapter> node.
+ *  @param data Configuration settings.
  *
  *  @note Locks this object for reading.
  */
@@ -1202,13 +1206,19 @@ void NetworkAdapter::i_copyFrom(NetworkAdapter *aThat)
 
 }
 
+/**
+ * Applies the defaults for this network adapter.
+ *
+ * @note This method currently assumes that the object is in the state after
+ * calling init(), it does not set defaults from an arbitrary state.
+ */
 void NetworkAdapter::i_applyDefaults(GuestOSType *aOsType)
 {
-    AssertReturnVoid(aOsType != NULL);
-
     /* sanity */
     AutoCaller autoCaller(this);
     AssertComRCReturnVoid(autoCaller.rc());
+
+    mNATEngine->i_applyDefaults();
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -1217,19 +1227,26 @@ void NetworkAdapter::i_applyDefaults(GuestOSType *aOsType)
     e1000enabled = true;
 #endif // VBOX_WITH_E1000
 
-    NetworkAdapterType_T defaultType = aOsType->i_networkAdapterType();
+    NetworkAdapterType_T defaultType = NetworkAdapterType_Am79C973;
+    if (aOsType)
+        defaultType = aOsType->i_networkAdapterType();
 
     /* Set default network adapter for this OS type */
     if (defaultType == NetworkAdapterType_I82540EM ||
         defaultType == NetworkAdapterType_I82543GC ||
         defaultType == NetworkAdapterType_I82545EM)
     {
-        if (e1000enabled) mData->type = defaultType;
+        if (e1000enabled)
+            mData->type = defaultType;
     }
-    else mData->type = defaultType;
+    else
+        mData->type = defaultType;
 
-    /* Enable the first one adapter to the NAT */
-    if (mData->ulSlot == 0)
+    /* Enable the first one adapter and set it to NAT */
+    /** @todo r=klaus remove this long term, since a newly created VM should
+     * have no additional hardware components unless configured either
+     * explicitly or through Machine::applyDefaults. */
+    if (aOsType && mData->ulSlot == 0)
     {
         mData->fEnabled = true;
         if (mData->strMACAddress.isEmpty())
@@ -1237,6 +1254,43 @@ void NetworkAdapter::i_applyDefaults(GuestOSType *aOsType)
         mData->mode = NetworkAttachmentType_NAT;
     }
     mData->fCableConnected = true;
+}
+
+bool NetworkAdapter::i_hasDefaults()
+{
+    /* sanity */
+    AutoCaller autoCaller(this);
+    AssertComRCReturn(autoCaller.rc(), true);
+
+    ComObjPtr<GuestOSType> pGuestOSType;
+    HRESULT rc = mParent->i_getVirtualBox()->i_findGuestOSType(mParent->i_getOSTypeId(),
+                                                               pGuestOSType);
+    if (FAILED(rc))
+        return false;
+
+    NetworkAdapterType_T defaultType = pGuestOSType->i_networkAdapterType();
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    if (   !mData->fEnabled
+        && mData->strMACAddress.isEmpty()
+        && mData->type == defaultType
+        && mData->fCableConnected
+        && mData->ulLineSpeed == 0
+        && mData->enmPromiscModePolicy == NetworkAdapterPromiscModePolicy_Deny
+        && mData->mode == NetworkAttachmentType_Null
+        && mData->strBridgedName.isEmpty()
+        && mData->strInternalNetworkName.isEmpty()
+        && mData->strHostOnlyName.isEmpty()
+        && mData->strNATNetworkName.isEmpty()
+        && mData->strGenericDriver.isEmpty()
+        && mData->genericProperties.size() == 0)
+    {
+        /* Could be default, check NAT defaults. */
+        return mNATEngine->i_hasDefaults();
+    }
+
+    return false;
 }
 
 ComObjPtr<NetworkAdapter> NetworkAdapter::i_getPeer()

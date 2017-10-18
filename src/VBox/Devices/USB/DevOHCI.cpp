@@ -466,9 +466,8 @@ typedef struct OHCIED
     uint32_t NextED;
 } OHCIED, *POHCIED;
 typedef const OHCIED *PCOHCIED;
-AssertCompileSize(OHCIED, 16);
-
 /** @} */
+AssertCompileSize(OHCIED, 16);
 
 
 /** @name Completion Codes
@@ -541,8 +540,8 @@ typedef struct OHCITD
     uint32_t be;
 } OHCITD, *POHCITD;
 typedef const OHCITD *PCOHCITD;
-AssertCompileSize(OHCIED, 16);
 /** @} */
+AssertCompileSize(OHCIED, 16);
 
 
 /** @name OHCI isochronous transfer descriptor.
@@ -595,8 +594,8 @@ typedef struct OHCIITD
     uint16_t aPSW[ITD_NUM_PSW];
 } OHCIITD, *POHCIITD;
 typedef const OHCIITD *PCOHCIITD;
-AssertCompileSize(OHCIITD, 32);
 /** @} */
+AssertCompileSize(OHCIITD, 32);
 
 /**
  * OHCI register operator.
@@ -1218,7 +1217,7 @@ static void ohciDoReset(POHCI pThis, uint32_t fNewMode, bool fResetOnLinux)
     pThis->ctl |= fNewMode;
     pThis->status = 0;
     pThis->intr_status = 0;
-    pThis->intr = OHCI_INTR_MASTER_INTERRUPT_ENABLED;   /* (We follow the text and the not reset value column,) */
+    pThis->intr = 0;
 
     pThis->hcca = 0;
     pThis->per_cur = 0;
@@ -2008,7 +2007,7 @@ static bool ohci_in_done_queue_check(POHCI pThis, uint32_t GCPhysTD)
 }
 
 
-#  ifdef VBOX_STRICT
+#  if defined(VBOX_STRICT) && defined(LOG_ENABLED)
 /**
  * Adds a TD to the in-done-queue tracking, checking that it's not there already.
  * @param   pThis       OHCI instance data.
@@ -2220,11 +2219,11 @@ static bool ohciUnlinkTds(POHCI pThis, PVUSBURB pUrb, POHCIED pEd)
             const uint32_t TdAddr = pUrb->paTds[iTd].TdAddr;
 
             /** @todo r=bird: Messing with the toggle flag in prepare is probably not correct
-             * when we encounter a STALL error, 4.3.1.3.7.2: "If an endpoint returns a STALL
+             * when we encounter a STALL error, 4.3.1.3.7.2: ''If an endpoint returns a STALL
              * PID, the  Host Controller retires the General TD with the ConditionCode set
              * to STALL and halts the endpoint. The CurrentBufferPointer, ErrorCount, and
              * dataToggle fields retain the values that they had at the start of the
-             * transaction." */
+             * transaction.'' */
 
             /* update toggle and set data toggle carry */
             pTd->hwinfo &= ~TD_HWINFO_TOGGLE;
@@ -2664,7 +2663,7 @@ static void ohciRhXferCompleteGeneralURB(POHCI pThis, PVUSBURB pUrb, POHCIED pEd
                     break;
                 default: /* what the hell */
                     Log(("pUrb->enmStatus=%#x!!!\n", pUrb->enmStatus));
-                    /* fall thru */
+                    RT_FALL_THRU();
                 case VUSBSTATUS_DNR:
                     pTd->hwinfo |= OHCI_CC_DNR;
                     break;
@@ -3208,7 +3207,12 @@ static bool ohciServiceIsochronousTdUnlink(POHCI pThis, POHCIITD pITd, uint32_t 
  *
  * @returns true on success.
  * @returns false on failure to submit.
+ * @param   pThis   The OHCI controller instance data.
+ * @param   pITd    The transfer descriptor to service.
+ * @param   ITdAddr The address of the transfer descriptor in gues memory.
  * @param   R       The start packet (frame) relative to the start of frame in HwInfo.
+ * @param   pEd     The OHCI endpoint descriptor.
+ * @param   EdAddr  The endpoint descriptor address in guest memory.
  */
 static bool ohciServiceIsochronousTd(POHCI pThis, POHCIITD pITd, uint32_t ITdAddr, const unsigned R, PCOHCIED pEd, uint32_t EdAddr)
 {
@@ -3832,6 +3836,7 @@ static void ohciUpdateHCCA(POHCI pThis)
         fWriteDoneHeadInterrupt = true;
     }
 
+    Log(("ohci: Updating HCCA on frame %#x\n", pThis->HcFmNumber));
     ohciPhysWrite(pThis, pThis->hcca + OHCI_HCCA_OFS, (uint8_t *)&hcca, sizeof(hcca));
     if (fWriteDoneHeadInterrupt)
         ohciR3SetInterrupt(pThis, OHCI_INTR_WRITE_DONE_HEAD);
@@ -4118,9 +4123,7 @@ static DECLCALLBACK(bool) ohciR3StartFrame(PVUSBIROOTHUBPORT pInterface, uint32_
     return pThis->fIdle;
 }
 
-/**
- * @interface_method_impl{VUSBIROOTHUBPORT,pfnFramerateChanged}.
- */
+/** @interface_method_impl{VUSBIROOTHUBPORT,pfnFrameRateChanged} */
 static DECLCALLBACK(void) ohciR3FrameRateChanged(PVUSBIROOTHUBPORT pInterface, uint32_t u32FrameRate)
 {
     POHCI pThis = VUSBIROOTHUBPORT_2_OHCI(pInterface);
@@ -5522,7 +5525,6 @@ static DECLCALLBACK(int) ohciR3SaveDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
  * @returns VBox status code.
  * @param   pDevIns     The device instance.
  * @param   pSSM        The handle to the saved state.
- * @param   u32Version  The data unit version number.
  */
 static DECLCALLBACK(int) ohciR3LoadPrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {

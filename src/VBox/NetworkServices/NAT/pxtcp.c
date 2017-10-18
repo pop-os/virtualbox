@@ -1607,10 +1607,6 @@ pxtcp_pcb_forward_outbound(struct pxtcp *pxtcp, struct pbuf *p)
             DPRINTF2(("forward_outbound: pxtcp %p, pcb %p: %R[sockerr]\n",
                       (void *)pxtcp, (void *)pcb, sockerr));
 
-            /* XXX: temporary instrumentation for ticketref:13899 */
-            LogRel2(("forward_outbound: sock %d, pxtcp %p, pcb %p: %R[sockerr]\n",
-                    pxtcp->sock, (void *)pxtcp, (void *)pcb, sockerr));
-
             pxtcp_pcb_dissociate(pxtcp);
 
             tcp_abort(pcb);

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2007-2016 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -93,6 +93,18 @@ RT_C_DECLS_BEGIN
 /** Boolean option accepting a wide range of typical ways of
  * expression true and false. */
 #define RTGETOPT_REQ_BOOL                       17
+/** The value must two unsigned 32-bit integer values separated by a colon,
+ * slash, pipe or space(s).  */
+#define RTGETOPT_REQ_UINT32_PAIR                18
+/** The value must two unsigned 64-bit integer values separated by a colon,
+ * slash, pipe or space(s). */
+#define RTGETOPT_REQ_UINT64_PAIR                19
+/** The value must at least unsigned 32-bit integer value, optionally
+ * followed by a second separated by a colon, slash, pipe or space(s). */
+#define RTGETOPT_REQ_UINT32_OPTIONAL_PAIR       20
+/** The value must at least unsigned 64-bit integer value, optionally
+ * followed by a second separated by a colon, slash, pipe or space(s). */
+#define RTGETOPT_REQ_UINT64_OPTIONAL_PAIR       21
 /** The mask of the valid required types. */
 #define RTGETOPT_REQ_MASK                       31
 /** Treat the value as hexadecimal - only applicable with the RTGETOPT_REQ_*INT*. */
@@ -184,6 +196,19 @@ typedef union RTGETOPTUNION
     RTUUID          Uuid;
     /** A boolean flag. */
     bool            f;
+    /** A RTGETOPT_REQ_UINT32_PAIR or RTGETOPT_REQ_UINT32_OPTIONAL_PAIR option
+     *  argument. */
+    struct
+    {
+        uint32_t    uFirst;
+        uint32_t    uSecond; /**< Set to UINT32_MAX if optional and not present. */
+    } PairU32;
+    /** A RTGETOPT_REQ_UINT64_COLON_PAIR option argument. */
+    struct
+    {
+        uint64_t    uFirst;
+        uint64_t    uSecond; /**< Set to UINT64_MAX if optional and not present. */
+    } PairU64;
 } RTGETOPTUNION;
 /** Pointer to an option argument union. */
 typedef RTGETOPTUNION *PRTGETOPTUNION;
@@ -376,6 +401,19 @@ RTDECL(int) RTGetOpt(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion);
 RTDECL(int) RTGetOptFetchValue(PRTGETOPTSTATE pState, PRTGETOPTUNION pValueUnion, uint32_t fFlags);
 
 /**
+ * Gets the pointer to the argv entry of the current non-option argument.
+ *
+ * This function ASSUMES the previous RTGetOpt() call returned
+ * VINF_GETOPT_NOT_OPTION and require RTGETOPTINIT_FLAGS_OPTS_FIRST to be
+ * specified to RTGetOptInit().
+ *
+ * @returns Pointer to the argv entry of the current non-option.  NULL if
+ *          (detectable) precondition isn't fullfilled (asserted)
+ * @param   pState      The state previously initialized with RTGetOptInit.
+ */
+RTDECL(char **) RTGetOptNonOptionArrayPtr(PRTGETOPTSTATE pState);
+
+/**
  * Print error messages for a RTGetOpt default case.
  *
  * Uses RTMsgError.
@@ -398,7 +436,8 @@ RTDECL(RTEXITCODE) RTGetOptPrintError(int ch, PCRTGETOPTUNION pValueUnion);
  * @returns IPRT status code.
  *
  * @param   ppapszArgv      Where to return the argument vector.  This must be
- *                          freed by calling RTGetOptArgvFree.
+ *                          freed by calling RTGetOptArgvFreeEx or
+ *                          RTGetOptArgvFree.
  * @param   pcArgs          Where to return the argument count.
  * @param   pszCmdLine      The string to parse.
  * @param   fFlags          A combination of the RTGETOPTARGV_CNV_XXX flags,
@@ -418,6 +457,15 @@ RTDECL(int) RTGetOptArgvFromString(char ***ppapszArgv, int *pcArgs, const char *
 RTDECL(void) RTGetOptArgvFree(char **papszArgv);
 
 /**
+ * Frees and argument vector returned by RTGetOptStringToArgv, taking
+ * RTGETOPTARGV_CNV_MODIFY_INPUT into account.
+ *
+ * @param   papszArgv       Argument vector.  NULL is fine.
+ * @param   fFlags          The flags passed to RTGetOptStringToArgv.
+ */
+RTDECL(void) RTGetOptArgvFreeEx(char **papszArgv, uint32_t fFlags);
+
+/**
  * Turns an argv array into a command line string.
  *
  * This is useful for calling CreateProcess on Windows, but can also be used for
@@ -434,16 +482,22 @@ RTDECL(void) RTGetOptArgvFree(char **papszArgv);
  */
 RTDECL(int) RTGetOptArgvToString(char **ppszCmdLine, const char * const *papszArgv, uint32_t fFlags);
 
-/** @name RTGetOptArgvToString and RTGetOptArgvToUtf16String flags
+/** @name RTGetOptArgvToString, RTGetOptArgvToUtf16String and
+ *        RTGetOptArgvFromString flags
  * @{ */
 /** Quote strings according to the Microsoft CRT rules. */
-#define RTGETOPTARGV_CNV_QUOTE_MS_CRT       UINT32_C(0)
+#define RTGETOPTARGV_CNV_QUOTE_MS_CRT       UINT32_C(0x00000000)
 /** Quote strings according to the Unix Bourne Shell. */
-#define RTGETOPTARGV_CNV_QUOTE_BOURNE_SH    UINT32_C(1)
+#define RTGETOPTARGV_CNV_QUOTE_BOURNE_SH    UINT32_C(0x00000001)
 /** Don't quote any strings at all. */
-#define RTGETOPTARGV_CNV_UNQUOTED           UINT32_C(2)
+#define RTGETOPTARGV_CNV_UNQUOTED           UINT32_C(0x00000002)
 /** Mask for the quoting style. */
-#define RTGETOPTARGV_CNV_QUOTE_MASK         UINT32_C(3)
+#define RTGETOPTARGV_CNV_QUOTE_MASK         UINT32_C(0x00000003)
+/** Allow RTGetOptArgvFromString to modifying the command line input string.
+ * @note Must use RTGetOptArgvFreeEx to free. */
+#define RTGETOPTARGV_CNV_MODIFY_INPUT       UINT32_C(0x00000004)
+/** Valid bits. */
+#define RTGETOPTARGV_CNV_VALID_MASK         UINT32_C(0x00000007)
 /** @} */
 
 /**

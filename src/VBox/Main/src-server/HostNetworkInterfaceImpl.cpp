@@ -64,7 +64,9 @@ void HostNetworkInterface::FinalRelease()
  *
  * @returns COM result indicator
  * @param   aInterfaceName name of the network interface
- * @param   aGuid GUID of the host network interface
+ * @param   aShortName  short name of the network interface
+ * @param   aGuid       GUID of the host network interface
+ * @param   ifType      interface type
  */
 HRESULT HostNetworkInterface::init(Bstr aInterfaceName, Bstr aShortName, Guid aGuid, HostNetworkInterfaceType_T ifType)
 {
@@ -164,11 +166,14 @@ HRESULT HostNetworkInterface::updateConfig()
 
         m.realIPAddress = m.IPAddress = info.IPAddress.u;
         m.realNetworkMask = m.networkMask = info.IPNetMask.u;
-        m.dhcpEnabled = info.bDhcpEnabled;
-        m.realIPV6Address = m.IPV6Address = composeIPv6Address(&info.IPv6Address);
+        m.dhcpEnabled = info.fDhcpEnabled;
+        if (info.IPv6Address.s.Lo || info.IPv6Address.s.Hi)
+            m.realIPV6Address = m.IPV6Address = Bstr(Utf8StrFmt("%RTnaipv6", &info.IPv6Address));
+        else
+            m.realIPV6Address = m.IPV6Address = Bstr("");
         RTNetMaskToPrefixIPv6(&info.IPv6NetMask, &iPrefixIPv6);
         m.realIPV6PrefixLength = m.IPV6NetworkMaskPrefixLength = iPrefixIPv6;
-        m.hardwareAddress = composeHardwareAddress(&info.MACAddress);
+        m.hardwareAddress = Bstr(Utf8StrFmt("%RTmac", &info.MACAddress));
 #ifdef RT_OS_WINDOWS
         m.mediumType = (HostNetworkInterfaceMediumType)info.enmMediumType;
         m.status = (HostNetworkInterfaceStatus)info.enmStatus;
@@ -177,6 +182,7 @@ HRESULT HostNetworkInterface::updateConfig()
         m.status = info.enmStatus;
 #endif /* !RT_OS_WINDOWS */
         m.speedMbits = info.uSpeedMbits;
+        m.wireless = info.fWireless;
         return S_OK;
     }
     return rc == VERR_NOT_IMPLEMENTED ? E_NOTIMPL : E_FAIL;
@@ -224,11 +230,14 @@ HRESULT HostNetworkInterface::init(Bstr aInterfaceName, HostNetworkInterfaceType
 
     m.realIPAddress = m.IPAddress = pIf->IPAddress.u;
     m.realNetworkMask = m.networkMask = pIf->IPNetMask.u;
-    m.realIPV6Address = m.IPV6Address = composeIPv6Address(&pIf->IPv6Address);
+    if (pIf->IPv6Address.s.Lo || pIf->IPv6Address.s.Hi)
+        m.realIPV6Address = m.IPV6Address = Bstr(Utf8StrFmt("%RTnaipv6", &pIf->IPv6Address));
+    else
+        m.realIPV6Address = m.IPV6Address = Bstr("");
     RTNetMaskToPrefixIPv6(&pIf->IPv6NetMask, &iPrefixIPv6);
     m.realIPV6PrefixLength = m.IPV6NetworkMaskPrefixLength = iPrefixIPv6;
-    m.dhcpEnabled = pIf->bDhcpEnabled;
-    m.hardwareAddress = composeHardwareAddress(&pIf->MACAddress);
+    m.dhcpEnabled = pIf->fDhcpEnabled;
+    m.hardwareAddress = Bstr(Utf8StrFmt("%RTmac", &pIf->MACAddress));
 #ifdef RT_OS_WINDOWS
     m.mediumType = (HostNetworkInterfaceMediumType)pIf->enmMediumType;
     m.status = (HostNetworkInterfaceStatus)pIf->enmStatus;
@@ -237,6 +246,7 @@ HRESULT HostNetworkInterface::init(Bstr aInterfaceName, HostNetworkInterfaceType
     m.status = pIf->enmStatus;
 #endif /* !RT_OS_WINDOWS */
     m.speedMbits = pIf->uSpeedMbits;
+    m.wireless = pIf->fWireless;
 
     /* Confirm a successful initialization */
     autoInitSpan.setSucceeded();
@@ -278,11 +288,11 @@ HRESULT HostNetworkInterface::getShortName(com::Utf8Str &aShortName)
  * Returns the GUID of the host network interface.
  *
  * @returns COM status code
- * @param   aGuid GUI Id
+ * @param   aGuid GUID
  */
-HRESULT HostNetworkInterface::getId(com::Guid &aGuiId)
+HRESULT HostNetworkInterface::getId(com::Guid &aGuid)
 {
-    aGuiId = mGuid;
+    aGuid = mGuid;
 
     return S_OK;
 }
@@ -368,10 +378,10 @@ HRESULT HostNetworkInterface::getIPV6Address(com::Utf8Str &aIPV6Address)
 }
 
 /**
- * Returns the IP V6 network mask of the host network interface.
+ * Returns the IP V6 network mask prefix length of the host network interface.
  *
  * @returns COM status code
- * @param   aIPV6Mask address of result pointer
+ * @param   aIPV6NetworkMaskPrefixLength address of result pointer
  */
 HRESULT HostNetworkInterface::getIPV6NetworkMaskPrefixLength(ULONG *aIPV6NetworkMaskPrefixLength)
 {
@@ -435,6 +445,13 @@ HRESULT HostNetworkInterface::getInterfaceType(HostNetworkInterfaceType_T *aType
 HRESULT HostNetworkInterface::getNetworkName(com::Utf8Str &aNetworkName)
 {
     aNetworkName = mNetworkName;
+
+    return S_OK;
+}
+
+HRESULT HostNetworkInterface::getWireless(BOOL *aWireless)
+{
+    *aWireless = m.wireless;
 
     return S_OK;
 }
@@ -512,10 +529,32 @@ HRESULT HostNetworkInterface::enableStaticIPConfigV6(const com::Utf8Str &aIPV6Ad
     return E_NOTIMPL;
 #else
     if (aIPV6NetworkMaskPrefixLength > 128)
-        return E_INVALIDARG;
+        return mVirtualBox->setErrorBoth(E_INVALIDARG, VERR_INVALID_PARAMETER,
+                   "Invalid IPv6 prefix length");
 
-    int rc = S_OK;
-    if (   m.realIPV6Address      != aIPV6Address
+    int rc;
+
+    RTNETADDRIPV6 AddrOld, AddrNew;
+    char *pszZoneIgnored;
+    bool fAddrChanged;
+
+    rc = RTNetStrToIPv6Addr(aIPV6Address.c_str(), &AddrNew, &pszZoneIgnored);
+    if (RT_FAILURE(rc))
+    {
+        return mVirtualBox->setErrorBoth(E_INVALIDARG, rc, "Invalid IPv6 address");
+    }
+
+    rc = RTNetStrToIPv6Addr(com::Utf8Str(m.realIPV6Address).c_str(), &AddrOld, &pszZoneIgnored);
+    if (RT_SUCCESS(rc))
+    {
+        fAddrChanged = (AddrNew.s.Lo != AddrOld.s.Lo || AddrNew.s.Hi != AddrOld.s.Hi);
+    }
+    else
+    {
+        fAddrChanged = true;
+    }
+   
+    if (   fAddrChanged
         || m.realIPV6PrefixLength != aIPV6NetworkMaskPrefixLength)
     {
         BSTR bstr;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,7 +22,7 @@
 #define LOG_GROUP LOG_GROUP_DBGF
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/dbgf.h>
-#include <VBox/vmm/pdmapi.h>
+#include <VBox/vmm/apic.h>
 #include "CPUMInternal.h"
 #include <VBox/vmm/vm.h>
 #include <VBox/param.h>
@@ -405,7 +405,10 @@ static DECLCALLBACK(int) cpumR3RegGstGet_crX(void *pvUser, PCDBGFREGDESC pDesc, 
 
     uint64_t u64Value;
     int rc = CPUMGetGuestCRx(pVCpu, pDesc->offRegister, &u64Value);
-    AssertRCReturn(rc, rc);
+    if (rc == VERR_PDM_NO_APIC_INSTANCE) /* CR8 might not be available, see @bugref{8868}.*/
+        u64Value = 0;
+    else
+        AssertRCReturn(rc, rc);
     switch (pDesc->enmType)
     {
         case DBGFREGVALTYPE_U64:    pValue->u64 = u64Value; break;
@@ -467,7 +470,7 @@ static DECLCALLBACK(int) cpumR3RegGstSet_crX(void *pvUser, PCDBGFREGDESC pDesc, 
         case 2: rc = CPUMSetGuestCR2(pVCpu, u64Value); break;
         case 3: rc = CPUMSetGuestCR3(pVCpu, u64Value); break;
         case 4: rc = CPUMSetGuestCR4(pVCpu, u64Value); break;
-        case 8: rc = PDMApicSetTPR(pVCpu, (uint8_t)(u64Value << 4)); break;
+        case 8: rc = APICSetTpr(pVCpu, (uint8_t)(u64Value << 4)); break;
         default:
             AssertFailedReturn(VERR_IPE_NOT_REACHED_DEFAULT_CASE);
     }

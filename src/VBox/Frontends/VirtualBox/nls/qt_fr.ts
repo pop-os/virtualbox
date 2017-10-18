@@ -4622,126 +4622,6 @@ Veuillez désactiver l&apos;une de ces options.</translation>
         <source>Automatic</source>
         <translation>Automatique</translation>
     </message>
-    <message>
-        <source>A0</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>A1</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>A2</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>A3</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>A4</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>A5</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>A6</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>A7</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>A8</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>A9</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>B0</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>B1</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>B2</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>B3</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>B4</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>B5</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>B6</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>B7</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>B8</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>B9</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>B10</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>C5E</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>DLE</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>Executive</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>Folio</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>Ledger</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>Legal</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>Letter</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>Tabloid</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>US Common #10 Envelope</source>
-        <translation></translation>
-    </message>
 </context>
 <context>
     <name>QPrintPreviewDialog</name>
@@ -6722,10 +6602,6 @@ Veuillez désactiver l&apos;une de ces options.</translation>
         <source>Page down</source>
         <translation type="vanished">Page suivante</translation>
     </message>
-    <message>
-        <source>Position</source>
-        <translation></translation>
-    </message>
 </context>
 <context>
     <name>QSocks5SocketEngine</name>
@@ -8017,11 +7893,6 @@ Role of an accessible object</extracomment>
         <source>This is a searchable index. Enter search keywords: </source>
         <comment>text that appears at the start of nearly-obsolete web pages in the form of a &apos;searchable index&apos;</comment>
         <translation type="vanished">Ceci est un index. Veuillez saisir les mots-clé :</translation>
-    </message>
-    <message>
-        <source>Direction</source>
-        <comment>Writing direction context sub-menu item</comment>
-        <translation></translation>
     </message>
 </context>
 <context>

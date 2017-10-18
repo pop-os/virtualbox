@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,8 +31,8 @@
 #include <iprt/win/windows.h>
 
 #include <iprt/err.h>
+#include <iprt/log.h>
 #include <iprt/assert.h>
-#include <iprt/err.h>
 
 
 RTR3DECL(int)  RTErrConvertFromWin32(unsigned uNativeCode)
@@ -436,7 +436,10 @@ RTR3DECL(int)  RTErrConvertFromWin32(unsigned uNativeCode)
     }
 
     /* unknown error. */
-#ifndef DEBUG_dmik
+#ifndef IN_SUP_HARDENED_R3
+    AssertLogRelMsgFailed(("Unhandled error %u\n", uNativeCode));
+#else
+    /* hardened main has no LogRel */
     AssertMsgFailed(("Unhandled error %u\n", uNativeCode));
 #endif
     return VERR_UNRESOLVED_ERROR;

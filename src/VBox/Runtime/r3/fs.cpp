@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,8 +47,9 @@
  * @param   fMode       The mode mask containing dos-style attributes only.
  * @param   pszName     The filename which this applies to (exe check).
  * @param   cbName      The length of that filename. (optional, set 0)
+ * @param   uReparseTag The reparse tag if RTFS_DOS_NT_REPARSE_POINT is set.
  */
-RTFMODE rtFsModeFromDos(RTFMODE fMode, const char *pszName, size_t cbName)
+RTFMODE rtFsModeFromDos(RTFMODE fMode, const char *pszName, size_t cbName, uint32_t uReparseTag)
 {
     fMode &= ~((1 << RTFS_DOS_SHIFT) - 1);
 
@@ -82,7 +83,7 @@ RTFMODE rtFsModeFromDos(RTFMODE fMode, const char *pszName, size_t cbName)
     }
 
     /* Is it really a symbolic link? */
-    if (fMode & RTFS_DOS_NT_REPARSE_POINT)
+    if ((fMode & RTFS_DOS_NT_REPARSE_POINT) && uReparseTag == RTFSMODE_SYMLINK_REPARSE_TAG)
         fMode = (fMode & ~RTFS_TYPE_MASK) | RTFS_TYPE_SYMLINK;
 
     /* writable? */
@@ -137,7 +138,7 @@ RTFMODE rtFsModeFromUnix(RTFMODE fMode, const char *pszName, size_t cbName)
 RTFMODE rtFsModeNormalize(RTFMODE fMode, const char *pszName, size_t cbName)
 {
     if (!(fMode & RTFS_UNIX_MASK))
-        fMode = rtFsModeFromDos(fMode, pszName, cbName);
+        fMode = rtFsModeFromDos(fMode, pszName, cbName, RTFSMODE_SYMLINK_REPARSE_TAG);
     else if (!(fMode & RTFS_DOS_MASK))
         fMode = rtFsModeFromUnix(fMode, pszName, cbName);
     else if (!(fMode & RTFS_TYPE_MASK))
@@ -209,6 +210,7 @@ RTDECL(const char *) RTFsTypeName(RTFSTYPE enmType)
 
         case RTFSTYPE_NTFS:         return "ntfs";
         case RTFSTYPE_FAT:          return "fat";
+        case RTFSTYPE_EXFAT:        return "exfat";
 
         case RTFSTYPE_ZFS:          return "zfs";
         case RTFSTYPE_UFS:          return "ufs";

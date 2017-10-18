@@ -718,7 +718,7 @@ PDMBOTHCBDECL(int) kbdIOPortStatusRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPOR
     switch (cb) {
     case 2:
         fluff = 0xff00;
-        /* fall thru */
+        RT_FALL_THRU();
     case 1:
         *pu32 = fluff | kbd_read_status(pThis, Port);
         Log2(("kbdIOPortStatusRead: Port=%#x cb=%d -> *pu32=%#x\n", Port, cb, *pu32));
@@ -798,7 +798,7 @@ static DECLCALLBACK(int) kbdLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32
 }
 
 /**
- * @callback_method_impl{FNSSMDEVLOADDONE, Key state fix-up after loading
+ * @callback_method_impl{FNSSMDEVLOADDONE, Key state fix-up after loading}
  */
 static DECLCALLBACK(int) kbdLoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
 {

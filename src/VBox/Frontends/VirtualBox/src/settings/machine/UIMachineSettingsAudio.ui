@@ -1,6 +1,6 @@
 <ui version="4.0">
  <comment>
- VBox frontends: Qt4 GUI ("VirtualBox"):
+ VBox frontends: Qt GUI ("VirtualBox"):
 
  Copyright (C) 2008-2016 Oracle Corporation
 
@@ -99,6 +99,48 @@
            </property>
            <property name="whatsThis">
             <string>Selects the type of the virtual sound card. Depending on this value, VirtualBox will provide different audio hardware to the virtual machine.</string>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="0">
+          <widget class="QLabel" name="m_pLabelAudioExtended">
+           <property name="text">
+            <string>Extended Features:</string>
+           </property>
+           <property name="alignment">
+            <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+           </property>
+          </widget>
+         </item>
+         <item row="2" column="1">
+          <widget class="QCheckBox" name="m_pCheckBoxAudioOutput">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+             <horstretch>1</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="whatsThis">
+            <string>When checked, output to the virtual audio device will reach the host. Otherwise the guest is muted.</string>
+           </property>
+           <property name="text">
+            <string>Enable Audio &amp;Output</string>
+           </property>
+          </widget>
+         </item>
+         <item row="3" column="1">
+          <widget class="QCheckBox" name="m_pCheckBoxAudioInput">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
+             <horstretch>1</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <property name="whatsThis">
+            <string>When checked, the guest will be able to capture audio input from the host. Otherwise the guest will capture only silence.</string>
+           </property>
+           <property name="text">
+            <string>Enable Audio &amp;Input</string>
            </property>
           </widget>
          </item>

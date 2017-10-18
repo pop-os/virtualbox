@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -88,10 +88,13 @@ AssertCompileMemberOffset(RTZIPTARHDRANCIENT, unused,    257);
 
 
 /** The uniform standard tape archive format magic value. */
-#define RTZIPTAR_USTAR_MAGIC    "ustar"
+#define RTZIPTAR_USTAR_MAGIC        "ustar"
 /** The ustar version string.
  * @remarks The terminator character is not part of the field.  */
-#define RTZIPTAR_USTAR_VERSION  "00"
+#define RTZIPTAR_USTAR_VERSION      "00"
+
+/** The GNU magic + version value. */
+#define RTZIPTAR_GNU_MAGIC          "ustar  "
 
 
 /**
@@ -135,6 +138,21 @@ AssertCompileMemberOffset(RTZIPTARHDRPOSIX, devmajor,  329);
 AssertCompileMemberOffset(RTZIPTARHDRPOSIX, devminor,  337);
 AssertCompileMemberOffset(RTZIPTARHDRPOSIX, prefix,    345);
 
+/**
+ * GNU sparse data segment descriptor.
+ */
+typedef struct RTZIPTARGNUSPARSE
+{
+    char    offset[12];     /**< Absolute offset relative to the start of the file. */
+    char    numbytes[12];
+} RTZIPTARGNUSPARSE;
+AssertCompileSize(RTZIPTARGNUSPARSE, 24);
+AssertCompileMemberOffset(RTZIPTARGNUSPARSE, offset,    0);
+AssertCompileMemberOffset(RTZIPTARGNUSPARSE, numbytes,  12);
+/** Pointer to a GNU sparse data segment descriptor. */
+typedef RTZIPTARGNUSPARSE *PRTZIPTARGNUSPARSE;
+/** Pointer to a const GNU sparse data segment descriptor. */
+typedef RTZIPTARGNUSPARSE *PCRTZIPTARGNUSPARSE;
 
 /**
  * The GNU header.
@@ -157,15 +175,11 @@ typedef struct RTZIPTARHDRGNU
     char    devminor[8];
     char    atime[12];
     char    ctime[12];
-    char    offset[12];
-    char    longnames[4];
+    char    offset[12];         /**< for multi-volume? */
+    char    longnames[4];       /**< Seems to be unused. */
     char    unused[1];
-    struct
-    {
-        char offset[12];
-        char numbytes[12];
-    }       sparse[4];
-    char    isextended;
+    RTZIPTARGNUSPARSE sparse[4];
+    char    isextended; /**< More headers about sparse stuff if binary value 1. */
     char    realsize[12];
     char    unused2[17];
 } RTZIPTARHDRGNU;
@@ -196,6 +210,21 @@ AssertCompileMemberOffset(RTZIPTARHDRGNU, unused2,   495);
 
 
 /**
+ * GNU sparse header.
+ */
+typedef struct RTZIPTARHDRGNUSPARSE
+{
+    RTZIPTARGNUSPARSE sp[21];
+    char    isextended;
+    char    unused[7];
+} RTZIPTARHDRGNUSPARSE;
+AssertCompileSize(RTZIPTARHDRGNUSPARSE, 512);
+AssertCompileMemberOffset(RTZIPTARHDRGNUSPARSE, sp,         0);
+AssertCompileMemberOffset(RTZIPTARHDRGNUSPARSE, isextended, 504);
+AssertCompileMemberOffset(RTZIPTARHDRGNUSPARSE, unused,     505);
+
+
+/**
  * The bits common to posix and GNU.
  */
 typedef struct RTZIPTARHDRCOMMON
@@ -217,6 +246,37 @@ typedef struct RTZIPTARHDRCOMMON
     char    devminor[8];
     char    not_common[155+12];
 } RTZIPTARHDRCOMMON;
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, name,      RTZIPTARHDRPOSIX, name);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, mode,      RTZIPTARHDRPOSIX, mode);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, uid,       RTZIPTARHDRPOSIX, uid);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, gid,       RTZIPTARHDRPOSIX, gid);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, size,      RTZIPTARHDRPOSIX, size);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, mtime,     RTZIPTARHDRPOSIX, mtime);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, chksum,    RTZIPTARHDRPOSIX, chksum);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, typeflag,  RTZIPTARHDRPOSIX, typeflag);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, linkname,  RTZIPTARHDRPOSIX, linkname);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, magic,     RTZIPTARHDRPOSIX, magic);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, version,   RTZIPTARHDRPOSIX, version);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, uname,     RTZIPTARHDRPOSIX, uname);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, gname,     RTZIPTARHDRPOSIX, gname);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, devmajor,  RTZIPTARHDRPOSIX, devmajor);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, devminor,  RTZIPTARHDRPOSIX, devminor);
+
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, name,      RTZIPTARHDRGNU, name);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, mode,      RTZIPTARHDRGNU, mode);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, uid,       RTZIPTARHDRGNU, uid);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, gid,       RTZIPTARHDRGNU, gid);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, size,      RTZIPTARHDRGNU, size);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, mtime,     RTZIPTARHDRGNU, mtime);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, chksum,    RTZIPTARHDRGNU, chksum);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, typeflag,  RTZIPTARHDRGNU, typeflag);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, linkname,  RTZIPTARHDRGNU, linkname);
+AssertCompileMembersAtSameOffset(     RTZIPTARHDRCOMMON, magic,     RTZIPTARHDRGNU, magic);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, uname,     RTZIPTARHDRGNU, uname);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, gname,     RTZIPTARHDRGNU, gname);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, devmajor,  RTZIPTARHDRGNU, devmajor);
+AssertCompileMembersSameSizeAndOffset(RTZIPTARHDRCOMMON, devminor,  RTZIPTARHDRGNU, devminor);
+
 
 
 /**
@@ -227,13 +287,15 @@ typedef union RTZIPTARHDR
     /** Byte view. */
     char                ab[512];
     /** The standard header. */
-    RTZIPTARHDRANCIENT  Ancient;
+    RTZIPTARHDRANCIENT      Ancient;
     /** The standard header. */
-    RTZIPTARHDRPOSIX    Posix;
+    RTZIPTARHDRPOSIX        Posix;
     /** The GNU header. */
-    RTZIPTARHDRGNU      Gnu;
+    RTZIPTARHDRGNU          Gnu;
     /** The bits common to both GNU and the standard header. */
-    RTZIPTARHDRCOMMON   Common;
+    RTZIPTARHDRCOMMON       Common;
+    /** GNU sparse header. */
+    RTZIPTARHDRGNUSPARSE    GnuSparse;
 } RTZIPTARHDR;
 AssertCompileSize(RTZIPTARHDR, 512);
 /** Pointer to a tar file header. */
@@ -261,6 +323,59 @@ typedef enum RTZIPTARTYPE
     RTZIPTARTYPE_32BIT_HACK = 0x7fffffff
 } RTZIPTARTYPE;
 typedef RTZIPTARTYPE *PRTZIPTARTYPE;
+
+
+/**
+ * Calculates the TAR header checksums and detects if it's all zeros.
+ *
+ * @returns true if all zeros, false if not.
+ * @param   pHdr            The header to checksum.
+ * @param   pi32Unsigned    Where to store the checksum calculated using
+ *                          unsigned chars.   This is the one POSIX specifies.
+ * @param   pi32Signed      Where to store the checksum calculated using
+ *                          signed chars.
+ *
+ * @remarks The reason why we calculate the checksum as both signed and unsigned
+ *          has to do with various the char C type being signed on some hosts
+ *          and unsigned on others.
+ */
+DECLINLINE(bool) rtZipTarCalcChkSum(PCRTZIPTARHDR pHdr, int32_t *pi32Unsigned, int32_t *pi32Signed)
+{
+    int32_t i32Unsigned = 0;
+    int32_t i32Signed   = 0;
+
+    /*
+     * Sum up the entire header.
+     */
+    const char *pch    = (const char *)pHdr;
+    const char *pchEnd = pch + sizeof(*pHdr);
+    do
+    {
+        i32Unsigned += *(unsigned char *)pch;
+        i32Signed   += *(signed   char *)pch;
+    } while (++pch != pchEnd);
+
+    /*
+     * Check if it's all zeros and replace the chksum field with spaces.
+     */
+    bool const fZeroHdr = i32Unsigned == 0;
+
+    pch    = pHdr->Common.chksum;
+    pchEnd = pch + sizeof(pHdr->Common.chksum);
+    do
+    {
+        i32Unsigned -= *(unsigned char *)pch;
+        i32Signed   -= *(signed   char *)pch;
+    } while (++pch != pchEnd);
+
+    i32Unsigned += (unsigned char)' ' * sizeof(pHdr->Common.chksum);
+    i32Signed   += (signed   char)' ' * sizeof(pHdr->Common.chksum);
+
+    *pi32Unsigned = i32Unsigned;
+    if (pi32Signed)
+        *pi32Signed = i32Signed;
+    return fZeroHdr;
+}
 
 
 #endif

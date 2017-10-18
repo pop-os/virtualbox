@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2016 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -241,7 +241,7 @@ static int rtOnceOtherThread(PRTONCE pOnce, PRTSEMEVENTMULTI phEvtM)
             case RTONCESTATE_DONE_HAVE_SEM:
                 if (*phEvtM == NIL_RTSEMEVENTMULTI)
                     return VINF_SUCCESS;
-                /* fall thru */
+                RT_FALL_THRU();
             case RTONCESTATE_BUSY_HAVE_SEM:
             {
                 /*

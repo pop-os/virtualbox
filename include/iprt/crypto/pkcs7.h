@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,6 +31,9 @@
 
 
 RT_C_DECLS_BEGIN
+
+struct RTCRPKCS7CONTENTINFO;
+
 
 /** @defgroup grp_rt_crpkcs7 RTCrPkcs7 - PKCS \#7, Cryptographic Message Syntax Standard (aka CMS).
  * @ingroup grp_rt_crypto

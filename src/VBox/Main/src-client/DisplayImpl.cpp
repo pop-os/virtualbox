@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,6 +15,9 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN_DISPLAY
+#include "LoggingNew.h"
+
 #include "DisplayImpl.h"
 #include "DisplayUtils.h"
 #include "ConsoleImpl.h"
@@ -23,7 +26,6 @@
 #include "VMMDev.h"
 
 #include "AutoCaller.h"
-#include "Logging.h"
 
 /* generated header */
 #include "VBoxEvents.h"
@@ -41,7 +43,7 @@
 #endif
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
-# include <VBox/VBoxVideo.h>
+# include <VBoxVideo.h>
 #endif
 
 #if defined(VBOX_WITH_CROGL) || defined(VBOX_WITH_CRHGSMI)
@@ -50,9 +52,23 @@
 
 #include <VBox/com/array.h>
 
-#ifdef VBOX_WITH_VPX
+#ifdef VBOX_WITH_VIDEOREC
 # include <iprt/path.h>
 # include "VideoRec.h"
+
+# ifdef VBOX_WITH_LIBVPX
+#  ifdef _MSC_VER
+#   pragma warning(push)
+#   pragma warning(disable: 4668) /* vpx_codec.h(64) : warning C4668: '__GNUC__' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif' */
+#   include <vpx/vpx_encoder.h>
+#   pragma warning(pop)
+#  else
+#   include <vpx/vpx_encoder.h>
+#  endif
+# endif
+
+# include <VBox/vmm/pdmapi.h>
+# include <VBox/vmm/pdmaudioifs.h>
 #endif
 
 #ifdef VBOX_WITH_CROGL
@@ -118,8 +134,6 @@ HRESULT Display::FinalConstruct()
 #endif
 
     mpDrv = NULL;
-    mpVMMDev = NULL;
-    mfVMMDevInited = false;
 
     rc = RTCritSectInit(&mVideoAccelLock);
     AssertRC(rc);
@@ -130,8 +144,9 @@ HRESULT Display::FinalConstruct()
     mfGuestVBVACapabilities = 0;
     mfHostCursorCapabilities = 0;
 #endif
-#ifdef VBOX_WITH_VPX
-    rc = RTCritSectInit(&mVideoCaptureLock);
+
+#ifdef VBOX_WITH_VIDEOREC
+    rc = RTCritSectInit(&mVideoRecLock);
     AssertRC(rc);
 
     mpVideoRecCtx = NULL;
@@ -144,6 +159,7 @@ HRESULT Display::FinalConstruct()
     rc = RTCritSectRwInit(&mCrOglLock);
     AssertRC(rc);
 #endif
+
 #ifdef VBOX_WITH_CROGL
     RT_ZERO(mCrOglCallbacks);
     RT_ZERO(mCrOglScreenshotData);
@@ -162,11 +178,11 @@ void Display::FinalRelease()
 {
     uninit();
 
-#ifdef VBOX_WITH_VPX
-    if (RTCritSectIsInitialized(&mVideoCaptureLock))
+#ifdef VBOX_WITH_VIDEOREC
+    if (RTCritSectIsInitialized(&mVideoRecLock))
     {
-        RTCritSectDelete(&mVideoCaptureLock);
-        RT_ZERO(mVideoCaptureLock);
+        RTCritSectDelete(&mVideoRecLock);
+        RT_ZERO(mVideoRecLock);
     }
 #endif
 
@@ -606,8 +622,7 @@ Display::i_displaySSMLoad(PSSMHANDLE pSSM, void *pvUser, uint32_t uVersion, uint
  * Initializes the display object.
  *
  * @returns COM result indicator
- * @param parent          handle of our parent object
- * @param qemuConsoleData address of common console data structure
+ * @param aParent   handle of our parent object
  */
 HRESULT Display::init(Console *aParent)
 {
@@ -714,8 +729,8 @@ void Display::uninit()
         maFramebuffers[uScreenId].updateImage.pu8Address = NULL;
         maFramebuffers[uScreenId].updateImage.cbLine = 0;
         maFramebuffers[uScreenId].pFramebuffer.setNull();
-#ifdef VBOX_WITH_VPX
-        maFramebuffers[uScreenId].videoCapture.pSourceBitmap.setNull();
+#ifdef VBOX_WITH_VIDEOREC
+        maFramebuffers[uScreenId].videoRec.pSourceBitmap.setNull();
 #endif
     }
 
@@ -732,8 +747,6 @@ void Display::uninit()
         mpDrv->pDisplay = NULL;
 
     mpDrv = NULL;
-    mpVMMDev = NULL;
-    mfVMMDevInited = true;
 }
 
 /**
@@ -887,18 +900,6 @@ int Display::i_notifyCroglResize(PCVBVAINFOVIEW pView, PCVBVAINFOSCREEN pScreen,
     return VINF_SUCCESS;
 }
 
-#ifndef NEW_RESIZE
-/**
- *  Handles display resize event.
- *
- *  @param w New display width
- *  @param h New display height
- *
- *  @thread EMT
- */
-int Display::i_handleDisplayResize(unsigned uScreenId, uint32_t bpp, void *pvVRAM,
-                                   uint32_t cbLine, uint32_t w, uint32_t h, uint16_t flags)
-#else
 /**
  *  Handles display resize event.
  *
@@ -916,99 +917,9 @@ int Display::i_handleDisplayResize(unsigned uScreenId, uint32_t bpp, void *pvVRA
 int Display::i_handleDisplayResize(unsigned uScreenId, uint32_t bpp, void *pvVRAM,
                                    uint32_t cbLine, uint32_t w, uint32_t h, uint16_t flags,
                                    int32_t xOrigin, int32_t yOrigin, bool fVGAResize)
-#endif
 {
     LogRel(("Display::handleDisplayResize: uScreenId=%d pvVRAM=%p w=%d h=%d bpp=%d cbLine=0x%X flags=0x%X\n", uScreenId,
             pvVRAM, w, h, bpp, cbLine, flags));
-
-#ifndef NEW_RESIZE
-    if (uScreenId >= mcMonitors)
-        return VINF_SUCCESS;
-
-    DISPLAYFBINFO *pFBInfo = &maFramebuffers[uScreenId];
-
-    /* Reset the update mode. */
-    pFBInfo->updateImage.pSourceBitmap.setNull();
-    pFBInfo->updateImage.pu8Address = NULL;
-    pFBInfo->updateImage.cbLine = 0;
-
-    if (uScreenId == VBOX_VIDEO_PRIMARY_SCREEN)
-    {
-        pFBInfo->w = w;
-        pFBInfo->h = h;
-
-        pFBInfo->u16BitsPerPixel = (uint16_t)bpp;
-        pFBInfo->pu8FramebufferVRAM = (uint8_t *)pvVRAM;
-        pFBInfo->u32LineSize = cbLine;
-        pFBInfo->flags = flags;
-    }
-
-    /* Guest screen image will be invalid during resize, make sure that it is not updated. */
-    if (uScreenId == VBOX_VIDEO_PRIMARY_SCREEN)
-    {
-        if (mpDrv)
-        {
-            mpDrv->pUpPort->pfnSetRenderVRAM(mpDrv->pUpPort, false);
-
-            mpDrv->IConnector.pbData     = NULL;
-            mpDrv->IConnector.cbScanline = 0;
-            mpDrv->IConnector.cBits      = 32; /* DevVGA does not work with cBits == 0. */
-            mpDrv->IConnector.cx         = 0;
-            mpDrv->IConnector.cy         = 0;
-        }
-    }
-
-    maFramebuffers[uScreenId].pSourceBitmap.setNull();
-
-    if (!maFramebuffers[uScreenId].pFramebuffer.isNull())
-    {
-        HRESULT hr = maFramebuffers[uScreenId].pFramebuffer->NotifyChange(uScreenId, 0, 0, w, h); /** @todo origin */
-        LogFunc(("NotifyChange hr %08X\n", hr));
-        NOREF(hr);
-    }
-
-    bool fUpdateImage = RT_BOOL(pFBInfo->u32Caps & FramebufferCapabilities_UpdateImage);
-    if (fUpdateImage && !pFBInfo->pFramebuffer.isNull())
-    {
-        ComPtr<IDisplaySourceBitmap> pSourceBitmap;
-        HRESULT hr = QuerySourceBitmap(uScreenId, pSourceBitmap.asOutParam());
-        if (SUCCEEDED(hr))
-        {
-            BYTE *pAddress = NULL;
-            ULONG ulWidth = 0;
-            ULONG ulHeight = 0;
-            ULONG ulBitsPerPixel = 0;
-            ULONG ulBytesPerLine = 0;
-            BitmapFormat_T bitmapFormat = BitmapFormat_Opaque;
-
-            hr = pSourceBitmap->QueryBitmapInfo(&pAddress,
-                                                &ulWidth,
-                                                &ulHeight,
-                                                &ulBitsPerPixel,
-                                                &ulBytesPerLine,
-                                                &bitmapFormat);
-            if (SUCCEEDED(hr))
-            {
-                pFBInfo->updateImage.pSourceBitmap = pSourceBitmap;
-                pFBInfo->updateImage.pu8Address = pAddress;
-                pFBInfo->updateImage.cbLine = ulBytesPerLine;
-            }
-        }
-    }
-
-    /* Inform the VRDP server about the change of display parameters. */
-    LogRelFlowFunc(("Calling VRDP\n"));
-    mParent->i_consoleVRDPServer()->SendResize();
-
-    /* And re-send the seamless rectangles if necessary. */
-    if (mfSeamlessEnabled)
-        i_handleSetVisibleRegion(mcRectVisibleRegion, mpRectVisibleRegion);
-
-#ifdef VBOX_WITH_VPX
-    videoCaptureScreenChanged(uScreenId);
-#endif
-
-#else /* NEW_RESIZE */
 
     /* Caller must not hold the object lock. */
     AssertReturn(!isWriteLockOnCurrentThread(), VERR_INVALID_STATE);
@@ -1071,6 +982,17 @@ int Display::i_handleDisplayResize(unsigned uScreenId, uint32_t bpp, void *pvVRA
     /* Release the current source bitmap. */
     pFBInfo->pSourceBitmap.setNull();
 
+    /* VGA blanking is signaled as w=0, h=0, bpp=0 and cbLine=0, and it's
+     * best to keep the old resolution, as otherwise the window size would
+     * change before the new resolution is known. */
+    const bool fVGABlank = fVGAResize && uScreenId == VBOX_VIDEO_PRIMARY_SCREEN
+                        && w == 0 && h == 0 && bpp == 0 && cbLine == 0;
+    if (fVGABlank)
+    {
+        w = pFBInfo->w;
+        h = pFBInfo->h;
+    }
+
     /* Update the video mode information. */
     pFBInfo->w = w;
     pFBInfo->h = h;
@@ -1085,6 +1007,13 @@ int Display::i_handleDisplayResize(unsigned uScreenId, uint32_t bpp, void *pvVRA
         pFBInfo->yOrigin = yOrigin;
         pFBInfo->fDisabled = RT_BOOL(flags & VBVA_SCREEN_F_DISABLED);
         pFBInfo->fVBVAForceResize = false;
+    }
+    else
+    {
+        pFBInfo->flags = 0;
+        if (fVGABlank)
+            pFBInfo->flags |= VBVA_SCREEN_F_BLANK;
+        pFBInfo->fDisabled = false;
     }
 
     /* Prepare local vars for the notification code below. */
@@ -1128,11 +1057,9 @@ int Display::i_handleDisplayResize(unsigned uScreenId, uint32_t bpp, void *pvVRA
     if (mfSeamlessEnabled)
         i_handleSetVisibleRegion(mcRectVisibleRegion, mpRectVisibleRegion);
 
-#ifdef VBOX_WITH_VPX
-    videoCaptureScreenChanged(uScreenId);
+#ifdef VBOX_WITH_VIDEOREC
+    i_videoRecScreenChanged(uScreenId);
 #endif
-
-#endif /* NEW_RESIZE */
 
     LogRelFlowFunc(("[%d]: default format %d\n", uScreenId, pFBInfo->fDefaultFormat));
 
@@ -1194,50 +1121,6 @@ void Display::i_handleDisplayUpdate(unsigned uScreenId, int x, int y, int w, int
     /* if (maFramebuffers[uScreenId].flags & VBVA_SCREEN_F_BLANK)
         return; */
 
-#ifndef NEW_RESIZE
-    i_checkCoordBounds(&x, &y, &w, &h, maFramebuffers[uScreenId].w,
-                                       maFramebuffers[uScreenId].h);
-
-    IFramebuffer *pFramebuffer = maFramebuffers[uScreenId].pFramebuffer;
-    if (pFramebuffer != NULL)
-    {
-        if (w != 0 && h != 0)
-        {
-            bool fUpdateImage = RT_BOOL(maFramebuffers[uScreenId].u32Caps & FramebufferCapabilities_UpdateImage);
-            if (RT_LIKELY(!fUpdateImage))
-            {
-                pFramebuffer->NotifyUpdate(x, y, w, h);
-            }
-            else
-            {
-                AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-                DISPLAYFBINFO *pFBInfo = &maFramebuffers[uScreenId];
-
-                if (!pFBInfo->updateImage.pSourceBitmap.isNull())
-                {
-                    Assert(pFBInfo->updateImage.pu8Address);
-
-                    size_t cbData = w * h * 4;
-                    com::SafeArray<BYTE> image(cbData);
-
-                    uint8_t *pu8Dst = image.raw();
-                    const uint8_t *pu8Src = pFBInfo->updateImage.pu8Address + pFBInfo->updateImage.cbLine * y + x * 4;
-
-                    int i;
-                    for (i = y; i < y + h; ++i)
-                    {
-                        memcpy(pu8Dst, pu8Src, w * 4);
-                        pu8Dst += w * 4;
-                        pu8Src += pFBInfo->updateImage.cbLine;
-                    }
-
-                    pFramebuffer->NotifyUpdateImage(x, y, w, h, ComSafeArrayAsInParam(image));
-                }
-            }
-        }
-    }
-#else /* NEW_RESIZE */
     DISPLAYFBINFO *pFBInfo = &maFramebuffers[uScreenId];
     AutoReadLock alockr(this COMMA_LOCKVAL_SRC_POS);
 
@@ -1340,7 +1223,6 @@ void Display::i_handleDisplayUpdate(unsigned uScreenId, int x, int y, int w, int
             }
         }
     }
-#endif /* NEW_RESIZE */
 
 #ifndef VBOX_WITH_HGSMI
     if (!mVideoAccelLegacy.fVideoAccelEnabled)
@@ -1827,14 +1709,6 @@ void Display::i_notifyPowerDown(void)
         DISPLAYFBINFO *pFBInfo = &maFramebuffers[uScreenId];
         if (!pFBInfo->fDisabled)
         {
-#ifndef NEW_RESIZE
-            i_handleDisplayResize(uScreenId, 32,
-                                  pFBInfo->pu8FramebufferVRAM,
-                                  pFBInfo->u32LineSize,
-                                  pFBInfo->w,
-                                  pFBInfo->h,
-                                  pFBInfo->flags);
-#else
             i_handleDisplayResize(uScreenId, 32,
                                   pFBInfo->pu8FramebufferVRAM,
                                   pFBInfo->u32LineSize,
@@ -1844,7 +1718,6 @@ void Display::i_notifyPowerDown(void)
                                   pFBInfo->xOrigin,
                                   pFBInfo->yOrigin,
                                   false);
-#endif
         }
     }
 }
@@ -1918,15 +1791,6 @@ HRESULT Display::attachFramebuffer(ULONG aScreenId, const ComPtr<IFramebuffer> &
     /* The driver might not have been constructed yet */
     if (mpDrv)
     {
-#ifndef NEW_RESIZE
-        /* Setup the new framebuffer. */
-        i_handleDisplayResize(aScreenId, pFBInfo->u16BitsPerPixel,
-                              pFBInfo->pu8FramebufferVRAM,
-                              pFBInfo->u32LineSize,
-                              pFBInfo->w,
-                              pFBInfo->h,
-                              pFBInfo->flags);
-#else
         /* Inform the framebuffer about the actual screen size. */
         HRESULT hr = aFramebuffer->NotifyChange(aScreenId, 0, 0, pFBInfo->w, pFBInfo->h); /** @todo origin */
         LogFunc(("NotifyChange hr %08X\n", hr)); NOREF(hr);
@@ -1934,7 +1798,6 @@ HRESULT Display::attachFramebuffer(ULONG aScreenId, const ComPtr<IFramebuffer> &
         /* Re-send the seamless rectangles if necessary. */
         if (mfSeamlessEnabled)
             i_handleSetVisibleRegion(mcRectVisibleRegion, mpRectVisibleRegion);
-#endif
     }
 
     Console::SafeVMPtrQuiet ptrVM(mParent);
@@ -2532,180 +2395,417 @@ HRESULT Display::takeScreenShotToArray(ULONG aScreenId,
     return rc;
 }
 
-
-int Display::i_VideoCaptureEnableScreens(ComSafeArrayIn(BOOL, aScreens))
+#ifdef VBOX_WITH_VIDEOREC
+/**
+ * Returns the currently enabled video capturing features.
+ *
+ * @returns Enables video capturing features.
+ */
+VIDEORECFEATURES Display::i_videoRecGetEnabled(void)
 {
-#ifdef VBOX_WITH_VPX
-    com::SafeArray<BOOL> Screens(ComSafeArrayInArg(aScreens));
-    for (unsigned i = 0; i < Screens.size(); i++)
+    return VideoRecGetEnabled(&mVideoRecCfg);
+}
+
+/**
+ * Returns whether video capturing is currently is active or not.
+ *
+ * @returns True if video capturing is active, false if not.
+ */
+bool Display::i_videoRecStarted(void)
+{
+    return VideoRecIsActive(mpVideoRecCtx);
+}
+
+#ifdef VBOX_WITH_AUDIO_VIDEOREC
+/**
+ * Configures the video recording audio driver in CFGM.
+ *
+ * @returns VBox status code.
+ * @param   strDevice           The PDM device name.
+ * @param   uInstance           The PDM device instance.
+ * @param   uLun                The PDM LUN number of the drive.
+ * @param   fAttach             Whether to attach or detach the driver configuration to CFGM.
+ *
+ * @thread EMT
+ */
+int Display::i_videoRecConfigureAudioDriver(const Utf8Str& strDevice,
+                                                unsigned       uInstance,
+                                                unsigned       uLun,
+                                                bool           fAttach)
+{
+    if (strDevice.isEmpty()) /* No audio device configured. Bail out. */
+        return VINF_SUCCESS;
+
+    AssertPtr(mParent);
+
+    ComPtr<IMachine> pMachine = mParent->i_machine();
+    Assert(pMachine.isNotNull());
+
+    Console::SafeVMPtr ptrVM(mParent);
+    Assert(ptrVM.isOk());
+
+    PUVM pUVM = ptrVM.rawUVM();
+    AssertPtr(pUVM);
+
+    PCFGMNODE pRoot   = CFGMR3GetRootU(pUVM);
+    AssertPtr(pRoot);
+    PCFGMNODE pDev0   = CFGMR3GetChildF(pRoot, "Devices/%s/%u/", strDevice.c_str(), uInstance);
+    AssertPtr(pDev0);
+
+    PCFGMNODE pDevLun = CFGMR3GetChildF(pDev0, "LUN#%u/", uLun);
+
+    if (fAttach)
     {
-        bool fChanged = maVideoRecEnabled[i] != RT_BOOL(Screens[i]);
+        if (!pDevLun)
+        {
+            LogRel2(("VideoRec: Attaching audio driver\n"));
 
-        maVideoRecEnabled[i] = RT_BOOL(Screens[i]);
+            PCFGMNODE pLunL0;
+            CFGMR3InsertNodeF(pDev0, &pLunL0, "LUN#%RU8", uLun);
+            CFGMR3InsertString(pLunL0, "Driver", "AUDIO");
 
-        if (fChanged && i < mcMonitors)
-            videoCaptureScreenChanged(i);
+            PCFGMNODE pCfg;
+            CFGMR3InsertNode(pLunL0,   "Config", &pCfg);
+                CFGMR3InsertString (pCfg, "DriverName",    "AudioVideoRec");
+                CFGMR3InsertInteger(pCfg, "InputEnabled",  0);
+                CFGMR3InsertInteger(pCfg, "OutputEnabled", 1);
+
+            PCFGMNODE pLunL1;
+            CFGMR3InsertNode(pLunL0, "AttachedDriver", &pLunL1);
+                CFGMR3InsertString(pLunL1, "Driver", "AudioVideoRec");
+
+                CFGMR3InsertNode(pLunL1, "Config", &pCfg);
+                    CFGMR3InsertInteger(pCfg, "Object",        (uintptr_t)mParent->i_getAudioVideoRec());
+                    CFGMR3InsertInteger(pCfg, "ObjectConsole", (uintptr_t)mParent /* Console */);
+        }
+    }
+    else /* Detach */
+    {
+        if (pDevLun)
+        {
+            LogRel2(("VideoRec: Detaching audio driver\n"));
+            CFGMR3RemoveNode(pDevLun);
+        }
+    }
+
+    return VINF_SUCCESS;
+}
+#endif
+
+/**
+ * Configures video capturing and attaches / detaches the associated driver(s).
+ *
+ * @returns IPRT status code.
+ * @param   pThis               Display instance to configure video capturing for.
+ * @param   pCfg                Where to store the configuration into.
+ * @param   fAttachDetach       Whether to attach/detach associated drivers or not.
+ */
+/* static */
+DECLCALLBACK(int) Display::i_videoRecConfigure(Display *pThis, PVIDEORECCFG pCfg, bool fAttachDetach)
+{
+    AssertPtrReturn(pThis, VERR_INVALID_POINTER);
+    AssertPtrReturn(pCfg,  VERR_INVALID_POINTER);
+
+    AssertPtr(pThis->mParent);
+    ComPtr<IMachine> pMachine = pThis->mParent->i_machine();
+    Assert(pMachine.isNotNull());
+
+    pCfg->enmDst = VIDEORECDEST_FILE; /** @todo Make this configurable once we have more variations. */
+
+    /*
+     * Cache parameters from API.
+     */
+    BOOL fEnabled;
+    HRESULT rc = pMachine->COMGETTER(VideoCaptureEnabled)(&fEnabled);
+    AssertComRCReturn(rc, VERR_COM_UNEXPECTED);
+    pCfg->fEnabled = RT_BOOL(fEnabled);
+
+    com::SafeArray<BOOL> aScreens;
+    rc = pMachine->COMGETTER(VideoCaptureScreens)(ComSafeArrayAsOutParam(aScreens));
+    AssertComRCReturn(rc, VERR_COM_UNEXPECTED);
+
+    pCfg->aScreens.resize(aScreens.size());
+    for (size_t i = 0; i < aScreens.size(); ++i)
+        pCfg->aScreens[i] = aScreens[i];
+
+    rc = pMachine->COMGETTER(VideoCaptureWidth)((ULONG *)&pCfg->Video.uWidth);
+    AssertComRCReturn(rc, VERR_COM_UNEXPECTED);
+    rc = pMachine->COMGETTER(VideoCaptureHeight)((ULONG *)&pCfg->Video.uHeight);
+    AssertComRCReturn(rc, VERR_COM_UNEXPECTED);
+    rc = pMachine->COMGETTER(VideoCaptureRate)((ULONG *)&pCfg->Video.uRate);
+    AssertComRCReturn(rc, VERR_COM_UNEXPECTED);
+    rc = pMachine->COMGETTER(VideoCaptureFPS)((ULONG *)&pCfg->Video.uFPS);
+    AssertComRCReturn(rc, VERR_COM_UNEXPECTED);
+    rc = pMachine->COMGETTER(VideoCaptureFile)(pCfg->File.strName.asOutParam());
+    AssertComRCReturn(rc, VERR_COM_UNEXPECTED);
+    rc = pMachine->COMGETTER(VideoCaptureMaxFileSize)((ULONG *)&pCfg->File.uMaxSizeMB);
+    AssertComRCReturn(rc, VERR_COM_UNEXPECTED);
+    rc = pMachine->COMGETTER(VideoCaptureMaxTime)((ULONG *)&pCfg->uMaxTimeS);
+    AssertComRCReturn(rc, VERR_COM_UNEXPECTED);
+    BSTR bstrOptions;
+    rc = pMachine->COMGETTER(VideoCaptureOptions)(&bstrOptions);
+    AssertComRCReturn(rc, VERR_COM_UNEXPECTED);
+
+    /*
+     * Set sensible defaults.
+     */
+    pCfg->Video.fEnabled = pCfg->fEnabled;
+
+    if (!pCfg->Video.uFPS) /* Prevent division by zero. */
+        pCfg->Video.uFPS = 15;
+
+#ifdef VBOX_WITH_LIBVPX
+    pCfg->Video.Codec.VPX.uEncoderDeadline = 1000000 / pCfg->Video.uFPS;
+#endif
+
+    /* Note: Audio support is considered as being experimental, thus it's disabled by default.
+     * There be dragons! */
+#ifdef VBOX_WITH_AUDIO_VIDEOREC
+    pCfg->Audio.fEnabled  = false;
+    /* By default we use 48kHz, 16-bit, stereo for the audio track. */
+    pCfg->Audio.uHz       = 48000;
+    pCfg->Audio.cBits     = 16;
+    pCfg->Audio.cChannels = 2;
+#endif
+
+    /*
+     * Parse options string.
+     */
+    com::Utf8Str strOptions(bstrOptions);
+    size_t pos = 0;
+    com::Utf8Str key, value;
+    while ((pos = strOptions.parseKeyValue(key, value, pos)) != com::Utf8Str::npos)
+    {
+        if (key.compare("vc_quality", Utf8Str::CaseInsensitive) == 0)
+        {
+#ifdef VBOX_WITH_LIBVPX
+            if (value.compare("realtime", Utf8Str::CaseInsensitive) == 0)
+                pCfg->Video.Codec.VPX.uEncoderDeadline = VPX_DL_REALTIME;
+            else if (value.compare("good", Utf8Str::CaseInsensitive) == 0)
+                pCfg->Video.Codec.VPX.uEncoderDeadline = 1000000 / pCfg->Video.uFPS;
+            else if (value.compare("best", Utf8Str::CaseInsensitive) == 0)
+                pCfg->Video.Codec.VPX.uEncoderDeadline = VPX_DL_BEST_QUALITY;
+            else
+            {
+                LogRel(("VideoRec: Setting quality deadline to '%s'\n", value.c_str()));
+                pCfg->Video.Codec.VPX.uEncoderDeadline = value.toUInt32();
+#endif
+            }
+        }
+        else if (key.compare("vc_enabled", Utf8Str::CaseInsensitive) == 0)
+        {
+            if (value.compare("false", Utf8Str::CaseInsensitive) == 0)
+            {
+                pCfg->Video.fEnabled = false;
+#ifdef VBOX_WITH_AUDIO_VIDEOREC
+                LogRel(("VideoRec: Only audio will be recorded\n"));
+#endif
+            }
+        }
+        else if (key.compare("ac_enabled", Utf8Str::CaseInsensitive) == 0)
+        {
+#ifdef VBOX_WITH_AUDIO_VIDEOREC
+            if (value.compare("true", Utf8Str::CaseInsensitive) == 0)
+            {
+                pCfg->Audio.fEnabled = true;
+
+            }
+            else
+                LogRel(("VideoRec: Only video will be recorded\n"));
+#endif
+        }
+        else if (key.compare("ac_profile", Utf8Str::CaseInsensitive) == 0)
+        {
+#ifdef VBOX_WITH_AUDIO_VIDEOREC
+            if (value.compare("low", Utf8Str::CaseInsensitive) == 0)
+            {
+                pCfg->Audio.uHz       = 8000;
+                pCfg->Audio.cBits     = 16;
+                pCfg->Audio.cChannels = 1;
+            }
+            else if (value.startsWith("med" /* "med[ium]" */, Utf8Str::CaseInsensitive) == 0)
+            {
+                pCfg->Audio.uHz       = 22050;
+                pCfg->Audio.cBits     = 16;
+                pCfg->Audio.cChannels = 2;
+            }
+            else if (value.compare("high", Utf8Str::CaseInsensitive) == 0)
+            {
+                /* Stay with the default set above. */
+            }
+#endif
+        }
+        else
+            LogRel(("VideoRec: Unknown option '%s' (value '%s'), skipping\n", key.c_str(), value.c_str()));
+
+    } /* while */
+
+#ifdef VBOX_WITH_AUDIO_VIDEOREC
+    ComPtr<IAudioAdapter> audioAdapter;
+    rc = pMachine->COMGETTER(AudioAdapter)(audioAdapter.asOutParam());
+    AssertComRC(rc);
+
+    Utf8Str strAudioDev = pThis->mParent->i_getAudioAdapterDeviceName(audioAdapter);
+    if (!strAudioDev.isEmpty())
+    {
+        Console::SafeVMPtr ptrVM(pThis->mParent);
+        Assert(ptrVM.isOk());
+
+        unsigned uInstance = 0;
+        unsigned uLun      = 2; /** @todo Make this configurable. */
+
+        /*
+         * Configure + attach audio driver.
+         */
+        int vrc2 = VINF_SUCCESS;
+
+        LogFunc(("Audio fAttachDetach=%RTbool, fEnabled=%RTbool\n", fAttachDetach, pCfg->Audio.fEnabled));
+
+        if (pCfg->Audio.fEnabled) /* Enable */
+        {
+            vrc2 = pThis->i_videoRecConfigureAudioDriver(strAudioDev, uInstance, uLun, true /* fAttach */);
+            if (   RT_SUCCESS(vrc2)
+                && fAttachDetach)
+            {
+                vrc2 = PDMR3DriverAttach(ptrVM.rawUVM(), strAudioDev.c_str(), uInstance, uLun, 0 /* fFlags */, NULL /* ppBase */);
+            }
+
+            if (RT_FAILURE(vrc2))
+                LogRel(("VideoRec: Failed to attach audio driver, rc=%Rrc\n", vrc2));
+        }
+        else /* Disable */
+        {
+            if (fAttachDetach)
+                vrc2 = PDMR3DriverDetach(ptrVM.rawUVM(), strAudioDev.c_str(), uInstance, uLun, "AUDIO",
+                                         0 /* iOccurance */, 0 /* fFlags */);
+
+            if (RT_SUCCESS(vrc2))
+            {
+                vrc2 = pThis->i_videoRecConfigureAudioDriver(strAudioDev, uInstance, uLun, false /* fAttach */);
+            }
+
+            if (RT_FAILURE(vrc2))
+                LogRel(("VideoRec: Failed to detach audio driver, rc=%Rrc\n", vrc2));
+        }
+
+        AssertRC(vrc2);
+    }
+    else
+        LogRel2(("VideoRec: No audio hardware configured, skipping to record audio\n"));
+#else
+    RT_NOREF(fAttachDetach);
+#endif
+
+    /*
+     * Invalidate screens.
+     */
+    for (unsigned i = 0; i < pCfg->aScreens.size(); i++)
+    {
+        bool fChanged = pThis->maVideoRecEnabled[i] != RT_BOOL(pCfg->aScreens[i]);
+
+        pThis->maVideoRecEnabled[i] = RT_BOOL(pCfg->aScreens[i]);
+
+        if (fChanged && i < pThis->mcMonitors)
+            pThis->i_videoRecScreenChanged(i);
 
     }
+
+    return S_OK;
+}
+
+/**
+ * Sends belonging audio samples to the video capturing code.
+ * Does nothing if capturing is disabled or if audio support for video capturing is disabled.
+ *
+ * @returns IPRT status code.
+ * @param   pvData              Audio data.
+ * @param   cbData              Size (in bytes) of audio data.
+ * @param   uTimestampMs        Timestamp (in ms) of the audio data.
+ */
+int Display::i_videoRecSendAudio(const void *pvData, size_t cbData, uint64_t uTimestampMs)
+{
+    if (   VideoRecIsActive(mpVideoRecCtx)
+        && VideoRecGetEnabled(&mVideoRecCfg) & VIDEORECFEATURE_AUDIO)
+    {
+        return VideoRecSendAudioFrame(mpVideoRecCtx, pvData, cbData, uTimestampMs);
+    }
+
     return VINF_SUCCESS;
-#else
-    return VERR_NOT_IMPLEMENTED;
-#endif
 }
 
 /**
  * Start video capturing. Does nothing if capturing is already active.
+ *
+ * @param   pVideoRecCfg        Video recording configuration to use.
+ * @returns IPRT status code.
  */
-int Display::i_VideoCaptureStart()
+int Display::i_videoRecStart(void)
 {
-#ifdef VBOX_WITH_VPX
-    if (VideoRecIsEnabled(mpVideoRecCtx))
+    if (VideoRecIsActive(mpVideoRecCtx))
         return VINF_SUCCESS;
 
-    int rc = VideoRecContextCreate(&mpVideoRecCtx, mcMonitors);
+    int rc = VideoRecContextCreate(mcMonitors, &mVideoRecCfg, &mpVideoRecCtx);
     if (RT_FAILURE(rc))
     {
         LogFlow(("Failed to create video recording context (%Rrc)!\n", rc));
         return rc;
     }
-    ComPtr<IMachine> pMachine = mParent->i_machine();
-    com::SafeArray<BOOL> screens;
-    HRESULT hrc = pMachine->COMGETTER(VideoCaptureScreens)(ComSafeArrayAsOutParam(screens));
-    AssertComRCReturn(hrc, VERR_COM_UNEXPECTED);
-    for (unsigned i = 0; i < RT_ELEMENTS(maVideoRecEnabled); i++)
-        maVideoRecEnabled[i] = i < screens.size() && screens[i];
-    ULONG ulWidth;
-    hrc = pMachine->COMGETTER(VideoCaptureWidth)(&ulWidth);
-    AssertComRCReturn(hrc, VERR_COM_UNEXPECTED);
-    ULONG ulHeight;
-    hrc = pMachine->COMGETTER(VideoCaptureHeight)(&ulHeight);
-    AssertComRCReturn(hrc, VERR_COM_UNEXPECTED);
-    ULONG ulRate;
-    hrc = pMachine->COMGETTER(VideoCaptureRate)(&ulRate);
-    AssertComRCReturn(hrc, VERR_COM_UNEXPECTED);
-    ULONG ulFPS;
-    hrc = pMachine->COMGETTER(VideoCaptureFPS)(&ulFPS);
-    AssertComRCReturn(hrc, VERR_COM_UNEXPECTED);
-    BSTR strFile;
-    hrc = pMachine->COMGETTER(VideoCaptureFile)(&strFile);
-    AssertComRCReturn(hrc, VERR_COM_UNEXPECTED);
-    ULONG ulMaxTime;
-    hrc = pMachine->COMGETTER(VideoCaptureMaxTime)(&ulMaxTime);
-    AssertComRCReturn(hrc, VERR_COM_UNEXPECTED);
-    ULONG ulMaxSize;
-    hrc = pMachine->COMGETTER(VideoCaptureMaxFileSize)(&ulMaxSize);
-    AssertComRCReturn(hrc, VERR_COM_UNEXPECTED);
-    BSTR strOptions;
-    hrc = pMachine->COMGETTER(VideoCaptureOptions)(&strOptions);
-    AssertComRCReturn(hrc, VERR_COM_UNEXPECTED);
 
-    RTTIMESPEC ts;
-    RTTimeNow(&ts);
-    RTTIME time;
-    RTTimeExplode(&time, &ts);
     for (unsigned uScreen = 0; uScreen < mcMonitors; uScreen++)
     {
-        char *pszAbsPath = RTPathAbsDup(com::Utf8Str(strFile).c_str());
-        char *pszSuff = RTPathSuffix(pszAbsPath);
-        if (pszSuff)
-            pszSuff = RTStrDup(pszSuff);
-        RTPathStripSuffix(pszAbsPath);
-        if (!pszAbsPath)
-            rc = VERR_INVALID_PARAMETER;
-        if (!pszSuff)
-            pszSuff = RTStrDup(".webm");
-        char *pszName = NULL;
-        if (RT_SUCCESS(rc))
+        int rc2 = VideoRecStreamInit(mpVideoRecCtx, uScreen);
+        if (RT_SUCCESS(rc2))
         {
-            if (mcMonitors > 1)
-                rc = RTStrAPrintf(&pszName, "%s-%u%s", pszAbsPath, uScreen+1, pszSuff);
-            else
-                rc = RTStrAPrintf(&pszName, "%s%s", pszAbsPath, pszSuff);
-        }
-        if (RT_SUCCESS(rc))
-        {
-            rc = VideoRecStrmInit(mpVideoRecCtx, uScreen,
-                                  pszName, ulWidth, ulHeight,
-                                  ulRate, ulFPS, ulMaxTime,
-                                  ulMaxSize, com::Utf8Str(strOptions).c_str());
-            if (rc == VERR_ALREADY_EXISTS)
-            {
-                RTStrFree(pszName);
-                pszName = NULL;
-
-                if (mcMonitors > 1)
-                    rc = RTStrAPrintf(&pszName, "%s-%04d-%02u-%02uT%02u-%02u-%02u-%09uZ-%u%s",
-                                      pszAbsPath, time.i32Year, time.u8Month, time.u8MonthDay,
-                                      time.u8Hour, time.u8Minute, time.u8Second, time.u32Nanosecond,
-                                      uScreen+1, pszSuff);
-                else
-                    rc = RTStrAPrintf(&pszName, "%s-%04d-%02u-%02uT%02u-%02u-%02u-%09uZ%s",
-                                      pszAbsPath, time.i32Year, time.u8Month, time.u8MonthDay,
-                                      time.u8Hour, time.u8Minute, time.u8Second, time.u32Nanosecond,
-                                      pszSuff);
-                if (RT_SUCCESS(rc))
-                    rc = VideoRecStrmInit(mpVideoRecCtx, uScreen,
-                                          pszName, ulWidth, ulHeight, ulRate,
-                                          ulFPS, ulMaxTime,
-                                          ulMaxSize, com::Utf8Str(strOptions).c_str());
-            }
-        }
-
-        if (RT_SUCCESS(rc))
-        {
-            LogRel(("Display::VideoCaptureStart: WebM/VP8 video recording screen #%u with %ux%u @ %u kbps, %u fps to '%s' "
-                    "enabled\n", uScreen, ulWidth, ulHeight, ulRate, ulFPS, pszName));
-
-            videoCaptureScreenChanged(uScreen);
+            i_videoRecScreenChanged(uScreen);
         }
         else
-            LogRel(("Display::VideoCaptureStart: Failed to initialize video recording context #%u (%Rrc)!\n", uScreen, rc));
-        RTStrFree(pszName);
-        RTStrFree(pszSuff);
-        RTStrFree(pszAbsPath);
+            LogRel(("VideoRec: Failed to initialize video recording context #%u (%Rrc)\n", uScreen, rc2));
+
+        if (RT_SUCCESS(rc))
+            rc = rc2;
     }
     return rc;
-#else
-    return VERR_NOT_IMPLEMENTED;
-#endif
 }
 
 /**
- * Stop video capturing. Does nothing if video capturing is not active.
+ * Stops video capturing. Does nothing if video capturing is not active.
  */
-void Display::i_VideoCaptureStop()
+void Display::i_videoRecStop(void)
 {
-#ifdef VBOX_WITH_VPX
-    if (VideoRecIsEnabled(mpVideoRecCtx))
-        LogRel(("Display::VideoCaptureStop: WebM/VP8 video recording stopped\n"));
-    VideoRecContextClose(mpVideoRecCtx);
+    if (!VideoRecIsActive(mpVideoRecCtx))
+        return;
+
+    VideoRecContextDestroy(mpVideoRecCtx);
     mpVideoRecCtx = NULL;
 
     unsigned uScreenId;
     for (uScreenId = 0; uScreenId < mcMonitors; ++uScreenId)
-        videoCaptureScreenChanged(uScreenId);
-#endif
+        i_videoRecScreenChanged(uScreenId);
 }
 
-#ifdef VBOX_WITH_VPX
-void Display::videoCaptureScreenChanged(unsigned uScreenId)
+void Display::i_videoRecScreenChanged(unsigned uScreenId)
 {
-    ComPtr<IDisplaySourceBitmap> pSourceBitmap;
-
-    if (VideoRecIsEnabled(mpVideoRecCtx) && maVideoRecEnabled[uScreenId])
+    if (   !VideoRecIsActive(mpVideoRecCtx)
+        || !maVideoRecEnabled[uScreenId])
     {
-        /* Get a new source bitmap which will be used by video capture code. */
-        QuerySourceBitmap(uScreenId, pSourceBitmap.asOutParam());
+        /* Skip recording this screen. */
+        return;
     }
 
-    int rc = RTCritSectEnter(&mVideoCaptureLock);
-    if (RT_SUCCESS(rc))
+    /* Get a new source bitmap which will be used by video recording code. */
+    ComPtr<IDisplaySourceBitmap> pSourceBitmap;
+    QuerySourceBitmap(uScreenId, pSourceBitmap.asOutParam());
+
+    int rc2 = RTCritSectEnter(&mVideoRecLock);
+    if (RT_SUCCESS(rc2))
     {
-        maFramebuffers[uScreenId].videoCapture.pSourceBitmap = pSourceBitmap;
-        RTCritSectLeave(&mVideoCaptureLock);
+        maFramebuffers[uScreenId].videoRec.pSourceBitmap = pSourceBitmap;
+
+        rc2 = RTCritSectLeave(&mVideoRecLock);
+        AssertRC(rc2);
     }
 }
-#endif
+#endif /* VBOX_WITH_VIDEOREC */
 
 int Display::i_drawToScreenEMT(Display *pDisplay, ULONG aScreenId, BYTE *address,
                                ULONG x, ULONG y, ULONG width, ULONG height)
@@ -3093,50 +3193,6 @@ HRESULT Display::querySourceBitmap(ULONG aScreenId,
 
     if (pFBInfo->pSourceBitmap.isNull())
     {
-#ifndef NEW_RESIZE
-        /* Create a new object. */
-        ComObjPtr<DisplaySourceBitmap> obj;
-        hr = obj.createObject();
-        if (SUCCEEDED(hr))
-            hr = obj->init(this, aScreenId, pFBInfo);
-
-        if (SUCCEEDED(hr))
-        {
-            bool fDefaultFormat = !obj->i_usesVRAM();
-
-            if (aScreenId == VBOX_VIDEO_PRIMARY_SCREEN)
-            {
-                /* Start buffer updates. */
-                BYTE *pAddress = NULL;
-                ULONG ulWidth = 0;
-                ULONG ulHeight = 0;
-                ULONG ulBitsPerPixel = 0;
-                ULONG ulBytesPerLine = 0;
-                BitmapFormat_T bitmapFormat = BitmapFormat_Opaque;
-
-                obj->QueryBitmapInfo(&pAddress,
-                                     &ulWidth,
-                                     &ulHeight,
-                                     &ulBitsPerPixel,
-                                     &ulBytesPerLine,
-                                     &bitmapFormat);
-
-                mpDrv->IConnector.pbData     = pAddress;
-                mpDrv->IConnector.cbScanline = ulBytesPerLine;
-                mpDrv->IConnector.cBits      = ulBitsPerPixel;
-                mpDrv->IConnector.cx         = ulWidth;
-                mpDrv->IConnector.cy         = ulHeight;
-
-                fSetRenderVRAM = fDefaultFormat;
-            }
-
-            /* Make sure that the bitmap contains the latest image. */
-            fInvalidate = fDefaultFormat;
-
-            pFBInfo->pSourceBitmap = obj;
-            pFBInfo->fDefaultFormat = fDefaultFormat;
-        }
-#else /* NEW_RESIZE */
         /* Create a new object. */
         ComObjPtr<DisplaySourceBitmap> obj;
         hr = obj.createObject();
@@ -3177,7 +3233,6 @@ HRESULT Display::querySourceBitmap(ULONG aScreenId,
             /* Make sure that the bitmap contains the latest image. */
             fInvalidate = pFBInfo->fDefaultFormat;
         }
-#endif /* NEW_RESIZE */
     }
 
     if (SUCCEEDED(hr))
@@ -3215,6 +3270,12 @@ HRESULT Display::setScreenLayout(ScreenLayoutMode_T aScreenLayoutMode,
 {
     NOREF(aScreenLayoutMode);
     NOREF(aGuestScreenInfo);
+    return E_NOTIMPL;
+}
+
+HRESULT Display::detachScreens(const std::vector<LONG> &aScreenIds)
+{
+    NOREF(aScreenIds);
     return E_NOTIMPL;
 }
 
@@ -3373,11 +3434,7 @@ DECLCALLBACK(int) Display::i_displayResizeCallback(PPDMIDISPLAYCONNECTOR pInterf
         return VINF_VGA_RESIZE_IN_PROGRESS;
     }
 
-#ifndef NEW_RESIZE
-    int rc = pThis->i_handleDisplayResize(VBOX_VIDEO_PRIMARY_SCREEN, bpp, pvVRAM, cbLine, cx, cy, VBVA_SCREEN_F_ACTIVE);
-#else
     int rc = pThis->i_handleDisplayResize(VBOX_VIDEO_PRIMARY_SCREEN, bpp, pvVRAM, cbLine, cx, cy, 0, 0, 0, true);
-#endif
 
     /* Restore the flag.  */
     f = ASMAtomicCmpXchgBool(&pThis->fVGAResizing, false, true);
@@ -3449,8 +3506,9 @@ DECLCALLBACK(void) Display::i_displayUpdateCallback(PPDMIDISPLAYCONNECTOR pInter
         }
     }
 
-#ifdef VBOX_WITH_VPX
-    if (VideoRecIsEnabled(pDisplay->mpVideoRecCtx))
+#ifdef VBOX_WITH_VIDEOREC
+    if (   VideoRecIsActive(pDisplay->mpVideoRecCtx)
+        && VideoRecGetEnabled(&pDisplay->mVideoRecCfg) & VIDEORECFEATURE_VIDEO)
     {
         do {
 # if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
@@ -3494,9 +3552,9 @@ DECLCALLBACK(void) Display::i_displayUpdateCallback(PPDMIDISPLAYCONNECTOR pInter
                 if (!pDisplay->maVideoRecEnabled[uScreenId])
                     continue;
 
-                if (VideoRecIsFull(pDisplay->mpVideoRecCtx, uScreenId, u64Now))
+                if (VideoRecIsLimitReached(pDisplay->mpVideoRecCtx, uScreenId, u64Now))
                 {
-                    pDisplay->i_VideoCaptureStop();
+                    pDisplay->i_videoRecStop();
                     pDisplay->mParent->i_machine()->COMSETTER(VideoCaptureEnabled)(false);
                     break;
                 }
@@ -3505,11 +3563,11 @@ DECLCALLBACK(void) Display::i_displayUpdateCallback(PPDMIDISPLAYCONNECTOR pInter
                 if (!pFBInfo->fDisabled)
                 {
                     ComPtr<IDisplaySourceBitmap> pSourceBitmap;
-                    int rc2 = RTCritSectEnter(&pDisplay->mVideoCaptureLock);
+                    int rc2 = RTCritSectEnter(&pDisplay->mVideoRecLock);
                     if (RT_SUCCESS(rc2))
                     {
-                        pSourceBitmap = pFBInfo->videoCapture.pSourceBitmap;
-                        RTCritSectLeave(&pDisplay->mVideoCaptureLock);
+                        pSourceBitmap = pFBInfo->videoRec.pSourceBitmap;
+                        RTCritSectLeave(&pDisplay->mVideoRecLock);
                     }
 
                     if (!pSourceBitmap.isNull())
@@ -3527,10 +3585,10 @@ DECLCALLBACK(void) Display::i_displayUpdateCallback(PPDMIDISPLAYCONNECTOR pInter
                                                                     &ulBytesPerLine,
                                                                     &bitmapFormat);
                         if (SUCCEEDED(hr) && pbAddress)
-                            rc = VideoRecCopyToIntBuf(pDisplay->mpVideoRecCtx, uScreenId, 0, 0,
-                                                      BitmapFormat_BGR,
-                                                      ulBitsPerPixel, ulBytesPerLine, ulWidth, ulHeight,
-                                                      pbAddress, u64Now);
+                            rc = VideoRecSendVideoFrame(pDisplay->mpVideoRecCtx, uScreenId, 0, 0,
+                                                        BitmapFormat_BGR,
+                                                        ulBitsPerPixel, ulBytesPerLine, ulWidth, ulHeight,
+                                                        pbAddress, u64Now);
                         else
                             rc = VERR_NOT_SUPPORTED;
 
@@ -3545,7 +3603,7 @@ DECLCALLBACK(void) Display::i_displayUpdateCallback(PPDMIDISPLAYCONNECTOR pInter
             }
         } while (0);
     }
-#endif /* VBOX_WITH_VPX */
+#endif /* VBOX_WITH_VIDEOREC */
 
 #ifdef DEBUG_sunlover_2
     LogFlowFunc(("leave\n"));
@@ -3894,7 +3952,7 @@ bool  Display::i_handleCrVRecScreenshotBegin(uint32_t uScreen, uint64_t u64Times
     /** @todo r=bird: u64Timestamp - using the 'u64' prefix add nothing.
      *        However, using one of the prefixes indicating the timestamp unit
      *        would be very valuable!  */
-# if VBOX_WITH_VPX
+# ifdef VBOX_WITH_VIDEOREC
     return VideoRecIsReady(mpVideoRecCtx, uScreen, u64Timestamp);
 # else
     RT_NOREF(uScreen, u64Timestamp);
@@ -3914,15 +3972,22 @@ void  Display::i_handleCrVRecScreenshotPerform(uint32_t uScreen,
                                                uint8_t *pu8BufferAddress, uint64_t u64Timestamp)
 {
     Assert(mfCrOglVideoRecState == CRVREC_STATE_SUBMITTED);
-# if VBOX_WITH_VPX
-    int rc = VideoRecCopyToIntBuf(mpVideoRecCtx, uScreen, x, y,
-                                  uPixelFormat,
-                                  uBitsPerPixel, uBytesPerLine,
-                                  uGuestWidth, uGuestHeight,
-                                  pu8BufferAddress, u64Timestamp);
-    NOREF(rc);
-    Assert(rc == VINF_SUCCESS /* || rc == VERR_TRY_AGAIN || rc == VINF_TRY_AGAIN*/);
-# endif
+# ifdef VBOX_WITH_VIDEOREC
+    if (   VideoRecIsActive(mpVideoRecCtx)
+        && VideoRecGetEnabled(&mVideoRecCfg) & VIDEORECFEATURE_VIDEO)
+    {
+        int rc2 = VideoRecSendVideoFrame(mpVideoRecCtx, uScreen, x, y,
+                                         uPixelFormat,
+                                         uBitsPerPixel, uBytesPerLine,
+                                         uGuestWidth, uGuestHeight,
+                                         pu8BufferAddress, u64Timestamp);
+        RT_NOREF(rc2);
+        Assert(rc2 == VINF_SUCCESS /* || rc == VERR_TRY_AGAIN || rc == VINF_TRY_AGAIN*/);
+    }
+# else
+    RT_NOREF(uScreen, x, y, uPixelFormat, \
+             uBitsPerPixel, uBytesPerLine, uGuestWidth, uGuestHeight, pu8BufferAddress, u64Timestamp);
+# endif /* VBOX_WITH_VIDEOREC */
 }
 
 void  Display::i_handleVRecCompletion()
@@ -4156,9 +4221,7 @@ DECLCALLBACK(void) Display::i_displayVBVADisable(PPDMIDISPLAYCONNECTOR pInterfac
         /* Make sure that the primary screen is visible now.
          * The guest can't use VBVA anymore, so only only the VGA device output works.
          */
-#ifdef NEW_RESIZE
         pFBInfo->flags = 0;
-#endif
         if (pFBInfo->fDisabled)
         {
             pFBInfo->fDisabled = false;
@@ -4374,152 +4437,9 @@ DECLCALLBACK(int) Display::i_displayVBVAResize(PPDMIDISPLAYCONNECTOR pInterface,
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
     Display *pThis = pDrv->pDisplay;
 
-#ifndef NEW_RESIZE
-    DISPLAYFBINFO *pFBInfo = &pThis->maFramebuffers[pScreen->u32ViewIndex];
-
-    if (pScreen->u16Flags & VBVA_SCREEN_F_DISABLED)
-    {
-        pThis->i_notifyCroglResize(pView, pScreen, pvVRAM);
-
-        pFBInfo->fDisabled = true;
-        pFBInfo->flags = pScreen->u16Flags;
-
-        /* Ask the framebuffer to resize using a default format. The framebuffer will be black.
-         * So if the frontend does not support GuestMonitorChangedEventType_Disabled event,
-         * the VM window will be black. */
-        uint32_t u32Width = pFBInfo->w ? pFBInfo->w : 640;
-        uint32_t u32Height = pFBInfo->h ? pFBInfo->h : 480;
-        pThis->i_handleDisplayResize(pScreen->u32ViewIndex, 0, (uint8_t *)NULL, 0,
-                                     u32Width, u32Height, pScreen->u16Flags);
-
-        fireGuestMonitorChangedEvent(pThis->mParent->i_getEventSource(),
-                                     GuestMonitorChangedEventType_Disabled,
-                                     pScreen->u32ViewIndex,
-                                     0, 0, 0, 0);
-        return VINF_SUCCESS;
-    }
-
-    VBVAINFOSCREEN screenInfo;
-    RT_ZERO(screenInfo);
-
-    if (pScreen->u16Flags & VBVA_SCREEN_F_BLANK2)
-    {
-        /* Init a local VBVAINFOSCREEN structure, which will be used instead of
-         * the original pScreen. Set VBVA_SCREEN_F_BLANK, which will force
-         * the code below to choose the "blanking" branches.
-         */
-        screenInfo.u32ViewIndex    = pScreen->u32ViewIndex;
-        screenInfo.i32OriginX      = pFBInfo->xOrigin;
-        screenInfo.i32OriginY      = pFBInfo->yOrigin;
-        screenInfo.u32StartOffset  = 0; /* Irrelevant */
-        screenInfo.u32LineSize     = pFBInfo->u32LineSize;
-        screenInfo.u32Width        = pFBInfo->w;
-        screenInfo.u32Height       = pFBInfo->h;
-        screenInfo.u16BitsPerPixel = pFBInfo->u16BitsPerPixel;
-        screenInfo.u16Flags        = pScreen->u16Flags | VBVA_SCREEN_F_BLANK;
-
-        pScreen = &screenInfo;
-    }
-
-    /* If display was disabled or there is no framebuffer, a resize will be required,
-     * because the framebuffer was/will be changed.
-     */
-    bool fResize = pFBInfo->fDisabled || pFBInfo->pFramebuffer.isNull();
-
-    if (pFBInfo->fVBVAForceResize)
-    {
-        /* VBVA was just enabled. Do the resize. */
-        fResize = true;
-        pFBInfo->fVBVAForceResize = false;
-    }
-
-    /* If the screen if blanked, then do a resize request to make sure that the framebuffer
-     * switches to the default format.
-     */
-    fResize = fResize || RT_BOOL((pScreen->u16Flags ^ pFBInfo->flags) & VBVA_SCREEN_F_BLANK);
-
-    /* Check if this is a real resize or a notification about the screen origin.
-     * The guest uses this VBVAResize call for both.
-     */
-    fResize =    fResize
-              || pFBInfo->u16BitsPerPixel != pScreen->u16BitsPerPixel
-              || pFBInfo->pu8FramebufferVRAM != (uint8_t *)pvVRAM + pScreen->u32StartOffset
-              || pFBInfo->u32LineSize != pScreen->u32LineSize
-              || pFBInfo->w != pScreen->u32Width
-              || pFBInfo->h != pScreen->u32Height;
-
-    bool fNewOrigin =    pFBInfo->xOrigin != pScreen->i32OriginX
-                      || pFBInfo->yOrigin != pScreen->i32OriginY;
-
-    if (fNewOrigin || fResize)
-        pThis->i_notifyCroglResize(pView, pScreen, pvVRAM);
-
-    if (pFBInfo->fDisabled)
-    {
-        pFBInfo->fDisabled = false;
-        fireGuestMonitorChangedEvent(pThis->mParent->i_getEventSource(),
-                                     GuestMonitorChangedEventType_Enabled,
-                                     pScreen->u32ViewIndex,
-                                     pScreen->i32OriginX, pScreen->i32OriginY,
-                                     pScreen->u32Width, pScreen->u32Height);
-        /* Continue to update pFBInfo. */
-    }
-
-    pFBInfo->u32Offset = pView->u32ViewOffset; /* Not used in HGSMI. */
-    pFBInfo->u32MaxFramebufferSize = pView->u32MaxScreenSize; /* Not used in HGSMI. */
-    pFBInfo->u32InformationSize = 0; /* Not used in HGSMI. */
-
-    pFBInfo->xOrigin = pScreen->i32OriginX;
-    pFBInfo->yOrigin = pScreen->i32OriginY;
-
-    pFBInfo->w = pScreen->u32Width;
-    pFBInfo->h = pScreen->u32Height;
-
-    pFBInfo->u16BitsPerPixel = pScreen->u16BitsPerPixel;
-    pFBInfo->pu8FramebufferVRAM = (uint8_t *)pvVRAM + pScreen->u32StartOffset;
-    pFBInfo->u32LineSize = pScreen->u32LineSize;
-
-    pFBInfo->flags = pScreen->u16Flags;
-
-    if (fResetInputMapping)
-    {
-        pThis->xInputMappingOrigin = 0;
-        pThis->yInputMappingOrigin = 0;
-        pThis->cxInputMapping = 0;
-        pThis->cyInputMapping = 0;
-    }
-
-    if (fNewOrigin)
-    {
-        fireGuestMonitorChangedEvent(pThis->mParent->i_getEventSource(),
-                                     GuestMonitorChangedEventType_NewOrigin,
-                                     pScreen->u32ViewIndex,
-                                     pScreen->i32OriginX, pScreen->i32OriginY,
-                                     0, 0);
-    }
-
-    if (!fResize)
-    {
-        /* No parameters of the framebuffer have actually changed. */
-        if (fNewOrigin)
-        {
-            /* VRDP server still need this notification. */
-            LogRelFlowFunc(("Calling VRDP\n"));
-            pThis->mParent->i_consoleVRDPServer()->SendResize();
-        }
-        return VINF_SUCCESS;
-    }
-
-    /* Do a regular resize. */
-    return pThis->i_handleDisplayResize(pScreen->u32ViewIndex, pScreen->u16BitsPerPixel,
-                                        (uint8_t *)pvVRAM + pScreen->u32StartOffset,
-                                        pScreen->u32LineSize, pScreen->u32Width, pScreen->u32Height, pScreen->u16Flags);
-#else /* NEW_RESIZE */
     return pThis->processVBVAResize(pView, pScreen, pvVRAM, fResetInputMapping);
-#endif /* NEW_RESIZE */
 }
 
-#ifdef NEW_RESIZE
 int Display::processVBVAResize(PCVBVAINFOVIEW pView, PCVBVAINFOSCREEN pScreen, void *pvVRAM, bool fResetInputMapping)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -4586,7 +4506,6 @@ int Display::processVBVAResize(PCVBVAINFOVIEW pView, PCVBVAINFOSCREEN pScreen, v
                                  pScreen->u32LineSize, pScreen->u32Width, pScreen->u32Height, pScreen->u16Flags,
                                  pScreen->i32OriginX, pScreen->i32OriginY, false);
 }
-#endif /* NEW_RESIZE */
 
 DECLCALLBACK(int) Display::i_displayVBVAMousePointerShape(PPDMIDISPLAYCONNECTOR pInterface, bool fVisible, bool fAlpha,
                                                           uint32_t xHot, uint32_t yHot,
@@ -4670,14 +4589,13 @@ DECLCALLBACK(void) Display::i_drvDestruct(PPDMDRVINS pDrvIns)
     if (pThis->pDisplay)
     {
         AutoWriteLock displayLock(pThis->pDisplay COMMA_LOCKVAL_SRC_POS);
-#ifdef VBOX_WITH_VPX
-        pThis->pDisplay->i_VideoCaptureStop();
+#ifdef VBOX_WITH_VIDEOREC
+        pThis->pDisplay->i_videoRecStop();
 #endif
 #ifdef VBOX_WITH_CRHGSMI
         pThis->pDisplay->i_destructCrHgsmiData();
 #endif
         pThis->pDisplay->mpDrv = NULL;
-        pThis->pDisplay->mpVMMDev = NULL;
     }
 }
 
@@ -4781,15 +4699,16 @@ DECLCALLBACK(int) Display::i_drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, ui
     pDisplay->i_setupCrHgsmiData();
 #endif
 
-#ifdef VBOX_WITH_VPX
-    ComPtr<IMachine> pMachine = pDisplay->mParent->i_machine();
-    BOOL fEnabled = false;
-    HRESULT hrc = pMachine->COMGETTER(VideoCaptureEnabled)(&fEnabled);
-    AssertComRCReturn(hrc, VERR_COM_UNEXPECTED);
-    if (fEnabled)
+#ifdef VBOX_WITH_VIDEOREC
+    if (pDisplay->i_videoRecGetEnabled())
     {
-        rc = pDisplay->i_VideoCaptureStart();
-        fireVideoCaptureChangedEvent(pDisplay->mParent->i_getEventSource());
+        int rc2 = pDisplay->i_videoRecStart();
+        if (RT_SUCCESS(rc2))
+            fireVideoCaptureChangedEvent(pDisplay->mParent->i_getEventSource());
+
+        /* If video recording fails for whatever reason here, this is
+         * non-critical and should not be returned at this point -- otherwise
+         * the display driver construction fails completely. */
     }
 #endif
 

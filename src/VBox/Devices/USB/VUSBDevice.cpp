@@ -141,18 +141,6 @@ void vusbDevMapEndpoint(PVUSBDEV pDev, PCVUSBDESCENDPOINTEX pEndPtDesc)
     {
         Log(("vusb: map output pipe on address %u\n", i8Addr));
         pPipe->out = pEndPtDesc;
-
-#if 0
-        if ((pEndPtDesc->Core.bmAttributes & 0x03) == 1)
-        {
-            int rc = vusbBufferedPipeCreate(pDev, pPipe, VUSBDIRECTION_OUT, pDev->pUsbIns->enmSpeed,
-                                            32 /* cLatencyMs*/, &pPipe->hBuffer);
-            if (RT_SUCCESS(rc))
-                LogRel(("VUSB: Created a buffered pipe for isochronous output endpoint\n"));
-            else
-                LogRel(("VUSB: Failed to create a buffered pipe for isochronous output endpoint with rc=%Rrc\n", rc));
-        }
-#endif
     }
 
     if (pPipe->pCtrl)
@@ -180,25 +168,11 @@ static void unmap_endpoint(PVUSBDEV pDev, PCVUSBDESCENDPOINTEX pEndPtDesc)
     {
         Log(("vusb: unmap IN pipe from address %u (%#x)\n", EndPt, pEndPtDesc->Core.bEndpointAddress));
         pPipe->in = NULL;
-
-        /* Terminate the pipe buffer if created. */
-        if (pPipe->hBuffer)
-        {
-            vusbBufferedPipeDestroy(pPipe->hBuffer);
-            pPipe->hBuffer = NULL;
-        }
     }
     else
     {
         Log(("vusb: unmap OUT pipe from address %u (%#x)\n", EndPt, pEndPtDesc->Core.bEndpointAddress));
         pPipe->out = NULL;
-
-        /* Terminate the pipe buffer if created. */
-        if (pPipe->hBuffer)
-        {
-            vusbBufferedPipeDestroy(pPipe->hBuffer);
-            pPipe->hBuffer = NULL;
-        }
     }
 
     if (pPipe->pCtrl)
@@ -235,12 +209,6 @@ static void vusbDevResetPipeData(PVUSBPIPE pPipe)
 {
     vusbMsgFreeExtraData(pPipe->pCtrl);
     pPipe->pCtrl = NULL;
-
-    if (pPipe->hBuffer)
-    {
-        vusbBufferedPipeDestroy(pPipe->hBuffer);
-        pPipe->hBuffer = NULL;
-    }
 
     RT_ZERO(pPipe->in);
     RT_ZERO(pPipe->out);
@@ -739,13 +707,14 @@ static void ReadCachedConfigDesc(PCVUSBDESCCONFIGEX pCfgDesc, uint8_t *pbBuf, ui
 {
     uint32_t cbLeft = *pcbBuf;
 
-/** @todo See @bugref{2693} */
     /*
      * Make a copy of the config descriptor and calculate the wTotalLength field.
      */
     VUSBDESCCONFIG CfgDesc;
     memcpy(&CfgDesc, pCfgDesc, VUSB_DT_CONFIG_MIN_LEN);
-    uint32_t cbTotal = pCfgDesc->Core.bLength;
+    uint32_t cbTotal = 0;
+    cbTotal += pCfgDesc->Core.bLength;
+    cbTotal += pCfgDesc->cbClass;
     for (unsigned i = 0; i < pCfgDesc->Core.bNumInterfaces; i++)
     {
         PCVUSBINTERFACE pIf = &pCfgDesc->paIfs[i];
@@ -769,6 +738,7 @@ static void ReadCachedConfigDesc(PCVUSBDESCCONFIGEX pCfgDesc, uint8_t *pbBuf, ui
      */
     COPY_DATA(pbBuf, cbLeft, &CfgDesc, VUSB_DT_CONFIG_MIN_LEN);
     COPY_DATA(pbBuf, cbLeft, pCfgDesc->pvMore, pCfgDesc->Core.bLength - VUSB_DT_CONFIG_MIN_LEN);
+    COPY_DATA(pbBuf, cbLeft, pCfgDesc->pvClass, pCfgDesc->cbClass);
 
     /*
      * Copy out all the interfaces for this configuration
@@ -1150,6 +1120,8 @@ static DECLCALLBACK(int) vusbDevCancelAllUrbsWorker(PVUSBDEV pDev, bool fDetachi
  * on a device. This is typically done as part of a reset and
  * before detaching a device.
  *
+ * @returns nothing.
+ * @param   pDev        The VUSB device instance.
  * @param   fDetaching  If set, we will unconditionally unlink (and leak)
  *                      any URBs which isn't reaped.
  */
@@ -1432,11 +1404,12 @@ static int vusbDevResetWorker(PVUSBDEV pDev, bool fResetOnLinux, bool fUseTimer,
  *
  * @returns VBox status code.
  *
- * @param   pDev            Pointer to the VUSB device interface.
+ * @param   pDevice         Pointer to the VUSB device interface.
  * @param   fResetOnLinux   Whether it's safe to reset the device(s) on a linux
  *                          host system. See discussion of logical reconnects elsewhere.
  * @param   pfnDone         Pointer to the completion routine. If NULL a synchronous
  *                          reset is preformed not respecting the 10ms.
+ * @param   pvUser          Opaque user data to pass to the done callback.
  * @param   pVM             Pointer to the VM handle for performing the done function
  *                          on the EMT thread.
  * @thread  EMT
@@ -1744,8 +1717,9 @@ static DECLCALLBACK(int) vusbDevGetDescriptorCacheWorker(PPDMUSBINS pUsbIns, PCP
  * Initialize a new VUSB device.
  *
  * @returns VBox status code.
- * @param   pDev    The VUSB device to initialize.
- * @param   pUsbIns Pointer to the PDM USB Device instance.
+ * @param   pDev                  The VUSB device to initialize.
+ * @param   pUsbIns               Pointer to the PDM USB Device instance.
+ * @param   pszCaptureFilename    Optional fileame to capture the traffic to.
  */
 int vusbDevInit(PVUSBDEV pDev, PPDMUSBINS pUsbIns, const char *pszCaptureFilename)
 {

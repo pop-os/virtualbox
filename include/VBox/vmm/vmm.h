@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -236,6 +236,20 @@ typedef struct VMM2USERMETHODS
      */
     DECLR3CALLBACKMEMBER(void, pfnNotifyResetTurnedIntoPowerOff,(PCVMM2USERMETHODS pThis, PUVM pUVM));
 
+    /**
+     * Generic object query by UUID.
+     *
+     * @returns pointer to queried the object on success, NULL if not found.
+     *
+     * @param   pThis       Pointer to the callback method table.
+     * @param   pUVM        The user mode VM handle.
+     * @param   pUuid       The UUID of what's being queried.  The UUIDs and the
+     *                      usage conventions are defined by the user.
+     *
+     * @remarks This is optional and shall be set to NULL if not wanted.
+     */
+    DECLR3CALLBACKMEMBER(void *, pfnQueryGenericObject,(PCVMM2USERMETHODS pThis, PUVM pUVM, PCRTUUID pUuid));
+
     /** Magic value (VMM2USERMETHODS_MAGIC) marking the end of the structure. */
     uint32_t    u32EndMagic;
 } VMM2USERMETHODS;
@@ -243,7 +257,7 @@ typedef struct VMM2USERMETHODS
 /** Magic value of the VMM2USERMETHODS (Franz Kafka). */
 #define VMM2USERMETHODS_MAGIC         UINT32_C(0x18830703)
 /** The VMM2USERMETHODS structure version. */
-#define VMM2USERMETHODS_VERSION       UINT32_C(0x00020001)
+#define VMM2USERMETHODS_VERSION       UINT32_C(0x00030000)
 
 
 /**
@@ -366,9 +380,13 @@ typedef enum VMMR0OPERATION
     VMMR0_DO_SLOW_NOP,
 
     /** Ask the GVMM to create a new VM. */
-    VMMR0_DO_GVMM_CREATE_VM,
+    VMMR0_DO_GVMM_CREATE_VM = 32,
     /** Ask the GVMM to destroy the VM. */
     VMMR0_DO_GVMM_DESTROY_VM,
+    /** Call GVMMR0RegisterVCpu(). */
+    VMMR0_DO_GVMM_REGISTER_VMCPU,
+    /** Call GVMMR0DeregisterVCpu(). */
+    VMMR0_DO_GVMM_DEREGISTER_VMCPU,
     /** Call GVMMR0SchedHalt(). */
     VMMR0_DO_GVMM_SCHED_HALT,
     /** Call GVMMR0SchedWakeUp(). */
@@ -383,26 +401,19 @@ typedef enum VMMR0OPERATION
     VMMR0_DO_GVMM_QUERY_STATISTICS,
     /** Call GVMMR0ResetStatistics(). */
     VMMR0_DO_GVMM_RESET_STATISTICS,
-    /** Call GVMMR0RegisterVCpu(). */
-    VMMR0_DO_GVMM_REGISTER_VMCPU,
 
     /** Call VMMR0 Per VM Init. */
-    VMMR0_DO_VMMR0_INIT,
+    VMMR0_DO_VMMR0_INIT = 64,
     /** Call VMMR0 Per VM Termination. */
     VMMR0_DO_VMMR0_TERM,
+
     /** Setup the hardware accelerated raw-mode session. */
-    VMMR0_DO_HM_SETUP_VM,
+    VMMR0_DO_HM_SETUP_VM = 128,
     /** Attempt to enable or disable hardware accelerated raw-mode. */
     VMMR0_DO_HM_ENABLE,
-    /** Calls function in the hypervisor.
-     * The caller must setup the hypervisor context so the call will be performed.
-     * The difference between VMMR0_DO_RUN_GC and this one is the handling of
-     * the return GC code. The return code will not be interpreted by this operation.
-     */
-    VMMR0_DO_CALL_HYPERVISOR,
 
     /** Call PGMR0PhysAllocateHandyPages(). */
-    VMMR0_DO_PGM_ALLOCATE_HANDY_PAGES,
+    VMMR0_DO_PGM_ALLOCATE_HANDY_PAGES = 192,
     /** Call PGMR0PhysFlushHandyPages(). */
     VMMR0_DO_PGM_FLUSH_HANDY_PAGES,
     /** Call PGMR0AllocateLargePage(). */
@@ -411,7 +422,7 @@ typedef enum VMMR0OPERATION
     VMMR0_DO_PGM_PHYS_SETUP_IOMMU,
 
     /** Call GMMR0InitialReservation(). */
-    VMMR0_DO_GMM_INITIAL_RESERVATION,
+    VMMR0_DO_GMM_INITIAL_RESERVATION = 256,
     /** Call GMMR0UpdateReservation(). */
     VMMR0_DO_GMM_UPDATE_RESERVATION,
     /** Call GMMR0AllocatePages(). */
@@ -445,18 +456,25 @@ typedef enum VMMR0OPERATION
     /** Call GMMR0ResetStatistics(). */
     VMMR0_DO_GMM_RESET_STATISTICS,
 
-    /** Set a GVMM or GMM configuration value. */
-    VMMR0_DO_GCFGM_SET_VALUE,
-    /** Query a GVMM or GMM configuration value. */
-    VMMR0_DO_GCFGM_QUERY_VALUE,
-
     /** Call PDMR0DriverCallReqHandler. */
-    VMMR0_DO_PDM_DRIVER_CALL_REQ_HANDLER,
+    VMMR0_DO_PDM_DRIVER_CALL_REQ_HANDLER = 320,
     /** Call PDMR0DeviceCallReqHandler. */
     VMMR0_DO_PDM_DEVICE_CALL_REQ_HANDLER,
 
+    /** Calls function in the hypervisor.
+     * The caller must setup the hypervisor context so the call will be performed.
+     * The difference between VMMR0_DO_RUN_GC and this one is the handling of
+     * the return GC code. The return code will not be interpreted by this operation.
+     */
+    VMMR0_DO_CALL_HYPERVISOR = 384,
+
+    /** Set a GVMM or GMM configuration value. */
+    VMMR0_DO_GCFGM_SET_VALUE = 400,
+    /** Query a GVMM or GMM configuration value. */
+    VMMR0_DO_GCFGM_QUERY_VALUE,
+
     /** The start of the R0 service operations. */
-    VMMR0_DO_SRV_START,
+    VMMR0_DO_SRV_START = 448,
     /** Call IntNetR0Open(). */
     VMMR0_DO_INTNET_OPEN,
     /** Call IntNetR0IfClose(). */
@@ -477,7 +495,7 @@ typedef enum VMMR0OPERATION
     VMMR0_DO_INTNET_IF_ABORT_WAIT,
 
     /** Forward call to the PCI driver */
-    VMMR0_DO_PCIRAW_REQ,
+    VMMR0_DO_PCIRAW_REQ = 512,
 
     /** The end of the R0 service operations. */
     VMMR0_DO_SRV_END,
@@ -518,7 +536,7 @@ typedef GCFGMVALUEREQ *PGCFGMVALUEREQ;
 VMMR0DECL(void)      VMMR0EntryFast(PGVM pGVM, PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperation);
 VMMR0DECL(int)       VMMR0EntryEx(PGVM pGVM, PVM pVM, VMCPUID idCpu, VMMR0OPERATION enmOperation,
                                   PSUPVMMR0REQHDR pReq, uint64_t u64Arg, PSUPDRVSESSION);
-VMMR0_INT_DECL(int)  VMMR0TermVM(PVM pVM, PGVM pGVM);
+VMMR0_INT_DECL(int)  VMMR0TermVM(PGVM pGVM, PVM pVM, VMCPUID idCpu);
 VMMR0_INT_DECL(bool) VMMR0IsLongJumpArmed(PVMCPU pVCpu);
 VMMR0_INT_DECL(bool) VMMR0IsInRing3LongJump(PVMCPU pVCpu);
 VMMR0_INT_DECL(int)  VMMR0ThreadCtxHookCreateForEmt(PVMCPU pVCpu);

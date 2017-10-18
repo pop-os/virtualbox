@@ -10,7 +10,7 @@ Test Manager - Fetch test results.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -29,21 +29,22 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 # Standard python imports.
 import unittest;
 
 # Validation Kit imports.
 from common                                 import constants;
 from testmanager                            import config;
-from testmanager.core.base                  import ModelDataBase, ModelLogicBase, ModelDataBaseTestCase, TMExceptionBase, \
-                                                   TMTooManyRows, TMRowNotFound;
+from testmanager.core.base                  import ModelDataBase, ModelLogicBase, ModelDataBaseTestCase, ModelFilterBase, \
+                                                   FilterCriterion, FilterCriterionValueAndDescription, \
+                                                   TMExceptionBase, TMTooManyRows, TMRowNotFound;
 from testmanager.core.testgroup             import TestGroupData;
-from testmanager.core.build                 import BuildDataEx;
+from testmanager.core.build                 import BuildDataEx, BuildCategoryData;
 from testmanager.core.failurereason         import FailureReasonLogic;
-from testmanager.core.testbox               import TestBoxData;
+from testmanager.core.testbox               import TestBoxData, TestBoxLogic;
 from testmanager.core.testcase              import TestCaseData;
-from testmanager.core.schedgroup            import SchedGroupData;
+from testmanager.core.schedgroup            import SchedGroupData, SchedGroupLogic;
 from testmanager.core.systemlog             import SystemLogData, SystemLogLogic;
 from testmanager.core.testresultfailures    import TestResultFailureDataEx;
 from testmanager.core.useraccount           import UserAccountLogic;
@@ -209,9 +210,9 @@ class TestResultDataEx(TestResultData):
 
     def getListOfFailures(self):
         """
-        Get a list of test results insances actually contributing to cErrors.
+        Get a list of test results instances actually contributing to cErrors.
 
-        Returns a list of TestResultDataEx insance from this tree. (shared!)
+        Returns a list of TestResultDataEx instance from this tree. (shared!)
         """
         # Check each child (if any).
         aoRet = [];
@@ -399,6 +400,7 @@ class TestResultFileData(ModelDataBase):
     ksKind_LogInstaller         = 'log/installer';
     ksKind_LogUninstaller       = 'log/uninstaller';
     ksKind_LogGuestKernel       = 'log/guest/kernel';
+    ksKind_ProcessReportVm      = 'process/report/vm';
     ksKind_CrashReportVm        = 'crash/report/vm';
     ksKind_CrashDumpVm          = 'crash/dump/vm';
     ksKind_CrashReportSvc       = 'crash/report/svc';
@@ -410,8 +412,33 @@ class TestResultFileData(ModelDataBase):
     ksKind_MiscOther            = 'misc/other';
     ksKind_ScreenshotFailure    = 'screenshot/failure';
     ksKind_ScreenshotSuccesss   = 'screenshot/success';
-    #kSkind_ScreenCaptureFailure = 'screencapture/failure';
+    #kskind_ScreenCaptureFailure = 'screencapture/failure';
     ## @}
+
+    kasKinds = [
+        ksKind_LogReleaseVm,
+        ksKind_LogDebugVm,
+        ksKind_LogReleaseSvc,
+        ksKind_LogRebugSvc,
+        ksKind_LogReleaseClient,
+        ksKind_LogDebugClient,
+        ksKind_LogInstaller,
+        ksKind_LogUninstaller,
+        ksKind_LogGuestKernel,
+        ksKind_ProcessReportVm,
+        ksKind_CrashReportVm,
+        ksKind_CrashDumpVm,
+        ksKind_CrashReportSvc,
+        ksKind_CrashDumpSvc,
+        ksKind_CrashReportClient,
+        ksKind_CrashDumpClient,
+        ksKind_InfoCollection,
+        ksKind_InfoVgaText,
+        ksKind_MiscOther,
+        ksKind_ScreenshotFailure,
+        ksKind_ScreenshotSuccesss,
+        #kskind_ScreenCaptureFailure,
+    ];
 
     kasAllowNullAttributes      = [ 'idTestSet', ];
 
@@ -639,6 +666,322 @@ class TestResultHangingOffence(TMExceptionBase):
     pass;
 
 
+class TestResultFilter(ModelFilterBase):
+    """
+    Test result filter.
+    """
+
+    kiTestStatus            =  0;
+    kiErrorCounts           =  1;
+    kiBranches              =  2;
+    kiBuildTypes            =  3;
+    kiRevisions             =  4;
+    kiFailReasons           =  5;
+    kiTestCases             =  6;
+    kiTestCaseMisc          =  7;
+    kiTestBoxes             =  8
+    kiOses                  =  9;
+    kiCpuArches             = 10;
+    kiCpuVendors            = 11;
+    kiCpuCounts             = 12;
+    kiMemory                = 13;
+    kiTestboxMisc           = 14;
+    kiPythonVersions        = 15;
+    kiSchedGroups           = 16;
+
+    ## Misc test case / variation name filters.
+    ## Presented in table order.  The first sub element is the presistent ID.
+    kaTcMisc = (
+        (  1, 'x86', ),
+        (  2, 'amd64', ),
+        (  3, 'uni', ),
+        (  4, 'smp', ),
+        (  5, 'raw', ),
+        (  6, 'hw', ),
+        (  7, 'np', ),
+        (  8, 'Install', ),
+        (  9, 'Benchmark', ),
+        ( 18, 'smoke', ),   # NB. out of order.
+        ( 19, 'unit', ),    # NB. out of order.
+        ( 10, 'USB', ),
+        ( 11, 'Debian', ),
+        ( 12, 'Fedora', ),
+        ( 13, 'Oracle', ),
+        ( 14, 'RHEL', ),
+        ( 15, 'SUSE', ),
+        ( 16, 'Ubuntu', ),
+        ( 17, 'Win', ),
+    );
+
+    kiTbMisc_NestedPaging     =  0;
+    kiTbMisc_NoNestedPaging   =  1;
+    kiTbMisc_RawMode          =  2;
+    kiTbMisc_NoRawMode        =  3;
+    kiTbMisc_64BitGuest       =  4;
+    kiTbMisc_No64BitGuest     =  5;
+    kiTbMisc_HwVirt           =  6;
+    kiTbMisc_NoHwVirt         =  7;
+    kiTbMisc_IoMmu            =  8;
+    kiTbMisc_NoIoMmu          =  9;
+
+    def __init__(self):
+        ModelFilterBase.__init__(self);
+
+        # Test statuses
+        oCrit = FilterCriterion('Test statuses', sVarNm = 'ts', sType = FilterCriterion.ksType_String,
+                                sTable = 'TestSets', sColumn = 'enmStatus');
+        self.aCriteria.append(oCrit);
+        assert self.aCriteria[self.kiTestStatus] is oCrit;
+
+        # Error counts
+        oCrit = FilterCriterion('Error counts', sVarNm = 'ec', sTable = 'TestResults', sColumn = 'cErrors');
+        self.aCriteria.append(oCrit);
+        assert self.aCriteria[self.kiErrorCounts] is oCrit;
+
+        # Branches
+        oCrit = FilterCriterion('Branches', sVarNm = 'br', sType = FilterCriterion.ksType_String,
+                                sTable = 'BuildCategories', sColumn = 'sBranch');
+        self.aCriteria.append(oCrit);
+        assert self.aCriteria[self.kiBranches] is oCrit;
+
+        # Build types
+        oCrit = FilterCriterion('Build types', sVarNm = 'bt', sType = FilterCriterion.ksType_String,
+                                sTable = 'BuildCategories', sColumn = 'sType');
+        self.aCriteria.append(oCrit);
+        assert self.aCriteria[self.kiBuildTypes] is oCrit;
+
+        # Revisions
+        oCrit = FilterCriterion('Revisions', sVarNm = 'rv', sTable = 'Builds', sColumn = 'iRevision');
+        self.aCriteria.append(oCrit);
+        assert self.aCriteria[self.kiRevisions] is oCrit;
+
+        # Failure reasons
+        oCrit = FilterCriterion('Failure reasons', sVarNm = 'fr', sType = FilterCriterion.ksType_UIntNil,
+                                sTable = 'TestResultFailures', sColumn = 'idFailureReason');
+        self.aCriteria.append(oCrit);
+        assert self.aCriteria[self.kiFailReasons] is oCrit;
+
+        # Test cases and variations.
+        oCrit = FilterCriterion('Test case / var', sVarNm = 'tc', sTable = 'TestSets', sColumn = 'idTestCase',
+                                oSub = FilterCriterion('Test variations', sVarNm = 'tv',
+                                                       sTable = 'TestSets', sColumn = 'idTestCaseArgs'));
+        self.aCriteria.append(oCrit);
+        assert self.aCriteria[self.kiTestCases] is oCrit;
+
+        # Special test case and varation name sub string matching.
+        oCrit = FilterCriterion('Test case name', sVarNm = 'cm', sKind = FilterCriterion.ksKind_Special,
+                                asTables = ('TestCases', 'TestCaseArgs'));
+        oCrit.aoPossible = [
+            FilterCriterionValueAndDescription(aoCur[0], 'Include %s' % (aoCur[1],)) for aoCur in self.kaTcMisc
+        ];
+        oCrit.aoPossible.extend([
+            FilterCriterionValueAndDescription(aoCur[0] + 32, 'Exclude %s' % (aoCur[1],)) for aoCur in self.kaTcMisc
+        ]);
+        self.aCriteria.append(oCrit);
+        assert self.aCriteria[self.kiTestCaseMisc] is oCrit;
+
+        # Testboxes
+        oCrit = FilterCriterion('Testboxes', sVarNm = 'tb', sTable = 'TestSets', sColumn = 'idTestBox');
+        self.aCriteria.append(oCrit);
+        assert self.aCriteria[self.kiTestBoxes] is oCrit;
+
+        # Testbox OS and OS version.
+        oCrit = FilterCriterion('OS / version', sVarNm = 'os', sTable = 'TestBoxesWithStrings', sColumn = 'idStrOs',
+                                oSub = FilterCriterion('OS Versions', sVarNm = 'ov',
+                                                       sTable = 'TestBoxesWithStrings', sColumn = 'idStrOsVersion'));
+        self.aCriteria.append(oCrit);
+        assert self.aCriteria[self.kiOses] is oCrit;
+
+        # Testbox CPU architectures.
+        oCrit = FilterCriterion('CPU arches', sVarNm = 'ca', sTable = 'TestBoxesWithStrings', sColumn = 'idStrCpuArch');
+        self.aCriteria.append(oCrit);
+        assert self.aCriteria[self.kiCpuArches] is oCrit;
+
+        # Testbox CPU vendors and revisions.
+        oCrit = FilterCriterion('CPU vendor / rev', sVarNm = 'cv', sTable = 'TestBoxesWithStrings', sColumn = 'idStrCpuVendor',
+                                oSub = FilterCriterion('CPU revisions', sVarNm = 'cr',
+                                                       sTable = 'TestBoxesWithStrings', sColumn = 'lCpuRevision'));
+        self.aCriteria.append(oCrit);
+        assert self.aCriteria[self.kiCpuVendors] is oCrit;
+
+        # Testbox CPU (thread) count
+        oCrit = FilterCriterion('CPU counts', sVarNm = 'cc', sTable = 'TestBoxesWithStrings', sColumn = 'cCpus');
+        self.aCriteria.append(oCrit);
+        assert self.aCriteria[self.kiCpuCounts] is oCrit;
+
+        # Testbox memory sizes.
+        oCrit = FilterCriterion('Memory', sVarNm = 'mb', sTable = 'TestBoxesWithStrings', sColumn = 'cMbMemory');
+        self.aCriteria.append(oCrit);
+        assert self.aCriteria[self.kiMemory] is oCrit;
+
+        # Testbox features.
+        oCrit = FilterCriterion('Testbox features', sVarNm = 'tm', sKind = FilterCriterion.ksKind_Special,
+                                sTable = 'TestBoxesWithStrings');
+        oCrit.aoPossible = [
+            FilterCriterionValueAndDescription(self.kiTbMisc_NestedPaging,      "req nested paging"),
+            FilterCriterionValueAndDescription(self.kiTbMisc_NoNestedPaging,    "w/o nested paging"),
+            #FilterCriterionValueAndDescription(self.kiTbMisc_RawMode,           "req raw-mode"), - not implemented yet.
+            #FilterCriterionValueAndDescription(self.kiTbMisc_NoRawMode,         "w/o raw-mode"), - not implemented yet.
+            FilterCriterionValueAndDescription(self.kiTbMisc_64BitGuest,        "req 64-bit guests"),
+            FilterCriterionValueAndDescription(self.kiTbMisc_No64BitGuest,      "w/o 64-bit guests"),
+            FilterCriterionValueAndDescription(self.kiTbMisc_HwVirt,            "req VT-x / AMD-V"),
+            FilterCriterionValueAndDescription(self.kiTbMisc_NoHwVirt,          "w/o VT-x / AMD-V"),
+            #FilterCriterionValueAndDescription(self.kiTbMisc_IoMmu,             "req I/O MMU"), - not implemented yet.
+            #FilterCriterionValueAndDescription(self.kiTbMisc_NoIoMmu,           "w/o I/O MMU"), - not implemented yet.
+        ];
+        self.aCriteria.append(oCrit);
+        assert self.aCriteria[self.kiTestboxMisc] is oCrit;
+
+        # Testbox python versions.
+        oCrit = FilterCriterion('Python', sVarNm = 'py', sTable = 'TestBoxesWithStrings', sColumn = 'iPythonHexVersion');
+        self.aCriteria.append(oCrit);
+        assert self.aCriteria[self.kiPythonVersions] is oCrit;
+
+        # Scheduling groups.
+        oCrit = FilterCriterion('Sched groups', sVarNm = 'sg', sTable = 'TestSets', sColumn = 'idSchedGroup');
+        self.aCriteria.append(oCrit);
+        assert self.aCriteria[self.kiSchedGroups] is oCrit;
+
+
+    kdTbMiscConditions = {
+        kiTbMisc_NestedPaging:    'TestBoxesWithStrings.fCpuNestedPaging IS TRUE',
+        kiTbMisc_NoNestedPaging:  'TestBoxesWithStrings.fCpuNestedPaging IS FALSE',
+        kiTbMisc_RawMode:         'TestBoxesWithStrings.fRawMode IS TRUE',
+        kiTbMisc_NoRawMode:       'TestBoxesWithStrings.fRawMode IS NOT TRUE',
+        kiTbMisc_64BitGuest:      'TestBoxesWithStrings.fCpu64BitGuest IS TRUE',
+        kiTbMisc_No64BitGuest:    'TestBoxesWithStrings.fCpu64BitGuest IS FALSE',
+        kiTbMisc_HwVirt:          'TestBoxesWithStrings.fCpuHwVirt IS TRUE',
+        kiTbMisc_NoHwVirt:        'TestBoxesWithStrings.fCpuHwVirt IS FALSE',
+        kiTbMisc_IoMmu:           'TestBoxesWithStrings.fChipsetIoMmu IS TRUE',
+        kiTbMisc_NoIoMmu:         'TestBoxesWithStrings.fChipsetIoMmu IS FALSE',
+    };
+
+    def _getWhereWorker(self, iCrit, oCrit, sExtraIndent, iOmit):
+        """ Formats one - main or sub. """
+        sQuery = '';
+        if oCrit.sState == FilterCriterion.ksState_Selected and iCrit != iOmit:
+            if iCrit == self.kiTestCaseMisc:
+                for iValue, sLike in self.kaTcMisc:
+                    if iValue in oCrit.aoSelected:        sNot = '';
+                    elif iValue + 32 in oCrit.aoSelected: sNot = 'NOT ';
+                    else:                                 continue;
+                    sQuery += '%s   AND %s (' % (sExtraIndent, sNot,);
+                    if len(sLike) <= 3: # do word matching for small substrings (hw, np, smp, uni, ++).
+                        sQuery += 'TestCases.sName ~ \'.*\\y%s\\y.*\' ' \
+                                  'OR COALESCE(TestCaseArgs.sSubName, \'\') ~ \'.*\\y%s\\y.*\')\n' \
+                                % ( sLike, sLike,);
+                    else:
+                        sQuery += 'TestCases.sName LIKE \'%%%s%%\' ' \
+                                  'OR COALESCE(TestCaseArgs.sSubName, \'\') LIKE \'%%%s%%\')\n' \
+                                % ( sLike, sLike,);
+            elif iCrit == self.kiTestboxMisc:
+                dConditions = self.kdTbMiscConditions;
+                for iValue in oCrit.aoSelected:
+                    if iValue in dConditions:
+                        sQuery += '%s   AND %s\n' % (sExtraIndent, dConditions[iValue],);
+            else:
+                assert len(oCrit.asTables) == 1;
+                sQuery += '%s   AND (' % (sExtraIndent,);
+
+                if oCrit.sType != FilterCriterion.ksType_UIntNil or max(oCrit.aoSelected) != -1:
+                    if iCrit == self.kiMemory:
+                        sQuery += '(%s.%s / 1024)' % (oCrit.asTables[0], oCrit.sColumn,);
+                    else:
+                        sQuery += '%s.%s' % (oCrit.asTables[0], oCrit.sColumn,);
+                    if not oCrit.fInverted:
+                        sQuery += ' IN (';
+                    else:
+                        sQuery += ' NOT IN (';
+                    if oCrit.sType == FilterCriterion.ksType_String:
+                        sQuery += ', '.join('\'%s\'' % (sValue,) for sValue in oCrit.aoSelected) + ')';
+                    else:
+                        sQuery += ', '.join(str(iValue) for iValue in oCrit.aoSelected if iValue != -1) + ')';
+
+                if    oCrit.sType == FilterCriterion.ksType_UIntNil \
+                  and -1 in oCrit.aoSelected:
+                    if sQuery[-1] != '(': sQuery += ' OR ';
+                    sQuery += '%s.%s IS NULL' % (oCrit.asTables[0], oCrit.sColumn,);
+
+                if iCrit == self.kiFailReasons:
+                    if oCrit.fInverted:
+                        sQuery += '%s    OR TestResultFailures.idFailureReason IS NULL\n' % (sExtraIndent,);
+                    else:
+                        sQuery += '%s    AND TestSets.enmStatus >= \'failure\'::TestStatus_T\n' % (sExtraIndent,);
+                sQuery += ')\n';
+            if oCrit.oSub is not None:
+                sQuery += self._getWhereWorker(iCrit | (((iCrit >> 8) + 1) << 8), oCrit.oSub, sExtraIndent, iOmit);
+        return sQuery;
+
+    def getWhereConditions(self, sExtraIndent = '', iOmit = -1):
+        """
+        Construct the WHERE conditions for the filter, optionally omitting one
+        criterion.
+        """
+        sQuery = '';
+        for iCrit, oCrit in enumerate(self.aCriteria):
+            sQuery += self._getWhereWorker(iCrit, oCrit, sExtraIndent, iOmit);
+        return sQuery;
+
+    def getTableJoins(self, sExtraIndent = '', iOmit = -1, dOmitTables = None):
+        """
+        Construct the WHERE conditions for the filter, optionally omitting one
+        criterion.
+        """
+        afDone = { 'TestSets': True, };
+        if dOmitTables is not None:
+            afDone.update(dOmitTables);
+
+        sQuery = '';
+        for iCrit, oCrit in enumerate(self.aCriteria):
+            if    oCrit.sState == FilterCriterion.ksState_Selected \
+              and iCrit != iOmit:
+                for sTable in oCrit.asTables:
+                    if sTable not in afDone:
+                        afDone[sTable] = True;
+                        if sTable == 'Builds':
+                            sQuery += '%sINNER JOIN Builds\n' \
+                                      '%s        ON     Builds.idBuild      = TestSets.idBuild\n' \
+                                      '%s           AND Builds.tsExpire     > TestSets.tsCreated\n' \
+                                      '%s           AND Builds.tsEffective <= TestSets.tsCreated\n' \
+                                    % ( sExtraIndent, sExtraIndent, sExtraIndent, sExtraIndent, );
+                        elif sTable == 'BuildCategories':
+                            sQuery += '%sINNER JOIN BuildCategories\n' \
+                                      '%s        ON BuildCategories.idBuildCategory = TestSets.idBuildCategory\n' \
+                                    % ( sExtraIndent, sExtraIndent, );
+                        elif sTable == 'TestBoxesWithStrings':
+                            sQuery += '%sLEFT OUTER JOIN TestBoxesWithStrings\n' \
+                                      '%s             ON     TestBoxesWithStrings.idGenTestBox = TestSets.idGenTestBox\n' \
+                                    % ( sExtraIndent, sExtraIndent, );
+                        elif sTable == 'TestCases':
+                            sQuery += '%sINNER JOIN TestCases\n' \
+                                      '%s        ON TestCases.idGenTestCase = TestSets.idGenTestCase\n' \
+                                    % ( sExtraIndent, sExtraIndent, );
+                        elif sTable == 'TestCaseArgs':
+                            sQuery += '%sINNER JOIN TestCaseArgs\n' \
+                                      '%s        ON TestCaseArgs.idGenTestCaseArgs = TestSets.idGenTestCaseArgs\n' \
+                                    % ( sExtraIndent, sExtraIndent, );
+                        elif sTable == 'TestResults':
+                            sQuery += '%sINNER JOIN TestResults\n' \
+                                      '%s        ON TestResults.idTestResult = TestSets.idTestResult\n' \
+                                    % ( sExtraIndent, sExtraIndent, );
+                        elif sTable == 'TestResultFailures':
+                            sQuery += '%sLEFT OUTER JOIN TestResultFailures\n' \
+                                      '%s             ON     TestResultFailures.idTestSet = TestSets.idTestSet\n' \
+                                      '%s                AND TestResultFailures.tsExpire  = \'infinity\'::TIMESTAMP\n' \
+                                    % ( sExtraIndent, sExtraIndent, sExtraIndent, );
+                        else:
+                            assert False, sTable;
+        return sQuery;
+
+    def isJoiningWithTable(self, sTable):
+        """ Checks whether getTableJoins already joins with TestResultFailures. """
+        for oCrit in self.aCriteria:
+            if oCrit.sState == FilterCriterion.ksState_Selected and sTable in oCrit.asTables:
+                return True;
+        return False
+
+
+
 class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
     """
     Results grouped by scheduling group.
@@ -650,9 +993,12 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
 
     ksResultsGroupingTypeNone       = 'ResultsGroupingTypeNone';
     ksResultsGroupingTypeTestGroup  = 'ResultsGroupingTypeTestGroup';
-    ksResultsGroupingTypeBuildRev   = 'ResultsGroupingTypeBuild';
+    ksResultsGroupingTypeBuildCat   = 'ResultsGroupingTypeBuildCat';
+    ksResultsGroupingTypeBuildRev   = 'ResultsGroupingTypeBuildRev';
     ksResultsGroupingTypeTestBox    = 'ResultsGroupingTypeTestBox';
     ksResultsGroupingTypeTestCase   = 'ResultsGroupingTypeTestCase';
+    ksResultsGroupingTypeOS         = 'ResultsGroupingTypeOS';
+    ksResultsGroupingTypeArch       = 'ResultsGroupingTypeArch';
     ksResultsGroupingTypeSchedGroup = 'ResultsGroupingTypeSchedGroup';
 
     ## @name Result sorting options.
@@ -705,10 +1051,10 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
 
     ## Default sort by map.
     kdResultSortByMap = {
-        ksResultsSortByRunningAndStart:  ( '', None, None, '', '' ),
+        ksResultsSortByRunningAndStart:  ( (), None, None, '', '' ),
         ksResultsSortByBuildRevision: (
             # Sorting tables.
-            ', Builds',
+            ('Builds',),
             # Sorting table join(s).
             ' AND TestSets.idBuild    = Builds.idBuild'
             ' AND Builds.tsExpire    >= TestSets.tsCreated'
@@ -720,59 +1066,59 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
             # Columns for the GROUP BY
             ''),
         ksResultsSortByTestBoxName: (
-            ', TestBoxes',
+            ('TestBoxes',),
             ' AND TestSets.idGenTestBox = TestBoxes.idGenTestBox',
             ' TestBoxes.sName DESC',
             '', '' ),
         ksResultsSortByTestBoxOsArch: (
-            ', TestBoxesWithStrings',
+            ('TestBoxesWithStrings',),
             ' AND TestSets.idGenTestBox = TestBoxesWithStrings.idGenTestBox',
             ' TestBoxesWithStrings.sOs, TestBoxesWithStrings.sCpuArch',
             '', ''  ),
         ksResultsSortByTestBoxOs: (
-            ', TestBoxesWithStrings',
+            ('TestBoxesWithStrings',),
             ' AND TestSets.idGenTestBox = TestBoxesWithStrings.idGenTestBox',
             ' TestBoxesWithStrings.sOs',
             '', ''  ),
         ksResultsSortByTestBoxOsVersion: (
-            ', TestBoxesWithStrings',
+            ('TestBoxesWithStrings',),
             ' AND TestSets.idGenTestBox = TestBoxesWithStrings.idGenTestBox',
             ' TestBoxesWithStrings.sOs, TestBoxesWithStrings.sOsVersion DESC',
             '', ''  ),
         ksResultsSortByTestBoxArch: (
-            ', TestBoxesWithStrings',
+            ('TestBoxesWithStrings',),
             ' AND TestSets.idGenTestBox = TestBoxesWithStrings.idGenTestBox',
             ' TestBoxesWithStrings.sCpuArch',
             '', ''  ),
         ksResultsSortByTestBoxCpuVendor: (
-            ', TestBoxesWithStrings',
+            ('TestBoxesWithStrings',),
             ' AND TestSets.idGenTestBox = TestBoxesWithStrings.idGenTestBox',
             ' TestBoxesWithStrings.sCpuVendor',
             '', ''  ),
         ksResultsSortByTestBoxCpuName: (
-            ', TestBoxesWithStrings',
+            ('TestBoxesWithStrings',),
             ' AND TestSets.idGenTestBox = TestBoxesWithStrings.idGenTestBox',
             ' TestBoxesWithStrings.sCpuVendor, TestBoxesWithStrings.sCpuName',
             '', ''  ),
         ksResultsSortByTestBoxCpuRev: (
-            ', TestBoxesWithStrings',
+            ('TestBoxesWithStrings',),
             ' AND TestSets.idGenTestBox = TestBoxesWithStrings.idGenTestBox',
             ' TestBoxesWithStrings.sCpuVendor, TestBoxesWithStrings.lCpuRevision DESC',
             ', TestBoxesWithStrings.lCpuRevision',
             ', TestBoxesWithStrings.lCpuRevision' ),
         ksResultsSortByTestBoxCpuFeatures: (
-            ', TestBoxes',
+            ('TestBoxes',),
             ' AND TestSets.idGenTestBox = TestBoxes.idGenTestBox',
             ' TestBoxes.fCpuHwVirt DESC, TestBoxes.fCpuNestedPaging DESC, TestBoxes.fCpu64BitGuest DESC, TestBoxes.cCpus DESC',
             '',
             '' ),
         ksResultsSortByTestCaseName: (
-            ', TestCases',
+            ('TestCases',),
             ' AND TestSets.idGenTestCase = TestCases.idGenTestCase',
             ' TestCases.sName',
             '', ''  ),
         ksResultsSortByFailureReason: (
-            '', '',
+            (), '',
             'asSortByFailureReason ASC',
             ', array_agg(FailureReasons.sShort ORDER BY TestResultFailures.idTestResult) AS asSortByFailureReason',
             '' ),
@@ -781,7 +1127,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
     kdResultGroupingMap = {
         ksResultsGroupingTypeNone: (
             # Grouping tables;
-            '',
+            (),
             # Grouping field;
             None,
             # Grouping where addition.
@@ -792,13 +1138,26 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         ksResultsGroupingTypeTestGroup:  ('', 'TestSets.idTestGroup',     None,                      {},),
         ksResultsGroupingTypeTestBox:    ('', 'TestSets.idTestBox',       None,                      {},),
         ksResultsGroupingTypeTestCase:   ('', 'TestSets.idTestCase',      None,                      {},),
+        ksResultsGroupingTypeOS:                (
+            ('TestBoxes',),
+            'TestBoxes.idStrOs',
+            ' AND TestBoxes.idGenTestBox = TestSets.idGenTestBox',
+            {},
+        ),
+        ksResultsGroupingTypeArch:       (
+            ('TestBoxes',),
+            'TestBoxes.idStrCpuArch',
+            ' AND TestBoxes.idGenTestBox = TestSets.idGenTestBox',
+            {},
+        ),
+        ksResultsGroupingTypeBuildCat:   ('', 'TestSets.idBuildCategory', None,                      {},),
         ksResultsGroupingTypeBuildRev: (
-            ', Builds',
+            ('Builds',),
             'Builds.iRevision',
             ' AND Builds.idBuild      = TestSets.idBuild'
             ' AND Builds.tsExpire     > TestSets.tsCreated'
             ' AND Builds.tsEffective <= TestSets.tsCreated',
-            { ksResultsSortByBuildRevision: ( '', None,  ' Builds.iRevision DESC' ), }
+            { ksResultsSortByBuildRevision: ( (), None,  ' Builds.iRevision DESC' ), }
         ),
         ksResultsGroupingTypeSchedGroup: ( '', 'TestSets.idSchedGroup',   None,                      {},),
     };
@@ -832,7 +1191,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
                      sExtraIndent, sTsNow, sInterval );
         return sRet
 
-    def fetchResultsForListing(self, iStart, cMaxRows, tsNow, sInterval, enmResultSortBy, # pylint: disable=R0913
+    def fetchResultsForListing(self, iStart, cMaxRows, tsNow, sInterval, oFilter, enmResultSortBy, # pylint: disable=R0913
                                enmResultsGroupingType, iResultsGroupingValue, fOnlyFailures, fOnlyNeedingReason):
         """
         Fetches TestResults table content.
@@ -848,6 +1207,8 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         Raises exception on error.
         """
 
+        _ = oFilter;
+
         #
         # Get SQL query parameters
         #
@@ -855,11 +1216,11 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
             raise TMExceptionBase('Unknown grouping type');
         if enmResultSortBy is None or enmResultSortBy not in self.kasResultsSortBy:
             raise TMExceptionBase('Unknown sorting');
-        sGroupingTables, sGroupingField, sGroupingCondition, dSortingOverrides = self.kdResultGroupingMap[enmResultsGroupingType];
-        if enmResultSortBy in dSortingOverrides:
-            sSortTables, sSortWhere, sSortOrderBy, sSortColumns, sSortGroupBy = dSortingOverrides[enmResultSortBy];
+        asGroupingTables, sGroupingField, sGroupingCondition, dSortOverrides = self.kdResultGroupingMap[enmResultsGroupingType];
+        if enmResultSortBy in dSortOverrides:
+            asSortTables, sSortWhere, sSortOrderBy, sSortColumns, sSortGroupBy = dSortOverrides[enmResultSortBy];
         else:
-            sSortTables, sSortWhere, sSortOrderBy, sSortColumns, sSortGroupBy = self.kdResultSortByMap[enmResultSortBy];
+            asSortTables, sSortWhere, sSortOrderBy, sSortColumns, sSortGroupBy = self.kdResultSortByMap[enmResultSortBy];
 
         #
         # Construct the query.
@@ -909,16 +1270,20 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
                   '                 TestSets.idGenTestBox AS idGenTestBox,\n' \
                   '                 TestSets.idGenTestCase AS idGenTestCase,\n' \
                   '                 TestSets.idGenTestCaseArgs AS idGenTestCaseArgs\n' \
-                  '          FROM  TestSets';
-        if fOnlyNeedingReason:
+                  '          FROM  TestSets\n';
+        sQuery += oFilter.getTableJoins('         ');
+        if fOnlyNeedingReason and not oFilter.isJoiningWithTable('TestResultFailures'):
             sQuery += '\n' \
                       '          LEFT OUTER JOIN TestResultFailures\n' \
                       '                       ON     TestSets.idTestSet          = TestResultFailures.idTestSet\n' \
                       '                          AND TestResultFailures.tsExpire = \'infinity\'::TIMESTAMP';
-        sQuery += sGroupingTables.replace(',', ',\n                ');
-        sQuery += sSortTables.replace( ',', ',\n                ');
-        sQuery += '\n' \
-                  '          WHERE ' + self._getTimePeriodQueryPart(tsNow, sInterval, '         ');
+        for asTables in [asGroupingTables, asSortTables]:
+            for sTable in asTables:
+                if not oFilter.isJoiningWithTable(sTable):
+                    sQuery = sQuery[:-1] + ',\n                ' + sTable + '\n';
+
+        sQuery += '          WHERE ' + self._getTimePeriodQueryPart(tsNow, sInterval, '         ') + \
+                  oFilter.getWhereConditions('         ');
         if fOnlyFailures or fOnlyNeedingReason:
             sQuery += '            AND TestSets.enmStatus != \'success\'::TestStatus_T\n' \
                       '            AND TestSets.enmStatus != \'running\'::TestStatus_T\n';
@@ -1053,7 +1418,8 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         return [aoRow[0] for aoRow in self._oDb.fetchAll()];
 
 
-    def getEntriesCount(self, tsNow, sInterval, enmResultsGroupingType, iResultsGroupingValue, fOnlyFailures, fOnlyNeedingReason):
+    def getEntriesCount(self, tsNow, sInterval, oFilter, enmResultsGroupingType, iResultsGroupingValue,
+                        fOnlyFailures, fOnlyNeedingReason):
         """
         Get number of table records.
 
@@ -1064,6 +1430,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         If @param enmResultsGroupingType is None, then
         @param iResultsGroupingValue is ignored.
         """
+        _ = oFilter;
 
         #
         # Get SQL query parameters
@@ -1073,21 +1440,23 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
 
         if enmResultsGroupingType not in self.kdResultGroupingMap:
             raise TMExceptionBase('Unknown grouping type')
-        sGroupingTables, sGroupingField, sGroupingCondition, _  = self.kdResultGroupingMap[enmResultsGroupingType];
+        asGroupingTables, sGroupingField, sGroupingCondition, _  = self.kdResultGroupingMap[enmResultsGroupingType];
 
         #
         # Construct the query.
         #
         sQuery = 'SELECT COUNT(TestSets.idTestSet)\n' \
-                 'FROM   TestSets';
-        if fOnlyNeedingReason:
-            sQuery += '\n' \
-                      '       LEFT OUTER JOIN TestResultFailures\n' \
+                 'FROM   TestSets\n';
+        sQuery += oFilter.getTableJoins();
+        if fOnlyNeedingReason and not oFilter.isJoiningWithTable('TestResultFailures'):
+            sQuery += '       LEFT OUTER JOIN TestResultFailures\n' \
                       '                    ON     TestSets.idTestSet          = TestResultFailures.idTestSet\n' \
-                      '                       AND TestResultFailures.tsExpire = \'infinity\'::TIMESTAMP';
-        sQuery += sGroupingTables.replace(',', ',\n       ');
-        sQuery += '\n' \
-                  'WHERE  ' + self._getTimePeriodQueryPart(tsNow, sInterval);
+                      '                       AND TestResultFailures.tsExpire = \'infinity\'::TIMESTAMP\n';
+        for sTable in asGroupingTables:
+            if not oFilter.isJoiningWithTable(sTable):
+                sQuery = sQuery[:-1] + ',\n                ' + sTable + '\n';
+        sQuery += 'WHERE  ' + self._getTimePeriodQueryPart(tsNow, sInterval) + \
+                  oFilter.getWhereConditions();
         if fOnlyFailures or fOnlyNeedingReason:
             sQuery += '   AND TestSets.enmStatus != \'success\'::TestStatus_T\n' \
                       '   AND TestSets.enmStatus != \'running\'::TestStatus_T\n';
@@ -1185,6 +1554,63 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
             aoRet.append(TestCaseData().initFromDbRow(aoRow));
         return aoRet
 
+    def getOSes(self, tsNow, sPeriod):
+        """
+        Get a list of [idStrOs, sOs] tuples of the OSes that appears in the specified result period.
+        """
+
+        # Note! INNER JOIN TestBoxesWithStrings performs miserable compared to LEFT OUTER JOIN. Doesn't matter for the result
+        #       because TestSets.idGenTestBox is a foreign key and unique in TestBoxes.  So, let's do what ever is faster.
+        self._oDb.execute('SELECT DISTINCT TestBoxesWithStrings.idStrOs, TestBoxesWithStrings.sOs\n'
+                          'FROM   ( SELECT idTestBox         AS idTestBox,\n'
+                          '                MAX(idGenTestBox) AS idGenTestBox\n'
+                          '         FROM   TestSets\n'
+                          '         WHERE  ' + self._getTimePeriodQueryPart(tsNow, sPeriod, '        ') +
+                          '         GROUP BY idTestBox\n'
+                          '       ) AS TestBoxIDs\n'
+                          '       LEFT OUTER JOIN TestBoxesWithStrings\n'
+                          '                    ON TestBoxesWithStrings.idGenTestBox = TestBoxIDs.idGenTestBox\n'
+                          'ORDER BY TestBoxesWithStrings.sOs\n' );
+        return self._oDb.fetchAll();
+
+    def getArchitectures(self, tsNow, sPeriod):
+        """
+        Get a list of [idStrCpuArch, sCpuArch] tuples of the architecutres
+        that appears in the specified result period.
+        """
+
+        # Note! INNER JOIN TestBoxesWithStrings performs miserable compared to LEFT OUTER JOIN. Doesn't matter for the result
+        #       because TestSets.idGenTestBox is a foreign key and unique in TestBoxes.  So, let's do what ever is faster.
+        self._oDb.execute('SELECT DISTINCT TestBoxesWithStrings.idStrCpuArch, TestBoxesWithStrings.sCpuArch\n'
+                          'FROM   ( SELECT idTestBox         AS idTestBox,\n'
+                          '                MAX(idGenTestBox) AS idGenTestBox\n'
+                          '         FROM   TestSets\n'
+                          '         WHERE  ' + self._getTimePeriodQueryPart(tsNow, sPeriod, '        ') +
+                          '         GROUP BY idTestBox\n'
+                          '       ) AS TestBoxIDs\n'
+                          '       LEFT OUTER JOIN TestBoxesWithStrings\n'
+                          '                    ON TestBoxesWithStrings.idGenTestBox = TestBoxIDs.idGenTestBox\n'
+                          'ORDER BY TestBoxesWithStrings.sCpuArch\n' );
+        return self._oDb.fetchAll();
+
+    def getBuildCategories(self, tsNow, sPeriod):
+        """
+        Get a list of BuildCategoryData that appears in the specified result period.
+        """
+
+        self._oDb.execute('SELECT DISTINCT BuildCategories.*\n'
+                          'FROM   ( SELECT DISTINCT idBuildCategory AS idBuildCategory\n'
+                          '         FROM   TestSets\n'
+                          '         WHERE  ' + self._getTimePeriodQueryPart(tsNow, sPeriod, '        ') +
+                          '       ) AS BuildCategoryIDs\n'
+                          '       LEFT OUTER JOIN BuildCategories\n'
+                          '                    ON BuildCategories.idBuildCategory = BuildCategoryIDs.idBuildCategory\n'
+                          'ORDER BY BuildCategories.sProduct, BuildCategories.sBranch, BuildCategories.sType\n');
+        aoRet = [];
+        for aoRow in self._oDb.fetchAll():
+            aoRet.append(BuildCategoryData().initFromDbRow(aoRow));
+        return aoRet;
+
     def getSchedGroups(self, tsNow, sPeriod):
         """
         Get list of uniq SchedGroupData objects which
@@ -1224,6 +1650,401 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
             return TestResultData().initFromDbRow(aRows[0])
         except IndexError:
             return None
+
+    def fetchPossibleFilterOptions(self, oFilter, tsNow, sPeriod, oReportModel = None):
+        """
+        Fetches the available filter criteria, given the current filtering.
+
+        Returns oFilter.
+        """
+        assert isinstance(oFilter, TestResultFilter);
+
+        # Hack to avoid lot's of conditionals or duplicate this code.
+        if oReportModel is None:
+            class DummyReportModel(object):
+                """ Dummy """
+                def getExtraSubjectTables(self):
+                    """ Dummy """
+                    return [];
+                def getExtraSubjectWhereExpr(self):
+                    """ Dummy """
+                    return '';
+            oReportModel = DummyReportModel();
+
+        def workerDoFetch(oMissingLogicType, sNameAttr = 'sName', fIdIsName = False, idxHover = -1,
+                          idNull = -1, sNullDesc = '<NULL>'):
+            """ Does the tedious result fetching and handling of missing bits. """
+            dLeft = { oValue: 1 for oValue in oCrit.aoSelected };
+            oCrit.aoPossible = [];
+            for aoRow in self._oDb.fetchAll():
+                oCrit.aoPossible.append(FilterCriterionValueAndDescription(aoRow[0] if aoRow[0] is not None else idNull,
+                                                                           aoRow[1] if aoRow[1] is not None else sNullDesc,
+                                                                           aoRow[2],
+                                                                           aoRow[idxHover] if idxHover >= 0 else None));
+                if aoRow[0] in dLeft:
+                    del dLeft[aoRow[0]];
+            if dLeft:
+                if fIdIsName:
+                    for idMissing in dLeft:
+                        oCrit.aoPossible.append(FilterCriterionValueAndDescription(idMissing, str(idMissing),
+                                                                                   fIrrelevant = True));
+                else:
+                    oMissingLogic = oMissingLogicType(self._oDb);
+                    for idMissing in dLeft:
+                        oMissing = oMissingLogic.cachedLookup(idMissing);
+                        if oMissing is not None:
+                            oCrit.aoPossible.append(FilterCriterionValueAndDescription(idMissing,
+                                                                                       getattr(oMissing, sNameAttr),
+                                                                                       fIrrelevant = True));
+
+        def workerDoFetchNested():
+            """ Does the tedious result fetching and handling of missing bits. """
+            oCrit.aoPossible = [];
+            oCrit.oSub.aoPossible = [];
+            dLeft    = { oValue: 1 for oValue in oCrit.aoSelected };
+            dSubLeft = { oValue: 1 for oValue in oCrit.oSub.aoSelected };
+            oMain    = None;
+            for aoRow in self._oDb.fetchAll():
+                if oMain is None or oMain.oValue != aoRow[0]:
+                    oMain = FilterCriterionValueAndDescription(aoRow[0], aoRow[1], 0);
+                    oCrit.aoPossible.append(oMain);
+                    if aoRow[0] in dLeft:
+                        del dLeft[aoRow[0]];
+                oCurSub = FilterCriterionValueAndDescription(aoRow[2], aoRow[3], aoRow[4]);
+                oCrit.oSub.aoPossible.append(oCurSub);
+                if aoRow[2] in dSubLeft:
+                    del dSubLeft[aoRow[2]];
+
+                oMain.aoSubs.append(oCurSub);
+                oMain.cTimes += aoRow[4];
+
+            if dLeft:
+                pass; ## @todo
+
+        # Statuses.
+        oCrit = oFilter.aCriteria[TestResultFilter.kiTestStatus];
+        self._oDb.execute('SELECT TestSets.enmStatus, TestSets.enmStatus, COUNT(TestSets.idTestSet)\n'
+                          'FROM   TestSets\n' + oFilter.getTableJoins(iOmit = TestResultFilter.kiTestStatus) +
+                          ''.join('        , %s\n' % (sTable,) for sTable in oReportModel.getExtraSubjectTables()) +
+                          'WHERE  ' + self._getTimePeriodQueryPart(tsNow, sPeriod) +
+                          oFilter.getWhereConditions(iOmit = TestResultFilter.kiTestStatus) +
+                          oReportModel.getExtraSubjectWhereExpr() +
+                          'GROUP BY TestSets.enmStatus\n'
+                          'ORDER BY TestSets.enmStatus\n');
+        workerDoFetch(None, fIdIsName = True);
+
+        # Scheduling groups (see getSchedGroups).
+        oCrit = oFilter.aCriteria[TestResultFilter.kiSchedGroups];
+        self._oDb.execute('SELECT SchedGroups.idSchedGroup, SchedGroups.sName, SchedGroupIDs.cTimes\n'
+                          'FROM   ( SELECT TestSets.idSchedGroup,\n'
+                          '                MAX(TestSets.tsCreated)   AS tsNow,\n'
+                          '                COUNT(TestSets.idTestSet) AS cTimes\n'
+                          '         FROM   TestSets\n' + oFilter.getTableJoins(iOmit = TestResultFilter.kiSchedGroups) +
+                          ''.join('                , %s\n' % (sTable,) for sTable in oReportModel.getExtraSubjectTables()) +
+                          '         WHERE  ' + self._getTimePeriodQueryPart(tsNow, sPeriod, '         ') +
+                          oFilter.getWhereConditions(iOmit = TestResultFilter.kiSchedGroups) +
+                          oReportModel.getExtraSubjectWhereExpr() +
+                          '         GROUP BY TestSets.idSchedGroup\n'
+                          '       ) AS SchedGroupIDs\n'
+                          '       INNER JOIN SchedGroups\n'
+                          '               ON SchedGroups.idSchedGroup = SchedGroupIDs.idSchedGroup\n'
+                          '              AND SchedGroups.tsExpire     > SchedGroupIDs.tsNow\n'
+                          '              AND SchedGroups.tsEffective <= SchedGroupIDs.tsNow\n'
+                          'ORDER BY SchedGroups.sName\n' );
+        workerDoFetch(SchedGroupLogic);
+
+        # Testboxes (see getTestBoxes).
+        oCrit = oFilter.aCriteria[TestResultFilter.kiTestBoxes];
+        self._oDb.execute('SELECT TestBoxesWithStrings.idTestBox,\n'
+                          '       TestBoxesWithStrings.sName,\n'
+                          '       TestBoxIDs.cTimes\n'
+                          'FROM   ( SELECT TestSets.idTestBox         AS idTestBox,\n'
+                          '                MAX(TestSets.idGenTestBox) AS idGenTestBox,\n'
+                          '                COUNT(TestSets.idTestSet)  AS cTimes\n'
+                          '         FROM   TestSets\n' + oFilter.getTableJoins(iOmit = TestResultFilter.kiTestBoxes) +
+                          ''.join('                , %s\n' % (sTable,) for sTable in oReportModel.getExtraSubjectTables()) +
+                          '         WHERE  ' + self._getTimePeriodQueryPart(tsNow, sPeriod, '        ') +
+                          oFilter.getWhereConditions(iOmit = TestResultFilter.kiTestBoxes) +
+                          oReportModel.getExtraSubjectWhereExpr() +
+                          '         GROUP BY TestSets.idTestBox\n'
+                          '       ) AS TestBoxIDs\n'
+                          '       LEFT OUTER JOIN TestBoxesWithStrings\n'
+                          '                    ON TestBoxesWithStrings.idGenTestBox = TestBoxIDs.idGenTestBox\n'
+                          'ORDER BY TestBoxesWithStrings.sName\n' );
+        workerDoFetch(TestBoxLogic);
+
+        # Testbox OSes and versions.
+        oCrit = oFilter.aCriteria[TestResultFilter.kiOses];
+        self._oDb.execute('SELECT TestBoxesWithStrings.idStrOs,\n'
+                          '       TestBoxesWithStrings.sOs,\n'
+                          '       TestBoxesWithStrings.idStrOsVersion,\n'
+                          '       TestBoxesWithStrings.sOsVersion,\n'
+                          '       SUM(TestBoxGenIDs.cTimes)\n'
+                          'FROM   ( SELECT TestSets.idGenTestBox,\n'
+                          '                COUNT(TestSets.idTestSet) AS cTimes\n'
+                          '         FROM   TestSets\n' + oFilter.getTableJoins(iOmit = TestResultFilter.kiOses) +
+                          ''.join('                , %s\n' % (sTable,) for sTable in oReportModel.getExtraSubjectTables()) +
+                          '         WHERE  ' + self._getTimePeriodQueryPart(tsNow, sPeriod, '        ') +
+                          oFilter.getWhereConditions(iOmit = TestResultFilter.kiOses) +
+                          oReportModel.getExtraSubjectWhereExpr() +
+                          '         GROUP BY TestSets.idGenTestBox\n'
+                          '       ) AS TestBoxGenIDs\n'
+                          '       LEFT OUTER JOIN TestBoxesWithStrings\n'
+                          '                    ON TestBoxesWithStrings.idGenTestBox = TestBoxGenIDs.idGenTestBox\n'
+                          'GROUP BY TestBoxesWithStrings.idStrOs,\n'
+                          '         TestBoxesWithStrings.sOs,\n'
+                          '         TestBoxesWithStrings.idStrOsVersion,\n'
+                          '         TestBoxesWithStrings.sOsVersion\n'
+                          'ORDER BY TestBoxesWithStrings.sOs,\n'
+                          '         TestBoxesWithStrings.sOs = \'win\' AND TestBoxesWithStrings.sOsVersion = \'10\' DESC,\n'
+                          '         TestBoxesWithStrings.sOsVersion DESC\n'
+                           );
+        workerDoFetchNested();
+
+        # Testbox CPU(/OS) architectures.
+        oCrit = oFilter.aCriteria[TestResultFilter.kiCpuArches];
+        self._oDb.execute('SELECT TestBoxesWithStrings.idStrCpuArch,\n'
+                          '       TestBoxesWithStrings.sCpuArch,\n'
+                          '       SUM(TestBoxGenIDs.cTimes)\n'
+                          'FROM   ( SELECT TestSets.idGenTestBox,\n'
+                          '                COUNT(TestSets.idTestSet) AS cTimes\n'
+                          '         FROM   TestSets\n' + oFilter.getTableJoins(iOmit = TestResultFilter.kiCpuArches) +
+                          ''.join('                , %s\n' % (sTable,) for sTable in oReportModel.getExtraSubjectTables()) +
+                          '         WHERE  ' + self._getTimePeriodQueryPart(tsNow, sPeriod, '        ') +
+                          oFilter.getWhereConditions(iOmit = TestResultFilter.kiCpuArches) +
+                          oReportModel.getExtraSubjectWhereExpr() +
+                          '         GROUP BY TestSets.idGenTestBox\n'
+                          '       ) AS TestBoxGenIDs\n'
+                          '       LEFT OUTER JOIN TestBoxesWithStrings\n'
+                          '                    ON TestBoxesWithStrings.idGenTestBox = TestBoxGenIDs.idGenTestBox\n'
+                          'GROUP BY TestBoxesWithStrings.idStrCpuArch, TestBoxesWithStrings.sCpuArch\n'
+                          'ORDER BY TestBoxesWithStrings.sCpuArch\n' );
+        workerDoFetch(None, fIdIsName = True);
+
+        # Testbox CPU revisions.
+        oCrit = oFilter.aCriteria[TestResultFilter.kiCpuVendors];
+        self._oDb.execute('SELECT TestBoxesWithStrings.idStrCpuVendor,\n'
+                          '       TestBoxesWithStrings.sCpuVendor,\n'
+                          '       TestBoxesWithStrings.lCpuRevision,\n'
+                          '       TestBoxesWithStrings.sCpuVendor,\n'
+                          '       SUM(TestBoxGenIDs.cTimes)\n'
+                          'FROM   ( SELECT TestSets.idGenTestBox,\n'
+                          '                COUNT(TestSets.idTestSet) AS cTimes\n'
+                          '         FROM   TestSets\n' + oFilter.getTableJoins(iOmit = TestResultFilter.kiCpuVendors) +
+                          ''.join('                , %s\n' % (sTable,) for sTable in oReportModel.getExtraSubjectTables()) +
+                          '         WHERE  ' + self._getTimePeriodQueryPart(tsNow, sPeriod, '        ') +
+                          oFilter.getWhereConditions(iOmit = TestResultFilter.kiCpuVendors) +
+                          oReportModel.getExtraSubjectWhereExpr() +
+                          '         GROUP BY TestSets.idGenTestBox'
+                          '       ) AS TestBoxGenIDs\n'
+                          '       LEFT OUTER JOIN TestBoxesWithStrings\n'
+                          '                    ON TestBoxesWithStrings.idGenTestBox = TestBoxGenIDs.idGenTestBox\n'
+                          'GROUP BY TestBoxesWithStrings.idStrCpuVendor,\n'
+                          '         TestBoxesWithStrings.sCpuVendor,\n'
+                          '         TestBoxesWithStrings.lCpuRevision,\n'
+                          '         TestBoxesWithStrings.sCpuVendor\n'
+                          'ORDER BY TestBoxesWithStrings.sCpuVendor DESC,\n'
+                          '             TestBoxesWithStrings.sCpuVendor = \'GenuineIntel\'\n'
+                          '         AND (TestBoxesWithStrings.lCpuRevision >> 24) = 15,\n' # P4 at the bottom is a start...
+                          '         TestBoxesWithStrings.lCpuRevision DESC\n'
+                          );
+        workerDoFetchNested();
+        for oCur in oCrit.oSub.aoPossible:
+            oCur.sDesc = TestBoxData.getPrettyCpuVersionEx(oCur.oValue, oCur.sDesc).replace('_', ' ');
+
+        # Testbox CPU core/thread counts.
+        oCrit = oFilter.aCriteria[TestResultFilter.kiCpuCounts];
+        self._oDb.execute('SELECT TestBoxesWithStrings.cCpus,\n'
+                          '       CAST(TestBoxesWithStrings.cCpus AS TEXT),\n'
+                          '       SUM(TestBoxGenIDs.cTimes)\n'
+                          'FROM   ( SELECT TestSets.idGenTestBox,\n'
+                          '                COUNT(TestSets.idTestSet) AS cTimes\n'
+                          '         FROM   TestSets\n' + oFilter.getTableJoins(iOmit = TestResultFilter.kiCpuCounts) +
+                          ''.join('                , %s\n' % (sTable,) for sTable in oReportModel.getExtraSubjectTables()) +
+                          '         WHERE  ' + self._getTimePeriodQueryPart(tsNow, sPeriod, '        ') +
+                          oFilter.getWhereConditions(iOmit = TestResultFilter.kiCpuCounts) +
+                          oReportModel.getExtraSubjectWhereExpr() +
+                          '         GROUP BY TestSets.idGenTestBox'
+                          '       ) AS TestBoxGenIDs\n'
+                          '       LEFT OUTER JOIN TestBoxesWithStrings\n'
+                          '                    ON TestBoxesWithStrings.idGenTestBox = TestBoxGenIDs.idGenTestBox\n'
+                          'GROUP BY TestBoxesWithStrings.cCpus\n'
+                          'ORDER BY TestBoxesWithStrings.cCpus\n' );
+        workerDoFetch(None, fIdIsName = True);
+
+        # Testbox memory.
+        oCrit = oFilter.aCriteria[TestResultFilter.kiMemory];
+        self._oDb.execute('SELECT TestBoxesWithStrings.cMbMemory / 1024,\n'
+                          '       NULL,\n'
+                          '       SUM(TestBoxGenIDs.cTimes)\n'
+                          'FROM   ( SELECT TestSets.idGenTestBox,\n'
+                          '                COUNT(TestSets.idTestSet) AS cTimes\n'
+                          '         FROM   TestSets\n' + oFilter.getTableJoins(iOmit = TestResultFilter.kiMemory) +
+                          ''.join('                , %s\n' % (sTable,) for sTable in oReportModel.getExtraSubjectTables()) +
+                          '         WHERE  ' + self._getTimePeriodQueryPart(tsNow, sPeriod, '        ') +
+                          oFilter.getWhereConditions(iOmit = TestResultFilter.kiMemory) +
+                          oReportModel.getExtraSubjectWhereExpr() +
+                          '         GROUP BY TestSets.idGenTestBox'
+                          '       ) AS TestBoxGenIDs\n'
+                          '       LEFT OUTER JOIN TestBoxesWithStrings\n'
+                          '                    ON TestBoxesWithStrings.idGenTestBox = TestBoxGenIDs.idGenTestBox\n'
+                          'GROUP BY TestBoxesWithStrings.cMbMemory / 1024\n'
+                          'ORDER BY 1\n' );
+        workerDoFetch(None, fIdIsName = True);
+        for oCur in oCrit.aoPossible:
+            oCur.sDesc = '%u GB' % (oCur.oValue,);
+
+        # Testbox python versions .
+        oCrit = oFilter.aCriteria[TestResultFilter.kiPythonVersions];
+        self._oDb.execute('SELECT TestBoxesWithStrings.iPythonHexVersion,\n'
+                          '       NULL,\n'
+                          '       SUM(TestBoxGenIDs.cTimes)\n'
+                          'FROM   ( SELECT TestSets.idGenTestBox     AS idGenTestBox,\n'
+                          '                COUNT(TestSets.idTestSet) AS cTimes\n'
+                          '         FROM   TestSets\n' + oFilter.getTableJoins(iOmit = TestResultFilter.kiPythonVersions) +
+                          ''.join('                , %s\n' % (sTable,) for sTable in oReportModel.getExtraSubjectTables()) +
+                          '         WHERE  ' + self._getTimePeriodQueryPart(tsNow, sPeriod, '        ') +
+                          oFilter.getWhereConditions(iOmit = TestResultFilter.kiPythonVersions) +
+                          oReportModel.getExtraSubjectWhereExpr() +
+                          '         GROUP BY TestSets.idGenTestBox\n'
+                          '       ) AS TestBoxGenIDs\n'
+                          '       LEFT OUTER JOIN TestBoxesWithStrings\n'
+                          '                    ON TestBoxesWithStrings.idGenTestBox = TestBoxGenIDs.idGenTestBox\n'
+                          'GROUP BY TestBoxesWithStrings.iPythonHexVersion\n'
+                          'ORDER BY TestBoxesWithStrings.iPythonHexVersion\n' );
+        workerDoFetch(None, fIdIsName = True);
+        for oCur in oCrit.aoPossible:
+            oCur.sDesc = TestBoxData.formatPythonVersionEx(oCur.oValue); # pylint: disable=redefined-variable-type
+
+        # Testcase with variation.
+        oCrit = oFilter.aCriteria[TestResultFilter.kiTestCases];
+        self._oDb.execute('SELECT TestCaseArgsIDs.idTestCase,\n'
+                          '       TestCases.sName,\n'
+                          '       TestCaseArgsIDs.idTestCaseArgs,\n'
+                          '       CASE WHEN TestCaseArgs.sSubName IS NULL OR TestCaseArgs.sSubName = \'\' THEN\n'
+                          '           CONCAT(\'/ #\', TestCaseArgs.idTestCaseArgs)\n'
+                          '       ELSE\n'
+                          '           TestCaseArgs.sSubName\n'
+                          '       END,'
+                          '       TestCaseArgsIDs.cTimes\n'
+                          'FROM   ( SELECT TestSets.idTestCase             AS idTestCase,\n'
+                          '                TestSets.idTestCaseArgs         AS idTestCaseArgs,\n'
+                          '                MAX(TestSets.idGenTestCase)     AS idGenTestCase,\n'
+                          '                MAX(TestSets.idGenTestCaseArgs) AS idGenTestCaseArgs,\n'
+                          '                COUNT(TestSets.idTestSet)       AS cTimes\n'
+                          '         FROM   TestSets\n' + oFilter.getTableJoins(iOmit = TestResultFilter.kiTestCases) +
+                          ''.join('                , %s\n' % (sTable,) for sTable in oReportModel.getExtraSubjectTables()) +
+                          '         WHERE  ' + self._getTimePeriodQueryPart(tsNow, sPeriod, '        ') +
+                          oFilter.getWhereConditions(iOmit = TestResultFilter.kiTestCases) +
+                          oReportModel.getExtraSubjectWhereExpr() +
+                          '         GROUP BY TestSets.idTestCase, TestSets.idTestCaseArgs\n'
+                          '       ) AS TestCaseArgsIDs\n'
+                          '       LEFT OUTER JOIN TestCases ON TestCases.idGenTestCase = TestCaseArgsIDs.idGenTestCase\n'
+                          '       LEFT OUTER JOIN TestCaseArgs\n'
+                          '                    ON TestCaseArgs.idGenTestCaseArgs = TestCaseArgsIDs.idGenTestCaseArgs\n'
+                          'ORDER BY TestCases.sName, 4\n' );
+        workerDoFetchNested();
+
+        # Build revisions.
+        oCrit = oFilter.aCriteria[TestResultFilter.kiRevisions];
+        self._oDb.execute('SELECT Builds.iRevision, CONCAT(\'r\', Builds.iRevision), SUM(BuildIDs.cTimes)\n'
+                          'FROM   ( SELECT TestSets.idBuild        AS idBuild,\n'
+                          '                MAX(TestSets.tsCreated) AS tsNow,\n'
+                          '                COUNT(TestSets.idBuild) AS cTimes\n'
+                          '         FROM   TestSets\n' + oFilter.getTableJoins(iOmit = TestResultFilter.kiRevisions) +
+                          ''.join('                , %s\n' % (sTable,) for sTable in oReportModel.getExtraSubjectTables()) +
+                          '         WHERE  ' + self._getTimePeriodQueryPart(tsNow, sPeriod, '        ') +
+                          oFilter.getWhereConditions(iOmit = TestResultFilter.kiRevisions) +
+                          oReportModel.getExtraSubjectWhereExpr() +
+                          '         GROUP BY TestSets.idBuild\n'
+                          '       ) AS BuildIDs\n'
+                          '       INNER JOIN Builds\n'
+                          '               ON Builds.idBuild      = BuildIDs.idBuild\n'
+                          '              AND Builds.tsExpire     > BuildIDs.tsNow\n'
+                          '              AND Builds.tsEffective <= BuildIDs.tsNow\n'
+                          'GROUP BY Builds.iRevision\n'
+                          'ORDER BY Builds.iRevision DESC\n' );
+        workerDoFetch(None, fIdIsName = True);
+
+        # Build branches.
+        oCrit = oFilter.aCriteria[TestResultFilter.kiBranches];
+        self._oDb.execute('SELECT BuildCategories.sBranch, BuildCategories.sBranch, SUM(BuildCategoryIDs.cTimes)\n'
+                          'FROM   ( SELECT TestSets.idBuildCategory,\n'
+                          '                COUNT(TestSets.idTestSet) AS cTimes\n'
+                          '         FROM   TestSets\n' + oFilter.getTableJoins(iOmit = TestResultFilter.kiBranches) +
+                          ''.join('                , %s\n' % (sTable,) for sTable in oReportModel.getExtraSubjectTables()) +
+                          '         WHERE  ' + self._getTimePeriodQueryPart(tsNow, sPeriod, '        ') +
+                          oFilter.getWhereConditions(iOmit = TestResultFilter.kiBranches) +
+                          oReportModel.getExtraSubjectWhereExpr() +
+                          '         GROUP BY TestSets.idBuildCategory\n'
+                          '       ) AS BuildCategoryIDs\n'
+                          '       INNER JOIN BuildCategories\n'
+                          '               ON BuildCategories.idBuildCategory = BuildCategoryIDs.idBuildCategory\n'
+                          'GROUP BY BuildCategories.sBranch\n'
+                          'ORDER BY BuildCategories.sBranch DESC\n' );
+        workerDoFetch(None, fIdIsName = True);
+
+        # Build types.
+        oCrit = oFilter.aCriteria[TestResultFilter.kiBuildTypes];
+        self._oDb.execute('SELECT BuildCategories.sType, BuildCategories.sType, SUM(BuildCategoryIDs.cTimes)\n'
+                          'FROM   ( SELECT TestSets.idBuildCategory,\n'
+                          '                COUNT(TestSets.idTestSet) AS cTimes\n'
+                          '         FROM   TestSets\n' + oFilter.getTableJoins(iOmit = TestResultFilter.kiBuildTypes) +
+                          ''.join('                , %s\n' % (sTable,) for sTable in oReportModel.getExtraSubjectTables()) +
+                          '         WHERE  ' + self._getTimePeriodQueryPart(tsNow, sPeriod, '        ') +
+                          oFilter.getWhereConditions(iOmit = TestResultFilter.kiBuildTypes) +
+                          oReportModel.getExtraSubjectWhereExpr() +
+                          '         GROUP BY TestSets.idBuildCategory\n'
+                          '       ) AS BuildCategoryIDs\n'
+                          '       INNER JOIN BuildCategories\n'
+                          '               ON BuildCategories.idBuildCategory = BuildCategoryIDs.idBuildCategory\n'
+                          'GROUP BY BuildCategories.sType\n'
+                          'ORDER BY BuildCategories.sType DESC\n' );
+        workerDoFetch(None, fIdIsName = True);
+
+        # Failure reasons.
+        oCrit = oFilter.aCriteria[TestResultFilter.kiFailReasons];
+        self._oDb.execute('SELECT FailureReasons.idFailureReason, FailureReasons.sShort, FailureReasonIDs.cTimes\n'
+                          'FROM   ( SELECT TestResultFailures.idFailureReason,\n'
+                          '                COUNT(TestSets.idTestSet) as cTimes\n'
+                          '         FROM   TestSets\n'
+                          '         LEFT OUTER JOIN TestResultFailures\n'
+                          '                 ON     TestResultFailures.idTestSet = TestSets.idTestSet\n'
+                          '                    AND TestResultFailures.tsExpire  = \'infinity\'::TIMESTAMP\n' +
+                          oFilter.getTableJoins(iOmit = TestResultFilter.kiFailReasons) +
+                          ''.join('                , %s\n' % (sTable,) for sTable in oReportModel.getExtraSubjectTables()) +
+                          '         WHERE  ' + self._getTimePeriodQueryPart(tsNow, sPeriod, '        ') +
+                          '            AND TestSets.enmStatus >= \'failure\'::TestStatus_T\n' +
+                          oFilter.getWhereConditions(iOmit = TestResultFilter.kiFailReasons) +
+                          oReportModel.getExtraSubjectWhereExpr() +
+                          '         GROUP BY TestResultFailures.idFailureReason\n'
+                          '       ) AS FailureReasonIDs\n'
+                          '       LEFT OUTER JOIN FailureReasons\n'
+                          '               ON FailureReasons.idFailureReason = FailureReasonIDs.idFailureReason\n'
+                          '              AND FailureReasons.tsExpire        = \'infinity\'::TIMESTAMP\n'
+                          'ORDER BY FailureReasons.idFailureReason IS NULL DESC,\n'
+                          '         FailureReasons.sShort\n' );
+        workerDoFetch(FailureReasonLogic, 'sShort', sNullDesc = 'Not given');
+
+        # Error counts.
+        oCrit = oFilter.aCriteria[TestResultFilter.kiErrorCounts];
+        self._oDb.execute('SELECT TestResults.cErrors, CAST(TestResults.cErrors AS TEXT), COUNT(TestResults.idTestResult)\n'
+                          'FROM   ( SELECT TestSets.idTestResult AS idTestResult\n'
+                          '         FROM   TestSets\n' +
+                          oFilter.getTableJoins(iOmit = TestResultFilter.kiFailReasons) +
+                          ''.join('                , %s\n' % (sTable,) for sTable in oReportModel.getExtraSubjectTables()) +
+                          '         WHERE  ' + self._getTimePeriodQueryPart(tsNow, sPeriod, '        ') +
+                          oFilter.getWhereConditions(iOmit = TestResultFilter.kiFailReasons) +
+                          oReportModel.getExtraSubjectWhereExpr() +
+                          '       ) AS TestSetIDs\n'
+                          '       INNER JOIN TestResults\n'
+                          '               ON TestResults.idTestResult = TestSetIDs.idTestResult\n'
+                          'GROUP BY TestResults.cErrors\n'
+                          'ORDER BY TestResults.cErrors\n');
+
+        workerDoFetch(None, fIdIsName = True);
+
+        return oFilter;
 
 
     #
@@ -1268,7 +2089,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
             raise TMTooManyRows('Too many rows returned for idTestSet=%d: %d' % (idTestSet, cRows,));
 
         aaoRows = self._oDb.fetchAll();
-        if len(aaoRows) == 0:
+        if not aaoRows:
             raise TMRowNotFound('No test results for idTestSet=%d.' % (idTestSet,));
 
         # Set up the root node first.
@@ -1735,7 +2556,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
 
         # Validate string attributes.
         for sAttr in [ 'name', 'text' ]: # 'unit' can be zero length.
-            if sAttr in dAttribs and len(dAttribs[sAttr]) == 0:
+            if sAttr in dAttribs and not dAttribs[sAttr]:
                 return 'Element %s has an empty %s attribute value.' % (sName, sAttr,);
 
         # Validate the timestamp attribute.
@@ -1800,7 +2621,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         sError   = None;
         dAttribs = {};
         sElement = sElement.strip();
-        while len(sElement) > 0:
+        while sElement:
             # Extract attribute name.
             off = sElement.find('=');
             if off < 0 or not sElement[:off].isalnum():
@@ -1856,7 +2677,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         Raises exception on hanging offence and on database error.
         """
         if sName == 'Test':
-            iNestingDepth = aoStack[0].iNestingDepth + 1 if len(aoStack) > 0 else 0;
+            iNestingDepth = aoStack[0].iNestingDepth + 1 if aoStack else 0;
             aoStack.insert(0, self._newTestResult(idTestResultParent = aoStack[0].idTestResult, idTestSet = idTestSet,
                                                   tsCreated = dAttribs['timestamp'], sName = dAttribs['name'],
                                                   iNestingDepth = iNestingDepth, dCounts = dCounts, fCommit = True) );
@@ -1926,7 +2747,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         May raise database exception.
         """
         aoStack    = self._getResultStack(idTestSet); # [0] == top; [-1] == bottom.
-        if len(aoStack) == 0:
+        if not aoStack:
             return ('No open results', True);
         self._oDb.dprint('** processXmlStream len(aoStack)=%s' % (len(aoStack),));
         #self._oDb.dprint('processXmlStream: %s' % (self._stringifyStack(aoStack),));
@@ -1938,7 +2759,7 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
 
         fExpectCloseTest = False;
         sXml = sXml.strip();
-        while len(sXml) > 0:
+        while sXml:
             if sXml.startswith('</Test>'): # Only closing tag.
                 offNext = len('</Test>');
                 if len(aoStack) <= 1:
@@ -1999,9 +2820,9 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
         #
         if sError is None and fExpectCloseTest:
             sError = 'Expected </Test> before the end of the XML section.'
-        elif sError is None and len(aaiHints) > 0:
+        elif sError is None and aaiHints:
             sError = 'Expected </PopHint> before the end of the XML section.'
-        if len(aaiHints) > 0:
+        if aaiHints:
             self._doPopHint(aoStack, aaiHints[-1][0], dCounts, idTestSet);
 
         #
@@ -2011,8 +2832,8 @@ class TestResultLogic(ModelLogicBase): # pylint: disable=R0903
             SystemLogLogic(self._oDb).addEntry(SystemLogData.ksEvent_XmlResultMalformed,
                                                'idTestSet=%s idTestResult=%s XML="%s" %s'
                                                % ( idTestSet,
-                                                   aoStack[0].idTestResult if len(aoStack) > 0 else -1,
-                                                   sXml[:30 if len(sXml) >= 30 else len(sXml)],
+                                                   aoStack[0].idTestResult if aoStack else -1,
+                                                   sXml[:min(len(sXml), 30)],
                                                    sError, ),
                                                cHoursRepeat = 6, fCommit = True);
         return (sError, False);

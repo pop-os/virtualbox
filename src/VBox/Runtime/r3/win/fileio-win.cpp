@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -218,7 +218,7 @@ RTR3DECL(int) RTFileOpen(PRTFILE pFile, const char *pszFilename, uint64_t fOpen)
                 dwDesiredAccess = 0;
                 break;
             }
-            /* fall thru */
+            RT_FALL_THRU();
         default:
             AssertMsgFailed(("Impossible fOpen=%#llx\n", fOpen));
             return VERR_INVALID_PARAMETER;
@@ -254,7 +254,7 @@ RTR3DECL(int) RTFileOpen(PRTFILE pFile, const char *pszFilename, uint64_t fOpen)
         case RTFILE_O_DENY_WRITE:                               dwShareMode = FILE_SHARE_READ; break;
         case RTFILE_O_DENY_READWRITE:                           dwShareMode = 0; break;
 
-        case RTFILE_O_DENY_NOT_DELETE | RTFILE_O_DENY_NONE:     dwShareMode = FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE; break;
+        case RTFILE_O_DENY_NOT_DELETE:                          dwShareMode = FILE_SHARE_DELETE | FILE_SHARE_READ | FILE_SHARE_WRITE; break;
         case RTFILE_O_DENY_NOT_DELETE | RTFILE_O_DENY_READ:     dwShareMode = FILE_SHARE_DELETE | FILE_SHARE_WRITE; break;
         case RTFILE_O_DENY_NOT_DELETE | RTFILE_O_DENY_WRITE:    dwShareMode = FILE_SHARE_DELETE | FILE_SHARE_READ; break;
         case RTFILE_O_DENY_NOT_DELETE | RTFILE_O_DENY_READWRITE:dwShareMode = FILE_SHARE_DELETE; break;
@@ -891,7 +891,8 @@ RTR3DECL(int) RTFileQueryInfo(RTFILE hFile, PRTFSOBJINFO pObjInfo, RTFSOBJATTRAD
     RTTimeSpecSetNtTime(&pObjInfo->ModificationTime,  *(uint64_t *)&Data.ftLastWriteTime);
     pObjInfo->ChangeTime  = pObjInfo->ModificationTime;
 
-    pObjInfo->Attr.fMode  = rtFsModeFromDos((Data.dwFileAttributes << RTFS_DOS_SHIFT) & RTFS_DOS_MASK_NT, "", 0);
+    pObjInfo->Attr.fMode  = rtFsModeFromDos((Data.dwFileAttributes << RTFS_DOS_SHIFT) & RTFS_DOS_MASK_NT, "", 0,
+                                            RTFSMODE_SYMLINK_REPARSE_TAG /* (symlink or not, doesn't usually matter here) */);
 
     /*
      * Requested attributes (we cannot provide anything actually).
@@ -907,8 +908,8 @@ RTR3DECL(int) RTFileQueryInfo(RTFILE hFile, PRTFSOBJINFO pObjInfo, RTFSOBJATTRAD
             pObjInfo->Attr.u.Unix.uid             = ~0U;
             pObjInfo->Attr.u.Unix.gid             = ~0U;
             pObjInfo->Attr.u.Unix.cHardlinks      = Data.nNumberOfLinks ? Data.nNumberOfLinks : 1;
-            pObjInfo->Attr.u.Unix.INodeIdDevice   = 0; /** @todo Use the volume serial number (see GetFileInformationByHandle). */
-            pObjInfo->Attr.u.Unix.INodeId         = 0; /** @todo Use the fileid (see GetFileInformationByHandle). */
+            pObjInfo->Attr.u.Unix.INodeIdDevice   = Data.dwVolumeSerialNumber;
+            pObjInfo->Attr.u.Unix.INodeId         = RT_MAKE_U64(Data.nFileIndexLow, Data.nFileIndexHigh);
             pObjInfo->Attr.u.Unix.fFlags          = 0;
             pObjInfo->Attr.u.Unix.GenerationId    = 0;
             pObjInfo->Attr.u.Unix.Device          = 0;
@@ -1003,14 +1004,7 @@ RTR3DECL(int) RTFileSetMode(RTFILE hFile, RTFMODE fMode)
 }
 
 
-RTR3DECL(int) RTFileQueryFsSizes(RTFILE hFile, PRTFOFF pcbTotal, RTFOFF *pcbFree,
-                                 uint32_t *pcbBlock, uint32_t *pcbSector)
-{
-    /** @todo implement this using NtQueryVolumeInformationFile(hFile,,,,
-     *        FileFsSizeInformation). */
-    RT_NOREF_PV(hFile); RT_NOREF_PV(pcbTotal); RT_NOREF_PV(pcbFree); RT_NOREF_PV(pcbBlock); RT_NOREF_PV(pcbSector);
-    return VERR_NOT_SUPPORTED;
-}
+/* RTFileQueryFsSizes is implemented by ../nt/RTFileQueryFsSizes-nt.cpp */
 
 
 RTR3DECL(int)  RTFileDelete(const char *pszFilename)

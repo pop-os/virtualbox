@@ -35,7 +35,7 @@ do { \
 extern DECLNORETURN(void) vbclFatalError(char *pszMessage);
 
 /** Call clean-up for the current service and exit. */
-extern void VBClCleanUp();
+extern void VBClCleanUp(bool fExit = true);
 
 /** A simple interface describing a service.  VBoxClient will run exactly one
  * service per invocation. */
@@ -79,5 +79,6 @@ extern struct VBCLSERVICE **VBClGetHostVersionService();
 extern struct VBCLSERVICE **VBClGetDragAndDropService();
 #endif /* VBOX_WITH_DRAG_AND_DROP */
 extern struct VBCLSERVICE **VBClCheck3DService();
+extern struct VBCLSERVICE **VBClDisplaySVGAService();
 
 #endif /* !___vboxclient_vboxclient_h */

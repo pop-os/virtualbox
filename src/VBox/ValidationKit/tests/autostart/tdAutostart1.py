@@ -7,7 +7,7 @@ AUtostart testcase using.
 
 __copyright__ = \
 """
-Copyright (C) 2013-2016 Oracle Corporation
+Copyright (C) 2013-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -68,7 +68,7 @@ class VBoxManageStdOutWrapper(object):
 
                 # Extract the value
             idxVmNameStart = sLine.find('"');
-            if idxVmNameStart is -1:
+            if idxVmNameStart == -1:
                 raise Exception('VBoxManageStdOutWrapper: Invalid output');
 
             idxVmNameStart += 1;
@@ -653,7 +653,7 @@ class tdAutostart(vbox.TestDriver):                                      # pylin
             self.logVmInfo(oVM);
             oSession, oTxsSession = self.startVmAndConnectToTxsViaTcp(sVmName, fCdWait = False, fNatForwardingForTxs = True);
             if oSession is not None:
-                self.addTask(oSession);
+                self.addTask(oTxsSession);
 
                 # Fudge factor - Allow the guest to finish starting up.
                 self.sleep(5);

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2016 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -41,6 +41,7 @@
 #include <Netcfgn.h>
 #include <iprt/win/Setupapi.h>
 #include <VBox/cdefs.h>
+#include <iprt/types.h>
 
 /** @defgroup grp_vboxnetcfgwin     The Windows Network Configration Library
  * @{ */

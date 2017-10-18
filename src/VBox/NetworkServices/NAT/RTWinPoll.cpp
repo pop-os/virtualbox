@@ -46,7 +46,6 @@ RTWinPoll(struct pollfd *pFds, unsigned int nfds, int timeout, int *pNready)
     {
         long eventMask = 0;
         short pollEvents = pFds[i].events;
-        int err;
 
         /* clean revents */
         pFds[i].revents = 0;
@@ -76,15 +75,7 @@ RTWinPoll(struct pollfd *pFds, unsigned int nfds, int timeout, int *pNready)
          * This is "moral" equivalent to POLLHUP.
          */
         eventMask |= FD_CLOSE;
-
-        err = WSAEventSelect(pFds[i].fd, g_hNetworkEvent, eventMask);
-        if (err != 0)
-        {
-            err = WSAGetLastError();
-            LogRel2(("sock %d: WSAEventSelect: %R[sockerr]\n", pFds[i].fd, err));
-
-            pFds[i].revents = POLLNVAL;
-        }
+        WSAEventSelect(pFds[i].fd, g_hNetworkEvent, eventMask);
     }
 
     DWORD index = WSAWaitForMultipleEvents(1,
@@ -108,36 +99,24 @@ RTWinPoll(struct pollfd *pFds, unsigned int nfds, int timeout, int *pNready)
         if (pFds[i].fd == INVALID_SOCKET)
             continue;
 
-        if (pFds[i].revents == POLLNVAL)
-        {
-            ++nready;
-            continue;
-        }
-
-
         RT_ZERO(NetworkEvents);
 
         err = WSAEnumNetworkEvents(pFds[i].fd,
                                    g_hNetworkEvent,
                                    &NetworkEvents);
 
-        if (err != 0)
-            err = WSAGetLastError();
-
-        /* disociate socket from event */
-        WSAEventSelect(pFds[i].fd, g_hNetworkEvent, 0);
-
-        if (err != 0)
+        if (err == SOCKET_ERROR)
         {
-            LogRel2(("sock %d: WSAEnumNetworkEvents: %R[sockerr]\n", pFds[i].fd, err));
-
-            if (err == WSAENOTSOCK)
+            if (WSAGetLastError() == WSAENOTSOCK)
             {
                 pFds[i].revents = POLLNVAL;
                 ++nready;
             }
             continue;
         }
+
+        /* deassociate socket with event */
+        WSAEventSelect(pFds[i].fd, g_hNetworkEvent, 0);
 
 #define WSA_TO_POLL(_wsaev, _pollev)                                    \
         do {                                                            \

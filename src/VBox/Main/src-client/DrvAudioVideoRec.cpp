@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2015 Oracle Corporation
+ * Copyright (C) 2016-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,624 +14,977 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
+
+/* This code makes use of the Opus codec (libopus):
+ *
+ * Copyright 2001-2011 Xiph.Org, Skype Limited, Octasic,
+ *                     Jean-Marc Valin, Timothy B. Terriberry,
+ *                     CSIRO, Gregory Maxwell, Mark Borgerding,
+ *                     Erik de Castro Lopo
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * - Redistributions of source code must retain the above copyright
+ * notice, this list of conditions and the following disclaimer.
+ *
+ * - Redistributions in binary form must reproduce the above copyright
+ * notice, this list of conditions and the following disclaimer in the
+ * documentation and/or other materials provided with the distribution.
+ *
+ * - Neither the name of Internet Society, IETF or IETF Trust, nor the
+ * names of specific contributors, may be used to endorse or promote
+ * products derived from this software without specific prior written
+ * permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * ``AS IS'' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+ * A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER
+ * OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+ * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+ * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+ * LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * Opus is subject to the royalty-free patent licenses which are
+ * specified at:
+ *
+ * Xiph.Org Foundation:
+ * https://datatracker.ietf.org/ipr/1524/
+ *
+ * Microsoft Corporation:
+ * https://datatracker.ietf.org/ipr/1914/
+ *
+ * Broadcom Corporation:
+ * https://datatracker.ietf.org/ipr/1526/
+ *
+ */
+
+/**
+ * This driver is part of Main and is responsible for providing audio
+ * data to Main's video capturing feature.
+ *
+ * The driver itself implements a PDM host audio backend, which in turn
+ * provides the driver with the required audio data and audio events.
+ *
+ * For now there is support for the following destinations (called "sinks"):
+ *
+ * - Direct writing of .webm files to the host.
+ * - Communicating with Main via the Console object to send the encoded audio data to.
+ *   The Console object in turn then will route the data to the Display / video capturing interface then.
+ */
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
+#define LOG_GROUP LOG_GROUP_DRV_HOST_AUDIO
+#include "LoggingNew.h"
+
 #include "DrvAudioVideoRec.h"
 #include "ConsoleImpl.h"
-#include "ConsoleVRDPServer.h"
 
-#include "Logging.h"
+#include "../../Devices/Audio/DrvAudio.h"
+#include "EbmlWriter.h"
 
 #include <iprt/mem.h>
 #include <iprt/cdefs.h>
-#include <iprt/circbuf.h>
 
 #include <VBox/vmm/pdmaudioifs.h>
 #include <VBox/vmm/pdmdrv.h>
-#include <VBox/RemoteDesktop/VRDE.h>
 #include <VBox/vmm/cfgm.h>
 #include <VBox/err.h>
 
-#ifdef LOG_GROUP
- #undef LOG_GROUP
+#ifdef VBOX_WITH_LIBOPUS
+# include <opus.h>
 #endif
-#define LOG_GROUP LOG_GROUP_DEV_AUDIO
-#include <VBox/log.h>
 
-/* Initialization status indicator used for the recreation of the AudioUnits. */
-#define CA_STATUS_UNINIT    UINT32_C(0) /* The device is uninitialized */
-#define CA_STATUS_IN_INIT   UINT32_C(1) /* The device is currently initializing */
-#define CA_STATUS_INIT      UINT32_C(2) /* The device is initialized */
-#define CA_STATUS_IN_UNINIT UINT32_C(3) /* The device is currently uninitializing */
 
-//@todo move t_sample as a PDM interface
-//typedef struct { int mute;  uint32_t r; uint32_t l; } volume_t;
+/*********************************************************************************************************************************
+*   Defines                                                                                                                      *
+*********************************************************************************************************************************/
 
-#define INT_MAX         0x7fffffff
-volume_t videorec_nominal_volume = {
-    0,
-    INT_MAX,
-    INT_MAX
-};
+#define AVREC_OPUS_HZ_MAX       48000           /** Maximum sample rate (in Hz) Opus can handle. */
 
-/* The desired buffer length in milliseconds. Will be the target total stream
- * latency on newer version of pulse. Apparent latency can be less (or more.)
- * In case its need to be used. Currently its not used.
- */
-#if 0
-static struct
-{
-    int         buffer_msecs_out;
-    int         buffer_msecs_in;
-} confAudioVideoRec
-=
-{
-    INIT_FIELD (.buffer_msecs_out = ) 100,
-    INIT_FIELD (.buffer_msecs_in  = ) 100,
-};
-#endif
+
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 
 /**
- * Audio video recording driver instance data.
- *
- * @extends PDMIAUDIOSNIFFERCONNECTOR
+ * Enumeration for specifying the recording container type.
+ */
+typedef enum AVRECCONTAINERTYPE
+{
+    /** Unknown / invalid container type. */
+    AVRECCONTAINERTYPE_UNKNOWN      = 0,
+    /** Recorded data goes to Main / Console. */
+    AVRECCONTAINERTYPE_MAIN_CONSOLE = 1,
+    /** Recorded data will be written to a .webm file. */
+    AVRECCONTAINERTYPE_WEBM         = 2
+} AVRECCONTAINERTYPE;
+
+/**
+ * Structure for keeping generic container parameters.
+ */
+typedef struct AVRECCONTAINERPARMS
+{
+    /** The container's type. */
+    AVRECCONTAINERTYPE      enmType;
+
+} AVRECCONTAINERPARMS, *PAVRECCONTAINERPARMS;
+
+/**
+ * Structure for keeping container-specific data.
+ */
+typedef struct AVRECCONTAINER
+{
+    /** Generic container parameters. */
+    AVRECCONTAINERPARMS     Parms;
+
+    union
+    {
+        struct
+        {
+            /** Pointer to Console. */
+            Console        *pConsole;
+        } Main;
+
+        struct
+        {
+            /** Pointer to WebM container to write recorded audio data to.
+             *  See the AVRECMODE enumeration for more information. */
+            WebMWriter     *pWebM;
+            /** Assigned track number from WebM container. */
+            uint8_t         uTrack;
+        } WebM;
+    };
+} AVRECCONTAINER, *PAVRECCONTAINER;
+
+/**
+ * Structure for keeping generic codec parameters.
+ */
+typedef struct AVRECCODECPARMS
+{
+    /** The encoding rate to use. */
+    uint32_t                uHz;
+    /** Number of audio channels to encode.
+     *  Currently we only supported stereo (2) channels. */
+    uint8_t                 cChannels;
+    /** Bits per sample. */
+    uint8_t                 cBits;
+    /** The codec's bitrate. 0 if not used / cannot be specified. */
+    uint32_t                uBitrate;
+
+} AVRECCODECPARMS, *PAVRECCODECPARMS;
+
+/**
+ * Structure for keeping codec-specific data.
+ */
+typedef struct AVRECCODEC
+{
+    /** Generic codec parameters. */
+    AVRECCODECPARMS         Parms;
+    union
+    {
+#ifdef VBOX_WITH_LIBOPUS
+        struct
+        {
+            /** Encoder we're going to use. */
+            OpusEncoder    *pEnc;
+            /** Time (in ms) an (encoded) frame takes.
+             *
+             *  For Opus, valid frame sizes are:
+             *  ms           Frame size
+             *  2.5          120
+             *  5            240
+             *  10           480
+             *  20 (Default) 960
+             *  40           1920
+             *  60           2880
+             */
+            uint32_t        msFrame;
+        } Opus;
+#endif /* VBOX_WITH_LIBOPUS */
+    };
+
+#ifdef VBOX_WITH_STATISTICS /** @todo Make these real STAM values. */
+    struct
+    {
+        /** Number of frames encoded. */
+        uint64_t        cEncFrames;
+        /** Total time (in ms) of already encoded audio data. */
+        uint64_t        msEncTotal;
+    } STAM;
+#endif /* VBOX_WITH_STATISTICS */
+
+} AVRECCODEC, *PAVRECCODEC;
+
+typedef struct AVRECSINK
+{
+    /** @todo Add types for container / codec as soon as we implement more stuff. */
+
+    /** Container data to use for data processing. */
+    AVRECCONTAINER       Con;
+    /** Codec data this sink uses for encoding. */
+    AVRECCODEC           Codec;
+} AVRECSINK, *PAVRECSINK;
+
+/**
+ * Audio video recording (output) stream.
+ */
+typedef struct AVRECSTREAM
+{
+    /** The stream's acquired configuration. */
+    PPDMAUDIOSTREAMCFG   pCfg;
+    /** (Audio) frame buffer. */
+    PRTCIRCBUF           pCircBuf;
+    /** Pointer to sink to use for writing. */
+    PAVRECSINK           pSink;
+} AVRECSTREAM, *PAVRECSTREAM;
+
+/**
+ * Video recording audio driver instance data.
  */
 typedef struct DRVAUDIOVIDEOREC
 {
     /** Pointer to audio video recording object. */
-    AudioVideoRec      *pAudioVideoRec;
-    PPDMDRVINS          pDrvIns;
+    AudioVideoRec       *pAudioVideoRec;
     /** Pointer to the driver instance structure. */
-    PDMIHOSTAUDIO       IHostAudio;
-    ConsoleVRDPServer *pConsoleVRDPServer;
-    /** Pointer to the DrvAudio port interface that is above it. */
-    PPDMIAUDIOCONNECTOR       pUpPort;
+    PPDMDRVINS           pDrvIns;
+    /** Pointer to host audio interface. */
+    PDMIHOSTAUDIO        IHostAudio;
+    /** Pointer to the console object. */
+    ComObjPtr<Console>   pConsole;
+    /** Pointer to the DrvAudio port interface that is above us. */
+    PPDMIAUDIOCONNECTOR  pDrvAudio;
+    /** The driver's sink for writing output to. */
+    AVRECSINK            Sink;
 } DRVAUDIOVIDEOREC, *PDRVAUDIOVIDEOREC;
-typedef struct PDMAUDIOHSTSTRMOUT PDMAUDIOHSTSTRMOUT;
-typedef PDMAUDIOHSTSTRMOUT *PPDMAUDIOHSTSTRMOUT;
 
-typedef struct VIDEORECAUDIOIN
-{
-    /* Audio and audio details for recording */
-    PDMAUDIOHSTSTRMIN   pHostVoiceIn;
-    void * pvUserCtx;
-    /* Number of bytes per frame (bitsPerSample * channels) of the actual input format. */
-    uint32_t cBytesPerFrame;
-    /* Frequency of the actual audio format. */
-    uint32_t uFrequency;
-    /* If the actual format frequence differs from the requested format, this is not NULL. */
-    void *rate;
-    /* Temporary buffer for st_sample_t representation of the input audio data. */
-    void *pvSamplesBuffer;
-    /* buffer for bytes of samples (not rate converted) */
-    uint32_t cbSamplesBufferAllocated;
-    /* Temporary buffer for frequency conversion. */
-    void *pvRateBuffer;
-    /* buffer for bytes rate converted samples */
-    uint32_t cbRateBufferAllocated;
-    /* A ring buffer for transferring data to the playback thread */
-    PRTCIRCBUF pRecordedVoiceBuf;
-    t_sample * convAudioDevFmtToStSampl;
-    uint32_t fIsInit;
-    uint32_t status;
-} VIDEORECAUDIOIN, *PVIDEORECAUDIOIN;
+/** Makes DRVAUDIOVIDEOREC out of PDMIHOSTAUDIO. */
+#define PDMIHOSTAUDIO_2_DRVAUDIOVIDEOREC(pInterface) \
+    ( (PDRVAUDIOVIDEOREC)((uintptr_t)pInterface - RT_OFFSETOF(DRVAUDIOVIDEOREC, IHostAudio)) )
 
-typedef struct VIDEORECAUDIOOUT
+/**
+ * Initializes a recording sink.
+ *
+ * @returns IPRT status code.
+ * @param   pThis               Driver instance.
+ * @param   pSink               Sink to initialize.
+ * @param   pConParms           Container parameters to set.
+ * @param   pCodecParms         Codec parameters to set.
+ */
+static int avRecSinkInit(PDRVAUDIOVIDEOREC pThis, PAVRECSINK pSink, PAVRECCONTAINERPARMS pConParms, PAVRECCODECPARMS pCodecParms)
 {
-    PDMAUDIOHSTSTRMOUT pHostVoiceOut;
-    uint64_t old_ticks;
-    uint64_t cSamplesSentPerSec;
-} VIDEORECAUDIOOUT, *PVIDEORECAUDIOOUT;
+    uint32_t uHz       = pCodecParms->uHz;
+    uint8_t  cBits     = pCodecParms->cBits;
+    uint8_t  cChannels = pCodecParms->cChannels;
+    uint32_t uBitrate  = pCodecParms->uBitrate;
 
-static DECLCALLBACK(int) drvAudioVideoRecInit(PPDMIHOSTAUDIO pInterface)
+    /* Opus only supports certain input sample rates in an efficient manner.
+     * So make sure that we use those by resampling the data to the requested rate. */
+    if      (uHz > 24000) uHz = AVREC_OPUS_HZ_MAX;
+    else if (uHz > 16000) uHz = 24000;
+    else if (uHz > 12000) uHz = 16000;
+    else if (uHz > 8000 ) uHz = 12000;
+    else     uHz = 8000;
+
+    if (cChannels > 2)
+    {
+        LogRel(("VideoRec: More than 2 (stereo) channels are not supported at the moment\n"));
+        cChannels = 2;
+    }
+
+    LogRel2(("VideoRec: Recording audio in %RU16Hz, %RU8 channels, %RU32 bitrate\n", uHz, cChannels, uBitrate));
+
+    int orc;
+    OpusEncoder *pEnc = opus_encoder_create(uHz, cChannels, OPUS_APPLICATION_AUDIO, &orc);
+    if (orc != OPUS_OK)
+    {
+        LogRel(("VideoRec: Audio codec failed to initialize: %s\n", opus_strerror(orc)));
+        return VERR_AUDIO_BACKEND_INIT_FAILED;
+    }
+
+    AssertPtr(pEnc);
+
+    opus_encoder_ctl(pEnc, OPUS_SET_BITRATE(uBitrate));
+    if (orc != OPUS_OK)
+    {
+        opus_encoder_destroy(pEnc);
+        pEnc = NULL;
+
+        LogRel(("VideoRec: Audio codec failed to set bitrate (%RU32): %s\n", uBitrate, opus_strerror(orc)));
+        return VERR_AUDIO_BACKEND_INIT_FAILED;
+    }
+
+    int rc = VINF_SUCCESS;
+
+    try
+    {
+        switch (pConParms->enmType)
+        {
+            case AVRECCONTAINERTYPE_MAIN_CONSOLE:
+            {
+                if (pThis->pConsole)
+                {
+                    pSink->Con.Main.pConsole = pThis->pConsole;
+                }
+                else
+                    rc = VERR_NOT_SUPPORTED;
+                break;
+            }
+
+            case AVRECCONTAINERTYPE_WEBM:
+            {
+#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
+                /* If we only record audio, create our own WebM writer instance here. */
+                if (!pSink->Con.WebM.pWebM) /* Do we already have our WebM writer instance? */
+                {
+                    char szFile[RTPATH_MAX];
+                    if (RTStrPrintf(szFile, sizeof(szFile), "%s%s",
+                                    VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH, "DrvAudioVideoRec.webm"))
+                    {
+                        /** @todo Add sink name / number to file name. */
+
+                        pSink->Con.WebM.pWebM = new WebMWriter();
+                        rc = pSink->Con.WebM.pWebM->Create(szFile,
+                                                           /** @todo Add option to add some suffix if file exists instead of overwriting? */
+                                                           RTFILE_O_CREATE_REPLACE | RTFILE_O_WRITE | RTFILE_O_DENY_NONE,
+                                                           WebMWriter::AudioCodec_Opus, WebMWriter::VideoCodec_None);
+                        if (RT_SUCCESS(rc))
+                        {
+                            rc = pSink->Con.WebM.pWebM->AddAudioTrack(uHz, cChannels, cBits,
+                                                                      &pSink->Con.WebM.uTrack);
+                            if (RT_SUCCESS(rc))
+                            {
+                                LogRel(("VideoRec: Recording audio to file '%s'\n", szFile));
+                            }
+                            else
+                                LogRel(("VideoRec: Error creating audio track for file '%s' (%Rrc)\n", szFile, rc));
+                        }
+                        else
+                            LogRel(("VideoRec: Error creating audio file '%s' (%Rrc)\n", szFile, rc));
+                    }
+                    else
+                    {
+                        AssertFailed(); /* Should never happen. */
+                        LogRel(("VideoRec: Error creating audio file path\n"));
+                    }
+                }
+#else
+                rc = VERR_NOT_SUPPORTED;
+#endif /* VBOX_AUDIO_DEBUG_DUMP_PCM_DATA */
+                break;
+            }
+
+            default:
+                rc = VERR_NOT_SUPPORTED;
+                break;
+        }
+    }
+    catch (std::bad_alloc)
+    {
+#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
+        rc = VERR_NO_MEMORY;
+#endif
+    }
+
+    if (RT_SUCCESS(rc))
+    {
+        pSink->Con.Parms.enmType     = pConParms->enmType;
+
+        pSink->Codec.Parms.uHz       = uHz;
+        pSink->Codec.Parms.cChannels = cChannels;
+        pSink->Codec.Parms.cBits     = cBits;
+        pSink->Codec.Parms.uBitrate  = uBitrate;
+
+        pSink->Codec.Opus.pEnc       = pEnc;
+        pSink->Codec.Opus.msFrame    = 20; /** @todo 20 ms of audio data. Make this configurable? */
+
+#ifdef VBOX_WITH_STATISTICS
+        pSink->Codec.STAM.cEncFrames = 0;
+        pSink->Codec.STAM.msEncTotal = 0;
+#endif
+    }
+    else
+    {
+        if (pEnc)
+        {
+            opus_encoder_destroy(pEnc);
+            pEnc = NULL;
+        }
+
+        LogRel(("VideoRec: Error creating sink (%Rrc)\n", rc));
+    }
+
+    return rc;
+}
+
+
+/**
+ * Shuts down (closes) a recording sink,
+ *
+ * @returns IPRT status code.
+ * @param   pSink               Recording sink to shut down.
+ */
+static void avRecSinkShutdown(PAVRECSINK pSink)
 {
-    LogFlowFuncEnter();
+    AssertPtrReturnVoid(pSink);
+
+#ifdef VBOX_WITH_LIBOPUS
+    if (pSink->Codec.Opus.pEnc)
+    {
+        opus_encoder_destroy(pSink->Codec.Opus.pEnc);
+        pSink->Codec.Opus.pEnc = NULL;
+    }
+#endif
+    switch (pSink->Con.Parms.enmType)
+    {
+        case AVRECCONTAINERTYPE_WEBM:
+        {
+            if (pSink->Con.WebM.pWebM)
+            {
+                LogRel2(("VideoRec: Finished recording audio to file '%s' (%zu bytes)\n",
+                         pSink->Con.WebM.pWebM->GetFileName().c_str(), pSink->Con.WebM.pWebM->GetFileSize()));
+
+                int rc2 = pSink->Con.WebM.pWebM->Close();
+                AssertRC(rc2);
+
+                delete pSink->Con.WebM.pWebM;
+                pSink->Con.WebM.pWebM = NULL;
+            }
+            break;
+        }
+
+        case AVRECCONTAINERTYPE_MAIN_CONSOLE:
+        default:
+            break;
+    }
+}
+
+
+/**
+ * Creates an audio output stream and associates it with the specified recording sink.
+ *
+ * @returns IPRT status code.
+ * @param   pThis               Driver instance.
+ * @param   pStreamAV           Audio output stream to create.
+ * @param   pSink               Recording sink to associate audio output stream to.
+ * @param   pCfgReq             Requested configuration by the audio backend.
+ * @param   pCfgAcq             Acquired configuration by the audio output stream.
+ */
+static int avRecCreateStreamOut(PDRVAUDIOVIDEOREC pThis, PAVRECSTREAM pStreamAV,
+                                PAVRECSINK pSink, PPDMAUDIOSTREAMCFG pCfgReq, PPDMAUDIOSTREAMCFG pCfgAcq)
+{
+    AssertPtrReturn(pThis,     VERR_INVALID_POINTER);
+    AssertPtrReturn(pStreamAV, VERR_INVALID_POINTER);
+    AssertPtrReturn(pSink,     VERR_INVALID_POINTER);
+    AssertPtrReturn(pCfgReq,   VERR_INVALID_POINTER);
+    AssertPtrReturn(pCfgAcq,   VERR_INVALID_POINTER);
+
+    if (pCfgReq->DestSource.Dest != PDMAUDIOPLAYBACKDEST_FRONT)
+    {
+        AssertFailed();
+
+        if (pCfgAcq)
+            pCfgAcq->cFrameBufferHint = 0;
+
+        LogRel2(("VideoRec: Support for surround audio not implemented yet\n"));
+        return VERR_NOT_SUPPORTED;
+    }
+
+    int rc = VINF_SUCCESS;
+
+#ifdef VBOX_WITH_LIBOPUS
+    const unsigned cFrames = 2; /** @todo Use the PreRoll param for that? */
+
+    const uint32_t csFrame = pSink->Codec.Parms.uHz / (1000 /* s in ms */ / pSink->Codec.Opus.msFrame);
+    const uint32_t cbFrame = csFrame * pSink->Codec.Parms.cChannels * (pSink->Codec.Parms.cBits / 8 /* Bytes */);
+
+    rc = RTCircBufCreate(&pStreamAV->pCircBuf, cbFrame * cFrames);
+    if (RT_SUCCESS(rc))
+    {
+        pStreamAV->pSink = pSink; /* Assign sink to stream. */
+
+        if (pCfgAcq)
+        {
+            /* Make sure to let the driver backend know that we need the audio data in
+             * a specific sampling rate Opus is optimized for. */
+            pCfgAcq->Props.uHz         = pSink->Codec.Parms.uHz;
+            pCfgAcq->Props.cShift      = PDMAUDIOPCMPROPS_MAKE_SHIFT_PARMS(pCfgAcq->Props.cBits, pCfgAcq->Props.cChannels);
+            pCfgAcq->cFrameBufferHint = _4K; /** @todo Make this configurable. */
+        }
+    }
+#else
+    RT_NOREF(pThis, pSink, pStreamAV, pCfgReq, pCfgAcq);
+    rc = VERR_NOT_SUPPORTED;
+#endif /* VBOX_WITH_LIBOPUS */
+
+    LogFlowFuncLeaveRC(rc);
+    return rc;
+}
+
+
+/**
+ * Destroys (closes) an audio output stream.
+ *
+ * @returns IPRT status code.
+ * @param   pThis               Driver instance.
+ * @param   pStreamAV           Audio output stream to destroy.
+ */
+static int avRecDestroyStreamOut(PDRVAUDIOVIDEOREC pThis, PAVRECSTREAM pStreamAV)
+{
+    RT_NOREF(pThis);
+
+    if (pStreamAV->pCircBuf)
+    {
+        RTCircBufDestroy(pStreamAV->pCircBuf);
+        pStreamAV->pCircBuf = NULL;
+    }
 
     return VINF_SUCCESS;
 }
 
-/** @todo Replace this with drvAudioHlpPcmPropsFromCfg(). */
-static int drvAudioVideoRecPcmInitInfo(PDMAUDIOPCMPROPS * pProps, PPDMAUDIOSTREAMCFG as)
+
+/**
+ * Controls an audio output stream
+ *
+ * @returns IPRT status code.
+ * @param   pThis               Driver instance.
+ * @param   pStreamAV           Audio output stream to control.
+ * @param   enmStreamCmd        Stream command to issue.
+ */
+static int avRecControlStreamOut(PDRVAUDIOVIDEOREC pThis,
+                                 PAVRECSTREAM pStreamAV, PDMAUDIOSTREAMCMD enmStreamCmd)
 {
-    int rc = VINF_SUCCESS;
+    RT_NOREF(pThis, pStreamAV);
 
-    uint8_t cBits = 8, cShift = 0;
-    bool fSigned = false;
-
-    switch (as->enmFormat)
+    switch (enmStreamCmd)
     {
-        case AUD_FMT_S8:
-            fSigned = 1;
-        case AUD_FMT_U8:
-            break;
-
-        case AUD_FMT_S16:
-            fSigned = 1;
-        case AUD_FMT_U16:
-            cBits = 16;
-            cShift = 1;
-            break;
-
-        case AUD_FMT_S32:
-            fSigned = 1;
-        case AUD_FMT_U32:
-            cBits = 32;
-            cShift = 2;
+        case PDMAUDIOSTREAMCMD_ENABLE:
+        case PDMAUDIOSTREAMCMD_DISABLE:
+        case PDMAUDIOSTREAMCMD_RESUME:
+        case PDMAUDIOSTREAMCMD_PAUSE:
             break;
 
         default:
-            rc = VERR_NOT_SUPPORTED;
+            AssertMsgFailed(("Invalid command %ld\n", enmStreamCmd));
             break;
     }
 
-    pProps->uHz = as->uHz;
-    pProps->cBits = cBits;
-    pProps->fSigned = fSigned;
-    pProps->cChannels = as->cChannels;
-    pProps->cShift = (as->cChannels == 2) + cShift;
-    pProps->uAlign = (1 << pProps->cShift) - 1;
-    pProps->cbPerSec = pProps->uHz << pProps->cShift;
-    pProps->fSwapEndian = (as->enmEndianness != PDMAUDIOHOSTENDIANESS);
-
-    return rc;
+    return VINF_SUCCESS;
 }
 
-/*
- * Hard voice (playback)
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnInit}
  */
-static int audio_pcm_hw_find_min_out (PPDMAUDIOHSTSTRMOUT hw, int *nb_livep)
+static DECLCALLBACK(int) drvAudioVideoRecInit(PPDMIHOSTAUDIO pInterface)
 {
-    PPDMAUDIOGSTSTRMOUT sw;
-    PPDMAUDIOGSTSTRMOUT pIter;
-    int m = INT_MAX;
-    int nb_live = 0;
+    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
 
-    RTListForEach(&hw->lstGstStrmOut, pIter, PDMAUDIOGSTSTRMOUT, Node)
+    LogFlowFuncEnter();
+
+    PDRVAUDIOVIDEOREC pThis = PDMIHOSTAUDIO_2_DRVAUDIOVIDEOREC(pInterface);
+
+    AVRECCONTAINERPARMS ContainerParms;
+    ContainerParms.enmType = AVRECCONTAINERTYPE_MAIN_CONSOLE; /** @todo Make this configurable. */
+
+    AVRECCODECPARMS CodecParms;
+    CodecParms.uHz       = AVREC_OPUS_HZ_MAX;  /** @todo Make this configurable. */
+    CodecParms.cChannels = 2;                  /** @todo Make this configurable. */
+    CodecParms.cBits     = 16;                 /** @todo Make this configurable. */
+    CodecParms.uBitrate  = 196000;             /** @todo Make this configurable. */
+
+    int rc = avRecSinkInit(pThis, &pThis->Sink, &ContainerParms, &CodecParms);
+    if (RT_FAILURE(rc))
     {
-        sw = pIter;
-        if (sw->State.fActive || !sw->State.fEmpty)
-        {
-            m = RT_MIN (m, sw->cTotalSamplesWritten);
-            nb_live += 1;
-        }
-    }
-
-    *nb_livep = nb_live;
-    return m;
-}
-
-static int audio_pcm_hw_get_live_out2 (PPDMAUDIOHSTSTRMOUT hw, int *nb_live)
-{
-    int smin;
-
-    smin = audio_pcm_hw_find_min_out (hw, nb_live);
-
-    if (!*nb_live) {
-        return 0;
+        LogRel(("VideoRec: Audio recording driver failed to initialize, rc=%Rrc\n", rc));
     }
     else
-    {
-        int live = smin;
-
-        if (live < 0 || live > hw->cSamples)
-        {
-            LogFlowFunc(("Error: live=%d hw->samples=%d\n", live, hw->cSamples));
-            return 0;
-        }
-        return live;
-    }
-}
-
-
-static int audio_pcm_hw_get_live_out (PPDMAUDIOHSTSTRMOUT hw)
-{
-    int nb_live;
-    int live;
-
-    live = audio_pcm_hw_get_live_out2 (hw, &nb_live);
-    if (live < 0 || live > hw->cSamples)
-    {
-        LogFlowFunc(("Error: live=%d hw->samples=%d\n", live, hw->cSamples));
-        return 0;
-    }
-    return live;
-}
-
-/*
- * Hard voice (capture)
- */
-static int audio_pcm_hw_find_min_in (PPDMAUDIOHSTSTRMIN hw)
-{
-    PPDMAUDIOGSTSTRMIN pIter;
-    int m = hw->cTotalSamplesCaptured;
-
-    RTListForEach(&hw->lstGstStreamsIn, pIter, PDMAUDIOGSTSTRMIN, Node)
-    {
-        if (pIter->State.fActive)
-        {
-            m = RT_MIN (m, pIter->cTotalHostSamplesRead);
-        }
-    }
-    return m;
-}
-
-int audio_pcm_hw_get_live_in (PPDMAUDIOHSTSTRMIN hw)
-{
-    int live = hw->cTotalSamplesCaptured - audio_pcm_hw_find_min_in (hw);
-    if (live < 0 || live > hw->cSamples)
-    {
-        LogFlowFunc(("Error: live=%d hw->samples=%d\n", live, hw->cSamples));
-        return 0;
-    }
-    return live;
-}
-
-static inline void *advance (void *p, int incr)
-{
-    uint8_t *d = (uint8_t*)p;
-    return (d + incr);
-}
-
-static int vrdeReallocSampleBuf(PVIDEORECAUDIOIN pVRDEVoice, uint32_t cSamples)
-{
-    uint32_t cbBuffer = cSamples * sizeof(PDMAUDIOSAMPLE);
-    if (cbBuffer > pVRDEVoice->cbSamplesBufferAllocated)
-    {
-        /** @todo r=andy Why not using RTMemReAlloc? */
-        if (pVRDEVoice->pvSamplesBuffer)
-        {
-            RTMemFree(pVRDEVoice->pvSamplesBuffer);
-            pVRDEVoice->pvSamplesBuffer = NULL;
-        }
-        pVRDEVoice->pvSamplesBuffer = RTMemAlloc(cbBuffer);
-        if (pVRDEVoice->pvSamplesBuffer)
-            pVRDEVoice->cbSamplesBufferAllocated = cbBuffer;
-        else
-            pVRDEVoice->cbSamplesBufferAllocated = 0;
-    }
-
-    return VINF_SUCCESS;
-}
-
-static int vrdeReallocRateAdjSampleBuf(PVIDEORECAUDIOIN pVRDEVoice, uint32_t cSamples)
-{
-    uint32_t cbBuffer = cSamples * sizeof(PDMAUDIOSAMPLE);
-    if (cbBuffer > pVRDEVoice->cbRateBufferAllocated)
-    {
-        RTMemFree(pVRDEVoice->pvRateBuffer);
-        pVRDEVoice->pvRateBuffer = RTMemAlloc(cbBuffer);
-        if (pVRDEVoice->pvRateBuffer)
-            pVRDEVoice->cbRateBufferAllocated = cbBuffer;
-        else
-            pVRDEVoice->cbRateBufferAllocated = 0;
-    }
-
-    return VINF_SUCCESS;
-}
-
-/*******************************************************************************
- *
- * AudioVideoRec input section
- *
- ******************************************************************************/
-
-/*
- * Callback to feed audio input buffer. Samples format is be the same as
- * in the voice. The caller prepares st_sample_t.
- *
- * @param cbSamples Size of pvSamples array in bytes.
- * @param pvSamples Points to an array of samples.
- *
- * @return IPRT status code.
- */
-static int vrdeRecordingCallback(PVIDEORECAUDIOIN pVRDEVoice, uint32_t cbSamples, const void *pvSamples)
-{
-    int rc = VINF_SUCCESS;
-    size_t csWritten = 0;
-
-    Assert((cbSamples % sizeof(PDMAUDIOSAMPLE)) == 0);
-
-    if (!pVRDEVoice->fIsInit)
-        return VINF_SUCCESS;
-
-    /* If nothing is pending return immediately. */
-    if (cbSamples == 0)
-        return VINF_SUCCESS;
-
-    /* How much space is free in the ring buffer? */
-    size_t csAvail = RTCircBufFree(pVRDEVoice->pRecordedVoiceBuf) / sizeof(PDMAUDIOSAMPLE); /* bytes -> samples */
-
-    /* How much space is used in the audio buffer. Use the smaller size of the too. */
-    csAvail = RT_MIN(csAvail, cbSamples / sizeof(PDMAUDIOSAMPLE));
-
-    /* Iterate as long as data is available. */
-    while (csWritten < csAvail)
-    {
-        /* How much is left? */
-        size_t csToWrite = csAvail - csWritten;
-        size_t cbToWrite = csToWrite * sizeof(PDMAUDIOSAMPLE);
-
-        /* Try to acquire the necessary space from the ring buffer. */
-        void *pcDst;
-        RTCircBufAcquireWriteBlock(pVRDEVoice->pRecordedVoiceBuf, cbToWrite, &pcDst, &cbToWrite);
-
-        /* How much do we get? */
-        csToWrite = cbToWrite / sizeof(PDMAUDIOSAMPLE);
-
-        /* Copy the data from the audio buffer to the ring buffer in PVRDEVoice. */
-        if (csToWrite)
-        {
-            memcpy(pcDst, (uint8_t *)pvSamples + (csWritten * sizeof(PDMAUDIOSAMPLE)), cbToWrite);
-            csWritten += csToWrite;
-        }
-
-        /* Release the ring buffer, so the main thread could start reading this data. */
-        RTCircBufReleaseWriteBlock(pVRDEVoice->pRecordedVoiceBuf, cbToWrite);
-
-        if (RT_UNLIKELY(csToWrite == 0))
-            break;
-    }
-
-    LogFlowFunc(("Finished writing buffer with %RU32 samples (%RU32 bytes)\n",
-                 csWritten, csWritten * sizeof(PDMAUDIOSAMPLE)));
+        LogRel2(("VideoRec: Audio recording driver initialized\n"));
 
     return rc;
 }
 
-static DECLCALLBACK(int) drvAudioVideoRecInitOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMOUT pHostVoiceOut, PPDMAUDIOSTREAMCFG pCfg)
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamCapture}
+ */
+static DECLCALLBACK(int) drvAudioVideoRecStreamCapture(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream,
+                                                       void *pvBuf, uint32_t cxBuf, uint32_t *pcxRead)
 {
-    LogFlowFuncEnter();
-    PDRVAUDIOVIDEOREC pDrv = RT_FROM_MEMBER(pInterface, DRVAUDIOVIDEOREC, IHostAudio);
+    RT_NOREF(pInterface, pStream, pvBuf, cxBuf);
 
-    PVIDEORECAUDIOOUT pVRDEVoiceOut = (PVIDEORECAUDIOOUT)pHostVoiceOut;
-    pHostVoiceOut->cSamples = _4K; /* 4096 samples * 4 = 16K bytes total. */
+    if (pcxRead)
+        *pcxRead = 0;
 
-    return drvAudioVideoRecPcmInitInfo(&pVRDEVoiceOut->pHostVoiceOut.Props, pCfg);
-}
-
-static DECLCALLBACK(int) drvAudioVideoRecInitIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMIN pHostVoiceIn, PPDMAUDIOSTREAMCFG pCfg)
-{
-    LogFlowFuncEnter();
-    PDRVAUDIOVIDEOREC pDrv = RT_FROM_MEMBER(pInterface, DRVAUDIOVIDEOREC, IHostAudio);
-
-    PVIDEORECAUDIOIN pVRDEVoice = (PVIDEORECAUDIOIN)pHostVoiceIn;
-    pHostVoiceIn->cSamples = _4K; /* 4096 samples * 4 = 16K bytes total. */
-
-    return drvAudioVideoRecPcmInitInfo(&pVRDEVoice->pHostVoiceIn.Props, pCfg);
-}
-
-static DECLCALLBACK(int) drvAudioVideoRecCaptureIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMIN pHostVoiceIn,
-                                                   uint32_t *pcSamplesCaptured)
-{
-    /** @todo Take care of the size of the buffer allocated to pHostVoiceIn. */
-    PVIDEORECAUDIOIN pVRDEVoice = (PVIDEORECAUDIOIN)pHostVoiceIn;
-
-    /* use this from DrvHostCoreAudio.c */
-    if (ASMAtomicReadU32(&pVRDEVoice->status) != CA_STATUS_INIT)
-    {
-        LogFlowFunc(("VRDE voice not initialized\n"));
-
-        *pcSamplesCaptured = 0;
-        return VERR_GENERAL_FAILURE; /** @todo Fudge! */
-    }
-
-    /* how much space is used in the ring buffer in pRecordedVocieBuf with pAudioVideoRec . Bytes-> samples*/
-    size_t cSamplesRingBuffer = RTCircBufUsed(pVRDEVoice->pRecordedVoiceBuf) / sizeof(PDMAUDIOSAMPLE);
-
-    /* How much space is available in the mix buffer. Use the smaller size of the too. */
-    cSamplesRingBuffer = RT_MIN(cSamplesRingBuffer, (uint32_t)(pVRDEVoice->pHostVoiceIn.cSamples -
-                                audio_pcm_hw_get_live_in (&pVRDEVoice->pHostVoiceIn)));
-
-    LogFlowFunc(("Start reading buffer with %d samples (%d bytes)\n", cSamplesRingBuffer,
-                 cSamplesRingBuffer * sizeof(PDMAUDIOSAMPLE)));
-
-    /* Iterate as long as data is available */
-    size_t cSamplesRead = 0;
-    while (cSamplesRead < cSamplesRingBuffer)
-    {
-        /* How much is left? Split request at the end of our samples buffer. */
-        size_t cSamplesToRead = RT_MIN(cSamplesRingBuffer - cSamplesRead,
-                                       (uint32_t)(pVRDEVoice->pHostVoiceIn.cSamples - pVRDEVoice->pHostVoiceIn.offSamplesWritten));
-        size_t cbToRead = cSamplesToRead * sizeof(PDMAUDIOSAMPLE);
-        LogFlowFunc(("Try reading %zu samples (%zu bytes)\n", cSamplesToRead, cbToRead));
-
-        /* Try to acquire the necessary block from the ring buffer. Remeber in fltRecrodCallback we
-         * we are filling this buffer with the audio data available from VRDP. Here we are reading it
-         */
-        /*todo do I need to introduce a thread to fill the buffer in fltRecordcallback. So that
-         * filling is in separate thread and the reading of that buffer is in separate thread
-         */
-        void *pvSrc;
-        RTCircBufAcquireReadBlock(pVRDEVoice->pRecordedVoiceBuf, cbToRead, &pvSrc, &cbToRead);
-
-        /* How much to we get? */
-        cSamplesToRead = cbToRead / sizeof(PDMAUDIOSAMPLE);
-        LogFlowFunc(("AuderVRDE: There are %d samples (%d bytes) available\n", cSamplesToRead, cbToRead));
-
-        /* Break if nothing is used anymore. */
-        if (cSamplesToRead)
-        {
-            /* Copy the data from our ring buffer to the mix buffer. */
-            PPDMAUDIOSAMPLE psDst = pVRDEVoice->pHostVoiceIn.paSamples + pVRDEVoice->pHostVoiceIn.offSamplesWritten;
-            memcpy(psDst, pvSrc, cbToRead);
-        }
-
-        /* Release the read buffer, so it could be used for new data. */
-        RTCircBufReleaseReadBlock(pVRDEVoice->pRecordedVoiceBuf, cbToRead);
-
-        if (!cSamplesToRead)
-            break;
-
-        pVRDEVoice->pHostVoiceIn.offSamplesWritten = (pVRDEVoice->pHostVoiceIn.offSamplesWritten + cSamplesToRead)
-                                              % pVRDEVoice->pHostVoiceIn.cSamples;
-
-        /* How much have we reads so far. */
-        cSamplesRead += cSamplesToRead;
-    }
-
-    LogFlowFunc(("Finished reading buffer with %zu samples (%zu bytes)\n",
-                 cSamplesRead, cSamplesRead * sizeof(PDMAUDIOSAMPLE)));
-
-    *pcSamplesCaptured = cSamplesRead;
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) drvAudioVideoRecPlayOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMOUT pHostVoiceOut,
-                                                 uint32_t *pcSamplesPlayed)
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamPlay}
+ */
+static DECLCALLBACK(int) drvAudioVideoRecStreamPlay(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream,
+                                                    const void *pvBuf, uint32_t cxBuf, uint32_t *pcxWritten)
 {
-    PDRVAUDIOVIDEOREC pDrv = RT_FROM_MEMBER(pInterface, DRVAUDIOVIDEOREC, IHostAudio);
-    PVIDEORECAUDIOOUT pVRDEVoiceOut = (PVIDEORECAUDIOOUT)pHostVoiceOut;
+    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
+    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
+    AssertPtrReturn(pvBuf,      VERR_INVALID_POINTER);
+    AssertReturn(cxBuf,         VERR_INVALID_PARAMETER);
+    /* pcxWritten is optional. */
+
+    PDRVAUDIOVIDEOREC pThis     = PDMIHOSTAUDIO_2_DRVAUDIOVIDEOREC(pInterface);
+    RT_NOREF(pThis);
+    PAVRECSTREAM      pStreamAV = (PAVRECSTREAM)pStream;
+
+    int rc = VINF_SUCCESS;
+
+    uint32_t cbWrittenTotal = 0;
 
     /*
-     * Just call the VRDP server with the data.
+     * Call the encoder with the data.
      */
-    int live = audio_pcm_hw_get_live_out(pHostVoiceOut);
-    uint64_t now = PDMDrvHlpTMGetVirtualTime(pDrv->pDrvIns);
-    uint64_t ticks = now  - pVRDEVoiceOut->old_ticks;
-    uint64_t ticks_per_second = PDMDrvHlpTMGetVirtualFreq(pDrv->pDrvIns);
+#ifdef VBOX_WITH_LIBOPUS
+    PAVRECSINK pSink    = pStreamAV->pSink;
+    AssertPtr(pSink);
+    PRTCIRCBUF pCircBuf = pStreamAV->pCircBuf;
+    AssertPtr(pCircBuf);
 
-    int cSamplesPlayed = (int)((2 * ticks * pHostVoiceOut->Props.uHz + ticks_per_second) / ticks_per_second / 2);
-    if (cSamplesPlayed < 0)
-        cSamplesPlayed = live;
+    void  *pvCircBuf;
+    size_t cbCircBuf;
 
-    pHostVoiceOut->Props.cBits = 128; /** @todo Make this configurable (or at least a define)? */
-    VRDEAUDIOFORMAT format = VRDE_AUDIO_FMT_MAKE(pHostVoiceOut->Props.uHz,
-                                                 pHostVoiceOut->Props.cChannels,
-                                                 pHostVoiceOut->Props.cBits, /* bits per sample */
-                                                 !pHostVoiceOut->Props.fSigned);
+    uint32_t cbToWrite = cxBuf;
 
-    LogFlowFunc(("freq=%d, chan=%d, cBits = %d, fsigned = %d, cSamples=%d format=%d\n",
-                 pHostVoiceOut->Props.uHz, pHostVoiceOut->Props.cChannels,
-                 pHostVoiceOut->Props.cBits, pHostVoiceOut->Props.fSigned,
-                 pHostVoiceOut->cSamples, format));
-
-    pVRDEVoiceOut->old_ticks = now;
-    int cSamplesToSend = RT_MIN(live, cSamplesPlayed);
-
-    if (pHostVoiceOut->cOffSamplesRead + cSamplesToSend > pHostVoiceOut->cSamples)
-    {
-        /* send the samples till the end of pHostStereoSampleBuf */
-        pDrv->pConsoleVRDPServer->SendAudioSamples(&pHostVoiceOut->paSamples[pHostVoiceOut->cOffSamplesRead],
-                                                   (pHostVoiceOut->cSamples - pHostVoiceOut->cOffSamplesRead), format);
-        /*pHostStereoSampleBuff already has the samples which exceeded its space. They have overwriten the old
-         * played sampled starting from offset 0. So based on the number of samples that we had to play,
-         * read the number of samples from offset 0 .
-         */
-        pDrv->pConsoleVRDPServer->SendAudioSamples(&pHostVoiceOut->paSamples[0],
-                                                   (cSamplesToSend - (pHostVoiceOut->cSamples -
-                                                                      pHostVoiceOut->cOffSamplesRead)),
-                                                   format);
-    }
-    else
-    {
-        pDrv->pConsoleVRDPServer->SendAudioSamples(&pHostVoiceOut->paSamples[pHostVoiceOut->cOffSamplesRead],
-                                                   cSamplesToSend, format);
-    }
-
-    pHostVoiceOut->cOffSamplesRead = (pHostVoiceOut->cOffSamplesRead + cSamplesToSend) % pHostVoiceOut->cSamples;
-
-    *pcSamplesPlayed = cSamplesToSend;
-    return VINF_SUCCESS;
-}
-
-static DECLCALLBACK(int) drvAudioVideoRecFiniIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMIN hw)
-{
-    PDRVAUDIOVIDEOREC pDrv = RT_FROM_MEMBER(pInterface, DRVAUDIOVIDEOREC, IHostAudio);
-    LogFlowFuncEnter();
-    pDrv->pConsoleVRDPServer->SendAudioInputEnd(NULL);
-
-    return VINF_SUCCESS;
-}
-
-static DECLCALLBACK(int) drvAudioVideoRecFiniOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMOUT pHostVoiceOut)
-{
-    PDRVAUDIOVIDEOREC pDrv = RT_FROM_MEMBER(pInterface, DRVAUDIOVIDEOREC, IHostAudio);
-    LogFlowFuncEnter();
-
-    return VINF_SUCCESS;
-}
-
-static DECLCALLBACK(int) drvAudioVideoRecControlOut(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMOUT hw,
-                                                    PDMAUDIOSTREAMCMD enmStreamCmd)
-{
-    PDRVAUDIOVIDEOREC pDrv = RT_FROM_MEMBER(pInterface, DRVAUDIOVIDEOREC, IHostAudio);
-    LogFlowFuncEnter();
-
-    return VINF_SUCCESS;
-}
-
-static DECLCALLBACK(int) drvAudioVideoRecControlIn(PPDMIHOSTAUDIO pInterface, PPDMAUDIOHSTSTRMIN pHostVoiceIn,
-                                                   PDMAUDIOSTREAMCMD enmStreamCmd)
-{
-    PDRVAUDIOVIDEOREC pDrv = RT_FROM_MEMBER(pInterface, DRVAUDIOVIDEOREC, IHostAudio);
-
-    /* Initialize  VRDEVoice and return to VRDP server which returns this struct back to us
-     * in the form void * pvContext
+    /*
+     * Fetch as much as we can into our internal ring buffer.
      */
-    PVIDEORECAUDIOIN pVRDEVoice = (PVIDEORECAUDIOIN)pHostVoiceIn;
-    LogFlowFunc(("enmStreamCmd=%ld\n", enmStreamCmd));
-
-    /* initialize only if not already done */
-    if (enmStreamCmd == PDMAUDIOSTREAMCMD_ENABLE)
+    while (   cbToWrite
+           && RTCircBufFree(pCircBuf))
     {
-        //@todo if (!pVRDEVoice->fIsInit)
-        //    RTCircBufReset(pVRDEVoice->pRecordedVoiceBuf);
-        pVRDEVoice->fIsInit = 1;
-        pVRDEVoice->pHostVoiceIn = *pHostVoiceIn;
-        pVRDEVoice->cBytesPerFrame = 1;
-        pVRDEVoice->uFrequency = 0;
-        pVRDEVoice->rate = NULL;
-        pVRDEVoice->cbSamplesBufferAllocated = 0;
-        pVRDEVoice->pvRateBuffer = NULL;
-        pVRDEVoice->cbRateBufferAllocated = 0;
+        RTCircBufAcquireWriteBlock(pCircBuf, cbToWrite, &pvCircBuf, &cbCircBuf);
 
-        pVRDEVoice->pHostVoiceIn.cSamples = 2048;
-        /* Initialize the hardware info section with the audio settings */
-
-        ASMAtomicWriteU32(&pVRDEVoice->status, CA_STATUS_IN_INIT);
-
-        /* Create the internal ring buffer. */
-        RTCircBufCreate(&pVRDEVoice->pRecordedVoiceBuf,
-                        pVRDEVoice->pHostVoiceIn.cSamples * sizeof(PDMAUDIOSAMPLE));
-
-        if (!RT_VALID_PTR(pVRDEVoice->pRecordedVoiceBuf))
+        if (cbCircBuf)
         {
-            LogRel(("Failed to create internal ring buffer\n"));
-            return  VERR_NO_MEMORY;
+            memcpy(pvCircBuf, (uint8_t *)pvBuf + cbWrittenTotal, cbCircBuf),
+            cbWrittenTotal += (uint32_t)cbCircBuf;
+            Assert(cbToWrite >= cbCircBuf);
+            cbToWrite      -= (uint32_t)cbCircBuf;
         }
 
-        ASMAtomicWriteU32(&pVRDEVoice->status, CA_STATUS_INIT);
-        return pDrv->pConsoleVRDPServer->SendAudioInputBegin(NULL, pVRDEVoice, pHostVoiceIn->cSamples,
-                                                             pHostVoiceIn->Props.uHz,
-                                                             pHostVoiceIn->Props.cChannels, pHostVoiceIn->Props.cBits);
+        RTCircBufReleaseWriteBlock(pCircBuf, cbCircBuf);
+
+        if (   RT_FAILURE(rc)
+            || !cbCircBuf)
+        {
+            break;
+        }
     }
-    else if (enmStreamCmd == PDMAUDIOSTREAMCMD_DISABLE)
+
+    /*
+     * Process our internal ring buffer and encode the data.
+     */
+
+    uint8_t abSrc[_64K]; /** @todo Fix! */
+    size_t  cbSrc;
+
+    const uint32_t csFrame = pSink->Codec.Parms.uHz / (1000 /* s in ms */ / pSink->Codec.Opus.msFrame);
+    const uint32_t cbFrame = csFrame * pSink->Codec.Parms.cChannels * (pSink->Codec.Parms.cBits / 8 /* Bytes */);
+
+    /* Only encode data if we have data for the given time period (or more). */
+    while (RTCircBufUsed(pCircBuf) >= cbFrame)
     {
-        pVRDEVoice->fIsInit = 0;
-        ASMAtomicWriteU32(&pVRDEVoice->status, CA_STATUS_IN_UNINIT);
-        RTCircBufDestroy(pVRDEVoice->pRecordedVoiceBuf);
-        pVRDEVoice->pRecordedVoiceBuf = NULL;
-        ASMAtomicWriteU32(&pVRDEVoice->status, CA_STATUS_UNINIT);
-        pDrv->pConsoleVRDPServer->SendAudioInputEnd(NULL);
+        cbSrc = 0;
+
+        while (cbSrc < cbFrame)
+        {
+            RTCircBufAcquireReadBlock(pCircBuf, cbFrame - cbSrc, &pvCircBuf, &cbCircBuf);
+
+            if (cbCircBuf)
+            {
+                memcpy(&abSrc[cbSrc], pvCircBuf, cbCircBuf);
+
+                cbSrc += cbCircBuf;
+                Assert(cbSrc <= sizeof(abSrc));
+            }
+
+            RTCircBufReleaseReadBlock(pCircBuf, cbCircBuf);
+
+            if (!cbCircBuf)
+                break;
+        }
+
+# ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
+        RTFILE fh;
+        RTFileOpen(&fh, VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "DrvAudioVideoRec.pcm",
+                   RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND | RTFILE_O_WRITE | RTFILE_O_DENY_NONE);
+        RTFileWrite(fh, abSrc, cbSrc, NULL);
+        RTFileClose(fh);
+# endif
+
+        Assert(cbSrc == cbFrame);
+
+        /*
+         * Opus always encodes PER FRAME, that is, exactly 2.5, 5, 10, 20, 40 or 60 ms of audio data.
+         *
+         * A packet can have up to 120ms worth of audio data.
+         * Anything > 120ms of data will result in a "corrupted package" error message by
+         * by decoding application.
+         */
+        uint8_t abDst[_64K]; /** @todo Fix! */
+        size_t  cbDst = sizeof(abDst);
+
+        /* Call the encoder to encode one frame per iteration. */
+        opus_int32 cbWritten = opus_encode(pSink->Codec.Opus.pEnc,
+                                           (opus_int16 *)abSrc, csFrame, abDst, (opus_int32)cbDst);
+        if (cbWritten > 0)
+        {
+# ifdef VBOX_WITH_STATISTICS
+            /* Get overall frames encoded. */
+            const uint32_t cEncFrames     = opus_packet_get_nb_frames(abDst, cbWritten);
+
+            pSink->Codec.STAM.cEncFrames += cEncFrames;
+            pSink->Codec.STAM.msEncTotal += pSink->Codec.Opus.msFrame * cEncFrames;
+
+            LogFunc(("%RU64ms [%RU64 frames]: cbSrc=%zu, cbDst=%zu, cEncFrames=%RU32\n",
+                     pSink->Codec.STAM.msEncTotal, pSink->Codec.STAM.cEncFrames, cbSrc, cbDst, cEncFrames));
+# endif
+            Assert((uint32_t)cbWritten <= cbDst);
+            cbDst = RT_MIN((uint32_t)cbWritten, cbDst); /* Update cbDst to actual bytes encoded (written). */
+
+            Assert(cEncFrames == 1); /* At the moment we encode exactly *one* frame per frame. */
+
+            const uint64_t uDurationMs = pSink->Codec.Opus.msFrame * cEncFrames;
+
+            switch (pSink->Con.Parms.enmType)
+            {
+                case AVRECCONTAINERTYPE_MAIN_CONSOLE:
+                {
+                    HRESULT hr = pSink->Con.Main.pConsole->i_audioVideoRecSendAudio(abDst, cbDst, uDurationMs);
+                    Assert(hr == S_OK);
+                    RT_NOREF(hr);
+
+                    break;
+                }
+
+                case AVRECCONTAINERTYPE_WEBM:
+                {
+                    WebMWriter::BlockData_Opus blockData = { abDst, cbDst, uDurationMs };
+                    rc = pSink->Con.WebM.pWebM->WriteBlock(pSink->Con.WebM.uTrack, &blockData, sizeof(blockData));
+                    AssertRC(rc);
+
+                    break;
+                }
+
+                default:
+                    AssertFailedStmt(rc = VERR_NOT_IMPLEMENTED);
+                    break;
+            }
+        }
+        else if (cbWritten < 0)
+        {
+            AssertMsgFailed(("Encoding failed: %s\n", opus_strerror(cbWritten)));
+            rc = VERR_INVALID_PARAMETER;
+        }
+
+        if (RT_FAILURE(rc))
+            break;
     }
 
-    return VINF_SUCCESS;
+    if (pcxWritten)
+        *pcxWritten = cbWrittenTotal;
+#else
+    /* Report back all data as being processed. */
+    if (pcxWritten)
+        *pcxWritten = cxBuf;
+
+    rc = VERR_NOT_SUPPORTED;
+#endif /* VBOX_WITH_LIBOPUS */
+
+    LogFlowFunc(("csReadTotal=%RU32, rc=%Rrc\n", cbWrittenTotal, rc));
+    return rc;
 }
 
-static DECLCALLBACK(int) drvAudioVideoRecGetConf(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDCFG pAudioConf)
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnGetConfig}
+ */
+static DECLCALLBACK(int) drvAudioVideoRecGetConfig(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDCFG pBackendCfg)
 {
-    LogFlowFunc(("pAudioConf=%p\n", pAudioConf));
+    RT_NOREF(pInterface);
+    AssertPtrReturn(pBackendCfg, VERR_INVALID_POINTER);
 
-    pAudioConf->cbStreamOut = sizeof(VIDEORECAUDIOOUT);
-    pAudioConf->cbStreamIn = sizeof(VIDEORECAUDIOIN);
-    pAudioConf->cMaxHstStrmsOut = 1;
-    pAudioConf->cMaxHstStrmsIn = 1;
+    pBackendCfg->cbStreamOut    = sizeof(AVRECSTREAM);
+    pBackendCfg->cbStreamIn     = 0;
+    pBackendCfg->cMaxStreamsIn  = 0;
+    pBackendCfg->cMaxStreamsOut = UINT32_MAX;
 
     return VINF_SUCCESS;
 }
 
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnShutdown}
+ */
 static DECLCALLBACK(void) drvAudioVideoRecShutdown(PPDMIHOSTAUDIO pInterface)
 {
-    NOREF(pInterface);
+    LogFlowFuncEnter();
+
+    PDRVAUDIOVIDEOREC pThis = PDMIHOSTAUDIO_2_DRVAUDIOVIDEOREC(pInterface);
+
+    avRecSinkShutdown(&pThis->Sink);
 }
+
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnGetStatus}
+ */
+static DECLCALLBACK(PDMAUDIOBACKENDSTS) drvAudioVideoRecGetStatus(PPDMIHOSTAUDIO pInterface, PDMAUDIODIR enmDir)
+{
+    RT_NOREF(enmDir);
+    AssertPtrReturn(pInterface, PDMAUDIOBACKENDSTS_UNKNOWN);
+
+    return PDMAUDIOBACKENDSTS_RUNNING;
+}
+
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamCreate}
+ */
+static DECLCALLBACK(int) drvAudioVideoRecStreamCreate(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream,
+                                                      PPDMAUDIOSTREAMCFG pCfgReq, PPDMAUDIOSTREAMCFG pCfgAcq)
+{
+    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
+    AssertPtrReturn(pCfgReq,    VERR_INVALID_POINTER);
+    AssertPtrReturn(pCfgAcq,    VERR_INVALID_POINTER);
+
+    if (pCfgReq->enmDir == PDMAUDIODIR_IN)
+        return VERR_NOT_SUPPORTED;
+
+    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
+
+    PDRVAUDIOVIDEOREC pThis     = PDMIHOSTAUDIO_2_DRVAUDIOVIDEOREC(pInterface);
+    PAVRECSTREAM      pStreamAV = (PAVRECSTREAM)pStream;
+
+    /* For now we only have one sink, namely the driver's one.
+     * Later each stream could have its own one, to e.g. router different stream to different sinks .*/
+    PAVRECSINK pSink = &pThis->Sink;
+
+    int rc = avRecCreateStreamOut(pThis, pStreamAV, pSink, pCfgReq, pCfgAcq);
+    if (RT_SUCCESS(rc))
+    {
+        pStreamAV->pCfg = DrvAudioHlpStreamCfgDup(pCfgAcq);
+        if (!pStreamAV->pCfg)
+            rc = VERR_NO_MEMORY;
+    }
+
+    return rc;
+}
+
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamDestroy}
+ */
+static DECLCALLBACK(int) drvAudioVideoRecStreamDestroy(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream)
+{
+    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
+    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
+
+    PDRVAUDIOVIDEOREC pThis     = PDMIHOSTAUDIO_2_DRVAUDIOVIDEOREC(pInterface);
+    PAVRECSTREAM      pStreamAV = (PAVRECSTREAM)pStream;
+
+    if (!pStreamAV->pCfg) /* Not (yet) configured? Skip. */
+        return VINF_SUCCESS;
+
+    int rc = VINF_SUCCESS;
+
+    if (pStreamAV->pCfg->enmDir == PDMAUDIODIR_OUT)
+        rc = avRecDestroyStreamOut(pThis, pStreamAV);
+
+    if (RT_SUCCESS(rc))
+    {
+        DrvAudioHlpStreamCfgFree(pStreamAV->pCfg);
+        pStreamAV->pCfg = NULL;
+    }
+
+    return rc;
+}
+
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamControl}
+ */
+static DECLCALLBACK(int) drvAudioVideoRecStreamControl(PPDMIHOSTAUDIO pInterface,
+                                                       PPDMAUDIOBACKENDSTREAM pStream, PDMAUDIOSTREAMCMD enmStreamCmd)
+{
+    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
+    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
+
+    PDRVAUDIOVIDEOREC pThis     = PDMIHOSTAUDIO_2_DRVAUDIOVIDEOREC(pInterface);
+    PAVRECSTREAM      pStreamAV = (PAVRECSTREAM)pStream;
+
+    if (!pStreamAV->pCfg) /* Not (yet) configured? Skip. */
+        return VINF_SUCCESS;
+
+    if (pStreamAV->pCfg->enmDir == PDMAUDIODIR_OUT)
+        return avRecControlStreamOut(pThis, pStreamAV, enmStreamCmd);
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamGetReadable}
+ */
+static DECLCALLBACK(uint32_t) drvAudioVideoRecStreamGetReadable(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream)
+{
+    RT_NOREF(pInterface, pStream);
+
+    return 0; /* Video capturing does not provide any input. */
+}
+
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamGetWritable}
+ */
+static DECLCALLBACK(uint32_t) drvAudioVideoRecStreamGetWritable(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream)
+{
+    RT_NOREF(pInterface, pStream);
+
+    return UINT32_MAX;
+}
+
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamGetStatus}
+ */
+static DECLCALLBACK(PDMAUDIOSTREAMSTS) drvAudioVideoRecStreamGetStatus(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream)
+{
+    RT_NOREF(pInterface, pStream);
+
+    return (PDMAUDIOSTREAMSTS_FLAG_INITIALIZED | PDMAUDIOSTREAMSTS_FLAG_ENABLED);
+}
+
+
+/**
+ * @interface_method_impl{PDMIHOSTAUDIO,pfnStreamIterate}
+ */
+static DECLCALLBACK(int) drvAudioVideoRecStreamIterate(PPDMIHOSTAUDIO pInterface, PPDMAUDIOBACKENDSTREAM pStream)
+{
+    AssertPtrReturn(pInterface, VERR_INVALID_POINTER);
+    AssertPtrReturn(pStream,    VERR_INVALID_POINTER);
+
+    LogFlowFuncEnter();
+
+    /* Nothing to do here for video recording. */
+    return VINF_SUCCESS;
+}
+
 
 /**
  * @interface_method_impl{PDMIBASE,pfnQueryInterface}
@@ -639,17 +992,20 @@ static DECLCALLBACK(void) drvAudioVideoRecShutdown(PPDMIHOSTAUDIO pInterface)
 static DECLCALLBACK(void *) drvAudioVideoRecQueryInterface(PPDMIBASE pInterface, const char *pszIID)
 {
     PPDMDRVINS pDrvIns = PDMIBASE_2_PDMDRV(pInterface);
-    PDRVAUDIOVIDEOREC  pThis = PDMINS_2_DATA(pDrvIns, PDRVAUDIOVIDEOREC);
+    PDRVAUDIOVIDEOREC pThis = PDMINS_2_DATA(pDrvIns, PDRVAUDIOVIDEOREC);
+
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIBASE, &pDrvIns->IBase);
     PDMIBASE_RETURN_INTERFACE(pszIID, PDMIHOSTAUDIO, &pThis->IHostAudio);
     return NULL;
 }
 
+
 AudioVideoRec::AudioVideoRec(Console *pConsole)
-    : mpDrv(NULL),
-      mParent(pConsole)
+    : mpDrv(NULL)
+    , mpConsole(pConsole)
 {
 }
+
 
 AudioVideoRec::~AudioVideoRec(void)
 {
@@ -660,149 +1016,22 @@ AudioVideoRec::~AudioVideoRec(void)
     }
 }
 
-int AudioVideoRec::handleVideoRecSvrCmdAudioInputIntercept(bool fIntercept)
-{
-    LogFlowThisFunc(("fIntercept=%RTbool\n", fIntercept));
-    return VINF_SUCCESS;
-}
-
-int AudioVideoRec::handleVideoRecSvrCmdAudioInputEventBegin(void *pvContext, int iSampleHz, int cChannels,
-                                                            int cBits, bool fUnsigned)
-{
-    int bitIdx;
-    PVIDEORECAUDIOIN pVRDEVoice = (PVIDEORECAUDIOIN)pvContext;
-    LogFlowFunc(("handleVRDPCmdInputEventBegin\n"));
-    /* Prepare a format convertion for the actually used format. */
-    pVRDEVoice->cBytesPerFrame = ((cBits + 7) / 8) * cChannels;
-    if (cBits == 16)
-    {
-        bitIdx = 1;
-    }
-    else if (cBits == 32)
-    {
-        bitIdx = 2;
-    }
-    else
-    {
-        bitIdx = 0;
-    }
-
-    //PPDMIAUDIOCONNECTOR pPort = server->mConsole->getAudioVideoRec()->getDrvAudioPort();
-    /* Call DrvAudio interface to get the t_sample type conversion function */
-    /*mpDrv->pUpPort->pfnConvDevFmtToStSample(mpDrv->pUpPort,
-                                            (cChannels == 2) ? 1 : 0,
-                                            !fUnsigned, 0, bitIdx,
-                                            pVRDEVoice->convAudioDevFmtToStSampl);*/
-    if (pVRDEVoice->convAudioDevFmtToStSampl)
-    {
-        LogFlowFunc(("Failed to get the conversion function \n"));
-    }
-    LogFlowFunc(("Required freq as requested by VRDP Server = %d\n", iSampleHz));
-    //if (iSampleHz && iSampleHz != pVRDEVoice->pHostVoiceIn.Props.uFrequency)
-    {
-        /* @todo if the above condition is false then pVRDEVoice->uFrequency will remain 0 */
-        /*mpDrv->pUpPort->pfnPrepareAudioConversion(mpDrv->pUpPort, iSampleHz,
-                                                  pVRDEVoice->pHostVoiceIn.Props.uFrequency,
-                                                  &pVRDEVoice->rate);*/
-        pVRDEVoice->uFrequency = iSampleHz;
-        LogFlowFunc(("pVRDEVoice assigned requested freq =%d\n", pVRDEVoice->uFrequency));
-    }
-    return VINF_SUCCESS;
-}
-
-/*
- * pvContext: pointer to VRDP voice returned by the VRDP server. The is same pointer that we initialized in
- *            drvAudioVideoRecDisableEnableIn VOICE_ENABLE case.
- */
-int AudioVideoRec::handleVideoRecSvrCmdAudioInputEventData(void *pvContext, const void *pvData, uint32_t cbData)
-{
-    PVIDEORECAUDIOIN pVRDEVoice = (PVIDEORECAUDIOIN)pvContext;
-    PPDMAUDIOSAMPLE pHostStereoSampleBuf; /* target sample buffer */
-    PPDMAUDIOSAMPLE pConvertedSampleBuf; /* samples adjusted for rate */
-    uint32_t cSamples = cbData / pVRDEVoice->cBytesPerFrame; /* Count of samples */
-    void * pTmpSampleBuf = NULL;
-    uint32_t cConvertedSamples; /* samples adjusted for rate */
-    uint32_t cbSamples = 0; /* count of bytes occupied by samples */
-    int rc = VINF_SUCCESS;
-
-    LogFlowFunc(("handleVRDPCmdInputEventData cbData = %d, bytesperfram=%d\n",
-              cbData, pVRDEVoice->cBytesPerFrame));
-
-    vrdeReallocSampleBuf(pVRDEVoice, cSamples);
-    pHostStereoSampleBuf = (PPDMAUDIOSAMPLE)pVRDEVoice->pvSamplesBuffer;
-    pVRDEVoice->convAudioDevFmtToStSampl(pHostStereoSampleBuf, pvData, cSamples, &videorec_nominal_volume);
-
-    /* count of rate adjusted samples */
-    pVRDEVoice->uFrequency = 22100; /* @todo handle this. How pVRDEVoice will get proper value */
-    cConvertedSamples = (cSamples * pVRDEVoice->pHostVoiceIn.Props.uHz) / pVRDEVoice->uFrequency;
-    vrdeReallocRateAdjSampleBuf(pVRDEVoice, cConvertedSamples);
-
-    pConvertedSampleBuf = (PPDMAUDIOSAMPLE)pVRDEVoice->pvRateBuffer;
-    if (pConvertedSampleBuf)
-    {
-        uint32_t cSampleSrc = cSamples;
-        uint32_t cSampleDst = cConvertedSamples;
-        /*mpDrv->pUpPort->pfnDoRateConversion(mpDrv->pUpPort, pVRDEVoice->rate, pHostStereoSampleBuf,
-                                            pConvertedSampleBuf, &cSampleSrc, &cConvertedSamples);*/
-        pTmpSampleBuf = pConvertedSampleBuf;
-        cbSamples =  cConvertedSamples * sizeof(PDMAUDIOSAMPLE);
-    }
-
-    if (cbSamples)
-        rc = vrdeRecordingCallback(pVRDEVoice, cbSamples, pTmpSampleBuf);
-
-    return rc;
-}
-
-/*
- * pvContext: pointer to VRDP voice returned by the VRDP server. The is same pointer that we initialized in
- *            drvAudioVideoRecDisableEnableIn VOICE_ENABLE case.
- */
-int AudioVideoRec::handleVideoRecSvrCmdAudioInputEventEnd(void *pvContext)
-{
-    LogFlowFuncEnter();
-
-    PVIDEORECAUDIOIN pVRDEVoice = (PVIDEORECAUDIOIN)pvContext;
-    AssertPtrReturn(pVRDEVoice, VERR_INVALID_POINTER);
-
-    /* The caller will not use this context anymore. */
-    if (pVRDEVoice->rate)
-    {
-        //mpDrv->pUpPort->pfnEndAudioConversion(mpDrv->pUpPort, pVRDEVoice->rate);
-    }
-
-    if (pVRDEVoice->pvSamplesBuffer)
-    {
-        RTMemFree(pVRDEVoice->pvSamplesBuffer);
-        pVRDEVoice->pvSamplesBuffer = NULL;
-    }
-
-    if (pVRDEVoice->pvRateBuffer)
-    {
-        RTMemFree(pVRDEVoice->pvRateBuffer);
-        pVRDEVoice->pvRateBuffer = NULL;
-    }
-
-    return VINF_SUCCESS;
-}
 
 /**
- * Construct a VRDE audio driver instance.
+ * Construct a audio video recording driver instance.
  *
  * @copydoc FNPDMDRVCONSTRUCT
  */
 /* static */
 DECLCALLBACK(int) AudioVideoRec::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
+    PDMDRV_CHECK_VERSIONS_RETURN(pDrvIns);
     PDRVAUDIOVIDEOREC pThis = PDMINS_2_DATA(pDrvIns, PDRVAUDIOVIDEOREC);
-    LogRel(("Audio: Initializing VRDE driver\n"));
+    RT_NOREF(fFlags);
+
+    LogRel(("Audio: Initializing video recording audio driver\n"));
     LogFlowFunc(("fFlags=0x%x\n", fFlags));
 
-    /* we save the address of AudioVideoRec in Object node in CFGM tree and address of VRDP server in
-     * ObjectVRDPServer node. So presence of both is necessary.
-     */
-    //if (!CFGMR3AreValuesValid(pCfg, "Object\0") || !CFGMR3AreValuesValid(pCfg, "ObjectVRDPServer\0"))
-    //   return VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
     AssertMsgReturn(PDMDrvHlpNoAttach(pDrvIns) == VERR_PDM_NO_ATTACHED_DRIVER,
                     ("Configuration error: Not possible to attach anything to this driver!\n"),
                     VERR_PDM_DRVINS_NO_ATTACH);
@@ -816,51 +1045,92 @@ DECLCALLBACK(int) AudioVideoRec::drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg
     /* IHostAudio */
     PDMAUDIO_IHOSTAUDIO_CALLBACKS(drvAudioVideoRec);
 
-    /* Get VRDPServer pointer. */
+    /*
+     * Get the Console object pointer.
+     */
     void *pvUser;
-    int rc = CFGMR3QueryPtr(pCfg, "ObjectVRDPServer", &pvUser);
-    if (RT_FAILURE(rc))
-    {
-        AssertMsgFailed(("Confguration error: No/bad \"ObjectVRDPServer\" value, rc=%Rrc\n", rc));
-        return rc;
-    }
+    int rc = CFGMR3QueryPtr(pCfg, "ObjectConsole", &pvUser); /** @todo r=andy Get rid of this hack and use IHostAudio::SetCallback. */
+    AssertRCReturn(rc, rc);
 
-    /* CFGM tree saves the pointer to ConsoleVRDPServer in the Object node of AudioVideoRec. */
-    pThis->pConsoleVRDPServer = (ConsoleVRDPServer *)pvUser;
+    /* CFGM tree saves the pointer to Console in the Object node of AudioVideoRec. */
+    pThis->pConsole = (Console *)pvUser;
+    AssertReturn(!pThis->pConsole.isNull(), VERR_INVALID_POINTER);
 
-    pvUser = NULL;
-    rc = CFGMR3QueryPtr(pCfg, "Object", &pvUser);
-    if (RT_FAILURE(rc))
-    {
-        AssertMsgFailed(("Confguration error: No/bad \"Object\" value, rc=%Rrc\n", rc));
-        return rc;
-    }
+    /*
+     * Get the pointer to the audio driver instance.
+     */
+    rc = CFGMR3QueryPtr(pCfg, "Object", &pvUser); /** @todo r=andy Get rid of this hack and use IHostAudio::SetCallback. */
+    AssertRCReturn(rc, rc);
 
     pThis->pAudioVideoRec = (AudioVideoRec *)pvUser;
+    AssertPtrReturn(pThis->pAudioVideoRec, VERR_INVALID_POINTER);
+
     pThis->pAudioVideoRec->mpDrv = pThis;
 
     /*
      * Get the interface for the above driver (DrvAudio) to make mixer/conversion calls.
      * Described in CFGM tree.
      */
-    pThis->pUpPort = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIAUDIOCONNECTOR);
-    if (!pThis->pUpPort)
-    {
-        AssertMsgFailed(("Configuration error: No upper interface specified!\n"));
-        return VERR_PDM_MISSING_INTERFACE_ABOVE;
-    }
+    pThis->pDrvAudio = PDMIBASE_QUERY_INTERFACE(pDrvIns->pUpBase, PDMIAUDIOCONNECTOR);
+    AssertMsgReturn(pThis->pDrvAudio, ("Configuration error: No upper interface specified!\n"), VERR_PDM_MISSING_INTERFACE_ABOVE);
+
+#ifdef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA
+    RTFileDelete(VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "DrvAudioVideoRec.webm");
+    RTFileDelete(VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "DrvAudioVideoRec.pcm");
+#endif
 
     return VINF_SUCCESS;
 }
 
+
+/**
+ * @interface_method_impl{PDMDRVREG,pfnDestruct}
+ */
 /* static */
 DECLCALLBACK(void) AudioVideoRec::drvDestruct(PPDMDRVINS pDrvIns)
 {
+    PDMDRV_CHECK_VERSIONS_RETURN_VOID(pDrvIns);
+    PDRVAUDIOVIDEOREC pThis = PDMINS_2_DATA(pDrvIns, PDRVAUDIOVIDEOREC);
+    LogFlowFuncEnter();
+
+    /*
+     * If the AudioVideoRec object is still alive, we must clear it's reference to
+     * us since we'll be invalid when we return from this method.
+     */
+    if (pThis->pAudioVideoRec)
+    {
+        pThis->pAudioVideoRec->mpDrv = NULL;
+        pThis->pAudioVideoRec = NULL;
+    }
+}
+
+
+/**
+ * @interface_method_impl{PDMDRVREG,pfnAttach}
+ */
+/* static */
+DECLCALLBACK(int) AudioVideoRec::drvAttach(PPDMDRVINS pDrvIns, uint32_t fFlags)
+{
+    RT_NOREF(pDrvIns, fFlags);
+
+    LogFlowFuncEnter();
+
+    return VINF_SUCCESS;
+}
+
+/**
+ * @interface_method_impl{PDMDRVREG,pfnDetach}
+ */
+/* static */
+DECLCALLBACK(void) AudioVideoRec::drvDetach(PPDMDRVINS pDrvIns, uint32_t fFlags)
+{
+    RT_NOREF(pDrvIns, fFlags);
+
     LogFlowFuncEnter();
 }
 
 /**
- * VRDE audio driver registration record.
+ * Video recording audio driver registration record.
  */
 const PDMDRVREG AudioVideoRec::DrvReg =
 {
@@ -898,9 +1168,9 @@ const PDMDRVREG AudioVideoRec::DrvReg =
     /* pfnResume */
     NULL,
     /* pfnAttach */
-    NULL,
+    AudioVideoRec::drvAttach,
     /* pfnDetach */
-    NULL,
+    AudioVideoRec::drvDetach,
     /* pfnPowerOff */
     NULL,
     /* pfnSoftReset */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -247,10 +247,14 @@ RTDECL(int) RTPathUserDocuments(char *pszPath, size_t cchPath)
 }
 
 
+#if 0 /* use nt version of this */
+
 RTR3DECL(int) RTPathQueryInfo(const char *pszPath, PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD enmAdditionalAttribs)
 {
     return RTPathQueryInfoEx(pszPath, pObjInfo, enmAdditionalAttribs, RTPATH_F_ON_LINK);
 }
+#endif
+#if 0
 
 
 RTR3DECL(int) RTPathQueryInfoEx(const char *pszPath, PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD enmAdditionalAttribs, uint32_t fFlags)
@@ -270,6 +274,7 @@ RTR3DECL(int) RTPathQueryInfoEx(const char *pszPath, PRTFSOBJINFO pObjInfo, RTFS
     /*
      * Query file info.
      */
+    uint32_t uReparseTag = RTFSMODE_SYMLINK_REPARSE_TAG;
     WIN32_FILE_ATTRIBUTE_DATA Data;
     PRTUTF16 pwszPath;
     int rc = RTStrToUtf16(pszPath, &pwszPath);
@@ -296,6 +301,7 @@ RTR3DECL(int) RTPathQueryInfoEx(const char *pszPath, PRTFSOBJINFO pObjInfo, RTFS
             Data.ftLastWriteTime    = FindData.ftLastWriteTime;
             Data.nFileSizeHigh      = FindData.nFileSizeHigh;
             Data.nFileSizeLow       = FindData.nFileSizeLow;
+            uReparseTag             = FindData.dwReserved0;
         }
         else
         {
@@ -310,8 +316,8 @@ RTR3DECL(int) RTPathQueryInfoEx(const char *pszPath, PRTFSOBJINFO pObjInfo, RTFS
      * subject to the same access violation mess as above.. :/
      */
     /** @todo we're too lazy wrt to error paths here... */
-    if (   (fFlags & RTPATH_F_FOLLOW_LINK)
-        && (Data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
+    if (   (Data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+        && ((fFlags & RTPATH_F_FOLLOW_LINK) || uReparseTag != RTFSMODE_SYMLINK_REPARSE_TAG))
     {
         HANDLE hFinal = CreateFileW(pwszPath,
                                     GENERIC_READ,
@@ -331,6 +337,7 @@ RTR3DECL(int) RTPathQueryInfoEx(const char *pszPath, PRTFSOBJINFO pObjInfo, RTFS
                 Data.ftLastWriteTime    = FileData.ftLastWriteTime;
                 Data.nFileSizeHigh      = FileData.nFileSizeHigh;
                 Data.nFileSizeLow       = FileData.nFileSizeLow;
+                uReparseTag             = 0;
             }
             CloseHandle(hFinal);
         }
@@ -358,7 +365,7 @@ RTR3DECL(int) RTPathQueryInfoEx(const char *pszPath, PRTFSOBJINFO pObjInfo, RTFS
     pObjInfo->ChangeTime  = pObjInfo->ModificationTime;
 
     pObjInfo->Attr.fMode  = rtFsModeFromDos((Data.dwFileAttributes << RTFS_DOS_SHIFT) & RTFS_DOS_MASK_NT,
-                                            pszPath, strlen(pszPath));
+                                            pszPath, strlen(pszPath), uReparseTag);
 
     /*
      * Requested attributes (we cannot provide anything actually).
@@ -405,6 +412,8 @@ RTR3DECL(int) RTPathQueryInfoEx(const char *pszPath, PRTFSOBJINFO pObjInfo, RTFS
 
     return VINF_SUCCESS;
 }
+
+#endif /* using NT version*/
 
 
 RTR3DECL(int) RTPathSetTimes(const char *pszPath, PCRTTIMESPEC pAccessTime, PCRTTIMESPEC pModificationTime,

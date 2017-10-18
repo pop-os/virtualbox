@@ -21,6 +21,7 @@
 
 #include "ProgressWrap.h"
 #include "VirtualBoxBase.h"
+#include "EventImpl.h"
 
 #include <iprt/semaphore.h>
 
@@ -78,7 +79,7 @@ public:
      * @param aDescription
      * @param aCancelable
      * @param cOperations
-     * @param bstrFirstOperationDescription
+     * @param aFirstOperationDescription
      * @return
      */
     HRESULT init(
@@ -140,6 +141,9 @@ public:
     bool i_notifyPointOfNoReturn(void);
     bool i_setCancelCallback(void (*pfnCallback)(void *), void *pvUser);
 
+    static DECLCALLBACK(int) i_iprtProgressCallback(unsigned uPercentage, void *pvUser);
+    static DECLCALLBACK(int) i_vdProgressCallback(void *pvUser, unsigned uPercentage);
+
 protected:
     DECLARE_EMPTY_CTOR_DTOR(Progress)
 
@@ -147,7 +151,7 @@ protected:
     /** Weak parent. */
     VirtualBox * const      mParent;
 #endif
-
+    const ComObjPtr<EventSource> pEventSource;
     const ComPtr<IUnknown>  mInitiator;
 
     const Guid mId;
@@ -199,6 +203,7 @@ private:
     HRESULT getOperationWeight(ULONG *aOperationWeight);
     HRESULT getTimeout(ULONG *aTimeout);
     HRESULT setTimeout(ULONG aTimeout);
+    HRESULT getEventSource(ComPtr<IEventSource> &aEventSource);
 
     // wrapped IProgress methods
     HRESULT setCurrentOperationProgress(ULONG aPercent);

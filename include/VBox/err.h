@@ -90,6 +90,8 @@
 #define VERR_INVALID_CPU_INDEX              (-1022)
 /** This VirtualBox build does not support raw-mode. */
 #define VERR_RAW_MODE_NOT_SUPPORTED         (-1023)
+/** Essential fields in the shared VM structure doesn't match the global one. */
+#define VERR_INCONSISTENT_VM_HANDLE         (-1024)
 /** @} */
 
 
@@ -1719,6 +1721,8 @@
 #define VERR_VGA_INVALID_CUSTOM_MODE                (-3500)
 /** The display connector is resizing. */
 #define VINF_VGA_RESIZE_IN_PROGRESS                 (3501)
+/** Unexpected PCI region change during VGA saved state loading. */
+#define VERR_VGA_UNEXPECTED_PCI_REGION_LOAD_CHANGE  (-3502)
 /** @} */
 
 
@@ -2136,6 +2140,8 @@
 #define VERR_SVM_VMEXIT_FAILED                      (-4066)
 /** An operation caused a nested-guest SVM \#VMEXIT. */
 #define VINF_SVM_VMEXIT                              4067
+/** VMRUN emulation succeeded, ready to immediately enter the nested-guest. */
+#define VINF_SVM_VMRUN                               4068
 /** @} */
 
 
@@ -2346,6 +2352,8 @@
 #define VERR_GVMM_IPE_1                             (-5203)
 /** Internal processing error \#2 in the GVMM code. */
 #define VERR_GVMM_IPE_2                             (-5204)
+/** Cannot destroy VM because not all other EMTs have deregistered. */
+#define VERR_GVMM_NOT_ALL_EMTS_DEREGISTERED         (-5205)
 /** @} */
 
 

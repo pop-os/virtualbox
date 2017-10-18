@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,9 +26,8 @@
 #ifndef ___VBox_HostService_VBoxClipboardSvc_h
 #define ___VBox_HostService_VBoxClipboardSvc_h
 
-#include <VBox/types.h>
-#include <VBox/VMMDev.h>
-#include <VBox/VBoxGuest2.h>
+#include <VBox/VMMDevCoreTypes.h>
+#include <VBox/VBoxGuestCoreTypes.h>
 #include <VBox/hgcmsvc.h>
 
 /*
@@ -75,10 +74,10 @@
 /*
  * HGCM parameter structures.
  */
-#pragma pack (1)
+#pragma pack(1)
 typedef struct _VBoxClipboardGetHostMsg
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
 
     /* VBOX_SHARED_CLIPBOARD_HOST_MSG_* */
     HGCMFunctionParameter msg;     /* OUT uint32_t */
@@ -91,7 +90,7 @@ typedef struct _VBoxClipboardGetHostMsg
 
 typedef struct _VBoxClipboardFormats
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
 
     /* VBOX_SHARED_CLIPBOARD_FMT_* */
     HGCMFunctionParameter formats; /* OUT uint32_t */
@@ -101,7 +100,7 @@ typedef struct _VBoxClipboardFormats
 
 typedef struct _VBoxClipboardReadData
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
 
     /* Requested format. */
     HGCMFunctionParameter format; /* IN uint32_t */
@@ -120,7 +119,7 @@ typedef struct _VBoxClipboardReadData
 
 typedef struct _VBoxClipboardWriteData
 {
-    VBoxGuestHGCMCallInfo hdr;
+    VBGLIOCHGCMCALL hdr;
 
     /* Returned format as requested in the VBOX_SHARED_CLIPBOARD_HOST_MSG_READ_DATA message. */
     HGCMFunctionParameter format; /* IN uint32_t */
@@ -131,6 +130,6 @@ typedef struct _VBoxClipboardWriteData
 
 #define VBOX_SHARED_CLIPBOARD_CPARMS_WRITE_DATA 2
 
-#pragma pack ()
+#pragma pack()
 
 #endif

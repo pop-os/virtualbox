@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -710,7 +710,7 @@ static DECLCALLBACK(int) rtkldr_EnumSegments(PRTLDRMODINTERNAL pMod, PFNRTLDRENU
         {
             default:
                 AssertMsgFailed(("%d\n", paSegments[iSeg].enmProt));
-                /* fall thru */
+                RT_FALL_THRU();
             case KPROT_NOACCESS:
                 Seg.fProt = 0;
                 break;

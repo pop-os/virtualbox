@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2016 Oracle Corporation
+ * Copyright (C) 2005-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,6 +36,9 @@ class SharedFolder;
 class VRDEServerInfo;
 class EmulatedUSB;
 class AudioVRDE;
+#ifdef VBOX_WITH_AUDIO_VIDEOREC
+class AudioVideoRec;
+#endif
 class Nvram;
 #ifdef VBOX_WITH_USB_CARDREADER
 class UsbCardReader;
@@ -131,7 +134,13 @@ public:
     Mouse *i_getMouse() const { return mMouse; }
     Display *i_getDisplay() const { return mDisplay; }
     MachineDebugger *i_getMachineDebugger() const { return mDebugger; }
+#ifdef VBOX_WITH_VRDE_AUDIO
     AudioVRDE *i_getAudioVRDE() const { return mAudioVRDE; }
+#endif
+#ifdef VBOX_WITH_AUDIO_VIDEOREC
+    AudioVideoRec *i_getAudioVideoRec() const { return mAudioVideoRec; }
+    HRESULT i_audioVideoRecSendAudio(const void *pvData, size_t cbData, uint64_t uDurationMs);
+#endif
 
     const ComPtr<IMachine> &i_machine() const { return mMachine; }
     const Bstr &i_getId() const { return mstrUuid; }
@@ -145,9 +154,11 @@ public:
 
     HRESULT i_updateMachineState(MachineState_T aMachineState);
     HRESULT i_getNominalState(MachineState_T &aNominalState);
+    Utf8Str i_getAudioAdapterDeviceName(IAudioAdapter *aAudioAdapter);
 
     // events from IInternalSessionControl
     HRESULT i_onNetworkAdapterChange(INetworkAdapter *aNetworkAdapter, BOOL changeAdapter);
+    HRESULT i_onAudioAdapterChange(IAudioAdapter *aAudioAdapter);
     HRESULT i_onSerialPortChange(ISerialPort *aSerialPort);
     HRESULT i_onParallelPortChange(IParallelPort *aParallelPort);
     HRESULT i_onStorageControllerChange();
@@ -181,7 +192,6 @@ public:
     HRESULT i_reconfigureMediumAttachments(const std::vector<ComPtr<IMediumAttachment> > &aAttachments);
     int i_hgcmLoadService(const char *pszServiceLibrary, const char *pszServiceName);
     VMMDev *i_getVMMDev() { return m_pVMMDev; }
-    AudioVRDE *i_getAudioVRDE() { return mAudioVRDE; }
 
 #ifdef VBOX_WITH_EXTPACK
     ExtPackManager *i_getExtPackManager();
@@ -218,7 +228,9 @@ public:
 
     HRESULT i_pause(Reason_T aReason);
     HRESULT i_resume(Reason_T aReason, AutoWriteLock &alock);
-    HRESULT i_saveState(Reason_T aReason, const ComPtr<IProgress> &aProgress, const Utf8Str &aStateFilePath, bool fPauseVM, bool &fLeftPaused);
+    HRESULT i_saveState(Reason_T aReason, const ComPtr<IProgress> &aProgress,
+                        const ComPtr<ISnapshot> &aSnapshot,
+                        const Utf8Str &aStateFilePath, bool fPauseVM, bool &fLeftPaused);
     HRESULT i_cancelSaveState();
 
     // callback callers (partly; for some events console callbacks are notified
@@ -246,8 +258,8 @@ public:
     static HRESULT i_setErrorStatic(HRESULT aResultCode, const char *pcsz, ...);
     HRESULT i_setInvalidMachineStateError();
 
-    static const char *i_convertControllerTypeToDev(StorageControllerType_T enmCtrlType);
-    static HRESULT i_convertBusPortDeviceToLun(StorageBus_T enmBus, LONG port, LONG device, unsigned &uLun);
+    static const char *i_storageControllerTypeToStr(StorageControllerType_T enmCtrlType);
+    static HRESULT i_storageBusPortDeviceToLun(StorageBus_T enmBus, LONG port, LONG device, unsigned &uLun);
     // Called from event listener
     HRESULT i_onNATRedirectRuleChange(ULONG ulInstance, BOOL aNatRuleRemove,
                                       NATProtocol_T aProto, IN_BSTR aHostIp, LONG aHostPort, IN_BSTR aGuestIp, LONG aGuestPort);
@@ -400,7 +412,7 @@ private:
      *  @note Temporarily locks the argument for writing.
      *
      *  @sa SafeVMPtr, SafeVMPtrQuiet
-     *  @obsolete Use SafeVMPtr
+     *  @note Obsolete, use SafeVMPtr
      */
     typedef AutoVMCallerBase<false, false> AutoVMCaller;
 #endif
@@ -409,7 +421,7 @@ private:
      *  Same as AutoVMCaller but doesn't set extended error info on failure.
      *
      *  @note Temporarily locks the argument for writing.
-    *  @obsolete Use SafeVMPtrQuiet
+     *  @note Obsolete, use SafeVMPtrQuiet
      */
     typedef AutoVMCallerBase<true, false> AutoVMCallerQuiet;
 
@@ -418,7 +430,7 @@ private:
      *  instead of assertion).
      *
      *  @note Temporarily locks the argument for writing.
-     *  @obsolete Use SafeVMPtr
+     *  @note Obsolete, use SafeVMPtr
      */
     typedef AutoVMCallerBase<false, true> AutoVMCallerWeak;
 
@@ -428,7 +440,7 @@ private:
      *  assertion).
      *
      *  @note Temporarily locks the argument for writing.
-     *  @obsolete Use SafeVMPtrQuiet
+     *  @note Obsolete, use SafeVMPtrQuiet
      */
     typedef AutoVMCallerBase<true, true> AutoVMCallerQuietWeak;
 
@@ -618,11 +630,27 @@ private:
                                    const ComPtr<IMachine> &ptrMachine,
                                    const ComPtr<IBIOSSettings> &ptrBiosSettings,
                                    bool fHMEnabled);
+    int i_checkMediumLocation(IMedium *pMedium, bool *pfUseHostIOCache);
+    int i_unmountMediumFromGuest(PUVM pUVM, StorageBus_T enmBus, DeviceType_T enmDevType,
+                                 const char *pcszDevice, unsigned uInstance, unsigned uLUN,
+                                 bool fForceUnmount);
+    int i_removeMediumDriverFromVm(PCFGMNODE pCtlInst,
+                                   const char *pcszDevice,
+                                   unsigned uInstance,
+                                   unsigned uLUN,
+                                   StorageBus_T enmBus,
+                                   bool fAttachDetach,
+                                   bool fHotplug,
+                                   bool fForceUnmount,
+                                   PUVM pUVM,
+                                   DeviceType_T enmDevType,
+                                   PCFGMNODE *ppLunL0);
     int i_configMediumAttachment(const char *pcszDevice,
                                  unsigned uInstance,
                                  StorageBus_T enmBus,
                                  bool fUseHostIOCache,
                                  bool fBuiltinIoCache,
+                                 bool fInsertDiskIntegrityDrv,
                                  bool fSetupMerge,
                                  unsigned uMergeSource,
                                  unsigned uMergeTarget,
@@ -640,11 +668,13 @@ private:
                        DeviceType_T enmType,
                        bool fUseHostIOCache,
                        bool fBuiltinIoCache,
+                       bool fInsertDiskIntegrityDrv,
                        bool fSetupMerge,
                        unsigned uMergeSource,
                        unsigned uMergeTarget,
                        const char *pcszBwGroup,
                        bool fDiscard,
+                       bool fNonRotational,
                        IMedium *pMedium,
                        MachineState_T aMachineState,
                        HRESULT *phrc);
@@ -656,6 +686,7 @@ private:
                                                            StorageBus_T enmBus,
                                                            bool fUseHostIOCache,
                                                            bool fBuiltinIoCache,
+                                                           bool fInsertDiskIntegrityDrv,
                                                            bool fSetupMerge,
                                                            unsigned uMergeSource,
                                                            unsigned uMergeTarget,
@@ -747,6 +778,7 @@ private:
     static DECLCALLBACK(void)   i_vmm2User_NotifyPdmtInit(PCVMM2USERMETHODS pThis, PUVM pUVM);
     static DECLCALLBACK(void)   i_vmm2User_NotifyPdmtTerm(PCVMM2USERMETHODS pThis, PUVM pUVM);
     static DECLCALLBACK(void)   i_vmm2User_NotifyResetTurnedIntoPowerOff(PCVMM2USERMETHODS pThis, PUVM pUVM);
+    static DECLCALLBACK(void *) i_vmm2User_QueryGenericObject(PCVMM2USERMETHODS pThis, PUVM pUVM, PCRTUUID pUuid);
 
     static DECLCALLBACK(void *) i_drvStatus_QueryInterface(PPDMIBASE pInterface, const char *pszIID);
     static DECLCALLBACK(void)   i_drvStatus_UnitChanged(PPDMILEDCONNECTORS pInterface, unsigned iLUN);
@@ -830,7 +862,6 @@ private:
     ConsoleVRDPServer * const mConsoleVRDPServer;
     bool mfVRDEChangeInProcess;
     bool mfVRDEChangePending;
-
     const ComObjPtr<Guest> mGuest;
     const ComObjPtr<Keyboard> mKeyboard;
     const ComObjPtr<Mouse> mMouse;
@@ -880,6 +911,8 @@ private:
     struct MYVMM2USERMETHODS : public VMM2USERMETHODS
     {
         Console *pConsole;
+        /** The in-progress snapshot. */
+        ISnapshot *pISnapshot;
     } *mpVmm2UserMethods;
 
     /** The current network attachment type in the VM.
@@ -892,6 +925,10 @@ private:
 
     VMMDev *                    m_pVMMDev;
     AudioVRDE * const           mAudioVRDE;
+#ifdef VBOX_WITH_AUDIO_VIDEOREC
+    /** The video recording audio backend. */
+    AudioVideoRec * const       mAudioVideoRec;
+#endif
     Nvram   * const             mNvram;
 #ifdef VBOX_WITH_USB_CARDREADER
     UsbCardReader * const       mUsbCardReader;
