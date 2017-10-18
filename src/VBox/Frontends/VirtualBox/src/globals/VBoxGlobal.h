@@ -33,7 +33,6 @@
 /* GUI includes: */
 #include "UIDefs.h"
 #include "UIMediumDefs.h"
-#include "VBoxGlobalSettings.h"
 #ifdef VBOX_WS_X11
 # include "VBoxX11Helper.h"
 #endif /* VBOX_WS_X11 */
@@ -80,6 +79,7 @@ public:
     /** VM launch modes. */
     enum LaunchMode
     {
+        LaunchMode_Invalid,
         LaunchMode_Default,
         LaunchMode_Headless,
         LaunchMode_Separate
@@ -141,9 +141,6 @@ public:
 
     /** Returns the thread-pool instance. */
     UIThreadPool* threadPool() const { return m_pThreadPool; }
-
-    VBoxGlobalSettings &settings() { return gset; }
-    bool setSettings (VBoxGlobalSettings &gs);
 
     /** Returns currently active virtual machine window. */
     QWidget* activeMachineWindow() const;
@@ -224,14 +221,21 @@ public:
     QList <CGuestOSType> vmGuestOSFamilyList() const;
     QList <CGuestOSType> vmGuestOSTypeList (const QString &aFamilyId) const;
 
+    /** Returns icon defined for a passed @a comMachine. */
+    QIcon vmUserIcon(const CMachine &comMachine) const;
+    /** Returns pixmap of a passed @a size defined for a passed @a comMachine. */
+    QPixmap vmUserPixmap(const CMachine &comMachine, const QSize &size) const;
+    /** Returns pixmap defined for a passed @a comMachine.
+      * In case if non-null @a pLogicalSize pointer provided, it will be updated properly. */
+    QPixmap vmUserPixmapDefault(const CMachine &comMachine, QSize *pLogicalSize = 0) const;
+
+    /** Returns pixmap corresponding to passed @a strOSTypeID. */
+    QIcon vmGuestOSTypeIcon(const QString &strOSTypeID) const;
+    /** Returns pixmap corresponding to passed @a strOSTypeID and @a size. */
+    QPixmap vmGuestOSTypePixmap(const QString &strOSTypeID, const QSize &size) const;
     /** Returns pixmap corresponding to passed @a strOSTypeID.
       * In case if non-null @a pLogicalSize pointer provided, it will be updated properly. */
-    QPixmap vmGuestOSTypeIcon(const QString &strOSTypeID, QSize *pLogicalSize = 0) const;
-
-    /** Returns pixmap corresponding to passed @a strOSTypeID and @a physicalSize. */
-    QPixmap vmGuestOSTypePixmap(const QString &strOSTypeID, const QSize &physicalSize) const;
-    /** Returns HiDPI pixmap corresponding to passed @a strOSTypeID and @a physicalSize. */
-    QPixmap vmGuestOSTypePixmapHiDPI(const QString &strOSTypeID, const QSize &physicalSize) const;
+    QPixmap vmGuestOSTypePixmapDefault(const QString &strOSTypeID, QSize *pLogicalSize = 0) const;
 
     CGuestOSType vmGuestOSType (const QString &aTypeId,
                                 const QString &aFamilyId = QString::null) const;
@@ -267,14 +271,6 @@ public:
         return tr("%n second(s)", "", cVal);
     }
 
-    QString differencingMediumTypeName() const { return mDiskTypes_Differencing; }
-
-    /**
-     * Similar to toString (KMediumType), but returns 'Differencing' for
-     * normal hard disks that have a parent.
-     */
-    QString mediumTypeString(const CMedium &medium) const;
-
     QStringList COMPortNames() const;
     QString toCOMPortName (ulong aIRQ, ulong aIOBase) const;
     bool toCOMPortNumbers (const QString &aName, ulong &aIRQ, ulong &aIOBase) const;
@@ -305,8 +301,6 @@ public:
     QString toolTip (const CUSBDevice &aDevice) const;
     QString toolTip (const CUSBDeviceFilter &aFilter) const;
     QString toolTip(const CHostVideoInputDevice &webcam) const;
-
-    QString detailsReport (const CMachine &aMachine, bool aWithLinks);
 
     /* VirtualBox helpers */
 
@@ -451,6 +445,13 @@ public:
      * to strict the minimum width to reflect at least [n] symbols. */
     static void setMinimumWidthAccordingSymbolCount(QSpinBox *pSpinBox, int cCount);
 
+    /** Assigns top-level @a pWidget geometry passed as QRect coordinates.
+      * @note  Take into account that this request may fail on X11. */
+    static void setTopLevelGeometry(QWidget *pWidget, int x, int y, int w, int h);
+    /** Assigns top-level @a pWidget geometry passed as @a rect.
+      * @note  Take into account that this request may fail on X11. */
+    static void setTopLevelGeometry(QWidget *pWidget, const QRect &rect);
+
 signals:
 
     /** Notifies listeners about the VBoxSVC availability change. */
@@ -477,6 +478,9 @@ protected slots:
     void prepare();
     void cleanup();
 
+    /** Handles @a manager request for emergency session shutdown. */
+    void sltHandleCommitDataRequest(QSessionManager &manager);
+
     /** Shows UI. */
     void showUI();
 
@@ -495,6 +499,12 @@ private:
 
     /** Re-initializes COM wrappers and containers. */
     void comWrappersReinit();
+
+#ifdef VBOX_WS_WIN
+    /** Wraps WinAPI ShutdownBlockReasonCreate function.
+      * @remark  This function defined starting from Vista only. */
+    static BOOL ShutdownBlockReasonCreateAPI(HWND hWnd, LPCWSTR pwszReason);
+#endif
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
     void initDebuggerVar(int *piDbgCfgVar, const char *pszEnvVar, const char *pszExtraDataName, bool fDefault = false);
@@ -529,8 +539,6 @@ private:
     bool m_fWrappersValid;
     /** Holds whether VBoxSVC is currently available. */
     bool m_fVBoxSVCAvailable;
-
-    VBoxGlobalSettings gset;
 
     /** Holds whether GUI is separate (from VM) process. */
     bool m_fSeparateProcess;
@@ -611,8 +619,6 @@ private:
     QString mBrandingConfig;
 
     int m3DAvailable;
-
-    QString mDiskTypes_Differencing;
 
     QString mUserDefinedPortName;
 

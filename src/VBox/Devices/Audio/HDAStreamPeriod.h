@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: HDAStreamPeriod.h $ */
 /** @file
  * HDAStreamPeriod.h - Stream period functions for HD Audio.
  */

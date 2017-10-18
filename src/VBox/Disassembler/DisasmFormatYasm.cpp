@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2016 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -710,7 +710,7 @@ DISDECL(size_t) DISFormatYasmEx(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, ui
                             case DISCPUMODE_16BIT: if (OP_PARM_VSUBTYPE(pParam->fParam) != OP_PARM_y) PUT_SZ("word "); break; \
                             case DISCPUMODE_32BIT: \
                                 if (pDis->pCurInstr->uOpcode != OP_GATHER || pDis->bVexWFlag) { PUT_SZ("dword "); break; } \
-                                /* fall thru */ \
+                                RT_FALL_THRU(); \
                             case DISCPUMODE_64BIT: PUT_SZ("qword "); break; \
                             default: break; \
                         } \
@@ -742,7 +742,7 @@ DISDECL(size_t) DISFormatYasmEx(PCDISSTATE pDis, char *pszBuf, size_t cchBuf, ui
                        break; \
                     case OP_PARM_ps: \
                     case OP_PARM_pd: \
-                    case OP_PARM_x: if (VEXREG_IS256B(pDis->bVexDestReg)) { PUT_SZ("yword "); break; } /* fall thru */ \
+                    case OP_PARM_x: if (VEXREG_IS256B(pDis->bVexDestReg)) { PUT_SZ("yword "); break; } RT_FALL_THRU(); \
                     case OP_PARM_ss: \
                     case OP_PARM_sd: \
                     case OP_PARM_dq: PUT_SZ("oword "); break; \
@@ -1494,7 +1494,7 @@ DISDECL(bool) DISFormatYasmIsOddEncoding(PDISSTATE pDis)
                 if (    pDis->pCurInstr->fParam1 != OP_PARM_Jb
                     &&  pDis->pCurInstr->fParam1 != OP_PARM_Jv)
                     break;
-                /* fall thru */
+                RT_FALL_THRU();
             case OP_JO:
             case OP_JNO:
             case OP_JC:

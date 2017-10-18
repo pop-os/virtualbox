@@ -3,7 +3,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2016 Oracle Corporation
+; Copyright (C) 2006-2017 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -244,7 +244,7 @@ struc CPUMCTX
     .msrCSTAR           resb    8
     .msrSFMASK          resb    8
     .msrKERNELGSBASE    resb    8
-    .msrApicBase        resb    8
+    .uMsrPadding0       resb    8
     alignb 8
     .aXcr               resq    2
     .fXStateMask        resq    1
@@ -252,6 +252,34 @@ struc CPUMCTX
     .pXStateR3      RTR3PTR_RES 1
     .pXStateRC      RTRCPTR_RES 1
     .aoffXState         resw    64
+%if HC_ARCH_BITS == 64
+    .abPadding          resb    4
+%else
+    .abPadding          resb    12
+%endif
+    .hwvirt.svm.uMsrHSavePa            resq          1
+    .hwvirt.svm.GCPhysVmcb             resq          1
+    .hwvirt.svm.pVmcbR0                RTR0PTR_RES   1
+    .hwvirt.svm.pVmcbR3                RTR3PTR_RES   1
+%if HC_ARCH_BITS == 32
+    .hwvirt.svm.abPadding0             resb          8
+%endif
+    .hwvirt.svm.HostState              resb        184
+    .hwvirt.svm.fGif                   resb          1
+    .hwvirt.svm.u8Padding0             resb          1
+    .hwvirt.svm.cPauseFilter           resw          1
+    .hwvirt.svm.cPauseFilterThreshold  resw          1
+    .hwvirt.svm.fInterceptEvents       resb          1
+    .hwvirt.svm.u8Padding1             resb          1
+    .hwvirt.svm.pvMsrBitmapR0          RTR0PTR_RES   1
+    .hwvirt.svm.pvMsrBitmapR3          RTR3PTR_RES   1
+    .hwvirt.svm.pvIoBitmapR0           RTR0PTR_RES   1
+    .hwvirt.svm.pvIoBitmapR3           RTR3PTR_RES   1
+    .hwvirt.svm.HCPhysVmcb             RTHCPHYS_RES  1
+%if HC_ARCH_BITS == 32
+    .hwvirt.svm.abPadding2             resb          16
+%endif
+    .hwvirt.fLocalForcedActions        resd          1
     alignb 64
 endstruc
 

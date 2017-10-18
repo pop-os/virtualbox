@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2016 Oracle Corporation
+; Copyright (C) 2006-2017 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -218,15 +218,43 @@ struc CPUMCPU
     .Guest.msrCSTAR           resb    8
     .Guest.msrSFMASK          resb    8
     .Guest.msrKERNELGSBASE    resb    8
-    .Guest.msrApicBase        resb    8
+    .Guest.uMsrPadding0       resb    8
     .Guest.aXcr               resq    2
     .Guest.fXStateMask        resq    1
     .Guest.pXStateR0      RTR0PTR_RES 1
     .Guest.pXStateR3      RTR3PTR_RES 1
     .Guest.pXStateRC      RTRCPTR_RES 1
     .Guest.aoffXState         resw    64
-
+%if HC_ARCH_BITS == 64
+    .Guest.abPadding          resb    4
+%else
+    .Guest.abPadding          resb    12
+%endif
+    .Guest.hwvirt.svm.uMsrHSavePa            resq         1
+    .Guest.hwvirt.svm.GCPhysVmcb             resq         1
+    .Guest.hwvirt.svm.pVmcbR0                RTR0PTR_RES  1
+    .Guest.hwvirt.svm.pVmcbR3                RTR3PTR_RES  1
+%if HC_ARCH_BITS == 32
+    .Guest.hwvirt.svm.abPadding0             resb         8
+%endif
+    .Guest.hwvirt.svm.HostState              resb         184
+    .Guest.hwvirt.svm.fGif                   resb         1
+    .Guest.hwvirt.svm.u8Padding0             resb         1
+    .Guest.hwvirt.svm.cPauseFilter           resw         1
+    .Guest.hwvirt.svm.cPauseFilterThreshold  resw         1
+    .Guest.hwvirt.svm.fInterceptEvents       resb         1
+    .Guest.hwvirt.svm.u8Padding1             resb         1
+    .Guest.hwvirt.svm.pvMsrBitmapR0          RTR0PTR_RES  1
+    .Guest.hwvirt.svm.pvMsrBitmapR3          RTR3PTR_RES  1
+    .Guest.hwvirt.svm.pvIoBitmapR0           RTR0PTR_RES  1
+    .Guest.hwvirt.svm.pvIoBitmapR3           RTR3PTR_RES  1
+    .Guest.hwvirt.svm.HCPhysVmcb             RTHCPHYS_RES 1
+%if HC_ARCH_BITS == 32
+    .Guest.hwvirt.svm.abPadding2             resb         16
+%endif
+    .Guest.hwvirt.fLocalForcedActions        resd         1
     alignb 64
+
     .GuestMsrs                resq    0
     .GuestMsrs.au64           resq    64
 
@@ -476,13 +504,41 @@ struc CPUMCPU
     .Hyper.msrCSTAR           resb    8
     .Hyper.msrSFMASK          resb    8
     .Hyper.msrKERNELGSBASE    resb    8
-    .Hyper.msrApicBase        resb    8
+    .Hyper.uMsrPadding0       resb    8
     .Hyper.aXcr               resq    2
     .Hyper.fXStateMask        resq    1
     .Hyper.pXStateR0      RTR0PTR_RES 1
     .Hyper.pXStateR3      RTR3PTR_RES 1
     .Hyper.pXStateRC      RTRCPTR_RES 1
     .Hyper.aoffXState         resw    64
+%if HC_ARCH_BITS == 64
+    .Hyper.abPadding          resb    4
+%else
+    .Hyper.abPadding          resb    12
+%endif
+    .Hyper.hwvirt.svm.uMsrHSavePa            resq         1
+    .Hyper.hwvirt.svm.GCPhysVmcb             resq         1
+    .Hyper.hwvirt.svm.pVmcbR0                RTR0PTR_RES  1
+    .Hyper.hwvirt.svm.pVmcbR3                RTR3PTR_RES  1
+%if HC_ARCH_BITS == 32
+    .Hyper.hwvirt.svm.abPadding0             resb         8
+%endif
+    .Hyper.hwvirt.svm.HostState              resb         184
+    .Hyper.hwvirt.svm.fGif                   resb         1
+    .Hyper.hwvirt.svm.u8Padding0             resb         1
+    .Hyper.hwvirt.svm.cPauseFilter           resw         1
+    .Hyper.hwvirt.svm.cPauseFilterThreshold  resw         1
+    .Hyper.hwvirt.svm.fInterceptEvents       resb         1
+    .Hyper.hwvirt.svm.u8Padding1             resb         1
+    .Hyper.hwvirt.svm.pvMsrBitmapR0          RTR0PTR_RES  1
+    .Hyper.hwvirt.svm.pvMsrBitmapR3          RTR3PTR_RES  1
+    .Hyper.hwvirt.svm.pvIoBitmapR0           RTR0PTR_RES  1
+    .Hyper.hwvirt.svm.pvIoBitmapR3           RTR3PTR_RES  1
+    .Hyper.hwvirt.svm.HCPhysVmcb             RTHCPHYS_RES 1
+%if HC_ARCH_BITS == 32
+    .Hyper.hwvirt.svm.abPadding2             resb         16
+%endif
+    .Hyper.hwvirt.fLocalForcedActions        resd         1
     alignb 64
 
 %ifdef VBOX_WITH_CRASHDUMP_MAGIC

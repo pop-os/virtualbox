@@ -54,13 +54,6 @@
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* External includes: */
-#ifdef VBOX_WS_X11
-# if QT_VERSION < 0x050000
-#  include <X11/Xlib.h>
-# endif /* QT_VERSION < 0x050000 */
-#endif /* VBOX_WS_X11 */
-
 
 /* static */
 UIMachineWindow* UIMachineWindow::create(UIMachineLogic *pMachineLogic, ulong uScreenId)
@@ -181,18 +174,10 @@ UIMachineWindow::UIMachineWindow(UIMachineLogic *pMachineLogic, ulong uScreenId)
     , m_pRightSpacer(0)
 {
 #ifndef VBOX_WS_MAC
-    /* On Mac OS X window icon referenced in info.plist is used. */
-
-    /* Set default window icon (will be changed to VM-specific icon little bit later): */
-    setWindowIcon(QIcon(":/VirtualBox_48px.png"));
-
-    /* Set redefined machine-window icon if any: */
-    QIcon *pMachineWidnowIcon = uisession()->machineWindowIcon();
-    if (pMachineWidnowIcon)
-        setWindowIcon(*pMachineWidnowIcon);
-    /* Or set default machine-window icon: */
-    else
-        setWindowIcon(vboxGlobal().vmGuestOSTypeIcon(machine().GetOSTypeId()));
+    /* Set machine-window icon if any: */
+    // On macOS window icon is referenced in info.plist.
+    if (uisession() && uisession()->machineWindowIcon())
+        setWindowIcon(*uisession()->machineWindowIcon());
 #endif /* !VBOX_WS_MAC */
 }
 
@@ -260,31 +245,6 @@ void UIMachineWindow::retranslateUi()
     updateAppearanceOf(UIVisualElement_WindowTitle);
 }
 
-#ifdef VBOX_WS_X11
-# if QT_VERSION < 0x050000
-bool UIMachineWindow::x11Event(XEvent *pEvent)
-{
-    /// @todo Is that really needed?
-    /* Qt bug: when the machine-view grabs the keyboard,
-     * FocusIn, FocusOut, WindowActivate and WindowDeactivate Qt events are
-     * not properly sent on top level window deactivation.
-     * The fix is to substiute the mode in FocusOut X11 event structure
-     * to NotifyNormal to cause Qt to process it as desired. */
-    if (pEvent->type == FocusOut)
-    {
-        if (pEvent->xfocus.mode == NotifyWhileGrabbed  &&
-            (pEvent->xfocus.detail == NotifyAncestor ||
-             pEvent->xfocus.detail == NotifyInferior ||
-             pEvent->xfocus.detail == NotifyNonlinear))
-        {
-             pEvent->xfocus.mode = NotifyNormal;
-        }
-    }
-    return false;
-}
-# endif /* QT_VERSION < 0x050000 */
-#endif /* VBOX_WS_X11 */
-
 void UIMachineWindow::showEvent(QShowEvent *pShowEvent)
 {
     /* Call to base class: */
@@ -345,6 +305,9 @@ void UIMachineWindow::closeEvent(QCloseEvent *pCloseEvent)
         QPointer<UIVMCloseDialog> pCloseDlg = new UIVMCloseDialog(pParentDlg, machine(),
                                                                   console().GetGuestEnteredACPIMode(),
                                                                   restrictedCloseActions);
+        /* Configure close-dialog: */
+        if (uisession() && uisession()->machineWindowIcon())
+            pCloseDlg->setPixmap(uisession()->machineWindowIcon()->pixmap(QSize(32, 32)));
 
         /* Make sure close-dialog is valid: */
         if (pCloseDlg->isValid())

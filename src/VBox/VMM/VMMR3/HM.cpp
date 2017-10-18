@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,6 +46,7 @@
 #include <VBox/vmm/trpm.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/iom.h>
+#include <VBox/vmm/iem.h>
 #include <VBox/vmm/patm.h>
 #include <VBox/vmm/csam.h>
 #include <VBox/vmm/selm.h>
@@ -1142,8 +1143,7 @@ static int hmR3InitFinalizeR0(PVM pVM)
      * No TPR patching is required when the IO-APIC is not enabled for this VM.
      * (Main should have taken care of this already)
      */
-    pVM->hm.s.fHasIoApic = PDMHasIoApic(pVM);
-    if (!pVM->hm.s.fHasIoApic)
+    if (!PDMHasIoApic(pVM))
     {
         Assert(!pVM->hm.s.fTprPatchingAllowed); /* paranoia */
         pVM->hm.s.fTprPatchingAllowed = false;
@@ -1194,9 +1194,8 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
     Log(("pVM->hm.s.vmx.fSupported = %d\n", pVM->hm.s.vmx.fSupported));
     AssertLogRelReturn(pVM->hm.s.vmx.Msrs.u64FeatureCtrl != 0, VERR_HM_IPE_4);
 
-    uint64_t    val;
-    uint64_t    zap;
-    RTGCPHYS    GCPhys = 0;
+    uint64_t val;
+    uint64_t zap;
 
     LogRel(("HM: Using VT-x implementation 2.0\n"));
     LogRel(("HM: Host CR4                        = %#RX64\n", pVM->hm.s.vmx.u64HostCr4));
@@ -1206,12 +1205,13 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
     if (!(pVM->hm.s.vmx.Msrs.u64FeatureCtrl & MSR_IA32_FEATURE_CONTROL_LOCK))
         LogRel(("HM:   IA32_FEATURE_CONTROL lock bit not set, possibly bad hardware!\n"));
     LogRel(("HM: MSR_IA32_VMX_BASIC_INFO         = %#RX64\n", pVM->hm.s.vmx.Msrs.u64BasicInfo));
-    LogRel(("HM:   VMCS id                         = %#x\n", MSR_IA32_VMX_BASIC_INFO_VMCS_ID(pVM->hm.s.vmx.Msrs.u64BasicInfo)));
+    LogRel(("HM:   VMCS id                         = %#x\n",      MSR_IA32_VMX_BASIC_INFO_VMCS_ID(pVM->hm.s.vmx.Msrs.u64BasicInfo)));
     LogRel(("HM:   VMCS size                       = %u bytes\n", MSR_IA32_VMX_BASIC_INFO_VMCS_SIZE(pVM->hm.s.vmx.Msrs.u64BasicInfo)));
-    LogRel(("HM:   VMCS physical address limit     = %s\n", MSR_IA32_VMX_BASIC_INFO_VMCS_PHYS_WIDTH(pVM->hm.s.vmx.Msrs.u64BasicInfo) ? "< 4 GB" : "None"));
-    LogRel(("HM:   VMCS memory type                = %#x\n", MSR_IA32_VMX_BASIC_INFO_VMCS_MEM_TYPE(pVM->hm.s.vmx.Msrs.u64BasicInfo)));
-    LogRel(("HM:   Dual-monitor treatment support  = %RTbool\n", RT_BOOL(MSR_IA32_VMX_BASIC_INFO_VMCS_DUAL_MON(pVM->hm.s.vmx.Msrs.u64BasicInfo))));
-    LogRel(("HM:   OUTS & INS instruction-info     = %RTbool\n", RT_BOOL(MSR_IA32_VMX_BASIC_INFO_VMCS_INS_OUTS(pVM->hm.s.vmx.Msrs.u64BasicInfo))));
+    LogRel(("HM:   VMCS physical address limit     = %s\n",       MSR_IA32_VMX_BASIC_INFO_VMCS_PHYS_WIDTH(pVM->hm.s.vmx.Msrs.u64BasicInfo) ? "< 4 GB" : "None"));
+    LogRel(("HM:   VMCS memory type                = %#x\n",      MSR_IA32_VMX_BASIC_INFO_VMCS_MEM_TYPE(pVM->hm.s.vmx.Msrs.u64BasicInfo)));
+    LogRel(("HM:   Dual-monitor treatment support  = %RTbool\n",  MSR_IA32_VMX_BASIC_INFO_VMCS_DUAL_MON(pVM->hm.s.vmx.Msrs.u64BasicInfo)));
+    LogRel(("HM:   OUTS & INS instruction-info     = %RTbool\n",  MSR_IA32_VMX_BASIC_INFO_VMCS_INS_OUTS(pVM->hm.s.vmx.Msrs.u64BasicInfo)));
+    LogRel(("HM:   Supports true capability MSRs   = %RTbool\n",  MSR_IA32_VMX_BASIC_INFO_TRUE_CONTROLS(pVM->hm.s.vmx.Msrs.u64BasicInfo)));
     LogRel(("HM: Max resume loops                = %u\n", pVM->hm.s.cMaxResumeLoops));
 
     LogRel(("HM: MSR_IA32_VMX_PINBASED_CTLS      = %#RX64\n", pVM->hm.s.vmx.Msrs.VmxPinCtls.u));
@@ -1332,13 +1332,13 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
     }
 
     LogRel(("HM:   STORE_EFERLMA_VMEXIT            = %RTbool\n", RT_BOOL(MSR_IA32_VMX_MISC_STORE_EFERLMA_VMEXIT(val))));
-    LogRel(("HM:   ACTIVITY_STATES                 = %#x\n", MSR_IA32_VMX_MISC_ACTIVITY_STATES(val)));
-    LogRel(("HM:   CR3_TARGET                      = %#x\n", MSR_IA32_VMX_MISC_CR3_TARGET(val)));
-    LogRel(("HM:   MAX_MSR                         = %u\n", MSR_IA32_VMX_MISC_MAX_MSR(val)));
+    LogRel(("HM:   ACTIVITY_STATES                 = %#x\n",     MSR_IA32_VMX_MISC_ACTIVITY_STATES(val)));
+    LogRel(("HM:   CR3_TARGET                      = %#x\n",     MSR_IA32_VMX_MISC_CR3_TARGET(val)));
+    LogRel(("HM:   MAX_MSR                         = %u\n",      MSR_IA32_VMX_MISC_MAX_MSR(val)));
     LogRel(("HM:   RDMSR_SMBASE_MSR_SMM            = %RTbool\n", RT_BOOL(MSR_IA32_VMX_MISC_RDMSR_SMBASE_MSR_SMM(val))));
     LogRel(("HM:   SMM_MONITOR_CTL_B2              = %RTbool\n", RT_BOOL(MSR_IA32_VMX_MISC_SMM_MONITOR_CTL_B2(val))));
     LogRel(("HM:   VMWRITE_VMEXIT_INFO             = %RTbool\n", RT_BOOL(MSR_IA32_VMX_MISC_VMWRITE_VMEXIT_INFO(val))));
-    LogRel(("HM:   MSEG_ID                         = %#x\n", MSR_IA32_VMX_MISC_MSEG_ID(val)));
+    LogRel(("HM:   MSEG_ID                         = %#x\n",     MSR_IA32_VMX_MISC_MSEG_ID(val)));
 
     /* Paranoia */
     AssertRelease(MSR_IA32_VMX_MISC_MAX_MSR(pVM->hm.s.vmx.Msrs.u64Misc) >= 512);
@@ -1384,7 +1384,6 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
     if (pVM->hm.s.vmx.Msrs.VmxProcCtls2.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC2_VPID)
         pVM->hm.s.vmx.fVpid = pVM->hm.s.vmx.fAllowVpid;
 
-#ifdef VBOX_WITH_NEW_APIC
 #if 0
     /*
      * Enable APIC register virtualization and virtual-interrupt delivery if supported.
@@ -1401,7 +1400,6 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
     if (   (pVM->hm.s.vmx.Msrs.VmxPinCtls.n.allowed1 & VMX_VMCS_CTRL_PIN_EXEC_POSTED_INTR)
         && (pVM->hm.s.vmx.Msrs.VmxExit.n.allowed1 & VMX_VMCS_CTRL_EXIT_ACK_EXT_INT))
         pVM->hm.s.fPostedIntrs = true;
-#endif
 #endif
 
     /*
@@ -1456,6 +1454,7 @@ static int hmR3InitFinalizeR0Intel(PVM pVM)
             /* We convert it here every time as PCI regions could be reconfigured. */
             if (PDMVmmDevHeapIsEnabled(pVM))
             {
+                RTGCPHYS GCPhys;
                 rc = PDMVmmDevHeapR3ToGCPhys(pVM, pVM->hm.s.vmx.pRealModeTSS, &GCPhys);
                 AssertRCReturn(rc, rc);
                 LogRel(("HM: Real Mode TSS guest physaddr    = %#RGp\n", GCPhys));
@@ -1630,6 +1629,8 @@ static int hmR3InitFinalizeR0Amd(PVM pVM)
         HMSVM_REPORT_FEATURE("PAUSE_FILTER",           X86_CPUID_SVM_FEATURE_EDX_PAUSE_FILTER),
         HMSVM_REPORT_FEATURE("PAUSE_FILTER_THRESHOLD", X86_CPUID_SVM_FEATURE_EDX_PAUSE_FILTER_THRESHOLD),
         HMSVM_REPORT_FEATURE("AVIC",                   X86_CPUID_SVM_FEATURE_EDX_AVIC),
+        HMSVM_REPORT_FEATURE("VIRT_VMSAVE_VMLOAD",     X86_CPUID_SVM_FEATURE_EDX_VIRT_VMSAVE_VMLOAD),
+        HMSVM_REPORT_FEATURE("VGIF",                   X86_CPUID_SVM_FEATURE_EDX_VGIF),
 #undef HMSVM_REPORT_FEATURE
     };
 
@@ -1644,6 +1645,13 @@ static int hmR3InitFinalizeR0Amd(PVM pVM)
         for (unsigned iBit = 0; iBit < 32; iBit++)
             if (RT_BIT_32(iBit) & fSvmFeatures)
                 LogRel(("HM:   Reserved bit %u\n", iBit));
+
+    /*
+     * SVM R0 code assumes if the decode-assist feature exists, NRIP feature exists too.
+     */
+    AssertLogRelReturn(  !(pVM->hm.s.svm.u32Features & X86_CPUID_SVM_FEATURE_EDX_DECODE_ASSIST)
+                       || (pVM->hm.s.svm.u32Features & X86_CPUID_SVM_FEATURE_EDX_NRIP_SAVE),
+                       VERR_HM_UNSUPPORTED_CPU_FEATURE_COMBO);
 
     /*
      * Nested paging is determined in HMR3Init, verify the sanity of that.
@@ -1797,6 +1805,8 @@ VMMR3_INT_DECL(void) HMR3PagingModeChanged(PVM pVM, PVMCPU pVCpu, PGMMODE enmSha
         Log(("HMR3PagingModeChanged indicates real mode execution\n"));
         pVCpu->hm.s.vmx.fWasInRealMode = true;
     }
+    else
+        Log(("HMR3PagingModeChanged indicates %d mode execution\n", enmGuestMode));
 }
 
 
@@ -1878,8 +1888,6 @@ VMMR3_INT_DECL(void) HMR3ResetCpu(PVMCPU pVCpu)
     pVCpu->hm.s.vmx.fWasInRealMode    = true;
     pVCpu->hm.s.vmx.u64MsrApicBase    = 0;
     pVCpu->hm.s.vmx.fSwitchedTo64on32 = false;
-
-
 
     /* Reset the contents of the read cache. */
     PVMCSCACHE pCache = &pVCpu->hm.s.vmx.VMCSCache;
@@ -2682,6 +2690,14 @@ VMMR3DECL(bool) HMR3CanExecuteGuest(PVM pVM, PCPUMCTX pCtx)
     PVMCPU pVCpu = VMMGetCpu(pVM);
 
     Assert(HMIsEnabled(pVM));
+
+#if defined(VBOX_WITH_NESTED_HWVIRT) && defined(VBOX_WITH_NESTED_HWVIRT_ONLY_IN_IEM)
+    if (CPUMIsGuestInNestedHwVirtMode(pCtx))
+    {
+        Log(("HMR3CanExecuteGuest: In nested-guest mode - returning false"));
+        return false;
+    }
+#endif
 
     /* If we're still executing the IO code, then return false. */
     if (    RT_UNLIKELY(pVCpu->hm.s.EmulateIoBlock.fEnabled)
@@ -3592,5 +3608,76 @@ static DECLCALLBACK(void) hmR3InfoEventPending(PVM pVM, PCDBGFINFOHLP pHlp, cons
     }
     else
         pHlp->pfnPrintf(pHlp, "HM is not enabled for this VM!\n");
+}
+
+
+/**
+ * Displays SVM VMCB controls.
+ *
+ * @param   pHlp        The info helper functions.
+ * @param   pVmcbCtrl   Pointer to a SVM VMCB controls area.
+ * @param   pszPrefix   Caller specified string prefix.
+ */
+VMMR3_INT_DECL(void) HMR3InfoSvmVmcbCtrl(PCDBGFINFOHLP pHlp, PCSVMVMCBCTRL pVmcbCtrl, const char *pszPrefix)
+{
+    AssertReturnVoid(pHlp);
+    AssertReturnVoid(pVmcbCtrl);
+
+    pHlp->pfnPrintf(pHlp, "%su16InterceptRdCRx          = %#RX16\n",    pszPrefix, pVmcbCtrl->u16InterceptRdCRx);
+    pHlp->pfnPrintf(pHlp, "%su16InterceptWrCRx          = %#RX16\n",    pszPrefix, pVmcbCtrl->u16InterceptWrCRx);
+    pHlp->pfnPrintf(pHlp, "%su16InterceptRdDRx          = %#RX16\n",    pszPrefix, pVmcbCtrl->u16InterceptRdDRx);
+    pHlp->pfnPrintf(pHlp, "%su16InterceptWrDRx          = %#RX16\n",    pszPrefix, pVmcbCtrl->u16InterceptWrDRx);
+    pHlp->pfnPrintf(pHlp, "%su32InterceptXcpt           = %#RX32\n",    pszPrefix, pVmcbCtrl->u32InterceptXcpt);
+    pHlp->pfnPrintf(pHlp, "%su64InterceptCtrl           = %#RX64\n",    pszPrefix, pVmcbCtrl->u64InterceptCtrl);
+    pHlp->pfnPrintf(pHlp, "%su16PauseFilterThreshold    = %#RX16\n",    pszPrefix, pVmcbCtrl->u16PauseFilterThreshold);
+    pHlp->pfnPrintf(pHlp, "%su16PauseFilterCount        = %#RX16\n",    pszPrefix, pVmcbCtrl->u16PauseFilterCount);
+    pHlp->pfnPrintf(pHlp, "%su64IOPMPhysAddr            = %#RX64\n",    pszPrefix, pVmcbCtrl->u64IOPMPhysAddr);
+    pHlp->pfnPrintf(pHlp, "%su64MSRPMPhysAddr           = %#RX64\n",    pszPrefix, pVmcbCtrl->u64MSRPMPhysAddr);
+    pHlp->pfnPrintf(pHlp, "%su64TSCOffset               = %#RX64\n",    pszPrefix, pVmcbCtrl->u64TSCOffset);
+    pHlp->pfnPrintf(pHlp, "%sTLBCtrl\n",                                pszPrefix);
+    pHlp->pfnPrintf(pHlp, "%s  u32ASID                    = %#RX32\n",  pszPrefix, pVmcbCtrl->TLBCtrl.n.u32ASID);
+    pHlp->pfnPrintf(pHlp, "%s  u8TLBFlush                 = %u\n",      pszPrefix, pVmcbCtrl->TLBCtrl.n.u8TLBFlush);
+    pHlp->pfnPrintf(pHlp, "%sIntCtrl\n",                                pszPrefix);
+    pHlp->pfnPrintf(pHlp, "%s  u8VTPR                     = %#RX8 (%u)\n",   pszPrefix, pVmcbCtrl->IntCtrl.n.u8VTPR, pVmcbCtrl->IntCtrl.n.u8VTPR);
+    pHlp->pfnPrintf(pHlp, "%s  u1VIrqPending              = %RTbool\n", pszPrefix, pVmcbCtrl->IntCtrl.n.u1VIrqPending);
+    pHlp->pfnPrintf(pHlp, "%s  u4VIntrPrio                = %#RX8\n",   pszPrefix, pVmcbCtrl->IntCtrl.n.u4VIntrPrio);
+    pHlp->pfnPrintf(pHlp, "%s  u1IgnoreTPR                = %RTbool\n", pszPrefix, pVmcbCtrl->IntCtrl.n.u1IgnoreTPR);
+    pHlp->pfnPrintf(pHlp, "%s  u1VIntrMasking             = %RTbool\n", pszPrefix, pVmcbCtrl->IntCtrl.n.u1VIntrMasking);
+    pHlp->pfnPrintf(pHlp, "%s  u1AvicEnable               = %RTbool\n", pszPrefix, pVmcbCtrl->IntCtrl.n.u1AvicEnable);
+    pHlp->pfnPrintf(pHlp, "%s  u8VIntrVector              = %#RX8\n",   pszPrefix, pVmcbCtrl->IntCtrl.n.u8VIntrVector);
+    pHlp->pfnPrintf(pHlp, "%su64IntShadow               = %#RX64\n",    pszPrefix, pVmcbCtrl->u64IntShadow);
+    pHlp->pfnPrintf(pHlp, "%su64ExitCode                = %#RX64\n",    pszPrefix, pVmcbCtrl->u64ExitCode);
+    pHlp->pfnPrintf(pHlp, "%su64ExitInfo1               = %#RX64\n",    pszPrefix, pVmcbCtrl->u64ExitInfo1);
+    pHlp->pfnPrintf(pHlp, "%su64ExitInfo2               = %#RX64\n",    pszPrefix, pVmcbCtrl->u64ExitInfo2);
+    pHlp->pfnPrintf(pHlp, "%sExitIntInfo\n",                            pszPrefix);
+    pHlp->pfnPrintf(pHlp, "%s  u8Vector                   = %#RX8 (%u)\n", pszPrefix, pVmcbCtrl->ExitIntInfo.n.u8Vector, pVmcbCtrl->ExitIntInfo.n.u8Vector);
+    pHlp->pfnPrintf(pHlp, "%s  u3Type                     = %u\n",      pszPrefix, pVmcbCtrl->ExitIntInfo.n.u3Type);
+    pHlp->pfnPrintf(pHlp, "%s  u1ErrorCodeValid           = %RTbool\n", pszPrefix, pVmcbCtrl->ExitIntInfo.n.u1ErrorCodeValid);
+    pHlp->pfnPrintf(pHlp, "%s  u1Valid                    = %RTbool\n", pszPrefix, pVmcbCtrl->ExitIntInfo.n.u1Valid);
+    pHlp->pfnPrintf(pHlp, "%s  u32ErrorCode               = %#RX32\n",  pszPrefix, pVmcbCtrl->ExitIntInfo.n.u32ErrorCode);
+    pHlp->pfnPrintf(pHlp, "%sNestedPaging\n",                           pszPrefix);
+    pHlp->pfnPrintf(pHlp, "%s  u1NestedPaging             = %RTbool\n", pszPrefix, pVmcbCtrl->NestedPaging.n.u1NestedPaging);
+    pHlp->pfnPrintf(pHlp, "%sAvicBar\n",                                pszPrefix);
+    pHlp->pfnPrintf(pHlp, "%s  u40Addr                    = %#RX64\n",  pszPrefix, pVmcbCtrl->AvicBar.n.u40Addr);
+    pHlp->pfnPrintf(pHlp, "%sEventInject\n",                            pszPrefix);
+    pHlp->pfnPrintf(pHlp, "%s  EventInject\n",                          pszPrefix);
+    pHlp->pfnPrintf(pHlp, "%s  u8Vector                   = %#RX32 (%u)\n", pszPrefix, pVmcbCtrl->EventInject.n.u8Vector, pVmcbCtrl->EventInject.n.u8Vector);
+    pHlp->pfnPrintf(pHlp, "%s  u3Type                     = %u\n",      pszPrefix, pVmcbCtrl->EventInject.n.u3Type);
+    pHlp->pfnPrintf(pHlp, "%s  u1ErrorCodeValid           = %RTbool\n", pszPrefix, pVmcbCtrl->EventInject.n.u1ErrorCodeValid);
+    pHlp->pfnPrintf(pHlp, "%s  u1Valid                    = %RTbool\n", pszPrefix, pVmcbCtrl->EventInject.n.u1Valid);
+    pHlp->pfnPrintf(pHlp, "%s  u32ErrorCode               = %#RX32\n",  pszPrefix, pVmcbCtrl->EventInject.n.u32ErrorCode);
+    pHlp->pfnPrintf(pHlp, "%su64NestedPagingCR3         = %#RX64\n",    pszPrefix, pVmcbCtrl->u64NestedPagingCR3);
+    pHlp->pfnPrintf(pHlp, "%su64LBRVirt                 = %#RX64\n",    pszPrefix, pVmcbCtrl->u64LBRVirt);
+    pHlp->pfnPrintf(pHlp, "%su64VmcbCleanBits           = %#RX64\n",    pszPrefix, pVmcbCtrl->u64VmcbCleanBits);
+    pHlp->pfnPrintf(pHlp, "%su64NextRIP                 = %#RX64\n",    pszPrefix, pVmcbCtrl->u64NextRIP);
+    pHlp->pfnPrintf(pHlp, "%scbInstrFetched             = %u\n",        pszPrefix, pVmcbCtrl->cbInstrFetched);
+    pHlp->pfnPrintf(pHlp, "%sabInstr                    = %.*Rhxs\n",   pszPrefix, sizeof(pVmcbCtrl->abInstr), pVmcbCtrl->abInstr);
+    pHlp->pfnPrintf(pHlp, "%sAvicBackingPagePtr\n",                     pszPrefix);
+    pHlp->pfnPrintf(pHlp, "%s  u40Addr                    = %#RX64\n",  pszPrefix, pVmcbCtrl->AvicBackingPagePtr.n.u40Addr);
+    pHlp->pfnPrintf(pHlp, "%sAvicLogicalTablePtr\n",                    pszPrefix);
+    pHlp->pfnPrintf(pHlp, "%s  u40Addr                    = %#RX64\n",  pszPrefix, pVmcbCtrl->AvicLogicalTablePtr.n.u40Addr);
+    pHlp->pfnPrintf(pHlp, "%sAvicPhysicalTablePtr\n",                   pszPrefix);
+    pHlp->pfnPrintf(pHlp, "%s  u8LastGuestCoreId          = %u\n",      pszPrefix, pVmcbCtrl->AvicPhysicalTablePtr.n.u8LastGuestCoreId);
+    pHlp->pfnPrintf(pHlp, "%s  u40Addr                    = %#RX64\n",  pszPrefix, pVmcbCtrl->AvicPhysicalTablePtr.n.u40Addr);
 }
 

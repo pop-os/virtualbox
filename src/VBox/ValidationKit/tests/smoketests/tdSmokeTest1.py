@@ -8,7 +8,7 @@ VirtualBox Validation Kit - Smoke Test #1.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2016 Oracle Corporation
+Copyright (C) 2010-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard Python imports.
@@ -141,11 +141,20 @@ class tdSmokeTest1(vbox.TestDriver):
         Runs the specified VM thru test #1.
         """
 
+        oSession = self.openSession(oVM);
+
+        # Enable audio adapter
+        oSession.o.machine.audioAdapter.enabled = True;
+
+        fRc = oSession.saveSettings();
+        fRc = fRc and oSession.close();
+        assert fRc is True;
+
         # Simple test.
         self.logVmInfo(oVM);
         oSession, oTxsSession = self.startVmAndConnectToTxsViaTcp(oTestVm.sVmName, fCdWait = True);
         if oSession is not None:
-            self.addTask(oSession);
+            self.addTask(oTxsSession);
 
             ## @todo do some quick tests: save, restore, execute some test program, shut down the guest.
 

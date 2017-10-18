@@ -127,15 +127,15 @@ public:
     WId mainMachineWindowId() const;
     QCursor cursor() const { return m_cursor; }
 
-#ifndef VBOX_WS_MAC
     /** @name Branding stuff.
      ** @{ */
-    /** Returns redefined machine-window icon. */
-    QIcon* machineWindowIcon() const { return m_pMachineWindowIcon; }
+    /** Returns the cached machine-window icon. */
+    QIcon *machineWindowIcon() const { return m_pMachineWindowIcon; }
+#ifndef VBOX_WS_MAC
     /** Returns redefined machine-window name postfix. */
     QString machineWindowNamePostfix() const { return m_strMachineWindowNamePostfix; }
+#endif
     /** @} */
-#endif /* !VBOX_WS_MAC */
 
     /** @name Host-screen configuration variables.
      ** @{ */
@@ -145,6 +145,8 @@ public:
 
     /** @name Application Close configuration stuff.
      * @{ */
+    /** Defines @a defaultCloseAction. */
+    void setDefaultCloseAction(MachineCloseAction defaultCloseAction) { m_defaultCloseAction = defaultCloseAction; }
     /** Returns default close action. */
     MachineCloseAction defaultCloseAction() const { return m_defaultCloseAction; }
     /** Returns merged restricted close actions. */
@@ -254,6 +256,10 @@ public:
     void updateStatusVRDE() { sltVRDEChange(); }
     /** Updates Video Capture action state. */
     void updateStatusVideoCapture() { sltVideoCaptureChange(); }
+    /** Updates Audio output action state. */
+    void updateAudioOutput() { sltAudioAdapterChange(); }
+    /** Updates Audio input action state. */
+    void updateAudioInput() { sltAudioAdapterChange(); }
 
     /** @name CPU hardware virtualization features for VM.
      ** @{ */
@@ -299,6 +305,7 @@ signals:
 #endif /* RT_OS_DARWIN */
     void sigCPUExecutionCapChange();
     void sigGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
+    void sigAudioAdapterChange();
 
     /** Notifies about host-screen count change. */
     void sigHostScreenCountChange();
@@ -344,6 +351,8 @@ private slots:
     void sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo);
     /** Handles storage device change for @a attachment, which was @a fRemoved and it was @a fSilent for guest. */
     void sltHandleStorageDeviceChange(const CMediumAttachment &attachment, bool fRemoved, bool fSilent);
+    /** Handles audio adapter change. */
+    void sltAudioAdapterChange();
 
     /* Handlers: Display reconfiguration stuff: */
 #ifdef RT_OS_DARWIN
@@ -396,7 +405,7 @@ private:
     /* Common helpers: */
     void setPointerShape(const uchar *pShapeData, bool fHasAlpha, uint uXHot, uint uYHot, uint uWidth, uint uHeight);
     bool preprocessInitialization();
-    bool mountAdHocImage(KDeviceType enmDeviceType, UIMediumType enmMediumType, const QString &strImage);
+    bool mountAdHocImage(KDeviceType enmDeviceType, UIMediumType enmMediumType, const QString &strMediumName);
     bool postprocessInitialization();
     int countOfVisibleWindows();
     /** Loads VM settings. */
@@ -456,15 +465,15 @@ private:
     KMachineState m_machineState;
     QCursor m_cursor;
 
-#ifndef VBOX_WS_MAC
     /** @name Branding variables.
      ** @{ */
-    /** Holds redefined machine-window icon. */
+    /** Holds the cached machine-window icon. */
     QIcon *m_pMachineWindowIcon;
+#ifndef VBOX_WS_MAC
     /** Holds redefined machine-window name postfix. */
     QString m_strMachineWindowNamePostfix;
+#endif
     /** @} */
-#endif /* !VBOX_WS_MAC */
 
     /** @name Visual-state configuration variables.
      ** @{ */

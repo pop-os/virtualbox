@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1332,7 +1332,7 @@ static int stamR3RegisterU(PUVM pUVM, void *pvSample, PFNSTAMR3CALLBACKRESET pfn
 
     /*
      * Check that the name doesn't screw up sorting order when taking
-     * slashes into account. The QT4 GUI makes some assumptions.
+     * slashes into account. The QT GUI makes some assumptions.
      * Problematic chars are: !"#$%&'()*+,-.
      */
 #ifdef VBOX_STRICT

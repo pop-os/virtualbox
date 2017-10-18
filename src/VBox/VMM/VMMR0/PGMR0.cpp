@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2016 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -60,15 +60,23 @@
  * @retval  VINF_SUCCESS on success. FF cleared.
  * @retval  VINF_EM_NO_MEMORY if we're out of memory. The FF is set in this case.
  *
+ * @param   pGVM        The global (ring-0) VM structure.
  * @param   pVM         The cross context VM structure.
- * @param   pVCpu       The cross context virtual CPU structure.
+ * @param   idCpu       The ID of the calling EMT.
+ *
+ * @thread  EMT(idCpu)
  *
  * @remarks Must be called from within the PGM critical section. The caller
  *          must clear the new pages.
  */
-VMMR0_INT_DECL(int) PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu)
+VMMR0_INT_DECL(int) PGMR0PhysAllocateHandyPages(PGVM pGVM, PVM pVM, VMCPUID idCpu)
 {
-    PGM_LOCK_ASSERT_OWNER_EX(pVM, pVCpu);
+    /*
+     * Validate inputs.
+     */
+    AssertReturn(idCpu < pGVM->cCpus, VERR_INVALID_CPU_ID); /* caller already checked this, but just to be sure. */
+    AssertReturn(pGVM->aCpus[idCpu].hEMT == RTThreadNativeSelf(), VERR_NOT_OWNER);
+    PGM_LOCK_ASSERT_OWNER_EX(pVM, &pVM->aCpus[idCpu]);
 
     /*
      * Check for error injection.
@@ -84,7 +92,7 @@ VMMR0_INT_DECL(int) PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu)
     uint32_t cPages = RT_ELEMENTS(pVM->pgm.s.aHandyPages) - iFirst;
     if (!cPages)
         return VINF_SUCCESS;
-    int rc = GMMR0AllocateHandyPages(pVM, pVCpu->idCpu, cPages, cPages, &pVM->pgm.s.aHandyPages[iFirst]);
+    int rc = GMMR0AllocateHandyPages(pGVM, pVM, idCpu, cPages, cPages, &pVM->pgm.s.aHandyPages[iFirst]);
     if (RT_SUCCESS(rc))
     {
 #ifdef VBOX_STRICT
@@ -126,7 +134,7 @@ VMMR0_INT_DECL(int) PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu)
                 cPages >>= 1;
                 if (cPages + iFirst < PGM_HANDY_PAGES_MIN)
                     cPages = PGM_HANDY_PAGES_MIN - iFirst;
-                rc = GMMR0AllocateHandyPages(pVM, pVCpu->idCpu, 0, cPages, &pVM->pgm.s.aHandyPages[iFirst]);
+                rc = GMMR0AllocateHandyPages(pGVM, pVM, idCpu, 0, cPages, &pVM->pgm.s.aHandyPages[iFirst]);
             } while (   (   rc == VERR_GMM_HIT_GLOBAL_LIMIT
                          || rc == VERR_GMM_HIT_VM_ACCOUNT_LIMIT)
                      && cPages + iFirst > PGM_HANDY_PAGES_MIN);
@@ -176,14 +184,22 @@ VMMR0_INT_DECL(int) PGMR0PhysAllocateHandyPages(PVM pVM, PVMCPU pVCpu)
  * @returns The following VBox status codes.
  * @retval  VINF_SUCCESS on success. FF cleared.
  *
+ * @param   pGVM        The global (ring-0) VM structure.
  * @param   pVM         The cross context VM structure.
- * @param   pVCpu       The cross context virtual CPU structure.
+ * @param   idCpu       The ID of the calling EMT.
+ *
+ * @thread  EMT(idCpu)
  *
  * @remarks Must be called from within the PGM critical section.
  */
-VMMR0_INT_DECL(int) PGMR0PhysFlushHandyPages(PVM pVM, PVMCPU pVCpu)
+VMMR0_INT_DECL(int) PGMR0PhysFlushHandyPages(PGVM pGVM, PVM pVM, VMCPUID idCpu)
 {
-    PGM_LOCK_ASSERT_OWNER_EX(pVM, pVCpu);
+    /*
+     * Validate inputs.
+     */
+    AssertReturn(idCpu < pGVM->cCpus, VERR_INVALID_CPU_ID); /* caller already checked this, but just to be sure. */
+    AssertReturn(pGVM->aCpus[idCpu].hEMT == RTThreadNativeSelf(), VERR_NOT_OWNER);
+    PGM_LOCK_ASSERT_OWNER_EX(pVM, &pVM->aCpus[idCpu]);
 
     /*
      * Try allocate a full set of handy pages.
@@ -193,7 +209,7 @@ VMMR0_INT_DECL(int) PGMR0PhysFlushHandyPages(PVM pVM, PVMCPU pVCpu)
     uint32_t cPages = RT_ELEMENTS(pVM->pgm.s.aHandyPages) - iFirst;
     if (!cPages)
         return VINF_SUCCESS;
-    int rc = GMMR0AllocateHandyPages(pVM, pVCpu->idCpu, cPages, 0, &pVM->pgm.s.aHandyPages[iFirst]);
+    int rc = GMMR0AllocateHandyPages(pGVM, pVM, idCpu, cPages, 0, &pVM->pgm.s.aHandyPages[iFirst]);
 
     LogFlow(("PGMR0PhysFlushHandyPages: cPages=%d rc=%Rrc\n", cPages, rc));
     return rc;
@@ -207,18 +223,29 @@ VMMR0_INT_DECL(int) PGMR0PhysFlushHandyPages(PVM pVM, PVMCPU pVCpu)
  * @retval  VINF_SUCCESS on success.
  * @retval  VINF_EM_NO_MEMORY if we're out of memory.
  *
+ * @param   pGVM        The global (ring-0) VM structure.
  * @param   pVM         The cross context VM structure.
- * @param   pVCpu       The cross context virtual CPU structure.
+ * @param   idCpu       The ID of the calling EMT.
+ *
+ * @thread  EMT(idCpu)
  *
  * @remarks Must be called from within the PGM critical section. The caller
  *          must clear the new pages.
  */
-VMMR0_INT_DECL(int) PGMR0PhysAllocateLargeHandyPage(PVM pVM, PVMCPU pVCpu)
+VMMR0_INT_DECL(int) PGMR0PhysAllocateLargeHandyPage(PGVM pGVM, PVM pVM, VMCPUID idCpu)
 {
-    PGM_LOCK_ASSERT_OWNER_EX(pVM, pVCpu);
+    /*
+     * Validate inputs.
+     */
+    AssertReturn(idCpu < pGVM->cCpus, VERR_INVALID_CPU_ID); /* caller already checked this, but just to be sure. */
+    AssertReturn(pGVM->aCpus[idCpu].hEMT == RTThreadNativeSelf(), VERR_NOT_OWNER);
+    PGM_LOCK_ASSERT_OWNER_EX(pVM, &pVM->aCpus[idCpu]);
     Assert(!pVM->pgm.s.cLargeHandyPages);
 
-    int rc = GMMR0AllocateLargePage(pVM, pVCpu->idCpu, _2M,
+    /*
+     * Do the job.
+     */
+    int rc = GMMR0AllocateLargePage(pGVM, pVM, idCpu, _2M,
                                     &pVM->pgm.s.aLargeHandyPage[0].idPage,
                                     &pVM->pgm.s.aLargeHandyPage[0].HCPhysGCPhys);
     if (RT_SUCCESS(rc))
@@ -353,12 +380,12 @@ VMMR0_INT_DECL(int) GPciRawR0GuestPageUpdate(PGVM pGVM, RTGCPHYS GCPhys, RTHCPHY
  *
  * @returns VBox status code.
  *
+ * @param   pGVM                The global (ring-0) VM structure.
  * @param   pVM                 The cross context VM structure.
  */
-VMMR0_INT_DECL(int) PGMR0PhysSetupIommu(PVM pVM)
+VMMR0_INT_DECL(int) PGMR0PhysSetupIoMmu(PGVM pGVM, PVM pVM)
 {
-    PGVM pGVM;
-    int rc = GVMMR0ByVM(pVM, &pGVM);
+    int rc = GVMMR0ValidateGVMandVM(pGVM, pVM);
     if (RT_FAILURE(rc))
         return rc;
 

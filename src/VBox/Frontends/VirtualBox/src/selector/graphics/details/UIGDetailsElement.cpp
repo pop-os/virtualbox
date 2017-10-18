@@ -118,6 +118,18 @@ void UIGDetailsElement::markAnimationFinished()
     update();
 }
 
+UITextTable &UIGDetailsElement::text() const
+{
+    /* Retrieve text from text-pane: */
+    return m_pTextPane->text();
+}
+
+void UIGDetailsElement::setText(const UITextTable &text)
+{
+    /* Pass text to text-pane: */
+    m_pTextPane->setText(text);
+}
+
 void UIGDetailsElement::sltToggleButtonClicked()
 {
     emit sigToggleElement(m_type, closed());
@@ -192,6 +204,11 @@ void UIGDetailsElement::resizeEvent(QGraphicsSceneResizeEvent*)
     updateLayout();
 }
 
+QString UIGDetailsElement::description() const
+{
+    return tr("%1 details", "like 'General details' or 'Storage details'").arg(m_strName);
+}
+
 QVariant UIGDetailsElement::data(int iKey) const
 {
     /* Provide other members with required data: */
@@ -259,18 +276,6 @@ void UIGDetailsElement::setName(const QString &strName)
     /* Update linked values: */
     updateMinimumHeaderWidth();
     updateMinimumHeaderHeight();
-}
-
-const UITextTable& UIGDetailsElement::text() const
-{
-    /* Retrieve text from text-pane: */
-    return m_pTextPane->text();
-}
-
-void UIGDetailsElement::setText(const UITextTable &text)
-{
-    /* Pass text to text-pane: */
-    m_pTextPane->setText(text);
 }
 
 const CMachine& UIGDetailsElement::machine()

@@ -25,7 +25,7 @@ __copyright__ = \
     You may elect to license modified versions of this file under the
     terms and conditions of either the GPL or the CDDL or both.
     """
-__version__ = "$Revision: 109501 $"
+__version__ = "$Revision: 118418 $"
 
 
 # Note! To set Python bitness on OSX use 'export VERSIONER_PYTHON_PREFER_32_BIT=yes'
@@ -44,7 +44,7 @@ if sys.version_info >= (3, 0):
 #
 # Globals, environment and sys.path changes.
 #
-import platform;
+import platform
 VBoxBinDir = os.environ.get("VBOX_PROGRAM_PATH", None)
 VBoxSdkDir = os.environ.get("VBOX_SDK_PATH", None)
 
@@ -209,7 +209,7 @@ class PlatformBase(object):
         """
         return None
 
-    def getSessionObject(self, oIVBox):
+    def getSessionObject(self):
         """
         Get a session object that can be used for opening machine sessions.
 
@@ -218,7 +218,6 @@ class PlatformBase(object):
 
         See also openMachineSession.
         """
-        _ = oIVBox
         return None
 
     def getType(self):
@@ -438,11 +437,27 @@ class PlatformMSCOM(PlatformBase):
 
         self.winerror = winerror
 
-        pid = GetCurrentProcess()
+        # Setup client impersonation in COM calls.
+        try:
+            pythoncom.CoInitializeSecurity(None,
+                                           None,
+                                           None,
+                                           pythoncom.RPC_C_AUTHN_LEVEL_DEFAULT,
+                                           pythoncom.RPC_C_IMP_LEVEL_IMPERSONATE,
+                                           None,
+                                           pythoncom.EOAC_NONE,
+                                           None)
+        except:
+            _, oXcpt, _ = sys.exc_info();
+            if isinstance(oXcpt, pythoncom.com_error) and self.xcptGetStatus(oXcpt) == -2147417831: # RPC_E_TOO_LATE
+                print("Warning: CoInitializeSecurity was already called");
+            else:
+                print("Warning: CoInitializeSecurity failed: ", oXctp);
+
+        # Remember this thread ID and get its handle so we can wait on it in waitForEvents().
         self.tid = GetCurrentThreadId()
-        handle = DuplicateHandle(pid, GetCurrentThread(), pid, 0, 0, DUPLICATE_SAME_ACCESS)
-        self.handles = []
-        self.handles.append(handle)
+        pid = GetCurrentProcess()
+        self.handles = [DuplicateHandle(pid, GetCurrentThread(), pid, 0, 0, DUPLICATE_SAME_ACCESS),];
 
         # Hack the COM dispatcher base class so we can modify method and
         # attribute names to match those in xpcom.
@@ -465,6 +480,7 @@ class PlatformMSCOM(PlatformBase):
         win32com.client.gencache.EnsureDispatch('VirtualBox.VirtualBox')
         win32com.client.gencache.EnsureDispatch('VirtualBox.VirtualBoxClient')
 
+        self.oClient = None     ##< instance of client used to support lifetime of VBoxSDS
         self.oIntCv = threading.Condition()
         self.fInterrupted = False
 
@@ -498,17 +514,19 @@ class PlatformMSCOM(PlatformBase):
         #
         return oGenCache.EnsureModule(self.VBOX_TLB_GUID, self.VBOX_TLB_LCID, self.VBOX_TLB_MAJOR, self.VBOX_TLB_MINOR)
 
-    def getSessionObject(self, oIVBox):
-        _ = oIVBox
+    def getSessionObject(self):
         import win32com
         from win32com.client import Dispatch
         return win32com.client.Dispatch("VirtualBox.Session")
 
     def getVirtualBox(self):
-        import win32com
-        from win32com.client import Dispatch
-        client = win32com.client.Dispatch("VirtualBox.VirtualBoxClient")
-        return client.virtualBox
+        # Caching self.oClient is the trick for SDS. It allows to keep the
+        # VBoxSDS in the memory  until the end of PlatformMSCOM lifetme.
+        if self.oClient is None:
+            import win32com
+            from win32com.client import Dispatch
+            self.oClient = win32com.client.Dispatch("VirtualBox.VirtualBoxClient")
+        return self.oClient.virtualBox
 
     def getType(self):
         return 'MSCOM'
@@ -526,23 +544,23 @@ class PlatformMSCOM(PlatformBase):
         # gets upset.  So, we redo some of the dispatcher work here, picking
         # the missing type information from the getter.
         #
-        oOleObj     = getattr(oInterface, '_oleobj_');
-        aPropMapGet = getattr(oInterface, '_prop_map_get_');
-        aPropMapPut = getattr(oInterface, '_prop_map_put_');
-        sComAttrib  = sAttrib if sAttrib in aPropMapGet else ComifyName(sAttrib);
+        oOleObj     = getattr(oInterface, '_oleobj_')
+        aPropMapGet = getattr(oInterface, '_prop_map_get_')
+        aPropMapPut = getattr(oInterface, '_prop_map_put_')
+        sComAttrib  = sAttrib if sAttrib in aPropMapGet else ComifyName(sAttrib)
         try:
-            aArgs, aDefaultArgs = aPropMapPut[sComAttrib];
-            aGetArgs            = aPropMapGet[sComAttrib];
+            aArgs, aDefaultArgs = aPropMapPut[sComAttrib]
+            aGetArgs            = aPropMapGet[sComAttrib]
         except KeyError: # fallback.
-            return oInterface.__setattr__(sAttrib, aoArray);
+            return oInterface.__setattr__(sAttrib, aoArray)
 
-        import pythoncom;
+        import pythoncom
         oOleObj.InvokeTypes(aArgs[0],                   # dispid
                             aArgs[1],                   # LCID
                             aArgs[2],                   # DISPATCH_PROPERTYPUT
                             (pythoncom.VT_HRESULT, 0),  # retType - or void?
                             (aGetArgs[2],),             # argTypes - trick: we get the type from the getter.
-                            aoArray,);                  # The array
+                            aoArray,)                   # The array
 
     def initPerThread(self):
         import pythoncom
@@ -586,8 +604,7 @@ class PlatformMSCOM(PlatformBase):
     def waitForEvents(self, timeout):
         from win32api import GetCurrentThreadId
         from win32event import INFINITE
-        from win32event import MsgWaitForMultipleObjects, \
-            QS_ALLINPUT, WAIT_TIMEOUT, WAIT_OBJECT_0
+        from win32event import MsgWaitForMultipleObjects, QS_ALLINPUT, WAIT_TIMEOUT, WAIT_OBJECT_0
         from pythoncom import PumpWaitingMessages
         import types
 
@@ -651,8 +668,9 @@ class PlatformMSCOM(PlatformBase):
             if h is not None:
                 CloseHandle(h)
         self.handles = None
+        del self.oClient
+        oClient = None
         pythoncom.CoUninitialize()
-        pass
 
     def queryInterface(self, oIUnknown, sClassName):
         from win32com.client import CastTo
@@ -732,8 +750,7 @@ class PlatformXPCOM(PlatformBase):
         import xpcom.components
         _ = dParams
 
-    def getSessionObject(self, oIVBox):
-        _ = oIVBox
+    def getSessionObject(self):
         import xpcom.components
         return xpcom.components.classes["@virtualbox.org/Session;1"].createInstance()
 
@@ -860,8 +877,8 @@ class PlatformWEBSERVICE(PlatformBase):
     # Base class overrides.
     #
 
-    def getSessionObject(self, oIVBox):
-        return self.wsmgr.getSessionObject(oIVBox)
+    def getSessionObject(self):
+        return self.wsmgr.getSessionObject(self.vbox)
 
     def getVirtualBox(self):
         return self.connect(self.url, self.user, self.password)
@@ -993,7 +1010,7 @@ class VirtualBoxManager(object):
 
         # Get the virtualbox singleton.
         try:
-            self.vbox = self.platform.getVirtualBox()
+            vbox = self.platform.getVirtualBox()
         except NameError:
             print("Installation problem: check that appropriate libs in place")
             traceback.print_exc()
@@ -1002,10 +1019,6 @@ class VirtualBoxManager(object):
             _, e, _ = sys.exc_info()
             print("init exception: ", e)
             traceback.print_exc()
-            if self.remote:
-                self.vbox = None
-            else:
-                raise e
 
     def __del__(self):
         self.deinit()
@@ -1023,7 +1036,7 @@ class VirtualBoxManager(object):
         This used to be an attribute referring to a session manager class with
         only one method called getSessionObject. It moved into this class.
         """
-        return self;
+        return self
 
     #
     # Wrappers for self.platform methods.
@@ -1032,9 +1045,11 @@ class VirtualBoxManager(object):
         """ See PlatformBase::getVirtualBox(). """
         return self.platform.getVirtualBox()
 
-    def getSessionObject(self, oIVBox):
+    def getSessionObject(self, oIVBox = None):
         """ See PlatformBase::getSessionObject(). """
-        return self.platform.getSessionObject(oIVBox)
+        # ignore parameter which was never needed
+        _ = oIVBox
+        return self.platform.getSessionObject()
 
     def getArray(self, oInterface, sAttrib):
         """ See PlatformBase::getArray(). """
@@ -1076,9 +1091,6 @@ class VirtualBoxManager(object):
         For unitializing the manager.
         Do not access it after calling this method.
         """
-        if hasattr(self, "vbox") and self.vbox is not None:
-            del self.vbox
-            self.vbox = None
         if hasattr(self, "platform") and self.platform is not None:
             self.platform.deinit()
             self.platform = None
@@ -1093,7 +1105,7 @@ class VirtualBoxManager(object):
         Returns a session object on success.
         Raises exception on failure.
         """
-        oSession = self.getSessionObject(self.vbox);
+        oSession = self.getSessionObject()
         if fPermitSharing:
             eType = self.constants.LockType_Shared
         else:

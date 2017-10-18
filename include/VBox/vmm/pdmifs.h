@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -317,13 +317,13 @@ typedef struct PDMIMOUSEPORT
      *
      * @param   pInterface     Pointer to this interface structure.
      * @param   x              The X value, in the range 0 to 0xffff.
-     * @param   z              The Y value, in the range 0 to 0xffff.
+     * @param   y              The Y value, in the range 0 to 0xffff.
      * @param   dz             The Z delta.
      * @param   dw             The W (horizontal scroll button) delta.
      * @param   fButtons       The button states, see the PDMIMOUSEPORT_BUTTON_* \#defines.
      */
     DECLR3CALLBACKMEMBER(int, pfnPutEventAbs,(PPDMIMOUSEPORT pInterface,
-                                              uint32_t x, uint32_t z,
+                                              uint32_t x, uint32_t y,
                                               int32_t dz, int32_t dw,
                                               uint32_t fButtons));
     /**
@@ -380,7 +380,7 @@ typedef struct PDMIMOUSECONNECTOR
      * @param   pInterface      Pointer to this interface structure.
      * @param   fRelative       Whether relative mode is currently supported.
      * @param   fAbsolute       Whether absolute mode is currently supported.
-     * @param   fAbsolute       Whether multi-touch mode is currently supported.
+     * @param   fMultiTouch     Whether multi-touch mode is currently supported.
      */
     DECLR3CALLBACKMEMBER(void, pfnReportModes,(PPDMIMOUSECONNECTOR pInterface, bool fRelative, bool fAbsolute, bool fMultiTouch));
 
@@ -1243,15 +1243,39 @@ typedef struct PDMISTREAM *PPDMISTREAM;
 typedef struct PDMISTREAM
 {
     /**
+     * Polls for the specified events.
+     *
+     * @returns VBox status code.
+     * @retval  VERR_INTERRUPTED if the poll was interrupted.
+     * @retval  VERR_TIMEOUT     if the maximum waiting time was reached.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   fEvts           The events to poll for, see RTPOLL_EVT_XXX.
+     * @param   *pfEvts         Where to return details about the events that occurred.
+     * @param   cMillies        Number of milliseconds to wait.  Use
+     *                          RT_INDEFINITE_WAIT to wait for ever.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnPoll,(PPDMISTREAM pInterface, uint32_t fEvts, uint32_t *pfEvts, RTMSINTERVAL cMillies));
+
+    /**
+     * Interrupts the current poll call.
+     *
+     * @returns VBox status code.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnPollInterrupt,(PPDMISTREAM pInterface));
+
+    /**
      * Read bits.
      *
      * @returns VBox status code.
      * @param   pInterface      Pointer to the interface structure containing the called function pointer.
      * @param   pvBuf           Where to store the read bits.
-     * @param   cbRead          Number of bytes to read/bytes actually read.
+     * @param   pcbRead         Number of bytes to read/bytes actually read.
      * @thread  Any thread.
+     *
+     * @note: This is non blocking, use the poll callback to block when there is nothing to read.
      */
-    DECLR3CALLBACKMEMBER(int, pfnRead,(PPDMISTREAM pInterface, void *pvBuf, size_t *cbRead));
+    DECLR3CALLBACKMEMBER(int, pfnRead,(PPDMISTREAM pInterface, void *pvBuf, size_t *pcbRead));
 
     /**
      * Write bits.
@@ -1259,13 +1283,15 @@ typedef struct PDMISTREAM
      * @returns VBox status code.
      * @param   pInterface      Pointer to the interface structure containing the called function pointer.
      * @param   pvBuf           Where to store the write bits.
-     * @param   cbWrite         Number of bytes to write/bytes actually written.
+     * @param   pcbWrite        Number of bytes to write/bytes actually written.
      * @thread  Any thread.
+     *
+     * @note: This is non blocking, use the poll callback to block until there is room to write.
      */
-    DECLR3CALLBACKMEMBER(int, pfnWrite,(PPDMISTREAM pInterface, const void *pvBuf, size_t *cbWrite));
+    DECLR3CALLBACKMEMBER(int, pfnWrite,(PPDMISTREAM pInterface, const void *pvBuf, size_t *pcbWrite));
 } PDMISTREAM;
 /** PDMISTREAM interface ID. */
-#define PDMISTREAM_IID                          "d1a5bf5e-3d2c-449a-bde9-addd7920b71f"
+#define PDMISTREAM_IID                          "f9bd1ba6-c134-44cc-8259-febe14393952"
 
 
 /** Mode of the parallel port */
@@ -1457,7 +1483,7 @@ typedef struct PDMIACPIPORT
      *
      * @returns VBox status code
      * @param   pInterface      Pointer to the interface structure containing the called function pointer.
-     * @param   pfEnabled       Is set to true if the guest entered the ACPI mode, false otherwise.
+     * @param   pfEntered       Is set to true if the guest entered the ACPI mode, false otherwise.
      */
     DECLR3CALLBACKMEMBER(int, pfnGetGuestEnteredACPIMode,(PPDMIACPIPORT pInterface, bool *pfEntered));
 

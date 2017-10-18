@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2016 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -160,7 +160,7 @@ static DECLCALLBACK(int) dbgfR3MemRead(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS p
         return VERR_INVALID_POINTER;
 
     /*
-     * HMA is special
+     * HMA is special.
      */
     int rc;
     if (DBGFADDRESS_IS_HMA(pAddress))
@@ -173,7 +173,7 @@ static DECLCALLBACK(int) dbgfR3MemRead(PUVM pUVM, VMCPUID idCpu, PCDBGFADDRESS p
     else
     {
         /*
-         * Select DBGF worker by addressing mode.
+         * Select PGM worker by addressing mode.
          */
         PVMCPU  pVCpu   = VMMGetCpuById(pVM, idCpu);
         PGMMODE enmMode = PGMGetGuestMode(pVCpu);

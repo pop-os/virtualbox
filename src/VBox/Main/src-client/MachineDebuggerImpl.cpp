@@ -19,13 +19,15 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
+#define LOG_GROUP LOG_GROUP_MAIN_MACHINEDEBUGGER
+#include "LoggingNew.h"
+
 #include "MachineDebuggerImpl.h"
 
 #include "Global.h"
 #include "ConsoleImpl.h"
 
 #include "AutoCaller.h"
-#include "Logging.h"
 
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/patm.h>
@@ -123,7 +125,7 @@ void MachineDebugger::uninit()
  * Returns the current singlestepping flag.
  *
  * @returns COM status code
- * @param   a_fEnabled      Where to store the result.
+ * @param   aSingleStep     Where to store the result.
  */
 HRESULT MachineDebugger::getSingleStep(BOOL *aSingleStep)
 {
@@ -142,7 +144,7 @@ HRESULT MachineDebugger::getSingleStep(BOOL *aSingleStep)
  * Sets the singlestepping flag.
  *
  * @returns COM status code
- * @param   a_fEnable       The new state.
+ * @param   aSingleStep     The new state.
  */
 HRESULT MachineDebugger::setSingleStep(BOOL aSingleStep)
 {
@@ -223,7 +225,7 @@ HRESULT MachineDebugger::i_setEmExecPolicyProperty(EMEXECPOLICY enmPolicy, BOOL 
  * Returns the current recompile user mode code flag.
  *
  * @returns COM status code
- * @param   a_fEnabled address of result variable
+ * @param   aRecompileUser  address of result variable
  */
 HRESULT MachineDebugger::getRecompileUser(BOOL *aRecompileUser)
 {
@@ -234,7 +236,7 @@ HRESULT MachineDebugger::getRecompileUser(BOOL *aRecompileUser)
  * Sets the recompile user mode code flag.
  *
  * @returns COM status
- * @param   aEnable new user mode code recompile flag.
+ * @param   aRecompileUser  new user mode code recompile flag.
  */
 HRESULT MachineDebugger::setRecompileUser(BOOL aRecompileUser)
 {
@@ -246,7 +248,7 @@ HRESULT MachineDebugger::setRecompileUser(BOOL aRecompileUser)
  * Returns the current recompile supervisor code flag.
  *
  * @returns COM status code
- * @param   aEnabled address of result variable
+ * @param   aRecompileSupervisor    address of result variable
  */
 HRESULT MachineDebugger::getRecompileSupervisor(BOOL *aRecompileSupervisor)
 {
@@ -257,7 +259,7 @@ HRESULT MachineDebugger::getRecompileSupervisor(BOOL *aRecompileSupervisor)
  * Sets the new recompile supervisor code flag.
  *
  * @returns COM status code
- * @param   aEnable new recompile supervisor code flag
+ * @param   aRecompileSupervisor    new recompile supervisor code flag
  */
 HRESULT MachineDebugger::setRecompileSupervisor(BOOL aRecompileSupervisor)
 {
@@ -269,7 +271,7 @@ HRESULT MachineDebugger::setRecompileSupervisor(BOOL aRecompileSupervisor)
  * Returns the current execute-all-in-IEM setting.
  *
  * @returns COM status code
- * @param   aEnabled    Address of result variable.
+ * @param   aExecuteAllInIEM    Address of result variable.
  */
 HRESULT MachineDebugger::getExecuteAllInIEM(BOOL *aExecuteAllInIEM)
 {
@@ -280,7 +282,7 @@ HRESULT MachineDebugger::getExecuteAllInIEM(BOOL *aExecuteAllInIEM)
  * Changes the execute-all-in-IEM setting.
  *
  * @returns COM status code
- * @param   aEnable     New setting.
+ * @param   aExecuteAllInIEM    New setting.
  */
 HRESULT MachineDebugger::setExecuteAllInIEM(BOOL aExecuteAllInIEM)
 {
@@ -292,7 +294,7 @@ HRESULT MachineDebugger::setExecuteAllInIEM(BOOL aExecuteAllInIEM)
  * Returns the current patch manager enabled flag.
  *
  * @returns COM status code
- * @param   aEnabled address of result variable
+ * @param   aPATMEnabled    address of result variable
  */
 HRESULT MachineDebugger::getPATMEnabled(BOOL *aPATMEnabled)
 {
@@ -313,7 +315,7 @@ HRESULT MachineDebugger::getPATMEnabled(BOOL *aPATMEnabled)
  * Set the new patch manager enabled flag.
  *
  * @returns COM status code
- * @param   aEnable new patch manager enabled flag
+ * @param   aPATMEnabled    new patch manager enabled flag
  */
 HRESULT MachineDebugger::setPATMEnabled(BOOL aPATMEnabled)
 {
@@ -348,7 +350,7 @@ HRESULT MachineDebugger::setPATMEnabled(BOOL aPATMEnabled)
  * Returns the current code scanner enabled flag.
  *
  * @returns COM status code
- * @param   aEnabled address of result variable
+ * @param   aCSAMEnabled    address of result variable
  */
 HRESULT MachineDebugger::getCSAMEnabled(BOOL *aCSAMEnabled)
 {
@@ -370,7 +372,7 @@ HRESULT MachineDebugger::getCSAMEnabled(BOOL *aCSAMEnabled)
  * Sets the new code scanner enabled flag.
  *
  * @returns COM status code
- * @param   aEnable new code scanner enabled flag
+ * @param   aCSAMEnabled    new code scanner enabled flag
  */
 HRESULT MachineDebugger::setCSAMEnabled(BOOL aCSAMEnabled)
 {
@@ -532,7 +534,7 @@ HRESULT MachineDebugger::getLogRelDestinations(com::Utf8Str &aLogRelDestinations
  * Returns the current hardware virtualization flag.
  *
  * @returns COM status code
- * @param   aEnabled address of result variable
+ * @param   aHWVirtExEnabled    address of result variable
  */
 HRESULT MachineDebugger::getHWVirtExEnabled(BOOL *aHWVirtExEnabled)
 {
@@ -552,7 +554,7 @@ HRESULT MachineDebugger::getHWVirtExEnabled(BOOL *aHWVirtExEnabled)
  * Returns the current nested paging flag.
  *
  * @returns COM status code
- * @param   aEnabled address of result variable
+ * @param   aHWVirtExNestedPagingEnabled    address of result variable
  */
 HRESULT MachineDebugger::getHWVirtExNestedPagingEnabled(BOOL *aHWVirtExNestedPagingEnabled)
 {
@@ -572,7 +574,7 @@ HRESULT MachineDebugger::getHWVirtExNestedPagingEnabled(BOOL *aHWVirtExNestedPag
  * Returns the current VPID flag.
  *
  * @returns COM status code
- * @param   aEnabled address of result variable
+ * @param   aHWVirtExVPIDEnabled address of result variable
  */
 HRESULT MachineDebugger::getHWVirtExVPIDEnabled(BOOL *aHWVirtExVPIDEnabled)
 {
@@ -592,7 +594,7 @@ HRESULT MachineDebugger::getHWVirtExVPIDEnabled(BOOL *aHWVirtExVPIDEnabled)
  * Returns the current unrestricted execution setting.
  *
  * @returns COM status code
- * @param   aEnabled address of result variable
+ * @param   aHWVirtExUXEnabled  address of result variable
  */
 HRESULT MachineDebugger::getHWVirtExUXEnabled(BOOL *aHWVirtExUXEnabled)
 {
@@ -674,7 +676,7 @@ HRESULT MachineDebugger::getOSVersion(com::Utf8Str &aOSVersion)
  * Returns the current PAE flag.
  *
  * @returns COM status code
- * @param   aEnabled address of result variable
+ * @param   aPAEEnabled     address of result variable.
  */
 HRESULT MachineDebugger::getPAEEnabled(BOOL *aPAEEnabled)
 {
@@ -698,7 +700,7 @@ HRESULT MachineDebugger::getPAEEnabled(BOOL *aPAEEnabled)
  * Returns the current virtual time rate.
  *
  * @returns COM status code.
- * @param   a_puPct      Where to store the rate.
+ * @param   aVirtualTimeRate    Where to store the rate.
  */
 HRESULT MachineDebugger::getVirtualTimeRate(ULONG *aVirtualTimeRate)
 {
@@ -713,10 +715,10 @@ HRESULT MachineDebugger::getVirtualTimeRate(ULONG *aVirtualTimeRate)
 }
 
 /**
- * Returns the current virtual time rate.
+ * Set the virtual time rate.
  *
  * @returns COM status code.
- * @param   aPct     Where to store the rate.
+ * @param   aVirtualTimeRate    The new rate.
  */
 HRESULT MachineDebugger::setVirtualTimeRate(ULONG aVirtualTimeRate)
 {
@@ -878,8 +880,11 @@ static DECLCALLBACK(size_t) MachineDebuggerInfoOutput(void *pvArg, const char *p
     /*
      * Copy the bytes into the buffer and terminate it.
      */
-    memcpy(&pHlp->pszBuf[pHlp->offBuf], pachChars, cbChars);
-    pHlp->offBuf += cbChars;
+    if (cbChars)
+    {
+        memcpy(&pHlp->pszBuf[pHlp->offBuf], pachChars, cbChars);
+        pHlp->offBuf += cbChars;
+    }
     pHlp->pszBuf[pHlp->offBuf] = '\0';
     Assert(pHlp->offBuf < pHlp->cbBuf);
     return cbChars;
@@ -888,9 +893,9 @@ static DECLCALLBACK(size_t) MachineDebuggerInfoOutput(void *pvArg, const char *p
 /**
  * @interface_method_impl{DBGFINFOHLP,pfnPrintfV}
  */
-static DECLCALLBACK(void) MachineDebuggerInfoPrintfV(PCDBGFINFOHLP pHlp, const char *pszFormat, va_list va)
+static DECLCALLBACK(void) MachineDebuggerInfoPrintfV(PCDBGFINFOHLP pHlp, const char *pszFormat, va_list args)
 {
-    RTStrFormatV(MachineDebuggerInfoOutput, (void *)pHlp, NULL,  NULL, pszFormat, va);
+    RTStrFormatV(MachineDebuggerInfoOutput, (void *)pHlp, NULL,  NULL, pszFormat, args);
 }
 
 /**

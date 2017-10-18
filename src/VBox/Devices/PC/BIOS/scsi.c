@@ -19,6 +19,7 @@
 #include <string.h>
 #include "biosint.h"
 #include "inlines.h"
+#include "pciutil.h"
 #include "ebda.h"
 
 
@@ -303,8 +304,13 @@ int scsi_write_sectors(bio_dsk_t __far *bios_dsk)
  * Perform a "packet style" read with supplied CDB.
  *
  * @returns status code.
- * @param   bios_dsk    Pointer to disk request packet (in the
- *                      EBDA).
+ * @param   device_id   ID of the device to access.
+ * @param   cmdlen      Length of the CDB.
+ * @param   cmdbuf      The CDB buffer.
+ * @param   before      How much to skip before reading into the provided data buffer.
+ * @param   length      How much to transfer.
+ * @param   inout       Read/Write direction indicator.
+ * @param   buffer      Data buffer to store the data from the device in.
  */
 uint16_t scsi_cmd_packet(uint16_t device_id, uint8_t cmdlen, char __far *cmdbuf,
                          uint16_t before, uint32_t length, uint8_t inout, char __far *buffer)
@@ -611,6 +617,21 @@ void scsi_enumerate_attached_devices(uint16_t io_base)
     }
 }
 
+void scsi_pci_init(uint16_t vendor_id, uint16_t device_id)
+{
+    uint16_t    bus_dev_fn;
+
+    bus_dev_fn = pci_find_device(vendor_id, device_id);
+    if (bus_dev_fn == -1) {
+        DBG_SCSI("%s: Adapter %x:%x not found, how come?!\n", __func__, vendor_id, device_id);
+        return;
+    }
+
+    DBG_SCSI("%s: Adapter %x:%x found at %x, enabling BM\n", __func__, vendor_id, device_id, bus_dev_fn);
+    /* Enable PCI memory, I/O, bus mastering access in command register. */
+    pci_write_config_word(bus_dev_fn >> 8, (uint8_t)bus_dev_fn, 4, 0x7);
+}
+
 /**
  * Init the SCSI driver and detect attached disks.
  */
@@ -635,6 +656,7 @@ void BIOSCALL scsi_init(void)
         DBG_SCSI("%s: BusLogic SCSI adapter detected\n", __func__);
         outb(BUSLOGIC_BIOS_IO_PORT+VBSCSI_REGISTER_RESET, 0);
         scsi_enumerate_attached_devices(BUSLOGIC_BIOS_IO_PORT);
+        scsi_pci_init(0x104B, 0x1040);
     }
     else
     {
@@ -651,6 +673,7 @@ void BIOSCALL scsi_init(void)
         DBG_SCSI("%s: LSI Logic SCSI adapter detected\n", __func__);
         outb(LSILOGIC_BIOS_IO_PORT+VBSCSI_REGISTER_RESET, 0);
         scsi_enumerate_attached_devices(LSILOGIC_BIOS_IO_PORT);
+        scsi_pci_init(0x1000, 0x0030);
     }
     else
     {
@@ -667,6 +690,7 @@ void BIOSCALL scsi_init(void)
         DBG_SCSI("%s: LSI Logic SAS adapter detected\n", __func__);
         outb(LSILOGIC_SAS_BIOS_IO_PORT+VBSCSI_REGISTER_RESET, 0);
         scsi_enumerate_attached_devices(LSILOGIC_SAS_BIOS_IO_PORT);
+        scsi_pci_init(0x1000, 0x0054);
     }
     else
     {

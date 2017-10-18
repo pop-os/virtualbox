@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,10 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef __vd_plugin_h__
-#define __vd_plugin_h__
+#ifndef ___VBox_vd_plugin_h
+#define ___VBox_vd_plugin_h
 
 #include <VBox/vd.h>
+#include <VBox/vd-common.h>
 #include <VBox/vd-image-backend.h>
 #include <VBox/vd-cache-backend.h>
 #include <VBox/vd-filter-backend.h>
@@ -36,6 +37,10 @@
  */
 typedef struct VDBACKENDREGISTER
 {
+    /** Interface version.
+     * This is set to VD_BACKENDREG_CB_VERSION. */
+    uint32_t                    u32Version;
+
     /**
      * Registers a new image backend.
      *
@@ -43,7 +48,7 @@ typedef struct VDBACKENDREGISTER
      * @param   pvUser    Opaque user data given in the plugin load callback.
      * @param   pBackend  The image backend to register.
      */
-    DECLR3CALLBACKMEMBER(int, pfnRegisterImage, (void *pvUser, PCVBOXHDDBACKEND pBackend));
+    DECLR3CALLBACKMEMBER(int, pfnRegisterImage, (void *pvUser, PCVDIMAGEBACKEND pBackend));
 
     /**
      * Registers a new cache backend.
@@ -64,6 +69,9 @@ typedef struct VDBACKENDREGISTER
 } VDBACKENDREGISTER;
 /** Pointer to a backend register callbacks structure. */
 typedef VDBACKENDREGISTER *PVDBACKENDREGISTER;
+
+/** Current version of the VDBACKENDREGISTER structure.  */
+#define VD_BACKENDREG_CB_VERSION                VD_VERSION_MAKE(0xff00, 1, 0)
 
 /**
  * Initialization entry point called by the generic VD layer when

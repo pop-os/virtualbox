@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -386,7 +386,7 @@ static int txsReplyAck(PCTXSPKTHDR pPktHdr)
  * @param   pPktHdr             The original packet (for future use).
  * @param   pszOpcode           The status opcode.  Exactly 8 chars long, padd
  *                              with space.
- * @param   pszDetailsFmt       Longer description of the problem (format
+ * @param   pszDetailFmt        Longer description of the problem (format
  *                              string).
  * @param   va                  Format arguments.
  */
@@ -412,7 +412,7 @@ static int txsReplyFailureV(PCTXSPKTHDR pPktHdr, const char *pszOpcode, const ch
  * @param   pPktHdr             The original packet (for future use).
  * @param   pszOpcode           The status opcode.  Exactly 8 chars long, padd
  *                              with space.
- * @param   pszDetails          Longer description of the problem (format
+ * @param   pszDetailFmt        Longer description of the problem (format
  *                              string).
  * @param   ...                 Format arguments.
  */
@@ -1574,7 +1574,7 @@ static int txsExecSendExitStatus(PTXSEXEC pTxsExec, bool fProcessAlive, bool fPr
  * @param   hPollSet            The polling set.
  * @param   fPollEvt            The event mask returned by RTPollNoResume.
  * @param   phPipeR             The pipe handle.
- * @param   pu32Crc             The current CRC-32 of the stream. (In/Out)
+ * @param   puCrc32             The current CRC-32 of the stream. (In/Out)
  * @param   enmHndId            The handle ID.
  * @param   pszOpcode           The opcode for the data upload.
  *
@@ -1734,7 +1734,7 @@ static void txsDoExecHlpHandleStdInWritableEvent(RTPOLLSET hPollSet, uint32_t fP
  * @param   hPollSet            The polling set.
  * @param   fPollEvt            The event mask returned by RTPollNoResume.
  * @param   idPollHnd           The handle ID.
- * @param   hStdInW             The standard input pipe.
+ * @param   phStdInW            The standard input pipe.
  * @param   pStdInBuf           The standard input buffer.
  */
 static int txsDoExecHlpHandleTransportEvent(RTPOLLSET hPollSet, uint32_t fPollEvt, uint32_t idPollHnd,
@@ -2239,6 +2239,7 @@ static int txsExecSetupTestPipe(PTXSEXEC pTxsExec, const char *pszTestPipe)
  * @returns IPRT status code, reply to client made on error.
  * @param   pTxsExec            The TXSEXEC instance.
  * @param   pszHowTo            How to set up this standard handle.
+ * @param   pszStdWhat          For what to setup redirection (stdin/stdout/stderr).
  * @param   fd                  Which standard handle it is (0 == stdin, 1 ==
  *                              stdout, 2 == stderr).
  * @param   ph                  The generic handle that @a pph may be set
@@ -2890,6 +2891,7 @@ static RTEXITCODE txsFinalizeScratch(void)
  * @param   argc                The number of arguments.
  * @param   argv                The argument vector.
  * @param   pfExit              For indicating exit when the exit code is zero.
+ * @param   pszUpgrading        The upgraded image path.
  */
 static RTEXITCODE txsAutoUpdateStage2(int argc, char **argv, bool *pfExit, const char *pszUpgrading)
 {
@@ -2972,9 +2974,10 @@ static RTEXITCODE txsAutoUpdateStage2(int argc, char **argv, bool *pfExit, const
  * @returns Exit code. Exit if this is non-zero or @a *pfExit is set.
  * @param   argc                The number of arguments.
  * @param   argv                The argument vector.
+ * @param   cSecsCdWait         Number of seconds to wait on the CD.
  * @param   pfExit              For indicating exit when the exit code is zero.
  */
-static RTEXITCODE txsAutoUpdateStage1(int argc, char **argv, bool *pfExit)
+static RTEXITCODE txsAutoUpdateStage1(int argc, char **argv, uint32_t cSecsCdWait, bool *pfExit)
 {
     /*
      * Figure names of the current service image and the potential upgrade.
@@ -2998,18 +3001,28 @@ static RTEXITCODE txsAutoUpdateStage1(int argc, char **argv, bool *pfExit)
 
     /*
      * Query information about the two images and read the entire potential source file.
+     * Because the CD may take a little time to be mounted when the system boots, we
+     * need to do some fudging here.
      */
+    uint64_t nsStart = RTTimeNanoTS();
     RTFSOBJINFO UpgradeInfo;
-    rc = RTPathQueryInfo(szUpgradePath, &UpgradeInfo, RTFSOBJATTRADD_NOTHING);
-    if (    rc == VERR_FILE_NOT_FOUND
-        ||  rc == VERR_PATH_NOT_FOUND
-        ||  rc == VERR_MEDIA_NOT_PRESENT
-        ||  rc == VERR_MEDIA_NOT_RECOGNIZED)
-        return RTEXITCODE_SUCCESS;
-    if (RT_FAILURE(rc))
+    for (;;)
     {
-        RTMsgError("RTPathQueryInfo(\"%s\"): %Rrc (upgrade)\n", szUpgradePath, rc);
-        return RTEXITCODE_SUCCESS;
+        rc = RTPathQueryInfo(szUpgradePath, &UpgradeInfo, RTFSOBJATTRADD_NOTHING);
+        if (RT_SUCCESS(rc))
+            break;
+        if (   rc != VERR_FILE_NOT_FOUND
+            && rc != VERR_PATH_NOT_FOUND
+            && rc != VERR_MEDIA_NOT_PRESENT
+            && rc != VERR_MEDIA_NOT_RECOGNIZED)
+        {
+            RTMsgError("RTPathQueryInfo(\"%s\"): %Rrc (upgrade)\n", szUpgradePath, rc);
+            return RTEXITCODE_SUCCESS;
+        }
+        uint64_t cNsElapsed = RTTimeNanoTS() - nsStart;
+        if (cNsElapsed >= cSecsCdWait * RT_NS_1SEC_64)
+            return RTEXITCODE_SUCCESS;
+        RTThreadSleep(500);
     }
 
     RTFSOBJINFO OrgInfo;
@@ -3192,7 +3205,7 @@ static void txsSetDefaults(void)
  * @param   pStrm               Where to print it.
  * @param   pszArgv0            The program name (argv[0]).
  */
-static void txsUsage(PRTSTREAM pStrm, const char *argv0)
+static void txsUsage(PRTSTREAM pStrm, const char *pszArgv0)
 {
     RTStrmPrintf(pStrm,
                  "Usage: %Rbn [options]\n"
@@ -3205,7 +3218,7 @@ static void txsUsage(PRTSTREAM pStrm, const char *argv0)
                  "      Where to put scratch files.\n"
                  "      Default: %s \n"
                  ,
-                 argv0,
+                 pszArgv0,
                  g_szDefCdRomPath,
                  g_szDefScratchPath);
     RTStrmPrintf(pStrm,
@@ -3219,6 +3232,10 @@ static void txsUsage(PRTSTREAM pStrm, const char *argv0)
                  "      To enable or disable the automatic upgrade mechanism where any different\n"
                  "      version found on the CD-ROM on startup will replace the initial copy.\n"
                  "      Default: --auto-upgrade\n"
+                 "  --wait-cdrom <secs>\n"
+                 "     Number of seconds to wait for the CD-ROM to be mounted before giving up\n"
+                 "     on automatic upgrading.\n"
+                 "     Default: --wait-cdrom 1;  solaris: --wait-cdrom 8\n"
                  "  --upgrading <org-path>\n"
                  "      Internal use only.\n");
     RTStrmPrintf(pStrm,
@@ -3262,6 +3279,11 @@ static RTEXITCODE txsParseArgv(int argc, char **argv, bool *pfExit)
     bool        fDaemonize      = true;
     bool        fDaemonized     = false;
     const char *pszUpgrading    = NULL;
+#ifdef RT_OS_SOLARIS
+    uint32_t    cSecsCdWait     = 8;
+#else
+    uint32_t    cSecsCdWait     = 1;
+#endif
 
     /*
      * Combine the base and transport layer option arrays.
@@ -3270,14 +3292,15 @@ static RTEXITCODE txsParseArgv(int argc, char **argv, bool *pfExit)
     {
         { "--transport",        't', RTGETOPT_REQ_STRING  },
         { "--cdrom",            'c', RTGETOPT_REQ_STRING  },
+        { "--wait-cdrom",       'w', RTGETOPT_REQ_UINT32  },
         { "--scratch",          's', RTGETOPT_REQ_STRING  },
         { "--auto-upgrade",     'a', RTGETOPT_REQ_NOTHING },
         { "--no-auto-upgrade",  'A', RTGETOPT_REQ_NOTHING },
         { "--upgrading",        'U', RTGETOPT_REQ_STRING  },
-        { "--display-output",   'd', RTGETOPT_REQ_NOTHING  },
-        { "--no-display-output",'D', RTGETOPT_REQ_NOTHING  },
-        { "--foreground",       'f', RTGETOPT_REQ_NOTHING  },
-        { "--daemonized",       'Z', RTGETOPT_REQ_NOTHING  },
+        { "--display-output",   'd', RTGETOPT_REQ_NOTHING },
+        { "--no-display-output",'D', RTGETOPT_REQ_NOTHING },
+        { "--foreground",       'f', RTGETOPT_REQ_NOTHING },
+        { "--daemonized",       'Z', RTGETOPT_REQ_NOTHING },
     };
 
     size_t cOptions = RT_ELEMENTS(s_aBaseOptions);
@@ -3349,7 +3372,7 @@ static RTEXITCODE txsParseArgv(int argc, char **argv, bool *pfExit)
             case 't':
             {
                 PCTXSTRANSPORT pTransport = NULL;
-                for (size_t i = 0; RT_ELEMENTS(g_apTransports); i++)
+                for (size_t i = 0; i < RT_ELEMENTS(g_apTransports); i++)
                     if (!strcmp(g_apTransports[i]->szName, Val.psz))
                     {
                         pTransport = g_apTransports[i];
@@ -3365,8 +3388,12 @@ static RTEXITCODE txsParseArgv(int argc, char **argv, bool *pfExit)
                 pszUpgrading = Val.psz;
                 break;
 
+            case 'w':
+                cSecsCdWait = Val.u32;
+                break;
+
             case 'V':
-                RTPrintf("$Revision: 109470 $\n");
+                RTPrintf("$Revision: 118412 $\n");
                 *pfExit = true;
                 return RTEXITCODE_SUCCESS;
 
@@ -3409,7 +3436,7 @@ static RTEXITCODE txsParseArgv(int argc, char **argv, bool *pfExit)
         if (pszUpgrading)
             rcExit = txsAutoUpdateStage2(argc, argv, pfExit, pszUpgrading);
         else
-            rcExit = txsAutoUpdateStage1(argc, argv, pfExit);
+            rcExit = txsAutoUpdateStage1(argc, argv, cSecsCdWait, pfExit);
         if (   *pfExit
             || rcExit != RTEXITCODE_SUCCESS)
             return rcExit;

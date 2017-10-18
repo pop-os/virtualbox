@@ -11,7 +11,7 @@ other VBox test drivers.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2016 Oracle Corporation
+Copyright (C) 2010-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -30,7 +30,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard Python imports.
@@ -101,7 +101,7 @@ class VBoxInstallerTestDriver(TestDriverBase):
         if asArgs[iArg] == '--':
             # End of our parameters and start of the sub driver invocation.
             iArg = self.requireMoreArgs(1, asArgs, iArg);
-            assert len(self._asSubDriver) == 0;
+            assert not self._asSubDriver;
             self._asSubDriver = asArgs[iArg:];
             self._asSubDriver[0] = self._asSubDriver[0].replace('/', os.path.sep);
             iArg = len(asArgs) - 1;
@@ -121,10 +121,10 @@ class VBoxInstallerTestDriver(TestDriverBase):
         #
         # Check that we've got what we need.
         #
-        if len(self._asBuildUrls) == 0:
+        if not self._asBuildUrls:
             reporter.error('No build files specfiied ("--vbox-build file1[,file2[...]]")');
             return False;
-        if len(self._asSubDriver) == 0:
+        if not self._asSubDriver:
             reporter.error('No sub testdriver specified. (" -- test/stuff/tdStuff1.py args")');
             return False;
 
@@ -196,12 +196,12 @@ class VBoxInstallerTestDriver(TestDriverBase):
 
     def actionAbort(self):
         """
-        Forward this to the sub testdriver first, then do the default pid file
-        based cleanup and finally swipe the scene with the heavy artillery.
+        Forward this to the sub testdriver first, then wipe all VBox like
+        processes, and finally do the pid file processing (again).
         """
         fRc1 = self._executeSubDriver([ 'abort', ], fMaySkip = False);
-        fRc2 = TestDriverBase.actionAbort(self);
-        fRc3 = self._killAllVBoxProcesses();
+        fRc2 = self._killAllVBoxProcesses();
+        fRc3 = TestDriverBase.actionAbort(self);
         return fRc1 and fRc2 and fRc3;
 
 
@@ -227,7 +227,7 @@ class VBoxInstallerTestDriver(TestDriverBase):
         sFull = self.__persistentVarCalcName(sVar);
         try:
             oFile = open(sFull, 'w');
-            if len(sValue) > 0:
+            if sValue:
                 oFile.write(sValue.encode('utf-8'));
             oFile.close();
         except:
@@ -309,15 +309,18 @@ class VBoxInstallerTestDriver(TestDriverBase):
                               'vboxautostart', 'vboxballoonctrl', 'vboxbfe', 'vboxextpackhelperapp', 'vboxnetdhcp',
                               'vboxnetadpctl', 'vboxtestogl', 'vboxtunctl', 'vboxvmmpreload', 'vboxxpcomipcd', 'vmCreator', ]:
                     aoTodo.append(oProcess);
+                if sBase.startswith('virtualbox-') and sBase.endswith('-multiarch.exe'):
+                    aoTodo.append(oProcess);
                 if iIteration in [0, 21]  and  sBase in [ 'windbg', 'gdb', 'gdb-i386-apple-darwin', ]:
                     reporter.log('Warning: debugger running: %s (%s)' % (oProcess.iPid, sBase,));
-            if len(aoTodo) == 0:
+            if not aoTodo:
                 return True;
 
             # Kill.
             for oProcess in aoTodo:
-                reporter.log('Loop #%d - Killing %s (%s)'
-                             % (iIteration, oProcess.iPid, oProcess.sImage if oProcess.sName is None else oProcess.sName,));
+                reporter.log('Loop #%d - Killing %s (%s, uid=%s)'
+                             % ( iIteration, oProcess.iPid, oProcess.sImage if oProcess.sName is None else oProcess.sName,
+                                 oProcess.iUid, ));
                 utils.processKill(oProcess.iPid); # No mercy.
 
             # Check if they're all dead like they should be.
@@ -465,7 +468,7 @@ class VBoxInstallerTestDriver(TestDriverBase):
         if   sHost == 'darwin':     fRc = self._uninstallVBoxOnDarwin();
         elif sHost == 'linux':      fRc = self._uninstallVBoxOnLinux();
         elif sHost == 'solaris':    fRc = self._uninstallVBoxOnSolaris();
-        elif sHost == 'win':        fRc = self._uninstallVBoxOnWindows();
+        elif sHost == 'win':        fRc = self._uninstallVBoxOnWindows(True);
         else:
             reporter.error('Unsupported host "%s".' % (sHost,));
         if fRc is False and not fIgnoreError:
@@ -718,6 +721,9 @@ class VBoxInstallerTestDriver(TestDriverBase):
     # Windows
     #
 
+    ## VBox windows services we can query the status of.
+    kasWindowsServices = [ 'vboxdrv', 'vboxusbmon', 'vboxnetadp', 'vboxnetflt', 'vboxnetlwf' ];
+
     def _installVBoxOnWindows(self):
         """ Installs VBox on Windows."""
         sExe = self._findFile('^VirtualBox-.*-(MultiArch|Win).exe$');
@@ -744,7 +750,7 @@ class VBoxInstallerTestDriver(TestDriverBase):
         # TEMPORARY HACK - END
 
         # Uninstall any previous vbox version first.
-        fRc = self._uninstallVBoxOnWindows();
+        fRc = self._uninstallVBoxOnWindows(True);
         if fRc is not True:
             return None; # There shouldn't be anything to uninstall, and if there is, it's not our fault.
 
@@ -768,7 +774,50 @@ class VBoxInstallerTestDriver(TestDriverBase):
         self._waitForTestManagerConnectivity(30);
         return fRc;
 
-    def _uninstallVBoxOnWindows(self):
+    def _isProcessPresent(self, sName):
+        """ Checks whether the named process is present or not. """
+        for oProcess in utils.processListAll():
+            sBase = oProcess.getBaseImageNameNoExeSuff();
+            if sBase is not None and sBase.lower() == sName:
+                return True;
+        return False;
+
+    def _killProcessesByName(self, sName, sDesc, fChildren = False):
+        """ Kills the named process, optionally including children. """
+        cKilled = 0;
+        aoProcesses = utils.processListAll();
+        for oProcess in aoProcesses:
+            sBase = oProcess.getBaseImageNameNoExeSuff();
+            if sBase is not None and sBase.lower() == sName:
+                reporter.log('Killing %s process: %s (%s)' % (sDesc, oProcess.iPid, sBase));
+                utils.processKill(oProcess.iPid);
+                cKilled += 1;
+
+                if fChildren:
+                    for oChild in aoProcesses:
+                        if oChild.iParentPid == oProcess.iPid and oChild.iParentPid is not None:
+                            reporter.log('Killing %s child process: %s (%s)' % (sDesc, oChild.iPid, sBase));
+                            utils.processKill(oChild.iPid);
+                            cKilled += 1;
+        return cKilled;
+
+    def _terminateProcessesByNameAndArgSubstr(self, sName, sArg, sDesc):
+        """
+        Terminates the named process using taskkill.exe, if any of its args
+        contains the passed string.
+        """
+        cKilled = 0;
+        aoProcesses = utils.processListAll();
+        for oProcess in aoProcesses:
+            sBase = oProcess.getBaseImageNameNoExeSuff();
+            if sBase is not None and sBase.lower() == sName and any(sArg in s for s in oProcess.asArgs):
+
+                reporter.log('Killing %s process: %s (%s)' % (sDesc, oProcess.iPid, sBase));
+                self._executeSync(['taskkill.exe', '/pid', '%u' % (oProcess.iPid,)]);
+                cKilled += 1;
+        return cKilled;
+
+    def _uninstallVBoxOnWindows(self, fIgnoreServices = False):
         """
         Uninstalls VBox on Windows, all installations we find to be on the safe side...
         """
@@ -791,17 +840,51 @@ class VBoxInstallerTestDriver(TestDriverBase):
              or sProdName.startswith('Sun VirtualBox'):
                 asProdCodes.append([sProdCode, sProdName]);
 
-        # Before we start uninstalling anything, just ruthlessly kill any
-        # msiexec process we might find hanging around.
-        cKilled = 0;
-        for oProcess in utils.processListAll():
-            sBase = oProcess.getBaseImageNameNoExeSuff();
-            if sBase is not None and sBase.lower() in [ 'msiexec', ]:
-                reporter.log('Killing MSI process: %s (%s)' % (oProcess.iPid, sBase));
-                utils.processKill(oProcess.iPid);
-                cKilled += 1;
-        if cKilled > 0:
-            time.sleep(16); # fudge.
+        # Before we start uninstalling anything, just ruthlessly kill any cdb,
+        # msiexec, drvinst and some rundll process we might find hanging around.
+        if self._isProcessPresent('rundll32'):
+            cTimes = 0;
+            while cTimes < 3:
+                cTimes += 1;
+                cKilled = self._terminateProcessesByNameAndArgSubstr('rundll32', 'InstallSecurityPromptRunDllW',
+                                                                     'MSI driver installation');
+                if cKilled <= 0:
+                    break;
+                time.sleep(10); # Give related drvinst process a chance to clean up after we killed the verification dialog.
+
+        if self._isProcessPresent('drvinst'):
+            time.sleep(15);     # In the hope that it goes away.
+            cTimes = 0;
+            while cTimes < 4:
+                cTimes += 1;
+                cKilled = self._killProcessesByName('drvinst', 'MSI driver installation', True);
+                if cKilled <= 0:
+                    break;
+                time.sleep(10); # Give related MSI process a chance to clean up after we killed the driver installer.
+
+        if self._isProcessPresent('msiexec'):
+            cTimes = 0;
+            while cTimes < 3:
+                reporter.log('found running msiexec process, waiting a bit...');
+                time.sleep(20)  # In the hope that it goes away.
+                if not self._isProcessPresent('msiexec'):
+                    break;
+                cTimes += 1;
+            ## @todo this could also be the msiexec system service, try to detect this case!
+            if cTimes >= 6:
+                cKilled = self._killProcessesByName('msiexec', 'MSI driver installation');
+                if cKilled > 0:
+                    time.sleep(16); # fudge.
+
+        # cdb.exe sometimes stays running (from utils.getProcessInfo), blocking
+        # the scratch directory. No idea why.
+        if self._isProcessPresent('cdb'):
+            cTimes = 0;
+            while cTimes < 3:
+                cKilled = self._killProcessesByName('cdb', 'cdb.exe from getProcessInfo');
+                if cKilled <= 0:
+                    break;
+                time.sleep(2); # fudge.
 
         # Do the uninstalling.
         fRc = True;
@@ -821,6 +904,13 @@ class VBoxInstallerTestDriver(TestDriverBase):
         self._waitForTestManagerConnectivity(30);
         if fRc is False and os.path.isfile(sLogFile):
             reporter.addLogFile(sLogFile, 'log/uninstaller');
+
+        # Log driver service states (should ls \Driver\VBox* and \Device\VBox*).
+        for sService in self.kasWindowsServices:
+            fRc2, _ = self._sudoExecuteSync(['sc.exe', 'query', sService]);
+            if fIgnoreServices is False and fRc2 is True:
+                fRc = False
+
         return fRc;
 
 

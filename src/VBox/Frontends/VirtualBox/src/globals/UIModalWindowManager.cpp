@@ -210,7 +210,7 @@ void UIModalWindowManager::registerNewParent(QWidget *pWindow, QWidget *pParentW
                     }
                     /* Register passed-window as the new 'top' in iterated-window-stack: */
                     iteratedWindowStack << pWindow;
-                    connect(pWindow, SIGNAL(destroyed(QObject*)), this, SLOT(sltRemoveFromStack(QObject*)));
+                    connect(pWindow, &QWidget::destroyed, this, &UIModalWindowManager::sltRemoveFromStack);
                     return;
                 }
             }
@@ -225,8 +225,11 @@ void UIModalWindowManager::registerNewParent(QWidget *pWindow, QWidget *pParentW
         /* Register passed-window as the only one item in new-window-stack: */
         QList<QWidget*> newWindowStack(QList<QWidget*>() << pWindow);
         m_windows << newWindowStack;
-        connect(pWindow, SIGNAL(destroyed(QObject*)), this, SLOT(sltRemoveFromStack(QObject*)));
+        connect(pWindow, &QWidget::destroyed, this, &UIModalWindowManager::sltRemoveFromStack);
     }
+
+    /* Notify listeners that their stack may have changed: */
+    emit sigStackChanged();
 }
 
 void UIModalWindowManager::sltRemoveFromStack(QObject *pObject)
@@ -263,6 +266,9 @@ void UIModalWindowManager::sltRemoveFromStack(QObject *pObject)
             }
         }
     }
+
+    /* Notify listeners that their stack may have changed: */
+    emit sigStackChanged();
 }
 
 bool UIModalWindowManager::contains(QWidget *pParentWindow, bool fAsTheTopOfStack /* = false*/)

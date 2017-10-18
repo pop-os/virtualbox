@@ -2,7 +2,7 @@
 
 <!--
 
-    Copyright (C) 2006-2016 Oracle Corporation
+    Copyright (C) 2006-2017 Oracle Corporation
 
     This file is part of VirtualBox Open Source Edition (OSE), as
     available from http://www.virtualbox.org. This file is free software;
@@ -283,8 +283,11 @@
   name="VirtualBox"
   uuid="d7569351-1750-46f0-936e-bd127d5bc264"
   version="1.3"
-  desc="VirtualBox Type Library"
-  appUuid="819B4D85-9CEE-493C-B6FC-64FFE759B3C9"
+>
+
+<application
+  name="VirtualBox"
+  uuid="819B4D85-9CEE-493C-B6FC-64FFE759B3C9"
   supportsErrorInfo="yes"
 >
 
@@ -572,6 +575,12 @@
           Machine changes: NVMe storage controller, paravirt debug options, CPU
           profile and BIOS/CPU APIC settings.
           VirtualBox.xml: Add support for additional USB device sources (e.g. USB/IP)
+      -->
+    </const>
+    <const name="v1_17" value="19">
+      <desc>Settings version "1.17", written by VirtualBox 5.2.x.</desc>
+      <!--
+          So far absolutely no change to v1_16.
       -->
     </const>
 
@@ -1890,7 +1899,7 @@
 
   <interface
     name="IVirtualBox" extends="$unknown"
-    uuid="0169423f-46b4-cde9-91af-1e9d5b6cd945"
+    uuid="9570b9d5-f1a1-448a-10c5-e12f5285adad"
     wsmap="managed"
     reservedMethods="8" reservedAttributes="12"
     >
@@ -2373,6 +2382,17 @@
       </desc>
       <param name="appliance" type="IAppliance" dir="return">
         <desc>New appliance.</desc>
+      </param>
+    </method>
+
+    <method name="createUnattendedInstaller">
+      <desc>
+        Creates a new <link to="IUnattended"/> guest installation object.  This can be used to
+        analyze an installation ISO to create and configure a new machine for it to be installed
+        on.  It can also be used to (re)install an existing machine.
+      </desc>
+      <param name="unattended" type="IUnattended" dir="return">
+        <desc>New unattended object.</desc>
       </param>
     </method>
 
@@ -3371,8 +3391,9 @@
       </desc>
       <param name="format" type="wstring" dir="in">
         <desc>
-            Output format, as a string. Currently supported formats are "ovf-0.9", "ovf-1.0"
-            and "ovf-2.0"; future versions of VirtualBox may support additional formats.
+            Output format, as a string. Currently supported formats are "ovf-0.9", "ovf-1.0",
+            "ovf-2.0" and "opc-1.0"; future versions of VirtualBox may support additional formats.
+            The "opc-1.0" format is for creating tarballs for the Oracle Public Cloud.
         </desc>
       </param>
       <param name="options" type="ExportOptions" dir="in" safearray="yes">
@@ -3380,8 +3401,11 @@
       </param>
       <param name="path" type="wstring" dir="in">
           <desc>
-              Name of appliance file to open (either with an <tt>.ovf</tt> or <tt>.ova</tt> extension, depending
-              on whether the appliance is distributed as a set of files or as a single file, respectively).
+              Name of appliance file to create.  There are certain restrictions with regard
+              to the file name suffix.  If the format parameter is "opc-1.0" a <tt>.tar.gz</tt>
+              suffix is required.  Otherwise the suffix must either be <tt>.ovf</tt> or
+              <tt>.ova</tt>, depending on whether the appliance is distributed as a set of
+              files or as a single file, respectively.
           </desc>
       </param>
       <param name="progress" type="IProgress" dir="return">
@@ -3746,6 +3770,395 @@
     </method>
   </interface>
 
+  <!--
+  // IUnattended
+  /////////////////////////////////////////////////////////////////////////
+  -->
+
+  <interface
+    name="IUnattended" extends="$unknown"
+    uuid="6f89464f-7193-426c-a41f-522e8f537fa0"
+    wsmap="managed"
+    reservedMethods="4" reservedAttributes="16"
+    >
+
+    <desc>
+      The IUnattended interface represents the pipeline for preparing
+      the Guest OS for fully automated install.
+
+      The typical workflow is:
+      <ol>
+        <li>Call <link to="IVirtualBox::createUnattendedInstaller"/> to create the object</li>
+        <li>Set <link to="IUnattended::isoPath"/> and call <link to="IUnattended::detectIsoOS"/></li>
+        <li>Create, configure and register a machine according to <link to="IUnattended::detectedOSTypeId"/>
+            and the other detectedOS* attributes.</li>
+        <li>Set <link to="IUnattended::machine"/> to the new IMachine instance.</li>
+        <li>Set the other IUnattended attributes as desired.</li>
+        <li>Call <link to="IUnattended::prepare"/> for the object to check the
+            attribute values and create an internal installer instance.</li>
+        <li>Call <link to="IUnattended::constructMedia"/> to create additional
+            media files (ISO/floppy) needed.</li>
+        <li>Call <link to="IUnattended::reconfigureVM"/> to reconfigure the VM
+            with the installation ISO, additional media files and whatnot </li>
+        <li>Optionally call <link to="IUnattended::done"/> to destroy the internal
+            installer and allow restarting from the second step.</li>
+      </ol>
+
+      Note! Steps one is currently not implemented.
+    </desc>
+
+    <attribute name="isoPath" type="wstring">
+      <desc>
+        Guest operating system ISO image
+      </desc>
+    </attribute>
+
+    <attribute name="machine" type="IMachine">
+      <desc>
+        The associated machine object.
+
+        This must be set before <link to="IUnattended::prepare"/> is called.
+        The VM must be registered.
+      </desc>
+    </attribute>
+
+    <attribute name="user" type="wstring">
+      <desc>
+        Assign an user login name.
+      </desc>
+    </attribute>
+
+    <attribute name="password" type="wstring">
+      <desc>
+        Assign a password to the user. The password is the same for both
+        normal user and for Administrator / 'root' accounts.
+      </desc>
+    </attribute>
+
+    <attribute name="fullUserName" type="wstring">
+      <desc>
+        The full name of the user.  This is optional and defaults to
+        <link to="IUnattended::user"/>.  Please note that not all guests picks
+        up this attribute.
+      </desc>
+    </attribute>
+
+    <attribute name="productKey" type="wstring">
+      <desc>
+        Any key which is used as authorization of access to install genuine OS
+      </desc>
+    </attribute>
+
+    <attribute name="additionsIsoPath" type="wstring">
+      <desc>
+        Guest Additions ISO image path.  This defaults to
+        <link to="ISystemProperties::defaultAdditionsISO"/> when the Unattended
+        object is instantiated.
+
+        This property is ignored when <link to="IUnattended::installGuestAdditions"/> is false.
+      </desc>
+    </attribute>
+
+    <attribute name="installGuestAdditions" type="boolean">
+      <desc>
+        Indicates whether the guest additions should be installed or not.
+
+        Setting this to false does not affect additions shipped with the linux
+        distribution, only the installation of additions pointed to by
+        <link to="IUnattended::additionsIsoPath"/>.
+      </desc>
+    </attribute>
+
+    <attribute name="validationKitIsoPath" type="wstring">
+      <desc>
+        VirtualBox ValidationKit ISO image path.  This is used when
+        <link to="IUnattended::installTestExecService"/> is set to true.
+      </desc>
+    </attribute>
+
+    <attribute name="installTestExecService" type="boolean">
+      <desc>
+        Indicates whether the test execution service (TXS) from the VBox
+        ValidationKit should be installed.
+
+        The TXS binary will be taken from the ISO indicated by
+        <link to="IUnattended::validationKitIsoPath"/>.
+      </desc>
+    </attribute>
+
+    <attribute name="timeZone" type="wstring">
+      <desc>
+        The guest time zone specifier.
+
+        This is unfortunately guest OS specific.
+
+        Windows XP and earlier takes the index number from this table:
+        https://support.microsoft.com/en-gb/help/973627/microsoft-time-zone-index-values
+
+        Windows Vista and later takes the time zone string from this table:
+        https://technet.microsoft.com/en-us/library/cc749073(v=ws.10).aspx
+
+        Linux usually takes the TZ string from this table:
+        https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+
+        The default is currently UTC/GMT, but this may change to be same as
+        the host later.
+
+        TODO: Investigate automatic mapping between linux and the two windows
+              time zone formats.
+        TODO: Take default from host (this requires mapping).
+      </desc>
+    </attribute>
+
+    <attribute name="locale" type="wstring">
+      <desc>
+        The 5 letter locale identifier, no codesets or such.
+
+        The format is two lower case language letters (ISO 639-1), underscore ('_'),
+        and two upper case country letters (ISO 3166-1 alpha-2).  For instance
+        'en_US', 'de_DE', or 'ny_NO'.
+
+        The default is taken from the host if possible, with 'en_US' as fallback.
+      </desc>
+    </attribute>
+
+    <attribute name="language" type="wstring">
+      <desc>
+        This is more or less a Windows specific setting for choosing the UI language
+        setting of the installer.
+
+        The value should be from the list availble via <link to="IUnattended::detectedOSLanguages"/>.
+        The typical format is {language-code}-{COUNTRY} but windows may also use
+        {16-bit code}:{32-bit code} or insert another component between the language
+        and country codes.  We consider the format guest OS specific.
+
+        Note that it is crucial that this is correctly specified for Windows
+        installations.  If an unsupported value is given the installer will ask
+        for an installation language and wait for user input.  Best to leave it
+        to the default value.
+
+        The default is the first one from <link to="IUnattended::detectedOSLanguages"/>.
+      </desc>
+    </attribute>
+
+    <attribute name="country" type="wstring">
+      <desc>
+        The 2 upper case letter country identifier, ISO 3166-1 alpha-2.
+
+        This is used for mirrors and such.
+
+        The default is taken from the host when possible, falling back on
+        <link to="IUnattended::locale"/>.
+      </desc>
+    </attribute>
+
+    <attribute name="proxy" type="wstring">
+      <desc>
+        Proxy incantation to pass on to the guest OS installer.
+
+        This is important to get right if the guest OS installer is of the type
+        that goes online to fetch the packages (e.g. debian-*-netinst.iso) or
+        to fetch updates during the install process.
+
+        Format: [schema=]schema://[login@password:]proxy[:port][;...]
+
+        The default is taken from the host proxy configuration (once implemented).
+      </desc>
+    </attribute>
+
+    <attribute name="packageSelectionAdjustments" type="wstring">
+      <desc>
+        Guest OS specific package selection adjustments.
+
+        This is a semicolon separated list of keywords, and later maybe guest OS
+        package specifiers.  Currently the 'minimal' is the only recognized value,
+        and this only works with a selection of linux installers.
+      </desc>
+    </attribute>
+
+    <attribute name="hostname" type="wstring">
+      <desc>
+        The fully qualified guest hostname.
+
+        This defaults to machine-name + ".myguest.virtualbox.org", though it may
+        change to the host domain name later.
+      </desc>
+    </attribute>
+
+    <attribute name="auxiliaryBasePath" type="wstring">
+      <desc>
+        The path + basename for auxiliary files generated by the unattended
+        installation.  This defaults to the VM folder + Unattended + VM UUID.
+
+        The files which gets generated depends on the OS being installed.  When
+        installing Windows there is currently only a auxiliaryBasePath + "floppy.img"
+        being created.  But for linux, a "cdrom.viso" and one or more configuration
+        files are generate generated.
+      </desc>
+    </attribute>
+
+    <attribute name="imageIndex" type="unsigned long">
+      <desc>
+        The image index on installation CD/DVD used to install.
+
+        Used only with Windows installation CD/DVD:
+        https://technet.microsoft.com/en-us/library/cc766022%28v=ws.10%29.aspx
+      </desc>
+    </attribute>
+
+    <attribute name="scriptTemplatePath" type="wstring">
+      <desc>
+        The unattended installation script template file.
+
+        The template default is based on the guest OS type and is determined by the
+        internal installer when when <link to="IUnattended::prepare"/> is invoked.
+        Most users will want the defaults.
+
+        After <link to="IUnattended::prepare"/> is called, it can be read to see
+        which file is being used.
+      </desc>
+    </attribute>
+
+    <attribute name="postInstallScriptTemplatePath" type="wstring">
+      <desc>
+        The post installation (shell/batch) script template file.
+
+        The template default is based on the guest OS type and is determined by the
+        internal installer when when <link to="IUnattended::prepare"/> is invoked.
+        Most users will want the defaults.
+
+        After <link to="IUnattended::prepare"/> is called, it can be read to see
+        which file is being used.
+      </desc>
+    </attribute>
+
+    <attribute name="postInstallCommand" type="wstring">
+      <desc>
+        Custom post installation command.
+
+        Exactly what is expected as input here depends on the guest OS installer
+        and the post installation script template (see
+        <link to="IUnattended::postInstallScriptTemplatePath"/>).
+        Most users will not need to set this attribute.
+      </desc>
+    </attribute>
+
+    <attribute name="extraInstallKernelParameters" type="wstring">
+      <desc>
+        Extra kernel arguments passed to the install kernel of some guests.
+
+        This is currently only picked up by linux guests.  The exact parameters
+        are specific to the guest OS being installed of course.
+
+        After <link to="IUnattended::prepare"/> is called, it can be read to see
+        which parameters are being used.
+      </desc>
+    </attribute>
+
+    <attribute name="detectedOSTypeId" type="wstring" readonly="yes">
+      <desc>
+        The detected OS type ID (<link to="IGuestOSType::id"/>).
+
+        Set by <link to="IUnattended::detectIsoOS"/> or <link to="IUnattended::prepare"/>.
+
+        Not yet implemented.
+      </desc>
+    </attribute>
+
+    <attribute name="detectedOSVersion" type="wstring" readonly="yes">
+      <desc>
+        The detected OS version string.
+
+        Set by <link to="IUnattended::detectIsoOS"/> or <link to="IUnattended::prepare"/>.
+
+        Not yet implemented.
+      </desc>
+    </attribute>
+
+    <attribute name="detectedOSFlavor" type="wstring" readonly="yes">
+      <desc>
+        The detected OS flavor (e.g. server, desktop, etc)
+
+        Set by <link to="IUnattended::detectIsoOS"/> or <link to="IUnattended::prepare"/>.
+
+        Not yet implemented.
+      </desc>
+    </attribute>
+
+    <attribute name="detectedOSLanguages" type="wstring" readonly="yes">
+      <desc>
+        The space separated list of (Windows) installation UI languages we detected (lang.ini).
+
+        The language specifier format is specific to the guest OS.  They are
+        used to set <link to="IUnattended::language"/>.
+
+        Set by <link to="IUnattended::detectIsoOS"/> or <link to="IUnattended::prepare"/>.
+
+        Partially implemented.
+      </desc>
+    </attribute>
+
+    <attribute name="detectedOSHints" type="wstring" readonly="yes">
+      <desc>
+        Space separated list of other stuff detected about the OS and the
+        installation ISO.
+
+        Set by <link to="IUnattended::detectIsoOS"/> or <link to="IUnattended::prepare"/>.
+
+        Not yet implemented.
+      </desc>
+    </attribute>
+
+    <method name="detectIsoOS">
+      <desc>
+        Detects the OS on the ISO given by <link to="IUnattended::isoPath"/> and sets
+        <link to="IUnattended::detectedOSTypeId"/>, <link to="IUnattended::detectedOSVersion"/>
+        <link to="IUnattended::detectedOSFlavor"/>, <link to="IUnattended::detectedOSLanguages"/>,
+        and <link to="IUnattended::detectedOSHints"/>.
+
+        Not really yet implemented.
+      </desc>
+    </method>
+
+    <method name="prepare">
+      <desc>
+        Prepare for running the unattended process of installation.
+
+        This will instantiate the installer based on the guest type associated
+        with the machine (see <link to="IMachine::OSTypeId"/>).  It will also
+        perform <link to="IUnattended::detectIsoOS"/> if not yet called on the
+        current <link to="IUnattended::isoPath"/> value.
+      </desc>
+    </method>
+
+    <method name="constructMedia">
+      <desc>
+        Constructors the necessary ISO/VISO/Floppy images, with unattended scripts
+        and all necessary bits on them.
+      </desc>
+    </method>
+
+    <method name="reconfigureVM">
+      <desc>
+        Reconfigures the machine to start the installation.
+
+        This involves mounting the ISOs and floppy images created by
+        <link to="IUnattended::constructMedia"/>, attaching new DVD and floppy
+        drives as necessary, and possibly modifying the boot order.
+      </desc>
+    </method>
+
+    <method name="done">
+      <desc>
+        Done - time to start the VM.
+
+        This deletes the internal installer instance that <link to="IUnattended::prepare"/>
+        created.  Before done() is called, it is not possible to start over again
+        from <link to="IUnattended::prepare"/>.
+      </desc>
+    </method>
+
+  </interface>
 
   <!--
   // IMachine
@@ -4362,11 +4775,11 @@
 
   <interface
     name="IMachine" extends="$unknown"
-    uuid="b2547866-a0a1-4391-8b86-6952d82efaa0"
+    uuid="85cd948e-a71f-4289-281e-0ca7ad48cd89"
     wsmap="managed"
     wrap-hint-server-addinterfaces="IInternalMachineControl"
     wrap-hint-server="manualaddinterfaces"
-    reservedMethods="7" reservedAttributes="10"
+    reservedMethods="6" reservedAttributes="9"
     >
     <!-- Note! This interface is not compatible between 5.0 and 5.1 as it had too many
                methods/attributes for midl and the reservedAttributes had to be
@@ -4644,13 +5057,13 @@
 
     <attribute name="videoCaptureEnabled" type="boolean" default="false">
       <desc>
-        This setting determines whether VirtualBox uses video recording to
-        record VM session.</desc>
+        This setting determines whether VirtualBox uses video capturing to
+        record a VM session.</desc>
     </attribute>
 
     <attribute name="videoCaptureScreens" type="boolean" safearray="yes">
       <desc>
-        This setting determines for which screens video recording is
+        This setting determines for which screens video capturing is
         enabled.</desc>
     </attribute>
 
@@ -4727,6 +5140,19 @@
         This setting contains any additional video capture options
         required in comma-separated key=value format. This setting
         cannot be changed while video capturing is enabled.
+
+        The following keys and their corresponding values are available:
+
+        <table>
+          <tr>
+            <td>ac_enabled</td>
+            <td>Enables audio recording when set to <pre>true</pre>, otherwise
+                set to <pre>false</pre> to disable.
+
+                <b>This feature is considered being experimental.</b></td>
+          </tr>
+        </table>
+
       </desc>
     </attribute>
 
@@ -6518,24 +6944,75 @@ and "VAR" for unsetting. -->
       </param>
     </method>
 
+    <method name="getCPUIDLeafByOrdinal" const="yes">
+      <desc>
+        Used to enumerate CPUID information override values.
+
+        <result name="E_INVALIDARG">
+          Invalid ordinal number is out of range.
+        </result>
+      </desc>
+      <param name="ordinal" type="unsigned long" dir="in">
+        <desc>
+          The ordinal number of the leaf to get.
+        </desc>
+      </param>
+      <param name="idx" type="unsigned long" dir="out">
+        <desc>
+          CPUID leaf index.
+        </desc>
+      </param>
+      <param name="idxSub" type="unsigned long" dir="out">
+        <desc>
+          CPUID leaf sub-index.
+        </desc>
+      </param>
+      <param name="valEax" type="unsigned long" dir="out">
+        <desc>
+          CPUID leaf value for register eax.
+        </desc>
+      </param>
+      <param name="valEbx" type="unsigned long" dir="out">
+        <desc>
+          CPUID leaf value for register ebx.
+        </desc>
+      </param>
+      <param name="valEcx" type="unsigned long" dir="out">
+        <desc>
+          CPUID leaf value for register ecx.
+        </desc>
+      </param>
+      <param name="valEdx" type="unsigned long" dir="out">
+        <desc>
+          CPUID leaf value for register edx.
+        </desc>
+      </param>
+    </method>
+
     <method name="getCPUIDLeaf" const="yes">
       <desc>
         Returns the virtual CPU cpuid information for the specified leaf.
 
         Currently supported index values for cpuid:
-        Standard CPUID leafs: 0 - 0xA
-        Extended CPUID leafs: 0x80000000 - 0x8000000A
+        Standard CPUID leaves: 0 - 0x1f
+        Extended CPUID leaves: 0x80000000 - 0x8000001f
+        VIA CPUID leaves:      0xc0000000 - 0xc000000f
 
-        See the Intel and AMD programmer's manuals for detailed information
-        about the cpuid instruction and its leafs.
+        See the Intel, AMD and VIA programmer's manuals for detailed information
+        about the CPUID instruction and its leaves.
         <result name="E_INVALIDARG">
-          Invalid id.
+          Invalid index.
         </result>
 
       </desc>
-      <param name="id" type="unsigned long" dir="in">
+      <param name="idx" type="unsigned long" dir="in">
         <desc>
           CPUID leaf index.
+        </desc>
+      </param>
+      <param name="idxSub" type="unsigned long" dir="in">
+        <desc>
+          CPUID leaf sub-index (ECX).  Set to 0xffffffff (or 0) if not applicable.
         </desc>
       </param>
       <param name="valEax" type="unsigned long" dir="out">
@@ -6566,22 +7043,33 @@ and "VAR" for unsetting. -->
         are not passed unmodified. VirtualBox clears features that it doesn't support.
 
         Currently supported index values for cpuid:
-        Standard CPUID leafs: 0 - 0xA
-        Extended CPUID leafs: 0x80000000 - 0x8000000A
+        Standard CPUID leaves: 0 - 0x1f
+        Extended CPUID leaves: 0x80000000 - 0x8000001f
+        VIA CPUID leaves:      0xc0000000 - 0xc000000f
 
-        See the Intel and AMD programmer's manuals for detailed information
-        about the cpuid instruction and its leafs.
+        The subleaf index is only applicable to certain leaves (see manuals as this is
+        subject to change).
+
+        See the Intel, AMD and VIA programmer's manuals for detailed information
+        about the cpuid instruction and its leaves.
 
         Do not use this method unless you know exactly what you're doing. Misuse can lead to
         random crashes inside VMs.
         <result name="E_INVALIDARG">
-          Invalid id.
+          Invalid index.
         </result>
 
       </desc>
-      <param name="id" type="unsigned long" dir="in">
+      <param name="idx" type="unsigned long" dir="in">
         <desc>
           CPUID leaf index.
+        </desc>
+      </param>
+      <param name="idxSub" type="unsigned long" dir="in">
+        <desc>
+          CPUID leaf sub-index (ECX).  Set to 0xffffffff (or 0) if not applicable.
+          The 0xffffffff causes it to remove all other subleaves before adding one
+          with sub-index 0.
         </desc>
       </param>
       <param name="valEax" type="unsigned long" dir="in">
@@ -6611,13 +7099,19 @@ and "VAR" for unsetting. -->
         Removes the virtual CPU cpuid leaf for the specified index
 
         <result name="E_INVALIDARG">
-          Invalid id.
+          Invalid index.
         </result>
 
       </desc>
-      <param name="id" type="unsigned long" dir="in">
+      <param name="idx" type="unsigned long" dir="in">
         <desc>
           CPUID leaf index.
+        </desc>
+      </param>
+      <param name="idxSub" type="unsigned long" dir="in">
+        <desc>
+          CPUID leaf sub-index (ECX).  Set to 0xffffffff (or 0) if not applicable.
+          The 0xffffffff value works like a wildcard.
         </desc>
       </param>
     </method>
@@ -8714,6 +9208,10 @@ and "VAR" for unsetting. -->
       <desc>specifies the host interface type.</desc>
     </attribute>
 
+    <attribute name="wireless" type="boolean" readonly="yes">
+      <desc>Specifies whether the interface is wireless.</desc>
+    </attribute>
+
     <method name="enableStaticIPConfig">
       <desc>sets and enables the static IP V4 configuration for the given interface.</desc>
       <param name="IPAddress" type="wstring" dir="in">
@@ -9897,7 +10395,7 @@ and "VAR" for unsetting. -->
 
   <enum
     name="AdditionsFacilityType"
-    uuid="98f7f957-89fb-49b6-a3b1-31e3285eb1d8"
+    uuid="c4b10d74-dd48-4ff4-9a40-785a2a389ade"
     >
     <desc>
       Guest Additions facility IDs.
@@ -9925,6 +10423,10 @@ and "VAR" for unsetting. -->
       <desc>Guest graphics mode. If not enabled, seamless rendering will not work, resize hints
         are not immediately acted on and guest display resizes are probably not initiated by
         the guest additions.
+      </desc>
+    </const>
+    <const name="MonitorAttach"         value="1101">
+      <desc>Guest supports monitor hotplug.
       </desc>
     </const>
     <const name="All"                   value="2147483646">
@@ -13470,7 +13972,7 @@ useful to the API client. -->
 
   <interface
     name="IProgress" extends="$unknown"
-    uuid="77faf1c0-489d-b123-274c-5a95e77ab286"
+    uuid="e0026dc0-0c55-47b1-aa64-d340a396b418"
     wsmap="managed"
     reservedMethods="1" reservedAttributes="2"
     >
@@ -13606,6 +14108,8 @@ useful to the API client. -->
           cancelable objects.
       </desc>
     </attribute>
+
+    <attribute name="eventSource" type="IEventSource" readonly="yes"/>
 
     <method name="setCurrentOperationProgress">
       <desc>Internal method, not to be called externally.</desc>
@@ -16735,7 +17239,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <enum
     name="ScreenLayoutMode"
-    uuid="9a982f4f-b815-4802-8539-d0b46435a7b7"
+    uuid="c7a9ee66-cfed-438b-9f8c-d3adf7588a4d"
     wsmap="managed"
     >
     <desc>
@@ -16753,11 +17257,17 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         Always set the new mode even if the guest is already at desired mode.
       </desc>
     </const>
+
+    <const name="Attach" value="2">
+      <desc>
+        Attach new screens and always set the new mode for existing screens.
+      </desc>
+    </const>
   </enum>
 
   <interface
     name="IGuestScreenInfo" extends="$unknown"
-    uuid="5f99cd4d-bbd2-49ba-b24d-4b5b42fb4c3a"
+    uuid="6b2f98f8-9641-4397-854a-040439d0114b"
     wsmap="managed"
     >
     <attribute name="screenId" type="unsigned long" readonly="yes"/>
@@ -16769,11 +17279,12 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <attribute name="width" type="unsigned long" readonly="yes"/>
     <attribute name="height" type="unsigned long" readonly="yes"/>
     <attribute name="bitsPerPixel" type="unsigned long" readonly="yes"/>
+    <attribute name="extendedInfo" type="wstring" readonly="yes"/>
   </interface>
 
   <interface
     name="IDisplay" extends="$unknown"
-    uuid="02326f63-bcb3-4481-96e0-30d1c2ee97f6"
+    uuid="76eed314-3c72-4bbb-95cf-5eb4947a4041"
     wsmap="managed"
     wrap-hint-server-addinterfaces="IEventListener"
     reservedMethods="4" reservedAttributes="2"
@@ -17118,6 +17629,13 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </desc>
       <param name="screenLayoutMode" type="ScreenLayoutMode" dir="in"/>
       <param name="guestScreenInfo" type="IGuestScreenInfo" safearray="yes" dir="in"/>
+    </method>
+
+    <method name="detachScreens">
+      <desc>
+        Unplugs monitors from the virtual graphics card.
+      </desc>
+      <param name="screenIds" type="long" safearray="yes" dir="in"/>
     </method>
 
   </interface>
@@ -19352,6 +19870,22 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       <param name="changeAdapter" type="boolean" dir="in"/>
     </method>
 
+    <method name="onAudioAdapterChange">
+      <desc>
+        Triggerd when settings of the audio adapter of the
+        associated virtual machine have changed.
+
+        <result name="VBOX_E_INVALID_VM_STATE">
+          Session state prevents operation.
+        </result>
+        <result name="VBOX_E_INVALID_OBJECT_STATE">
+          Session type prevents operation.
+        </result>
+
+      </desc>
+      <param name="audioAdapter" type="IAudioAdapter" dir="in"/>
+    </method>
+
     <method name="onSerialPortChange">
       <desc>
         Triggered when settings of a serial port of the
@@ -19816,6 +20350,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </param>
       <param name="progress" type="IProgress" dir="in">
         <desc>Progress object to track the operation completion.</desc>
+      </param>
+      <param name="snapshot" type="ISnapshot" dir="in">
+        <desc>Snapshot object for which this save state operation is executed.</desc>
       </param>
       <param name="stateFilePath" type="wstring" dir="in">
         <desc>File path the VM process must save the execution state to.</desc>
@@ -21715,8 +22252,23 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         See <link to="IMediumConfigChangedEvent">IMediumConfigChangedEvent</link>.
       </desc>
     </const>
+    <const name="OnAudioAdapterChanged" value="97">
+      <desc>
+        See <link to="IAudioAdapterChangedEvent">IAudioAdapterChangedEvent</link>.
+      </desc>
+    </const>
+    <const name="OnProgressPercentageChanged" value="98">
+      <desc>
+        See <link to="IProgressPercentageChangedEvent">IProgressPercentageChangedEvent</link>.
+      </desc>
+    </const>
+    <const name="OnProgressTaskCompleted" value="99">
+      <desc>
+        See <link to="IProgressTaskCompletedEvent">IProgressTaskCompletedEvent</link>.
+      </desc>
+    </const>
     <!-- Last event marker -->
-    <const name="Last" value="97">
+    <const name="Last" value="100">
       <desc>
         Must be last event, used for iterations and structures relying on numerical event values.
       </desc>
@@ -22430,6 +22982,23 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <attribute name="networkAdapter" type="INetworkAdapter" readonly="yes">
       <desc>
         Network adapter that is subject to change.
+      </desc>
+    </attribute>
+  </interface>
+
+  <interface
+    name="IAudioAdapterChangedEvent" extends="IEvent"
+    uuid="D5ABC823-04D0-4DB6-8D66-DC2F033120E1"
+    wsmap="managed" autogen="VBoxEvent" id="OnAudioAdapterChanged"
+    >
+    <desc>
+      Notification when a property of the audio adapter changes.
+      Interested callees should use IAudioAdapter methods and attributes
+      to find out what has changed.
+    </desc>
+    <attribute name="audioAdapter" type="IAudioAdapter" readonly="yes">
+      <desc>
+        Audio adapter that is subject to change.
       </desc>
     </attribute>
   </interface>
@@ -23741,6 +24310,37 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
+  <interface
+    name="IProgressEvent" extends="IEvent"
+    uuid="daaf9016-1f04-4191-aa2f-1fac9646ae4c"
+    wsmap="managed" id="ProgressEvent">
+    <desc>Base abstract interface for all progress events.</desc>
+
+    <attribute name="progressId" readonly="yes" type="uuid" mod="string">
+      <desc>GUID of the progress this event relates to.</desc>
+    </attribute>
+
+  </interface>
+
+  <interface
+    name="IProgressPercentageChangedEvent" extends="IProgressEvent"
+    uuid="f05d7e60-1bcf-4218-9807-04e036cc70f1"
+    wsmap="managed" autogen="VBoxEvent" id="OnProgressPercentageChanged">
+    <desc>Progress state change event.</desc>
+
+    <attribute name="percent" readonly="yes" type="long">
+      <desc>New percent</desc>
+    </attribute>
+  </interface>
+
+  <interface
+    name="IProgressTaskCompletedEvent" extends="IProgressEvent"
+    uuid="a5bbdb7d-8ce7-469f-a4c2-6476f581ff72"
+    wsmap="managed" autogen="VBoxEvent" id="OnProgressTaskCompleted">
+    <desc>Progress task completion event.</desc>
+    <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
+  </interface>
+
   <module name="VBoxSVC" context="LocalServer">
     <class name="VirtualBox" uuid="B1A7A4F2-47B9-4A1E-82B2-07CCD5323C3F"
            namespace="virtualbox.org">
@@ -23759,6 +24359,64 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       <interface name="ISession" default="yes"/>
     </class>
   </module>
+
+</application>
+
+<!-- Pay attention! Application uuid of this application is used in midl.xsl
+     So if you change it then change filter in "interface" and "class" template in midl.xsl too
+-->
+<application
+  name="VirtualBox System Service"
+  uuid="ec0e78e8-fa43-43e8-ac0a-02c784c4a4fa"
+  supportsErrorInfo="yes"
+>
+
+<if target="midl">
+  <!--
+  // IVirtualBoxSDS
+  //////////////////////////////////////////////////////////////////////////
+  -->
+
+  <interface
+    name="IVirtualBoxSDS" extends="$unknown"
+    uuid="28932695-fb72-4708-8904-e1077dac7f9a"
+    wsmap="suppress"
+    reservedMethods="4" reservedAttributes="8"
+    >
+      <desc>
+          The IVirtualBoxSDS interface represents the system-wide directory service
+          helper.
+
+          It exists only on Windows host, and its purpose is to work around design
+          flaws in Microsoft's (D)COM, in particular the local server instantiation
+          behavior.
+      </desc>
+
+      <method name="getVirtualBox" >
+       <param name="result" type="IVirtualBox" dir="out" >
+        <desc>
+          Reference to the server-side API root object.
+        </desc>
+      </param>
+      <param name="token" type="IToken" dir="out">
+        <desc>
+          Reference to the token object given to client and linked with IVirtualBox.
+          Client should keep it till the end.
+        </desc>
+      </param>
+      </method>
+
+  </interface>
+</if>
+
+  <module name="VBoxSDS" context="LocalService">
+    <class name="VirtualBoxSDS" uuid="74ab5ffe-8726-4435-aa7e-876d705bcba5"
+           namespace="virtualbox.org">
+      <interface name="IVirtualBoxSDS" default="yes"/>
+    </class>
+  </module>
+
+</application>
 
 </library>
 

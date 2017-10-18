@@ -195,6 +195,7 @@ static int vbsfCheckHandleAccess(SHFLCLIENTDATA *pClient, SHFLROOT root,
  * @param  fWritable  whether the shared folder is writable
  * @param  fShflFlags shared folder create flags
  * @param  fMode      file attributes
+ * @param  handleInitial initial handle
  * @retval pfOpen     iprt create flags
  */
 static int vbsfConvertFileOpenFlags(bool fWritable, unsigned fShflFlags, RTFMODE fMode, SHFLHANDLE handleInitial, uint32_t *pfOpen)
@@ -760,7 +761,8 @@ static int vbsfCloseFile(SHFLFILEHANDLE *pHandle)
  * Look up file or folder information by host path.
  *
  * @returns iprt status code (currently VINF_SUCCESS)
- * @param   pszFullPath    The path of the file to be looked up
+ * @param   pClient    client data
+ * @param   pszPath    The path of the file to be looked up
  * @retval  pParms->Result Status of the operation (success or error)
  * @retval  pParms->Info   On success, information returned about the file
  */
@@ -818,6 +820,7 @@ void testCreate(RTTEST hTest)
     /* Add tests as required... */
 }
 #endif
+
 /**
  * Create or open a file or folder.  Perform character set and case
  * conversion on the file name if necessary.
@@ -1614,7 +1617,11 @@ int vbsfQueryVolumeInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, uint32_t flags, 
     int            rc = VINF_SUCCESS;
     SHFLVOLINFO   *pSFDEntry;
     char          *pszFullPath = NULL;
-    SHFLSTRING     dummy;
+    union
+    {
+        SHFLSTRING  Dummy;
+        uint8_t     abDummy[SHFLSTRING_HEADER_SIZE + sizeof(RTUTF16)];
+    } Buf;
 
     if (pcbBuffer == 0 || pBuffer == 0 || *pcbBuffer < sizeof(SHFLVOLINFO))
     {
@@ -1628,9 +1635,9 @@ int vbsfQueryVolumeInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, uint32_t flags, 
     *pcbBuffer  = 0;
     pSFDEntry   = (PSHFLVOLINFO)pBuffer;
 
-    ShflStringInitBuffer(&dummy, sizeof(dummy));
-    dummy.String.ucs2[0] = '\0';
-    rc = vbsfBuildFullPath(pClient, root, &dummy, sizeof(dummy), &pszFullPath, NULL);
+    ShflStringInitBuffer(&Buf.Dummy, sizeof(Buf));
+    Buf.Dummy.String.ucs2[0] = '\0';
+    rc = vbsfBuildFullPath(pClient, root, &Buf.Dummy, sizeof(Buf), &pszFullPath, NULL);
 
     if (RT_SUCCESS(rc))
     {
@@ -1936,9 +1943,6 @@ int vbsfRename(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pSrc, SHFLSTR
             }
         }
 
-#ifndef DEBUG_dmik
-        AssertRC(rc);
-#endif
         /* free the path string */
         vbsfFreeFullPath(pszFullPathDest);
     }

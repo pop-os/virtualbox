@@ -187,6 +187,8 @@ typedef struct VHDIMAGE
     uint64_t        u64DataOffset;
     /** Flag to force dynamic disk header update. */
     bool            fDynHdrNeedsUpdate;
+    /** The static region list. */
+    VDREGIONLIST    RegionList;
 } VHDIMAGE, *PVHDIMAGE;
 
 /**
@@ -257,10 +259,10 @@ static const VDFILEEXTENSION s_aVhdFileExtensions[] =
  */
 static uint32_t vhdChecksum(void *pHeader, uint32_t cbSize)
 {
-    uint32_t checksum = 0;
+    uint32_t u32ChkSum = 0;
     for (uint32_t i = 0; i < cbSize; i++)
-        checksum += ((unsigned char *)pHeader)[i];
-    return ~checksum;
+        u32ChkSum += ((unsigned char *)pHeader)[i];
+    return ~u32ChkSum;
 }
 
 /**
@@ -271,30 +273,29 @@ static int vhdFilenameToUtf16(const char *pszFilename, uint16_t *pu16Buf,
                               bool fBigEndian)
 {
     int      rc;
-    PRTUTF16 tmp16 = NULL;
+    PRTUTF16 pTmp16 = NULL;
     size_t   cTmp16Len;
 
-    rc = RTStrToUtf16(pszFilename, &tmp16);
-    if (RT_FAILURE(rc))
-        goto out;
-    cTmp16Len = RTUtf16Len(tmp16);
-    if (cTmp16Len * sizeof(*tmp16) > cbBufSize)
+    rc = RTStrToUtf16(pszFilename, &pTmp16);
+    if (RT_SUCCESS(rc))
     {
-        rc = VERR_FILENAME_TOO_LONG;
-        goto out;
+        cTmp16Len = RTUtf16Len(pTmp16);
+        if (cTmp16Len * sizeof(*pTmp16) <= cbBufSize)
+        {
+            if (fBigEndian)
+                for (unsigned i = 0; i < cTmp16Len; i++)
+                    pu16Buf[i] = RT_H2BE_U16(pTmp16[i]);
+            else
+                memcpy(pu16Buf, pTmp16, cTmp16Len * sizeof(*pTmp16));
+            if (pcbActualSize)
+                *pcbActualSize = (uint32_t)(cTmp16Len * sizeof(*pTmp16));
+        }
+        else
+            rc = VERR_FILENAME_TOO_LONG;
     }
 
-    if (fBigEndian)
-        for (unsigned i = 0; i < cTmp16Len; i++)
-            pu16Buf[i] = RT_H2BE_U16(tmp16[i]);
-    else
-        memcpy(pu16Buf, tmp16, cTmp16Len * sizeof(*tmp16));
-    if (pcbActualSize)
-        *pcbActualSize = (uint32_t)(cTmp16Len * sizeof(*tmp16));
-
-out:
-    if (tmp16)
-        RTUtf16Free(tmp16);
+    if (pTmp16)
+        RTUtf16Free(pTmp16);
     return rc;
 }
 
@@ -586,7 +587,11 @@ static int vhdFreeImage(PVHDIMAGE pImage, bool fDelete)
         }
 
         if (fDelete && pImage->pszFilename)
-            vdIfIoIntFileDelete(pImage->pIfIo, pImage->pszFilename);
+        {
+            int rc2 = vdIfIoIntFileDelete(pImage->pIfIo, pImage->pszFilename);
+            if (RT_SUCCESS(rc))
+                rc = rc2;
+        }
     }
 
     LogFlowFunc(("returns %Rrc\n", rc));
@@ -892,7 +897,21 @@ static int vhdOpenImage(PVHDIMAGE pImage, unsigned uOpenFlags)
     if (!(pImage->uImageFlags & VD_IMAGE_FLAGS_FIXED))
         rc = vhdLoadDynamicDisk(pImage, pImage->u64DataOffset);
 
-    if (RT_FAILURE(rc))
+    if (RT_SUCCESS(rc))
+    {
+        PVDREGIONDESC pRegion = &pImage->RegionList.aRegions[0];
+        pImage->RegionList.fFlags   = 0;
+        pImage->RegionList.cRegions = 1;
+
+        pRegion->offRegion            = 0; /* Disk start. */
+        pRegion->cbBlock              = 512;
+        pRegion->enmDataForm          = VDREGIONDATAFORM_RAW;
+        pRegion->enmMetadataForm      = VDREGIONMETADATAFORM_NONE;
+        pRegion->cbData               = 512;
+        pRegion->cbMetadata           = 0;
+        pRegion->cRegionBlocksOrBytes = pImage->cbSize;
+    }
+    else
         vhdFreeImage(pImage, false);
     return rc;
 }
@@ -1112,247 +1131,237 @@ static int vhdCreateImage(PVHDIMAGE pImage, uint64_t cbSize,
                           PCVDGEOMETRY pPCHSGeometry,
                           PCVDGEOMETRY pLCHSGeometry, PCRTUUID pUuid,
                           unsigned uOpenFlags,
-                          PFNVDPROGRESS pfnProgress, void *pvUser,
+                          PVDINTERFACEPROGRESS pIfProgress,
                           unsigned uPercentStart, unsigned uPercentSpan)
 {
     RT_NOREF3(pszComment, pPCHSGeometry, pLCHSGeometry);
-    int rc;
     VHDFooter Footer;
     RTTIMESPEC now;
 
     pImage->uOpenFlags = uOpenFlags;
     pImage->uImageFlags = uImageFlags;
-
     pImage->pIfError = VDIfErrorGet(pImage->pVDIfsDisk);
 
-    rc = vdIfIoIntFileOpen(pImage->pIfIo, pImage->pszFilename,
-                           VDOpenFlagsToFileOpenFlags(uOpenFlags & ~VD_OPEN_FLAGS_READONLY,
-                                                      true /* fCreate */),
-                           &pImage->pStorage);
-    if (RT_FAILURE(rc))
-        return vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("VHD: cannot create image '%s'"), pImage->pszFilename);
-
-
-    pImage->cbSize = cbSize;
-    pImage->ImageUuid = *pUuid;
-    RTUuidClear(&pImage->ParentUuid);
-    vhdSetDiskGeometry(pImage, cbSize);
-
-    /* Initialize the footer. */
-    memset(&Footer, 0, sizeof(Footer));
-    memcpy(Footer.Cookie, VHD_FOOTER_COOKIE, sizeof(Footer.Cookie));
-    Footer.Features = RT_H2BE_U32(0x2);
-    Footer.Version  = RT_H2BE_U32(VHD_FOOTER_FILE_FORMAT_VERSION);
-    Footer.Timestamp = RT_H2BE_U32(vhdRtTime2VhdTime(RTTimeNow(&now)));
-    memcpy(Footer.CreatorApp, "vbox", sizeof(Footer.CreatorApp));
-    Footer.CreatorVer = RT_H2BE_U32(VBOX_VERSION);
-#ifdef RT_OS_DARWIN
-    Footer.CreatorOS  = RT_H2BE_U32(0x4D616320); /* "Mac " */
-#else /* Virtual PC supports only two platforms atm, so everything else will be Wi2k. */
-    Footer.CreatorOS  = RT_H2BE_U32(0x5769326B); /* "Wi2k" */
-#endif
-    Footer.OrigSize   = RT_H2BE_U64(cbSize);
-    Footer.CurSize    = Footer.OrigSize;
-    Footer.DiskGeometryCylinder = RT_H2BE_U16(pImage->PCHSGeometry.cCylinders);
-    Footer.DiskGeometryHeads    = pImage->PCHSGeometry.cHeads;
-    Footer.DiskGeometrySectors  = pImage->PCHSGeometry.cSectors;
-    memcpy(Footer.UniqueID, pImage->ImageUuid.au8, sizeof(Footer.UniqueID));
-    Footer.SavedState = 0;
-
-    if (uImageFlags & VD_IMAGE_FLAGS_FIXED)
+    int rc = vdIfIoIntFileOpen(pImage->pIfIo, pImage->pszFilename,
+                               VDOpenFlagsToFileOpenFlags(uOpenFlags & ~VD_OPEN_FLAGS_READONLY,
+                                                          true /* fCreate */),
+                               &pImage->pStorage);
+    if (RT_SUCCESS(rc))
     {
-        Footer.DiskType   = RT_H2BE_U32(VHD_FOOTER_DISK_TYPE_FIXED);
-        /*
-         * Initialize fixed image.
-         * "The size of the entire file is the size of the hard disk in
-         * the guest operating system plus the size of the footer."
-         */
-        pImage->u64DataOffset     = VHD_FOOTER_DATA_OFFSET_FIXED;
-        pImage->uCurrentEndOfFile = cbSize;
-        rc = vdIfIoIntFileSetAllocationSize(pImage->pIfIo, pImage->pStorage, pImage->uCurrentEndOfFile + sizeof(VHDFooter),
-                                            0 /* fFlags */, pfnProgress, pvUser, uPercentStart, uPercentSpan);
-        if (RT_FAILURE(rc))
+        pImage->cbSize = cbSize;
+        pImage->ImageUuid = *pUuid;
+        RTUuidClear(&pImage->ParentUuid);
+        vhdSetDiskGeometry(pImage, cbSize);
+
+        /* Initialize the footer. */
+        memset(&Footer, 0, sizeof(Footer));
+        memcpy(Footer.Cookie, VHD_FOOTER_COOKIE, sizeof(Footer.Cookie));
+        Footer.Features = RT_H2BE_U32(0x2);
+        Footer.Version  = RT_H2BE_U32(VHD_FOOTER_FILE_FORMAT_VERSION);
+        Footer.Timestamp = RT_H2BE_U32(vhdRtTime2VhdTime(RTTimeNow(&now)));
+        memcpy(Footer.CreatorApp, "vbox", sizeof(Footer.CreatorApp));
+        Footer.CreatorVer = RT_H2BE_U32(VBOX_VERSION);
+#ifdef RT_OS_DARWIN
+        Footer.CreatorOS  = RT_H2BE_U32(0x4D616320); /* "Mac " */
+#else /* Virtual PC supports only two platforms atm, so everything else will be Wi2k. */
+        Footer.CreatorOS  = RT_H2BE_U32(0x5769326B); /* "Wi2k" */
+#endif
+        Footer.OrigSize   = RT_H2BE_U64(cbSize);
+        Footer.CurSize    = Footer.OrigSize;
+        Footer.DiskGeometryCylinder = RT_H2BE_U16(pImage->PCHSGeometry.cCylinders);
+        Footer.DiskGeometryHeads    = pImage->PCHSGeometry.cHeads;
+        Footer.DiskGeometrySectors  = pImage->PCHSGeometry.cSectors;
+        memcpy(Footer.UniqueID, pImage->ImageUuid.au8, sizeof(Footer.UniqueID));
+        Footer.SavedState = 0;
+
+        if (uImageFlags & VD_IMAGE_FLAGS_FIXED)
         {
-            vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("VHD: cannot set the file size for '%s'"), pImage->pszFilename);
-            goto out;
+            Footer.DiskType = RT_H2BE_U32(VHD_FOOTER_DISK_TYPE_FIXED);
+            /*
+             * Initialize fixed image.
+             * "The size of the entire file is the size of the hard disk in
+             * the guest operating system plus the size of the footer."
+             */
+            pImage->u64DataOffset     = VHD_FOOTER_DATA_OFFSET_FIXED;
+            pImage->uCurrentEndOfFile = cbSize;
+            rc = vdIfIoIntFileSetAllocationSize(pImage->pIfIo, pImage->pStorage, pImage->uCurrentEndOfFile + sizeof(VHDFooter),
+                                                0 /* fFlags */, pIfProgress,
+                                                uPercentStart, uPercentSpan);
+            if (RT_FAILURE(rc))
+                rc =  vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("VHD: cannot set the file size for '%s'"), pImage->pszFilename);
+        }
+        else
+        {
+            /*
+             * Initialize dynamic image.
+             *
+             * The overall structure of dynamic disk is:
+             *
+             * [Copy of hard disk footer (512 bytes)]
+             * [Dynamic disk header (1024 bytes)]
+             * [BAT (Block Allocation Table)]
+             * [Parent Locators]
+             * [Data block 1]
+             * [Data block 2]
+             * ...
+             * [Data block N]
+             * [Hard disk footer (512 bytes)]
+             */
+            Footer.DiskType   = (uImageFlags & VD_IMAGE_FLAGS_DIFF)
+                                  ? RT_H2BE_U32(VHD_FOOTER_DISK_TYPE_DIFFERENCING)
+                                  : RT_H2BE_U32(VHD_FOOTER_DISK_TYPE_DYNAMIC);
+            /* We are half way thorough with creation of image, let the caller know. */
+            vdIfProgress(pIfProgress, (uPercentStart + uPercentSpan) / 2);
+
+            rc = vhdCreateDynamicImage(pImage, cbSize);
+        }
+
+        if (RT_SUCCESS(rc))
+        {
+            /* Compute and update the footer checksum. */
+            Footer.DataOffset = RT_H2BE_U64(pImage->u64DataOffset);
+            Footer.Checksum   = 0;
+            Footer.Checksum   = RT_H2BE_U32(vhdChecksum(&Footer, sizeof(Footer)));
+
+            pImage->vhdFooterCopy = Footer;
+
+            /* Store the footer */
+            rc = vdIfIoIntFileWriteSync(pImage->pIfIo, pImage->pStorage, pImage->uCurrentEndOfFile,
+                                        &Footer, sizeof(Footer));
+            if (RT_SUCCESS(rc))
+            {
+                /* Dynamic images contain a copy of the footer at the very beginning of the file. */
+                if (!(uImageFlags & VD_IMAGE_FLAGS_FIXED))
+                {
+                    /* Write the copy of the footer. */
+                    rc = vdIfIoIntFileWriteSync(pImage->pIfIo, pImage->pStorage, 0, &Footer, sizeof(Footer));
+                    if (RT_FAILURE(rc))
+                        rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("VHD: cannot write a copy of footer to image '%s'"), pImage->pszFilename);
+                }
+            }
+            else
+                rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("VHD: cannot write footer to image '%s'"), pImage->pszFilename);
         }
     }
     else
+        rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("VHD: cannot create image '%s'"), pImage->pszFilename);
+
+    if (RT_SUCCESS(rc))
+        vdIfProgress(pIfProgress, uPercentStart + uPercentSpan);
+
+    if (RT_SUCCESS(rc))
     {
-        /*
-         * Initialize dynamic image.
-         *
-         * The overall structure of dynamic disk is:
-         *
-         * [Copy of hard disk footer (512 bytes)]
-         * [Dynamic disk header (1024 bytes)]
-         * [BAT (Block Allocation Table)]
-         * [Parent Locators]
-         * [Data block 1]
-         * [Data block 2]
-         * ...
-         * [Data block N]
-         * [Hard disk footer (512 bytes)]
-         */
-        Footer.DiskType   = (uImageFlags & VD_IMAGE_FLAGS_DIFF)
-                              ? RT_H2BE_U32(VHD_FOOTER_DISK_TYPE_DIFFERENCING)
-                              : RT_H2BE_U32(VHD_FOOTER_DISK_TYPE_DYNAMIC);
-        /* We are half way thorough with creation of image, let the caller know. */
-        if (pfnProgress)
-            pfnProgress(pvUser, (uPercentStart + uPercentSpan) / 2);
+        PVDREGIONDESC pRegion = &pImage->RegionList.aRegions[0];
+        pImage->RegionList.fFlags   = 0;
+        pImage->RegionList.cRegions = 1;
 
-        rc = vhdCreateDynamicImage(pImage, cbSize);
-        if (RT_FAILURE(rc))
-            goto out;
+        pRegion->offRegion            = 0; /* Disk start. */
+        pRegion->cbBlock              = 512;
+        pRegion->enmDataForm          = VDREGIONDATAFORM_RAW;
+        pRegion->enmMetadataForm      = VDREGIONMETADATAFORM_NONE;
+        pRegion->cbData               = 512;
+        pRegion->cbMetadata           = 0;
+        pRegion->cRegionBlocksOrBytes = pImage->cbSize;
     }
-
-    Footer.DataOffset = RT_H2BE_U64(pImage->u64DataOffset);
-
-    /* Compute and update the footer checksum. */
-    Footer.Checksum = 0;
-    Footer.Checksum = RT_H2BE_U32(vhdChecksum(&Footer, sizeof(Footer)));
-
-    pImage->vhdFooterCopy = Footer;
-
-    /* Store the footer */
-    rc = vdIfIoIntFileWriteSync(pImage->pIfIo, pImage->pStorage, pImage->uCurrentEndOfFile,
-                                &Footer, sizeof(Footer));
-    if (RT_FAILURE(rc))
-    {
-        vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("VHD: cannot write footer to image '%s'"), pImage->pszFilename);
-        goto out;
-    }
-
-    /* Dynamic images contain a copy of the footer at the very beginning of the file. */
-    if (!(uImageFlags & VD_IMAGE_FLAGS_FIXED))
-    {
-        /* Write the copy of the footer. */
-        rc = vdIfIoIntFileWriteSync(pImage->pIfIo, pImage->pStorage, 0, &Footer, sizeof(Footer));
-        if (RT_FAILURE(rc))
-        {
-            vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("VHD: cannot write a copy of footer to image '%s'"), pImage->pszFilename);
-            goto out;
-        }
-    }
-
-out:
-    if (RT_SUCCESS(rc) && pfnProgress)
-        pfnProgress(pvUser, uPercentStart + uPercentSpan);
-
-    if (RT_FAILURE(rc))
+    else
         vhdFreeImage(pImage, rc != VERR_ALREADY_EXISTS);
     return rc;
 }
 
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnCheckIfValid} */
-static DECLCALLBACK(int) vhdCheckIfValid(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
-                                         PVDINTERFACE pVDIfsImage, VDTYPE *penmType)
+/** @interface_method_impl{VDIMAGEBACKEND,pfnProbe} */
+static DECLCALLBACK(int) vhdProbe(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
+                                  PVDINTERFACE pVDIfsImage, VDTYPE *penmType)
 {
     RT_NOREF1(pVDIfsDisk);
     LogFlowFunc(("pszFilename=\"%s\" pVDIfsDisk=%#p pVDIfsImage=%#p\n", pszFilename, pVDIfsDisk, pVDIfsImage));
-    int rc;
     PVDIOSTORAGE pStorage;
-    uint64_t cbFile;
-    VHDFooter vhdFooter;
-
     PVDINTERFACEIOINT pIfIo = VDIfIoIntGet(pVDIfsImage);
     AssertPtrReturn(pIfIo, VERR_INVALID_PARAMETER);
 
-    rc = vdIfIoIntFileOpen(pIfIo, pszFilename,
-                           VDOpenFlagsToFileOpenFlags(VD_OPEN_FLAGS_READONLY,
-                                                      false /* fCreate */),
-                           &pStorage);
-    if (RT_FAILURE(rc))
-        goto out;
-
-    rc = vdIfIoIntFileGetSize(pIfIo, pStorage, &cbFile);
-    if (RT_FAILURE(rc))
-    {
-        vdIfIoIntFileClose(pIfIo, pStorage);
-        rc = VERR_VD_VHD_INVALID_HEADER;
-        goto out;
-    }
-
-    rc = vdIfIoIntFileReadSync(pIfIo, pStorage, cbFile - sizeof(VHDFooter),
-                               &vhdFooter, sizeof(VHDFooter));
+    int rc = vdIfIoIntFileOpen(pIfIo, pszFilename,
+                               VDOpenFlagsToFileOpenFlags(VD_OPEN_FLAGS_READONLY,
+                                                          false /* fCreate */),
+                               &pStorage);
     if (RT_SUCCESS(rc))
     {
-        if (memcmp(vhdFooter.Cookie, VHD_FOOTER_COOKIE, VHD_FOOTER_COOKIE_SIZE) != 0)
+        uint64_t cbFile;
+
+        rc = vdIfIoIntFileGetSize(pIfIo, pStorage, &cbFile);
+        if (   RT_SUCCESS(rc)
+            && cbFile >= sizeof(VHDFooter))
         {
-            /*
-             * There is also a backup header at the beginning in case the image got corrupted.
-             * Such corrupted images are detected here to let the open handler repair it later.
-             */
-            rc = vdIfIoIntFileReadSync(pIfIo, pStorage, 0, &vhdFooter, sizeof(VHDFooter));
-            if (   RT_FAILURE(rc)
-                || (memcmp(vhdFooter.Cookie, VHD_FOOTER_COOKIE, VHD_FOOTER_COOKIE_SIZE) != 0))
-                   rc = VERR_VD_VHD_INVALID_HEADER;
+            VHDFooter vhdFooter;
+
+            rc = vdIfIoIntFileReadSync(pIfIo, pStorage, cbFile - sizeof(VHDFooter),
+                                       &vhdFooter, sizeof(VHDFooter));
+            if (RT_SUCCESS(rc))
+            {
+                if (memcmp(vhdFooter.Cookie, VHD_FOOTER_COOKIE, VHD_FOOTER_COOKIE_SIZE) != 0)
+                {
+                    /*
+                     * There is also a backup header at the beginning in case the image got corrupted.
+                     * Such corrupted images are detected here to let the open handler repair it later.
+                     */
+                    rc = vdIfIoIntFileReadSync(pIfIo, pStorage, 0, &vhdFooter, sizeof(VHDFooter));
+                    if (   RT_FAILURE(rc)
+                        || (memcmp(vhdFooter.Cookie, VHD_FOOTER_COOKIE, VHD_FOOTER_COOKIE_SIZE) != 0))
+                           rc = VERR_VD_VHD_INVALID_HEADER;
+                }
+
+                if (RT_SUCCESS(rc))
+                    *penmType = VDTYPE_HDD;
+            }
+            else
+                rc = VERR_VD_VHD_INVALID_HEADER;
         }
+        else if (RT_SUCCESS(rc))
+            rc = VERR_VD_VHD_INVALID_HEADER;
 
-        if (RT_SUCCESS(rc))
-            *penmType = VDTYPE_HDD;
+        vdIfIoIntFileClose(pIfIo, pStorage);
     }
-    else
-        rc = VERR_VD_VHD_INVALID_HEADER;
 
-    vdIfIoIntFileClose(pIfIo, pStorage);
-
-out:
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnOpen} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnOpen} */
 static DECLCALLBACK(int) vhdOpen(const char *pszFilename, unsigned uOpenFlags,
                                  PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
                                  VDTYPE enmType, void **ppBackendData)
 {
-    LogFlowFunc(("pszFilename=\"%s\" uOpenFlags=%#x pVDIfsDisk=%#p pVDIfsImage=%#p enmType=%u ppBackendData=%#p\n", pszFilename, uOpenFlags, pVDIfsDisk, pVDIfsImage, enmType, ppBackendData));
-    int rc = VINF_SUCCESS;
-    PVHDIMAGE pImage;
+    RT_NOREF1(enmType); /**< @todo r=klaus make use of the type info. */
 
-    NOREF(enmType); /**< @todo r=klaus make use of the type info. */
+    LogFlowFunc(("pszFilename=\"%s\" uOpenFlags=%#x pVDIfsDisk=%#p pVDIfsImage=%#p enmType=%u ppBackendData=%#p\n",
+                 pszFilename, uOpenFlags, pVDIfsDisk, pVDIfsImage, enmType, ppBackendData));
+    int rc = VINF_SUCCESS;
 
     /* Check open flags. All valid flags are supported. */
-    if (uOpenFlags & ~VD_OPEN_FLAGS_MASK)
+    AssertReturn(!(uOpenFlags & ~VD_OPEN_FLAGS_MASK), VERR_INVALID_PARAMETER);
+    AssertReturn((VALID_PTR(pszFilename) && *pszFilename), VERR_INVALID_PARAMETER);
+
+    PVHDIMAGE pImage = (PVHDIMAGE)RTMemAllocZ(RT_UOFFSETOF(VHDIMAGE, RegionList.aRegions[1]));
+    if (RT_LIKELY(pImage))
     {
-        rc = VERR_INVALID_PARAMETER;
-        goto out;
+        pImage->pszFilename = pszFilename;
+        pImage->pStorage = NULL;
+        pImage->pVDIfsDisk = pVDIfsDisk;
+        pImage->pVDIfsImage = pVDIfsImage;
+
+        rc = vhdOpenImage(pImage, uOpenFlags);
+        if (RT_SUCCESS(rc))
+            *ppBackendData = pImage;
+        else
+            RTMemFree(pImage);
     }
-
-    /* Check remaining arguments. */
-    if (   !VALID_PTR(pszFilename)
-        || !*pszFilename)
-    {
-        rc = VERR_INVALID_PARAMETER;
-        goto out;
-    }
-
-    pImage = (PVHDIMAGE)RTMemAllocZ(sizeof(VHDIMAGE));
-    if (!pImage)
-    {
-        rc = VERR_NO_MEMORY;
-        goto out;
-    }
-
-    pImage->pszFilename = pszFilename;
-    pImage->pStorage = NULL;
-    pImage->pVDIfsDisk = pVDIfsDisk;
-    pImage->pVDIfsImage = pVDIfsImage;
-
-    rc = vhdOpenImage(pImage, uOpenFlags);
-    if (RT_SUCCESS(rc))
-        *ppBackendData = pImage;
     else
-        RTMemFree(pImage);
+        rc = VERR_NO_MEMORY;
 
-out:
     LogFlowFunc(("returns %Rrc (pBackendData=%#p)\n", rc, *ppBackendData));
     return rc;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnCreate} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnCreate} */
 static DECLCALLBACK(int) vhdCreate(const char *pszFilename, uint64_t cbSize,
                                    unsigned uImageFlags, const char *pszComment,
                                    PCVDGEOMETRY pPCHSGeometry, PCVDGEOMETRY pLCHSGeometry,
@@ -1364,82 +1373,64 @@ static DECLCALLBACK(int) vhdCreate(const char *pszFilename, uint64_t cbSize,
 {
     LogFlowFunc(("pszFilename=\"%s\" cbSize=%llu uImageFlags=%#x pszComment=\"%s\" pPCHSGeometry=%#p pLCHSGeometry=%#p Uuid=%RTuuid uOpenFlags=%#x uPercentStart=%u uPercentSpan=%u pVDIfsDisk=%#p pVDIfsImage=%#p pVDIfsOperation=%#p enmType=%u ppBackendData=%#p",
                  pszFilename, cbSize, uImageFlags, pszComment, pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags, uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation, enmType, ppBackendData));
-    int rc = VINF_SUCCESS;
-    PVHDIMAGE pImage;
-
-    PFNVDPROGRESS pfnProgress = NULL;
-    void *pvUser = NULL;
+    int rc;
     PVDINTERFACEPROGRESS pIfProgress = VDIfProgressGet(pVDIfsOperation);
-    if (pIfProgress)
-    {
-        pfnProgress = pIfProgress->pfnProgress;
-        pvUser = pIfProgress->Core.pvUser;
-    }
 
     /* Check the VD container type. */
     if (enmType != VDTYPE_HDD)
-    {
-        rc = VERR_VD_INVALID_TYPE;
-        goto out;
-    }
+        return VERR_VD_INVALID_TYPE;
 
     /* Check open flags. All valid flags are supported. */
-    if (uOpenFlags & ~VD_OPEN_FLAGS_MASK)
-    {
-        rc = VERR_INVALID_PARAMETER;
-        return rc;
-    }
-
+    AssertReturn(!(uOpenFlags & ~VD_OPEN_FLAGS_MASK), VERR_INVALID_PARAMETER);
+    AssertReturn(   VALID_PTR(pszFilename)
+                 && *pszFilename
+                 && VALID_PTR(pPCHSGeometry)
+                 && VALID_PTR(pLCHSGeometry), VERR_INVALID_PARAMETER);
     /** @todo Check the values of other params */
 
-    pImage = (PVHDIMAGE)RTMemAllocZ(sizeof(VHDIMAGE));
-    if (!pImage)
+    PVHDIMAGE pImage = (PVHDIMAGE)RTMemAllocZ(RT_UOFFSETOF(VHDIMAGE, RegionList.aRegions[1]));
+    if (RT_LIKELY(pImage))
     {
-        rc = VERR_NO_MEMORY;
-        return rc;
-    }
-    pImage->pszFilename = pszFilename;
-    pImage->pStorage = NULL;
-    pImage->pVDIfsDisk = pVDIfsDisk;
-    pImage->pVDIfsImage = pVDIfsImage;
+        pImage->pszFilename = pszFilename;
+        pImage->pStorage = NULL;
+        pImage->pVDIfsDisk = pVDIfsDisk;
+        pImage->pVDIfsImage = pVDIfsImage;
 
-    /* Get I/O interface. */
-    pImage->pIfIo = VDIfIoIntGet(pImage->pVDIfsImage);
-    if (RT_UNLIKELY(!VALID_PTR(pImage->pIfIo)))
-    {
-        RTMemFree(pImage);
-        return VERR_INVALID_PARAMETER;
-    }
-
-    rc = vhdCreateImage(pImage, cbSize, uImageFlags, pszComment,
-                        pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags,
-                        pfnProgress, pvUser, uPercentStart, uPercentSpan);
-
-    if (RT_SUCCESS(rc))
-    {
-        /* So far the image is opened in read/write mode. Make sure the
-         * image is opened in read-only mode if the caller requested that. */
-        if (uOpenFlags & VD_OPEN_FLAGS_READONLY)
+        /* Get I/O interface. */
+        pImage->pIfIo = VDIfIoIntGet(pImage->pVDIfsImage);
+        if (RT_LIKELY(VALID_PTR(pImage->pIfIo)))
         {
-            vhdFreeImage(pImage, false);
-            rc = vhdOpenImage(pImage, uOpenFlags);
-            if (RT_FAILURE(rc))
+            rc = vhdCreateImage(pImage, cbSize, uImageFlags, pszComment,
+                                pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags,
+                                pIfProgress, uPercentStart, uPercentSpan);
+            if (RT_SUCCESS(rc))
             {
-                RTMemFree(pImage);
-                goto out;
+                /* So far the image is opened in read/write mode. Make sure the
+                 * image is opened in read-only mode if the caller requested that. */
+                if (uOpenFlags & VD_OPEN_FLAGS_READONLY)
+                {
+                    vhdFreeImage(pImage, false);
+                    rc = vhdOpenImage(pImage, uOpenFlags);
+                }
+
+                if (RT_SUCCESS(rc))
+                    *ppBackendData = pImage;
             }
         }
-        *ppBackendData = pImage;
+        else
+            rc = VERR_INVALID_PARAMETER;
+
+        if (RT_FAILURE(rc))
+            RTMemFree(pImage);
     }
     else
-        RTMemFree(pImage);
+        rc = VERR_NO_MEMORY;
 
-out:
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnRename} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnRename} */
 static DECLCALLBACK(int) vhdRename(void *pBackendData, const char *pszFilename)
 {
     LogFlowFunc(("pBackendData=%#p pszFilename=%#p\n", pBackendData, pszFilename));
@@ -1447,69 +1438,63 @@ static DECLCALLBACK(int) vhdRename(void *pBackendData, const char *pszFilename)
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
 
     /* Check arguments. */
-    if (   !pImage
-        || !pszFilename
-        || !*pszFilename)
-    {
-        rc = VERR_INVALID_PARAMETER;
-        goto out;
-    }
+    AssertReturn((pImage && pszFilename && *pszFilename), VERR_INVALID_PARAMETER);
 
     /* Close the image. */
     rc = vhdFreeImage(pImage, false);
-    if (RT_FAILURE(rc))
-        goto out;
-
-    /* Rename the file. */
-    rc = vdIfIoIntFileMove(pImage->pIfIo, pImage->pszFilename, pszFilename, 0);
-    if (RT_FAILURE(rc))
+    if (RT_SUCCESS(rc))
     {
-        /* The move failed, try to reopen the original image. */
-        int rc2 = vhdOpenImage(pImage, pImage->uOpenFlags);
-        if (RT_FAILURE(rc2))
-            rc = rc2;
+        /* Rename the file. */
+        rc = vdIfIoIntFileMove(pImage->pIfIo, pImage->pszFilename, pszFilename, 0);
+        if (RT_SUCCESS(rc))
+        {
+            /* Update pImage with the new information. */
+            pImage->pszFilename = pszFilename;
 
-        goto out;
+            /* Open the old file with new name. */
+            rc = vhdOpenImage(pImage, pImage->uOpenFlags);
+        }
+        else
+        {
+            /* The move failed, try to reopen the original image. */
+            int rc2 = vhdOpenImage(pImage, pImage->uOpenFlags);
+            if (RT_FAILURE(rc2))
+                rc = rc2;
+        }
     }
 
-    /* Update pImage with the new information. */
-    pImage->pszFilename = pszFilename;
-
-    /* Open the old file with new name. */
-    rc = vhdOpenImage(pImage, pImage->uOpenFlags);
-    if (RT_FAILURE(rc))
-        goto out;
-
-out:
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnClose} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnClose} */
 static DECLCALLBACK(int) vhdClose(void *pBackendData, bool fDelete)
 {
     LogFlowFunc(("pBackendData=%#p fDelete=%d\n", pBackendData, fDelete));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
-    int rc;
 
-    rc = vhdFreeImage(pImage, fDelete);
+    int rc = vhdFreeImage(pImage, fDelete);
     RTMemFree(pImage);
 
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnRead} */
-static DECLCALLBACK(int) vhdRead(void *pBackendData, uint64_t uOffset, size_t cbRead,
+/** @interface_method_impl{VDIMAGEBACKEND,pfnRead} */
+static DECLCALLBACK(int) vhdRead(void *pBackendData, uint64_t uOffset, size_t cbToRead,
                                  PVDIOCTX pIoCtx, size_t *pcbActuallyRead)
 {
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
     int rc = VINF_SUCCESS;
 
-    LogFlowFunc(("pBackendData=%p uOffset=%#llx pIoCtx=%#p cbRead=%u pcbActuallyRead=%p\n", pBackendData, uOffset, pIoCtx, cbRead, pcbActuallyRead));
+    LogFlowFunc(("pBackendData=%p uOffset=%#llx pIoCtx=%#p cbToRead=%u pcbActuallyRead=%p\n",
+                 pBackendData, uOffset, pIoCtx, cbToRead, pcbActuallyRead));
 
-    if (uOffset + cbRead > pImage->cbSize)
-        return VERR_INVALID_PARAMETER;
+    AssertPtr(pImage);
+    Assert(uOffset % 512 == 0);
+    Assert(cbToRead % 512 == 0);
+    AssertReturn((VALID_PTR(pIoCtx) && cbToRead), VERR_INVALID_PARAMETER);
+    AssertReturn(uOffset + cbToRead <= pImage->cbSize, VERR_INVALID_PARAMETER);
 
     /*
      * If we have a dynamic disk image, we need to find the data block and sector to read.
@@ -1529,7 +1514,7 @@ static DECLCALLBACK(int) vhdRead(void *pBackendData, uint64_t uOffset, size_t cb
         /*
          * Clip read range to remain in this data block.
          */
-        cbRead = RT_MIN(cbRead, (pImage->cbDataBlock - (cBATEntryIndex * VHD_SECTOR_SIZE)));
+        cbToRead = RT_MIN(cbToRead, (pImage->cbDataBlock - (cBATEntryIndex * VHD_SECTOR_SIZE)));
 
         /*
          * If the block is not allocated the content of the entry is ~0
@@ -1539,7 +1524,7 @@ static DECLCALLBACK(int) vhdRead(void *pBackendData, uint64_t uOffset, size_t cb
         else
         {
             uVhdOffset = ((uint64_t)pImage->pBlockAllocationTable[cBlockAllocationTableEntry] + pImage->cDataBlockBitmapSectors + cBATEntryIndex) * VHD_SECTOR_SIZE;
-            LogFlowFunc(("uVhdOffset=%llu cbRead=%u\n", uVhdOffset, cbRead));
+            LogFlowFunc(("uVhdOffset=%llu cbToRead=%u\n", uVhdOffset, cbToRead));
 
             /* Read in the block's bitmap. */
             PVDMETAXFER pMetaXfer;
@@ -1563,18 +1548,18 @@ static DECLCALLBACK(int) vhdRead(void *pBackendData, uint64_t uOffset, size_t cb
                      * can from child. Note that only sectors that are marked dirty
                      * must be read from child.
                      */
-                    while (   (cSectors < (cbRead / VHD_SECTOR_SIZE))
+                    while (   (cSectors < (cbToRead / VHD_SECTOR_SIZE))
                            && vhdBlockBitmapSectorContainsData(pImage, cBATEntryIndex))
                     {
                         cBATEntryIndex++;
                         cSectors++;
                     }
 
-                    cbRead = cSectors * VHD_SECTOR_SIZE;
+                    cbToRead = cSectors * VHD_SECTOR_SIZE;
 
-                    LogFlowFunc(("uVhdOffset=%llu cbRead=%u\n", uVhdOffset, cbRead));
+                    LogFlowFunc(("uVhdOffset=%llu cbToRead=%u\n", uVhdOffset, cbToRead));
                     rc = vdIfIoIntFileReadUser(pImage->pIfIo, pImage->pStorage,
-                                               uVhdOffset, pIoCtx, cbRead);
+                                               uVhdOffset, pIoCtx, cbToRead);
                 }
                 else
                 {
@@ -1589,15 +1574,15 @@ static DECLCALLBACK(int) vhdRead(void *pBackendData, uint64_t uOffset, size_t cb
                     cBATEntryIndex++;
                     cSectors = 1;
 
-                    while (   (cSectors < (cbRead / VHD_SECTOR_SIZE))
+                    while (   (cSectors < (cbToRead / VHD_SECTOR_SIZE))
                            && !vhdBlockBitmapSectorContainsData(pImage, cBATEntryIndex))
                     {
                         cBATEntryIndex++;
                         cSectors++;
                     }
 
-                    cbRead = cSectors * VHD_SECTOR_SIZE;
-                    LogFunc(("Sectors free: uVhdOffset=%llu cbRead=%u\n", uVhdOffset, cbRead));
+                    cbToRead = cSectors * VHD_SECTOR_SIZE;
+                    LogFunc(("Sectors free: uVhdOffset=%llu cbToRead=%u\n", uVhdOffset, cbToRead));
                     rc = VERR_VD_BLOCK_FREE;
                 }
             }
@@ -1606,29 +1591,31 @@ static DECLCALLBACK(int) vhdRead(void *pBackendData, uint64_t uOffset, size_t cb
         }
     }
     else
-        rc = vdIfIoIntFileReadUser(pImage->pIfIo, pImage->pStorage, uOffset, pIoCtx, cbRead);
+        rc = vdIfIoIntFileReadUser(pImage->pIfIo, pImage->pStorage, uOffset, pIoCtx, cbToRead);
 
     if (pcbActuallyRead)
-        *pcbActuallyRead = cbRead;
+        *pcbActuallyRead = cbToRead;
 
     LogFlowFunc(("returns rc=%Rrc\n", rc));
     return rc;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnWrite} */
-static DECLCALLBACK(int) vhdWrite(void *pBackendData, uint64_t uOffset, size_t cbWrite,
+/** @interface_method_impl{VDIMAGEBACKEND,pfnWrite} */
+static DECLCALLBACK(int) vhdWrite(void *pBackendData, uint64_t uOffset, size_t cbToWrite,
                          PVDIOCTX pIoCtx, size_t *pcbWriteProcess, size_t *pcbPreRead,
                          size_t *pcbPostRead, unsigned fWrite)
 {
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
     int rc = VINF_SUCCESS;
 
-    LogFlowFunc(("pBackendData=%p uOffset=%llu pIoCtx=%#p cbWrite=%u pcbWriteProcess=%p pcbPreRead=%p pcbPostRead=%p fWrite=%u\n",
-             pBackendData, uOffset, pIoCtx, cbWrite, pcbWriteProcess, pcbPreRead, pcbPostRead, fWrite));
+    LogFlowFunc(("pBackendData=%p uOffset=%llu pIoCtx=%#p cbToWrite=%u pcbWriteProcess=%p pcbPreRead=%p pcbPostRead=%p fWrite=%u\n",
+             pBackendData, uOffset, pIoCtx, cbToWrite, pcbWriteProcess, pcbPreRead, pcbPostRead, fWrite));
 
     AssertPtr(pImage);
-    Assert(uOffset % VHD_SECTOR_SIZE == 0);
-    Assert(cbWrite % VHD_SECTOR_SIZE == 0);
+    Assert(!(uOffset % VHD_SECTOR_SIZE));
+    Assert(!(cbToWrite % VHD_SECTOR_SIZE));
+    AssertReturn((VALID_PTR(pIoCtx) && cbToWrite), VERR_INVALID_PARAMETER);
+    AssertReturn(uOffset + cbToWrite <= pImage->cbSize, VERR_INVALID_PARAMETER);
 
     if (pImage->pBlockAllocationTable)
     {
@@ -1643,7 +1630,7 @@ static DECLCALLBACK(int) vhdWrite(void *pBackendData, uint64_t uOffset, size_t c
         /*
          * Clip write range.
          */
-        cbWrite = RT_MIN(cbWrite, (pImage->cbDataBlock - (cBATEntryIndex * VHD_SECTOR_SIZE)));
+        cbToWrite = RT_MIN(cbToWrite, (pImage->cbDataBlock - (cBATEntryIndex * VHD_SECTOR_SIZE)));
 
         /*
          * If the block is not allocated the content of the entry is ~0
@@ -1658,13 +1645,13 @@ static DECLCALLBACK(int) vhdWrite(void *pBackendData, uint64_t uOffset, size_t c
         {
             /* Check if the block allocation should be suppressed. */
             if (   (fWrite & VD_WRITE_NO_ALLOC)
-                || (cbWrite != pImage->cbDataBlock))
+                || (cbToWrite != pImage->cbDataBlock))
             {
                 *pcbPreRead = cBATEntryIndex * VHD_SECTOR_SIZE;
-                *pcbPostRead = pImage->cSectorsPerDataBlock * VHD_SECTOR_SIZE - cbWrite - *pcbPreRead;
+                *pcbPostRead = pImage->cSectorsPerDataBlock * VHD_SECTOR_SIZE - cbToWrite - *pcbPreRead;
 
                 if (pcbWriteProcess)
-                    *pcbWriteProcess = cbWrite;
+                    *pcbWriteProcess = cbToWrite;
                 return VERR_VD_BLOCK_FREE;
             }
 
@@ -1679,7 +1666,7 @@ static DECLCALLBACK(int) vhdWrite(void *pBackendData, uint64_t uOffset, size_t c
             pExpand->idxBlockBe = RT_H2BE_U32(pImage->uCurrentEndOfFile / VHD_SECTOR_SIZE);
 
             /* Set the bits for all sectors having been written. */
-            for (uint32_t iSector = 0; iSector < (cbWrite / VHD_SECTOR_SIZE); iSector++)
+            for (uint32_t iSector = 0; iSector < (cbToWrite / VHD_SECTOR_SIZE); iSector++)
             {
                 /* No need to check for a changed value because this is an initial write. */
                 vhdBlockBitmapSectorSet(pImage, pExpand->au8Bitmap, cBATEntryIndex);
@@ -1716,7 +1703,7 @@ static DECLCALLBACK(int) vhdWrite(void *pBackendData, uint64_t uOffset, size_t c
                  */
                 rc = vdIfIoIntFileWriteUser(pImage->pIfIo, pImage->pStorage,
                                             pImage->uCurrentEndOfFile + (pImage->cDataBlockBitmapSectors + (cSector % pImage->cSectorsPerDataBlock)) * VHD_SECTOR_SIZE,
-                                            pIoCtx, cbWrite,
+                                            pIoCtx, cbToWrite,
                                             vhdAsyncExpansionDataComplete,
                                             pExpand);
                 if (RT_SUCCESS(rc))
@@ -1799,14 +1786,14 @@ static DECLCALLBACK(int) vhdWrite(void *pBackendData, uint64_t uOffset, size_t c
 
                 /* Write data. */
                 rc = vdIfIoIntFileWriteUser(pImage->pIfIo, pImage->pStorage,
-                                            uVhdOffset, pIoCtx, cbWrite,
+                                            uVhdOffset, pIoCtx, cbToWrite,
                                             NULL, NULL);
                 if (RT_SUCCESS(rc) || rc == VERR_VD_ASYNC_IO_IN_PROGRESS)
                 {
                     bool fChanged = false;
 
                     /* Set the bits for all sectors having been written. */
-                    for (uint32_t iSector = 0; iSector < (cbWrite / VHD_SECTOR_SIZE); iSector++)
+                    for (uint32_t iSector = 0; iSector < (cbToWrite / VHD_SECTOR_SIZE); iSector++)
                     {
                         fChanged |= vhdBlockBitmapSectorSet(pImage, pImage->pu8Bitmap, cBATEntryIndex);
                         cBATEntryIndex++;
@@ -1836,10 +1823,10 @@ static DECLCALLBACK(int) vhdWrite(void *pBackendData, uint64_t uOffset, size_t c
     }
     else
         rc = vdIfIoIntFileWriteUser(pImage->pIfIo, pImage->pStorage,
-                                    uOffset, pIoCtx, cbWrite, NULL, NULL);
+                                    uOffset, pIoCtx, cbToWrite, NULL, NULL);
 
     if (pcbWriteProcess)
-        *pcbWriteProcess = cbWrite;
+        *pcbWriteProcess = cbToWrite;
 
     /* Stay on the safe side. Do not run the risk of confusing the higher
      * level, as that can be pretty lethal to image consistency. */
@@ -1849,421 +1836,322 @@ static DECLCALLBACK(int) vhdWrite(void *pBackendData, uint64_t uOffset, size_t c
     return rc;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnFlush} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnFlush} */
 static DECLCALLBACK(int) vhdFlush(void *pBackendData, PVDIOCTX pIoCtx)
 {
+    LogFlowFunc(("pBackendData=%#p\n", pBackendData));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
 
     /* No need to write anything here. Data is always updated on a write. */
-    return vdIfIoIntFileFlush(pImage->pIfIo, pImage->pStorage, pIoCtx, NULL, NULL);
+    int rc = vdIfIoIntFileFlush(pImage->pIfIo, pImage->pStorage, pIoCtx, NULL, NULL);
+    LogFlowFunc(("returns %Rrc\n", rc));
+    return rc;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnGetVersion} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnGetVersion} */
 static DECLCALLBACK(unsigned) vhdGetVersion(void *pBackendData)
 {
     LogFlowFunc(("pBackendData=%#p\n", pBackendData));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
-    unsigned ver = 0;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, 0);
 
-    if (pImage)
-        ver = 1; /**< @todo use correct version */
+    unsigned uVersion = 1; /**< @todo use correct version */
 
-    LogFlowFunc(("returns %u\n", ver));
-    return ver;
+    LogFlowFunc(("returns %u\n", uVersion));
+    return uVersion;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnGetSectorSize} */
-static DECLCALLBACK(uint32_t) vhdGetSectorSize(void *pBackendData)
-{
-    LogFlowFunc(("pBackendData=%#p\n", pBackendData));
-    PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
-    uint32_t cb = 0;
-
-    AssertPtr(pImage);
-
-    if (pImage)
-        cb = 512;
-
-    LogFlowFunc(("returns %zu\n", cb));
-    return cb;
-}
-
-/** @interface_method_impl{VBOXHDDBACKEND,pfnGetSize} */
-static DECLCALLBACK(uint64_t) vhdGetSize(void *pBackendData)
-{
-    LogFlowFunc(("pBackendData=%#p\n", pBackendData));
-    PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
-    uint64_t cb = 0;
-
-    AssertPtr(pImage);
-
-    if (pImage && pImage->pStorage)
-        cb = pImage->cbSize;
-
-    LogFlowFunc(("returns %llu\n", cb));
-    return cb;
-}
-
-/** @interface_method_impl{VBOXHDDBACKEND,pfnGetFileSize} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnGetFileSize} */
 static DECLCALLBACK(uint64_t) vhdGetFileSize(void *pBackendData)
 {
     LogFlowFunc(("pBackendData=%#p\n", pBackendData));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
     uint64_t cb = 0;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, 0);
 
-    if (pImage && pImage->pStorage)
+    if (pImage->pStorage)
         cb = pImage->uCurrentEndOfFile + sizeof(VHDFooter);
 
     LogFlowFunc(("returns %lld\n", cb));
     return cb;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnGetPCHSGeometry} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnGetPCHSGeometry} */
 static DECLCALLBACK(int) vhdGetPCHSGeometry(void *pBackendData, PVDGEOMETRY pPCHSGeometry)
 {
     LogFlowFunc(("pBackendData=%#p pPCHSGeometry=%#p\n", pBackendData, pPCHSGeometry));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
-    int rc;
+    int rc = VINF_SUCCESS;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
 
-    if (pImage)
-    {
-        if (pImage->PCHSGeometry.cCylinders)
-        {
-            *pPCHSGeometry = pImage->PCHSGeometry;
-            rc = VINF_SUCCESS;
-        }
-        else
-            rc = VERR_VD_GEOMETRY_NOT_SET;
-    }
+    if (pImage->PCHSGeometry.cCylinders)
+        *pPCHSGeometry = pImage->PCHSGeometry;
     else
-        rc = VERR_VD_NOT_OPENED;
+        rc = VERR_VD_GEOMETRY_NOT_SET;
 
-    LogFlowFunc(("returns %Rrc (CHS=%u/%u/%u)\n", rc, pImage->PCHSGeometry.cCylinders, pImage->PCHSGeometry.cHeads, pImage->PCHSGeometry.cSectors));
+    LogFlowFunc(("returns %Rrc (CHS=%u/%u/%u)\n", rc, pImage->PCHSGeometry.cCylinders,
+                 pImage->PCHSGeometry.cHeads, pImage->PCHSGeometry.cSectors));
     return rc;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnSetPCHSGeometry} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnSetPCHSGeometry} */
 static DECLCALLBACK(int) vhdSetPCHSGeometry(void *pBackendData, PCVDGEOMETRY pPCHSGeometry)
 {
-    LogFlowFunc(("pBackendData=%#p pPCHSGeometry=%#p PCHS=%u/%u/%u\n", pBackendData, pPCHSGeometry, pPCHSGeometry->cCylinders, pPCHSGeometry->cHeads, pPCHSGeometry->cSectors));
+    LogFlowFunc(("pBackendData=%#p pPCHSGeometry=%#p PCHS=%u/%u/%u\n",
+                 pBackendData, pPCHSGeometry, pPCHSGeometry->cCylinders, pPCHSGeometry->cHeads, pPCHSGeometry->cSectors));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
-    int rc;
+    int rc = VINF_SUCCESS;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
 
-    if (pImage)
-    {
-        if (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
-        {
-            rc = VERR_VD_IMAGE_READ_ONLY;
-            goto out;
-        }
-
-        pImage->PCHSGeometry = *pPCHSGeometry;
-        rc = VINF_SUCCESS;
-    }
+    if (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
+        rc = VERR_VD_IMAGE_READ_ONLY;
     else
-        rc = VERR_VD_NOT_OPENED;
+        pImage->PCHSGeometry = *pPCHSGeometry;
 
-out:
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnGetLCHSGeometry} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnGetLCHSGeometry} */
 static DECLCALLBACK(int) vhdGetLCHSGeometry(void *pBackendData, PVDGEOMETRY pLCHSGeometry)
 {
-LogFlowFunc(("pBackendData=%#p pLCHSGeometry=%#p\n", pBackendData, pLCHSGeometry));
+    LogFlowFunc(("pBackendData=%#p pLCHSGeometry=%#p\n", pBackendData, pLCHSGeometry));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
-    int rc;
+    int rc = VINF_SUCCESS;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
 
-    if (pImage)
-    {
-        if (pImage->LCHSGeometry.cCylinders)
-        {
-            *pLCHSGeometry = pImage->LCHSGeometry;
-            rc = VINF_SUCCESS;
-        }
-        else
-            rc = VERR_VD_GEOMETRY_NOT_SET;
-    }
+    if (pImage->LCHSGeometry.cCylinders)
+        *pLCHSGeometry = pImage->LCHSGeometry;
     else
-        rc = VERR_VD_NOT_OPENED;
+        rc = VERR_VD_GEOMETRY_NOT_SET;
 
-    LogFlowFunc(("returns %Rrc (CHS=%u/%u/%u)\n", rc, pImage->LCHSGeometry.cCylinders, pImage->LCHSGeometry.cHeads, pImage->LCHSGeometry.cSectors));
+    LogFlowFunc(("returns %Rrc (CHS=%u/%u/%u)\n", rc, pImage->LCHSGeometry.cCylinders,
+                 pImage->LCHSGeometry.cHeads, pImage->LCHSGeometry.cSectors));
     return rc;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnSetLCHSGeometry} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnSetLCHSGeometry} */
 static DECLCALLBACK(int) vhdSetLCHSGeometry(void *pBackendData, PCVDGEOMETRY pLCHSGeometry)
 {
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
-    int rc;
+    int rc = VINF_SUCCESS;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
 
-    if (pImage)
-    {
-        if (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
-        {
-            rc = VERR_VD_IMAGE_READ_ONLY;
-            goto out;
-        }
-
-        pImage->LCHSGeometry = *pLCHSGeometry;
-        rc = VINF_SUCCESS;
-    }
+    if (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
+        rc = VERR_VD_IMAGE_READ_ONLY;
     else
-        rc = VERR_VD_NOT_OPENED;
+        pImage->LCHSGeometry = *pLCHSGeometry;
 
-out:
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnGetImageFlags} */
+/** @copydoc VDIMAGEBACKEND::pfnQueryRegions */
+static DECLCALLBACK(int) vhdQueryRegions(void *pBackendData, PCVDREGIONLIST *ppRegionList)
+{
+    LogFlowFunc(("pBackendData=%#p ppRegionList=%#p\n", pBackendData, ppRegionList));
+    PVHDIMAGE pThis = (PVHDIMAGE)pBackendData;
+
+    AssertPtrReturn(pThis, VERR_VD_NOT_OPENED);
+
+    *ppRegionList = &pThis->RegionList;
+    LogFlowFunc(("returns %Rrc\n", VINF_SUCCESS));
+    return VINF_SUCCESS;
+}
+
+/** @copydoc VDIMAGEBACKEND::pfnRegionListRelease */
+static DECLCALLBACK(void) vhdRegionListRelease(void *pBackendData, PCVDREGIONLIST pRegionList)
+{
+    RT_NOREF1(pRegionList);
+    LogFlowFunc(("pBackendData=%#p pRegionList=%#p\n", pBackendData, pRegionList));
+    PVHDIMAGE pThis = (PVHDIMAGE)pBackendData;
+    AssertPtr(pThis); RT_NOREF(pThis);
+
+    /* Nothing to do here. */
+}
+
+/** @interface_method_impl{VDIMAGEBACKEND,pfnGetImageFlags} */
 static DECLCALLBACK(unsigned) vhdGetImageFlags(void *pBackendData)
 {
     LogFlowFunc(("pBackendData=%#p\n", pBackendData));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
-    unsigned uImageFlags;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, 0);
 
-    if (pImage)
-        uImageFlags = pImage->uImageFlags;
-    else
-        uImageFlags = 0;
-
-    LogFlowFunc(("returns %#x\n", uImageFlags));
-    return uImageFlags;
+    LogFlowFunc(("returns %#x\n", pImage->uImageFlags));
+    return pImage->uImageFlags;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnGetOpenFlags} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnGetOpenFlags} */
 static DECLCALLBACK(unsigned) vhdGetOpenFlags(void *pBackendData)
 {
     LogFlowFunc(("pBackendData=%#p\n", pBackendData));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
-    unsigned uOpenFlags;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, 0);
 
-    if (pImage)
-        uOpenFlags = pImage->uOpenFlags;
-    else
-        uOpenFlags = 0;
-
-    LogFlowFunc(("returns %#x\n", uOpenFlags));
-    return uOpenFlags;
+    LogFlowFunc(("returns %#x\n", pImage->uOpenFlags));
+    return pImage->uOpenFlags;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnSetOpenFlags} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnSetOpenFlags} */
 static DECLCALLBACK(int) vhdSetOpenFlags(void *pBackendData, unsigned uOpenFlags)
 {
     LogFlowFunc(("pBackendData=%#p\n uOpenFlags=%#x", pBackendData, uOpenFlags));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
-    int rc;
+    int rc = VINF_SUCCESS;
 
     /* Image must be opened and the new flags must be valid. */
     if (!pImage || (uOpenFlags & ~(  VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_INFO
                                    | VD_OPEN_FLAGS_ASYNC_IO | VD_OPEN_FLAGS_SHAREABLE
                                    | VD_OPEN_FLAGS_SEQUENTIAL | VD_OPEN_FLAGS_SKIP_CONSISTENCY_CHECKS)))
-    {
         rc = VERR_INVALID_PARAMETER;
-        goto out;
+    else
+    {
+        /* Implement this operation via reopening the image. */
+        rc = vhdFreeImage(pImage, false);
+        if (RT_SUCCESS(rc))
+            rc = vhdOpenImage(pImage, uOpenFlags);
     }
 
-    /* Implement this operation via reopening the image. */
-    rc = vhdFreeImage(pImage, false);
-    if (RT_FAILURE(rc))
-        goto out;
-    rc = vhdOpenImage(pImage, uOpenFlags);
-
-out:
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnGetComment} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnGetComment} */
 static DECLCALLBACK(int) vhdGetComment(void *pBackendData, char *pszComment,
                                        size_t cbComment)
 {
     RT_NOREF2(pszComment, cbComment);
     LogFlowFunc(("pBackendData=%#p pszComment=%#p cbComment=%zu\n", pBackendData, pszComment, cbComment));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
-    int rc;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
 
-    if (pImage)
-        rc = VERR_NOT_SUPPORTED;
-    else
-        rc = VERR_VD_NOT_OPENED;
-
-    LogFlowFunc(("returns %Rrc comment='%s'\n", rc, pszComment));
-    return rc;
+    LogFlowFunc(("returns %Rrc comment='%s'\n", VERR_NOT_SUPPORTED, pszComment));
+    return VERR_NOT_SUPPORTED;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnSetComment} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnSetComment} */
 static DECLCALLBACK(int) vhdSetComment(void *pBackendData, const char *pszComment)
 {
     RT_NOREF1(pszComment);
     LogFlowFunc(("pBackendData=%#p pszComment=\"%s\"\n", pBackendData, pszComment));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
+
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
+
     int rc;
-
-    AssertPtr(pImage);
-
-    if (pImage)
-    {
-        if (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
-            rc = VERR_VD_IMAGE_READ_ONLY;
-        else
-            rc = VERR_NOT_SUPPORTED;
-    }
+    if (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
+        rc = VERR_VD_IMAGE_READ_ONLY;
     else
-        rc = VERR_VD_NOT_OPENED;
+        rc = VERR_NOT_SUPPORTED;
 
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnGetUuid} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnGetUuid} */
 static DECLCALLBACK(int) vhdGetUuid(void *pBackendData, PRTUUID pUuid)
 {
     LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
-    int rc;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
 
-    if (pImage)
-    {
-        *pUuid = pImage->ImageUuid;
-        rc = VINF_SUCCESS;
-    }
-    else
-        rc = VERR_VD_NOT_OPENED;
+    *pUuid = pImage->ImageUuid;
 
-    LogFlowFunc(("returns %Rrc (%RTuuid)\n", rc, pUuid));
-    return rc;
+    LogFlowFunc(("returns %Rrc (%RTuuid)\n", VINF_SUCCESS, pUuid));
+    return VINF_SUCCESS;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnSetUuid} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnSetUuid} */
 static DECLCALLBACK(int) vhdSetUuid(void *pBackendData, PCRTUUID pUuid)
-{
-    LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
-    PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
-    int rc;
-
-    AssertPtr(pImage);
-
-    if (pImage)
-    {
-        if (!(pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY))
-        {
-            pImage->ImageUuid = *pUuid;
-            /* Update the footer copy. It will get written to disk when the image is closed. */
-            memcpy(&pImage->vhdFooterCopy.UniqueID, pUuid, 16);
-            /* Update checksum. */
-            pImage->vhdFooterCopy.Checksum = 0;
-            pImage->vhdFooterCopy.Checksum = RT_H2BE_U32(vhdChecksum(&pImage->vhdFooterCopy, sizeof(VHDFooter)));
-
-            /* Need to update the dynamic disk header to update the disk footer copy at the beginning. */
-            if (!(pImage->uImageFlags & VD_IMAGE_FLAGS_FIXED))
-                pImage->fDynHdrNeedsUpdate = true;
-            rc = VINF_SUCCESS;
-        }
-        else
-            rc = VERR_VD_IMAGE_READ_ONLY;
-    }
-    else
-        rc = VERR_VD_NOT_OPENED;
-
-    LogFlowFunc(("returns %Rrc\n", rc));
-    return rc;
-}
-
-/** @interface_method_impl{VBOXHDDBACKEND,pfnGetModificationUuid} */
-static DECLCALLBACK(int) vhdGetModificationUuid(void *pBackendData, PRTUUID pUuid)
-{
-    RT_NOREF1(pUuid);
-    LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
-    PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
-    int rc;
-
-    AssertPtr(pImage);
-
-    if (pImage)
-        rc = VERR_NOT_SUPPORTED;
-    else
-        rc = VERR_VD_NOT_OPENED;
-
-    LogFlowFunc(("returns %Rrc (%RTuuid)\n", rc, pUuid));
-    return rc;
-}
-
-/** @interface_method_impl{VBOXHDDBACKEND,pfnSetModificationUuid} */
-static DECLCALLBACK(int) vhdSetModificationUuid(void *pBackendData, PCRTUUID pUuid)
-{
-    RT_NOREF1(pUuid);
-    LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
-    PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
-    int rc;
-
-    AssertPtr(pImage);
-
-    if (pImage)
-    {
-        if (!(pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY))
-            rc = VERR_NOT_SUPPORTED;
-        else
-            rc = VERR_VD_IMAGE_READ_ONLY;
-    }
-    else
-        rc = VERR_VD_NOT_OPENED;
-
-    LogFlowFunc(("returns %Rrc\n", rc));
-    return rc;
-}
-
-/** @interface_method_impl{VBOXHDDBACKEND,pfnGetParentUuid} */
-static DECLCALLBACK(int) vhdGetParentUuid(void *pBackendData, PRTUUID pUuid)
-{
-    LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
-    PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
-    int rc;
-
-    AssertPtr(pImage);
-
-    if (pImage)
-    {
-        *pUuid = pImage->ParentUuid;
-        rc = VINF_SUCCESS;
-    }
-    else
-        rc = VERR_VD_NOT_OPENED;
-
-    LogFlowFunc(("returns %Rrc (%RTuuid)\n", rc, pUuid));
-    return rc;
-}
-
-/** @interface_method_impl{VBOXHDDBACKEND,pfnSetParentUuid} */
-static DECLCALLBACK(int) vhdSetParentUuid(void *pBackendData, PCRTUUID pUuid)
 {
     LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
     int rc = VINF_SUCCESS;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
+
+    if (!(pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY))
+    {
+        pImage->ImageUuid = *pUuid;
+        /* Update the footer copy. It will get written to disk when the image is closed. */
+        memcpy(&pImage->vhdFooterCopy.UniqueID, pUuid, 16);
+        /* Update checksum. */
+        pImage->vhdFooterCopy.Checksum = 0;
+        pImage->vhdFooterCopy.Checksum = RT_H2BE_U32(vhdChecksum(&pImage->vhdFooterCopy, sizeof(VHDFooter)));
+
+        /* Need to update the dynamic disk header to update the disk footer copy at the beginning. */
+        if (!(pImage->uImageFlags & VD_IMAGE_FLAGS_FIXED))
+            pImage->fDynHdrNeedsUpdate = true;
+    }
+    else
+        rc = VERR_VD_IMAGE_READ_ONLY;
+
+    LogFlowFunc(("returns %Rrc\n", rc));
+    return rc;
+}
+
+/** @interface_method_impl{VDIMAGEBACKEND,pfnGetModificationUuid} */
+static DECLCALLBACK(int) vhdGetModificationUuid(void *pBackendData, PRTUUID pUuid)
+{
+    RT_NOREF1(pUuid);
+    LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
+    PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
+
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
+
+    LogFlowFunc(("returns %Rrc (%RTuuid)\n", VERR_NOT_SUPPORTED, pUuid));
+    return VERR_NOT_SUPPORTED;
+}
+
+/** @interface_method_impl{VDIMAGEBACKEND,pfnSetModificationUuid} */
+static DECLCALLBACK(int) vhdSetModificationUuid(void *pBackendData, PCRTUUID pUuid)
+{
+    RT_NOREF1(pUuid);
+    LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
+    PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
+
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
+
+    int rc;
+    if (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
+        rc = VERR_VD_IMAGE_READ_ONLY;
+    else
+        rc = VERR_NOT_SUPPORTED;
+
+    LogFlowFunc(("returns %Rrc\n", rc));
+    return rc;
+}
+
+/** @interface_method_impl{VDIMAGEBACKEND,pfnGetParentUuid} */
+static DECLCALLBACK(int) vhdGetParentUuid(void *pBackendData, PRTUUID pUuid)
+{
+    LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
+    PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
+
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
+
+    *pUuid = pImage->ParentUuid;
+
+    LogFlowFunc(("returns %Rrc (%RTuuid)\n", VINF_SUCCESS, pUuid));
+    return VINF_SUCCESS;
+}
+
+/** @interface_method_impl{VDIMAGEBACKEND,pfnSetParentUuid} */
+static DECLCALLBACK(int) vhdSetParentUuid(void *pBackendData, PCRTUUID pUuid)
+{
+    LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
+    PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
+    int rc = VINF_SUCCESS;
 
     if (pImage && pImage->pStorage)
     {
@@ -2282,170 +2170,134 @@ static DECLCALLBACK(int) vhdSetParentUuid(void *pBackendData, PCRTUUID pUuid)
     return rc;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnGetParentModificationUuid} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnGetParentModificationUuid} */
 static DECLCALLBACK(int) vhdGetParentModificationUuid(void *pBackendData, PRTUUID pUuid)
 {
     RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
-    int rc;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
 
-    if (pImage)
-        rc = VERR_NOT_SUPPORTED;
-    else
-        rc = VERR_VD_NOT_OPENED;
-
-    LogFlowFunc(("returns %Rrc (%RTuuid)\n", rc, pUuid));
-    return rc;
+    LogFlowFunc(("returns %Rrc (%RTuuid)\n", VERR_NOT_SUPPORTED, pUuid));
+    return VERR_NOT_SUPPORTED;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnSetParentModificationUuid} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnSetParentModificationUuid} */
 static DECLCALLBACK(int) vhdSetParentModificationUuid(void *pBackendData, PCRTUUID pUuid)
 {
     RT_NOREF1(pUuid);
     LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
+
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
+
     int rc;
-
-    AssertPtr(pImage);
-
-    if (pImage)
-    {
-        if (!(pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY))
-            rc = VERR_NOT_SUPPORTED;
-        else
-            rc = VERR_VD_IMAGE_READ_ONLY;
-    }
+    if (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
+        rc = VERR_VD_IMAGE_READ_ONLY;
     else
-        rc = VERR_VD_NOT_OPENED;
+        rc = VERR_NOT_SUPPORTED;
 
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnDump} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnDump} */
 static DECLCALLBACK(void) vhdDump(void *pBackendData)
 {
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
 
-    AssertPtr(pImage);
-    if (pImage)
-    {
-        vdIfErrorMessage(pImage->pIfError, "Header: Geometry PCHS=%u/%u/%u LCHS=%u/%u/%u cbSector=%u\n",
-                         pImage->PCHSGeometry.cCylinders, pImage->PCHSGeometry.cHeads, pImage->PCHSGeometry.cSectors,
-                         pImage->LCHSGeometry.cCylinders, pImage->LCHSGeometry.cHeads, pImage->LCHSGeometry.cSectors,
-                         VHD_SECTOR_SIZE);
-        vdIfErrorMessage(pImage->pIfError, "Header: uuidCreation={%RTuuid}\n", &pImage->ImageUuid);
-        vdIfErrorMessage(pImage->pIfError, "Header: uuidParent={%RTuuid}\n", &pImage->ParentUuid);
-    }
+    AssertPtrReturnVoid(pImage);
+    vdIfErrorMessage(pImage->pIfError, "Header: Geometry PCHS=%u/%u/%u LCHS=%u/%u/%u cbSector=%u\n",
+                     pImage->PCHSGeometry.cCylinders, pImage->PCHSGeometry.cHeads, pImage->PCHSGeometry.cSectors,
+                     pImage->LCHSGeometry.cCylinders, pImage->LCHSGeometry.cHeads, pImage->LCHSGeometry.cSectors,
+                     VHD_SECTOR_SIZE);
+    vdIfErrorMessage(pImage->pIfError, "Header: uuidCreation={%RTuuid}\n", &pImage->ImageUuid);
+    vdIfErrorMessage(pImage->pIfError, "Header: uuidParent={%RTuuid}\n", &pImage->ParentUuid);
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnGetTimestamp} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnGetTimestamp} */
 static DECLCALLBACK(int) vhdGetTimestamp(void *pBackendData, PRTTIMESPEC pTimestamp)
 {
-    int rc = VINF_SUCCESS;
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
 
-    if (pImage)
-        rc = vdIfIoIntFileGetModificationTime(pImage->pIfIo, pImage->pszFilename, pTimestamp);
-    else
-        rc = VERR_VD_NOT_OPENED;
+    int rc = vdIfIoIntFileGetModificationTime(pImage->pIfIo, pImage->pszFilename, pTimestamp);
 
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnGetParentTimestamp} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnGetParentTimestamp} */
 static DECLCALLBACK(int) vhdGetParentTimestamp(void *pBackendData, PRTTIMESPEC pTimestamp)
 {
-    int rc = VINF_SUCCESS;
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
 
-    if (pImage)
-        vhdTime2RtTime(pTimestamp, pImage->u32ParentTimestamp);
-    else
-        rc = VERR_VD_NOT_OPENED;
-
-    LogFlowFunc(("returns %Rrc\n", rc));
-    return rc;
+    vhdTime2RtTime(pTimestamp, pImage->u32ParentTimestamp);
+    LogFlowFunc(("returns %Rrc\n", VINF_SUCCESS));
+    return VINF_SUCCESS;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnSetParentTimestamp} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnSetParentTimestamp} */
 static DECLCALLBACK(int) vhdSetParentTimestamp(void *pBackendData, PCRTTIMESPEC pTimestamp)
 {
     int rc = VINF_SUCCESS;
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
 
-    AssertPtr(pImage);
-    if (pImage)
-    {
-        if (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
-            rc = VERR_VD_IMAGE_READ_ONLY;
-        else
-        {
-            pImage->u32ParentTimestamp = vhdRtTime2VhdTime(pTimestamp);
-            pImage->fDynHdrNeedsUpdate = true;
-        }
-    }
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
+    if (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
+        rc = VERR_VD_IMAGE_READ_ONLY;
     else
-        rc = VERR_VD_NOT_OPENED;
+    {
+        pImage->u32ParentTimestamp = vhdRtTime2VhdTime(pTimestamp);
+        pImage->fDynHdrNeedsUpdate = true;
+    }
 
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnGetParentFilename} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnGetParentFilename} */
 static DECLCALLBACK(int) vhdGetParentFilename(void *pBackendData, char **ppszParentFilename)
 {
-    int rc = VINF_SUCCESS;
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
 
-    AssertPtr(pImage);
-    if (pImage)
-        *ppszParentFilename = RTStrDup(pImage->pszParentFilename);
-    else
-        rc = VERR_VD_NOT_OPENED;
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
+    *ppszParentFilename = RTStrDup(pImage->pszParentFilename);
 
-    LogFlowFunc(("returns %Rrc\n", rc));
-    return rc;
+    LogFlowFunc(("returns %Rrc\n", VINF_SUCCESS));
+    return VINF_SUCCESS;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnSetParentFilename} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnSetParentFilename} */
 static DECLCALLBACK(int) vhdSetParentFilename(void *pBackendData, const char *pszParentFilename)
 {
     int rc = VINF_SUCCESS;
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
 
-    AssertPtr(pImage);
-    if (pImage)
-    {
-        if (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
-            rc = VERR_VD_IMAGE_READ_ONLY;
-        else
-        {
-            if (pImage->pszParentFilename)
-                RTStrFree(pImage->pszParentFilename);
-            pImage->pszParentFilename = RTStrDup(pszParentFilename);
-            if (!pImage->pszParentFilename)
-                rc = VERR_NO_MEMORY;
-            else
-                pImage->fDynHdrNeedsUpdate = true;
-        }
-    }
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
+
+    if (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
+        rc = VERR_VD_IMAGE_READ_ONLY;
     else
-        rc = VERR_VD_NOT_OPENED;
+    {
+        if (pImage->pszParentFilename)
+            RTStrFree(pImage->pszParentFilename);
+        pImage->pszParentFilename = RTStrDup(pszParentFilename);
+        if (!pImage->pszParentFilename)
+            rc = VERR_NO_MEMORY;
+        else
+            pImage->fDynHdrNeedsUpdate = true;
+    }
 
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnCompact} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnCompact} */
 static DECLCALLBACK(int) vhdCompact(void *pBackendData, unsigned uPercentStart,
                                     unsigned uPercentSpan, PVDINTERFACE pVDIfsDisk,
                                     PVDINTERFACE pVDIfsImage, PVDINTERFACE pVDIfsOperation)
@@ -2455,6 +2307,7 @@ static DECLCALLBACK(int) vhdCompact(void *pBackendData, unsigned uPercentStart,
     int rc = VINF_SUCCESS;
     void *pvBuf = NULL;
     uint32_t *paBlocks = NULL;
+    PVDINTERFACEPROGRESS pIfProgress = VDIfProgressGet(pVDIfsOperation);
 
     DECLCALLBACKMEMBER(int, pfnParentRead)(void *, uint64_t, void *, size_t) = NULL;
     void *pvParent = NULL;
@@ -2463,15 +2316,6 @@ static DECLCALLBACK(int) vhdCompact(void *pBackendData, unsigned uPercentStart,
     {
         pfnParentRead = pIfParentState->pfnParentRead;
         pvParent = pIfParentState->Core.pvUser;
-    }
-
-    PFNVDPROGRESS pfnProgress = NULL;
-    void *pvUser = NULL;
-    PVDINTERFACEPROGRESS pIfProgress = VDIfProgressGet(pVDIfsOperation);
-    if (pIfProgress)
-    {
-        pfnProgress = pIfProgress->pfnProgress;
-        pvUser = pIfProgress->Core.pvUser;
     }
 
     do
@@ -2582,13 +2426,7 @@ static DECLCALLBACK(int) vhdCompact(void *pBackendData, unsigned uPercentStart,
                 }
             }
 
-            if (pIfProgress && pIfProgress->pfnProgress)
-            {
-                rc = pIfProgress->pfnProgress(pIfProgress->Core.pvUser,
-                                              (uint64_t)i * uPercentSpan / (cBlocks + cBlocksToMove) + uPercentStart);
-                if (RT_FAILURE(rc))
-                    break;
-            }
+            vdIfProgress(pIfProgress, (uint64_t)i * uPercentSpan / (cBlocks + cBlocksToMove) + uPercentStart);
         }
 
         if (RT_SUCCESS(rc))
@@ -2653,14 +2491,7 @@ static DECLCALLBACK(int) vhdCompact(void *pBackendData, unsigned uPercentStart,
                     cBlocksMoved++;
                 }
 
-                if (pIfProgress && pIfProgress->pfnProgress)
-                {
-                    rc = pIfProgress->pfnProgress(pIfProgress->Core.pvUser,
-                                                  (uint64_t)(cBlocks + cBlocksMoved) * uPercentSpan / (cBlocks + cBlocksToMove) + uPercentStart);
-
-                    if (RT_FAILURE(rc))
-                        break;
-                }
+                rc = vdIfProgress(pIfProgress, (uint64_t)(cBlocks + cBlocksMoved) * uPercentSpan / (cBlocks + cBlocksToMove) + uPercentStart);
             }
         }
 
@@ -2675,35 +2506,23 @@ static DECLCALLBACK(int) vhdCompact(void *pBackendData, unsigned uPercentStart,
     if (pvBuf)
         RTMemTmpFree(pvBuf);
 
-    if (RT_SUCCESS(rc) && pIfProgress && pIfProgress->pfnProgress)
-    {
-        pIfProgress->pfnProgress(pIfProgress->Core.pvUser,
-                                 uPercentStart + uPercentSpan);
-    }
+    if (RT_SUCCESS(rc))
+        vdIfProgress(pIfProgress, uPercentStart + uPercentSpan);
 
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnResize} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnResize} */
 static DECLCALLBACK(int) vhdResize(void *pBackendData, uint64_t cbSize,
                                    PCVDGEOMETRY pPCHSGeometry, PCVDGEOMETRY pLCHSGeometry,
                                    unsigned uPercentStart, unsigned uPercentSpan,
                                    PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
                                    PVDINTERFACE pVDIfsOperation)
 {
-    RT_NOREF4(uPercentSpan, uPercentStart, pVDIfsDisk, pVDIfsImage);
+    RT_NOREF5(uPercentSpan, uPercentStart, pVDIfsDisk, pVDIfsImage, pVDIfsOperation);
     PVHDIMAGE pImage = (PVHDIMAGE)pBackendData;
     int rc = VINF_SUCCESS;
-
-    PFNVDPROGRESS pfnProgress = NULL;
-    void *pvUser = NULL;
-    PVDINTERFACEPROGRESS pIfProgress = VDIfProgressGet(pVDIfsOperation);
-    if (pIfProgress)
-    {
-        pfnProgress = pIfProgress->pfnProgress;
-        pvUser = pIfProgress->Core.pvUser;
-    }
 
     /* Making the image smaller is not supported at the moment. */
     if (   cbSize < pImage->cbSize
@@ -2870,7 +2689,7 @@ static DECLCALLBACK(int) vhdResize(void *pBackendData, uint64_t cbSize,
     return rc;
 }
 
-/** @interface_method_impl{VBOXHDDBACKEND,pfnRepair} */
+/** @interface_method_impl{VDIMAGEBACKEND,pfnRepair} */
 static DECLCALLBACK(int) vhdRepair(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
                                    PVDINTERFACE pVDIfsImage, uint32_t fFlags)
 {
@@ -3216,12 +3035,12 @@ static DECLCALLBACK(int) vhdRepair(const char *pszFilename, PVDINTERFACE pVDIfsD
 }
 
 
-const VBOXHDDBACKEND g_VhdBackend =
+const VDIMAGEBACKEND g_VhdBackend =
 {
+    /* u32Version */
+    VD_IMGBACKEND_VERSION,
     /* pszBackendName */
     "VHD",
-    /* cbSize */
-    sizeof(VBOXHDDBACKEND),
     /* uBackendCaps */
     VD_CAP_UUID | VD_CAP_DIFF | VD_CAP_FILE |
     VD_CAP_CREATE_FIXED | VD_CAP_CREATE_DYNAMIC |
@@ -3230,8 +3049,8 @@ const VBOXHDDBACKEND g_VhdBackend =
     s_aVhdFileExtensions,
     /* paConfigInfo */
     NULL,
-    /* pfnCheckIfValid */
-    vhdCheckIfValid,
+    /* pfnProbe */
+    vhdProbe,
     /* pfnOpen */
     vhdOpen,
     /* pfnCreate */
@@ -3250,10 +3069,6 @@ const VBOXHDDBACKEND g_VhdBackend =
     NULL,
     /* pfnGetVersion */
     vhdGetVersion,
-    /* pfnGetSectorSize */
-    vhdGetSectorSize,
-    /* pfnGetSize */
-    vhdGetSize,
     /* pfnGetFileSize */
     vhdGetFileSize,
     /* pfnGetPCHSGeometry */
@@ -3264,6 +3079,10 @@ const VBOXHDDBACKEND g_VhdBackend =
     vhdGetLCHSGeometry,
     /* pfnSetLCHSGeometry */
     vhdSetLCHSGeometry,
+    /* pfnQueryRegions */
+    vhdQueryRegions,
+    /* pfnRegionListRelease */
+    vhdRegionListRelease,
     /* pfnGetImageFlags */
     vhdGetImageFlags,
     /* pfnGetOpenFlags */
@@ -3313,5 +3132,7 @@ const VBOXHDDBACKEND g_VhdBackend =
     /* pfnRepair */
     vhdRepair,
     /* pfnTraverseMetadata */
-    NULL
+    NULL,
+    /* u32VersionEnd */
+    VD_IMGBACKEND_VERSION
 };

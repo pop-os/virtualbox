@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!DOCTYPE TS>
-<TS version="2.1" language="el">
+<TS version="2.0" language="el">
 <context>
     <name>AudioOutput</name>
     <message>
@@ -8954,14 +8954,6 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <message>
         <source>Only the Unicode Codepoint Collation is supported(%1). %2 is unsupported.</source>
         <translation>Μόνο το Unicode Codepoint Collation υποστηρίζεται(%1). %2 δεν υποστηρίζεται.</translation>
-    </message>
-    <message>
-        <source>Attribute %1 can&apos;t be serialized because it appears at the top level.</source>
-        <translation>Η ιδιότητα %1 δε μπορεί να σειριοποιηθεί επειδή εμφανίζεται στο άνω επίπεδο.</translation>
-    </message>
-    <message>
-        <source>The namespace for a user defined function cannot be empty (try the predefined prefix %1 which exists for cases like this)</source>
-        <translation>Ο χώρος ονομάτων για μια συνάρτηση ορισμένη από το χρήστη δε μπορεί να ειναι κενός (δοκιμάστε το προκαθορισμένο πρόθεμα %1 που υπάρχει για περιπτώσεις σαν αυτή)</translation>
     </message>
 </context>
 <context>

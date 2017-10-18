@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,56 +21,54 @@
 
 /* Qt includes: */
 # include <QMenuBar>
-# include <QStatusBar>
 # include <QResizeEvent>
-# include <QStackedWidget>
+# include <QStandardPaths>
+# include <QStatusBar>
 # include <QToolButton>
 # include <QTimer>
-# if QT_VERSION >= 0x050000
-#  include <QStandardPaths>
-# else /* QT_VERSION < 0x050000 */
-#  include <QDesktopServices>
-# endif /* QT_VERSION < 0x050000 */
 
 /* GUI includes: */
-# include "QISplitter.h"
 # include "QIFileDialog.h"
-# include "UIBar.h"
-# ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-#  include "UINetworkManager.h"
-#  include "UINetworkManagerIndicator.h"
-#  include "UIUpdateManager.h"
-#  include "UIDownloaderUserManual.h"
-#  include "UIDownloaderExtensionPack.h"
-# endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-# include "UIIconPool.h"
+# include "QISplitter.h"
+# include "UIActionPoolSelector.h"
+# include "UIDesktopServices.h"
+# include "UIErrorString.h"
+# include "UIExtraDataManager.h"
+# include "UIGChooser.h"
+# include "UIGlobalSettingsExtension.h"
+# include "UIHostNetworkManager.h"
+# include "UIMedium.h"
+# include "UIMediumManager.h"
+# include "UIMessageCenter.h"
+# include "UIModalWindowManager.h"
+# include "UISelectorWindow.h"
+# include "UISettingsDialogSpecific.h"
+# include "UISlidingWidget.h"
+# include "UITabBar.h"
+# include "UIToolBar.h"
+# include "UIVMLogViewer.h"
+# include "UIVMItem.h"
+# include "UIToolsPaneMachine.h"
+# include "UIToolsToolbar.h"
+# include "UIVirtualBoxEventHandler.h"
 # include "UIWizardCloneVM.h"
 # include "UIWizardExportApp.h"
 # include "UIWizardImportApp.h"
-# include "UIVMDesktop.h"
-# include "UIVirtualBoxEventHandler.h"
-# include "UIMediumManager.h"
-# include "UIMedium.h"
-# include "UIMessageCenter.h"
-# include "UISelectorWindow.h"
-# include "UISettingsDialogSpecific.h"
-# include "UIToolBar.h"
-# include "UIVMLogViewer.h"
-# include "UIDesktopServices.h"
-# include "UIGlobalSettingsExtension.h"
-# include "UIActionPoolSelector.h"
-# include "UIGChooser.h"
-# include "UIGDetails.h"
-# include "UIVMItem.h"
-# include "UIExtraDataManager.h"
-# include "UIDesktopWidgetWatchdog.h"
-# include "UIModalWindowManager.h"
-# include "VBoxGlobal.h"
+# ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+#  include "UINetworkManager.h"
+#  include "UINetworkManagerIndicator.h"
+# endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
 # ifdef VBOX_WS_MAC
-#  include "VBoxUtils.h"
-#  include "UIWindowMenuManager.h"
 #  include "UIImageTools.h"
+#  include "UIWindowMenuManager.h"
+#  include "VBoxUtils.h"
 # endif /* VBOX_WS_MAC */
+# ifdef VBOX_WS_X11
+#  include "UIDesktopWidgetWatchdog.h"
+# endif
+# ifndef VBOX_WS_MAC
+#  include "UIMenuBar.h"
+# endif
 
 /* Other VBox stuff: */
 # include <iprt/buildconfig.h>
@@ -116,17 +114,21 @@ UISelectorWindow::UISelectorWindow()
     : m_fPolished(false)
     , m_fWarningAboutInaccessibleMediaShown(false)
     , m_pActionPool(0)
+    , m_pSlidingWidget(0)
     , m_pSplitter(0)
-#ifndef VBOX_WS_MAC
-    , m_pBar(0)
-#endif /* !VBOX_WS_MAC */
     , m_pToolBar(0)
-    , m_pContainerDetails(0)
+    , m_pTabBarMachine(0)
+    , m_pTabBarGlobal(0)
+    , m_pActionTabBarMachine(0)
+    , m_pActionTabBarGlobal(0)
+    , m_pToolbarTools(0)
     , m_pPaneChooser(0)
-    , m_pPaneDetails(0)
-    , m_pPaneDesktop(0)
+    , m_pPaneToolsMachine(0)
+    , m_pPaneToolsGlobal(0)
     , m_pGroupMenuAction(0)
     , m_pMachineMenuAction(0)
+    , m_pManagerVirtualMedia(0)
+    , m_pManagerHostNetwork(0)
 {
     m_spInstance = this;
 }
@@ -141,7 +143,30 @@ bool UISelectorWindow::shouldBeMaximized() const
     return gEDataManager->selectorWindowShouldBeMaximized();
 }
 
-#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+void UISelectorWindow::sltHandlePolishEvent()
+{
+    /* Get current item: */
+    UIVMItem *pItem = currentItem();
+
+    /* Make sure there is accessible VM item chosen: */
+    if (pItem && pItem->accessible())
+    {
+        // WORKAROUND:
+        // By some reason some of X11 DEs unable to update() tab-bars on startup.
+        // Let's just _create_ them later, asynchronously after the showEvent().
+        /* Restore previously opened Machine tools at startup: */
+        QMap<ToolTypeMachine, QAction*> mapActionsMachine;
+        mapActionsMachine[ToolTypeMachine_Details] = actionPool()->action(UIActionIndexST_M_Tools_M_Machine_S_Details);
+        mapActionsMachine[ToolTypeMachine_Snapshots] = actionPool()->action(UIActionIndexST_M_Tools_M_Machine_S_Snapshots);
+        for (int i = m_orderMachine.size() - 1; i >= 0; --i)
+            if (m_orderMachine.at(i) != ToolTypeMachine_Invalid)
+                mapActionsMachine.value(m_orderMachine.at(i))->trigger();
+        /* Make sure further action triggering cause tool type switch as well: */
+        actionPool()->action(UIActionIndexST_M_Tools_T_Machine)->setProperty("watch_child_activation", true);
+    }
+}
+
+#ifdef VBOX_WS_X11
 void UISelectorWindow::sltHandleHostScreenAvailableAreaChange()
 {
     /* Prevent handling if fake screen detected: */
@@ -152,25 +177,50 @@ void UISelectorWindow::sltHandleHostScreenAvailableAreaChange()
     resize(m_geometry.size());
     move(m_geometry.topLeft());
 }
-#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
+#endif /* VBOX_WS_X11 */
 
 void UISelectorWindow::sltShowSelectorWindowContextMenu(const QPoint &position)
 {
     /* Populate toolbar/statusbar acctions: */
     QList<QAction*> actions;
-    QAction *pShowToolBar = new QAction(tr("Show Toolbar"), 0);
-    pShowToolBar->setCheckable(true);
-#ifdef VBOX_WS_MAC
-    pShowToolBar->setChecked(m_pToolBar->isVisible());
-#else /* VBOX_WS_MAC */
-    pShowToolBar->setChecked(m_pBar->isVisible());
-#endif /* !VBOX_WS_MAC */
-    actions << pShowToolBar;
-    QAction *pShowStatusBar = new QAction(tr("Show Statusbar"), 0);
-    pShowStatusBar->setCheckable(true);
-    pShowStatusBar->setChecked(statusBar()->isVisible());
-    actions << pShowStatusBar;
 
+    /* Create 'Show Toolbar' action: */
+    QAction *pShowToolBar = new QAction(tr("Show Toolbar"), 0);
+    AssertPtrReturnVoid(pShowToolBar);
+    {
+        /* Configure action: */
+        pShowToolBar->setCheckable(true);
+        pShowToolBar->setChecked(m_pToolBar->isVisible());
+
+        /* Add into action list: */
+        actions << pShowToolBar;
+    }
+
+    /* Create 'Show Toolbar Text' action: */
+    QAction *pShowToolBarText = new QAction(tr("Show Toolbar Text"), 0);
+    AssertPtrReturnVoid(pShowToolBarText);
+    {
+        /* Configure action: */
+        pShowToolBarText->setCheckable(true);
+        pShowToolBarText->setChecked(m_pToolBar->toolButtonStyle() == Qt::ToolButtonTextUnderIcon);
+
+        /* Add into action list: */
+        actions << pShowToolBarText;
+    }
+
+    /* Create 'Show Statusbar' action: */
+    QAction *pShowStatusBar = new QAction(tr("Show Statusbar"), 0);
+    AssertPtrReturnVoid(pShowStatusBar);
+    {
+        /* Configure action: */
+        pShowStatusBar->setCheckable(true);
+        pShowStatusBar->setChecked(statusBar()->isVisible());
+
+        /* Add into action list: */
+        actions << pShowStatusBar;
+    }
+
+    /* Prepare the menu position: */
     QPoint globalPosition = position;
     QWidget *pSender = static_cast<QWidget*>(sender());
     if (pSender)
@@ -179,21 +229,16 @@ void UISelectorWindow::sltShowSelectorWindowContextMenu(const QPoint &position)
     if (pResult == pShowToolBar)
     {
         if (pResult->isChecked())
-        {
-#ifdef VBOX_WS_MAC
             m_pToolBar->show();
-#else /* VBOX_WS_MAC */
-            m_pBar->show();
-#endif /* !VBOX_WS_MAC */
-        }
         else
-        {
-#ifdef VBOX_WS_MAC
             m_pToolBar->hide();
-#else /* VBOX_WS_MAC */
-            m_pBar->hide();
-#endif /* !VBOX_WS_MAC */
-        }
+    }
+    else if (pResult == pShowToolBarText)
+    {
+        m_pToolBar->setToolButtonStyle(pResult->isChecked()
+                                       ? Qt::ToolButtonTextUnderIcon : Qt::ToolButtonIconOnly);
+        m_pToolbarTools->setToolButtonStyle(pResult->isChecked()
+                                            ? Qt::ToolButtonTextUnderIcon : Qt::ToolButtonIconOnly);
     }
     else if (pResult == pShowStatusBar)
     {
@@ -204,97 +249,65 @@ void UISelectorWindow::sltShowSelectorWindowContextMenu(const QPoint &position)
     }
 }
 
-void UISelectorWindow::sltHandleDetailsContainerIndexChange(int iIndex)
-{
-    if (iIndex)
-        m_pContainerDetails->setCurrentWidget(m_pPaneDesktop);
-    else
-        m_pContainerDetails->setCurrentWidget(m_pPaneDetails);
-}
-
-void UISelectorWindow::sltHandleChooserPaneIndexChange(bool fRefreshDetails, bool fRefreshSnapshots, bool)
+void UISelectorWindow::sltHandleChooserPaneIndexChange(bool fUpdateDetails /* = true */,
+                                                       bool fUpdateSnapshots /* = true */)
 {
     /* Get current item: */
     UIVMItem *pItem = currentItem();
 
-    /* Determine which menu to show: */
-    m_pGroupMenuAction->setVisible(m_pPaneChooser->isSingleGroupSelected());
-    m_pMachineMenuAction->setVisible(!m_pPaneChooser->isSingleGroupSelected());
-    if (m_pGroupMenuAction->isVisible())
-    {
-        foreach (UIAction *pAction, m_machineActions)
-            pAction->hideShortcut();
-        foreach (UIAction *pAction, m_groupActions)
-            pAction->showShortcut();
-    }
-    else if (m_pMachineMenuAction->isVisible())
-    {
-        foreach (UIAction *pAction, m_groupActions)
-            pAction->hideShortcut();
-        foreach (UIAction *pAction, m_machineActions)
-            pAction->showShortcut();
-    }
-
+    /* Update action visibility: */
+    updateActionsVisibility();
     /* Update action appearance: */
     updateActionsAppearance();
 
-    /* Refresh details-pane even if there are no items selected: */
-    if (fRefreshDetails)
-        m_pPaneDetails->setItems(currentItems());
+    /* Update Tools-pane: */
+    m_pPaneToolsMachine->setCurrentItem(pItem);
 
-    /* If currently selected VM item is accessible: */
+    /* Update Machine tab-bar visibility */
+    m_pTabBarMachine->setEnabled(pItem && pItem->accessible());
+
+    /* If current item exists & accessible: */
     if (pItem && pItem->accessible())
     {
-        /* Make sure valid widget raised: */
-        if (m_pPaneDesktop->widgetIndex())
-            m_pContainerDetails->setCurrentWidget(m_pPaneDesktop);
-        else
-            m_pContainerDetails->setCurrentWidget(m_pPaneDetails);
-
-        if (fRefreshSnapshots)
+        /* If Desktop pane is chosen currently: */
+        if (m_pPaneToolsMachine->currentTool() == ToolTypeMachine_Desktop)
         {
-            m_pPaneDesktop->updateSnapshots(pItem, pItem->machine());
-            /* Always hide snapshots-view if
-             * single group or more than one machine is selected: */
-            if (currentItems().size() > 1 || m_pPaneChooser->isSingleGroupSelected())
-                m_pPaneDesktop->lockSnapshots();
+            /* Make sure Details or Snapshot pane is chosen if opened: */
+            if (m_pPaneToolsMachine->isToolOpened(ToolTypeMachine_Details))
+                actionPool()->action(UIActionIndexST_M_Tools_M_Machine_S_Details)->trigger();
+            else
+            if (m_pPaneToolsMachine->isToolOpened(ToolTypeMachine_Snapshots))
+                actionPool()->action(UIActionIndexST_M_Tools_M_Machine_S_Snapshots)->trigger();
         }
+
+        /* Update Details-pane (if requested): */
+        if (   fUpdateDetails
+            && m_pPaneToolsMachine->isToolOpened(ToolTypeMachine_Details))
+            m_pPaneToolsMachine->setItems(currentItems());
+        /* Update Snapshots-pane (if requested): */
+        if (   fUpdateSnapshots
+            && m_pPaneToolsMachine->isToolOpened(ToolTypeMachine_Snapshots))
+            m_pPaneToolsMachine->setMachine(pItem->machine());
     }
-    /* If currently selected VM item is NOT accessible: */
     else
     {
-        /* Make sure valid widget raised: */
-        m_pContainerDetails->setCurrentWidget(m_pPaneDesktop);
+        /* Make sure Desktop-pane raised: */
+        m_pPaneToolsMachine->openTool(ToolTypeMachine_Desktop);
 
         /* Note that the machine becomes inaccessible (or if the last VM gets
          * deleted), we have to update all fields, ignoring input arguments. */
         if (pItem)
         {
             /* The VM is inaccessible: */
-            m_pPaneDesktop->updateDetailsError(UIMessageCenter::formatErrorInfo(pItem->accessError()));
-        }
-        else
-        {
-            /* Default HTML support in Qt is terrible so just try to get something really simple: */
-            m_pPaneDesktop->updateDetailsText(
-                tr("<h3>Welcome to VirtualBox!</h3>"
-                   "<p>The left part of this window is  "
-                   "a list of all virtual machines on your computer. "
-                   "The list is empty now because you haven't created any virtual "
-                   "machines yet."
-                   "<img src=:/welcome.png align=right/></p>"
-                   "<p>In order to create a new virtual machine, press the "
-                   "<b>New</b> button in the main tool bar located "
-                   "at the top of the window.</p>"
-                   "<p>You can press the <b>%1</b> key to get instant help, "
-                   "or visit "
-                   "<a href=https://www.virtualbox.org>www.virtualbox.org</a> "
-                   "for the latest information and news.</p>")
-                   .arg(QKeySequence(QKeySequence::HelpContents).toString(QKeySequence::NativeText)));
+            m_pPaneToolsMachine->setDetailsError(UIErrorString::formatErrorInfo(pItem->accessError()));
         }
 
-        /* Empty and disable other tabs: */
-        m_pPaneDesktop->updateSnapshots(0, CMachine());
+        /* Update Details-pane (in any case): */
+        if (m_pPaneToolsMachine->isToolOpened(ToolTypeMachine_Details))
+            m_pPaneToolsMachine->setItems(currentItems());
+        /* Update Snapshots-pane (in any case): */
+        if (m_pPaneToolsMachine->isToolOpened(ToolTypeMachine_Snapshots))
+            m_pPaneToolsMachine->setMachine(CMachine());
     }
 }
 
@@ -308,7 +321,8 @@ void UISelectorWindow::sltHandleMediumEnumerationFinish()
     m_fWarningAboutInaccessibleMediaShown = true;
 
     /* Make sure MM window is not opened: */
-    if (UIMediumManager::instance())
+    if (   m_pManagerVirtualMedia
+        || m_pPaneToolsGlobal->isToolOpened(ToolTypeGlobal_VirtualMedia))
         return;
 
     /* Look for at least one inaccessible medium: */
@@ -325,8 +339,8 @@ void UISelectorWindow::sltHandleMediumEnumerationFinish()
     /* Warn the user about inaccessible medium: */
     if (fIsThereAnyInaccessibleMedium && !msgCenter().warnAboutInaccessibleMedia())
     {
-        /* Open the MM window (without refresh): */
-        UIMediumManager::showModeless(this, false /* refresh? */);
+        /* Open the MM window: */
+        sltOpenVirtualMediumManagerWindow();
     }
 }
 
@@ -411,24 +425,70 @@ void UISelectorWindow::sltHandleStateChange(QString)
     updateActionsAppearance();
 }
 
-void UISelectorWindow::sltHandleSnapshotChange(QString strID)
+void UISelectorWindow::sltOpenVirtualMediumManagerWindow()
 {
-    /* Get current item: */
-    UIVMItem *pItem = currentItem();
-
-    /* Make sure current item present: */
-    if (!pItem)
+    /* First check if instance of widget opened embedded: */
+    if (m_pPaneToolsGlobal->isToolOpened(ToolTypeGlobal_VirtualMedia))
+    {
+        sltHandleToolOpenedGlobal(ToolTypeGlobal_VirtualMedia);
         return;
+    }
 
-    /* If signal is for the current item: */
-    if (pItem->id() == strID)
-        m_pPaneDesktop->updateSnapshots(pItem, pItem->machine());
+    /* Create instance if not yet created: */
+    if (!m_pManagerVirtualMedia)
+    {
+        UIMediumManagerFactory().prepare(m_pManagerVirtualMedia, this);
+        connect(m_pManagerVirtualMedia, &QIManagerDialog::sigClose,
+                this, &UISelectorWindow::sltCloseVirtualMediumManagerWindow);
+    }
+
+    /* Show instance: */
+    m_pManagerVirtualMedia->show();
+    m_pManagerVirtualMedia->setWindowState(m_pManagerVirtualMedia->windowState() & ~Qt::WindowMinimized);
+    m_pManagerVirtualMedia->activateWindow();
 }
 
-void UISelectorWindow::sltOpenMediaManagerWindow()
+void UISelectorWindow::sltCloseVirtualMediumManagerWindow()
 {
-    /* Show modeless Virtual Media Manager: */
-    UIMediumManager::showModeless(this);
+    /* Destroy instance if still exists: */
+    if (m_pManagerVirtualMedia)
+    {
+        m_pManagerVirtualMedia->close();
+        UIMediumManagerFactory().cleanup(m_pManagerVirtualMedia);
+    }
+}
+
+void UISelectorWindow::sltOpenHostNetworkManagerWindow()
+{
+    /* First check if instance of widget opened embedded: */
+    if (m_pPaneToolsGlobal->isToolOpened(ToolTypeGlobal_HostNetwork))
+    {
+        sltHandleToolOpenedGlobal(ToolTypeGlobal_HostNetwork);
+        return;
+    }
+
+    /* Create instance if not yet created: */
+    if (!m_pManagerHostNetwork)
+    {
+        UIHostNetworkManagerFactory().prepare(m_pManagerHostNetwork, this);
+        connect(m_pManagerHostNetwork, &QIManagerDialog::sigClose,
+                this, &UISelectorWindow::sltCloseHostNetworkManagerWindow);
+    }
+
+    /* Show instance: */
+    m_pManagerHostNetwork->show();
+    m_pManagerHostNetwork->setWindowState(m_pManagerHostNetwork->windowState() & ~Qt::WindowMinimized);
+    m_pManagerHostNetwork->activateWindow();
+}
+
+void UISelectorWindow::sltCloseHostNetworkManagerWindow()
+{
+    /* Destroy instance if still exists: */
+    if (m_pManagerHostNetwork)
+    {
+        m_pManagerHostNetwork->close();
+        UIHostNetworkManagerFactory().cleanup(m_pManagerHostNetwork);
+    }
 }
 
 void UISelectorWindow::sltOpenImportApplianceWizard(const QString &strFileName /* = QString() */)
@@ -440,6 +500,9 @@ void UISelectorWindow::sltOpenImportApplianceWizard(const QString &strFileName /
     QString strTmpFile = strFileName;
 #endif /* !VBOX_WS_MAC */
 
+    /* Lock the action preventing cascade calls: */
+    actionPool()->action(UIActionIndexST_M_File_S_ImportAppliance)->setEnabled(false);
+
     /* Use the "safe way" to open stack of Mac OS X Sheets: */
     QWidget *pWizardParent = windowManager().realParentWindow(this);
     UISafePointerWizardImportApp pWizard = new UIWizardImportApp(pWizardParent, strTmpFile);
@@ -449,6 +512,9 @@ void UISelectorWindow::sltOpenImportApplianceWizard(const QString &strFileName /
         pWizard->exec();
     if (pWizard)
         delete pWizard;
+
+    /* Unlock the action allowing further calls: */
+    actionPool()->action(UIActionIndexST_M_File_S_ImportAppliance)->setEnabled(true);
 }
 
 void UISelectorWindow::sltOpenExportApplianceWizard()
@@ -461,12 +527,21 @@ void UISelectorWindow::sltOpenExportApplianceWizard()
     QStringList names;
     for (int i = 0; i < items.size(); ++i)
         names << items[i]->name();
-    /* Show Export Appliance wizard: */
-    UISafePointerWizard pWizard = new UIWizardExportApp(this, names);
+
+    /* Lock the action preventing cascade calls: */
+    actionPool()->action(UIActionIndexST_M_File_S_ExportAppliance)->setEnabled(false);
+
+    /* Use the "safe way" to open stack of Mac OS X Sheets: */
+    QWidget *pWizardParent = windowManager().realParentWindow(this);
+    UISafePointerWizard pWizard = new UIWizardExportApp(pWizardParent, names);
+    windowManager().registerNewParent(pWizard, pWizardParent);
     pWizard->prepare();
     pWizard->exec();
     if (pWizard)
         delete pWizard;
+
+    /* Unlock the action allowing further calls: */
+    actionPool()->action(UIActionIndexST_M_File_S_ExportAppliance)->setEnabled(true);
 }
 
 #ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
@@ -598,91 +673,52 @@ void UISelectorWindow::sltOpenCloneMachineWizard()
     UIVMItem *pItem = currentItem();
     AssertMsgReturnVoid(pItem, ("Current item should be selected!\n"));
 
-    /* Show Clone VM wizard: */
-    UISafePointerWizard pWizard = new UIWizardCloneVM(this, pItem->machine());
+    /* Lock the action preventing cascade calls: */
+    actionPool()->action(UIActionIndexST_M_Machine_S_Clone)->setEnabled(false);
+
+    /* Use the "safe way" to open stack of Mac OS X Sheets: */
+    QWidget *pWizardParent = windowManager().realParentWindow(this);
+    UISafePointerWizard pWizard = new UIWizardCloneVM(pWizardParent, pItem->machine());
+    windowManager().registerNewParent(pWizard, pWizardParent);
     pWizard->prepare();
     pWizard->exec();
     if (pWizard)
         delete pWizard;
+
+    /* Unlock the action allowing further calls: */
+    actionPool()->action(UIActionIndexST_M_Machine_S_Clone)->setEnabled(true);
 }
 
 void UISelectorWindow::sltPerformStartOrShowMachine()
 {
-    /* Get selected items: */
+    /* Start selected VMs in corresponding mode: */
     QList<UIVMItem*> items = currentItems();
     AssertMsgReturnVoid(!items.isEmpty(), ("At least one item should be selected!\n"));
-
-    /* For every selected item: */
-    foreach (UIVMItem *pItem, items)
-    {
-        /* Check if current item could be started/showed: */
-        if (!isActionEnabled(UIActionIndexST_M_Group_M_StartOrShow, QList<UIVMItem*>() << pItem))
-            continue;
-
-        /* Launch/show current VM: */
-        CMachine machine = pItem->machine();
-        vboxGlobal().launchMachine(machine,
-                                   UIVMItem::isItemRunningHeadless(pItem)         ? VBoxGlobal::LaunchMode_Separate :
-                                   qApp->keyboardModifiers() == Qt::ShiftModifier ? VBoxGlobal::LaunchMode_Headless :
-                                                                                    VBoxGlobal::LaunchMode_Default);
-    }
+    performStartOrShowVirtualMachines(items, VBoxGlobal::LaunchMode_Invalid);
 }
 
 void UISelectorWindow::sltPerformStartMachineNormal()
 {
-    /* Get selected items: */
+    /* Start selected VMs in corresponding mode: */
     QList<UIVMItem*> items = currentItems();
     AssertMsgReturnVoid(!items.isEmpty(), ("At least one item should be selected!\n"));
-
-    /* For every selected item: */
-    foreach (UIVMItem *pItem, items)
-    {
-        /* Check if current item could be started/showed: */
-        if (!isActionEnabled(UIActionIndexST_M_Group_M_StartOrShow, QList<UIVMItem*>() << pItem))
-            continue;
-
-        /* Launch/show current VM: */
-        CMachine machine = pItem->machine();
-        vboxGlobal().launchMachine(machine, VBoxGlobal::LaunchMode_Default);
-    }
+    performStartOrShowVirtualMachines(items, VBoxGlobal::LaunchMode_Default);
 }
 
 void UISelectorWindow::sltPerformStartMachineHeadless()
 {
-    /* Get selected items: */
+    /* Start selected VMs in corresponding mode: */
     QList<UIVMItem*> items = currentItems();
     AssertMsgReturnVoid(!items.isEmpty(), ("At least one item should be selected!\n"));
-
-    /* For every selected item: */
-    foreach (UIVMItem *pItem, items)
-    {
-        /* Check if current item could be started/showed: */
-        if (!isActionEnabled(UIActionIndexST_M_Group_M_StartOrShow, QList<UIVMItem*>() << pItem))
-            continue;
-
-        /* Launch/show current VM: */
-        CMachine machine = pItem->machine();
-        vboxGlobal().launchMachine(machine, VBoxGlobal::LaunchMode_Headless);
-    }
+    performStartOrShowVirtualMachines(items, VBoxGlobal::LaunchMode_Headless);
 }
 
 void UISelectorWindow::sltPerformStartMachineDetachable()
 {
-    /* Get selected items: */
+    /* Start selected VMs in corresponding mode: */
     QList<UIVMItem*> items = currentItems();
     AssertMsgReturnVoid(!items.isEmpty(), ("At least one item should be selected!\n"));
-
-    /* For every selected item: */
-    foreach (UIVMItem *pItem, items)
-    {
-        /* Check if current item could be started/showed: */
-        if (!isActionEnabled(UIActionIndexST_M_Group_M_StartOrShow, QList<UIVMItem*>() << pItem))
-            continue;
-
-        /* Launch/show current VM: */
-        CMachine machine = pItem->machine();
-        vboxGlobal().launchMachine(machine, VBoxGlobal::LaunchMode_Separate);
-    }
+    performStartOrShowVirtualMachines(items, VBoxGlobal::LaunchMode_Separate);
 }
 
 void UISelectorWindow::sltPerformDiscardMachineState()
@@ -1026,11 +1062,7 @@ void UISelectorWindow::sltPerformCreateMachineShortcut()
         /* Create shortcut for this VM: */
         const CMachine &machine = pItem->machine();
         UIDesktopServices::createMachineShortcut(machine.GetSettingsFilePath(),
-#if QT_VERSION >= 0x050000
                                                  QStandardPaths::writableLocation(QStandardPaths::DesktopLocation),
-#else /* QT_VERSION < 0x050000 */
-                                                 QDesktopServices::storageLocation(QDesktopServices::DesktopLocation),
-#endif /* QT_VERSION < 0x050000 */
                                                  machine.GetName(), machine.GetId());
     }
 }
@@ -1051,6 +1083,82 @@ void UISelectorWindow::sltMachineCloseMenuAboutToShow()
     AssertMsgReturnVoid(!items.isEmpty(), ("At least one item should be selected!\n"));
 
     actionPool()->action(UIActionIndexST_M_Machine_M_Close_S_Shutdown)->setEnabled(isActionEnabled(UIActionIndexST_M_Machine_M_Close_S_Shutdown, items));
+}
+
+void UISelectorWindow::sltHandleToolsTypeSwitch()
+{
+    /* If Machine tool button is checked => go backward: */
+    if (actionPool()->action(UIActionIndexST_M_Tools_T_Machine)->isChecked())
+        m_pSlidingWidget->moveBackward();
+
+    else
+
+    /* If Global tool button is checked => go forward: */
+    if (actionPool()->action(UIActionIndexST_M_Tools_T_Global)->isChecked())
+        m_pSlidingWidget->moveForward();
+
+    /* Update action visibility: */
+    updateActionsVisibility();
+
+    /* Make sure chosen item fetched: */
+    sltHandleChooserPaneIndexChange(false /* update details? */, false /* update snapshots? */);
+}
+
+void UISelectorWindow::sltHandleShowTabBarMachine()
+{
+    m_pActionTabBarGlobal->setVisible(false);
+    m_pActionTabBarMachine->setVisible(true);
+}
+
+void UISelectorWindow::sltHandleShowTabBarGlobal()
+{
+    m_pActionTabBarMachine->setVisible(false);
+    m_pActionTabBarGlobal->setVisible(true);
+}
+
+void UISelectorWindow::sltHandleToolOpenedMachine(ToolTypeMachine enmType)
+{
+    /* First, make sure corresponding tool set opened: */
+    if (   !actionPool()->action(UIActionIndexST_M_Tools_T_Machine)->isChecked()
+        && actionPool()->action(UIActionIndexST_M_Tools_T_Machine)->property("watch_child_activation").toBool())
+        actionPool()->action(UIActionIndexST_M_Tools_T_Machine)->setChecked(true);
+
+    /* Open corresponding tool: */
+    m_pPaneToolsMachine->openTool(enmType);
+    /* If that was 'Details' => pass there current items: */
+    if (   enmType == ToolTypeMachine_Details
+        && m_pPaneToolsMachine->isToolOpened(ToolTypeMachine_Details))
+        m_pPaneToolsMachine->setItems(currentItems());
+    /* If that was 'Snapshot' => pass there current or null machine: */
+    if (   enmType == ToolTypeMachine_Snapshots
+        && m_pPaneToolsMachine->isToolOpened(ToolTypeMachine_Snapshots))
+    {
+        UIVMItem *pItem = currentItem();
+        m_pPaneToolsMachine->setMachine(pItem ? pItem->machine() : CMachine());
+    }
+}
+
+void UISelectorWindow::sltHandleToolOpenedGlobal(ToolTypeGlobal enmType)
+{
+    /* First, make sure corresponding tool set opened: */
+    if (   !actionPool()->action(UIActionIndexST_M_Tools_T_Global)->isChecked()
+        && actionPool()->action(UIActionIndexST_M_Tools_T_Global)->property("watch_child_activation").toBool())
+        actionPool()->action(UIActionIndexST_M_Tools_T_Global)->setChecked(true);
+
+    /* Open corresponding tool: */
+    m_pPaneToolsGlobal->openTool(enmType);
+}
+
+void UISelectorWindow::sltHandleToolClosedMachine(ToolTypeMachine enmType)
+{
+    /* Close corresponding tool: */
+    m_pPaneToolsMachine->closeTool(enmType);
+}
+
+void UISelectorWindow::sltHandleToolClosedGlobal(ToolTypeGlobal enmType)
+{
+    /* Close corresponding tool: */
+    m_pPaneToolsGlobal->closeTool(enmType);
 }
 
 UIVMItem* UISelectorWindow::currentItem() const
@@ -1077,13 +1185,17 @@ void UISelectorWindow::retranslateUi()
 #endif /* VBOX_BLEEDING_EDGE */
     setWindowTitle(strTitle);
 
-    /* Ensure the details and screenshot view are updated: */
-    sltHandleChooserPaneIndexChange();
+    /* Make sure chosen item fetched: */
+    sltHandleChooserPaneIndexChange(false /* update details? */, false /* update snapshots? */);
 
 #ifdef VBOX_WS_MAC
-    /* Avoid bug in Qt Cocoa which results in showing a "more arrow" on size-hint changes: */
+    // WORKAROUND:
+    // There is a bug in Qt Cocoa which result in showing a "more arrow" when
+    // the necessary size of the toolbar is increased. Also for some languages
+    // the with doesn't match if the text increase. So manually adjust the size
+    // after changing the text.
     m_pToolBar->updateLayout();
-#endif /* VBOX_WS_MAC */
+#endif
 }
 
 bool UISelectorWindow::event(QEvent *pEvent)
@@ -1094,11 +1206,11 @@ bool UISelectorWindow::event(QEvent *pEvent)
         /* Handle every Resize and Move we keep track of the geometry. */
         case QEvent::Resize:
         {
-#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+#ifdef VBOX_WS_X11
             /* Prevent handling if fake screen detected: */
             if (gpDesktop->isFakeScreenDetected())
                 break;
-#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
+#endif /* VBOX_WS_X11 */
 
             if (isVisible() && (windowState() & (Qt::WindowMaximized | Qt::WindowMinimized | Qt::WindowFullScreen)) == 0)
             {
@@ -1109,11 +1221,11 @@ bool UISelectorWindow::event(QEvent *pEvent)
         }
         case QEvent::Move:
         {
-#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+#ifdef VBOX_WS_X11
             /* Prevent handling if fake screen detected: */
             if (gpDesktop->isFakeScreenDetected())
                 break;
-#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
+#endif /* VBOX_WS_X11 */
 
             if (isVisible() && (windowState() & (Qt::WindowMaximized | Qt::WindowMinimized | Qt::WindowFullScreen)) == 0)
             {
@@ -1171,6 +1283,9 @@ void UISelectorWindow::polishEvent(QShowEvent*)
     /* Make sure user warned about inaccessible medium(s)
      * even if enumeration had finished before selector window shown: */
     QTimer::singleShot(0, this, SLOT(sltHandleMediumEnumerationFinish()));
+
+    /* Call for async polishing: */
+    QMetaObject::invokeMethod(this, "sltHandlePolishEvent", Qt::QueuedConnection);
 }
 
 #ifdef VBOX_WS_MAC
@@ -1218,6 +1333,7 @@ void UISelectorWindow::prepare()
     prepareIcon();
     prepareMenuBar();
     prepareStatusBar();
+    prepareToolbar();
     prepareWidgets();
     prepareConnections();
 
@@ -1234,13 +1350,16 @@ void UISelectorWindow::prepare()
     /* Beta label? */
     if (vboxGlobal().isBeta())
     {
-        QPixmap betaLabel = ::betaLabelSleeve(QSize(107, 16));
-        ::darwinLabelWindow(this, &betaLabel, false);
+        QPixmap betaLabel = ::betaLabel(QSize(100, 16));
+        ::darwinLabelWindow(this, &betaLabel, true);
     }
 
     /* General event filter: */
     qApp->installEventFilter(this);
 #endif /* VBOX_WS_MAC */
+
+    /* Make sure current Chooser-pane index fetched: */
+    sltHandleChooserPaneIndexChange();
 }
 
 void UISelectorWindow::prepareIcon()
@@ -1259,6 +1378,11 @@ void UISelectorWindow::prepareIcon()
 
 void UISelectorWindow::prepareMenuBar()
 {
+#ifndef VBOX_WS_MAC
+    /* Create menu-bar: */
+    setMenuBar(new UIMenuBar);
+#endif
+
     /* Create action-pool: */
     m_pActionPool = UIActionPool::create(UIActionPoolType_Selector);
 
@@ -1332,8 +1456,10 @@ void UISelectorWindow::prepareMenuFile(QMenu *pMenu)
     /* 'Show Extra-data Manager' action goes to 'File' menu for Debug build: */
     pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowExtraDataManager));
 # endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
-    /* 'Show Media Manager' action goes to 'File' menu: */
-    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowMediumManager));
+    /* 'Show Virtual Medium Manager' action goes to 'File' menu: */
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowVirtualMediumManager));
+    /* 'Show Host Network Manager' action goes to 'File' menu: */
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowHostNetworkManager));
 
 #else /* !VBOX_WS_MAC */
 
@@ -1350,7 +1476,8 @@ void UISelectorWindow::prepareMenuFile(QMenu *pMenu)
 #  ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
     addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowExtraDataManager));
 #  endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
-    addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowMediumManager));
+    addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowVirtualMediumManager));
+    addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowHostNetworkManager));
 #  ifdef VBOX_GUI_WITH_NETWORK_MANAGER
     addAction(actionPool()->action(UIActionIndex_M_Application_S_NetworkAccessManager));
     addAction(actionPool()->action(UIActionIndex_M_Application_S_CheckForUpdates));
@@ -1373,8 +1500,10 @@ void UISelectorWindow::prepareMenuFile(QMenu *pMenu)
     /* 'Extra-data Manager' action goes to 'File' menu for Debug build: */
     pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowExtraDataManager));
 # endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
-    /* 'Show Media Manager' action goes to 'File' menu: */
-    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowMediumManager));
+    /* 'Show Virtual Medium Manager' action goes to 'File' menu: */
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowVirtualMediumManager));
+    /* 'Show Host Network Manager' action goes to 'File' menu: */
+    pMenu->addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowHostNetworkManager));
 # ifdef VBOX_GUI_WITH_NETWORK_MANAGER
     /* 'Network Access Manager' action goes to 'File' menu: */
     pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_NetworkAccessManager));
@@ -1667,67 +1796,175 @@ void UISelectorWindow::prepareStatusBar()
 #endif /* VBOX_WS_MAC */
 }
 
+void UISelectorWindow::prepareToolbar()
+{
+    /* Create Main toolbar: */
+    m_pToolBar = new UIToolBar(this);
+    AssertPtrReturnVoid(m_pToolBar);
+    {
+        /* Configure toolbar: */
+        m_pToolBar->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
+        m_pToolBar->setContextMenuPolicy(Qt::CustomContextMenu);
+        m_pToolBar->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
+        // TODO: Get rid of hard-coded stuff:
+        const QSize toolBarIconSize = m_pToolBar->iconSize();
+        if (toolBarIconSize.width() < 32 || toolBarIconSize.height() < 32)
+            m_pToolBar->setIconSize(QSize(32, 32));
+
+        /* Add main actions block: */
+        m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_New));
+        m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Settings));
+        m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Discard));
+        m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow));
+#ifdef VBOX_WS_MAC
+        // WORKAROUND:
+        // Actually Qt should do that itself but by some unknown reason it sometimes
+        // forget to update toolbar after changing its actions on cocoa platform.
+        connect(actionPool()->action(UIActionIndexST_M_Machine_S_New), &UIAction::changed,
+                m_pToolBar, static_cast<void(UIToolBar::*)(void)>(&UIToolBar::update));
+        connect(actionPool()->action(UIActionIndexST_M_Machine_S_Settings), &UIAction::changed,
+                m_pToolBar, static_cast<void(UIToolBar::*)(void)>(&UIToolBar::update));
+        connect(actionPool()->action(UIActionIndexST_M_Machine_S_Discard), &UIAction::changed,
+                m_pToolBar, static_cast<void(UIToolBar::*)(void)>(&UIToolBar::update));
+        connect(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow), &UIAction::changed,
+                m_pToolBar, static_cast<void(UIToolBar::*)(void)>(&UIToolBar::update));
+#endif /* VBOX_WS_MAC */
+
+        /* Create Machine tab-bar: */
+        m_pTabBarMachine = new UITabBar;
+        AssertPtrReturnVoid(m_pTabBarMachine);
+        {
+            /* Configure tab-bar: */
+            m_pTabBarMachine->setContentsMargins(10, 0, 10, 0);
+
+            /* Add into toolbar: */
+            m_pActionTabBarMachine = m_pToolBar->addWidget(m_pTabBarMachine);
+        }
+
+        /* Create Global tab-bar: */
+        m_pTabBarGlobal = new UITabBar;
+        AssertPtrReturnVoid(m_pTabBarGlobal);
+        {
+            /* Configure tab-bar: */
+            m_pTabBarGlobal->setContentsMargins(10, 0, 10, 0);
+
+            /* Add into toolbar: */
+            m_pActionTabBarGlobal = m_pToolBar->addWidget(m_pTabBarGlobal);
+        }
+
+        /* Create Tools toolbar: */
+        m_pToolbarTools = new UIToolsToolbar(actionPool());
+        if (m_pToolbarTools)
+        {
+            /* Configure toolbar: */
+            m_pToolbarTools->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::MinimumExpanding);
+            connect(m_pToolbarTools, &UIToolsToolbar::sigShowTabBarMachine,
+                    this, &UISelectorWindow::sltHandleShowTabBarMachine);
+            connect(m_pToolbarTools, &UIToolsToolbar::sigShowTabBarGlobal,
+                    this, &UISelectorWindow::sltHandleShowTabBarGlobal);
+            m_pToolbarTools->setTabBars(m_pTabBarMachine, m_pTabBarGlobal);
+
+            /* Create exclusive action-group: */
+            QActionGroup *pActionGroupTools = new QActionGroup(m_pToolbarTools);
+            AssertPtrReturnVoid(pActionGroupTools);
+            {
+                /* Configure action-group: */
+                pActionGroupTools->setExclusive(true);
+
+                /* Add 'Tools' actions into action-group: */
+                pActionGroupTools->addAction(actionPool()->action(UIActionIndexST_M_Tools_T_Machine));
+                pActionGroupTools->addAction(actionPool()->action(UIActionIndexST_M_Tools_T_Global));
+            }
+
+            /* Add into toolbar: */
+            m_pToolBar->addWidget(m_pToolbarTools);
+        }
+
+#ifdef VBOX_WS_MAC
+        // WORKAROUND:
+        // There is a bug in Qt Cocoa which result in showing a "more arrow" when
+        // the necessary size of the toolbar is increased. Also for some languages
+        // the with doesn't match if the text increase. So manually adjust the size
+        // after changing the text.
+        m_pToolBar->updateLayout();
+#endif
+    }
+}
+
 void UISelectorWindow::prepareWidgets()
 {
-    /* Prepare splitter: */
-    m_pSplitter = new QISplitter(this);
-#ifdef VBOX_WS_X11
-    m_pSplitter->setHandleType(QISplitter::Native);
-#endif /* VBOX_WS_X11 */
+    /* Create central-widget: */
+    QWidget *pWidget = new QWidget;
+    AssertPtrReturnVoid(pWidget);
+    {
+        /* Configure central-widget: */
+        setCentralWidget(pWidget);
 
-    /* Prepare tool-bar: */
-    m_pToolBar = new UIToolBar(this);
-    m_pToolBar->setContextMenuPolicy(Qt::CustomContextMenu);
-    const QSize toolBarIconSize = m_pToolBar->iconSize();
-    if (toolBarIconSize.width() < 32 || toolBarIconSize.height() < 32)
-        m_pToolBar->setIconSize(QSize(32, 32));
-    m_pToolBar->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
-    m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_New));
-    m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Settings));
-    m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_S_Discard));
-    m_pToolBar->addAction(actionPool()->action(UIActionIndexST_M_Machine_M_StartOrShow));
+        /* Create central-layout: */
+        QVBoxLayout *pLayout = new QVBoxLayout(pWidget);
+        AssertPtrReturnVoid(pLayout);
+        {
+            /* Configure layout: */
+            pLayout->setSpacing(0);
+            pLayout->setContentsMargins(0, 0, 0, 0);
 
-    /* Prepare graphics VM list: */
-    m_pPaneChooser = new UIGChooser(this);
-
-    /* Prepare graphics details: */
-    m_pPaneDetails = new UIGDetails(this);
-
-    /* Configure splitter colors: */
-    m_pSplitter->configureColors(m_pPaneChooser->palette().color(QPalette::Active, QPalette::Window),
-                                 m_pPaneDetails->palette().color(QPalette::Active, QPalette::Window));
-
-    /* Prepare details and snapshots tabs: */
-    m_pPaneDesktop = new UIVMDesktop(m_pToolBar, actionPool()->action(UIActionIndexST_M_Group_S_Refresh), this);
-
-    /* Crate container: */
-    m_pContainerDetails = new QStackedWidget(this);
-    m_pContainerDetails->addWidget(m_pPaneDetails);
-    m_pContainerDetails->addWidget(m_pPaneDesktop);
-
-    /* Layout all the widgets: */
 #ifdef VBOX_WS_MAC
-    addToolBar(m_pToolBar);
-    /* Central widget @ horizontal layout: */
-    setCentralWidget(m_pSplitter);
-    m_pSplitter->addWidget(m_pPaneChooser);
-#else /* !VBOX_WS_MAC */
-    QWidget *pCentralWidget = new QWidget(this);
-    setCentralWidget(pCentralWidget);
-    QVBoxLayout *pCentralLayout = new QVBoxLayout(pCentralWidget);
-    pCentralLayout->setContentsMargins(0, 0, 0, 0);
-    pCentralLayout->setSpacing(0);
-    m_pBar = new UIMainBar(this);
-    m_pBar->setContentWidget(m_pToolBar);
-    pCentralLayout->addWidget(m_pBar);
-    pCentralLayout->addWidget(m_pSplitter);
-    m_pSplitter->addWidget(m_pPaneChooser);
-#endif /* !VBOX_WS_MAC */
-    m_pSplitter->addWidget(m_pContainerDetails);
+            /* Native toolbar on MAC: */
+            addToolBar(m_pToolBar);
+#else
+            /* Add into layout: */
+            pLayout->addWidget(m_pToolBar);
+#endif
 
-    /* Set the initial distribution. The right site is bigger. */
-    m_pSplitter->setStretchFactor(0, 2);
-    m_pSplitter->setStretchFactor(1, 3);
+            /* Create sliding-widget: */
+            m_pSlidingWidget = new UISlidingWidget;
+            AssertPtrReturnVoid(m_pSlidingWidget);
+            {
+                /* Create splitter: */
+                m_pSplitter = new QISplitter;
+                AssertPtrReturnVoid(m_pSplitter);
+                {
+                    /* Configure splitter: */
+#ifdef VBOX_WS_X11
+                    m_pSplitter->setHandleType(QISplitter::Native);
+#endif
+
+                    /* Create Chooser-pane: */
+                    m_pPaneChooser = new UIGChooser(this);
+                    AssertPtrReturnVoid(m_pPaneChooser);
+                    {
+                        /* Add into splitter: */
+                        m_pSplitter->addWidget(m_pPaneChooser);
+                    }
+
+                    /* Create Machine Tools-pane: */
+                    m_pPaneToolsMachine = new UIToolsPaneMachine(actionPool());
+                    AssertPtrReturnVoid(m_pPaneToolsMachine);
+                    {
+                        /* Add into splitter: */
+                        m_pSplitter->addWidget(m_pPaneToolsMachine);
+                    }
+
+                    /* Adjust splitter colors according to main widgets it splits: */
+                    m_pSplitter->configureColors(m_pPaneChooser->palette().color(QPalette::Active, QPalette::Window),
+                                                 m_pPaneToolsMachine->palette().color(QPalette::Active, QPalette::Window));
+                    /* Set the initial distribution. The right site is bigger. */
+                    m_pSplitter->setStretchFactor(0, 2);
+                    m_pSplitter->setStretchFactor(1, 3);
+                }
+
+                /* Create Global Tools-pane: */
+                m_pPaneToolsGlobal = new UIToolsPaneGlobal(actionPool());
+                AssertPtrReturnVoid(m_pPaneToolsGlobal);
+
+                /* Add left/right widgets into sliding widget: */
+                m_pSlidingWidget->setWidgets(m_pSplitter, m_pPaneToolsGlobal);
+
+                /* Add into layout: */
+                pLayout->addWidget(m_pSlidingWidget);
+            }
+        }
+    }
 
     /* Bring the VM list to the focus: */
     m_pPaneChooser->setFocus();
@@ -1735,10 +1972,10 @@ void UISelectorWindow::prepareWidgets()
 
 void UISelectorWindow::prepareConnections()
 {
-#if defined(VBOX_WS_X11) && QT_VERSION >= 0x050000
+#ifdef VBOX_WS_X11
     /* Desktop event handlers: */
     connect(gpDesktop, SIGNAL(sigHostScreenWorkAreaResized(int)), this, SLOT(sltHandleHostScreenAvailableAreaChange()));
-#endif /* VBOX_WS_X11 && QT_VERSION >= 0x050000 */
+#endif /* VBOX_WS_X11 */
 
     /* Medium enumeration connections: */
     connect(&vboxGlobal(), SIGNAL(sigMediumEnumerationFinished()), this, SLOT(sltHandleMediumEnumerationFinish()));
@@ -1747,7 +1984,8 @@ void UISelectorWindow::prepareConnections()
     connect(menuBar(), SIGNAL(customContextMenuRequested(const QPoint&)), this, SLOT(sltShowSelectorWindowContextMenu(const QPoint&)));
 
     /* 'File' menu connections: */
-    connect(actionPool()->action(UIActionIndexST_M_File_S_ShowMediumManager), SIGNAL(triggered()), this, SLOT(sltOpenMediaManagerWindow()));
+    connect(actionPool()->action(UIActionIndexST_M_File_S_ShowVirtualMediumManager), SIGNAL(triggered()), this, SLOT(sltOpenVirtualMediumManagerWindow()));
+    connect(actionPool()->action(UIActionIndexST_M_File_S_ShowHostNetworkManager), SIGNAL(triggered()), this, SLOT(sltOpenHostNetworkManagerWindow()));
     connect(actionPool()->action(UIActionIndexST_M_File_S_ImportAppliance), SIGNAL(triggered()), this, SLOT(sltOpenImportApplianceWizard()));
     connect(actionPool()->action(UIActionIndexST_M_File_S_ExportAppliance), SIGNAL(triggered()), this, SLOT(sltOpenExportApplianceWizard()));
 #ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
@@ -1802,15 +2040,21 @@ void UISelectorWindow::prepareConnections()
     connect(actionPool()->action(UIActionIndexST_M_Machine_M_Close_S_Shutdown), SIGNAL(triggered()), this, SLOT(sltPerformShutdownMachine()));
     connect(actionPool()->action(UIActionIndexST_M_Machine_M_Close_S_PowerOff), SIGNAL(triggered()), this, SLOT(sltPerformPowerOffMachine()));
 
+    /* 'Tools' actions connections: */
+    connect(actionPool()->action(UIActionIndexST_M_Tools_T_Machine), &UIAction::toggled,
+            this, &UISelectorWindow::sltHandleToolsTypeSwitch);
+    connect(actionPool()->action(UIActionIndexST_M_Tools_T_Global), &UIAction::toggled,
+            this, &UISelectorWindow::sltHandleToolsTypeSwitch);
+
     /* Status-bar connections: */
     connect(statusBar(), SIGNAL(customContextMenuRequested(const QPoint&)),
             this, SLOT(sltShowSelectorWindowContextMenu(const QPoint&)));
 
     /* Graphics VM chooser connections: */
     connect(m_pPaneChooser, SIGNAL(sigSelectionChanged()), this, SLOT(sltHandleChooserPaneIndexChange()));
-    connect(m_pPaneChooser, SIGNAL(sigSlidingStarted()), m_pPaneDetails, SIGNAL(sigSlidingStarted()));
-    connect(m_pPaneChooser, SIGNAL(sigToggleStarted()), m_pPaneDetails, SIGNAL(sigToggleStarted()));
-    connect(m_pPaneChooser, SIGNAL(sigToggleFinished()), m_pPaneDetails, SIGNAL(sigToggleFinished()));
+    connect(m_pPaneChooser, SIGNAL(sigSlidingStarted()), m_pPaneToolsMachine, SIGNAL(sigSlidingStarted()));
+    connect(m_pPaneChooser, SIGNAL(sigToggleStarted()), m_pPaneToolsMachine, SIGNAL(sigToggleStarted()));
+    connect(m_pPaneChooser, SIGNAL(sigToggleFinished()), m_pPaneToolsMachine, SIGNAL(sigToggleFinished()));
     connect(m_pPaneChooser, SIGNAL(sigGroupSavingStateChanged()), this, SLOT(sltHandleGroupSavingProgressChange()));
 
     /* Tool-bar connections: */
@@ -1820,19 +2064,18 @@ void UISelectorWindow::prepareConnections()
     /* We want to receive right click notifications on the title bar, so register our own handler: */
     ::darwinRegisterForUnifiedToolbarContextMenuEvents(this);
 #endif /* VBOX_WS_MAC */
+    connect(m_pToolbarTools, &UIToolsToolbar::sigToolOpenedMachine, this, &UISelectorWindow::sltHandleToolOpenedMachine);
+    connect(m_pToolbarTools, &UIToolsToolbar::sigToolOpenedGlobal,  this, &UISelectorWindow::sltHandleToolOpenedGlobal);
+    connect(m_pToolbarTools, &UIToolsToolbar::sigToolClosedMachine, this, &UISelectorWindow::sltHandleToolClosedMachine);
+    connect(m_pToolbarTools, &UIToolsToolbar::sigToolClosedGlobal,  this, &UISelectorWindow::sltHandleToolClosedGlobal);
 
     /* VM desktop connections: */
-    connect(m_pPaneDesktop, SIGNAL(sigCurrentChanged(int)), this, SLOT(sltHandleDetailsContainerIndexChange(int)));
-    connect(m_pPaneDetails, SIGNAL(sigLinkClicked(const QString&, const QString&, const QString&)),
+    connect(m_pPaneToolsMachine, SIGNAL(sigLinkClicked(const QString&, const QString&, const QString&)),
             this, SLOT(sltOpenMachineSettingsDialog(const QString&, const QString&, const QString&)));
 
     /* Global event handlers: */
     connect(gVBoxEvents, SIGNAL(sigMachineStateChange(QString, KMachineState)), this, SLOT(sltHandleStateChange(QString)));
     connect(gVBoxEvents, SIGNAL(sigSessionStateChange(QString, KSessionState)), this, SLOT(sltHandleStateChange(QString)));
-    connect(gVBoxEvents, SIGNAL(sigSnapshotTake(QString, QString)), this, SLOT(sltHandleSnapshotChange(QString)));
-    connect(gVBoxEvents, SIGNAL(sigSnapshotDelete(QString, QString)), this, SLOT(sltHandleSnapshotChange(QString)));
-    connect(gVBoxEvents, SIGNAL(sigSnapshotChange(QString, QString)), this, SLOT(sltHandleSnapshotChange(QString)));
-    connect(gVBoxEvents, SIGNAL(sigSnapshotRestore(QString, QString)), this, SLOT(sltHandleSnapshotChange(QString)));
 }
 
 void UISelectorWindow::loadSettings()
@@ -1863,32 +2106,58 @@ void UISelectorWindow::loadSettings()
         m_pSplitter->setSizes(sizes);
     }
 
-    /* Restore toolbar and statusbar visibility: */
+    /* Restore toolbar and statusbar functionality: */
     {
 #ifdef VBOX_WS_MAC
         // WORKAROUND:
-        // There is an issue in Qt5 main-window tool-bar implementation:
+        // There is an issue in Qt5 main-window toolbar implementation:
         // if you are hiding it before it's shown for the first time,
         // there is an ugly empty container appears instead, so we
-        // have to hide tool-bar asynchronously to avoid that.
+        // have to hide toolbar asynchronously to avoid that.
         if (!gEDataManager->selectorWindowToolBarVisible())
             QMetaObject::invokeMethod(m_pToolBar, "hide", Qt::QueuedConnection);
-#else /* VBOX_WS_MAC */
-        m_pBar->setHidden(!gEDataManager->selectorWindowToolBarVisible());
-#endif /* !VBOX_WS_MAC */
+#else
+        m_pToolBar->setHidden(!gEDataManager->selectorWindowToolBarVisible());
+#endif
+        m_pToolBar->setToolButtonStyle(gEDataManager->selectorWindowToolBarTextVisible()
+                                       ? Qt::ToolButtonTextUnderIcon : Qt::ToolButtonIconOnly);
+        m_pToolbarTools->setToolButtonStyle(gEDataManager->selectorWindowToolBarTextVisible()
+                                            ? Qt::ToolButtonTextUnderIcon : Qt::ToolButtonIconOnly);
         statusBar()->setHidden(!gEDataManager->selectorWindowStatusBarVisible());
+    }
+
+    /* Restore toolbar Machine/Global tools orders:  */
+    {
+        m_orderMachine = gEDataManager->selectorWindowToolsOrderMachine();
+        m_orderGlobal = gEDataManager->selectorWindowToolsOrderGlobal();
+
+        /* We can restore previously opened Global tools right here: */
+        QMap<ToolTypeGlobal, QAction*> mapActionsGlobal;
+        mapActionsGlobal[ToolTypeGlobal_VirtualMedia] = actionPool()->action(UIActionIndexST_M_Tools_M_Global_S_VirtualMediaManager);
+        mapActionsGlobal[ToolTypeGlobal_HostNetwork] = actionPool()->action(UIActionIndexST_M_Tools_M_Global_S_HostNetworkManager);
+        for (int i = m_orderGlobal.size() - 1; i >= 0; --i)
+            if (m_orderGlobal.at(i) != ToolTypeGlobal_Invalid)
+                mapActionsGlobal.value(m_orderGlobal.at(i))->trigger();
+        /* Make sure further action triggering cause tool type switch as well: */
+        actionPool()->action(UIActionIndexST_M_Tools_T_Global)->setProperty("watch_child_activation", true);
+
+        /* But we can't restore previously opened Machine tools here,
+         * see the reason in corresponding async sltHandlePolishEvent slot. */
     }
 }
 
 void UISelectorWindow::saveSettings()
 {
+    /* Save toolbar Machine/Global tools orders: */
+    {
+        gEDataManager->setSelectorWindowToolsOrderMachine(m_pToolbarTools->tabOrderMachine());
+        gEDataManager->setSelectorWindowToolsOrderGlobal(m_pToolbarTools->tabOrderGlobal());
+    }
+
     /* Save toolbar and statusbar visibility: */
     {
-#ifdef VBOX_WS_MAC
         gEDataManager->setSelectorWindowToolBarVisible(!m_pToolBar->isHidden());
-#else /* VBOX_WS_MAC */
-        gEDataManager->setSelectorWindowToolBarVisible(!m_pBar->isHidden());
-#endif /* !VBOX_WS_MAC */
+        gEDataManager->setSelectorWindowToolBarTextVisible(m_pToolBar->toolButtonStyle() == Qt::ToolButtonTextUnderIcon);
         gEDataManager->setSelectorWindowStatusBarVisible(!statusBar()->isHidden());
     }
 
@@ -1930,12 +2199,87 @@ void UISelectorWindow::cleanupMenuBar()
 
 void UISelectorWindow::cleanup()
 {
+    /* Close the sub-dialogs first: */
+    sltCloseVirtualMediumManagerWindow();
+    sltCloseHostNetworkManagerWindow();
+
     /* Save settings: */
     saveSettings();
 
     /* Cleanup: */
     cleanupConnections();
     cleanupMenuBar();
+}
+
+void UISelectorWindow::performStartOrShowVirtualMachines(const QList<UIVMItem*> &items, VBoxGlobal::LaunchMode enmLaunchMode)
+{
+    /* Do nothing while group saving is in progress: */
+    if (m_pPaneChooser->isGroupSavingInProgress())
+        return;
+
+    /* Compose the list of startable items: */
+    QStringList startableMachineNames;
+    QList<UIVMItem*> startableItems;
+    foreach (UIVMItem *pItem, items)
+        if (isAtLeastOneItemCanBeStarted(QList<UIVMItem*>() << pItem))
+        {
+            startableItems << pItem;
+            startableMachineNames << pItem->name();
+        }
+
+    /* Initially we have start auto-confirmed: */
+    bool fStartConfirmed = true;
+    /* But if we have more than one item to start =>
+     * We should still ask user for a confirmation: */
+    if (startableItems.size() > 1)
+        fStartConfirmed = msgCenter().confirmStartMultipleMachines(startableMachineNames.join(", "));
+
+    /* For every item => check if it could be launched: */
+    foreach (UIVMItem *pItem, items)
+        if (   isAtLeastOneItemCanBeShown(QList<UIVMItem*>() << pItem)
+            || (   isAtLeastOneItemCanBeStarted(QList<UIVMItem*>() << pItem)
+                && fStartConfirmed))
+        {
+            /* Fetch item launch mode: */
+            VBoxGlobal::LaunchMode enmItemLaunchMode = enmLaunchMode;
+            if (enmItemLaunchMode == VBoxGlobal::LaunchMode_Invalid)
+                enmItemLaunchMode = UIVMItem::isItemRunningHeadless(pItem)         ? VBoxGlobal::LaunchMode_Separate :
+                                    qApp->keyboardModifiers() == Qt::ShiftModifier ? VBoxGlobal::LaunchMode_Headless :
+                                                                                     VBoxGlobal::LaunchMode_Default;
+
+            /* Launch current VM: */
+            CMachine machine = pItem->machine();
+            vboxGlobal().launchMachine(machine, enmItemLaunchMode);
+        }
+}
+
+void UISelectorWindow::updateActionsVisibility()
+{
+    /* Determine whether Machine or Group menu should be shown at all: */
+    const bool fMachineOrGroupMenuShown = actionPool()->action(UIActionIndexST_M_Tools_T_Machine)->isChecked();
+    const bool fMachineMenuShown = !m_pPaneChooser->isSingleGroupSelected();
+    m_pMachineMenuAction->setVisible(fMachineOrGroupMenuShown && fMachineMenuShown);
+    m_pGroupMenuAction->setVisible(fMachineOrGroupMenuShown && !fMachineMenuShown);
+
+    /* Hide action shortcuts: */
+    if (!fMachineMenuShown)
+        foreach (UIAction *pAction, m_machineActions)
+            pAction->hideShortcut();
+    if (fMachineMenuShown)
+        foreach (UIAction *pAction, m_groupActions)
+            pAction->hideShortcut();
+
+    /* Update actions visibility: */
+    foreach (UIAction *pAction, m_machineActions)
+        pAction->setVisible(fMachineOrGroupMenuShown);
+
+    /* Show what should be shown: */
+    if (fMachineMenuShown)
+        foreach (UIAction *pAction, m_machineActions)
+            pAction->showShortcut();
+    if (!fMachineMenuShown)
+        foreach (UIAction *pAction, m_groupActions)
+            pAction->showShortcut();
 }
 
 void UISelectorWindow::updateActionsAppearance()
@@ -2033,10 +2377,10 @@ void UISelectorWindow::updateActionsAppearance()
     actionPool()->action(UIActionIndexST_M_Machine_T_Pause)->retranslateUi();
     actionPool()->action(UIActionIndexST_M_Machine_T_Pause)->blockSignals(false);
 
-#ifdef VBOX_WS_MAC
-    /* Avoid bug in Qt Cocoa which results in showing a "more arrow" on size-hint changes: */
-    m_pToolBar->updateLayout();
-#endif /* VBOX_WS_MAC */
+    /* Enable/disable tools actions: */
+    actionPool()->action(UIActionIndexST_M_Tools_M_Machine)->setEnabled(isActionEnabled(UIActionIndexST_M_Tools_M_Machine, items));
+    actionPool()->action(UIActionIndexST_M_Tools_M_Machine_S_Details)->setEnabled(isActionEnabled(UIActionIndexST_M_Tools_M_Machine_S_Details, items));
+    actionPool()->action(UIActionIndexST_M_Tools_M_Machine_S_Snapshots)->setEnabled(isActionEnabled(UIActionIndexST_M_Tools_M_Machine_S_Snapshots, items));
 }
 
 bool UISelectorWindow::isActionEnabled(int iActionIndex, const QList<UIVMItem*> &items)
@@ -2095,7 +2439,7 @@ bool UISelectorWindow::isActionEnabled(int iActionIndex, const QList<UIVMItem*> 
         case UIActionIndexST_M_Machine_M_StartOrShow_S_StartDetachable:
         {
             return !m_pPaneChooser->isGroupSavingInProgress() &&
-                   isAtLeastOneItemCanBeStartedOrShowed(items);
+                   isAtLeastOneItemCanBeStartedOrShown(items);
         }
         case UIActionIndexST_M_Group_S_Discard:
         case UIActionIndexST_M_Machine_S_Discard:
@@ -2162,6 +2506,12 @@ bool UISelectorWindow::isActionEnabled(int iActionIndex, const QList<UIVMItem*> 
         case UIActionIndexST_M_Machine_M_Close_S_PowerOff:
         {
             return isActionEnabled(UIActionIndexST_M_Machine_M_Close, items);
+        }
+        case UIActionIndexST_M_Tools_M_Machine:
+        case UIActionIndexST_M_Tools_M_Machine_S_Details:
+        case UIActionIndexST_M_Tools_M_Machine_S_Snapshots:
+        {
+            return pItem->accessible();
         }
         default:
             break;
@@ -2255,7 +2605,29 @@ bool UISelectorWindow::isAtLeastOneItemRemovable(const QList<UIVMItem*> &items)
 }
 
 /* static */
-bool UISelectorWindow::isAtLeastOneItemCanBeStartedOrShowed(const QList<UIVMItem*> &items)
+bool UISelectorWindow::isAtLeastOneItemCanBeStarted(const QList<UIVMItem*> &items)
+{
+    foreach (UIVMItem *pItem, items)
+    {
+        if (UIVMItem::isItemPoweredOff(pItem) && UIVMItem::isItemEditable(pItem))
+            return true;
+    }
+    return false;
+}
+
+/* static */
+bool UISelectorWindow::isAtLeastOneItemCanBeShown(const QList<UIVMItem*> &items)
+{
+    foreach (UIVMItem *pItem, items)
+    {
+        if (UIVMItem::isItemStarted(pItem) && (pItem->canSwitchTo() || UIVMItem::isItemRunningHeadless(pItem)))
+            return true;
+    }
+    return false;
+}
+
+/* static */
+bool UISelectorWindow::isAtLeastOneItemCanBeStartedOrShown(const QList<UIVMItem*> &items)
 {
     foreach (UIVMItem *pItem, items)
     {

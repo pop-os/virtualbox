@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -124,8 +124,9 @@ typedef enum CPUMMICROARCH
     kCpumMicroarch_Intel_Core_Yonah,        /**< Core, also known as Enhanced Pentium M. */
 
     kCpumMicroarch_Intel_Core2_First,
-    kCpumMicroarch_Intel_Core2_Merom = kCpumMicroarch_Intel_Core2_First,
-    kCpumMicroarch_Intel_Core2_Penryn,
+    kCpumMicroarch_Intel_Core2_Merom = kCpumMicroarch_Intel_Core2_First,    /**< 65nm, Merom/Conroe/Kentsfield/Tigerton */
+    kCpumMicroarch_Intel_Core2_Penryn,      /**< 45nm, Penryn/Wolfdale/Yorkfield/Harpertown */
+    kCpumMicroarch_Intel_Core2_End,
 
     kCpumMicroarch_Intel_Core7_First,
     kCpumMicroarch_Intel_Core7_Nehalem = kCpumMicroarch_Intel_Core7_First,
@@ -256,6 +257,10 @@ typedef enum CPUMMICROARCH
 /** Predicate macro for catching Core7 CPUs. */
 #define CPUMMICROARCH_IS_INTEL_CORE7(a_enmMicroarch) \
     ((a_enmMicroarch) >= kCpumMicroarch_Intel_Core7_First && (a_enmMicroarch) <= kCpumMicroarch_Intel_Core7_End)
+
+/** Predicate macro for catching Core 2 CPUs. */
+#define CPUMMICROARCH_IS_INTEL_CORE2(a_enmMicroarch) \
+    ((a_enmMicroarch) >= kCpumMicroarch_Intel_Core2_First && (a_enmMicroarch) <= kCpumMicroarch_Intel_Core2_End)
 
 /** Predicate macro for catching Atom CPUs, Silvermont and upwards. */
 #define CPUMMICROARCH_IS_INTEL_SILVERMONT_PLUS(a_enmMicroarch) \
@@ -1179,7 +1184,6 @@ VMMR0_INT_DECL(uint64_t)    CPUMR0GetGuestTscAux(PVMCPU pVCpu);
 
 /** @name Misc Guest Predicate Functions.
  * @{  */
-
 VMMDECL(bool)       CPUMIsGuestIn16BitCode(PVMCPU pVCpu);
 VMMDECL(bool)       CPUMIsGuestIn32BitCode(PVMCPU pVCpu);
 VMMDECL(bool)       CPUMIsGuestIn64BitCode(PVMCPU pVCpu);
@@ -1194,6 +1198,16 @@ VMMDECL(bool)       CPUMIsGuestInPagedProtectedMode(PVMCPU pVCpu);
 VMMDECL(bool)       CPUMIsGuestInLongMode(PVMCPU pVCpu);
 VMMDECL(bool)       CPUMIsGuestInPAEMode(PVMCPU pVCpu);
 VMM_INT_DECL(bool)  CPUMIsGuestInRawMode(PVMCPU pVCpu);
+/** @} */
+
+/** @name Nested Hardware-Virtualization Helpers.
+ * @{  */
+VMM_INT_DECL(bool)      CPUMCanSvmNstGstTakePhysIntr(PCCPUMCTX pCtx);
+VMM_INT_DECL(bool)      CPUMCanSvmNstGstTakeVirtIntr(PCCPUMCTX pCtx);
+VMM_INT_DECL(uint8_t)   CPUMGetSvmNstGstInterrupt(PCCPUMCTX pCtx);
+VMM_INT_DECL(void)      CPUMSvmVmExitRestoreHostState(PCPUMCTX pCtx);
+VMM_INT_DECL(void)      CPUMSvmVmRunSaveHostState(PCPUMCTX pCtx, uint8_t cbInstr);
+/** @} */
 
 #ifndef VBOX_WITHOUT_UNNAMED_UNIONS
 
@@ -1296,30 +1310,30 @@ DECLINLINE(bool) CPUMIsGuestInPAEModeEx(PCPUMCTX pCtx)
             && !(pCtx->msrEFER & MSR_K6_EFER_LMA));
 }
 
-# if 0 /* part of too large nested virtualization commit  */
-
 /**
  * Tests is if the guest has AMD SVM enabled or not.
  *
  * @returns true if SMV is enabled, otherwise false.
  * @param   pCtx    Current CPU context.
  */
-DECLINLINE(bool) CPUMIsGuestSvmEnabled(PCPUMCTX pCtx)
+DECLINLINE(bool) CPUMIsGuestSvmEnabled(PCCPUMCTX pCtx)
 {
     return RT_BOOL(pCtx->msrEFER & MSR_K6_EFER_SVME);
 }
 
+#ifndef IN_RC
 /**
  * Checks if the guest VMCB has the specified ctrl/instruction intercept active.
  *
  * @returns @c true if in intercept is set, @c false otherwise.
  * @param   pCtx          Pointer to the context.
- * @param   Intercept     The SVM control/instruction intercept,
+ * @param   fIntercept    The SVM control/instruction intercept,
  *                        see SVM_CTRL_INTERCEPT_*.
  */
-DECLINLINE(bool) CPUMIsGuestSvmCtrlInterceptSet(PCPUMCTX pCtx, uint64_t fIntercept)
+DECLINLINE(bool) CPUMIsGuestSvmCtrlInterceptSet(PCCPUMCTX pCtx, uint64_t fIntercept)
 {
-    return RT_BOOL(pCtx->hwvirt.svm.VmcbCtrl.u64InterceptCtrl & fIntercept);
+    PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
+    return pVmcb && (pVmcb->ctrl.u64InterceptCtrl & fIntercept);
 }
 
 /**
@@ -1330,9 +1344,10 @@ DECLINLINE(bool) CPUMIsGuestSvmCtrlInterceptSet(PCPUMCTX pCtx, uint64_t fInterce
  * @param   pCtx          Pointer to the context.
  * @param   uCr           The CR register number (0 to 15).
  */
-DECLINLINE(bool) CPUMIsGuestSvmReadCRxInterceptSet(PCPUMCTX pCtx, uint8_t uCr)
+DECLINLINE(bool) CPUMIsGuestSvmReadCRxInterceptSet(PCCPUMCTX pCtx, uint8_t uCr)
 {
-    return RT_BOOL(pCtx->hwvirt.svm.VmcbCtrl.u16InterceptRdCRx & (1 << uCr));
+    PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
+    return pVmcb && (pVmcb->ctrl.u16InterceptRdCRx & (1 << uCr));
 }
 
 /**
@@ -1343,9 +1358,10 @@ DECLINLINE(bool) CPUMIsGuestSvmReadCRxInterceptSet(PCPUMCTX pCtx, uint8_t uCr)
  * @param   pCtx          Pointer to the context.
  * @param   uCr           The CR register number (0 to 15).
  */
-DECLINLINE(bool) CPUMIsGuestSvmWriteCRxInterceptSet(PCPUMCTX pCtx, uint8_t uCr)
+DECLINLINE(bool) CPUMIsGuestSvmWriteCRxInterceptSet(PCCPUMCTX pCtx, uint8_t uCr)
 {
-    return RT_BOOL(pCtx->hwvirt.svm.VmcbCtrl.u16InterceptWrCRx & (1 << uCr));
+    PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
+    return pVmcb && (pVmcb->ctrl.u16InterceptWrCRx & (1 << uCr));
 }
 
 /**
@@ -1356,9 +1372,10 @@ DECLINLINE(bool) CPUMIsGuestSvmWriteCRxInterceptSet(PCPUMCTX pCtx, uint8_t uCr)
  * @param   pCtx    Pointer to the context.
  * @param   uDr     The DR register number (0 to 15).
  */
-DECLINLINE(bool) CPUMIsGuestSvmReadDRxInterceptSet(PCPUMCTX pCtx, uint8_t uDr)
+DECLINLINE(bool) CPUMIsGuestSvmReadDRxInterceptSet(PCCPUMCTX pCtx, uint8_t uDr)
 {
-    return RT_BOOL(pCtx->hwvirt.svm.VmcbCtrl.u16InterceptRdDRx & (1 << uDr));
+    PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
+    return pVmcb && (pVmcb->ctrl.u16InterceptRdDRx & (1 << uDr));
 }
 
 /**
@@ -1369,9 +1386,10 @@ DECLINLINE(bool) CPUMIsGuestSvmReadDRxInterceptSet(PCPUMCTX pCtx, uint8_t uDr)
  * @param   pCtx    Pointer to the context.
  * @param   uDr     The DR register number (0 to 15).
  */
-DECLINLINE(bool) CPUMIsGuestSvmWriteDRxInterceptSet(PCPUMCTX pCtx, uint8_t uDr)
+DECLINLINE(bool) CPUMIsGuestSvmWriteDRxInterceptSet(PCCPUMCTX pCtx, uint8_t uDr)
 {
-    return RT_BOOL(pCtx->hwvirt.svm.VmcbCtrl.u16InterceptWrDRx & (1 << uDr));
+    PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
+    return pVmcb && (pVmcb->ctrl.u16InterceptWrDRx & (1 << uDr));
 }
 
 /**
@@ -1385,26 +1403,55 @@ DECLINLINE(bool) CPUMIsGuestSvmWriteDRxInterceptSet(PCPUMCTX pCtx, uint8_t uDr)
 DECLINLINE(bool) CPUMIsGuestSvmXcptInterceptSet(PCCPUMCTX pCtx, uint8_t uVector)
 {
     Assert(uVector < 32);
-    return RT_BOOL(pCtx->hwvirt.svm.VmcbCtrl.u32InterceptXcpt & (UINT32_C(1) << uVector));
+    PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
+    return pVmcb && (pVmcb->ctrl.u32InterceptXcpt & (UINT32_C(1) << uVector));
 }
+#endif /* !IN_RC */
 
 /**
- * Checks if we are executing inside the nested hardware-virtualized guest.
+ * Checks if we are executing inside an SVM nested hardware-virtualized guest.
  *
- * @returns true if in nested-guest mode, false otherwise.
+ * @returns true if in SVM nested-guest mode, false otherwise.
  * @param   pCtx        Pointer to the context.
  */
-DECLINLINE(bool) CPUMIsGuestInNestedHwVirtMode(PCPUMCTX pCtx)
+DECLINLINE(bool) CPUMIsGuestInSvmNestedHwVirtMode(PCCPUMCTX pCtx)
 {
     /*
      * With AMD-V, the VMRUN intercept is a pre-requisite to entering SVM guest-mode.
      * See AMD spec. 15.5 "VMRUN instruction" subsection "Canonicalization and Consistency Checks".
      */
-    return RT_BOOL(pCtx->hwvirt.svm.VmcbCtrl.u64InterceptCtrl & SVM_CTRL_INTERCEPT_VMRUN);
-    /** @todo Intel VMX.  */
+#ifndef IN_RC
+    PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
+    return pVmcb && (pVmcb->ctrl.u64InterceptCtrl & SVM_CTRL_INTERCEPT_VMRUN);
+#else
+    RT_NOREF(pCtx);
+    return false;
+#endif
 }
 
-# endif
+/**
+ * Checks if we are executing inside a VMX nested hardware-virtualized guest.
+ *
+ * @returns true if in VMX nested-guest mode, false otherwise.
+ * @param   pCtx        Pointer to the context.
+ */
+DECLINLINE(bool) CPUMIsGuestInVmxNestedHwVirtMode(PCCPUMCTX pCtx)
+{
+    /** @todo Intel. */
+    RT_NOREF(pCtx);
+    return false;
+}
+
+/**
+ * Checks if we are executing inside a nested hardware-virtualized guest.
+ *
+ * @returns true if in SVM/VMX nested-guest mode, false otherwise.
+ * @param   pCtx        Pointer to the context.
+ */
+DECLINLINE(bool) CPUMIsGuestInNestedHwVirtMode(PCCPUMCTX pCtx)
+{
+    return CPUMIsGuestInSvmNestedHwVirtMode(pCtx) || CPUMIsGuestInVmxNestedHwVirtMode(pCtx);
+}
 #endif /* VBOX_WITHOUT_UNNAMED_UNIONS */
 
 /** @} */
@@ -1541,6 +1588,8 @@ VMMDECL(uint32_t)       CPUMGetGuestCodeBits(PVMCPU pVCpu);
 VMMDECL(DISCPUMODE)     CPUMGetGuestDisMode(PVMCPU pVCpu);
 VMMDECL(uint32_t)       CPUMGetGuestMxCsrMask(PVM pVM);
 VMMDECL(uint64_t)       CPUMGetGuestScalableBusFrequency(PVM pVM);
+VMMDECL(int)            CPUMQueryValidatedGuestEfer(PVM pVM, uint64_t uCr0, uint64_t uOldEfer, uint64_t uNewEfer,
+                                                    uint64_t *puValidEfer);
 
 /** @name Typical scalable bus frequency values.
  * @{ */

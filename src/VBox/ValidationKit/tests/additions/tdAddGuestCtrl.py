@@ -8,7 +8,7 @@ VirtualBox Validation Kit - Guest Control Tests.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2016 Oracle Corporation
+Copyright (C) 2010-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 # Disable bitching about too many arguments per function.
 # pylint: disable=R0913
@@ -1402,7 +1402,7 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                     else:
                         reporter.log2('Test #%d passed: Buffers match (%d bytes)' % (i, len(oRes.sBuf)));
                 elif     oRes.sBuf is not None \
-                     and len(oRes.sBuf):
+                     and oRes.sBuf:
                     reporter.error('Test #%d failed: Got no buffer data, expected\n%s (%dbytes)' %
                                    (i, map(hex, map(ord, oRes.sBuf)), len(oRes.sBuf)));
                     return False;
@@ -1459,20 +1459,20 @@ class SubTstDrvAddGuestCtrl(base.SubTestDriverBase):
                             if     waitResult == vboxcon.ProcessWaitResult_StdOut \
                                 or waitResult == vboxcon.ProcessWaitResult_WaitFlagNotSupported:
                                 reporter.log2('Reading stdout ...');
-                                buf = curProc.Read(1, 64 * 1024, oTest.timeoutMS);
-                                if len(buf):
-                                    reporter.log2('Process (PID %d) got %d bytes of stdout data' % (curProc.PID, len(buf)));
-                                    oTest.cbStdOut += len(buf);
-                                    oTest.sBuf = buf; # Appending does *not* work atm, so just assign it. No time now.
+                                abBuf = curProc.Read(1, 64 * 1024, oTest.timeoutMS);
+                                if abBuf:
+                                    reporter.log2('Process (PID %d) got %d bytes of stdout data' % (curProc.PID, len(abBuf)));
+                                    oTest.cbStdOut += len(abBuf);
+                                    oTest.sBuf = abBuf; # Appending does *not* work atm, so just assign it. No time now.
                             # Try stderr.
                             if     waitResult == vboxcon.ProcessWaitResult_StdErr \
                                 or waitResult == vboxcon.ProcessWaitResult_WaitFlagNotSupported:
                                 reporter.log2('Reading stderr ...');
-                                buf = curProc.Read(2, 64 * 1024, oTest.timeoutMS);
-                                if len(buf):
-                                    reporter.log2('Process (PID %d) got %d bytes of stderr data' % (curProc.PID, len(buf)));
-                                    oTest.cbStdErr += len(buf);
-                                    oTest.sBuf = buf; # Appending does *not* work atm, so just assign it. No time now.
+                                abBuf = curProc.Read(2, 64 * 1024, oTest.timeoutMS);
+                                if abBuf:
+                                    reporter.log2('Process (PID %d) got %d bytes of stderr data' % (curProc.PID, len(abBuf)));
+                                    oTest.cbStdErr += len(abBuf);
+                                    oTest.sBuf = abBuf; # Appending does *not* work atm, so just assign it. No time now.
                             # Use stdin.
                             if     waitResult == vboxcon.ProcessWaitResult_StdIn \
                                 or waitResult == vboxcon.ProcessWaitResult_WaitFlagNotSupported:
@@ -3656,7 +3656,7 @@ class tdAddGuestCtrl(vbox.TestDriver):                                         #
         oSession, oTxsSession = self.startVmAndConnectToTxsViaTcp(oTestVm.sVmName, fCdWait = False);
         reporter.log("TxsSession: %s" % (oTxsSession,));
         if oSession is not None:
-            self.addTask(oSession);
+            self.addTask(oTxsSession);
 
             fManual = False; # Manual override for local testing. (Committed version shall be False.)
             if not fManual:

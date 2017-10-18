@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2016 Oracle Corporation
+# Copyright (C) 2006-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -34,8 +34,6 @@ VBOX_DEVICES_TESTS_FEATURES = \
 	$(if $(VBOX_WITH_EHCI_IMPL),VBOX_WITH_EHCI_IMPL,) \
 	$(if $(VBOX_WITH_HGSMI),VBOX_WITH_HGSMI,) \
 	$(if $(VBOX_WITH_LSILOGIC),VBOX_WITH_LSILOGIC,) \
-	$(if $(VBOX_WITH_NEW_APIC),VBOX_WITH_NEW_APIC,) \
-	$(if $(VBOX_WITH_NEW_IOAPIC),VBOX_WITH_NEW_IOAPIC,) \
 	$(if $(VBOX_WITH_NVME_IMPL),VBOX_WITH_NVME_IMPL,) \
 	$(if $(VBOX_WITH_PCI_PASSTHROUGH_IMPL),VBOX_WITH_PCI_PASSTHROUGH_IMPL,) \
 	$(if $(VBOX_WITH_RAW_MODE),VBOX_WITH_RAW_MODE,) \
@@ -74,10 +72,9 @@ ifdef VBOX_WITH_RAW_MODE
  tstDeviceStructSizeRC_INCS      = \
  	$(VBOX_PATH_DEVICES_SRC)/build \
  	$(VBOX_PATH_DEVICES_SRC)/Bus \
- 	$(VBOX_DEVICES_TEST_OUT_DIR)
- ifdef VBOX_WITH_NEW_APIC
+ 	$(VBOX_DEVICES_TEST_OUT_DIR) \
+ 	$(VBOX_GRAPHICS_INCS)
  tstDeviceStructSizeRC_INCS     += $(VBOX_PATH_VMM_DEVICES_SRC)
- endif
 endif # VBOX_WITH_RAW_MODE
 
 #
@@ -89,7 +86,8 @@ tstDeviceStructSize_DEFS     = $(VBOX_DEVICES_TESTS_FEATURES)
 tstDeviceStructSize_INCS     = \
 	$(VBOX_PATH_DEVICES_SRC)/build \
 	$(VBOX_PATH_DEVICES_SRC)/Bus \
-	$(VBOX_DEVICES_TEST_OUT_DIR)
+	$(VBOX_DEVICES_TEST_OUT_DIR) \
+	$(VBOX_GRAPHICS_INCS)
 tstDeviceStructSize_SOURCES  = tstDeviceStructSize.cpp
 tstDeviceStructSize_CLEAN    = \
 	$(VBOX_DEVICES_TEST_OUT_DIR)/tstDeviceStructSizeRC.h \
@@ -97,9 +95,7 @@ tstDeviceStructSize_CLEAN    = \
 ifdef VBOX_WITH_RAW_MODE
  tstDeviceStructSize.cpp_DEPS = $(VBOX_DEVICES_TEST_OUT_DIR)/tstDeviceStructSizeRC.h
 endif
-ifdef VBOX_WITH_NEW_APIC
  tstDeviceStructSize_INCS     += $(VBOX_PATH_VMM_DEVICES_SRC)
-endif
 
 #
 # Run rule for tstDeviceStructSize.

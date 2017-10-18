@@ -15,13 +15,14 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN_VMMDEVINTERFACES
+#include "LoggingNew.h"
+
 #include "VMMDev.h"
 #include "ConsoleImpl.h"
 #include "DisplayImpl.h"
 #include "GuestImpl.h"
 #include "MouseImpl.h"
-
-#include "Logging.h"
 
 #include <VBox/vmm/pdmdrv.h>
 #include <VBox/VMMDev.h>
@@ -83,7 +84,7 @@ VMMDev::VMMDev(Console *console)
     int rc = RTSemEventCreate(&mCredentialsEvent);
     AssertRC(rc);
 #ifdef VBOX_WITH_HGCM
-    rc = HGCMHostInit ();
+    rc = HGCMHostInit();
     AssertRC(rc);
     m_fHGCMActive = true;
 #endif /* VBOX_WITH_HGCM */
@@ -99,7 +100,7 @@ VMMDev::~VMMDev()
         HGCMHostShutdown();
     }
 #endif /* VBOX_WITH_HGCM */
-    RTSemEventDestroy (mCredentialsEvent);
+    RTSemEventDestroy(mCredentialsEvent);
     if (mpDrv)
         mpDrv->pVMMDev = NULL;
     mpDrv = NULL;
@@ -128,7 +129,7 @@ int VMMDev::WaitCredentialsJudgement(uint32_t u32Timeout, uint32_t *pu32Credenti
         u32Timeout = 5000;
     }
 
-    int rc = RTSemEventWait (mCredentialsEvent, u32Timeout);
+    int rc = RTSemEventWait(mCredentialsEvent, u32Timeout);
 
     if (RT_SUCCESS(rc))
     {
@@ -142,7 +143,7 @@ int VMMDev::SetCredentialsJudgementResult(uint32_t u32Flags)
 {
     mu32CredentialsFlags = u32Flags;
 
-    int rc = RTSemEventSignal (mCredentialsEvent);
+    int rc = RTSemEventSignal(mCredentialsEvent);
     AssertRC(rc);
 
     return rc;
@@ -173,7 +174,7 @@ DECLCALLBACK(void) vmmdevUpdateGuestStatus(PPDMIVMMDEVCONNECTOR pInterface, uint
 DECLCALLBACK(void) vmmdevUpdateGuestUserState(PPDMIVMMDEVCONNECTOR pInterface,
                                               const char *pszUser, const char *pszDomain,
                                               uint32_t uState,
-                                              const uint8_t *puDetails, uint32_t cbDetails)
+                                              const uint8_t *pabDetails, uint32_t cbDetails)
 {
     PDRVMAINVMMDEV pDrv = RT_FROM_MEMBER(pInterface, DRVMAINVMMDEV, Connector);
     AssertPtr(pDrv);
@@ -185,7 +186,7 @@ DECLCALLBACK(void) vmmdevUpdateGuestUserState(PPDMIVMMDEVCONNECTOR pInterface,
     AssertPtrReturnVoid(pGuest);
 
     pGuest->i_onUserStateChange(Bstr(pszUser), Bstr(pszDomain), (VBoxGuestUserState)uState,
-                                puDetails, cbDetails);
+                                pabDetails, cbDetails);
 }
 
 
@@ -311,7 +312,7 @@ DECLCALLBACK(void) vmmdevUpdateGuestCapabilities(PPDMIVMMDEVCONNECTOR pInterface
  * are given and the connector should update its internal state.
  *
  * @param   pInterface          Pointer to this interface.
- * @param   newCapabilities     New capabilities.
+ * @param   fNewCaps            New capabilities.
  * @thread  The emulation thread.
  */
 DECLCALLBACK(void) vmmdevUpdateMouseCapabilities(PPDMIVMMDEVCONNECTOR pInterface, uint32_t fNewCaps)
@@ -443,7 +444,7 @@ DECLCALLBACK(int) vmmdevSetCredentialsJudgementResult(PPDMIVMMDEVCONNECTOR pInte
     PDRVMAINVMMDEV pDrv = RT_FROM_MEMBER(pInterface, DRVMAINVMMDEV, Connector);
 
     if (pDrv->pVMMDev)
-        return pDrv->pVMMDev->SetCredentialsJudgementResult (u32Flags);
+        return pDrv->pVMMDev->SetCredentialsJudgementResult(u32Flags);
 
     return VERR_GENERAL_FAILURE;
 }

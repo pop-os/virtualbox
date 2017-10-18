@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2010-2016 Oracle Corporation
+# Copyright (C) 2010-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -189,6 +189,12 @@ endef
 # Tools Tools Tools
 #
 
+ifdef VBOX_USE_KSUBMIT
+ VBOX_BS3KIT_KSUBMIT_OBJ_CONV := kmk_builtin_kSubmit --
+else
+ VBOX_BS3KIT_KSUBMIT_OBJ_CONV :=
+endif
+
 # Dummy CP "linker" tool.
 TOOL_VBoxBsCpLd = Dummy copy linker.
 TOOL_VBoxBsCpLd_LINK_MISCBIN_OUTPUT =
@@ -228,24 +234,23 @@ TOOL_VBoxNasm_COMPILE_AS_OUTPUT = $(outbase).lst
 TOOL_VBoxNasm_COMPILE_AS_DEPEND = $(VBoxBs3ObjConverter_1_TARGET)
 TOOL_VBoxNasm_COMPILE_AS_DEPORD =
 define TOOL_VBoxNasm_COMPILE_AS_CMDS
+ifdef TOOL_VBoxNasm_USE_KSUBMIT
+	$(QUIET)kmk_builtin_kSubmit -C $(PATH_OUT_BASE) -- $(TOOL_VBoxNasm_AS)\
+		$(flags) $(addsuffix /,$(addprefix -i, $(incs))) $(addprefix -D, $(defs))\
+		-l $(outbase).lst\
+		-o $(obj)\
+               -MD "$(dep)" -MP\
+		$(abspath $(source))
+else
 	$(QUIET)$(REDIRECT) -C $(PATH_OUT_BASE) -- $(TOOL_VBoxNasm_AS)\
 		$(flags) $(addsuffix /,$(addprefix -i, $(incs))) $(addprefix -D, $(defs))\
 		-l $(outbase).lst\
 		-o $(obj)\
+               -MD "$(dep)" -MP\
 		$(abspath $(source))
-	$(QUIET)$(VBoxBs3ObjConverter_1_TARGET) "$(obj)"
-	$(QUIET)$(REDIRECT) -C $(PATH_OUT_BASE) -wo $(dep) -- $(TOOL_VBoxNasm_AS)\
-		$(flags) $(addsuffix /,$(addprefix -i, $(incs))) $(addprefix -D, $(defs))\
-		-l $(outbase).lst\
-		-o $(obj)\
-		$(abspath $(source)) \
-		-M -MP
-endef
-
-# Dropped by the time 2.12 rc7 got out. Just struggling rebuilding nasm.
-if "$(KBUILD_TARGET)" == "darwin"
- BS3KIT_NASM_allow_64_bit = --allow-64-bit
 endif
+	$(QUIET)$(VBOX_BS3KIT_KSUBMIT_OBJ_CONV) $(VBoxBs3ObjConverter_1_TARGET) "$(obj)"
+endef
 
 #
 # ELF 64-bit compiler tool with object conversion.
@@ -265,7 +270,7 @@ ifdef SLKRUNS
  TOOL_Bs3Gcc64Elf64_CXX += -fmessage-length=0
 endif
 TOOL_Bs3Gcc64Elf64_COBJSUFF         = .o64
-TOOL_Bs3Gcc64Elf64_CFLAGS           = -fno-pie -x c
+TOOL_Bs3Gcc64Elf64_CFLAGS           = -fno-pie -x c $(VBOX_GCC_Wa_cma_nocompress_debug_sections)
 TOOL_Bs3Gcc64Elf64_CFLAGS.debug     = -g
 TOOL_Bs3Gcc64Elf64_CFLAGS.profile   = -O2 #-g -pg
 TOOL_Bs3Gcc64Elf64_CFLAGS.release   = -O2
@@ -281,7 +286,7 @@ define TOOL_Bs3Gcc64Elf64_COMPILE_C_CMDS
 		-Wp,-MD,$(dep) -Wp,-MT,$(obj) -Wp,-MP\
 		-o $(obj)\
 		$(abspath $(source))
-	$(QUIET)$(VBoxBs3ObjConverter_1_TARGET) "$(obj)"
+	$(QUIET)$(VBOX_BS3KIT_KSUBMIT_OBJ_CONV) $(VBoxBs3ObjConverter_1_TARGET) "$(obj)"
 	$(QUIET)$(APPEND) -n "$(dep)" "" "$(source):" ""
 endef
 
@@ -301,7 +306,7 @@ $(TOOL_Bs3Gcc64Elf64_COMPILE_C_CMDS)
 endef
 
 TOOL_Bs3Gcc64Elf64_CXXOBJSUFF       ?= .o
-TOOL_Bs3Gcc64Elf64_CXXFLAGS         ?= -fno-pie
+TOOL_Bs3Gcc64Elf64_CXXFLAGS         ?= -fno-pie $(VBOX_GCC_Wa_cma_nocompress_debug_sections)
 TOOL_Bs3Gcc64Elf64_CXXFLAGS.debug   ?= -g0 # no debug info, thank you
 TOOL_Bs3Gcc64Elf64_CXXFLAGS.profile ?= -O2 #-g -pg
 TOOL_Bs3Gcc64Elf64_CXXFLAGS.release ?= -O2
@@ -317,7 +322,7 @@ define TOOL_Bs3Gcc64Elf64_COMPILE_CXX_CMDS
 		-Wp,-MD,$(dep) -Wp,-MT,$(obj) -Wp,-MP\
 		-o $(obj)\
 		$(abspath $(source))
-	$(QUIET)$(VBoxBs3ObjConverter_1_TARGET) "$(obj)"
+	$(QUIET)$(VBOX_BS3KIT_KSUBMIT_OBJ_CONV) $(VBoxBs3ObjConverter_1_TARGET) "$(obj)"
 	$(QUIET)$(APPEND) -n "$(dep)" "" "$(source):" ""
 endef
 
@@ -341,7 +346,7 @@ TOOL_Bs3Vcc64_COMPILE_C_OUTPUT         = $(TOOL_$(VBOX_VCC_TOOL_STEM)AMD64_COMPI
 TOOL_Bs3Vcc64_COMPILE_C_OUTPUT_MAYBE   = $(TOOL_$(VBOX_VCC_TOOL_STEM)AMD64_COMPILE_C_OUTPUT_MAYBE) $(obj).orignal
 define TOOL_Bs3Vcc64_COMPILE_C_CMDS
 $(TOOL_$(VBOX_VCC_TOOL_STEM)AMD64_COMPILE_C_CMDS)
-	$(QUIET)$(VBoxBs3ObjConverter_1_TARGET) "$(obj)"
+	$(QUIET)$(VBOX_BS3KIT_KSUBMIT_OBJ_CONV) $(VBoxBs3ObjConverter_1_TARGET) "$(obj)"
 endef
 
 TOOL_Bs3Vcc64_C64OBJSUFF               = $(TOOL_Bs3Vcc64_COBJSUFF)
@@ -374,7 +379,7 @@ TOOL_Bs3Vcc64_COMPILE_CXX_OUTPUT       = $(TOOL_$(VBOX_VCC_TOOL_STEM)AMD64_COMPI
 TOOL_Bs3Vcc64_COMPILE_CXX_OUTPUT_MAYBE = $(TOOL_$(VBOX_VCC_TOOL_STEM)AMD64_COMPILE_CXX_OUTPUT_MAYBE) $(obj).orignal
 define TOOL_Bs3Vcc64_COMPILE_CXX_CMDS
 $(TOOL_$(VBOX_VCC_TOOL_STEM)AMD64_COMPILE_CXX_CMDS)
-	$(QUIET)$(VBoxBs3ObjConverter_1_TARGET)  "$(obj)"
+	$(QUIET)$(VBOX_BS3KIT_KSUBMIT_OBJ_CONV) $(VBoxBs3ObjConverter_1_TARGET) "$(obj)"
 endef
 
 #
@@ -403,7 +408,7 @@ TOOL_Bs3Ow32_COMPILE_C_OUTPUT         = $(TOOL_OPENWATCOM_COMPILE_C_OUTPUT)
 TOOL_Bs3Ow32_COMPILE_C_OUTPUT_MAYBE   = $(TOOL_OPENWATCOM_COMPILE_C_OUTPUT_MAYBE) $(obj).orignal
 define TOOL_Bs3Ow32_COMPILE_C_CMDS
 $(TOOL_OPENWATCOM_COMPILE_C_CMDS)
-	$(QUIET)$(VBoxBs3ObjConverter_1_TARGET) "$(obj)"
+	$(QUIET)$(VBOX_BS3KIT_KSUBMIT_OBJ_CONV) $(VBoxBs3ObjConverter_1_TARGET) "$(obj)"
 endef
 
 TOOL_Bs3Ow32_C32OBJSUFF                 = $(TOOL_Bs3Ow32_COBJSUFF)
@@ -436,7 +441,7 @@ TOOL_Bs3Ow32_COMPILE_CXX_OUTPUT       = $(TOOL_OPENWATCOM_COMPILE_CXX_OUTPUT)
 TOOL_Bs3Ow32_COMPILE_CXX_OUTPUT_MAYBE = $(TOOL_OPENWATCOM_COMPILE_CXX_OUTPUT_MAYBE) $(obj).orignal
 define TOOL_Bs3Ow32_COMPILE_CXX_CMDS
 $(TOOL_OPENWATCOM_COMPILE_CXX_CMDS)
-	$(QUIET)$(VBoxBs3ObjConverter_1_TARGET) "$(obj)"
+	$(QUIET)$(VBOX_BS3KIT_KSUBMIT_OBJ_CONV) $(VBoxBs3ObjConverter_1_TARGET) "$(obj)"
 endef
 
 
@@ -461,7 +466,7 @@ TOOL_Bs3Ow16_COMPILE_C_OUTPUT         = $(TOOL_OPENWATCOM-16_COMPILE_C_OUTPUT)
 TOOL_Bs3Ow16_COMPILE_C_OUTPUT_MAYBE   = $(TOOL_OPENWATCOM-16_COMPILE_C_OUTPUT_MAYBE)
 define TOOL_Bs3Ow16_COMPILE_C_CMDS
 $(TOOL_OPENWATCOM-16_COMPILE_C_CMDS)
-	$(QUIET)$(VBoxBs3ObjConverter_1_TARGET) "$(obj)"
+	$(QUIET)$(VBOX_BS3KIT_KSUBMIT_OBJ_CONV) $(VBoxBs3ObjConverter_1_TARGET) "$(obj)"
 endef
 
 TOOL_Bs3Ow16_C16OBJSUFF                 = $(TOOL_Bs3Ow16_C16OBJSUFF)
@@ -494,7 +499,7 @@ TOOL_Bs3Ow16_COMPILE_CXX_OUTPUT       = $(TOOL_OPENWATCOM-16_COMPILE_CXX_OUTPUT)
 TOOL_Bs3Ow16_COMPILE_CXX_OUTPUT_MAYBE = $(TOOL_OPENWATCOM-16_COMPILE_CXX_OUTPUT_MAYBE)
 define TOOL_Bs3Ow16_COMPILE_CXX_CMDS
 $(TOOL_OPENWATCOM-16_COMPILE_CXX_CMDS)
-	$(QUIET)$(VBoxBs3ObjConverter_1_TARGET) "$(obj)"
+	$(QUIET)$(VBOX_BS3KIT_KSUBMIT_OBJ_CONV) $(VBoxBs3ObjConverter_1_TARGET) "$(obj)"
 endef
 
 # Debug info format depends on what we use for 64-bit.

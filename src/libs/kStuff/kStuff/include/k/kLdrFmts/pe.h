@@ -1,4 +1,4 @@
-/* $Id: pe.h 82 2016-08-22 21:01:51Z bird $ */
+/* $Id: pe.h 92 2016-09-08 15:31:37Z bird $ */
 /** @file
  * PE structures, types and defines.
  */
@@ -47,8 +47,13 @@
 #endif
 
 /* file header */
+#define  IMAGE_FILE_MACHINE_UNKNOWN  0x0000
 #define  IMAGE_FILE_MACHINE_I386  0x014c
 #define  IMAGE_FILE_MACHINE_AMD64  0x8664
+#define  IMAGE_FILE_MACHINE_ARM  0x01c0
+#define  IMAGE_FILE_MACHINE_ARMNT 0x01c4
+#define  IMAGE_FILE_MACHINE_ARM64  0xaa64
+#define  IMAGE_FILE_MACHINE_EBC  0x0ebc
 
 #define  IMAGE_FILE_RELOCS_STRIPPED  0x0001
 #define  IMAGE_FILE_EXECUTABLE_IMAGE  0x0002
@@ -67,6 +72,10 @@
 #define  IMAGE_FILE_UP_SYSTEM_ONLY  0x4000
 #define  IMAGE_FILE_BYTES_REVERSED_HI  0x8000
 
+/** Raw UUID byte for the ANON_OBJECT_HEADER_BIGOBJ::ClassID value.
+ * These make out {d1baa1c7-baee-4ba9-af20-faf66aa4dcb8}. */
+#define  ANON_OBJECT_HEADER_BIGOBJ_CLS_ID_BYTES \
+        0xc7, 0xa1, 0xba, 0xd1,/*-*/ 0xee, 0xba,/*-*/ 0xa9, 0x4b,/*-*/ 0xaf, 0x20,/*-*/ 0xfa, 0xf6, 0x6a, 0xa4, 0xdc, 0xb8
 
 /* optional header */
 #define  IMAGE_NT_OPTIONAL_HDR32_MAGIC  0x10B
@@ -213,6 +222,57 @@ typedef struct _IMAGE_FILE_HEADER
     KU16      Characteristics;
 } IMAGE_FILE_HEADER;
 typedef IMAGE_FILE_HEADER *PIMAGE_FILE_HEADER;
+
+
+typedef struct _ANON_OBJECT_HEADER
+{
+    KU16        Sig1;
+    KU16        Sig2;
+    KU16        Version;                /**< >= 1 */
+    KU16        Machine;
+    KU32        TimeDataStamp;
+    KU8         ClassID[16];
+    KU32        SizeOfData;
+} ANON_OBJECT_HEADER;
+typedef ANON_OBJECT_HEADER *PANON_OBJECT_HEADER;
+
+
+typedef struct _ANON_OBJECT_HEADER_V2
+{
+    KU16        Sig1;
+    KU16        Sig2;
+    KU16        Version;                /**< >= 2 */
+    KU16        Machine;
+    KU32        TimeDataStamp;
+    KU8         ClassID[16];
+    KU32        SizeOfData;
+    /* New fields for Version >= 2: */
+    KU32        Flags;
+    KU32        MetaDataSize;           /**< CLR metadata  */
+    KU32        MetaDataOffset;
+} ANON_OBJECT_HEADER_V2;
+typedef ANON_OBJECT_HEADER_V2 *PANON_OBJECT_HEADER_V2;
+
+
+typedef struct _ANON_OBJECT_HEADER_BIGOBJ
+{
+    KU16        Sig1;
+    KU16        Sig2;
+    KU16        Version;                /**< >= 2 */
+    KU16        Machine;
+    KU32        TimeDataStamp;
+    KU8         ClassID[16];            /**< ANON_OBJECT_HEADER_BIGOBJ_CLS_ID_BYTES */
+    KU32        SizeOfData;
+    /* New fields for Version >= 2: */
+    KU32        Flags;
+    KU32        MetaDataSize;           /**< CLR metadata  */
+    KU32        MetaDataOffset;
+    /* Specific for bigobj: */
+    KU32        NumberOfSections;
+    KU32        PointerToSymbolTable;
+    KU32        NumberOfSymbols;
+} ANON_OBJECT_HEADER_BIGOBJ;
+typedef ANON_OBJECT_HEADER_BIGOBJ *PANON_OBJECT_HEADER_BIGOBJ;
 
 
 typedef struct _IMAGE_DATA_DIRECTORY
@@ -458,7 +518,7 @@ typedef IMAGE_LOAD_CONFIG_DIRECTORY64 *PIMAGE_LOAD_CONFIG_DIRECTORY64;
 typedef struct _IMAGE_DEBUG_DIRECTORY
 {
     KU32      Characteristics;
-	KU32  TimeDateStamp;
+    KU32      TimeDateStamp;
     KU16      MajorVersion;
     KU16      MinorVersion;
     KU32      Type;

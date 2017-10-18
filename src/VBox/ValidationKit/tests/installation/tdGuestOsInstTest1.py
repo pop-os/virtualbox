@@ -8,7 +8,7 @@ VirtualBox Validation Kit - Guest OS installation tests.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2016 Oracle Corporation
+Copyright (C) 2010-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard Python imports.
@@ -53,14 +53,17 @@ class InstallTestVm(vboxtestvms.TestVm):
     """ Installation test VM. """
 
     ## @name The primary controller, to which the disk will be attached.
+    ## @{
     ksScsiController = 'SCSI Controller'
     ksSataController = 'SATA Controller'
     ksIdeController  = 'IDE Controller'
+    ## @}
 
     ## @name VM option flags (OR together).
     ## @{
     kf32Bit                 = 0x01;
     kf64Bit                 = 0x02;
+    # most likely for ancient Linux kernels assuming that AMD processors have always an I/O-APIC
     kfReqIoApic             = 0x10;
     kfReqIoApicSmp          = 0x20;
     kfReqPae                = 0x40;
@@ -74,6 +77,7 @@ class InstallTestVm(vboxtestvms.TestVm):
 
     ## Install ISO path relative to the testrsrc root.
     ksIsoPathBase    = os.path.join('4.2', 'isos');
+
 
     def __init__(self, oSet, sVmName, sKind, sInstallIso, sHdCtrlNm, cGbHdd, fFlags):
         vboxtestvms.TestVm.__init__(self, oSet, sVmName, sKind = sKind, sHddControllerType = sHdCtrlNm,
@@ -110,7 +114,7 @@ class InstallTestVm(vboxtestvms.TestVm):
                 fRc = oSession.close() and fRc;
         return fRc;
 
-    def getReconfiguredVm(self, oTestDrv, cCpus, sVirtMode, sParavirtMode=None):
+    def getReconfiguredVm(self, oTestDrv, cCpus, sVirtMode, sParavirtMode = None):
         #
         # Do the standard reconfig in the base class first, it'll figure out
         # if we can run the VM as requested.
@@ -274,6 +278,8 @@ class tdGuestOsInstTest1(vbox.TestDriver):
             InstallTestVm(oSet, 'tst-ubuntu1404-64','Ubuntu_64',        'ubuntu1404-amd64-txs.iso', InstallTestVm.ksSataController,  8, InstallTestVm.kf64Bit),
             InstallTestVm(oSet, 'tst-debian7',      'Debian',           'debian-7.0.0-txs.iso',     InstallTestVm.ksSataController,  8, InstallTestVm.kf32Bit),
             InstallTestVm(oSet, 'tst-debian7-64',   'Debian_64',        'debian-7.0.0-x64-txs.iso', InstallTestVm.ksScsiController,  8, InstallTestVm.kf64Bit),
+            InstallTestVm(oSet, 'tst-vista-64',     'WindowsVista_64',  'vista-x64-txs.iso',        InstallTestVm.ksSataController, 25, InstallTestVm.kf64Bit),
+            InstallTestVm(oSet, 'tst-vista-32',     'WindowsVista',     'vista-x86-txs.iso',        InstallTestVm.ksSataController, 25, InstallTestVm.kf32Bit),
             InstallTestVm(oSet, 'tst-w7-64',        'Windows7_64',      'win7-x64-txs.iso',         InstallTestVm.ksSataController, 25, InstallTestVm.kf64Bit),
             InstallTestVm(oSet, 'tst-w7-32',        'Windows7',         'win7-x86-txs.iso',         InstallTestVm.ksSataController, 25, InstallTestVm.kf32Bit),
             InstallTestVm(oSet, 'tst-w2k3',         'Windows2003',      'win2k3ent-txs.iso',        InstallTestVm.ksIdeController,  25, InstallTestVm.kf32Bit),

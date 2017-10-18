@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2016 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -68,6 +68,8 @@
 #define RTENV_MAGIC                     UINT32_C(0x19571010)
 /** The value of RTERRVARS::ai32Vars[0]. (Ryuichi Sakamoto) */
 #define RTERRVARS_MAGIC                 UINT32_C(0x19520117)
+/** The value of RTFSISOMAKERINT::uMagic. (Brian Blade) */
+#define RTFSISOMAKERINT_MAGIC           UINT32_C(0x19700725)
 /** Magic number for RTHANDLETABLEINT::u32Magic. (Hitomi Kanehara) */
 #define RTHANDLETABLE_MAGIC             UINT32_C(0x19830808)
 /** Magic number for RTHEAPOFFSETINTERNAL::u32Magic. (Neal Town Stephenson) */
@@ -78,6 +80,10 @@
 #define RTHTTP_MAGIC                    UINT32_C(0x18420225)
 /** The value of RTHTTPINTERNAL::u32Magic after close. */
 #define RTHTTP_MAGIC_DEAD               UINT32_C(0x19120330)
+/** The value of RTINIFILEINT::u32Magic. (Jane Austen) */
+#define RTINIFILE_MAGIC                 UINT32_C(0x17751216)
+/** The value of RTINIFILEINT::u32Magic after close. */
+#define RTINIFILE_MAGIC_DEAD            UINT32_C(0x18170718)
 /** The magic value for RTLDRMODINTERNAL::u32Magic. (Alan Moore) */
 #define RTLDRMOD_MAGIC                  UINT32_C(0x19531118)
 /** The magic value for RTLOCALIPCSERVER::u32Magic. (Naoki Yamamoto) */
@@ -208,7 +214,7 @@
 #define RTTRACEBUF_MAGIC_DEAD           UINT32_C(0x19500121)
 /** The value of RTVFSOBJINTERNAL::u32Magic. (Yasunari Kawabata) */
 #define RTVFSOBJ_MAGIC                  UINT32_C(0x18990614)
-/** The value of RTVFSOBJINTERNAL::u32Magic arter close. */
+/** The value of RTVFSOBJINTERNAL::u32Magic after close. */
 #define RTVFSOBJ_MAGIC_DEAD             UINT32_C(0x19720416)
 /** The value of RTVFSINTERNAL::u32Magic. (Sir Kingsley William Amis) */
 #define RTVFS_MAGIC                     UINT32_C(0x19220416)

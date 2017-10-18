@@ -15,11 +15,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN_KEYBOARD
+#include "LoggingNew.h"
+
 #include "KeyboardImpl.h"
 #include "ConsoleImpl.h"
 
 #include "AutoCaller.h"
-#include "Logging.h"
 
 #include <VBox/com/array.h>
 #include <VBox/vmm/pdmdrv.h>
@@ -76,8 +78,6 @@ Keyboard::~Keyboard()
 HRESULT Keyboard::FinalConstruct()
 {
     RT_ZERO(mpDrv);
-    mpVMMDev = NULL;
-    mfVMMDevInited = false;
     menmLeds = PDMKEYBLEDS_NONE;
     return BaseFinalConstruct();
 }
@@ -95,7 +95,7 @@ void Keyboard::FinalRelease()
  * Initializes the keyboard object.
  *
  * @returns COM result indicator
- * @param parent handle of our parent object
+ * @param aParent   handle of our parent object
  */
 HRESULT Keyboard::init(Console *aParent)
 {
@@ -138,9 +138,6 @@ void Keyboard::uninit()
             mpDrv[i]->pKeyboard = NULL;
         mpDrv[i] = NULL;
     }
-
-    mpVMMDev = NULL;
-    mfVMMDevInited = true;
 
     menmLeds = PDMKEYBLEDS_NONE;
 
@@ -354,7 +351,6 @@ DECLCALLBACK(void) Keyboard::i_drvDestruct(PPDMDRVINS pDrvIns)
                 pThis->pKeyboard->mpDrv[cDev] = NULL;
                 break;
             }
-        pThis->pKeyboard->mpVMMDev = NULL;
     }
 }
 

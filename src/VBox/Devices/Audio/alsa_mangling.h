@@ -1,7 +1,8 @@
+/* $Id: alsa_mangling.h $ */
 /** @file
+ * Mangle libasound symbols.
  *
- * Mangle libasound symbols. This is necessary on hosts which don't
- * support the -fvisibility gcc switch.
+ * This is necessary on hosts which don't support the -fvisibility gcc switch.
  */
 
 /*
@@ -20,6 +21,10 @@
 #define AUDIO_ALSA_MANGLING_H
 
 #define ALSA_MANGLER(symbol) VBox_##symbol
+
+#define snd_device_name_hint                    ALSA_MANGLER(snd_device_name_hint)
+#define snd_device_name_get_hint                ALSA_MANGLER(snd_device_name_get_hint)
+#define snd_device_name_free_hint               ALSA_MANGLER(snd_device_name_free_hint)
 
 #define snd_pcm_hw_params_any                   ALSA_MANGLER(snd_pcm_hw_params_any)
 #define snd_pcm_close                           ALSA_MANGLER(snd_pcm_close)
@@ -52,5 +57,6 @@
 #define snd_pcm_hw_params_set_format            ALSA_MANGLER(snd_pcm_hw_params_set_format)
 #define snd_pcm_sw_params_current               ALSA_MANGLER(snd_pcm_sw_params_current)
 #define snd_pcm_sw_params_set_start_threshold   ALSA_MANGLER(snd_pcm_sw_params_set_start_threshold)
+#define snd_pcm_sw_params_set_avail_min         ALSA_MANGLER(snd_pcm_sw_params_set_avail_min)
 
 #endif /* !AUDIO_ALSA_MANGLING_H */

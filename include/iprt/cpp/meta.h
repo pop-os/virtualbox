@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2016 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,6 +25,8 @@
 
 #ifndef ___iprt_cpp_meta_h
 #define ___iprt_cpp_meta_h
+
+#include <iprt/types.h>
 
 /** @defgroup grp_rt_cpp_meta   C++ Meta programming utilities
  * @ingroup grp_rt_cpp

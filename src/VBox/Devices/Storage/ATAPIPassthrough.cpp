@@ -18,11 +18,13 @@
 #include <iprt/log.h>
 #include <iprt/assert.h>
 #include <iprt/mem.h>
+#include <iprt/string.h>
 
 #include <VBox/log.h>
 #include <VBox/err.h>
 #include <VBox/cdefs.h>
 #include <VBox/scsi.h>
+#include <VBox/scsiinline.h>
 
 #include "ATAPIPassthrough.h"
 
@@ -110,27 +112,6 @@ typedef struct TRACKLIST
     PTRACK      paTracks;
 } TRACKLIST, *PTRACKLIST;
 
-DECLINLINE(uint16_t) atapiBE2H_U16(const uint8_t *pbBuf)
-{
-    return (pbBuf[0] << 8) | pbBuf[1];
-}
-
-
-DECLINLINE(uint32_t) atapiBE2H_U24(const uint8_t *pbBuf)
-{
-    return (pbBuf[0] << 16) | (pbBuf[1] << 8) | pbBuf[2];
-}
-
-
-DECLINLINE(uint32_t) atapiBE2H_U32(const uint8_t *pbBuf)
-{
-    return (pbBuf[0] << 24) | (pbBuf[1] << 16) | (pbBuf[2] << 8) | pbBuf[3];
-}
-
-DECLINLINE(int64_t) atapiMSF2LBA(const uint8_t *pbBuf)
-{
-    return ((int64_t)(pbBuf[0] * 60 + pbBuf[1]) * 75 + pbBuf[2]) - 150; /* 2 second pregap */
-}
 
 /**
  * Reallocate the given track list to be able to hold the given number of tracks.
@@ -164,7 +145,8 @@ static int atapiTrackListReallocate(PTRACKLIST pTrackList, unsigned cTracks, uin
             rc = VERR_NO_MEMORY;
     }
 
-    pTrackList->cTracksCurrent = cTracks;
+    if (RT_SUCCESS(rc))
+        pTrackList->cTracksCurrent = cTracks;
 
     return rc;
 }
@@ -245,11 +227,11 @@ static void atapiTrackListEntryCreateFromCueSheetEntry(PTRACK pTrack, const uint
 
     pTrack->enmMainDataForm = enmTrackDataForm;
     pTrack->enmSubChnDataForm = enmSubChnDataForm;
-    pTrack->iLbaStart = atapiMSF2LBA(&pbCueSheetEntry[5]);
+    pTrack->iLbaStart = scsiMSF2LBA(&pbCueSheetEntry[5]);
     if (pbCueSheetEntry[1] != 0xaa)
     {
         /* Calculate number of sectors from the next entry. */
-        int64_t iLbaNext = atapiMSF2LBA(&pbCueSheetEntry[5+8]);
+        int64_t iLbaNext = scsiMSF2LBA(&pbCueSheetEntry[5+8]);
         pTrack->cSectors = iLbaNext - pTrack->iLbaStart;
     }
     else
@@ -271,7 +253,7 @@ static void atapiTrackListEntryCreateFromCueSheetEntry(PTRACK pTrack, const uint
 static int atapiTrackListUpdateFromSendCueSheet(PTRACKLIST pTrackList, const uint8_t *pbCDB, const void *pvBuf)
 {
     int rc = VINF_SUCCESS;
-    unsigned cbCueSheet = atapiBE2H_U24(pbCDB + 6);
+    unsigned cbCueSheet = scsiBE2H_U24(pbCDB + 6);
     unsigned cTracks = cbCueSheet / 8;
 
     AssertReturn(cbCueSheet % 8 == 0 && cTracks, VERR_INVALID_PARAMETER);
@@ -306,6 +288,7 @@ static int atapiTrackListUpdateFromSendDvdStructure(PTRACKLIST pTrackList, const
  *
  * @returns VBox status code.
  * @param   pTrackList    The track list to update.
+ * @param   iTrack        The first track the TOC has data for.
  * @param   fMSF          Flag whether block addresses are in MSF or LBA format.
  * @param   pbBuf         Buffer holding the formatted TOC.
  * @param   cbBuffer      Size of the buffer.
@@ -315,7 +298,7 @@ static int atapiTrackListUpdateFromFormattedToc(PTRACKLIST pTrackList, uint8_t i
 {
     RT_NOREF(iTrack, cbBuffer); /** @todo unused parameters */
     int rc = VINF_SUCCESS;
-    unsigned cbToc = atapiBE2H_U16(pbBuf);
+    unsigned cbToc = scsiBE2H_U16(pbBuf);
     uint8_t iTrackFirst = pbBuf[2];
     unsigned cTracks;
 
@@ -325,7 +308,7 @@ static int atapiTrackListUpdateFromFormattedToc(PTRACKLIST pTrackList, uint8_t i
 
     cTracks = cbToc / 8 + iTrackFirst;
 
-    rc = atapiTrackListReallocate(pTrackList, cTracks, ATAPI_TRACK_LIST_REALLOCATE_FLAGS_DONT_CLEAR);
+    rc = atapiTrackListReallocate(pTrackList, iTrackFirst + cTracks, ATAPI_TRACK_LIST_REALLOCATE_FLAGS_DONT_CLEAR);
     if (RT_SUCCESS(rc))
     {
         PTRACK pTrack = &pTrackList->paTracks[iTrackFirst];
@@ -339,9 +322,9 @@ static int atapiTrackListUpdateFromFormattedToc(PTRACKLIST pTrackList, uint8_t i
 
             pTrack->enmSubChnDataForm = SUBCHNDATAFORM_0;
             if (fMSF)
-                pTrack->iLbaStart = atapiMSF2LBA(&pbBuf[4]);
+                pTrack->iLbaStart = scsiMSF2LBA(&pbBuf[4]);
             else
-                pTrack->iLbaStart = atapiBE2H_U32(&pbBuf[4]);
+                pTrack->iLbaStart = scsiBE2H_U32(&pbBuf[4]);
 
             if (pbBuf[2] != 0xaa)
             {
@@ -349,9 +332,9 @@ static int atapiTrackListUpdateFromFormattedToc(PTRACKLIST pTrackList, uint8_t i
                 int64_t iLbaNext;
 
                 if (fMSF)
-                    iLbaNext = atapiMSF2LBA(&pbBuf[4+8]);
+                    iLbaNext = scsiMSF2LBA(&pbBuf[4+8]);
                 else
-                    iLbaNext = atapiBE2H_U32(&pbBuf[4+8]);
+                    iLbaNext = scsiBE2H_U32(&pbBuf[4+8]);
 
                 pTrack->cSectors = iLbaNext - pTrack->iLbaStart;
             }
@@ -370,7 +353,7 @@ static int atapiTrackListUpdateFromFormattedToc(PTRACKLIST pTrackList, uint8_t i
 static int atapiTrackListUpdateFromReadTocPmaAtip(PTRACKLIST pTrackList, const uint8_t *pbCDB, const void *pvBuf)
 {
     int rc = VINF_SUCCESS;
-    uint16_t cbBuffer = atapiBE2H_U16(&pbCDB[7]);
+    uint16_t cbBuffer = scsiBE2H_U16(&pbCDB[7]);
     bool fMSF = (pbCDB[1] & 0x2) != 0;
     uint8_t uFmt = pbCDB[2] & 0xf;
     uint8_t iTrack = pbCDB[6];
@@ -643,5 +626,330 @@ DECLHIDDEN(uint32_t) ATAPIPassthroughTrackListGetSectorSizeFromLba(PTRACKLIST pT
     }
 
     return cbAtapiSector;
+}
+
+
+static uint8_t atapiPassthroughCmdErrorSimple(uint8_t *pbSense, size_t cbSense, uint8_t uATAPISenseKey, uint8_t uATAPIASC)
+{
+    memset(pbSense, '\0', cbSense);
+    if (RT_LIKELY(cbSense >= 13))
+    {
+        pbSense[0] = 0x70 | (1 << 7);
+        pbSense[2] = uATAPISenseKey & 0x0f;
+        pbSense[7] = 10;
+        pbSense[12] = uATAPIASC;
+    }
+    return SCSI_STATUS_CHECK_CONDITION;
+}
+
+
+DECLHIDDEN(bool) ATAPIPassthroughParseCdb(const uint8_t *pbCdb, size_t cbCdb, size_t cbBuf,
+                                          PTRACKLIST pTrackList, uint8_t *pbSense, size_t cbSense,
+                                          PDMMEDIATXDIR *penmTxDir, size_t *pcbXfer,
+                                          size_t *pcbSector, uint8_t *pu8ScsiSts)
+{
+    uint32_t uLba = 0;
+    uint32_t cSectors = 0;
+    size_t cbSector = 0;
+    size_t cbXfer = 0;
+    bool fPassthrough = false;
+    PDMMEDIATXDIR enmTxDir = PDMMEDIATXDIR_NONE;
+
+    RT_NOREF(cbCdb);
+
+    switch (pbCdb[0])
+    {
+        /* First the commands we can pass through without further processing. */
+        case SCSI_BLANK:
+        case SCSI_CLOSE_TRACK_SESSION:
+        case SCSI_LOAD_UNLOAD_MEDIUM:
+        case SCSI_PAUSE_RESUME:
+        case SCSI_PLAY_AUDIO_10:
+        case SCSI_PLAY_AUDIO_12:
+        case SCSI_PLAY_AUDIO_MSF:
+        case SCSI_PREVENT_ALLOW_MEDIUM_REMOVAL:
+        case SCSI_REPAIR_TRACK:
+        case SCSI_RESERVE_TRACK:
+        case SCSI_SCAN:
+        case SCSI_SEEK_10:
+        case SCSI_SET_CD_SPEED:
+        case SCSI_SET_READ_AHEAD:
+        case SCSI_START_STOP_UNIT:
+        case SCSI_STOP_PLAY_SCAN:
+        case SCSI_SYNCHRONIZE_CACHE:
+        case SCSI_TEST_UNIT_READY:
+        case SCSI_VERIFY_10:
+            fPassthrough = true;
+            break;
+        case SCSI_ERASE_10:
+            uLba = scsiBE2H_U32(pbCdb + 2);
+            cbXfer = scsiBE2H_U16(pbCdb + 7);
+            enmTxDir = PDMMEDIATXDIR_TO_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_FORMAT_UNIT:
+            cbXfer = cbBuf;
+            enmTxDir = PDMMEDIATXDIR_TO_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_GET_CONFIGURATION:
+            cbXfer = scsiBE2H_U16(pbCdb + 7);
+            enmTxDir = PDMMEDIATXDIR_FROM_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_GET_EVENT_STATUS_NOTIFICATION:
+            cbXfer = scsiBE2H_U16(pbCdb + 7);
+            enmTxDir = PDMMEDIATXDIR_FROM_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_GET_PERFORMANCE:
+            cbXfer = cbBuf;
+            enmTxDir = PDMMEDIATXDIR_FROM_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_INQUIRY:
+            cbXfer = scsiBE2H_U16(pbCdb + 3);
+            enmTxDir = PDMMEDIATXDIR_FROM_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_MECHANISM_STATUS:
+            cbXfer = scsiBE2H_U16(pbCdb + 8);
+            enmTxDir = PDMMEDIATXDIR_FROM_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_MODE_SELECT_10:
+            cbXfer = scsiBE2H_U16(pbCdb + 7);
+            enmTxDir = PDMMEDIATXDIR_TO_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_MODE_SENSE_10:
+            cbXfer = scsiBE2H_U16(pbCdb + 7);
+            enmTxDir = PDMMEDIATXDIR_FROM_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_READ_10:
+            uLba = scsiBE2H_U32(pbCdb + 2);
+            cSectors = scsiBE2H_U16(pbCdb + 7);
+            cbSector = 2048;
+            cbXfer = cSectors * cbSector;
+            enmTxDir = PDMMEDIATXDIR_FROM_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_READ_12:
+            uLba = scsiBE2H_U32(pbCdb + 2);
+            cSectors = scsiBE2H_U32(pbCdb + 6);
+            cbSector = 2048;
+            cbXfer = cSectors * cbSector;
+            enmTxDir = PDMMEDIATXDIR_FROM_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_READ_BUFFER:
+            cbXfer = scsiBE2H_U24(pbCdb + 6);
+            enmTxDir = PDMMEDIATXDIR_FROM_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_READ_BUFFER_CAPACITY:
+            cbXfer = scsiBE2H_U16(pbCdb + 7);
+            enmTxDir = PDMMEDIATXDIR_FROM_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_READ_CAPACITY:
+            cbXfer = 8;
+            enmTxDir = PDMMEDIATXDIR_FROM_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_READ_CD:
+        case SCSI_READ_CD_MSF:
+        {
+            /* Get sector size based on the expected sector type field. */
+            switch ((pbCdb[1] >> 2) & 0x7)
+            {
+                case 0x0: /* All types. */
+                {
+                    uint32_t iLbaStart;
+
+                    if (pbCdb[0] == SCSI_READ_CD)
+                        iLbaStart = scsiBE2H_U32(&pbCdb[2]);
+                    else
+                        iLbaStart = scsiMSF2LBA(&pbCdb[3]);
+
+                    if (pTrackList)
+                        cbSector = ATAPIPassthroughTrackListGetSectorSizeFromLba(pTrackList, iLbaStart);
+                    else
+                        cbSector = 2048; /* Might be incorrect if we couldn't determine the type. */
+                    break;
+                }
+                case 0x1: /* CD-DA */
+                    cbSector = 2352;
+                    break;
+                case 0x2: /* Mode 1 */
+                    cbSector = 2048;
+                    break;
+                case 0x3: /* Mode 2 formless */
+                    cbSector = 2336;
+                    break;
+                case 0x4: /* Mode 2 form 1 */
+                    cbSector = 2048;
+                    break;
+                case 0x5: /* Mode 2 form 2 */
+                    cbSector = 2324;
+                    break;
+                default: /* Reserved */
+                    AssertMsgFailed(("Unknown sector type\n"));
+                    cbSector = 0; /** @todo we should probably fail the command here already. */
+            }
+
+            if (pbCdb[0] == SCSI_READ_CD)
+                cbXfer = scsiBE2H_U24(pbCdb + 6) * cbSector;
+            else /* SCSI_READ_MSF */
+            {
+                cSectors = scsiMSF2LBA(pbCdb + 6) - scsiMSF2LBA(pbCdb + 3);
+                if (cSectors > 32)
+                    cSectors = 32; /* Limit transfer size to 64~74K. Safety first. In any case this can only harm software doing CDDA extraction. */
+                cbXfer = cSectors * cbSector;
+            }
+            enmTxDir = PDMMEDIATXDIR_FROM_DEVICE;
+            fPassthrough = true;
+            break;
+        }
+        case SCSI_READ_DISC_INFORMATION:
+            cbXfer = scsiBE2H_U16(pbCdb + 7);
+            enmTxDir = PDMMEDIATXDIR_FROM_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_READ_DVD_STRUCTURE:
+            cbXfer = scsiBE2H_U16(pbCdb + 8);
+            enmTxDir = PDMMEDIATXDIR_FROM_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_READ_FORMAT_CAPACITIES:
+            cbXfer = scsiBE2H_U16(pbCdb + 7);
+            enmTxDir = PDMMEDIATXDIR_FROM_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_READ_SUBCHANNEL:
+            cbXfer = scsiBE2H_U16(pbCdb + 7);
+            enmTxDir = PDMMEDIATXDIR_FROM_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_READ_TOC_PMA_ATIP:
+            cbXfer = scsiBE2H_U16(pbCdb + 7);
+            enmTxDir = PDMMEDIATXDIR_FROM_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_READ_TRACK_INFORMATION:
+            cbXfer = scsiBE2H_U16(pbCdb + 7);
+            enmTxDir = PDMMEDIATXDIR_FROM_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_REPORT_KEY:
+            cbXfer = scsiBE2H_U16(pbCdb + 8);
+            enmTxDir = PDMMEDIATXDIR_FROM_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_REQUEST_SENSE:
+            cbXfer = pbCdb[4];
+            enmTxDir = PDMMEDIATXDIR_FROM_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_SEND_CUE_SHEET:
+            cbXfer = scsiBE2H_U24(pbCdb + 6);
+            enmTxDir = PDMMEDIATXDIR_TO_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_SEND_DVD_STRUCTURE:
+            cbXfer = scsiBE2H_U16(pbCdb + 8);
+            enmTxDir = PDMMEDIATXDIR_TO_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_SEND_EVENT:
+            cbXfer = scsiBE2H_U16(pbCdb + 8);
+            enmTxDir = PDMMEDIATXDIR_TO_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_SEND_KEY:
+            cbXfer = scsiBE2H_U16(pbCdb + 8);
+            enmTxDir = PDMMEDIATXDIR_TO_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_SEND_OPC_INFORMATION:
+            cbXfer = scsiBE2H_U16(pbCdb + 7);
+            enmTxDir = PDMMEDIATXDIR_TO_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_SET_STREAMING:
+            cbXfer = scsiBE2H_U16(pbCdb + 9);
+            enmTxDir = PDMMEDIATXDIR_TO_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_WRITE_10:
+        case SCSI_WRITE_AND_VERIFY_10:
+            uLba = scsiBE2H_U32(pbCdb + 2);
+            cSectors = scsiBE2H_U16(pbCdb + 7);
+            if (pTrackList)
+                cbSector = ATAPIPassthroughTrackListGetSectorSizeFromLba(pTrackList, uLba);
+            else
+                cbSector = 2048;
+            cbXfer = cSectors * cbSector;
+            enmTxDir = PDMMEDIATXDIR_TO_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_WRITE_12:
+            uLba = scsiBE2H_U32(pbCdb + 2);
+            cSectors = scsiBE2H_U32(pbCdb + 6);
+            if (pTrackList)
+                cbSector = ATAPIPassthroughTrackListGetSectorSizeFromLba(pTrackList, uLba);
+            else
+                cbSector = 2048;
+            cbXfer = cSectors * cbSector;
+            enmTxDir = PDMMEDIATXDIR_TO_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_WRITE_BUFFER:
+            switch (pbCdb[1] & 0x1f)
+            {
+                case 0x04: /* download microcode */
+                case 0x05: /* download microcode and save */
+                case 0x06: /* download microcode with offsets */
+                case 0x07: /* download microcode with offsets and save */
+                case 0x0e: /* download microcode with offsets and defer activation */
+                case 0x0f: /* activate deferred microcode */
+                    LogRel(("ATAPI: CD-ROM passthrough command attempted to update firmware, blocked\n"));
+                    *pu8ScsiSts = atapiPassthroughCmdErrorSimple(pbSense, cbSense, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_INV_FIELD_IN_CMD_PACKET);
+                    break;
+                default:
+                    cbXfer = scsiBE2H_U16(pbCdb + 6);
+                    enmTxDir = PDMMEDIATXDIR_TO_DEVICE;
+                    fPassthrough = true;
+                    break;
+            }
+            break;
+        case SCSI_REPORT_LUNS: /* Not part of MMC-3, but used by Windows. */
+            cbXfer = scsiBE2H_U32(pbCdb + 6);
+            enmTxDir = PDMMEDIATXDIR_FROM_DEVICE;
+            fPassthrough = true;
+            break;
+        case SCSI_REZERO_UNIT:
+            /* Obsolete command used by cdrecord. What else would one expect?
+             * This command is not sent to the drive, it is handled internally,
+             * as the Linux kernel doesn't like it (message "scsi: unknown
+             * opcode 0x01" in syslog) and replies with a sense code of 0,
+             * which sends cdrecord to an endless loop. */
+            *pu8ScsiSts = atapiPassthroughCmdErrorSimple(pbSense, cbSense, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_ILLEGAL_OPCODE);
+            break;
+        default:
+            LogRel(("ATAPI: Passthrough unimplemented for command %#x\n", pbCdb[0]));
+            *pu8ScsiSts = atapiPassthroughCmdErrorSimple(pbSense, cbSense, SCSI_SENSE_ILLEGAL_REQUEST, SCSI_ASC_ILLEGAL_OPCODE);
+            break;
+    }
+
+    if (fPassthrough)
+    {
+        *penmTxDir = enmTxDir;
+        *pcbXfer   = cbXfer;
+        *pcbSector = cbSector;
+    }
+
+    return fPassthrough;
 }
 

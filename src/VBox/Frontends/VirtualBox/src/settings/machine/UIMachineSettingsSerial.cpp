@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,12 @@
 # include <QDir>
 
 /* GUI includes: */
-# include "UIMachineSettingsSerial.h"
-# include "QIWidgetValidator.h"
-# include "VBoxGlobal.h"
 # include "QITabWidget.h"
+# include "QIWidgetValidator.h"
 # include "UIConverter.h"
+# include "UIMachineSettingsSerial.h"
+# include "UIErrorString.h"
+# include "VBoxGlobal.h"
 
 /* COM includes: */
 # include "CSerialPort.h"
@@ -35,56 +36,162 @@
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
-/* UIMachineSettingsSerial stuff */
+/** Machine settings: Serial Port tab data structure. */
+struct UIDataSettingsMachineSerialPort
+{
+    /** Constructs data. */
+    UIDataSettingsMachineSerialPort()
+        : m_iSlot(-1)
+        , m_fPortEnabled(false)
+        , m_uIRQ(0)
+        , m_uIOBase(0)
+        , m_hostMode(KPortMode_Disconnected)
+        , m_fServer(false)
+        , m_strPath(QString())
+    {}
+
+    /** Returns whether the @a other passed data is equal to this one. */
+    bool equal(const UIDataSettingsMachineSerialPort &other) const
+    {
+        return true
+               && (m_iSlot == other.m_iSlot)
+               && (m_fPortEnabled == other.m_fPortEnabled)
+               && (m_uIRQ == other.m_uIRQ)
+               && (m_uIOBase == other.m_uIOBase)
+               && (m_hostMode == other.m_hostMode)
+               && (m_fServer == other.m_fServer)
+               && (m_strPath == other.m_strPath)
+               ;
+    }
+
+    /** Returns whether the @a other passed data is equal to this one. */
+    bool operator==(const UIDataSettingsMachineSerialPort &other) const { return equal(other); }
+    /** Returns whether the @a other passed data is different from this one. */
+    bool operator!=(const UIDataSettingsMachineSerialPort &other) const { return !equal(other); }
+
+    /** Holds the serial port slot number. */
+    int        m_iSlot;
+    /** Holds whether the serial port is enabled. */
+    bool       m_fPortEnabled;
+    /** Holds the serial port IRQ. */
+    ulong      m_uIRQ;
+    /** Holds the serial port IO base. */
+    ulong      m_uIOBase;
+    /** Holds the serial port host mode. */
+    KPortMode  m_hostMode;
+    /** Holds whether the serial port is server. */
+    bool       m_fServer;
+    /** Holds the serial port path. */
+    QString    m_strPath;
+};
+
+
+/** Machine settings: Serial page data structure. */
+struct UIDataSettingsMachineSerial
+{
+    /** Constructs data. */
+    UIDataSettingsMachineSerial() {}
+
+    /** Returns whether the @a other passed data is equal to this one. */
+    bool operator==(const UIDataSettingsMachineSerial & /* other */) const { return true; }
+    /** Returns whether the @a other passed data is different from this one. */
+    bool operator!=(const UIDataSettingsMachineSerial & /* other */) const { return false; }
+};
+
+
+/** Machine settings: Serial Port tab. */
+class UIMachineSettingsSerial : public QIWithRetranslateUI<QWidget>,
+                                public Ui::UIMachineSettingsSerial
+{
+    Q_OBJECT;
+
+public:
+
+    UIMachineSettingsSerial(UIMachineSettingsSerialPage *pParent);
+
+    void polishTab();
+
+    void loadPortData(const UIDataSettingsMachineSerialPort &portData);
+    void savePortData(UIDataSettingsMachineSerialPort &portData);
+
+    QWidget *setOrderAfter(QWidget *pAfter);
+
+    QString pageTitle() const;
+    bool isUserDefined();
+
+protected:
+
+    void retranslateUi();
+
+private slots:
+
+    void sltGbSerialToggled(bool fOn);
+    void sltCbNumberActivated(const QString &strText);
+    void sltCbModeActivated(const QString &strText);
+
+private:
+
+    /* Helper: Prepare stuff: */
+    void prepareValidation();
+
+    UIMachineSettingsSerialPage *m_pParent;
+    int m_iSlot;
+};
+
+
+/*********************************************************************************************************************************
+*   Class UIMachineSettingsSerial implementation.                                                                                *
+*********************************************************************************************************************************/
+
 UIMachineSettingsSerial::UIMachineSettingsSerial(UIMachineSettingsSerialPage *pParent)
-    : QIWithRetranslateUI<QWidget> (0)
+    : QIWithRetranslateUI<QWidget>(0)
     , m_pParent(pParent)
     , m_iSlot(-1)
 {
-    /* Apply UI decorations */
-    Ui::UIMachineSettingsSerial::setupUi (this);
+    /* Apply UI decorations: */
+    Ui::UIMachineSettingsSerial::setupUi(this);
 
-    /* Setup validation */
-    mLeIRQ->setValidator (new QIULongValidator (0, 255, this));
-    mLeIOPort->setValidator (new QIULongValidator (0, 0xFFFF, this));
-    mLePath->setValidator (new QRegExpValidator (QRegExp (".+"), this));
+    /* Setup validation: */
+    mLeIRQ->setValidator(new QIULongValidator(0, 255, this));
+    mLeIOPort->setValidator(new QIULongValidator(0, 0xFFFF, this));
+    mLePath->setValidator(new QRegExpValidator(QRegExp(".+"), this));
 
-    /* Setup constraints */
-    mLeIRQ->setFixedWidth (mLeIRQ->fontMetrics().width ("8888"));
-    mLeIOPort->setFixedWidth (mLeIOPort->fontMetrics().width ("8888888"));
+    /* Setup constraints: */
+    mLeIRQ->setFixedWidth(mLeIRQ->fontMetrics().width("8888"));
+    mLeIOPort->setFixedWidth(mLeIOPort->fontMetrics().width("8888888"));
 
-    /* Set initial values */
+    /* Set initial values: */
     /* Note: If you change one of the following don't forget retranslateUi. */
-    mCbNumber->insertItem (0, vboxGlobal().toCOMPortName (0, 0));
-    mCbNumber->insertItems (0, vboxGlobal().COMPortNames());
+    mCbNumber->insertItem(0, vboxGlobal().toCOMPortName(0, 0));
+    mCbNumber->insertItems(0, vboxGlobal().COMPortNames());
 
-    mCbMode->addItem (""); /* KPortMode_Disconnected */
-    mCbMode->addItem (""); /* KPortMode_HostPipe */
-    mCbMode->addItem (""); /* KPortMode_HostDevice */
-    mCbMode->addItem (""); /* KPortMode_RawFile */
-    mCbMode->addItem (""); /* KPortMode_TCP */
+    mCbMode->addItem(""); /* KPortMode_Disconnected */
+    mCbMode->addItem(""); /* KPortMode_HostPipe */
+    mCbMode->addItem(""); /* KPortMode_HostDevice */
+    mCbMode->addItem(""); /* KPortMode_RawFile */
+    mCbMode->addItem(""); /* KPortMode_TCP */
 
-    /* Setup connections */
-    connect (mGbSerial, SIGNAL (toggled (bool)),
-             this, SLOT (mGbSerialToggled (bool)));
-    connect (mCbNumber, SIGNAL (activated (const QString &)),
-             this, SLOT (mCbNumberActivated (const QString &)));
-    connect (mCbMode, SIGNAL (activated (const QString &)),
-             this, SLOT (mCbModeActivated (const QString &)));
+    /* Setup connections: */
+    connect(mGbSerial, SIGNAL(toggled(bool)),
+            this, SLOT(sltGbSerialToggled(bool)));
+    connect(mCbNumber, SIGNAL(activated(const QString &)),
+            this, SLOT(sltCbNumberActivated(const QString &)));
+    connect(mCbMode, SIGNAL(activated(const QString &)),
+            this, SLOT(sltCbModeActivated(const QString &)));
 
     /* Prepare validation: */
     prepareValidation();
 
-    /* Applying language settings */
+    /* Apply language settings: */
     retranslateUi();
 }
 
 void UIMachineSettingsSerial::polishTab()
 {
+    /* Polish port page: */
     ulong uIRQ, uIOBase;
-    bool fStd = vboxGlobal().toCOMPortNumbers(mCbNumber->currentText(), uIRQ, uIOBase);
-    KPortMode mode = gpConverter->fromString<KPortMode>(mCbMode->currentText());
-
+    const bool fStd = vboxGlobal().toCOMPortNumbers(mCbNumber->currentText(), uIRQ, uIOBase);
+    const KPortMode enmMode = gpConverter->fromString<KPortMode>(mCbMode->currentText());
     mGbSerial->setEnabled(m_pParent->isMachineOffline());
     mLbNumber->setEnabled(m_pParent->isMachineOffline());
     mCbNumber->setEnabled(m_pParent->isMachineOffline());
@@ -94,17 +201,14 @@ void UIMachineSettingsSerial::polishTab()
     mLeIOPort->setEnabled(!fStd && m_pParent->isMachineOffline());
     mLbMode->setEnabled(m_pParent->isMachineOffline());
     mCbMode->setEnabled(m_pParent->isMachineOffline());
-    mCbPipe->setEnabled((mode == KPortMode_HostPipe || mode == KPortMode_TCP)
-      && m_pParent->isMachineOffline());
+    mCbPipe->setEnabled(   (enmMode == KPortMode_HostPipe || enmMode == KPortMode_TCP)
+                        && m_pParent->isMachineOffline());
     mLbPath->setEnabled(m_pParent->isMachineOffline());
-    mLePath->setEnabled(mode != KPortMode_Disconnected && m_pParent->isMachineOffline());
+    mLePath->setEnabled(enmMode != KPortMode_Disconnected && m_pParent->isMachineOffline());
 }
 
-void UIMachineSettingsSerial::fetchPortData(const UISettingsCacheMachineSerialPort &portCache)
+void UIMachineSettingsSerial::loadPortData(const UIDataSettingsMachineSerialPort &portData)
 {
-    /* Get port data: */
-    const UIDataSettingsMachineSerialPort &portData = portCache.base();
-
     /* Load port number: */
     m_iSlot = portData.m_iSlot;
 
@@ -118,35 +222,29 @@ void UIMachineSettingsSerial::fetchPortData(const UISettingsCacheMachineSerialPo
     mLePath->setText(portData.m_strPath);
 
     /* Ensure everything is up-to-date */
-    mGbSerialToggled(mGbSerial->isChecked());
+    sltGbSerialToggled(mGbSerial->isChecked());
 }
 
-void UIMachineSettingsSerial::uploadPortData(UISettingsCacheMachineSerialPort &portCache)
+void UIMachineSettingsSerial::savePortData(UIDataSettingsMachineSerialPort &portData)
 {
-    /* Prepare port data: */
-    UIDataSettingsMachineSerialPort portData = portCache.base();
-
     /* Save port data: */
     portData.m_fPortEnabled = mGbSerial->isChecked();
     portData.m_uIRQ = mLeIRQ->text().toULong(NULL, 0);
-    portData.m_uIOBase = mLeIOPort->text().toULong (NULL, 0);
+    portData.m_uIOBase = mLeIOPort->text().toULong(NULL, 0);
     portData.m_fServer = !mCbPipe->isChecked();
     portData.m_hostMode = gpConverter->fromString<KPortMode>(mCbMode->currentText());
     portData.m_strPath = QDir::toNativeSeparators(mLePath->text());
-
-    /* Cache port data to port cache: */
-    portCache.cacheCurrentData(portData);
 }
 
-QWidget* UIMachineSettingsSerial::setOrderAfter (QWidget *aAfter)
+QWidget *UIMachineSettingsSerial::setOrderAfter(QWidget *pAfter)
 {
-    setTabOrder (aAfter, mGbSerial);
-    setTabOrder (mGbSerial, mCbNumber);
-    setTabOrder (mCbNumber, mLeIRQ);
-    setTabOrder (mLeIRQ, mLeIOPort);
-    setTabOrder (mLeIOPort, mCbMode);
-    setTabOrder (mCbMode, mCbPipe);
-    setTabOrder (mCbPipe, mLePath);
+    setTabOrder(pAfter, mGbSerial);
+    setTabOrder(mGbSerial, mCbNumber);
+    setTabOrder(mCbNumber, mLeIRQ);
+    setTabOrder(mLeIRQ, mLeIOPort);
+    setTabOrder(mLeIOPort, mCbMode);
+    setTabOrder(mCbMode, mCbPipe);
+    setTabOrder(mCbPipe, mLePath);
     return mLePath;
 }
 
@@ -158,57 +256,57 @@ QString UIMachineSettingsSerial::pageTitle() const
 bool UIMachineSettingsSerial::isUserDefined()
 {
     ulong a, b;
-    return !vboxGlobal().toCOMPortNumbers (mCbNumber->currentText(), a, b);
+    return !vboxGlobal().toCOMPortNumbers(mCbNumber->currentText(), a, b);
 }
 
 void UIMachineSettingsSerial::retranslateUi()
 {
-    /* Translate uic generated strings */
-    Ui::UIMachineSettingsSerial::retranslateUi (this);
+    /* Translate uic generated strings: */
+    Ui::UIMachineSettingsSerial::retranslateUi(this);
 
-    mCbNumber->setItemText (mCbNumber->count() - 1, vboxGlobal().toCOMPortName (0, 0));
+    mCbNumber->setItemText(mCbNumber->count() - 1, vboxGlobal().toCOMPortName(0, 0));
 
-    mCbMode->setItemText (4, gpConverter->toString (KPortMode_TCP));
-    mCbMode->setItemText (3, gpConverter->toString (KPortMode_RawFile));
-    mCbMode->setItemText (2, gpConverter->toString (KPortMode_HostDevice));
-    mCbMode->setItemText (1, gpConverter->toString (KPortMode_HostPipe));
-    mCbMode->setItemText (0, gpConverter->toString (KPortMode_Disconnected));
+    mCbMode->setItemText(4, gpConverter->toString(KPortMode_TCP));
+    mCbMode->setItemText(3, gpConverter->toString(KPortMode_RawFile));
+    mCbMode->setItemText(2, gpConverter->toString(KPortMode_HostDevice));
+    mCbMode->setItemText(1, gpConverter->toString(KPortMode_HostPipe));
+    mCbMode->setItemText(0, gpConverter->toString(KPortMode_Disconnected));
 }
 
-void UIMachineSettingsSerial::mGbSerialToggled (bool aOn)
+void UIMachineSettingsSerial::sltGbSerialToggled(bool fOn)
 {
-    if (aOn)
+    if (fOn)
     {
-        mCbNumberActivated (mCbNumber->currentText());
-        mCbModeActivated (mCbMode->currentText());
+        sltCbNumberActivated(mCbNumber->currentText());
+        sltCbModeActivated(mCbMode->currentText());
     }
 
     /* Revalidate: */
     m_pParent->revalidate();
 }
 
-void UIMachineSettingsSerial::mCbNumberActivated (const QString &aText)
+void UIMachineSettingsSerial::sltCbNumberActivated(const QString &strText)
 {
-    ulong IRQ, IOBase;
-    bool std = vboxGlobal().toCOMPortNumbers (aText, IRQ, IOBase);
+    ulong uIRQ, uIOBase;
+    bool fStd = vboxGlobal().toCOMPortNumbers(strText, uIRQ, uIOBase);
 
-    mLeIRQ->setEnabled (!std);
-    mLeIOPort->setEnabled (!std);
-    if (std)
+    mLeIRQ->setEnabled(!fStd);
+    mLeIOPort->setEnabled(!fStd);
+    if (fStd)
     {
-        mLeIRQ->setText (QString::number (IRQ));
-        mLeIOPort->setText ("0x" + QString::number (IOBase, 16).toUpper());
+        mLeIRQ->setText(QString::number(uIRQ));
+        mLeIOPort->setText("0x" + QString::number(uIOBase, 16).toUpper());
     }
 
     /* Revalidate: */
     m_pParent->revalidate();
 }
 
-void UIMachineSettingsSerial::mCbModeActivated (const QString &aText)
+void UIMachineSettingsSerial::sltCbModeActivated(const QString &strText)
 {
-    KPortMode mode = gpConverter->fromString<KPortMode> (aText);
-    mCbPipe->setEnabled (mode == KPortMode_HostPipe || mode == KPortMode_TCP);
-    mLePath->setEnabled (mode != KPortMode_Disconnected);
+    KPortMode enmMode = gpConverter->fromString<KPortMode>(strText);
+    mCbPipe->setEnabled(enmMode == KPortMode_HostPipe || enmMode == KPortMode_TCP);
+    mLePath->setEnabled(enmMode != KPortMode_Disconnected);
 
     /* Revalidate: */
     m_pParent->revalidate();
@@ -223,88 +321,92 @@ void UIMachineSettingsSerial::prepareValidation()
 }
 
 
-/* UIMachineSettingsSerialPage stuff */
-UIMachineSettingsSerialPage::UIMachineSettingsSerialPage()
-    : mTabWidget(0)
-{
-    /* TabWidget creation */
-    mTabWidget = new QITabWidget (this);
-    QVBoxLayout *layout = new QVBoxLayout (this);
-    layout->setContentsMargins (0, 5, 0, 5);
-    layout->addWidget (mTabWidget);
+/*********************************************************************************************************************************
+*   Class UIMachineSettingsSerialPage implementation.                                                                            *
+*********************************************************************************************************************************/
 
-    /* How many ports to display: */
-    ulong uCount = vboxGlobal().virtualBox().GetSystemProperties().GetSerialPortCount();
-    /* Add corresponding tab pages to parent tab widget: */
-    for (ulong uPort = 0; uPort < uCount; ++uPort)
-    {
-        /* Creating port page: */
-        UIMachineSettingsSerial *pPage = new UIMachineSettingsSerial(this);
-        mTabWidget->addTab(pPage, pPage->pageTitle());
-    }
+UIMachineSettingsSerialPage::UIMachineSettingsSerialPage()
+    : m_pTabWidget(0)
+    , m_pCache(0)
+{
+    /* Prepare: */
+    prepare();
 }
 
-/* Load data to cache from corresponding external object(s),
- * this task COULD be performed in other than GUI thread: */
+UIMachineSettingsSerialPage::~UIMachineSettingsSerialPage()
+{
+    /* Cleanup: */
+    cleanup();
+}
+
+bool UIMachineSettingsSerialPage::changed() const
+{
+    return m_pCache->wasChanged();
+}
+
 void UIMachineSettingsSerialPage::loadToCacheFrom(QVariant &data)
 {
     /* Fetch data to machine: */
     UISettingsPageMachine::fetchData(data);
 
     /* Clear cache initially: */
-    m_cache.clear();
+    m_pCache->clear();
 
-    /* For each serial port: */
-    for (int iSlot = 0; iSlot < mTabWidget->count(); ++iSlot)
+    /* Prepare old serial data: */
+    UIDataSettingsMachineSerial oldSerialData;
+
+    /* For each port: */
+    for (int iSlot = 0; iSlot < m_pTabWidget->count(); ++iSlot)
     {
-        /* Prepare port data: */
-        UIDataSettingsMachineSerialPort portData;
+        /* Prepare old port data: */
+        UIDataSettingsMachineSerialPort oldPortData;
 
-        /* Check if port is valid: */
-        const CSerialPort &port = m_machine.GetSerialPort(iSlot);
-        if (!port.isNull())
+        /* Check whether port is valid: */
+        const CSerialPort &comPort = m_machine.GetSerialPort(iSlot);
+        if (!comPort.isNull())
         {
-            /* Gather options: */
-            portData.m_iSlot = iSlot;
-            portData.m_fPortEnabled = port.GetEnabled();
-            portData.m_uIRQ = port.GetIRQ();
-            portData.m_uIOBase = port.GetIOBase();
-            portData.m_hostMode = port.GetHostMode();
-            portData.m_fServer = port.GetServer();
-            portData.m_strPath = port.GetPath();
+            /* Gather old port data: */
+            oldPortData.m_iSlot = iSlot;
+            oldPortData.m_fPortEnabled = comPort.GetEnabled();
+            oldPortData.m_uIRQ = comPort.GetIRQ();
+            oldPortData.m_uIOBase = comPort.GetIOBase();
+            oldPortData.m_hostMode = comPort.GetHostMode();
+            oldPortData.m_fServer = comPort.GetServer();
+            oldPortData.m_strPath = comPort.GetPath();
         }
 
-        /* Cache port data: */
-        m_cache.child(iSlot).cacheInitialData(portData);
+        /* Cache old port data: */
+        m_pCache->child(iSlot).cacheInitialData(oldPortData);
     }
+
+    /* Cache old serial data: */
+    m_pCache->cacheInitialData(oldSerialData);
 
     /* Upload machine to data: */
     UISettingsPageMachine::uploadData(data);
 }
 
-/* Load data to corresponding widgets from cache,
- * this task SHOULD be performed in GUI thread only: */
 void UIMachineSettingsSerialPage::getFromCache()
 {
     /* Setup tab order: */
-    Assert(firstWidget());
-    setTabOrder(firstWidget(), mTabWidget->focusProxy());
-    QWidget *pLastFocusWidget = mTabWidget->focusProxy();
+    AssertPtrReturnVoid(firstWidget());
+    setTabOrder(firstWidget(), m_pTabWidget->focusProxy());
+    QWidget *pLastFocusWidget = m_pTabWidget->focusProxy();
 
-    /* For each serial port: */
-    for (int iPort = 0; iPort < mTabWidget->count(); ++iPort)
+    /* For each port: */
+    for (int iSlot = 0; iSlot < m_pTabWidget->count(); ++iSlot)
     {
         /* Get port page: */
-        UIMachineSettingsSerial *pPage = qobject_cast<UIMachineSettingsSerial*>(mTabWidget->widget(iPort));
+        UIMachineSettingsSerial *pPage = qobject_cast<UIMachineSettingsSerial*>(m_pTabWidget->widget(iSlot));
 
-        /* Load port data to page: */
-        pPage->fetchPortData(m_cache.child(iPort));
+        /* Load old port data from the cache: */
+        pPage->loadPortData(m_pCache->child(iSlot).base());
 
         /* Setup tab order: */
         pLastFocusWidget = pPage->setOrderAfter(pLastFocusWidget);
     }
 
-    /* Applying language settings: */
+    /* Apply language settings: */
     retranslateUi();
 
     /* Polish page finally: */
@@ -314,62 +416,38 @@ void UIMachineSettingsSerialPage::getFromCache()
     revalidate();
 }
 
-/* Save data from corresponding widgets to cache,
- * this task SHOULD be performed in GUI thread only: */
 void UIMachineSettingsSerialPage::putToCache()
 {
-    /* For each serial port: */
-    for (int iPort = 0; iPort < mTabWidget->count(); ++iPort)
+    /* Prepare new serial data: */
+    UIDataSettingsMachineSerial newSerialData;
+
+    /* For each port: */
+    for (int iSlot = 0; iSlot < m_pTabWidget->count(); ++iSlot)
     {
         /* Getting port page: */
-        UIMachineSettingsSerial *pPage = qobject_cast<UIMachineSettingsSerial*>(mTabWidget->widget(iPort));
+        UIMachineSettingsSerial *pTab = qobject_cast<UIMachineSettingsSerial*>(m_pTabWidget->widget(iSlot));
 
-        /* Gather & cache port data: */
-        pPage->uploadPortData(m_cache.child(iPort));
+        /* Prepare new port data: */
+        UIDataSettingsMachineSerialPort newPortData;
+
+        /* Gather new port data: */
+        pTab->savePortData(newPortData);
+
+        /* Cache new port data: */
+        m_pCache->child(iSlot).cacheCurrentData(newPortData);
     }
+
+    /* Cache new serial data: */
+    m_pCache->cacheCurrentData(newSerialData);
 }
 
-/* Save data from cache to corresponding external object(s),
- * this task COULD be performed in other than GUI thread: */
 void UIMachineSettingsSerialPage::saveFromCacheTo(QVariant &data)
 {
     /* Fetch data to machine: */
     UISettingsPageMachine::fetchData(data);
 
-    /* Check if ports data was changed: */
-    if (m_cache.wasChanged())
-    {
-        /* For each serial port: */
-        for (int iPort = 0; iPort < mTabWidget->count(); ++iPort)
-        {
-            /* Check if port data was changed: */
-            const UISettingsCacheMachineSerialPort &portCache = m_cache.child(iPort);
-            if (portCache.wasChanged())
-            {
-                /* Check if port still valid: */
-                CSerialPort port = m_machine.GetSerialPort(iPort);
-                if (!port.isNull())
-                {
-                    /* Get port data: */
-                    const UIDataSettingsMachineSerialPort &portData = portCache.data();
-
-                    /* Store adapter data: */
-                    if (isMachineOffline())
-                    {
-                        port.SetEnabled(portData.m_fPortEnabled);
-                        port.SetIRQ(portData.m_uIRQ);
-                        port.SetIOBase(portData.m_uIOBase);
-                        port.SetServer(portData.m_fServer);
-                        port.SetPath(portData.m_strPath);
-                        /* This *must* be last. The host mode will be changed to disconnected if
-                         * some of the necessary settings above will not meet the requirements for
-                         * the selected mode. */
-                        port.SetHostMode(portData.m_hostMode);
-                    }
-                }
-            }
-        }
-    }
+    /* Update serial data and failing state: */
+    setFailed(!saveSerialData());
 
     /* Upload machine to data: */
     UISettingsPageMachine::uploadData(data);
@@ -385,22 +463,22 @@ bool UIMachineSettingsSerialPage::validate(QList<UIValidationMessage> &messages)
     QStringList paths;
 
     /* Validate all the ports: */
-    for (int iIndex = 0; iIndex < mTabWidget->count(); ++iIndex)
+    for (int iIndex = 0; iIndex < m_pTabWidget->count(); ++iIndex)
     {
         /* Get current tab/page: */
-        QWidget *pTab = mTabWidget->widget(iIndex);
-        UIMachineSettingsSerial *page = static_cast<UIMachineSettingsSerial*>(pTab);
-        if (!page->mGbSerial->isChecked())
+        QWidget *pTab = m_pTabWidget->widget(iIndex);
+        UIMachineSettingsSerial *pPage = static_cast<UIMachineSettingsSerial*>(pTab);
+        if (!pPage->mGbSerial->isChecked())
             continue;
 
         /* Prepare message: */
         UIValidationMessage message;
-        message.first = vboxGlobal().removeAccelMark(mTabWidget->tabText(mTabWidget->indexOf(pTab)));
+        message.first = vboxGlobal().removeAccelMark(m_pTabWidget->tabText(m_pTabWidget->indexOf(pTab)));
 
         /* Check the port attribute emptiness & uniqueness: */
-        const QString strIRQ(page->mLeIRQ->text());
-        const QString strIOPort(page->mLeIOPort->text());
-        QPair<QString, QString> pair(strIRQ, strIOPort);
+        const QString strIRQ(pPage->mLeIRQ->text());
+        const QString strIOPort(pPage->mLeIOPort->text());
+        const QPair<QString, QString> pair(strIRQ, strIOPort);
 
         if (strIRQ.isEmpty())
         {
@@ -420,10 +498,10 @@ bool UIMachineSettingsSerialPage::validate(QList<UIValidationMessage> &messages)
 
         ports << pair;
 
-        KPortMode mode = gpConverter->fromString<KPortMode>(page->mCbMode->currentText());
-        if (mode != KPortMode_Disconnected)
+        const KPortMode enmMode = gpConverter->fromString<KPortMode>(pPage->mCbMode->currentText());
+        if (enmMode != KPortMode_Disconnected)
         {
-            const QString strPath(page->mLePath->text());
+            const QString strPath(pPage->mLePath->text());
 
             if (strPath.isEmpty())
             {
@@ -450,24 +528,171 @@ bool UIMachineSettingsSerialPage::validate(QList<UIValidationMessage> &messages)
 
 void UIMachineSettingsSerialPage::retranslateUi()
 {
-    for (int i = 0; i < mTabWidget->count(); ++ i)
+    for (int i = 0; i < m_pTabWidget->count(); ++i)
     {
-        UIMachineSettingsSerial *page =
-            static_cast<UIMachineSettingsSerial*> (mTabWidget->widget (i));
-        mTabWidget->setTabText (i, page->pageTitle());
+        UIMachineSettingsSerial *pPage =
+            static_cast<UIMachineSettingsSerial*>(m_pTabWidget->widget(i));
+        m_pTabWidget->setTabText(i, pPage->pageTitle());
     }
 }
 
 void UIMachineSettingsSerialPage::polishPage()
 {
     /* Get the count of serial port tabs: */
-    for (int iPort = 0; iPort < mTabWidget->count(); ++iPort)
+    for (int iSlot = 0; iSlot < m_pTabWidget->count(); ++iSlot)
     {
-        mTabWidget->setTabEnabled(iPort,
-                                  isMachineOffline() ||
-                                  (isMachineInValidMode() && m_cache.child(iPort).base().m_fPortEnabled));
-        UIMachineSettingsSerial *pTab = qobject_cast<UIMachineSettingsSerial*>(mTabWidget->widget(iPort));
+        m_pTabWidget->setTabEnabled(iSlot,
+                                    isMachineOffline() ||
+                                    (isMachineInValidMode() &&
+                                     m_pCache->childCount() > iSlot &&
+                                     m_pCache->child(iSlot).base().m_fPortEnabled));
+        UIMachineSettingsSerial *pTab = qobject_cast<UIMachineSettingsSerial*>(m_pTabWidget->widget(iSlot));
         pTab->polishTab();
     }
 }
+
+void UIMachineSettingsSerialPage::prepare()
+{
+    /* Prepare cache: */
+    m_pCache = new UISettingsCacheMachineSerial;
+    AssertPtrReturnVoid(m_pCache);
+
+    /* Create main layout: */
+    QVBoxLayout *pMainLayout = new QVBoxLayout(this);
+    AssertPtrReturnVoid(pMainLayout);
+    {
+        /* Configure layout: */
+        pMainLayout->setContentsMargins(0, 5, 0, 5);
+
+        /* Creating tab-widget: */
+        m_pTabWidget = new QITabWidget;
+        AssertPtrReturnVoid(m_pTabWidget);
+        {
+            /* How many ports to display: */
+            const ulong uCount = vboxGlobal().virtualBox().GetSystemProperties().GetSerialPortCount();
+
+            /* Create corresponding port tabs: */
+            for (ulong uPort = 0; uPort < uCount; ++uPort)
+            {
+                /* Create port tab: */
+                UIMachineSettingsSerial *pTab = new UIMachineSettingsSerial(this);
+                AssertPtrReturnVoid(pTab);
+                {
+                    /* Add tab into tab-widget: */
+                    m_pTabWidget->addTab(pTab, pTab->pageTitle());
+                }
+            }
+
+            /* Add tab-widget into layout: */
+            pMainLayout->addWidget(m_pTabWidget);
+        }
+    }
+}
+
+void UIMachineSettingsSerialPage::cleanup()
+{
+    /* Cleanup cache: */
+    delete m_pCache;
+    m_pCache = 0;
+}
+
+bool UIMachineSettingsSerialPage::saveSerialData()
+{
+    /* Prepare result: */
+    bool fSuccess = true;
+    /* Save serial settings from the cache: */
+    if (fSuccess && isMachineInValidMode() && m_pCache->wasChanged())
+    {
+        /* For each port: */
+        for (int iSlot = 0; fSuccess && iSlot < m_pTabWidget->count(); ++iSlot)
+            fSuccess = savePortData(iSlot);
+    }
+    /* Return result: */
+    return fSuccess;
+}
+
+bool UIMachineSettingsSerialPage::savePortData(int iSlot)
+{
+    /* Prepare result: */
+    bool fSuccess = true;
+    /* Save adapter settings from the cache: */
+    if (fSuccess && m_pCache->child(iSlot).wasChanged())
+    {
+        /* Get old serial data from the cache: */
+        const UIDataSettingsMachineSerialPort &oldPortData = m_pCache->child(iSlot).base();
+        /* Get new serial data from the cache: */
+        const UIDataSettingsMachineSerialPort &newPortData = m_pCache->child(iSlot).data();
+
+        /* Get serial port for further activities: */
+        CSerialPort comPort = m_machine.GetSerialPort(iSlot);
+        fSuccess = m_machine.isOk() && comPort.isNotNull();
+
+        /* Show error message if necessary: */
+        if (!fSuccess)
+            notifyOperationProgressError(UIErrorString::formatErrorInfo(m_machine));
+        else
+        {
+            // This *must* be first.
+            // If the requested host mode is changed to disconnected we should do it first.
+            // That allows to automatically fulfill the requirements for some of the settings below.
+            /* Save port host mode: */
+            if (   fSuccess && isMachineOffline()
+                && newPortData.m_hostMode != oldPortData.m_hostMode
+                && newPortData.m_hostMode == KPortMode_Disconnected)
+            {
+                comPort.SetHostMode(newPortData.m_hostMode);
+                fSuccess = comPort.isOk();
+            }
+            /* Save whether the port is enabled: */
+            if (fSuccess && isMachineOffline() && newPortData.m_fPortEnabled != oldPortData.m_fPortEnabled)
+            {
+                comPort.SetEnabled(newPortData.m_fPortEnabled);
+                fSuccess = comPort.isOk();
+            }
+            /* Save port IRQ: */
+            if (fSuccess && isMachineOffline() && newPortData.m_uIRQ != oldPortData.m_uIRQ)
+            {
+                comPort.SetIRQ(newPortData.m_uIRQ);
+                fSuccess = comPort.isOk();
+            }
+            /* Save port IO base: */
+            if (fSuccess && isMachineOffline() && newPortData.m_uIOBase != oldPortData.m_uIOBase)
+            {
+                comPort.SetIOBase(newPortData.m_uIOBase);
+                fSuccess = comPort.isOk();
+            }
+            /* Save whether the port is server: */
+            if (fSuccess && isMachineOffline() && newPortData.m_fServer != oldPortData.m_fServer)
+            {
+                comPort.SetServer(newPortData.m_fServer);
+                fSuccess = comPort.isOk();
+            }
+            /* Save port path: */
+            if (fSuccess && isMachineOffline() && newPortData.m_strPath != oldPortData.m_strPath)
+            {
+                comPort.SetPath(newPortData.m_strPath);
+                fSuccess = comPort.isOk();
+            }
+            // This *must* be last.
+            // The host mode will be changed to disconnected if some of the necessary
+            // settings above will not meet the requirements for the selected mode.
+            /* Save port host mode: */
+            if (   fSuccess && isMachineOffline()
+                && newPortData.m_hostMode != oldPortData.m_hostMode
+                && newPortData.m_hostMode != KPortMode_Disconnected)
+            {
+                comPort.SetHostMode(newPortData.m_hostMode);
+                fSuccess = comPort.isOk();
+            }
+
+            /* Show error message if necessary: */
+            if (!fSuccess)
+                notifyOperationProgressError(UIErrorString::formatErrorInfo(comPort));
+        }
+    }
+    /* Return result: */
+    return fSuccess;
+}
+
+# include "UIMachineSettingsSerial.moc"
 

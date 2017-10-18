@@ -32,6 +32,7 @@
 #include <iprt/list.h>
 
 #include "VDBackends.h"
+#include "VDBackendsInline.h"
 
 /** @page pg_storage_qcow   QCOW Storage Backend
  * The QCOW backend implements support for the qemu copy on write format (short QCOW).
@@ -247,6 +248,11 @@ typedef struct QCOWIMAGE
     /** Number of bits to shift to get the L2 index. */
     uint32_t            cL2Shift;
 
+    /** Pointer to the L2 table we are currently allocating
+     * (can be only one at a time). */
+    PQCOWL2CACHEENTRY   pL2TblAlloc;
+    /** The static region list. */
+    VDREGIONLIST        RegionList;
 } QCOWIMAGE, *PQCOWIMAGE;
 
 /**
@@ -451,45 +457,6 @@ static void qcowTableConvertFromHostEndianess(uint64_t *paTblImg, uint64_t *paTb
     }
 }
 
-#if 0 /* unused */
-/**
- * Convert refcount table entries from little endian to host endianess.
- *
- * @returns nothing.
- * @param   paTbl       Pointer to the table.
- * @param   cEntries    Number of entries in the table.
- */
-static void qcowRefcountTableConvertToHostEndianess(uint16_t *paTbl, uint32_t cEntries)
-{
-    while(cEntries-- > 0)
-    {
-        *paTbl = RT_BE2H_U16(*paTbl);
-        paTbl++;
-    }
-}
-#endif
-
-#if 0 /* unused */
-/**
- * Convert table entries from host to little endian format.
- *
- * @returns nothing.
- * @param   paTblImg    Pointer to the table which will store the little endian table.
- * @param   paTbl       The source table to convert.
- * @param   cEntries    Number of entries in the table.
- */
-static void qcowRefcountTableConvertFromHostEndianess(uint16_t *paTblImg, uint16_t *paTbl,
-                                                      uint32_t cEntries)
-{
-    while(cEntries-- > 0)
-    {
-        *paTblImg = RT_H2BE_U16(*paTbl);
-        paTbl++;
-        paTblImg++;
-    }
-}
-#endif
-
 /**
  * Creates the L2 table cache.
  *
@@ -513,9 +480,8 @@ static int qcowL2TblCacheCreate(PQCOWIMAGE pImage)
  */
 static void qcowL2TblCacheDestroy(PQCOWIMAGE pImage)
 {
-    PQCOWL2CACHEENTRY pL2Entry = NULL;
-    PQCOWL2CACHEENTRY pL2Next  = NULL;
-
+    PQCOWL2CACHEENTRY pL2Entry;
+    PQCOWL2CACHEENTRY pL2Next;
     RTListForEachSafe(&pImage->ListSearch, pL2Entry, pL2Next, QCOWL2CACHEENTRY, NodeSearch)
     {
         Assert(!pL2Entry->cRefs);
@@ -539,8 +505,14 @@ static void qcowL2TblCacheDestroy(PQCOWIMAGE pImage)
  */
 static PQCOWL2CACHEENTRY qcowL2TblCacheRetain(PQCOWIMAGE pImage, uint64_t offL2Tbl)
 {
-    PQCOWL2CACHEENTRY pL2Entry = NULL;
+    if (   pImage->pL2TblAlloc
+        && pImage->pL2TblAlloc->offL2Tbl == offL2Tbl)
+    {
+        pImage->pL2TblAlloc->cRefs++;
+        return pImage->pL2TblAlloc;
+    }
 
+    PQCOWL2CACHEENTRY pL2Entry;
     RTListForEach(&pImage->ListSearch, pL2Entry, QCOWL2CACHEENTRY, NodeSearch)
     {
         if (pL2Entry->offL2Tbl == offL2Tbl)
@@ -555,8 +527,8 @@ static PQCOWL2CACHEENTRY qcowL2TblCacheRetain(PQCOWIMAGE pImage, uint64_t offL2T
         pL2Entry->cRefs++;
         return pL2Entry;
     }
-    else
-        return NULL;
+
+    return NULL;
 }
 
 /**
@@ -650,8 +622,6 @@ static void qcowL2TblCacheEntryFree(PQCOWIMAGE pImage, PQCOWL2CACHEENTRY pL2Entr
  */
 static void qcowL2TblCacheEntryInsert(PQCOWIMAGE pImage, PQCOWL2CACHEENTRY pL2Entry)
 {
-    PQCOWL2CACHEENTRY pIt = NULL;
-
     Assert(pL2Entry->offL2Tbl > 0);
 
     /* Insert at the top of the LRU list. */
@@ -664,6 +634,7 @@ static void qcowL2TblCacheEntryInsert(PQCOWIMAGE pImage, PQCOWL2CACHEENTRY pL2En
     else
     {
         /* Insert into search list. */
+        PQCOWL2CACHEENTRY pIt;
         pIt = RTListGetFirst(&pImage->ListSearch, QCOWL2CACHEENTRY, NodeSearch);
         if (pIt->offL2Tbl > pL2Entry->offL2Tbl)
             RTListPrepend(&pImage->ListSearch, &pL2Entry->NodeSearch);
@@ -681,7 +652,7 @@ static void qcowL2TblCacheEntryInsert(PQCOWIMAGE pImage, PQCOWL2CACHEENTRY pL2En
                     break;
                 }
             }
-             Assert(fInserted);
+            Assert(fInserted);
         }
     }
 }
@@ -813,7 +784,7 @@ DECLINLINE(uint64_t) qcowByte2Cluster(PQCOWIMAGE pImage, uint64_t cb)
  *
  * @returns The start offset of the new cluster in the image.
  * @param   pImage    The image instance data.
- * @param   cCLusters Number of clusters to allocate.
+ * @param   cClusters Number of clusters to allocate.
  */
 DECLINLINE(uint64_t) qcowClusterAllocate(PQCOWIMAGE pImage, uint32_t cClusters)
 {
@@ -887,6 +858,47 @@ static int qcowConvertToImageOffset(PQCOWIMAGE pImage, PVDIOCTX pIoCtx,
     return rc;
 }
 
+/**
+ * Write the given table to image converting to the image endianess if required.
+ *
+ * @returns VBox status code.
+ * @param   pImage        The image instance data.
+ * @param   pIoCtx        The I/O context.
+ * @param   offTbl        The offset the table should be written to.
+ * @param   paTbl         The table to write.
+ * @param   cbTbl         Size of the table in bytes.
+ * @param   cTblEntries   Number entries in the table.
+ * @param   pfnComplete   Callback called when the write completes.
+ * @param   pvUser        Opaque user data to pass in the completion callback.
+ */
+static int qcowTblWrite(PQCOWIMAGE pImage, PVDIOCTX pIoCtx, uint64_t offTbl, uint64_t *paTbl,
+                        size_t cbTbl, unsigned cTblEntries,
+                        PFNVDXFERCOMPLETED pfnComplete, void *pvUser)
+{
+    int rc = VINF_SUCCESS;
+
+#if defined(RT_LITTLE_ENDIAN)
+    uint64_t *paTblImg = (uint64_t *)RTMemAllocZ(cbTbl);
+    if (paTblImg)
+    {
+        qcowTableConvertFromHostEndianess(paTblImg, paTbl, cTblEntries);
+        rc = vdIfIoIntFileWriteMeta(pImage->pIfIo, pImage->pStorage,
+                                    offTbl, paTblImg, cbTbl,
+                                    pIoCtx, pfnComplete, pvUser);
+        RTMemFree(paTblImg);
+    }
+    else
+        rc = VERR_NO_MEMORY;
+#else
+    /* Write table directly. */
+    RT_NOREF(cTblEntries);
+    rc = vdIfIoIntFileWriteMeta(pImage->pIfIo, pImage->pStorage,
+                                offTbl, paTbl, cbTbl, pIoCtx,
+                                pfnComplete, pvUser);
+#endif
+
+    return rc;
+}
 
 /**
  * Internal. Flush image data to disk.
@@ -935,58 +947,6 @@ static int qcowFlushImage(PQCOWIMAGE pImage)
 }
 
 /**
- * Flush image data to disk - version for async I/O.
- *
- * @returns VBox status code.
- * @param   pImage    The image instance data.
- * @param   pIoCtx    The I/o context
- */
-static int qcowFlushImageAsync(PQCOWIMAGE pImage, PVDIOCTX pIoCtx)
-{
-    int rc = VINF_SUCCESS;
-
-    if (   pImage->pStorage
-        && !(pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY))
-    {
-        QCowHeader Header;
-
-#if defined(RT_LITTLE_ENDIAN)
-        uint64_t *paL1TblImg = (uint64_t *)RTMemAllocZ(pImage->cbL1Table);
-        if (paL1TblImg)
-        {
-            qcowTableConvertFromHostEndianess(paL1TblImg, pImage->paL1Table,
-                                             pImage->cL1TableEntries);
-            rc = vdIfIoIntFileWriteMeta(pImage->pIfIo, pImage->pStorage,
-                                        pImage->offL1Table, paL1TblImg,
-                                        pImage->cbL1Table, pIoCtx, NULL, NULL);
-            RTMemFree(paL1TblImg);
-        }
-        else
-            rc = VERR_NO_MEMORY;
-#else
-        /* Write L1 table directly. */
-        rc = vdIfIoIntFileWriteMeta(pImage->pIfIo, pImage->pStorage,
-                                    pImage->offL1Table, pImage->paL1Table,
-                                    pImage->cbL1Table, pIoCtx, NULL, NULL);
-#endif
-        if (RT_SUCCESS(rc) || rc == VERR_VD_ASYNC_IO_IN_PROGRESS)
-        {
-            /* Write header. */
-            size_t cbHeader = 0;
-            qcowHdrConvertFromHostEndianess(pImage, &Header, &cbHeader);
-            rc = vdIfIoIntFileWriteMeta(pImage->pIfIo, pImage->pStorage,
-                                        0, &Header, cbHeader,
-                                        pIoCtx, NULL, NULL);
-            if (RT_SUCCESS(rc) || rc == VERR_VD_ASYNC_IO_IN_PROGRESS)
-                rc = vdIfIoIntFileFlush(pImage->pIfIo, pImage->pStorage,
-                                        pIoCtx, NULL, NULL);
-        }
-    }
-
-    return rc;
-}
-
-/**
  * Internal. Free all allocated space for representing an image except pImage,
  * and optionally delete the image from disk.
  */
@@ -1028,184 +988,261 @@ static int qcowFreeImage(PQCOWIMAGE pImage, bool fDelete)
 }
 
 /**
+ * Validates the header.
+ *
+ * @returns VBox status code.
+ * @param   pImage    Image backend instance data.
+ * @param   pHdr      The header to validate.
+ * @param   cbFile    The image file size in bytes.
+ */
+static int qcowHdrValidate(PQCOWIMAGE pImage, PQCowHeader pHdr, uint64_t cbFile)
+{
+    if (pHdr->u32Version == 1)
+    {
+        /* Check that the backing filename is contained in the file. */
+        if (pHdr->Version.v1.u64BackingFileOffset + pHdr->Version.v1.u32BackingFileSize > cbFile)
+            return vdIfError(pImage->pIfError, VERR_INVALID_STATE, RT_SRC_POS,
+                             N_("QCOW: Backing file offset and size exceed size of image '%s' (%u vs %u)"),
+                             pImage->pszFilename, pHdr->Version.v1.u64BackingFileOffset + pHdr->Version.v1.u32BackingFileSize,
+                             cbFile);
+
+        /* Check that the cluster bits indicate at least a 512byte sector size. */
+        if (RT_BIT_32(pHdr->Version.v1.u8ClusterBits) < 512)
+            return vdIfError(pImage->pIfError, VERR_INVALID_STATE, RT_SRC_POS,
+                             N_("QCOW: Cluster size is too small for image  '%s' (%u vs %u)"),
+                             pImage->pszFilename, RT_BIT_32(pHdr->Version.v1.u8ClusterBits), 512);
+
+        /*
+         * Check for possible overflow when multiplying cluster size and L2 entry count because it is used
+         * to calculate the number of L1 table entries later on.
+         */
+        if (RT_BIT_32(pHdr->Version.v1.u8L2Bits) * RT_BIT_32(pHdr->Version.v1.u8ClusterBits) == 0)
+            return vdIfError(pImage->pIfError, VERR_INVALID_STATE, RT_SRC_POS,
+                             N_("QCOW: Overflow during L1 table size calculation for image '%s'"),
+                             pImage->pszFilename);
+    }
+    else if (pHdr->u32Version == 2)
+    {
+        /* Check that the backing filename is contained in the file. */
+        if (pHdr->Version.v2.u64BackingFileOffset + pHdr->Version.v2.u32BackingFileSize > cbFile)
+            return vdIfError(pImage->pIfError, VERR_INVALID_STATE, RT_SRC_POS,
+                             N_("QCOW: Backing file offset and size exceed size of image '%s' (%u vs %u)"),
+                             pImage->pszFilename, pHdr->Version.v2.u64BackingFileOffset + pHdr->Version.v2.u32BackingFileSize,
+                             cbFile);
+
+        /* Check that the cluster bits indicate at least a 512byte sector size. */
+        if (RT_BIT_32(pHdr->Version.v2.u32ClusterBits) < 512)
+            return vdIfError(pImage->pIfError, VERR_INVALID_STATE, RT_SRC_POS,
+                             N_("QCOW: Cluster size is too small for image  '%s' (%u vs %u)"),
+                             pImage->pszFilename, RT_BIT_32(pHdr->Version.v2.u32ClusterBits), 512);
+    }
+    else
+        return vdIfError(pImage->pIfError, VERR_NOT_SUPPORTED, RT_SRC_POS,
+                         N_("QCOW: Version %u in image '%s' is not supported"),
+                         pHdr->u32Version, pImage->pszFilename);
+
+    return VINF_SUCCESS;
+}
+
+/**
  * Internal: Open an image, constructing all necessary data structures.
  */
 static int qcowOpenImage(PQCOWIMAGE pImage, unsigned uOpenFlags)
 {
-    int rc;
-
     pImage->uOpenFlags = uOpenFlags;
 
     pImage->pIfError = VDIfErrorGet(pImage->pVDIfsDisk);
     pImage->pIfIo = VDIfIoIntGet(pImage->pVDIfsImage);
     AssertPtrReturn(pImage->pIfIo, VERR_INVALID_PARAMETER);
 
-    rc = qcowL2TblCacheCreate(pImage);
-    AssertRC(rc);
-
-    /*
-     * Open the image.
-     */
-    rc = vdIfIoIntFileOpen(pImage->pIfIo, pImage->pszFilename,
-                           VDOpenFlagsToFileOpenFlags(uOpenFlags,
-                                                      false /* fCreate */),
-                           &pImage->pStorage);
-    if (RT_FAILURE(rc))
+    int rc = qcowL2TblCacheCreate(pImage);
+    if (RT_SUCCESS(rc))
     {
-        /* Do NOT signal an appropriate error here, as the VD layer has the
-         * choice of retrying the open if it failed. */
-        goto out;
-    }
-
-    uint64_t cbFile;
-    QCowHeader Header;
-    rc = vdIfIoIntFileGetSize(pImage->pIfIo, pImage->pStorage, &cbFile);
-    if (RT_FAILURE(rc))
-        goto out;
-    if (cbFile > sizeof(Header))
-    {
-        rc = vdIfIoIntFileReadSync(pImage->pIfIo, pImage->pStorage, 0, &Header, sizeof(Header));
-        if (   RT_SUCCESS(rc)
-            && qcowHdrConvertToHostEndianess(&Header))
+        /* Open the image. */
+        rc = vdIfIoIntFileOpen(pImage->pIfIo, pImage->pszFilename,
+                               VDOpenFlagsToFileOpenFlags(uOpenFlags,
+                                                          false /* fCreate */),
+                               &pImage->pStorage);
+        if (RT_SUCCESS(rc))
         {
-            pImage->offNextCluster = RT_ALIGN_64(cbFile, 512); /* Align image to sector boundary. */
-            Assert(pImage->offNextCluster >= cbFile);
-
-            if (Header.u32Version == 1)
-            {
-                if (!Header.Version.v1.u32CryptMethod)
-                {
-                    pImage->uVersion           = 1;
-                    pImage->offBackingFilename = Header.Version.v1.u64BackingFileOffset;
-                    pImage->cbBackingFilename  = Header.Version.v1.u32BackingFileSize;
-                    pImage->MTime              = Header.Version.v1.u32MTime;
-                    pImage->cbSize             = Header.Version.v1.u64Size;
-                    pImage->cbCluster          = RT_BIT_32(Header.Version.v1.u8ClusterBits);
-                    pImage->cL2TableEntries    = RT_BIT_32(Header.Version.v1.u8L2Bits);
-                    pImage->cbL2Table          = RT_ALIGN_64(pImage->cL2TableEntries * sizeof(uint64_t), pImage->cbCluster);
-                    pImage->offL1Table         = Header.Version.v1.u64L1TableOffset;
-                    pImage->cL1TableEntries    = pImage->cbSize / (pImage->cbCluster * pImage->cL2TableEntries);
-                    if (pImage->cbSize % (pImage->cbCluster * pImage->cL2TableEntries))
-                        pImage->cL1TableEntries++;
-                    pImage->cbL1Table          = RT_ALIGN_64(pImage->cL1TableEntries * sizeof(uint64_t), pImage->cbCluster);
-                }
-                else
-                    rc = vdIfError(pImage->pIfError, VERR_NOT_SUPPORTED, RT_SRC_POS,
-                                   N_("QCow: Encrypted image '%s' is not supported"),
-                                   pImage->pszFilename);
-            }
-            else if (Header.u32Version == 2)
-            {
-                if (Header.Version.v2.u32CryptMethod)
-                    rc = vdIfError(pImage->pIfError, VERR_NOT_SUPPORTED, RT_SRC_POS,
-                                   N_("QCow: Encrypted image '%s' is not supported"),
-                                   pImage->pszFilename);
-                else if (Header.Version.v2.u32NbSnapshots)
-                    rc = vdIfError(pImage->pIfError, VERR_NOT_SUPPORTED, RT_SRC_POS,
-                                   N_("QCow: Image '%s' contains snapshots which is not supported"),
-                                   pImage->pszFilename);
-                else
-                {
-                    pImage->uVersion              = 2;
-                    pImage->offBackingFilename    = Header.Version.v2.u64BackingFileOffset;
-                    pImage->cbBackingFilename     = Header.Version.v2.u32BackingFileSize;
-                    pImage->cbSize                = Header.Version.v2.u64Size;
-                    pImage->cbCluster             = RT_BIT_32(Header.Version.v2.u32ClusterBits);
-                    pImage->cL2TableEntries       = pImage->cbCluster / sizeof(uint64_t);
-                    pImage->cbL2Table             = pImage->cbCluster;
-                    pImage->offL1Table            = Header.Version.v2.u64L1TableOffset;
-                    pImage->cL1TableEntries       = Header.Version.v2.u32L1Size;
-                    pImage->cbL1Table             = RT_ALIGN_64(pImage->cL1TableEntries * sizeof(uint64_t), pImage->cbCluster);
-                    pImage->offRefcountTable      = Header.Version.v2.u64RefcountTableOffset;
-                    pImage->cbRefcountTable       = qcowCluster2Byte(pImage, Header.Version.v2.u32RefcountTableClusters);
-                    pImage->cRefcountTableEntries = pImage->cbRefcountTable / sizeof(uint64_t);
-                }
-            }
-            else
-                rc = vdIfError(pImage->pIfError, VERR_NOT_SUPPORTED, RT_SRC_POS,
-                               N_("QCow: Image '%s' uses version %u which is not supported"),
-                               pImage->pszFilename, Header.u32Version);
-
-            /** @todo Check that there are no compressed clusters in the image
-             *  (by traversing the L2 tables and checking each offset).
-             *  Refuse to open such images.
-             */
-
+            uint64_t cbFile;
+            rc = vdIfIoIntFileGetSize(pImage->pIfIo, pImage->pStorage, &cbFile);
             if (   RT_SUCCESS(rc)
-                && pImage->cbBackingFilename
-                && pImage->offBackingFilename)
+                && cbFile > sizeof(QCowHeader))
             {
-                /* Load backing filename from image. */
-                pImage->pszBackingFilename = (char *)RTMemAllocZ(pImage->cbBackingFilename + 1); /* +1 for \0 terminator. */
-                if (pImage->pszBackingFilename)
-                {
-                    rc = vdIfIoIntFileReadSync(pImage->pIfIo, pImage->pStorage,
-                                               pImage->offBackingFilename, pImage->pszBackingFilename,
-                                               pImage->cbBackingFilename);
-                }
-                else
-                    rc = VERR_NO_MEMORY;
-            }
+                QCowHeader Header;
 
-            if (   RT_SUCCESS(rc)
-                && pImage->cbRefcountTable
-                && pImage->offRefcountTable)
-            {
-                /* Load refcount table. */
-                Assert(pImage->cRefcountTableEntries);
-                pImage->paRefcountTable = (uint64_t *)RTMemAllocZ(pImage->cbRefcountTable);
-                if (RT_LIKELY(pImage->paRefcountTable))
+                rc = vdIfIoIntFileReadSync(pImage->pIfIo, pImage->pStorage, 0, &Header, sizeof(Header));
+                if (   RT_SUCCESS(rc)
+                    && qcowHdrConvertToHostEndianess(&Header))
                 {
-                    rc = vdIfIoIntFileReadSync(pImage->pIfIo, pImage->pStorage,
-                                               pImage->offRefcountTable, pImage->paRefcountTable,
-                                               pImage->cbRefcountTable);
+                    pImage->offNextCluster = RT_ALIGN_64(cbFile, 512); /* Align image to sector boundary. */
+                    Assert(pImage->offNextCluster >= cbFile);
+
+                    rc = qcowHdrValidate(pImage, &Header, cbFile);
                     if (RT_SUCCESS(rc))
-                        qcowTableConvertToHostEndianess(pImage->paRefcountTable,
-                                                        pImage->cRefcountTableEntries);
-                    else
-                        rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS,
-                                       N_("QCow: Reading refcount table of image '%s' failed"),
-                                       pImage->pszFilename);
-                }
-                else
-                    rc = vdIfError(pImage->pIfError, VERR_NO_MEMORY, RT_SRC_POS,
-                                   N_("QCow: Allocating memory for refcount table of image '%s' failed"),
-                                   pImage->pszFilename);
-            }
+                    {
+                        if (Header.u32Version == 1)
+                        {
+                            if (!Header.Version.v1.u32CryptMethod)
+                            {
+                                pImage->uVersion           = 1;
+                                pImage->offBackingFilename = Header.Version.v1.u64BackingFileOffset;
+                                pImage->cbBackingFilename  = Header.Version.v1.u32BackingFileSize;
+                                pImage->MTime              = Header.Version.v1.u32MTime;
+                                pImage->cbSize             = Header.Version.v1.u64Size;
+                                pImage->cbCluster          = RT_BIT_32(Header.Version.v1.u8ClusterBits);
+                                pImage->cL2TableEntries    = RT_BIT_32(Header.Version.v1.u8L2Bits);
+                                pImage->cbL2Table          = RT_ALIGN_64(pImage->cL2TableEntries * sizeof(uint64_t), pImage->cbCluster);
+                                pImage->offL1Table         = Header.Version.v1.u64L1TableOffset;
+                                pImage->cL1TableEntries    = pImage->cbSize / (pImage->cbCluster * pImage->cL2TableEntries);
+                                if (pImage->cbSize % (pImage->cbCluster * pImage->cL2TableEntries))
+                                    pImage->cL1TableEntries++;
+                            }
+                            else
+                                rc = vdIfError(pImage->pIfError, VERR_NOT_SUPPORTED, RT_SRC_POS,
+                                               N_("QCow: Encrypted image '%s' is not supported"),
+                                               pImage->pszFilename);
+                        }
+                        else if (Header.u32Version == 2)
+                        {
+                            if (Header.Version.v2.u32CryptMethod)
+                                rc = vdIfError(pImage->pIfError, VERR_NOT_SUPPORTED, RT_SRC_POS,
+                                               N_("QCow: Encrypted image '%s' is not supported"),
+                                               pImage->pszFilename);
+                            else if (Header.Version.v2.u32NbSnapshots)
+                                rc = vdIfError(pImage->pIfError, VERR_NOT_SUPPORTED, RT_SRC_POS,
+                                               N_("QCow: Image '%s' contains snapshots which is not supported"),
+                                               pImage->pszFilename);
+                            else
+                            {
+                                pImage->uVersion              = 2;
+                                pImage->offBackingFilename    = Header.Version.v2.u64BackingFileOffset;
+                                pImage->cbBackingFilename     = Header.Version.v2.u32BackingFileSize;
+                                pImage->cbSize                = Header.Version.v2.u64Size;
+                                pImage->cbCluster             = RT_BIT_32(Header.Version.v2.u32ClusterBits);
+                                pImage->cL2TableEntries       = pImage->cbCluster / sizeof(uint64_t);
+                                pImage->cbL2Table             = pImage->cbCluster;
+                                pImage->offL1Table            = Header.Version.v2.u64L1TableOffset;
+                                pImage->cL1TableEntries       = Header.Version.v2.u32L1Size;
+                                pImage->offRefcountTable      = Header.Version.v2.u64RefcountTableOffset;
+                                pImage->cbRefcountTable       = qcowCluster2Byte(pImage, Header.Version.v2.u32RefcountTableClusters);
+                                pImage->cRefcountTableEntries = pImage->cbRefcountTable / sizeof(uint64_t);
+                            }
+                        }
+                        else
+                            rc = vdIfError(pImage->pIfError, VERR_NOT_SUPPORTED, RT_SRC_POS,
+                                           N_("QCow: Image '%s' uses version %u which is not supported"),
+                                           pImage->pszFilename, Header.u32Version);
 
-            if (RT_SUCCESS(rc))
-            {
-                qcowTableMasksInit(pImage);
+                        pImage->cbL1Table = RT_ALIGN_64(pImage->cL1TableEntries * sizeof(uint64_t), pImage->cbCluster);
+                        if ((uint64_t)pImage->cbL1Table != RT_ALIGN_64(pImage->cL1TableEntries * sizeof(uint64_t), pImage->cbCluster))
+                            rc = vdIfError(pImage->pIfError, VERR_INVALID_STATE, RT_SRC_POS,
+                                           N_("QCOW: L1 table size overflow in image '%s'"),
+                                           pImage->pszFilename);
+                    }
 
-                /* Allocate L1 table. */
-                pImage->paL1Table = (uint64_t *)RTMemAllocZ(pImage->cbL1Table);
-                if (pImage->paL1Table)
-                {
-                    /* Read from the image. */
-                    rc = vdIfIoIntFileReadSync(pImage->pIfIo, pImage->pStorage,
-                                               pImage->offL1Table, pImage->paL1Table,
-                                               pImage->cbL1Table);
+                    /** @todo Check that there are no compressed clusters in the image
+                     *  (by traversing the L2 tables and checking each offset).
+                     *  Refuse to open such images.
+                     */
+
+                    if (   RT_SUCCESS(rc)
+                        && pImage->cbBackingFilename
+                        && pImage->offBackingFilename)
+                    {
+                        /* Load backing filename from image. */
+                        pImage->pszBackingFilename = (char *)RTMemAllocZ(pImage->cbBackingFilename + 1); /* +1 for \0 terminator. */
+                        if (pImage->pszBackingFilename)
+                        {
+                            rc = vdIfIoIntFileReadSync(pImage->pIfIo, pImage->pStorage,
+                                                       pImage->offBackingFilename, pImage->pszBackingFilename,
+                                                       pImage->cbBackingFilename);
+                        }
+                        else
+                            rc = VERR_NO_MEMORY;
+                    }
+
+                    if (   RT_SUCCESS(rc)
+                        && pImage->cbRefcountTable
+                        && pImage->offRefcountTable)
+                    {
+                        /* Load refcount table. */
+                        Assert(pImage->cRefcountTableEntries);
+                        pImage->paRefcountTable = (uint64_t *)RTMemAllocZ(pImage->cbRefcountTable);
+                        if (RT_LIKELY(pImage->paRefcountTable))
+                        {
+                            rc = vdIfIoIntFileReadSync(pImage->pIfIo, pImage->pStorage,
+                                                       pImage->offRefcountTable, pImage->paRefcountTable,
+                                                       pImage->cbRefcountTable);
+                            if (RT_SUCCESS(rc))
+                                qcowTableConvertToHostEndianess(pImage->paRefcountTable,
+                                                                pImage->cRefcountTableEntries);
+                            else
+                                rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS,
+                                               N_("QCow: Reading refcount table of image '%s' failed"),
+                                               pImage->pszFilename);
+                        }
+                        else
+                            rc = vdIfError(pImage->pIfError, VERR_NO_MEMORY, RT_SRC_POS,
+                                           N_("QCow: Allocating memory for refcount table of image '%s' failed"),
+                                           pImage->pszFilename);
+                    }
+
                     if (RT_SUCCESS(rc))
-                        qcowTableConvertToHostEndianess(pImage->paL1Table, pImage->cL1TableEntries);
-                    else
-                        rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS,
-                                       N_("QCow: Reading the L1 table for image '%s' failed"),
-                                       pImage->pszFilename);
+                    {
+                        qcowTableMasksInit(pImage);
+
+                        /* Allocate L1 table. */
+                        pImage->paL1Table = (uint64_t *)RTMemAllocZ(pImage->cbL1Table);
+                        if (pImage->paL1Table)
+                        {
+                            /* Read from the image. */
+                            rc = vdIfIoIntFileReadSync(pImage->pIfIo, pImage->pStorage,
+                                                       pImage->offL1Table, pImage->paL1Table,
+                                                       pImage->cbL1Table);
+                            if (RT_SUCCESS(rc))
+                                qcowTableConvertToHostEndianess(pImage->paL1Table, pImage->cL1TableEntries);
+                            else
+                                rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS,
+                                               N_("QCow: Reading the L1 table for image '%s' failed"),
+                                               pImage->pszFilename);
+                        }
+                        else
+                            rc = vdIfError(pImage->pIfError, VERR_NO_MEMORY, RT_SRC_POS,
+                                           N_("QCow: Out of memory allocating L1 table for image '%s'"),
+                                           pImage->pszFilename);
+                    }
                 }
-                else
-                    rc = vdIfError(pImage->pIfError, VERR_NO_MEMORY, RT_SRC_POS,
-                                   N_("QCow: Out of memory allocating L1 table for image '%s'"),
-                                   pImage->pszFilename);
+                else if (RT_SUCCESS(rc))
+                    rc = VERR_VD_GEN_INVALID_HEADER;
             }
+            else if (RT_SUCCESS(rc))
+                rc = VERR_VD_GEN_INVALID_HEADER;
         }
-        else if (RT_SUCCESS(rc))
-            rc = VERR_VD_GEN_INVALID_HEADER;
+        /* else: Do NOT signal an appropriate error here, as the VD layer has the
+         *       choice of retrying the open if it failed. */
     }
     else
-        rc = VERR_VD_GEN_INVALID_HEADER;
+        rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS,
+                       N_("Qcow: Creating the L2 table cache for image '%s' failed"),
+                       pImage->pszFilename);
 
-out:
-    if (RT_FAILURE(rc))
+    if (RT_SUCCESS(rc))
+    {
+        PVDREGIONDESC pRegion = &pImage->RegionList.aRegions[0];
+        pImage->RegionList.fFlags   = 0;
+        pImage->RegionList.cRegions = 1;
+
+        pRegion->offRegion            = 0; /* Disk start. */
+        pRegion->cbBlock              = 512;
+        pRegion->enmDataForm          = VDREGIONDATAFORM_RAW;
+        pRegion->enmMetadataForm      = VDREGIONMETADATAFORM_NONE;
+        pRegion->cbData               = 512;
+        pRegion->cbMetadata           = 0;
+        pRegion->cRegionBlocksOrBytes = pImage->cbSize;
+    }
+    else
         qcowFreeImage(pImage, false);
     return rc;
 }
@@ -1217,82 +1254,90 @@ static int qcowCreateImage(PQCOWIMAGE pImage, uint64_t cbSize,
                            unsigned uImageFlags, const char *pszComment,
                            PCVDGEOMETRY pPCHSGeometry,
                            PCVDGEOMETRY pLCHSGeometry, unsigned uOpenFlags,
-                           PFNVDPROGRESS pfnProgress, void *pvUser,
+                           PVDINTERFACEPROGRESS pIfProgress,
                            unsigned uPercentStart, unsigned uPercentSpan)
 {
     RT_NOREF1(pszComment);
     int rc;
     int32_t fOpen;
 
-    if (uImageFlags & VD_IMAGE_FLAGS_FIXED)
+    if (!(uImageFlags & VD_IMAGE_FLAGS_FIXED))
     {
+        rc = qcowL2TblCacheCreate(pImage);
+        if (RT_SUCCESS(rc))
+        {
+            pImage->uOpenFlags   = uOpenFlags & ~VD_OPEN_FLAGS_READONLY;
+            pImage->uImageFlags  = uImageFlags;
+            pImage->PCHSGeometry = *pPCHSGeometry;
+            pImage->LCHSGeometry = *pLCHSGeometry;
+            pImage->pIfError = VDIfErrorGet(pImage->pVDIfsDisk);
+            pImage->pIfIo = VDIfIoIntGet(pImage->pVDIfsImage);
+            AssertPtrReturn(pImage->pIfIo, VERR_INVALID_PARAMETER);
+
+            /* Create image file. */
+            fOpen = VDOpenFlagsToFileOpenFlags(pImage->uOpenFlags, true /* fCreate */);
+            rc = vdIfIoIntFileOpen(pImage->pIfIo, pImage->pszFilename, fOpen, &pImage->pStorage);
+            if (RT_SUCCESS(rc))
+            {
+                /* Init image state. */
+                pImage->uVersion           = 1; /* We create only version 1 images at the moment. */
+                pImage->cbSize             = cbSize;
+                pImage->cbCluster          = QCOW_CLUSTER_SIZE_DEFAULT;
+                pImage->cbL2Table          = qcowCluster2Byte(pImage, QCOW_L2_CLUSTERS_DEFAULT);
+                pImage->cL2TableEntries    = pImage->cbL2Table / sizeof(uint64_t);
+                pImage->cL1TableEntries    = cbSize / (pImage->cbCluster * pImage->cL2TableEntries);
+                if (cbSize % (pImage->cbCluster * pImage->cL2TableEntries))
+                    pImage->cL1TableEntries++;
+                pImage->cbL1Table          = pImage->cL1TableEntries * sizeof(uint64_t);
+                pImage->offL1Table         = QCOW_V1_HDR_SIZE;
+                pImage->cbBackingFilename  = 0;
+                pImage->offBackingFilename = 0;
+                pImage->offNextCluster     = RT_ALIGN_64(QCOW_V1_HDR_SIZE + pImage->cbL1Table, pImage->cbCluster);
+                qcowTableMasksInit(pImage);
+
+                /* Init L1 table. */
+                pImage->paL1Table = (uint64_t *)RTMemAllocZ(pImage->cbL1Table);
+                if (RT_LIKELY(pImage->paL1Table))
+                {
+                    if (RT_SUCCESS(rc))
+                        vdIfProgress(pIfProgress, uPercentStart + uPercentSpan * 98 / 100);
+
+                    rc = qcowFlushImage(pImage);
+                    if (RT_SUCCESS(rc))
+                        rc = vdIfIoIntFileSetSize(pImage->pIfIo, pImage->pStorage, pImage->offNextCluster);
+                }
+                else
+                    rc = vdIfError(pImage->pIfError, VERR_NO_MEMORY, RT_SRC_POS, N_("QCow: cannot allocate memory for L1 table of image '%s'"),
+                                   pImage->pszFilename);
+            }
+            else
+                rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("QCow: cannot create image '%s'"), pImage->pszFilename);
+        }
+        else
+            rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("QCow: Failed to create L2 cache for image '%s'"),
+                           pImage->pszFilename);
+    }
+    else
         rc = vdIfError(pImage->pIfError, VERR_VD_INVALID_TYPE, RT_SRC_POS, N_("QCow: cannot create fixed image '%s'"), pImage->pszFilename);
-        goto out;
-    }
 
-    pImage->uOpenFlags   = uOpenFlags & ~VD_OPEN_FLAGS_READONLY;
-    pImage->uImageFlags  = uImageFlags;
-    pImage->PCHSGeometry = *pPCHSGeometry;
-    pImage->LCHSGeometry = *pLCHSGeometry;
-
-    pImage->pIfError = VDIfErrorGet(pImage->pVDIfsDisk);
-    pImage->pIfIo = VDIfIoIntGet(pImage->pVDIfsImage);
-    AssertPtrReturn(pImage->pIfIo, VERR_INVALID_PARAMETER);
-
-    /* Create image file. */
-    fOpen = VDOpenFlagsToFileOpenFlags(pImage->uOpenFlags, true /* fCreate */);
-    rc = vdIfIoIntFileOpen(pImage->pIfIo, pImage->pszFilename, fOpen, &pImage->pStorage);
-    if (RT_FAILURE(rc))
-    {
-        rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("QCow: cannot create image '%s'"), pImage->pszFilename);
-        goto out;
-    }
-
-    /* Init image state. */
-    pImage->uVersion           = 1; /* We create only version 1 images at the moment. */
-    pImage->cbSize             = cbSize;
-    pImage->cbCluster          = QCOW_CLUSTER_SIZE_DEFAULT;
-    pImage->cbL2Table          = qcowCluster2Byte(pImage, QCOW_L2_CLUSTERS_DEFAULT);
-    pImage->cL2TableEntries    = pImage->cbL2Table / sizeof(uint64_t);
-    pImage->cL1TableEntries    = cbSize / (pImage->cbCluster * pImage->cL2TableEntries);
-    if (cbSize % (pImage->cbCluster * pImage->cL2TableEntries))
-        pImage->cL1TableEntries++;
-    pImage->cbL1Table          = pImage->cL1TableEntries * sizeof(uint64_t);
-    pImage->offL1Table         = QCOW_V1_HDR_SIZE;
-    pImage->cbBackingFilename  = 0;
-    pImage->offBackingFilename = 0;
-    pImage->offNextCluster     = RT_ALIGN_64(QCOW_V1_HDR_SIZE + pImage->cbL1Table, pImage->cbCluster);
-    qcowTableMasksInit(pImage);
-
-    /* Init L1 table. */
-    pImage->paL1Table = (uint64_t *)RTMemAllocZ(pImage->cbL1Table);
-    if (!pImage->paL1Table)
-    {
-        rc = vdIfError(pImage->pIfError, VERR_NO_MEMORY, RT_SRC_POS, N_("QCow: cannot allocate memory for L1 table of image '%s'"),
-                       pImage->pszFilename);
-        goto out;
-    }
-
-    rc = qcowL2TblCacheCreate(pImage);
-    if (RT_FAILURE(rc))
-    {
-        rc = vdIfError(pImage->pIfError, rc, RT_SRC_POS, N_("QCow: Failed to create L2 cache for image '%s'"),
-                       pImage->pszFilename);
-        goto out;
-    }
-
-    if (RT_SUCCESS(rc) && pfnProgress)
-        pfnProgress(pvUser, uPercentStart + uPercentSpan * 98 / 100);
-
-    rc = qcowFlushImage(pImage);
     if (RT_SUCCESS(rc))
-        rc = vdIfIoIntFileSetSize(pImage->pIfIo, pImage->pStorage, pImage->offNextCluster);
+        vdIfProgress(pIfProgress, uPercentStart + uPercentSpan);
 
-out:
-    if (RT_SUCCESS(rc) && pfnProgress)
-        pfnProgress(pvUser, uPercentStart + uPercentSpan);
+    if (RT_SUCCESS(rc))
+    {
+        PVDREGIONDESC pRegion = &pImage->RegionList.aRegions[0];
+        pImage->RegionList.fFlags   = 0;
+        pImage->RegionList.cRegions = 1;
 
-    if (RT_FAILURE(rc))
+        pRegion->offRegion            = 0; /* Disk start. */
+        pRegion->cbBlock              = 512;
+        pRegion->enmDataForm          = VDREGIONDATAFORM_RAW;
+        pRegion->enmMetadataForm      = VDREGIONMETADATAFORM_NONE;
+        pRegion->cbData               = 512;
+        pRegion->cbMetadata           = 0;
+        pRegion->cRegionBlocksOrBytes = pImage->cbSize;
+    }
+    else
         qcowFreeImage(pImage, rc != VERR_ALREADY_EXISTS);
     return rc;
 }
@@ -1315,9 +1360,14 @@ static int qcowAsyncClusterAllocRollback(PQCOWIMAGE pImage, PVDIOCTX pIoCtx, PQC
         case QCOWCLUSTERASYNCALLOCSTATE_L2_ALLOC:
         case QCOWCLUSTERASYNCALLOCSTATE_L2_LINK:
         {
-            /* Assumption right now is that the L1 table is not modified if the link fails. */
+            /* Revert the L1 table entry */
+            pImage->paL1Table[pClusterAlloc->idxL1] = 0;
+            pImage->pL2TblAlloc = NULL;
+
+            /* Assumption right now is that the L1 table is not modified on storage if the link fails. */
             rc = vdIfIoIntFileSetSize(pImage->pIfIo, pImage->pStorage, pClusterAlloc->offNextClusterOld);
             qcowL2TblCacheEntryRelease(pClusterAlloc->pL2Entry); /* Release L2 cache entry. */
+            Assert(!pClusterAlloc->pL2Entry->cRefs);
             qcowL2TblCacheEntryFree(pImage, pClusterAlloc->pL2Entry); /* Free it, it is not in the cache yet. */
             break;
         }
@@ -1325,6 +1375,7 @@ static int qcowAsyncClusterAllocRollback(PQCOWIMAGE pImage, PVDIOCTX pIoCtx, PQC
         case QCOWCLUSTERASYNCALLOCSTATE_USER_LINK:
         {
             /* Assumption right now is that the L2 table is not modified if the link fails. */
+            pClusterAlloc->pL2Entry->paL2Tbl[pClusterAlloc->idxL2] = 0;
             rc = vdIfIoIntFileSetSize(pImage->pIfIo, pImage->pStorage, pClusterAlloc->offNextClusterOld);
             qcowL2TblCacheEntryRelease(pClusterAlloc->pL2Entry); /* Release L2 cache entry. */
             break;
@@ -1362,14 +1413,14 @@ static DECLCALLBACK(int) qcowAsyncClusterAllocUpdate(void *pBackendData, PVDIOCT
     {
         case QCOWCLUSTERASYNCALLOCSTATE_L2_ALLOC:
         {
-            uint64_t offUpdateLe = RT_H2BE_U64(pClusterAlloc->pL2Entry->offL2Tbl);
+            /* Update the link in the in memory L1 table now. */
+            pImage->paL1Table[pClusterAlloc->idxL1] = pClusterAlloc->pL2Entry->offL2Tbl;
 
             /* Update the link in the on disk L1 table now. */
             pClusterAlloc->enmAllocState = QCOWCLUSTERASYNCALLOCSTATE_L2_LINK;
-            rc = vdIfIoIntFileWriteMeta(pImage->pIfIo, pImage->pStorage,
-                                        pImage->offL1Table + pClusterAlloc->idxL1*sizeof(uint64_t),
-                                        &offUpdateLe, sizeof(uint64_t), pIoCtx,
-                                        qcowAsyncClusterAllocUpdate, pClusterAlloc);
+            rc = qcowTblWrite(pImage, pIoCtx, pImage->offL1Table, pImage->paL1Table,
+                              pImage->cbL1Table, pImage->cL1TableEntries,
+                              qcowAsyncClusterAllocUpdate, pClusterAlloc);
             if (rc == VERR_VD_ASYNC_IO_IN_PROGRESS)
                 break;
             else if (RT_FAILURE(rc))
@@ -1380,14 +1431,13 @@ static DECLCALLBACK(int) qcowAsyncClusterAllocUpdate(void *pBackendData, PVDIOCT
             }
             /* Success, fall through. */
         }
-        /* fall thru */
+        RT_FALL_THRU();
         case QCOWCLUSTERASYNCALLOCSTATE_L2_LINK:
         {
             /* L2 link updated in L1 , save L2 entry in cache and allocate new user data cluster. */
             uint64_t offData = qcowClusterAllocate(pImage, 1);
 
-            /* Update the link in the in memory L1 table now. */
-            pImage->paL1Table[pClusterAlloc->idxL1] = pClusterAlloc->pL2Entry->offL2Tbl;
+            pImage->pL2TblAlloc = NULL;
             qcowL2TblCacheEntryInsert(pImage, pClusterAlloc->pL2Entry);
 
             pClusterAlloc->enmAllocState     = QCOWCLUSTERASYNCALLOCSTATE_USER_ALLOC;
@@ -1407,18 +1457,17 @@ static DECLCALLBACK(int) qcowAsyncClusterAllocUpdate(void *pBackendData, PVDIOCT
                 break;
             }
         }
-        /* fall thru */
+        RT_FALL_THRU();
         case QCOWCLUSTERASYNCALLOCSTATE_USER_ALLOC:
         {
-            uint64_t offUpdateLe = RT_H2BE_U64(pClusterAlloc->offClusterNew);
-
             pClusterAlloc->enmAllocState = QCOWCLUSTERASYNCALLOCSTATE_USER_LINK;
+            pClusterAlloc->pL2Entry->paL2Tbl[pClusterAlloc->idxL2] = pClusterAlloc->offClusterNew;
 
             /* Link L2 table and update it. */
-            rc = vdIfIoIntFileWriteMeta(pImage->pIfIo, pImage->pStorage,
-                                        pImage->paL1Table[pClusterAlloc->idxL1] + pClusterAlloc->idxL2*sizeof(uint64_t),
-                                        &offUpdateLe, sizeof(uint64_t), pIoCtx,
-                                        qcowAsyncClusterAllocUpdate, pClusterAlloc);
+            rc = qcowTblWrite(pImage, pIoCtx, pImage->paL1Table[pClusterAlloc->idxL1],
+                              pClusterAlloc->pL2Entry->paL2Tbl,
+                              pImage->cbL2Table, pImage->cL2TableEntries,
+                              qcowAsyncClusterAllocUpdate, pClusterAlloc);
             if (rc == VERR_VD_ASYNC_IO_IN_PROGRESS)
                 break;
             else if (RT_FAILURE(rc))
@@ -1428,11 +1477,10 @@ static DECLCALLBACK(int) qcowAsyncClusterAllocUpdate(void *pBackendData, PVDIOCT
                 break;
             }
         }
-        /* fall thru */
+        RT_FALL_THRU();
         case QCOWCLUSTERASYNCALLOCSTATE_USER_LINK:
         {
             /* Everything done without errors, signal completion. */
-            pClusterAlloc->pL2Entry->paL2Tbl[pClusterAlloc->idxL2] = pClusterAlloc->offClusterNew;
             qcowL2TblCacheEntryRelease(pClusterAlloc->pL2Entry);
             RTMemFree(pClusterAlloc);
             rc = VINF_SUCCESS;
@@ -1446,9 +1494,9 @@ static DECLCALLBACK(int) qcowAsyncClusterAllocUpdate(void *pBackendData, PVDIOCT
     return rc;
 }
 
-/** @copydoc VBOXHDDBACKEND::pfnCheckIfValid */
-static DECLCALLBACK(int) qcowCheckIfValid(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
-                                          PVDINTERFACE pVDIfsImage, VDTYPE *penmType)
+/** @copydoc VDIMAGEBACKEND::pfnProbe */
+static DECLCALLBACK(int) qcowProbe(const char *pszFilename, PVDINTERFACE pVDIfsDisk,
+                                   PVDINTERFACE pVDIfsImage, VDTYPE *penmType)
 {
     RT_NOREF1(pVDIfsDisk);
     LogFlowFunc(("pszFilename=\"%s\" pVDIfsDisk=%#p pVDIfsImage=%#p\n", pszFilename, pVDIfsDisk, pVDIfsImage));
@@ -1459,13 +1507,7 @@ static DECLCALLBACK(int) qcowCheckIfValid(const char *pszFilename, PVDINTERFACE 
     /* Get I/O interface. */
     PVDINTERFACEIOINT pIfIo = VDIfIoIntGet(pVDIfsImage);
     AssertPtrReturn(pIfIo, VERR_INVALID_PARAMETER);
-
-    if (   !VALID_PTR(pszFilename)
-        || !*pszFilename)
-    {
-        rc = VERR_INVALID_PARAMETER;
-        goto out;
-    }
+    AssertReturn((VALID_PTR(pszFilename) && *pszFilename), VERR_INVALID_PARAMETER);
 
     /*
      * Open the file and read the footer.
@@ -1485,10 +1527,7 @@ static DECLCALLBACK(int) qcowCheckIfValid(const char *pszFilename, PVDINTERFACE 
             rc = vdIfIoIntFileReadSync(pIfIo, pStorage, 0, &Header, sizeof(Header));
             if (   RT_SUCCESS(rc)
                 && qcowHdrConvertToHostEndianess(&Header))
-            {
                 *penmType = VDTYPE_HDD;
-                rc = VINF_SUCCESS;
-            }
             else
                 rc = VERR_VD_GEN_INVALID_HEADER;
         }
@@ -1499,61 +1538,47 @@ static DECLCALLBACK(int) qcowCheckIfValid(const char *pszFilename, PVDINTERFACE 
     if (pStorage)
         vdIfIoIntFileClose(pIfIo, pStorage);
 
-out:
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
-/** @copydoc VBOXHDDBACKEND::pfnOpen */
+/** @copydoc VDIMAGEBACKEND::pfnOpen */
 static DECLCALLBACK(int) qcowOpen(const char *pszFilename, unsigned uOpenFlags,
                                   PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
                                   VDTYPE enmType, void **ppBackendData)
 {
-    LogFlowFunc(("pszFilename=\"%s\" uOpenFlags=%#x pVDIfsDisk=%#p pVDIfsImage=%#p enmType=%u ppBackendData=%#p\n", pszFilename, uOpenFlags, pVDIfsDisk, pVDIfsImage, enmType, ppBackendData));
-    int rc;
-    PQCOWIMAGE pImage;
+    RT_NOREF1(enmType); /**< @todo r=klaus make use of the type info. */
 
-    NOREF(enmType); /**< @todo r=klaus make use of the type info. */
+    LogFlowFunc(("pszFilename=\"%s\" uOpenFlags=%#x pVDIfsDisk=%#p pVDIfsImage=%#p enmType=%u ppBackendData=%#p\n",
+                 pszFilename, uOpenFlags, pVDIfsDisk, pVDIfsImage, enmType, ppBackendData));
+    int rc;
 
     /* Check open flags. All valid flags are supported. */
-    if (uOpenFlags & ~VD_OPEN_FLAGS_MASK)
+    AssertReturn(!(uOpenFlags & ~VD_OPEN_FLAGS_MASK), VERR_INVALID_PARAMETER);
+    AssertReturn((VALID_PTR(pszFilename) && *pszFilename), VERR_INVALID_PARAMETER);
+
+    PQCOWIMAGE pImage = (PQCOWIMAGE)RTMemAllocZ(RT_UOFFSETOF(QCOWIMAGE, RegionList.aRegions[1]));
+    if (RT_LIKELY(pImage))
     {
-        rc = VERR_INVALID_PARAMETER;
-        goto out;
+        pImage->pszFilename = pszFilename;
+        pImage->pStorage = NULL;
+        pImage->pVDIfsDisk = pVDIfsDisk;
+        pImage->pVDIfsImage = pVDIfsImage;
+
+        rc = qcowOpenImage(pImage, uOpenFlags);
+        if (RT_SUCCESS(rc))
+            *ppBackendData = pImage;
+        else
+            RTMemFree(pImage);
     }
-
-    /* Check remaining arguments. */
-    if (   !VALID_PTR(pszFilename)
-        || !*pszFilename)
-    {
-        rc = VERR_INVALID_PARAMETER;
-        goto out;
-    }
-
-
-    pImage = (PQCOWIMAGE)RTMemAllocZ(sizeof(QCOWIMAGE));
-    if (!pImage)
-    {
-        rc = VERR_NO_MEMORY;
-        goto out;
-    }
-    pImage->pszFilename = pszFilename;
-    pImage->pStorage = NULL;
-    pImage->pVDIfsDisk = pVDIfsDisk;
-    pImage->pVDIfsImage = pVDIfsImage;
-
-    rc = qcowOpenImage(pImage, uOpenFlags);
-    if (RT_SUCCESS(rc))
-        *ppBackendData = pImage;
     else
-        RTMemFree(pImage);
+        rc = VERR_NO_MEMORY;
 
-out:
     LogFlowFunc(("returns %Rrc (pBackendData=%#p)\n", rc, *ppBackendData));
     return rc;
 }
 
-/** @copydoc VBOXHDDBACKEND::pfnCreate */
+/** @copydoc VDIMAGEBACKEND::pfnCreate */
 static DECLCALLBACK(int) qcowCreate(const char *pszFilename, uint64_t cbSize,
                                     unsigned uImageFlags, const char *pszComment,
                                     PCVDGEOMETRY pPCHSGeometry, PCVDGEOMETRY pLCHSGeometry,
@@ -1567,80 +1592,56 @@ static DECLCALLBACK(int) qcowCreate(const char *pszFilename, uint64_t cbSize,
     LogFlowFunc(("pszFilename=\"%s\" cbSize=%llu uImageFlags=%#x pszComment=\"%s\" pPCHSGeometry=%#p pLCHSGeometry=%#p Uuid=%RTuuid uOpenFlags=%#x uPercentStart=%u uPercentSpan=%u pVDIfsDisk=%#p pVDIfsImage=%#p pVDIfsOperation=%#p enmType=%u ppBackendData=%#p",
                  pszFilename, cbSize, uImageFlags, pszComment, pPCHSGeometry, pLCHSGeometry, pUuid, uOpenFlags, uPercentStart, uPercentSpan, pVDIfsDisk, pVDIfsImage, pVDIfsOperation, enmType, ppBackendData));
     int rc;
-    PQCOWIMAGE pImage;
-
-    PFNVDPROGRESS pfnProgress = NULL;
-    void *pvUser = NULL;
-    PVDINTERFACEPROGRESS pIfProgress = VDIfProgressGet(pVDIfsOperation);
-    if (pIfProgress)
-    {
-        pfnProgress = pIfProgress->pfnProgress;
-        pvUser = pIfProgress->Core.pvUser;
-    }
 
     /* Check the VD container type. */
     if (enmType != VDTYPE_HDD)
-    {
-        rc = VERR_VD_INVALID_TYPE;
-        goto out;
-    }
+        return VERR_VD_INVALID_TYPE;
 
     /* Check open flags. All valid flags are supported. */
-    if (uOpenFlags & ~VD_OPEN_FLAGS_MASK)
-    {
-        rc = VERR_INVALID_PARAMETER;
-        goto out;
-    }
+    AssertReturn(!(uOpenFlags & ~VD_OPEN_FLAGS_MASK), VERR_INVALID_PARAMETER);
+    AssertReturn(   VALID_PTR(pszFilename)
+                 && *pszFilename
+                 && VALID_PTR(pPCHSGeometry)
+                 && VALID_PTR(pLCHSGeometry), VERR_INVALID_PARAMETER);
 
-    /* Check remaining arguments. */
-    if (   !VALID_PTR(pszFilename)
-        || !*pszFilename
-        || !VALID_PTR(pPCHSGeometry)
-        || !VALID_PTR(pLCHSGeometry))
+    PQCOWIMAGE pImage = (PQCOWIMAGE)RTMemAllocZ(RT_UOFFSETOF(QCOWIMAGE, RegionList.aRegions[1]));
+    if (RT_LIKELY(pImage))
     {
-        rc = VERR_INVALID_PARAMETER;
-        goto out;
-    }
+        PVDINTERFACEPROGRESS pIfProgress = VDIfProgressGet(pVDIfsOperation);
 
-    pImage = (PQCOWIMAGE)RTMemAllocZ(sizeof(QCOWIMAGE));
-    if (!pImage)
-    {
-        rc = VERR_NO_MEMORY;
-        goto out;
-    }
-    pImage->pszFilename = pszFilename;
-    pImage->pStorage = NULL;
-    pImage->pVDIfsDisk = pVDIfsDisk;
-    pImage->pVDIfsImage = pVDIfsImage;
+        pImage->pszFilename = pszFilename;
+        pImage->pStorage = NULL;
+        pImage->pVDIfsDisk = pVDIfsDisk;
+        pImage->pVDIfsImage = pVDIfsImage;
 
-    rc = qcowCreateImage(pImage, cbSize, uImageFlags, pszComment,
-                        pPCHSGeometry, pLCHSGeometry, uOpenFlags,
-                        pfnProgress, pvUser, uPercentStart, uPercentSpan);
-    if (RT_SUCCESS(rc))
-    {
-        /* So far the image is opened in read/write mode. Make sure the
-         * image is opened in read-only mode if the caller requested that. */
-        if (uOpenFlags & VD_OPEN_FLAGS_READONLY)
+        rc = qcowCreateImage(pImage, cbSize, uImageFlags, pszComment,
+                             pPCHSGeometry, pLCHSGeometry, uOpenFlags,
+                             pIfProgress, uPercentStart, uPercentSpan);
+        if (RT_SUCCESS(rc))
         {
-            qcowFreeImage(pImage, false);
-            rc = qcowOpenImage(pImage, uOpenFlags);
-            if (RT_FAILURE(rc))
+            /* So far the image is opened in read/write mode. Make sure the
+             * image is opened in read-only mode if the caller requested that. */
+            if (uOpenFlags & VD_OPEN_FLAGS_READONLY)
             {
-                RTMemFree(pImage);
-                goto out;
+                qcowFreeImage(pImage, false);
+                rc = qcowOpenImage(pImage, uOpenFlags);
             }
+
+            if (RT_SUCCESS(rc))
+                *ppBackendData = pImage;
         }
-        *ppBackendData = pImage;
+
+        if (RT_FAILURE(rc))
+            RTMemFree(pImage);
     }
     else
-        RTMemFree(pImage);
+        rc = VERR_NO_MEMORY;
 
-out:
     LogFlowFunc(("returns %Rrc (pBackendData=%#p)\n", rc, *ppBackendData));
     return rc;
 }
 
-/** @copydoc VBOXHDDBACKEND::pfnRename */
+/** @copydoc VDIMAGEBACKEND::pfnRename */
 static DECLCALLBACK(int) qcowRename(void *pBackendData, const char *pszFilename)
 {
     LogFlowFunc(("pBackendData=%#p pszFilename=%#p\n", pBackendData, pszFilename));
@@ -1648,52 +1649,42 @@ static DECLCALLBACK(int) qcowRename(void *pBackendData, const char *pszFilename)
     PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
 
     /* Check arguments. */
-    if (   !pImage
-        || !pszFilename
-        || !*pszFilename)
-    {
-        rc = VERR_INVALID_PARAMETER;
-        goto out;
-    }
+    AssertReturn((pImage && pszFilename && *pszFilename), VERR_INVALID_PARAMETER);
 
     /* Close the image. */
     rc = qcowFreeImage(pImage, false);
-    if (RT_FAILURE(rc))
-        goto out;
-
-    /* Rename the file. */
-    rc = vdIfIoIntFileMove(pImage->pIfIo, pImage->pszFilename, pszFilename, 0);
-    if (RT_FAILURE(rc))
+    if (RT_SUCCESS(rc))
     {
-        /* The move failed, try to reopen the original image. */
-        int rc2 = qcowOpenImage(pImage, pImage->uOpenFlags);
-        if (RT_FAILURE(rc2))
-            rc = rc2;
+        /* Rename the file. */
+        rc = vdIfIoIntFileMove(pImage->pIfIo, pImage->pszFilename, pszFilename, 0);
+        if (RT_SUCCESS(rc))
+        {
+            /* Update pImage with the new information. */
+            pImage->pszFilename = pszFilename;
 
-        goto out;
+            /* Open the old image with new name. */
+            rc = qcowOpenImage(pImage, pImage->uOpenFlags);
+        }
+        else
+        {
+            /* The move failed, try to reopen the original image. */
+            int rc2 = qcowOpenImage(pImage, pImage->uOpenFlags);
+            if (RT_FAILURE(rc2))
+                rc = rc2;
+        }
     }
 
-    /* Update pImage with the new information. */
-    pImage->pszFilename = pszFilename;
-
-    /* Open the old image with new name. */
-    rc = qcowOpenImage(pImage, pImage->uOpenFlags);
-    if (RT_FAILURE(rc))
-        goto out;
-
-out:
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
-/** @copydoc VBOXHDDBACKEND::pfnClose */
+/** @copydoc VDIMAGEBACKEND::pfnClose */
 static DECLCALLBACK(int) qcowClose(void *pBackendData, bool fDelete)
 {
     LogFlowFunc(("pBackendData=%#p fDelete=%d\n", pBackendData, fDelete));
     PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
-    int rc;
 
-    rc = qcowFreeImage(pImage, fDelete);
+    int rc = qcowFreeImage(pImage, fDelete);
     RTMemFree(pImage);
 
     LogFlowFunc(("returns %Rrc\n", rc));
@@ -1715,19 +1706,8 @@ static DECLCALLBACK(int) qcowRead(void *pBackendData, uint64_t uOffset, size_t c
     AssertPtr(pImage);
     Assert(uOffset % 512 == 0);
     Assert(cbToRead % 512 == 0);
-
-    if (!VALID_PTR(pIoCtx) || !cbToRead)
-    {
-        rc = VERR_INVALID_PARAMETER;
-        goto out;
-    }
-
-    if (   uOffset + cbToRead > pImage->cbSize
-        || cbToRead == 0)
-    {
-        rc = VERR_INVALID_PARAMETER;
-        goto out;
-    }
+    AssertReturn((VALID_PTR(pIoCtx) && cbToRead), VERR_INVALID_PARAMETER);
+    AssertReturn(uOffset + cbToRead <= pImage->cbSize, VERR_INVALID_PARAMETER);
 
     qcowConvertLogicalOffset(pImage, uOffset, &idxL1, &idxL2, &offCluster);
 
@@ -1746,7 +1726,6 @@ static DECLCALLBACK(int) qcowRead(void *pBackendData, uint64_t uOffset, size_t c
         && pcbActuallyRead)
         *pcbActuallyRead = cbToRead;
 
-out:
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
@@ -1767,166 +1746,158 @@ static DECLCALLBACK(int) qcowWrite(void *pBackendData, uint64_t uOffset, size_t 
     AssertPtr(pImage);
     Assert(!(uOffset % 512));
     Assert(!(cbToWrite % 512));
+    AssertReturn((VALID_PTR(pIoCtx) && cbToWrite), VERR_INVALID_PARAMETER);
+    AssertReturn(uOffset + cbToWrite <= pImage->cbSize, VERR_INVALID_PARAMETER);
 
-    if (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
+    if (!(pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY))
     {
-        rc = VERR_VD_IMAGE_READ_ONLY;
-        goto out;
-    }
+        /* Convert offset to L1, L2 index and cluster offset. */
+        qcowConvertLogicalOffset(pImage, uOffset, &idxL1, &idxL2, &offCluster);
 
-    if (!VALID_PTR(pIoCtx) || !cbToWrite)
-    {
-        rc = VERR_INVALID_PARAMETER;
-        goto out;
-    }
+        /* Clip write size to remain in the cluster. */
+        cbToWrite = RT_MIN(cbToWrite, pImage->cbCluster - offCluster);
+        Assert(!(cbToWrite % 512));
 
-    if (   uOffset + cbToWrite > pImage->cbSize
-        || cbToWrite == 0)
-    {
-        rc = VERR_INVALID_PARAMETER;
-        goto out;
-    }
-
-    /* Convert offset to L1, L2 index and cluster offset. */
-    qcowConvertLogicalOffset(pImage, uOffset, &idxL1, &idxL2, &offCluster);
-
-    /* Clip write size to remain in the cluster. */
-    cbToWrite = RT_MIN(cbToWrite, pImage->cbCluster - offCluster);
-    Assert(!(cbToWrite % 512));
-
-    /* Get offset in image. */
-    rc = qcowConvertToImageOffset(pImage, pIoCtx, idxL1, idxL2, offCluster, &offImage);
-    if (RT_SUCCESS(rc))
-        rc = vdIfIoIntFileWriteUser(pImage->pIfIo, pImage->pStorage,
-                                    offImage, pIoCtx, cbToWrite, NULL, NULL);
-    else if (rc == VERR_VD_BLOCK_FREE)
-    {
-        if (   cbToWrite == pImage->cbCluster
-            && !(fWrite & VD_WRITE_NO_ALLOC))
+        /* Get offset in image. */
+        rc = qcowConvertToImageOffset(pImage, pIoCtx, idxL1, idxL2, offCluster, &offImage);
+        if (RT_SUCCESS(rc))
+            rc = vdIfIoIntFileWriteUser(pImage->pIfIo, pImage->pStorage,
+                                        offImage, pIoCtx, cbToWrite, NULL, NULL);
+        else if (rc == VERR_VD_BLOCK_FREE)
         {
-            PQCOWL2CACHEENTRY pL2Entry = NULL;
-
-            /* Full cluster write to previously unallocated cluster.
-             * Allocate cluster and write data. */
-            Assert(!offCluster);
-
-            do
+            if (   cbToWrite == pImage->cbCluster
+                && !(fWrite & VD_WRITE_NO_ALLOC))
             {
-                /* Check if we have to allocate a new cluster for L2 tables. */
-                if (!pImage->paL1Table[idxL1])
+                PQCOWL2CACHEENTRY pL2Entry = NULL;
+
+                /* Full cluster write to previously unallocated cluster.
+                 * Allocate cluster and write data. */
+                Assert(!offCluster);
+
+                do
                 {
-                    uint64_t offL2Tbl;
-                    PQCOWCLUSTERASYNCALLOC pL2ClusterAlloc = NULL;
-
-                    /* Allocate new async cluster allocation state. */
-                    pL2ClusterAlloc = (PQCOWCLUSTERASYNCALLOC)RTMemAllocZ(sizeof(QCOWCLUSTERASYNCALLOC));
-                    if (RT_UNLIKELY(!pL2ClusterAlloc))
+                    /* Check if we have to allocate a new cluster for L2 tables. */
+                    if (!pImage->paL1Table[idxL1])
                     {
-                        rc = VERR_NO_MEMORY;
-                        break;
-                    }
-
-                    pL2Entry = qcowL2TblCacheEntryAlloc(pImage);
-                    if (!pL2Entry)
-                    {
-                        rc = VERR_NO_MEMORY;
-                        RTMemFree(pL2ClusterAlloc);
-                        break;
-                    }
-
-                    offL2Tbl = qcowClusterAllocate(pImage, qcowByte2Cluster(pImage, pImage->cbL2Table));
-                    pL2Entry->offL2Tbl = offL2Tbl;
-                    memset(pL2Entry->paL2Tbl, 0, pImage->cbL2Table);
-
-                    pL2ClusterAlloc->enmAllocState     = QCOWCLUSTERASYNCALLOCSTATE_L2_ALLOC;
-                    pL2ClusterAlloc->offNextClusterOld = offL2Tbl;
-                    pL2ClusterAlloc->offClusterNew     = offL2Tbl;
-                    pL2ClusterAlloc->idxL1             = idxL1;
-                    pL2ClusterAlloc->idxL2             = idxL2;
-                    pL2ClusterAlloc->cbToWrite         = cbToWrite;
-                    pL2ClusterAlloc->pL2Entry          = pL2Entry;
-
-                    /*
-                     * Write the L2 table first and link to the L1 table afterwards.
-                     * If something unexpected happens the worst case which can happen
-                     * is a leak of some clusters.
-                     */
-                    rc = vdIfIoIntFileWriteMeta(pImage->pIfIo, pImage->pStorage,
-                                                offL2Tbl, pL2Entry->paL2Tbl, pImage->cbL2Table, pIoCtx,
-                                                qcowAsyncClusterAllocUpdate, pL2ClusterAlloc);
-                    if (rc == VERR_VD_ASYNC_IO_IN_PROGRESS)
-                        break;
-                    else if (RT_FAILURE(rc))
-                    {
-                        RTMemFree(pL2ClusterAlloc);
-                        qcowL2TblCacheEntryFree(pImage, pL2Entry);
-                        break;
-                    }
-
-                    rc = qcowAsyncClusterAllocUpdate(pImage, pIoCtx, pL2ClusterAlloc, rc);
-                }
-                else
-                {
-                    rc = qcowL2TblCacheFetch(pImage, pIoCtx, pImage->paL1Table[idxL1],
-                                             &pL2Entry);
-                    if (RT_SUCCESS(rc))
-                    {
-                        PQCOWCLUSTERASYNCALLOC pDataClusterAlloc = NULL;
+                        uint64_t offL2Tbl;
+                        PQCOWCLUSTERASYNCALLOC pL2ClusterAlloc = NULL;
 
                         /* Allocate new async cluster allocation state. */
-                        pDataClusterAlloc = (PQCOWCLUSTERASYNCALLOC)RTMemAllocZ(sizeof(QCOWCLUSTERASYNCALLOC));
-                        if (RT_UNLIKELY(!pDataClusterAlloc))
+                        pL2ClusterAlloc = (PQCOWCLUSTERASYNCALLOC)RTMemAllocZ(sizeof(QCOWCLUSTERASYNCALLOC));
+                        if (RT_UNLIKELY(!pL2ClusterAlloc))
                         {
                             rc = VERR_NO_MEMORY;
                             break;
                         }
 
-                        /* Allocate new cluster for the data. */
-                        uint64_t offData = qcowClusterAllocate(pImage, 1);
+                        pL2Entry = qcowL2TblCacheEntryAlloc(pImage);
+                        if (!pL2Entry)
+                        {
+                            rc = VERR_NO_MEMORY;
+                            RTMemFree(pL2ClusterAlloc);
+                            break;
+                        }
 
-                        pDataClusterAlloc->enmAllocState     = QCOWCLUSTERASYNCALLOCSTATE_USER_ALLOC;
-                        pDataClusterAlloc->offNextClusterOld = offData;
-                        pDataClusterAlloc->offClusterNew     = offData;
-                        pDataClusterAlloc->idxL1             = idxL1;
-                        pDataClusterAlloc->idxL2             = idxL2;
-                        pDataClusterAlloc->cbToWrite         = cbToWrite;
-                        pDataClusterAlloc->pL2Entry          = pL2Entry;
+                        offL2Tbl = qcowClusterAllocate(pImage, qcowByte2Cluster(pImage, pImage->cbL2Table));
+                        pL2Entry->offL2Tbl = offL2Tbl;
+                        memset(pL2Entry->paL2Tbl, 0, pImage->cbL2Table);
 
-                        /* Write data. */
-                        rc = vdIfIoIntFileWriteUser(pImage->pIfIo, pImage->pStorage,
-                                                    offData, pIoCtx, cbToWrite,
-                                                    qcowAsyncClusterAllocUpdate, pDataClusterAlloc);
+                        pL2ClusterAlloc->enmAllocState     = QCOWCLUSTERASYNCALLOCSTATE_L2_ALLOC;
+                        pL2ClusterAlloc->offNextClusterOld = offL2Tbl;
+                        pL2ClusterAlloc->offClusterNew     = offL2Tbl;
+                        pL2ClusterAlloc->idxL1             = idxL1;
+                        pL2ClusterAlloc->idxL2             = idxL2;
+                        pL2ClusterAlloc->cbToWrite         = cbToWrite;
+                        pL2ClusterAlloc->pL2Entry          = pL2Entry;
+
+                        pImage->pL2TblAlloc = pL2Entry;
+
+                        LogFlowFunc(("Allocating new L2 table at cluster offset %llu\n", offL2Tbl));
+
+                        /*
+                         * Write the L2 table first and link to the L1 table afterwards.
+                         * If something unexpected happens the worst case which can happen
+                         * is a leak of some clusters.
+                         */
+                        rc = vdIfIoIntFileWriteMeta(pImage->pIfIo, pImage->pStorage,
+                                                    offL2Tbl, pL2Entry->paL2Tbl, pImage->cbL2Table, pIoCtx,
+                                                    qcowAsyncClusterAllocUpdate, pL2ClusterAlloc);
                         if (rc == VERR_VD_ASYNC_IO_IN_PROGRESS)
                             break;
                         else if (RT_FAILURE(rc))
                         {
-                            RTMemFree(pDataClusterAlloc);
+                            RTMemFree(pL2ClusterAlloc);
+                            qcowL2TblCacheEntryFree(pImage, pL2Entry);
                             break;
                         }
 
-                        rc = qcowAsyncClusterAllocUpdate(pImage, pIoCtx, pDataClusterAlloc, rc);
+                        rc = qcowAsyncClusterAllocUpdate(pImage, pIoCtx, pL2ClusterAlloc, rc);
                     }
-                }
+                    else
+                    {
+                        LogFlowFunc(("Fetching L2 table at cluster offset %llu\n", pImage->paL1Table[idxL1]));
 
-            } while (0);
+                        rc = qcowL2TblCacheFetch(pImage, pIoCtx, pImage->paL1Table[idxL1],
+                                                 &pL2Entry);
+                        if (RT_SUCCESS(rc))
+                        {
+                            PQCOWCLUSTERASYNCALLOC pDataClusterAlloc = NULL;
 
-            *pcbPreRead = 0;
-            *pcbPostRead = 0;
+                            /* Allocate new async cluster allocation state. */
+                            pDataClusterAlloc = (PQCOWCLUSTERASYNCALLOC)RTMemAllocZ(sizeof(QCOWCLUSTERASYNCALLOC));
+                            if (RT_UNLIKELY(!pDataClusterAlloc))
+                            {
+                                rc = VERR_NO_MEMORY;
+                                break;
+                            }
+
+                            /* Allocate new cluster for the data. */
+                            uint64_t offData = qcowClusterAllocate(pImage, 1);
+
+                            pDataClusterAlloc->enmAllocState     = QCOWCLUSTERASYNCALLOCSTATE_USER_ALLOC;
+                            pDataClusterAlloc->offNextClusterOld = offData;
+                            pDataClusterAlloc->offClusterNew     = offData;
+                            pDataClusterAlloc->idxL1             = idxL1;
+                            pDataClusterAlloc->idxL2             = idxL2;
+                            pDataClusterAlloc->cbToWrite         = cbToWrite;
+                            pDataClusterAlloc->pL2Entry          = pL2Entry;
+
+                            /* Write data. */
+                            rc = vdIfIoIntFileWriteUser(pImage->pIfIo, pImage->pStorage,
+                                                        offData, pIoCtx, cbToWrite,
+                                                        qcowAsyncClusterAllocUpdate, pDataClusterAlloc);
+                            if (rc == VERR_VD_ASYNC_IO_IN_PROGRESS)
+                                break;
+                            else if (RT_FAILURE(rc))
+                            {
+                                RTMemFree(pDataClusterAlloc);
+                                break;
+                            }
+
+                            rc = qcowAsyncClusterAllocUpdate(pImage, pIoCtx, pDataClusterAlloc, rc);
+                        }
+                    }
+
+                } while (0);
+
+                *pcbPreRead = 0;
+                *pcbPostRead = 0;
+            }
+            else
+            {
+                /* Trying to do a partial write to an unallocated cluster. Don't do
+                 * anything except letting the upper layer know what to do. */
+                *pcbPreRead = offCluster;
+                *pcbPostRead = pImage->cbCluster - cbToWrite - *pcbPreRead;
+            }
         }
-        else
-        {
-            /* Trying to do a partial write to an unallocated cluster. Don't do
-             * anything except letting the upper layer know what to do. */
-            *pcbPreRead = offCluster;
-            *pcbPostRead = pImage->cbCluster - cbToWrite - *pcbPreRead;
-        }
+
+        if (pcbWriteProcess)
+            *pcbWriteProcess = cbToWrite;
     }
+    else
+        rc = VERR_VD_IMAGE_READ_ONLY;
 
-    if (pcbWriteProcess)
-        *pcbWriteProcess = cbToWrite;
-
-
-out:
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
@@ -1937,493 +1908,256 @@ static DECLCALLBACK(int) qcowFlush(void *pBackendData, PVDIOCTX pIoCtx)
     PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
     int rc = VINF_SUCCESS;
 
-    Assert(pImage);
+    AssertPtr(pImage);
+    AssertPtrReturn(pIoCtx, VERR_INVALID_PARAMETER);
 
-    if (VALID_PTR(pIoCtx))
-        rc = qcowFlushImageAsync(pImage, pIoCtx);
-    else
-        rc = VERR_INVALID_PARAMETER;
+    if (   pImage->pStorage
+        && !(pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY))
+    {
+        QCowHeader Header;
+
+        rc = qcowTblWrite(pImage, pIoCtx, pImage->offL1Table, pImage->paL1Table,
+                          pImage->cbL1Table, pImage->cL1TableEntries, NULL, NULL);
+        if (RT_SUCCESS(rc) || rc == VERR_VD_ASYNC_IO_IN_PROGRESS)
+        {
+            /* Write header. */
+            size_t cbHeader = 0;
+            qcowHdrConvertFromHostEndianess(pImage, &Header, &cbHeader);
+            rc = vdIfIoIntFileWriteMeta(pImage->pIfIo, pImage->pStorage,
+                                        0, &Header, cbHeader,
+                                        pIoCtx, NULL, NULL);
+            if (RT_SUCCESS(rc) || rc == VERR_VD_ASYNC_IO_IN_PROGRESS)
+                rc = vdIfIoIntFileFlush(pImage->pIfIo, pImage->pStorage,
+                                        pIoCtx, NULL, NULL);
+        }
+    }
 
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
-/** @copydoc VBOXHDDBACKEND::pfnGetVersion */
+/** @copydoc VDIMAGEBACKEND::pfnGetVersion */
 static DECLCALLBACK(unsigned) qcowGetVersion(void *pBackendData)
 {
     LogFlowFunc(("pBackendData=%#p\n", pBackendData));
     PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, 0);
 
-    if (pImage)
-        return pImage->uVersion;
-    else
-        return 0;
+    return pImage->uVersion;
 }
 
-/** @copydoc VBOXHDDBACKEND::pfnGetSectorSize */
-static DECLCALLBACK(uint32_t) qcowGetSectorSize(void *pBackendData)
-{
-    LogFlowFunc(("pBackendData=%#p\n", pBackendData));
-    PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
-    uint32_t cb = 0;
-
-    AssertPtr(pImage);
-
-    if (pImage && pImage->pStorage)
-        cb = 512;
-
-    LogFlowFunc(("returns %u\n", cb));
-    return cb;
-}
-
-/** @copydoc VBOXHDDBACKEND::pfnGetSize */
-static DECLCALLBACK(uint64_t) qcowGetSize(void *pBackendData)
-{
-    LogFlowFunc(("pBackendData=%#p\n", pBackendData));
-    PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
-    uint64_t cb = 0;
-
-    AssertPtr(pImage);
-
-    if (pImage && pImage->pStorage)
-        cb = pImage->cbSize;
-
-    LogFlowFunc(("returns %llu\n", cb));
-    return cb;
-}
-
-/** @copydoc VBOXHDDBACKEND::pfnGetFileSize */
+/** @copydoc VDIMAGEBACKEND::pfnGetFileSize */
 static DECLCALLBACK(uint64_t) qcowGetFileSize(void *pBackendData)
 {
     LogFlowFunc(("pBackendData=%#p\n", pBackendData));
     PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
     uint64_t cb = 0;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, 0);
 
-    if (pImage)
+    uint64_t cbFile;
+    if (pImage->pStorage)
     {
-        uint64_t cbFile;
-        if (pImage->pStorage)
-        {
-            int rc = vdIfIoIntFileGetSize(pImage->pIfIo, pImage->pStorage, &cbFile);
-            if (RT_SUCCESS(rc))
-                cb += cbFile;
-        }
+        int rc = vdIfIoIntFileGetSize(pImage->pIfIo, pImage->pStorage, &cbFile);
+        if (RT_SUCCESS(rc))
+            cb += cbFile;
     }
 
     LogFlowFunc(("returns %lld\n", cb));
     return cb;
 }
 
-/** @copydoc VBOXHDDBACKEND::pfnGetPCHSGeometry */
-static DECLCALLBACK(int) qcowGetPCHSGeometry(void *pBackendData,
-                              PVDGEOMETRY pPCHSGeometry)
+/** @copydoc VDIMAGEBACKEND::pfnGetPCHSGeometry */
+static DECLCALLBACK(int) qcowGetPCHSGeometry(void *pBackendData, PVDGEOMETRY pPCHSGeometry)
 {
     LogFlowFunc(("pBackendData=%#p pPCHSGeometry=%#p\n", pBackendData, pPCHSGeometry));
     PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
-    int rc;
+    int rc = VINF_SUCCESS;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
 
-    if (pImage)
-    {
-        if (pImage->PCHSGeometry.cCylinders)
-        {
-            *pPCHSGeometry = pImage->PCHSGeometry;
-            rc = VINF_SUCCESS;
-        }
-        else
-            rc = VERR_VD_GEOMETRY_NOT_SET;
-    }
+    if (pImage->PCHSGeometry.cCylinders)
+        *pPCHSGeometry = pImage->PCHSGeometry;
     else
-        rc = VERR_VD_NOT_OPENED;
+        rc = VERR_VD_GEOMETRY_NOT_SET;
 
     LogFlowFunc(("returns %Rrc (PCHS=%u/%u/%u)\n", rc, pPCHSGeometry->cCylinders, pPCHSGeometry->cHeads, pPCHSGeometry->cSectors));
     return rc;
 }
 
-/** @copydoc VBOXHDDBACKEND::pfnSetPCHSGeometry */
-static DECLCALLBACK(int) qcowSetPCHSGeometry(void *pBackendData,
-                              PCVDGEOMETRY pPCHSGeometry)
+/** @copydoc VDIMAGEBACKEND::pfnSetPCHSGeometry */
+static DECLCALLBACK(int) qcowSetPCHSGeometry(void *pBackendData, PCVDGEOMETRY pPCHSGeometry)
 {
-    LogFlowFunc(("pBackendData=%#p pPCHSGeometry=%#p PCHS=%u/%u/%u\n", pBackendData, pPCHSGeometry, pPCHSGeometry->cCylinders, pPCHSGeometry->cHeads, pPCHSGeometry->cSectors));
+    LogFlowFunc(("pBackendData=%#p pPCHSGeometry=%#p PCHS=%u/%u/%u\n",
+                 pBackendData, pPCHSGeometry, pPCHSGeometry->cCylinders, pPCHSGeometry->cHeads, pPCHSGeometry->cSectors));
     PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
-    int rc;
+    int rc = VINF_SUCCESS;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
 
-    if (pImage)
-    {
-        if (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
-        {
-            rc = VERR_VD_IMAGE_READ_ONLY;
-            goto out;
-        }
-
+    if (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
+        rc = VERR_VD_IMAGE_READ_ONLY;
+    else
         pImage->PCHSGeometry = *pPCHSGeometry;
-        rc = VINF_SUCCESS;
-    }
-    else
-        rc = VERR_VD_NOT_OPENED;
 
-out:
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
-/** @copydoc VBOXHDDBACKEND::pfnGetLCHSGeometry */
-static DECLCALLBACK(int) qcowGetLCHSGeometry(void *pBackendData,
-                              PVDGEOMETRY pLCHSGeometry)
+/** @copydoc VDIMAGEBACKEND::pfnGetLCHSGeometry */
+static DECLCALLBACK(int) qcowGetLCHSGeometry(void *pBackendData, PVDGEOMETRY pLCHSGeometry)
 {
-     LogFlowFunc(("pBackendData=%#p pLCHSGeometry=%#p\n", pBackendData, pLCHSGeometry));
+    LogFlowFunc(("pBackendData=%#p pLCHSGeometry=%#p\n", pBackendData, pLCHSGeometry));
     PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
-    int rc;
+    int rc = VINF_SUCCESS;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
 
-    if (pImage)
-    {
-        if (pImage->LCHSGeometry.cCylinders)
-        {
-            *pLCHSGeometry = pImage->LCHSGeometry;
-            rc = VINF_SUCCESS;
-        }
-        else
-            rc = VERR_VD_GEOMETRY_NOT_SET;
-    }
+    if (pImage->LCHSGeometry.cCylinders)
+        *pLCHSGeometry = pImage->LCHSGeometry;
     else
-        rc = VERR_VD_NOT_OPENED;
+        rc = VERR_VD_GEOMETRY_NOT_SET;
 
-    LogFlowFunc(("returns %Rrc (LCHS=%u/%u/%u)\n", rc, pLCHSGeometry->cCylinders, pLCHSGeometry->cHeads, pLCHSGeometry->cSectors));
+    LogFlowFunc(("returns %Rrc (LCHS=%u/%u/%u)\n", rc, pLCHSGeometry->cCylinders,
+                 pLCHSGeometry->cHeads, pLCHSGeometry->cSectors));
     return rc;
 }
 
-/** @copydoc VBOXHDDBACKEND::pfnSetLCHSGeometry */
-static DECLCALLBACK(int) qcowSetLCHSGeometry(void *pBackendData,
-                               PCVDGEOMETRY pLCHSGeometry)
+/** @copydoc VDIMAGEBACKEND::pfnSetLCHSGeometry */
+static DECLCALLBACK(int) qcowSetLCHSGeometry(void *pBackendData, PCVDGEOMETRY pLCHSGeometry)
 {
-    LogFlowFunc(("pBackendData=%#p pLCHSGeometry=%#p LCHS=%u/%u/%u\n", pBackendData, pLCHSGeometry, pLCHSGeometry->cCylinders, pLCHSGeometry->cHeads, pLCHSGeometry->cSectors));
+    LogFlowFunc(("pBackendData=%#p pLCHSGeometry=%#p LCHS=%u/%u/%u\n", pBackendData,
+                 pLCHSGeometry, pLCHSGeometry->cCylinders, pLCHSGeometry->cHeads, pLCHSGeometry->cSectors));
     PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
-    int rc;
+    int rc = VINF_SUCCESS;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, VERR_VD_NOT_OPENED);
 
-    if (pImage)
-    {
-        if (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
-        {
-            rc = VERR_VD_IMAGE_READ_ONLY;
-            goto out;
-        }
-
+    if (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
+        rc = VERR_VD_IMAGE_READ_ONLY;
+    else
         pImage->LCHSGeometry = *pLCHSGeometry;
-        rc = VINF_SUCCESS;
-    }
-    else
-        rc = VERR_VD_NOT_OPENED;
 
-out:
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
-/** @copydoc VBOXHDDBACKEND::pfnGetImageFlags */
+/** @copydoc VDIMAGEBACKEND::pfnQueryRegions */
+static DECLCALLBACK(int) qcowQueryRegions(void *pBackendData, PCVDREGIONLIST *ppRegionList)
+{
+    LogFlowFunc(("pBackendData=%#p ppRegionList=%#p\n", pBackendData, ppRegionList));
+    PQCOWIMAGE pThis = (PQCOWIMAGE)pBackendData;
+
+    AssertPtrReturn(pThis, VERR_VD_NOT_OPENED);
+
+    *ppRegionList = &pThis->RegionList;
+    LogFlowFunc(("returns %Rrc\n", VINF_SUCCESS));
+    return VINF_SUCCESS;
+}
+
+/** @copydoc VDIMAGEBACKEND::pfnRegionListRelease */
+static DECLCALLBACK(void) qcowRegionListRelease(void *pBackendData, PCVDREGIONLIST pRegionList)
+{
+    RT_NOREF1(pRegionList);
+    LogFlowFunc(("pBackendData=%#p pRegionList=%#p\n", pBackendData, pRegionList));
+    PQCOWIMAGE pThis = (PQCOWIMAGE)pBackendData;
+    AssertPtr(pThis); RT_NOREF(pThis);
+
+    /* Nothing to do here. */
+}
+
+/** @copydoc VDIMAGEBACKEND::pfnGetImageFlags */
 static DECLCALLBACK(unsigned) qcowGetImageFlags(void *pBackendData)
 {
     LogFlowFunc(("pBackendData=%#p\n", pBackendData));
     PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
-    unsigned uImageFlags;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, 0);
 
-    if (pImage)
-        uImageFlags = pImage->uImageFlags;
-    else
-        uImageFlags = 0;
-
-    LogFlowFunc(("returns %#x\n", uImageFlags));
-    return uImageFlags;
+    LogFlowFunc(("returns %#x\n", pImage->uImageFlags));
+    return pImage->uImageFlags;
 }
 
-/** @copydoc VBOXHDDBACKEND::pfnGetOpenFlags */
+/** @copydoc VDIMAGEBACKEND::pfnGetOpenFlags */
 static DECLCALLBACK(unsigned) qcowGetOpenFlags(void *pBackendData)
 {
     LogFlowFunc(("pBackendData=%#p\n", pBackendData));
     PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
-    unsigned uOpenFlags;
 
-    AssertPtr(pImage);
+    AssertPtrReturn(pImage, 0);
 
-    if (pImage)
-        uOpenFlags = pImage->uOpenFlags;
-    else
-        uOpenFlags = 0;
-
-    LogFlowFunc(("returns %#x\n", uOpenFlags));
-    return uOpenFlags;
+    LogFlowFunc(("returns %#x\n", pImage->uOpenFlags));
+    return pImage->uOpenFlags;
 }
 
-/** @copydoc VBOXHDDBACKEND::pfnSetOpenFlags */
+/** @copydoc VDIMAGEBACKEND::pfnSetOpenFlags */
 static DECLCALLBACK(int) qcowSetOpenFlags(void *pBackendData, unsigned uOpenFlags)
 {
     LogFlowFunc(("pBackendData=%#p\n uOpenFlags=%#x", pBackendData, uOpenFlags));
     PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
-    int rc;
+    int rc = VINF_SUCCESS;
 
     /* Image must be opened and the new flags must be valid. */
     if (!pImage || (uOpenFlags & ~(  VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_INFO
-                                   | VD_OPEN_FLAGS_ASYNC_IO | VD_OPEN_FLAGS_SKIP_CONSISTENCY_CHECKS)))
-    {
+                                   | VD_OPEN_FLAGS_ASYNC_IO | VD_OPEN_FLAGS_SHAREABLE
+                                   | VD_OPEN_FLAGS_SEQUENTIAL | VD_OPEN_FLAGS_SKIP_CONSISTENCY_CHECKS)))
         rc = VERR_INVALID_PARAMETER;
-        goto out;
-    }
-
-    /* Implement this operation via reopening the image. */
-    rc = qcowFreeImage(pImage, false);
-    if (RT_FAILURE(rc))
-        goto out;
-    rc = qcowOpenImage(pImage, uOpenFlags);
-
-out:
-    LogFlowFunc(("returns %Rrc\n", rc));
-    return rc;
-}
-
-/** @copydoc VBOXHDDBACKEND::pfnGetComment */
-static DECLCALLBACK(int) qcowGetComment(void *pBackendData, char *pszComment, size_t cbComment)
-{
-    RT_NOREF2(pszComment, cbComment);
-    LogFlowFunc(("pBackendData=%#p pszComment=%#p cbComment=%zu\n", pBackendData, pszComment, cbComment));
-    PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
-    int rc;
-
-    AssertPtr(pImage);
-
-    if (pImage)
-        rc = VERR_NOT_SUPPORTED;
     else
-        rc = VERR_VD_NOT_OPENED;
-
-    LogFlowFunc(("returns %Rrc comment='%s'\n", rc, pszComment));
-    return rc;
-}
-
-/** @copydoc VBOXHDDBACKEND::pfnSetComment */
-static DECLCALLBACK(int) qcowSetComment(void *pBackendData, const char *pszComment)
-{
-    RT_NOREF1(pszComment);
-    LogFlowFunc(("pBackendData=%#p pszComment=\"%s\"\n", pBackendData, pszComment));
-    PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
-    int rc;
-
-    AssertPtr(pImage);
-
-    if (pImage)
     {
-        if (pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY)
-            rc = VERR_VD_IMAGE_READ_ONLY;
-        else
-            rc = VERR_NOT_SUPPORTED;
+        /* Implement this operation via reopening the image. */
+        rc = qcowFreeImage(pImage, false);
+        if (RT_SUCCESS(rc))
+            rc = qcowOpenImage(pImage, uOpenFlags);
     }
-    else
-        rc = VERR_VD_NOT_OPENED;
 
     LogFlowFunc(("returns %Rrc\n", rc));
     return rc;
 }
 
-/** @copydoc VBOXHDDBACKEND::pfnGetUuid */
-static DECLCALLBACK(int) qcowGetUuid(void *pBackendData, PRTUUID pUuid)
-{
-    RT_NOREF1(pUuid);
-    LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
-    PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
-    int rc;
+/** @copydoc VDIMAGEBACKEND::pfnGetComment */
+VD_BACKEND_CALLBACK_GET_COMMENT_DEF_NOT_SUPPORTED(qcowGetComment);
 
-    AssertPtr(pImage);
+/** @copydoc VDIMAGEBACKEND::pfnSetComment */
+VD_BACKEND_CALLBACK_SET_COMMENT_DEF_NOT_SUPPORTED(qcowSetComment, PQCOWIMAGE);
 
-    if (pImage)
-        rc = VERR_NOT_SUPPORTED;
-    else
-        rc = VERR_VD_NOT_OPENED;
+/** @copydoc VDIMAGEBACKEND::pfnGetUuid */
+VD_BACKEND_CALLBACK_GET_UUID_DEF_NOT_SUPPORTED(qcowGetUuid);
 
-    LogFlowFunc(("returns %Rrc (%RTuuid)\n", rc, pUuid));
-    return rc;
-}
+/** @copydoc VDIMAGEBACKEND::pfnSetUuid */
+VD_BACKEND_CALLBACK_SET_UUID_DEF_NOT_SUPPORTED(qcowSetUuid, PQCOWIMAGE);
 
-/** @copydoc VBOXHDDBACKEND::pfnSetUuid */
-static DECLCALLBACK(int) qcowSetUuid(void *pBackendData, PCRTUUID pUuid)
-{
-    RT_NOREF1(pUuid);
-    LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
-    PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
-    int rc;
+/** @copydoc VDIMAGEBACKEND::pfnGetModificationUuid */
+VD_BACKEND_CALLBACK_GET_UUID_DEF_NOT_SUPPORTED(qcowGetModificationUuid);
 
-    LogFlowFunc(("%RTuuid\n", pUuid));
-    AssertPtr(pImage);
+/** @copydoc VDIMAGEBACKEND::pfnSetModificationUuid */
+VD_BACKEND_CALLBACK_SET_UUID_DEF_NOT_SUPPORTED(qcowSetModificationUuid, PQCOWIMAGE);
 
-    if (pImage)
-    {
-        if (!(pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY))
-            rc = VERR_NOT_SUPPORTED;
-        else
-            rc = VERR_VD_IMAGE_READ_ONLY;
-    }
-    else
-        rc = VERR_VD_NOT_OPENED;
+/** @copydoc VDIMAGEBACKEND::pfnGetParentUuid */
+VD_BACKEND_CALLBACK_GET_UUID_DEF_NOT_SUPPORTED(qcowGetParentUuid);
 
-    LogFlowFunc(("returns %Rrc\n", rc));
-    return rc;
-}
+/** @copydoc VDIMAGEBACKEND::pfnSetParentUuid */
+VD_BACKEND_CALLBACK_SET_UUID_DEF_NOT_SUPPORTED(qcowSetParentUuid, PQCOWIMAGE);
 
-/** @copydoc VBOXHDDBACKEND::pfnGetModificationUuid */
-static DECLCALLBACK(int) qcowGetModificationUuid(void *pBackendData, PRTUUID pUuid)
-{
-    RT_NOREF1(pUuid);
-    LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
-    PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
-    int rc;
+/** @copydoc VDIMAGEBACKEND::pfnGetParentModificationUuid */
+VD_BACKEND_CALLBACK_GET_UUID_DEF_NOT_SUPPORTED(qcowGetParentModificationUuid);
 
-    AssertPtr(pImage);
+/** @copydoc VDIMAGEBACKEND::pfnSetParentModificationUuid */
+VD_BACKEND_CALLBACK_SET_UUID_DEF_NOT_SUPPORTED(qcowSetParentModificationUuid, PQCOWIMAGE);
 
-    if (pImage)
-        rc = VERR_NOT_SUPPORTED;
-    else
-        rc = VERR_VD_NOT_OPENED;
-
-    LogFlowFunc(("returns %Rrc (%RTuuid)\n", rc, pUuid));
-    return rc;
-}
-
-/** @copydoc VBOXHDDBACKEND::pfnSetModificationUuid */
-static DECLCALLBACK(int) qcowSetModificationUuid(void *pBackendData, PCRTUUID pUuid)
-{
-    RT_NOREF1(pUuid);
-    LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
-    PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
-    int rc;
-
-    AssertPtr(pImage);
-
-    if (pImage)
-    {
-        if (!(pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY))
-            rc = VERR_NOT_SUPPORTED;
-        else
-            rc = VERR_VD_IMAGE_READ_ONLY;
-    }
-    else
-        rc = VERR_VD_NOT_OPENED;
-
-    LogFlowFunc(("returns %Rrc\n", rc));
-    return rc;
-}
-
-/** @copydoc VBOXHDDBACKEND::pfnGetParentUuid */
-static DECLCALLBACK(int) qcowGetParentUuid(void *pBackendData, PRTUUID pUuid)
-{
-    RT_NOREF1(pUuid);
-    LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
-    PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
-    int rc;
-
-    AssertPtr(pImage);
-
-    if (pImage)
-        rc = VERR_NOT_SUPPORTED;
-    else
-        rc = VERR_VD_NOT_OPENED;
-
-    LogFlowFunc(("returns %Rrc (%RTuuid)\n", rc, pUuid));
-    return rc;
-}
-
-/** @copydoc VBOXHDDBACKEND::pfnSetParentUuid */
-static DECLCALLBACK(int) qcowSetParentUuid(void *pBackendData, PCRTUUID pUuid)
-{
-    RT_NOREF1(pUuid);
-    LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
-    PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
-    int rc;
-
-    AssertPtr(pImage);
-
-    if (pImage)
-    {
-        if (!(pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY))
-            rc = VERR_NOT_SUPPORTED;
-        else
-            rc = VERR_VD_IMAGE_READ_ONLY;
-    }
-    else
-        rc = VERR_VD_NOT_OPENED;
-
-    LogFlowFunc(("returns %Rrc\n", rc));
-    return rc;
-}
-
-/** @copydoc VBOXHDDBACKEND::pfnGetParentModificationUuid */
-static DECLCALLBACK(int) qcowGetParentModificationUuid(void *pBackendData, PRTUUID pUuid)
-{
-    RT_NOREF1(pUuid);
-    LogFlowFunc(("pBackendData=%#p pUuid=%#p\n", pBackendData, pUuid));
-    PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
-    int rc;
-
-    AssertPtr(pImage);
-
-    if (pImage)
-        rc = VERR_NOT_SUPPORTED;
-    else
-        rc = VERR_VD_NOT_OPENED;
-
-    LogFlowFunc(("returns %Rrc (%RTuuid)\n", rc, pUuid));
-    return rc;
-}
-
-/** @copydoc VBOXHDDBACKEND::pfnSetParentModificationUuid */
-static DECLCALLBACK(int) qcowSetParentModificationUuid(void *pBackendData, PCRTUUID pUuid)
-{
-    RT_NOREF1(pUuid);
-    LogFlowFunc(("pBackendData=%#p Uuid=%RTuuid\n", pBackendData, pUuid));
-    PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
-    int rc;
-
-    AssertPtr(pImage);
-
-    if (pImage)
-    {
-        if (!(pImage->uOpenFlags & VD_OPEN_FLAGS_READONLY))
-            rc = VERR_NOT_SUPPORTED;
-        else
-            rc = VERR_VD_IMAGE_READ_ONLY;
-    }
-    else
-        rc = VERR_VD_NOT_OPENED;
-
-    LogFlowFunc(("returns %Rrc\n", rc));
-    return rc;
-}
-
-/** @copydoc VBOXHDDBACKEND::pfnDump */
+/** @copydoc VDIMAGEBACKEND::pfnDump */
 static DECLCALLBACK(void) qcowDump(void *pBackendData)
 {
     PQCOWIMAGE pImage = (PQCOWIMAGE)pBackendData;
 
-    AssertPtr(pImage);
-    if (pImage)
-    {
-        vdIfErrorMessage(pImage->pIfError, "Header: Geometry PCHS=%u/%u/%u LCHS=%u/%u/%u cSector=%llu\n",
-                         pImage->PCHSGeometry.cCylinders, pImage->PCHSGeometry.cHeads, pImage->PCHSGeometry.cSectors,
-                         pImage->LCHSGeometry.cCylinders, pImage->LCHSGeometry.cHeads, pImage->LCHSGeometry.cSectors,
-                         pImage->cbSize / 512);
-    }
+    AssertPtrReturnVoid(pImage);
+    vdIfErrorMessage(pImage->pIfError, "Header: Geometry PCHS=%u/%u/%u LCHS=%u/%u/%u cbSector=%llu\n",
+                     pImage->PCHSGeometry.cCylinders, pImage->PCHSGeometry.cHeads, pImage->PCHSGeometry.cSectors,
+                     pImage->LCHSGeometry.cCylinders, pImage->LCHSGeometry.cHeads, pImage->LCHSGeometry.cSectors,
+                     pImage->cbSize / 512);
 }
 
-/** @copydoc VBOXHDDBACKEND::pfnGetParentFilename */
+/** @copydoc VDIMAGEBACKEND::pfnGetParentFilename */
 static DECLCALLBACK(int) qcowGetParentFilename(void *pBackendData, char **ppszParentFilename)
 {
     int rc = VINF_SUCCESS;
@@ -2442,7 +2176,7 @@ static DECLCALLBACK(int) qcowGetParentFilename(void *pBackendData, char **ppszPa
     return rc;
 }
 
-/** @copydoc VBOXHDDBACKEND::pfnSetParentFilename */
+/** @copydoc VDIMAGEBACKEND::pfnSetParentFilename */
 static DECLCALLBACK(int) qcowSetParentFilename(void *pBackendData, const char *pszParentFilename)
 {
     int rc = VINF_SUCCESS;
@@ -2494,20 +2228,20 @@ static DECLCALLBACK(int) qcowSetParentFilename(void *pBackendData, const char *p
 
 
 
-const VBOXHDDBACKEND g_QCowBackend =
+const VDIMAGEBACKEND g_QCowBackend =
 {
+    /* u32Version */
+    VD_IMGBACKEND_VERSION,
     /* pszBackendName */
     "QCOW",
-    /* cbSize */
-    sizeof(VBOXHDDBACKEND),
     /* uBackendCaps */
     VD_CAP_FILE | VD_CAP_VFS | VD_CAP_CREATE_DYNAMIC | VD_CAP_DIFF | VD_CAP_ASYNC,
     /* paFileExtensions */
     s_aQCowFileExtensions,
     /* paConfigInfo */
     NULL,
-    /* pfnCheckIfValid */
-    qcowCheckIfValid,
+    /* pfnProbe */
+    qcowProbe,
     /* pfnOpen */
     qcowOpen,
     /* pfnCreate */
@@ -2526,10 +2260,6 @@ const VBOXHDDBACKEND g_QCowBackend =
     NULL,
     /* pfnGetVersion */
     qcowGetVersion,
-    /* pfnGetSectorSize */
-    qcowGetSectorSize,
-    /* pfnGetSize */
-    qcowGetSize,
     /* pfnGetFileSize */
     qcowGetFileSize,
     /* pfnGetPCHSGeometry */
@@ -2540,6 +2270,10 @@ const VBOXHDDBACKEND g_QCowBackend =
     qcowGetLCHSGeometry,
     /* pfnSetLCHSGeometry */
     qcowSetLCHSGeometry,
+    /* pfnQueryRegions */
+    qcowQueryRegions,
+    /* pfnRegionListRelease */
+    qcowRegionListRelease,
     /* pfnGetImageFlags */
     qcowGetImageFlags,
     /* pfnGetOpenFlags */
@@ -2589,5 +2323,7 @@ const VBOXHDDBACKEND g_QCowBackend =
     /* pfnRepair */
     NULL,
     /* pfnTraverseMetadata */
-    NULL
+    NULL,
+    /* u32VersionEnd */
+    VD_IMGBACKEND_VERSION
 };

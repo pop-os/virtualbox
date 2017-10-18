@@ -16,11 +16,14 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN_ADDITIONSFACILITY
+#include "LoggingNew.h"
+
 #include "AdditionsFacilityImpl.h"
 #include "Global.h"
 
 #include "AutoCaller.h"
-#include "Logging.h"
+
 
 /* static */
 const AdditionsFacility::FacilityInfo AdditionsFacility::s_aFacilityInfo[8] =
@@ -33,6 +36,7 @@ const AdditionsFacility::FacilityInfo AdditionsFacility::s_aFacilityInfo[8] =
     { "VirtualBox Desktop Integration", AdditionsFacilityType_VBoxTrayClient, AdditionsFacilityClass_Program },
     { "Seamless Mode", AdditionsFacilityType_Seamless, AdditionsFacilityClass_Feature },
     { "Graphics Mode", AdditionsFacilityType_Graphics, AdditionsFacilityClass_Feature },
+    { "Guest Monitor Attach", AdditionsFacilityType_MonitorAttach, AdditionsFacilityClass_Feature },
 };
 
 // constructor / destructor

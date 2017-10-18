@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2259,6 +2259,7 @@ SUPR0DECL(void) SUPR0TracerUmodProbeFire(PSUPDRVSESSION pSession, PSUPDRVTRACERU
  *
  * @returns VBox status code.
  * @param   pSession    The caller's session.
+ * @param   uOperation  The operation identifier.
  * @param   u64Arg      64-bit integer argument.
  * @param   pReqHdr     The request header. Input / Output. Optional.
  */

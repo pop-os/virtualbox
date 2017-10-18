@@ -7,7 +7,7 @@ Test Manager WUI - Builds.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Validation Kit imports.
@@ -77,9 +77,10 @@ class WuiAdminBuildList(WuiListContentBase):
     WUI Admin Build List Content Generator.
     """
 
-    def __init__(self, aoEntries, iPage, cItemsPerPage, tsEffective, fnDPrint, oDisp):
+    def __init__(self, aoEntries, iPage, cItemsPerPage, tsEffective, fnDPrint, oDisp, aiSelectedSortColumns = None):
         WuiListContentBase.__init__(self, aoEntries, iPage, cItemsPerPage, tsEffective,
-                                    sTitle = 'Builds', sId = 'builds', fnDPrint = fnDPrint, oDisp = oDisp);
+                                    sTitle = 'Builds', sId = 'builds', fnDPrint = fnDPrint, oDisp = oDisp,
+                                    aiSelectedSortColumns = aiSelectedSortColumns);
 
         self._asColumnHeaders = ['ID', 'Product', 'Branch', 'Version',
                                  'Type', 'OS(es)', 'Author', 'Added',
@@ -103,27 +104,29 @@ class WuiAdminBuildList(WuiListContentBase):
                     BuildBlacklistData.ksParam_asOsArches:     oEntry.oCat.asOsArches,
                     BuildBlacklistData.ksParam_iFirstRevision: oEntry.iRevision,
                     BuildBlacklistData.ksParam_iLastRevision:  oEntry.iRevision }
-        aoActions += [
-            WuiTmLink('Blacklist', WuiAdmin.ksScriptName, dParams),
-            WuiTmLink('Details', WuiAdmin.ksScriptName,
-                      { WuiAdmin.ksParamAction: WuiAdmin.ksActionBuildDetails,
-                        BuildData.ksParam_idBuild: oEntry.idBuild,
-                        WuiAdmin.ksParamEffectiveDate: self._tsEffectiveDate, }),
-            WuiTmLink('Clone', WuiAdmin.ksScriptName,
-                      { WuiAdmin.ksParamAction: WuiAdmin.ksActionBuildClone,
-                        BuildData.ksParam_idBuild: oEntry.idBuild,
-                        WuiAdmin.ksParamEffectiveDate: self._tsEffectiveDate, }),
-        ];
-        if isDbTimestampInfinity(oEntry.tsExpire):
+
+        if self._oDisp is None or not self._oDisp.isReadOnlyUser():
             aoActions += [
-                WuiTmLink('Modify', WuiAdmin.ksScriptName,
-                          { WuiAdmin.ksParamAction: WuiAdmin.ksActionBuildEdit,
-                            BuildData.ksParam_idBuild: oEntry.idBuild }),
-                WuiTmLink('Remove', WuiAdmin.ksScriptName,
-                          { WuiAdmin.ksParamAction: WuiAdmin.ksActionBuildDoRemove,
-                            BuildData.ksParam_idBuild: oEntry.idBuild },
-                          sConfirm = 'Are you sure you want to remove build #%d?' % (oEntry.idBuild,) ),
+                WuiTmLink('Blacklist', WuiAdmin.ksScriptName, dParams),
+                WuiTmLink('Details', WuiAdmin.ksScriptName,
+                          { WuiAdmin.ksParamAction: WuiAdmin.ksActionBuildDetails,
+                            BuildData.ksParam_idBuild: oEntry.idBuild,
+                            WuiAdmin.ksParamEffectiveDate: self._tsEffectiveDate, }),
+                WuiTmLink('Clone', WuiAdmin.ksScriptName,
+                          { WuiAdmin.ksParamAction: WuiAdmin.ksActionBuildClone,
+                            BuildData.ksParam_idBuild: oEntry.idBuild,
+                            WuiAdmin.ksParamEffectiveDate: self._tsEffectiveDate, }),
             ];
+            if isDbTimestampInfinity(oEntry.tsExpire):
+                aoActions += [
+                    WuiTmLink('Modify', WuiAdmin.ksScriptName,
+                              { WuiAdmin.ksParamAction: WuiAdmin.ksActionBuildEdit,
+                                BuildData.ksParam_idBuild: oEntry.idBuild }),
+                    WuiTmLink('Remove', WuiAdmin.ksScriptName,
+                              { WuiAdmin.ksParamAction: WuiAdmin.ksActionBuildDoRemove,
+                                BuildData.ksParam_idBuild: oEntry.idBuild },
+                              sConfirm = 'Are you sure you want to remove build #%d?' % (oEntry.idBuild,) ),
+                ];
 
         return [ oEntry.idBuild,
                  oEntry.oCat.sProduct,

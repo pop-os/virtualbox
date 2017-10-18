@@ -4,27 +4,34 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL
+ * THE COPYRIGHT HOLDERS, AUTHORS AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+ * USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <VBox/VBoxGuestLib.h>
-
 #ifndef PCIACCESS
-# include <xf86Pci.h>
+# include "xf86Pci.h"
 # include <Pci.h>
 #endif
 
 #include "xf86.h"
 #define NEED_XF86_TYPES
-#include <iprt/string.h>
 #include "compiler.h"
 #include "cursorstr.h"
 #include "servermd.h"
@@ -33,6 +40,7 @@
 
 #ifdef XORG_7X
 # include <stdlib.h>
+# include <string.h>
 #endif
 
 #define VBOX_MAX_CURSOR_WIDTH 64
@@ -130,7 +138,7 @@ vbox_vmm_hide_cursor(ScrnInfoPtr pScrn, VBOXPtr pVBox)
     RT_NOREF(pScrn);
 
     rc = VBoxHGSMIUpdatePointerShape(&pVBox->guestCtx, 0, 0, 0, 0, 0, NULL, 0);
-    VBVXASSERT(rc == VINF_SUCCESS, ("Could not hide the virtual mouse pointer, VBox error %d.\n", rc));
+    AssertMsg(rc == VINF_SUCCESS, ("Could not hide the virtual mouse pointer, VBox error %d.\n", rc));
 }
 
 static void
@@ -143,7 +151,7 @@ vbox_vmm_show_cursor(ScrnInfoPtr pScrn, VBOXPtr pVBox)
         return;
     rc = VBoxHGSMIUpdatePointerShape(&pVBox->guestCtx, VBOX_MOUSE_POINTER_VISIBLE,
                                      0, 0, 0, 0, NULL, 0);
-    VBVXASSERT(rc == VINF_SUCCESS, ("Could not unhide the virtual mouse pointer.\n"));
+    AssertMsg(rc == VINF_SUCCESS, ("Could not unhide the virtual mouse pointer.\n"));
 }
 
 static void
@@ -162,15 +170,15 @@ vbox_vmm_load_cursor_image(ScrnInfoPtr pScrn, VBOXPtr pVBox,
     rc = VBoxHGSMIUpdatePointerShape(&pVBox->guestCtx, pImage->fFlags,
              pImage->cHotX, pImage->cHotY, pImage->cWidth, pImage->cHeight,
              pImage->pPixels, pImage->cbLength);
-    VBVXASSERT(rc == VINF_SUCCESS, ("Unable to set the virtual mouse pointer image.\n"));
+    AssertMsg(rc == VINF_SUCCESS, ("Unable to set the virtual mouse pointer image.\n"));
 }
 
 static void
 vbox_set_cursor_colors(ScrnInfoPtr pScrn, int bg, int fg)
 {
-    NOREF(pScrn);
-    NOREF(bg);
-    NOREF(fg);
+    RT_NOREF(pScrn);
+    RT_NOREF(bg);
+    RT_NOREF(fg);
     /* ErrorF("vbox_set_cursor_colors NOT IMPLEMENTED\n"); */
 }
 

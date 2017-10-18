@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -55,7 +55,7 @@
 #endif
 
 
-/* ASSUMES FileID comes after ShortName and the structus are identical up to that point. */
+/* ASSUMES FileID comes after ShortName and the structs are identical up to that point. */
 AssertCompileMembersSameSizeAndOffset(FILE_BOTH_DIR_INFORMATION, NextEntryOffset, FILE_ID_BOTH_DIR_INFORMATION, NextEntryOffset);
 AssertCompileMembersSameSizeAndOffset(FILE_BOTH_DIR_INFORMATION, FileIndex      , FILE_ID_BOTH_DIR_INFORMATION, FileIndex      );
 AssertCompileMembersSameSizeAndOffset(FILE_BOTH_DIR_INFORMATION, CreationTime   , FILE_ID_BOTH_DIR_INFORMATION, CreationTime   );
@@ -105,7 +105,7 @@ int rtDirNativeOpen(PRTDIR pDir, char *pszPathBuf)
     bool fObjDir;
 #endif
     rc = RTNtPathOpenDir(pszPathBuf,
-                         FILE_READ_DATA | SYNCHRONIZE,
+                         FILE_LIST_DIRECTORY | FILE_TRAVERSE | SYNCHRONIZE,
                          FILE_SHARE_READ | FILE_SHARE_WRITE,
                          FILE_DIRECTORY_FILE | FILE_OPEN_FOR_BACKUP_INTENT | FILE_SYNCHRONOUS_IO_NONALERT,
                          OBJ_CASE_INSENSITIVE,
@@ -122,6 +122,7 @@ int rtDirNativeOpen(PRTDIR pDir, char *pszPathBuf)
          * Init data.
          */
         pDir->fDataUnread = false; /* spelling it out */
+        pDir->uDirDev     = 0;
 #ifdef IPRT_WITH_NT_PATH_PASSTHRU
         if (fObjDir)
             pDir->enmInfoClass = FileMaximumInformation; /* object directory. */
@@ -294,6 +295,22 @@ static int rtDirNtFetchMore(PRTDIR pThis)
             if (!pThis->pabBuffer)
                 return VERR_NO_MEMORY;
         }
+
+        /*
+         * Also try determining the device number.
+         */
+        PFILE_FS_VOLUME_INFORMATION pVolInfo = (PFILE_FS_VOLUME_INFORMATION)pThis->pabBuffer;
+        pVolInfo->VolumeSerialNumber = 0;
+        IO_STATUS_BLOCK Ios = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+        NTSTATUS rcNt = NtQueryVolumeInformationFile(pThis->hDir, &Ios,
+                                                     pVolInfo, RT_MIN(_2K, pThis->cbBufferAlloc),
+                                                     FileFsVolumeInformation);
+        if (NT_SUCCESS(rcNt) && NT_SUCCESS(Ios.Status))
+            pThis->uDirDev = pVolInfo->VolumeSerialNumber;
+        else
+            pThis->uDirDev = 0;
+        AssertCompile(sizeof(pThis->uDirDev) == sizeof(pVolInfo->VolumeSerialNumber));
+        /** @todo Grow RTDEV to 64-bit and add low dword of VolumeCreationTime to the top of uDirDev. */
     }
 
     /*
@@ -579,7 +596,9 @@ RTDECL(int) RTDirRead(PRTDIR pDir, PRTDIRENTRY pDirEntry, size_t *pcbDirEntry)
 
             case FILE_ATTRIBUTE_REPARSE_POINT:
             case FILE_ATTRIBUTE_REPARSE_POINT | FILE_ATTRIBUTE_DIRECTORY:
-                pDirEntry->enmType = RTDIRENTRYTYPE_SYMLINK;
+                /* EaSize is here reused for returning the repharse tag value. */
+                if (pDir->uCurData.pBoth->EaSize == IO_REPARSE_TAG_SYMLINK)
+                    pDirEntry->enmType = RTDIRENTRYTYPE_SYMLINK;
                 break;
         }
     }
@@ -685,7 +704,7 @@ RTDECL(int) RTDirReadEx(PRTDIR pDir, PRTDIRENTRYEX pDirEntry, size_t *pcbDirEntr
         RTTimeSpecSetNtTime(&pDirEntry->Info.ChangeTime,        pBoth->ChangeTime.QuadPart);
 
         pDirEntry->Info.Attr.fMode  = rtFsModeFromDos((pBoth->FileAttributes << RTFS_DOS_SHIFT) & RTFS_DOS_MASK_NT,
-                                                       pszName, cchName);
+                                                       pszName, cchName, pBoth->EaSize);
     }
 #ifdef IPRT_WITH_NT_PATH_PASSTHRU
     else
@@ -732,8 +751,11 @@ RTDECL(int) RTDirReadEx(PRTDIR pDir, PRTDIRENTRYEX pDirEntry, size_t *pcbDirEntr
             pDirEntry->Info.Attr.u.Unix.uid             = ~0U;
             pDirEntry->Info.Attr.u.Unix.gid             = ~0U;
             pDirEntry->Info.Attr.u.Unix.cHardlinks      = 1;
-            pDirEntry->Info.Attr.u.Unix.INodeIdDevice   = 0; /** @todo Use the volume serial number (see GetFileInformationByHandle). */
-            pDirEntry->Info.Attr.u.Unix.INodeId         = 0; /** @todo Use the fileid (see GetFileInformationByHandle). */
+            pDirEntry->Info.Attr.u.Unix.INodeIdDevice   = pDir->uDirDev;
+            pDirEntry->Info.Attr.u.Unix.INodeId         = 0;
+            if (   pDir->enmInfoClass == FileIdBothDirectoryInformation
+                && pDir->uCurData.pBothId->FileId.QuadPart != UINT64_MAX)
+                pDirEntry->Info.Attr.u.Unix.INodeId     = pDir->uCurData.pBothId->FileId.QuadPart;
             pDirEntry->Info.Attr.u.Unix.fFlags          = 0;
             pDirEntry->Info.Attr.u.Unix.GenerationId    = 0;
             pDirEntry->Info.Attr.u.Unix.Device          = 0;

@@ -268,6 +268,11 @@ UIRoundRectSegmentedButton::~UIRoundRectSegmentedButton()
     qDeleteAll(m_pButtons);
 }
 
+int UIRoundRectSegmentedButton::count() const
+{
+    return m_pButtons.size();
+}
+
 void UIRoundRectSegmentedButton::setTitle(int iSegment, const QString &aTitle)
 {
     m_pButtons.at(iSegment)->setText(aTitle);
@@ -286,6 +291,11 @@ void UIRoundRectSegmentedButton::setIcon(int iSegment, const QIcon &icon)
 void UIRoundRectSegmentedButton::setEnabled(int iSegment, bool fEnabled)
 {
     m_pButtons.at(iSegment)->setEnabled(fEnabled);
+}
+
+void UIRoundRectSegmentedButton::setSelected(int iSegment)
+{
+    m_pButtons.at(iSegment)->setChecked(true);
 }
 
 void UIRoundRectSegmentedButton::animateClick(int iSegment)

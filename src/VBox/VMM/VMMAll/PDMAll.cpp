@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,9 +25,7 @@
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/vm.h>
 #include <VBox/err.h>
-#ifdef VBOX_WITH_NEW_APIC
-# include <VBox/vmm/apic.h>
-#endif
+#include <VBox/vmm/apic.h>
 
 #include <VBox/log.h>
 #include <iprt/asm.h>
@@ -56,10 +54,6 @@ VMMDECL(int) PDMGetInterrupt(PVMCPU pVCpu, uint8_t *pu8Interrupt)
 {
     PVM pVM = pVCpu->CTX_SUFF(pVM);
 
-#ifndef VBOX_WITH_NEW_APIC
-    pdmLock(pVM);
-#endif
-
     /*
      * The local APIC has a higher priority than the PIC.
      */
@@ -67,26 +61,19 @@ VMMDECL(int) PDMGetInterrupt(PVMCPU pVCpu, uint8_t *pu8Interrupt)
     if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC))
     {
         VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_APIC);
-        Assert(pVM->pdm.s.Apic.CTX_SUFF(pDevIns));
-        Assert(pVM->pdm.s.Apic.CTX_SUFF(pfnGetInterrupt));
         uint32_t uTagSrc;
-        rc = pVM->pdm.s.Apic.CTX_SUFF(pfnGetInterrupt)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), pVCpu, pu8Interrupt, &uTagSrc);
+        rc = APICGetInterrupt(pVCpu, pu8Interrupt, &uTagSrc);
         if (RT_SUCCESS(rc))
         {
             if (rc == VINF_SUCCESS)
                 VBOXVMM_PDM_IRQ_GET(pVCpu, RT_LOWORD(uTagSrc), RT_HIWORD(uTagSrc), *pu8Interrupt);
-#ifndef VBOX_WITH_NEW_APIC
-            pdmUnlock(pVM);
-#endif
             return rc;
         }
         /* else if it's masked by TPR/PPR/whatever, go ahead checking the PIC. Such masked
            interrupts shouldn't prevent ExtINT from being delivered. */
     }
 
-#ifdef VBOX_WITH_NEW_APIC
     pdmLock(pVM);
-#endif
 
     /*
      * Check the PIC.
@@ -192,17 +179,34 @@ VMM_INT_DECL(int) PDMIoApicSetIrq(PVM pVM, uint8_t u8Irq, uint8_t u8Level, uint3
     if (pVM->pdm.s.IoApic.CTX_SUFF(pDevIns))
     {
         Assert(pVM->pdm.s.IoApic.CTX_SUFF(pfnSetIrq));
-#ifdef VBOX_WITH_NEW_IOAPIC
         pVM->pdm.s.IoApic.CTX_SUFF(pfnSetIrq)(pVM->pdm.s.IoApic.CTX_SUFF(pDevIns), u8Irq, u8Level, uTagSrc);
-#else
-        pdmLock(pVM);
-        pVM->pdm.s.IoApic.CTX_SUFF(pfnSetIrq)(pVM->pdm.s.IoApic.CTX_SUFF(pDevIns), u8Irq, u8Level, uTagSrc);
-        pdmUnlock(pVM);
-#endif
         return VINF_SUCCESS;
     }
     return VERR_PDM_NO_PIC_INSTANCE;
 }
+
+
+/**
+ * Broadcasts an EOI to the I/O APICs.
+ *
+ * @return VBox status code (incl. scheduling status codes).
+ * @param   pVM             The cross context VM structure.
+ * @param   uVector         The interrupt vector corresponding to the EOI.
+ */
+VMM_INT_DECL(int) PDMIoApicBroadcastEoi(PVM pVM, uint8_t uVector)
+{
+    /* At present, we support only a maximum of one I/O APIC per-VM. If we ever implement having
+       multiple I/O APICs per-VM, we'll have to broadcast this EOI to all of the I/O APICs. */
+    if (pVM->pdm.s.IoApic.CTX_SUFF(pDevIns))
+    {
+        Assert(pVM->pdm.s.IoApic.CTX_SUFF(pfnSetEoi));
+        return pVM->pdm.s.IoApic.CTX_SUFF(pfnSetEoi)(pVM->pdm.s.IoApic.CTX_SUFF(pDevIns), uVector);
+    }
+
+    /* We shouldn't return failure if no I/O APIC is present. */
+    return VINF_SUCCESS;
+}
+
 
 /**
  * Send a MSI to an I/O APIC.
@@ -218,13 +222,7 @@ VMM_INT_DECL(int) PDMIoApicSendMsi(PVM pVM, RTGCPHYS GCAddr, uint32_t uValue, ui
     if (pVM->pdm.s.IoApic.CTX_SUFF(pDevIns))
     {
         Assert(pVM->pdm.s.IoApic.CTX_SUFF(pfnSendMsi));
-#ifdef VBOX_WITH_NEW_IOAPIC
         pVM->pdm.s.IoApic.CTX_SUFF(pfnSendMsi)(pVM->pdm.s.IoApic.CTX_SUFF(pDevIns), GCAddr, uValue, uTagSrc);
-#else
-        pdmLock(pVM);
-        pVM->pdm.s.IoApic.CTX_SUFF(pfnSendMsi)(pVM->pdm.s.IoApic.CTX_SUFF(pDevIns), GCAddr, uValue, uTagSrc);
-        pdmUnlock(pVM);
-#endif
         return VINF_SUCCESS;
     }
     return VERR_PDM_NO_PIC_INSTANCE;
@@ -235,7 +233,7 @@ VMM_INT_DECL(int) PDMIoApicSendMsi(PVM pVM, RTGCPHYS GCAddr, uint32_t uValue, ui
 /**
  * Returns the presence of an IO-APIC.
  *
- * @returns VBox true if an IO-APIC is present.
+ * @returns true if an IO-APIC is present.
  * @param   pVM         The cross context VM structure.
  */
 VMM_INT_DECL(bool) PDMHasIoApic(PVM pVM)
@@ -245,211 +243,14 @@ VMM_INT_DECL(bool) PDMHasIoApic(PVM pVM)
 
 
 /**
- * Returns the presence of a Local APIC.
+ * Returns the presence of an APIC.
  *
- * @returns VBox true if a Local APIC is present.
+ * @returns true if an APIC is present.
  * @param   pVM         The cross context VM structure.
  */
 VMM_INT_DECL(bool) PDMHasApic(PVM pVM)
 {
     return pVM->pdm.s.Apic.CTX_SUFF(pDevIns) != NULL;
-}
-
-
-/**
- * Set the APIC base.
- *
- * @returns Strict VBox status code.
- * @param   pVCpu       The cross context virtual CPU structure.
- * @param   u64Base     The new base.
- */
-VMMDECL(VBOXSTRICTRC) PDMApicSetBaseMsr(PVMCPU pVCpu, uint64_t u64Base)
-{
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
-    if (pVM->pdm.s.Apic.CTX_SUFF(pDevIns))
-    {
-        Assert(pVM->pdm.s.Apic.CTX_SUFF(pfnSetBaseMsr));
-#ifndef VBOX_WITH_NEW_APIC
-        pdmLock(pVM);
-#endif
-        VBOXSTRICTRC rcStrict = pVM->pdm.s.Apic.CTX_SUFF(pfnSetBaseMsr)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), pVCpu, u64Base);
-
-        /* Update CPUM's copy of the APIC base. */
-        PCPUMCTX pCtx = CPUMQueryGuestCtxPtr(pVCpu);
-        Assert(pCtx);
-        pCtx->msrApicBase = pVM->pdm.s.Apic.CTX_SUFF(pfnGetBaseMsr)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), pVCpu);
-
-#ifndef VBOX_WITH_NEW_APIC
-        pdmUnlock(pVM);
-#endif
-        return rcStrict;
-    }
-
-#ifdef IN_RING3
-    LogRelMax(5, ("PDM: APIC%U: Writing APIC base MSR (%#x) invalid since there isn't an APIC -> #GP(0)\n", pVCpu->idCpu,
-                  MSR_IA32_APICBASE));
-    return VERR_CPUM_RAISE_GP_0;
-#else
-    return VINF_CPUM_R3_MSR_WRITE;
-#endif
-}
-
-
-/**
- * Get the APIC base MSR from the APIC device.
- *
- * @returns Strict VBox status code.
- * @param   pVCpu           The cross context virtual CPU structure.
- * @param   pu64Base        Where to store the APIC base.
- * @param   fIgnoreErrors   Whether to ignore errors (i.e. not a real guest MSR
- *                          access).
- */
-VMMDECL(VBOXSTRICTRC) PDMApicGetBaseMsr(PVMCPU pVCpu, uint64_t *pu64Base, bool fIgnoreErrors)
-{
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
-    if (pVM->pdm.s.Apic.CTX_SUFF(pDevIns))
-    {
-        Assert(pVM->pdm.s.Apic.CTX_SUFF(pfnGetBaseMsr));
-#ifdef VBOX_WITH_NEW_APIC
-        VMCPU_ASSERT_EMT_OR_NOT_RUNNING(pVCpu);
-        *pu64Base = pVM->pdm.s.Apic.CTX_SUFF(pfnGetBaseMsr)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), pVCpu);
-#else
-        pdmLock(pVM);
-        *pu64Base = pVM->pdm.s.Apic.CTX_SUFF(pfnGetBaseMsr)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), pVCpu);
-        pdmUnlock(pVM);
-#endif
-        return VINF_SUCCESS;
-    }
-
-    *pu64Base = 0;
-    if (fIgnoreErrors)
-        return VINF_SUCCESS;
-
-#ifdef IN_RING3
-    LogRelMax(5, ("PDM: APIC%u: Reading APIC base MSR (%#x) invalid without an APIC instance -> #GP(0)\n", pVCpu->idCpu,
-                  MSR_IA32_APICBASE));
-    return VERR_CPUM_RAISE_GP_0;
-#else
-    return VINF_CPUM_R3_MSR_WRITE;
-#endif
-}
-
-
-/**
- * Set the TPR (Task Priority Register).
- *
- * @returns VBox status code.
- * @param   pVCpu           The cross context virtual CPU structure.
- * @param   u8TPR           The new TPR.
- */
-VMMDECL(int) PDMApicSetTPR(PVMCPU pVCpu, uint8_t u8TPR)
-{
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
-    if (pVM->pdm.s.Apic.CTX_SUFF(pDevIns))
-    {
-        Assert(pVM->pdm.s.Apic.CTX_SUFF(pfnSetTpr));
-#ifdef VBOX_WITH_NEW_APIC
-        pVM->pdm.s.Apic.CTX_SUFF(pfnSetTpr)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), pVCpu, u8TPR);
-#else
-        pdmLock(pVM);
-        pVM->pdm.s.Apic.CTX_SUFF(pfnSetTpr)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), pVCpu, u8TPR);
-        pdmUnlock(pVM);
-#endif
-        return VINF_SUCCESS;
-    }
-    return VERR_PDM_NO_APIC_INSTANCE;
-}
-
-
-/**
- * Get the TPR (Task Priority Register).
- *
- * @returns VINF_SUCCESS or VERR_PDM_NO_APIC_INSTANCE.
- * @param   pVCpu           The cross context virtual CPU structure.
- * @param   pu8TPR          Where to store the TRP.
- * @param   pfPending       Where to store whether there is a pending interrupt
- *                          (out, optional).
- * @param   pu8PendingIntr  Where to store the highest-priority pending
- *                          interrupt (out, optional).
- *
- * @remarks No-long-jump zone!!!
- */
-VMMDECL(int) PDMApicGetTPR(PVMCPU pVCpu, uint8_t *pu8TPR, bool *pfPending, uint8_t *pu8PendingIntr)
-{
-    PVM        pVM      = pVCpu->CTX_SUFF(pVM);
-    PPDMDEVINS pApicIns = pVM->pdm.s.Apic.CTX_SUFF(pDevIns);
-    if (pApicIns)
-    {
-        /*
-         * Note! We don't acquire the PDM lock here as we're just reading
-         *       information. Doing so causes massive contention as this
-         *       function is called very often by each and every VCPU.
-         */
-        Assert(pVM->pdm.s.Apic.CTX_SUFF(pfnGetTpr));
-        *pu8TPR = pVM->pdm.s.Apic.CTX_SUFF(pfnGetTpr)(pApicIns, pVCpu, pfPending, pu8PendingIntr);
-        return VINF_SUCCESS;
-    }
-    *pu8TPR = 0;
-    return VERR_PDM_NO_APIC_INSTANCE;
-}
-
-
-/**
- * Write a MSR in APIC range.
- *
- * @returns Strict VBox status code.
- * @param   pVCpu           The cross context virtual CPU structure.
- * @param   u32Reg          MSR to write.
- * @param   u64Value        Value to write.
- */
-VMM_INT_DECL(VBOXSTRICTRC) PDMApicWriteMsr(PVMCPU pVCpu, uint32_t u32Reg, uint64_t u64Value)
-{
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
-    if (pVM->pdm.s.Apic.CTX_SUFF(pDevIns))
-    {
-        AssertPtr(pVM->pdm.s.Apic.CTX_SUFF(pfnWriteMsr));
-        return pVM->pdm.s.Apic.CTX_SUFF(pfnWriteMsr)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), pVCpu, u32Reg, u64Value);
-    }
-    return VERR_CPUM_RAISE_GP_0;
-}
-
-
-/**
- * Read a MSR in APIC range.
- *
- * @returns Strict VBox status code.
- * @param   pVCpu           The cross context virtual CPU structure.
- * @param   u32Reg          MSR to read.
- * @param   pu64Value       Where to store the value read.
- */
-VMM_INT_DECL(VBOXSTRICTRC) PDMApicReadMsr(PVMCPU pVCpu, uint32_t u32Reg, uint64_t *pu64Value)
-{
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
-    if (pVM->pdm.s.Apic.CTX_SUFF(pDevIns))
-    {
-        AssertPtr(pVM->pdm.s.Apic.CTX_SUFF(pfnReadMsr));
-        return pVM->pdm.s.Apic.CTX_SUFF(pfnReadMsr)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns), pVCpu, u32Reg, pu64Value);
-    }
-    return VERR_CPUM_RAISE_GP_0;
-}
-
-
-/**
- * Gets the frequency of the APIC timer.
- *
- * @returns VBox status code.
- * @param   pVM             The cross context VM structure.
- * @param   pu64Value       Where to store the frequency.
- */
-VMM_INT_DECL(int) PDMApicGetTimerFreq(PVM pVM, uint64_t *pu64Value)
-{
-    if (pVM->pdm.s.Apic.CTX_SUFF(pDevIns))
-    {
-        AssertPtr(pVM->pdm.s.Apic.CTX_SUFF(pfnGetTimerFreq));
-        *pu64Value = pVM->pdm.s.Apic.CTX_SUFF(pfnGetTimerFreq)(pVM->pdm.s.Apic.CTX_SUFF(pDevIns));
-        return VINF_SUCCESS;
-    }
-    return VERR_PDM_NO_APIC_INSTANCE;
 }
 
 

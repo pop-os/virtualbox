@@ -19,7 +19,12 @@
 # include <precomp.h>
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
+/* Qt includes: */
+# include <QCheckBox>
+# include <QTextEdit>
+
 /* GUI includes: */
+# include "QITreeView.h"
 # include "UIApplianceImportEditorWidget.h"
 # include "VBoxGlobal.h"
 # include "UIMessageCenter.h"
@@ -33,13 +38,13 @@
 ////////////////////////////////////////////////////////////////////////////////
 // ImportSortProxyModel
 
-class ImportSortProxyModel: public VirtualSystemSortProxyModel
+class ImportSortProxyModel: public UIApplianceSortProxyModel
 {
 public:
     ImportSortProxyModel(QObject *pParent = NULL)
-      : VirtualSystemSortProxyModel(pParent)
+      : UIApplianceSortProxyModel(pParent)
     {
-        m_filterList << KVirtualSystemDescriptionType_License;
+        m_aFilteredList << KVirtualSystemDescriptionType_License;
     }
 };
 
@@ -50,7 +55,7 @@ UIApplianceImportEditorWidget::UIApplianceImportEditorWidget(QWidget *pParent)
     : UIApplianceEditorWidget(pParent)
 {
     /* Show the MAC check box */
-    m_pReinitMACsCheckBox->setHidden(false);
+    m_pCheckBoxReinitMACs->setHidden(false);
 }
 
 bool UIApplianceImportEditorWidget::setFile(const QString& strFile)
@@ -86,22 +91,25 @@ bool UIApplianceImportEditorWidget::setFile(const QString& strFile)
 
                         QVector<CVirtualSystemDescription> vsds = m_pAppliance->GetVirtualSystemDescriptions();
 
-                        m_pModel = new VirtualSystemModel(vsds, this);
+                        m_pModel = new UIApplianceModel(vsds, m_pTreeViewSettings);
 
                         ImportSortProxyModel *pProxy = new ImportSortProxyModel(this);
                         pProxy->setSourceModel(m_pModel);
-                        pProxy->sort(DescriptionSection, Qt::DescendingOrder);
+                        pProxy->sort(ApplianceViewSection_Description, Qt::DescendingOrder);
 
-                        VirtualSystemDelegate *pDelegate = new VirtualSystemDelegate(pProxy, this);
+                        UIApplianceDelegate *pDelegate = new UIApplianceDelegate(pProxy, this);
 
                         /* Set our own model */
-                        m_pTvSettings->setModel(pProxy);
+                        m_pTreeViewSettings->setModel(pProxy);
                         /* Set our own delegate */
-                        m_pTvSettings->setItemDelegate(pDelegate);
+                        m_pTreeViewSettings->setItemDelegate(pDelegate);
                         /* For now we hide the original column. This data is displayed as tooltip
                            also. */
-                        m_pTvSettings->setColumnHidden(OriginalValueSection, true);
-                        m_pTvSettings->expandAll();
+                        m_pTreeViewSettings->setColumnHidden(ApplianceViewSection_OriginalValue, true);
+                        m_pTreeViewSettings->expandAll();
+                        /* Set model root index and make it current: */
+                        m_pTreeViewSettings->setRootIndex(pProxy->mapFromSource(m_pModel->root()));
+                        m_pTreeViewSettings->setCurrentIndex(pProxy->mapFromSource(m_pModel->root()));
 
                         /* Check for warnings & if there are one display them. */
                         bool fWarningsEnabled = false;
@@ -109,10 +117,10 @@ bool UIApplianceImportEditorWidget::setFile(const QString& strFile)
                         if (warnings.size() > 0)
                         {
                             foreach (const QString& text, warnings)
-                                mWarningTextEdit->append("- " + text);
+                                m_pTextEditWarning->append("- " + text);
                             fWarningsEnabled = true;
                         }
-                        m_pWarningWidget->setVisible(fWarningsEnabled);
+                        m_pPaneWarning->setVisible(fWarningsEnabled);
                     }
                 }
             }
@@ -144,7 +152,7 @@ bool UIApplianceImportEditorWidget::import()
         /* Start the import asynchronously */
         CProgress progress;
         QVector<KImportOptions> options;
-        if (!m_pReinitMACsCheckBox->isChecked())
+        if (!m_pCheckBoxReinitMACs->isChecked())
             options.append(KImportOptions_KeepAllMACs);
         progress = m_pAppliance->ImportMachines(options);
         bool fResult = m_pAppliance->isOk();

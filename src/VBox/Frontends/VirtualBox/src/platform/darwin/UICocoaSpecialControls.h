@@ -71,7 +71,15 @@ public:
     };
 
     UICocoaSegmentedButton(QWidget *pParent, int count, CocoaSegmentType type = RoundRectSegment);
-    ~UICocoaSegmentedButton();
+
+    /** Returns the number of segments. */
+    int count() const;
+
+    /** Returns whether the @a iSegment is selected. */
+    bool isSelected(int iSegment) const;
+
+    /** Returns the @a iSegment description. */
+    QString description(int iSegment) const;
 
     QSize sizeHint() const;
 
@@ -80,6 +88,7 @@ public:
     void setIcon(int iSegment, const QIcon& icon);
     void setEnabled(int iSegment, bool fEnabled);
 
+    void setSelected(int iSegment);
     void animateClick(int iSegment);
     void onClicked(int iSegment);
 

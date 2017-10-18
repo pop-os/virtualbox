@@ -14,6 +14,7 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
+
 #define LOG_GROUP LOG_GROUP_DRV_HOST_AUDIO
 #include <iprt/assert.h>
 #include <iprt/ldr.h>
@@ -43,6 +44,75 @@
     { \
         g_pfn_ ## function shortsig; \
     }
+
+PROXY_STUB     (pa_bytes_per_second, size_t,
+                (const pa_sample_spec *spec),
+                (spec))
+PROXY_STUB     (pa_bytes_to_usec, pa_usec_t,
+                (uint64_t l, const pa_sample_spec *spec),
+                (l, spec))
+PROXY_STUB     (pa_channel_map_init_auto, pa_channel_map*,
+                (pa_channel_map *m, unsigned channels, pa_channel_map_def_t def),
+                (m, channels, def))
+
+PROXY_STUB     (pa_context_connect, int,
+                (pa_context *c, const char *server, pa_context_flags_t flags,
+                 const pa_spawn_api *api),
+                (c, server, flags, api))
+PROXY_STUB_VOID(pa_context_disconnect,
+                (pa_context *c),
+                (c))
+PROXY_STUB     (pa_context_get_server_info, pa_operation*,
+                (pa_context *c, pa_server_info_cb_t cb, void *userdata),
+                (c, cb, userdata))
+PROXY_STUB     (pa_context_get_sink_info_by_name, pa_operation*,
+                (pa_context *c, const char *name, pa_sink_info_cb_t cb, void *userdata),
+                (c, name, cb, userdata))
+PROXY_STUB     (pa_context_get_source_info_by_name, pa_operation*,
+                (pa_context *c, const char *name, pa_source_info_cb_t cb, void *userdata),
+                (c, name, cb, userdata))
+PROXY_STUB     (pa_context_get_state, pa_context_state_t,
+                (pa_context *c),
+                (c))
+PROXY_STUB_VOID(pa_context_unref,
+                (pa_context *c),
+                (c))
+PROXY_STUB     (pa_context_errno, int,
+                (pa_context *c),
+                (c))
+PROXY_STUB     (pa_context_new, pa_context*,
+                (pa_mainloop_api *mainloop, const char *name),
+                (mainloop, name))
+PROXY_STUB_VOID(pa_context_set_state_callback,
+                (pa_context *c, pa_context_notify_cb_t cb, void *userdata),
+                (c, cb, userdata))
+
+
+PROXY_STUB     (pa_frame_size, size_t,
+                (const pa_sample_spec *spec),
+                (spec))
+PROXY_STUB_VOID(pa_operation_unref,
+                (pa_operation *o),
+                (o))
+PROXY_STUB     (pa_operation_get_state, pa_operation_state_t,
+                (pa_operation *o),
+                (o))
+PROXY_STUB_VOID(pa_operation_cancel,
+                (pa_operation *o),
+                (o))
+
+PROXY_STUB     (pa_rtclock_now, pa_usec_t,
+                (void),
+                ())
+PROXY_STUB     (pa_sample_format_to_string, const char*,
+                (pa_sample_format_t f),
+                (f))
+PROXY_STUB     (pa_sample_spec_valid, int,
+                (const pa_sample_spec *spec),
+                (spec))
+PROXY_STUB     (pa_strerror, const char*,
+                (int error),
+                (error))
 
 #if PA_PROTOCOL_VERSION >= 16
 PROXY_STUB     (pa_stream_connect_playback, int,
@@ -84,6 +154,9 @@ PROXY_STUB     (pa_stream_get_latency, int,
 PROXY_STUB     (pa_stream_get_timing_info, pa_timing_info*,
                 (pa_stream *s),
                 (s))
+PROXY_STUB     (pa_stream_readable_size, size_t,
+                (pa_stream *p),
+                (p))
 PROXY_STUB      (pa_stream_set_buffer_attr, pa_operation *,
                 (pa_stream *s, const pa_buffer_attr *attr, pa_stream_success_cb_t cb, void *userdata),
                 (s, attr, cb, userdata))
@@ -91,6 +164,9 @@ PROXY_STUB_VOID(pa_stream_set_state_callback,
                 (pa_stream *s, pa_stream_notify_cb_t cb, void *userdata),
                 (s, cb, userdata))
 PROXY_STUB_VOID(pa_stream_set_underflow_callback,
+                (pa_stream *s, pa_stream_notify_cb_t cb, void *userdata),
+                (s, cb, userdata))
+PROXY_STUB_VOID(pa_stream_set_overflow_callback,
                 (pa_stream *s, pa_stream_notify_cb_t cb, void *userdata),
                 (s, cb, userdata))
 PROXY_STUB_VOID(pa_stream_set_write_callback,
@@ -124,28 +200,7 @@ PROXY_STUB     (pa_stream_drop, int,
 PROXY_STUB     (pa_stream_writable_size, size_t,
                 (pa_stream *p),
                 (p))
-PROXY_STUB     (pa_context_connect, int,
-                (pa_context *c, const char *server, pa_context_flags_t flags,
-                 const pa_spawn_api *api),
-                (c, server, flags, api))
-PROXY_STUB_VOID(pa_context_disconnect,
-                (pa_context *c),
-                (c))
-PROXY_STUB     (pa_context_get_state, pa_context_state_t,
-                (pa_context *c),
-                (c))
-PROXY_STUB_VOID(pa_context_unref,
-                (pa_context *c),
-                (c))
-PROXY_STUB     (pa_context_errno, int,
-                (pa_context *c),
-                (c))
-PROXY_STUB     (pa_context_new, pa_context*,
-                (pa_mainloop_api *mainloop, const char *name),
-                (mainloop, name))
-PROXY_STUB_VOID(pa_context_set_state_callback,
-                (pa_context *c, pa_context_notify_cb_t cb, void *userdata),
-                (c, cb, userdata))
+
 PROXY_STUB_VOID(pa_threaded_mainloop_stop,
                 (pa_threaded_mainloop *m),
                 (m))
@@ -173,40 +228,10 @@ PROXY_STUB     (pa_threaded_mainloop_start, int,
 PROXY_STUB_VOID(pa_threaded_mainloop_lock,
                 (pa_threaded_mainloop *m),
                 (m))
-PROXY_STUB     (pa_bytes_per_second, size_t,
-                (const pa_sample_spec *spec),
-                (spec))
+
 PROXY_STUB     (pa_usec_to_bytes, size_t,
                 (pa_usec_t t, const pa_sample_spec *spec),
                 (t, spec))
-PROXY_STUB     (pa_frame_size, size_t,
-                (const pa_sample_spec *spec),
-                (spec))
-PROXY_STUB     (pa_sample_format_to_string, const char*,
-                (pa_sample_format_t f),
-                (f))
-PROXY_STUB     (pa_sample_spec_valid, int,
-                (const pa_sample_spec *spec),
-                (spec))
-PROXY_STUB     (pa_channel_map_init_auto, pa_channel_map*,
-                (pa_channel_map *m, unsigned channels, pa_channel_map_def_t def),
-                (m, channels, def))
-PROXY_STUB_VOID(pa_operation_unref,
-                (pa_operation *o),
-                (o))
-PROXY_STUB     (pa_operation_get_state, pa_operation_state_t,
-                (pa_operation *o),
-                (o))
-PROXY_STUB_VOID(pa_operation_cancel,
-                (pa_operation *o),
-                (o))
-PROXY_STUB     (pa_strerror, const char*,
-                (int error),
-                (error))
-PROXY_STUB     (pa_stream_readable_size, size_t,
-                (pa_stream *p),
-                (p))
-
 
 typedef struct
 {
@@ -217,6 +242,30 @@ typedef struct
 #define ELEMENT(function) { #function , (void (**)(void)) & g_pfn_ ## function }
 static SHARED_FUNC SharedFuncs[] =
 {
+    ELEMENT(pa_bytes_per_second),
+    ELEMENT(pa_bytes_to_usec),
+    ELEMENT(pa_channel_map_init_auto),
+
+    ELEMENT(pa_context_connect),
+    ELEMENT(pa_context_disconnect),
+    ELEMENT(pa_context_get_server_info),
+    ELEMENT(pa_context_get_sink_info_by_name),
+    ELEMENT(pa_context_get_source_info_by_name),
+    ELEMENT(pa_context_get_state),
+    ELEMENT(pa_context_unref),
+    ELEMENT(pa_context_errno),
+    ELEMENT(pa_context_new),
+    ELEMENT(pa_context_set_state_callback),
+
+    ELEMENT(pa_frame_size),
+    ELEMENT(pa_operation_unref),
+    ELEMENT(pa_operation_get_state),
+    ELEMENT(pa_operation_cancel),
+    ELEMENT(pa_rtclock_now),
+    ELEMENT(pa_sample_format_to_string),
+    ELEMENT(pa_sample_spec_valid),
+    ELEMENT(pa_strerror),
+
     ELEMENT(pa_stream_connect_playback),
     ELEMENT(pa_stream_connect_record),
     ELEMENT(pa_stream_disconnect),
@@ -227,9 +276,11 @@ static SHARED_FUNC SharedFuncs[] =
     ELEMENT(pa_stream_get_state),
     ELEMENT(pa_stream_get_latency),
     ELEMENT(pa_stream_get_timing_info),
+    ELEMENT(pa_stream_readable_size),
     ELEMENT(pa_stream_set_buffer_attr),
     ELEMENT(pa_stream_set_state_callback),
     ELEMENT(pa_stream_set_underflow_callback),
+    ELEMENT(pa_stream_set_overflow_callback),
     ELEMENT(pa_stream_set_write_callback),
     ELEMENT(pa_stream_flush),
     ELEMENT(pa_stream_drain),
@@ -240,13 +291,7 @@ static SHARED_FUNC SharedFuncs[] =
     ELEMENT(pa_stream_cork),
     ELEMENT(pa_stream_drop),
     ELEMENT(pa_stream_writable_size),
-    ELEMENT(pa_context_connect),
-    ELEMENT(pa_context_disconnect),
-    ELEMENT(pa_context_get_state),
-    ELEMENT(pa_context_unref),
-    ELEMENT(pa_context_errno),
-    ELEMENT(pa_context_new),
-    ELEMENT(pa_context_set_state_callback),
+
     ELEMENT(pa_threaded_mainloop_stop),
     ELEMENT(pa_threaded_mainloop_get_api),
     ELEMENT(pa_threaded_mainloop_free),
@@ -256,17 +301,8 @@ static SHARED_FUNC SharedFuncs[] =
     ELEMENT(pa_threaded_mainloop_wait),
     ELEMENT(pa_threaded_mainloop_start),
     ELEMENT(pa_threaded_mainloop_lock),
-    ELEMENT(pa_bytes_per_second),
-    ELEMENT(pa_usec_to_bytes),
-    ELEMENT(pa_frame_size),
-    ELEMENT(pa_sample_format_to_string),
-    ELEMENT(pa_sample_spec_valid),
-    ELEMENT(pa_channel_map_init_auto),
-    ELEMENT(pa_operation_unref),
-    ELEMENT(pa_operation_get_state),
-    ELEMENT(pa_operation_cancel),
-    ELEMENT(pa_strerror),
-    ELEMENT(pa_stream_readable_size)
+
+    ELEMENT(pa_usec_to_bytes)
 };
 #undef ELEMENT
 

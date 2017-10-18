@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2015 Oracle Corporation
+ * Copyright (C) 2012-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,7 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
+@charset "UTF-8";
 
 /*
  * Basic HTML elements.
@@ -47,7 +48,6 @@ body {
 
 p, ul, ol {
     margin-top:     0;
-    line-height:    180%;
 }
 
 div {
@@ -60,6 +60,7 @@ h1, h2, h3 {
     padding:        0;
     font-weight:    normal;
     color:          #2f2f2f;
+    line-height:    180%;
 }
 h1 {
     font-size:      2.4em;
@@ -101,87 +102,148 @@ dl {
  *       worth wasting more time on CSS now.
  */
 
-#logo {
-    position:       fixed;
+html, body {
+    height:         100%;
+}
+
+#wrap {
+    position:       relative;
     width:          100%;
-    height:         92px;
+    height:         100%;
+}
+
+#head-wrap {
+    position:       fixed;
+    top:            0;
+    left:           0;
+    height:         74px; /**< header + top-menu. */
+    width:          100%;
+    background:     #f9f9f9;
+}
+
+#logo {
+    width:          42px;
+    height:         46px;
     top:            0;
     left:           0;
     right:          0;
     bottom:         auto;
+    /* Center the image in both directions. */
+    display:        flex;
+    align-items:    center;
+    justify-content: center;
+    justify-content: flex-end;
 }
 
 #logo img {
-    height:         64px;
-    width:          64px;
+    height:         36px;
+    width:          36px;
 }
 
 #header {
     position:       fixed;
     width:          100%;  /** @todo this is too wide, darn! */
-    height:         92px;
+    height:         46px;
+    left:           42px;
     top:            0;
-    left:           118px;
     right:          0;
     bottom:         auto;
+    margin-top:     0px;
+    margin-left:    0px;
+    text-align:     left;
+    /* Center the h1 child vertically: */
+    display:        flex;
+    align-items:    center;
 }
 
 #login {
     position:       absolute;
     top:            0;
     left:           auto;
-    right:          0;
-    right:          10px;
+    right:          2px;
     bottom:         auto;
-}
-
-#side-menu {
-    position:       fixed;
-    width:          110px;
     height:         auto;
-    top:            92px;
-    left:           0;
-    right:          auto;
-    bottom:         0;
 }
 
 #top-menu {
     position:       fixed;
-    width:          auto;
+    padding:        0px;
+    width:          99%;
     height:         auto;
-    max-height:     28px;
-    top:            92px;
-    left:           118px;
-    right:          0;
+    max-height:     22px;
+    top:            46px;
+    left:           0px;
+    right:          0px;
     bottom:         auto;
 }
 
-#main {
+body.tm-wide-side-menu #side-menu-wrap {
+    width:          300px;
+}
+#side-menu-wrap {
     position:       fixed;
-    width:          auto;
+    top:            0px;
+    left:           0;
+    right:          auto;
+    bottom:         auto;
+
+    width:          164px;
+    height:         100vh;
+    min-height:     100vh;
+    max-height:     100vh;
+
+    display:        flex;
+}
+
+#side-menu {
+    margin-top:     46px;
+    margin-top:     70px;
+    padding-top:    6px
     height:         auto;
-    top:            118px;  /**< header + top-menu + padding. */
-    right:          0;
-    bottom:         0;
-    left:           118px;
+    max-height:     100%;
+    width:          95%;
+    width:          calc(100% - 8px); /* CSS3 */
+
+    display:            flex;
+    flex-direction:     column;
+    justify-content:    space-between;
+}
+
+#side-menu-body {
+    display:        block;
+    max-height:     100%;
     overflow:       auto;
-    padding-top:    16px;
-    padding-left:   10px;
-    padding-right:  10px;
+}
+
+body.tm-wide-side-menu #main {
+    margin-left:    300px;
+}
+#main {
+    height:         100%;
+    margin-top:     74px;  /**< header + top-menu + padding. */
+    margin-left:    164px;
+    padding-left:   2px;
+    padding-right:  2px;
+    padding-top:    2px;
+    padding-bottom: 2px;
 }
 
 
 /*
- * Header and logo.
+ * Header and logo specifics.
  */
-#logo {
-    padding:        16px 32px 16px 32px;
+#header h1 {
+    margin-left:    8px;
+    margin-top:     0px;
+    margin-right:   0px;
+    margin-bottom:  0px;
+    font-weight:    bold;
+    font-size:      2.2em;
+    font-family:    Times New, Times, serif;
 }
 
-#header {
-    margin-top:     22px;
-    margin-left:    10px;
-    text-align:     left;
+#login p {
+    line-height:    100%;
 }
 
 
@@ -194,7 +256,21 @@ dl {
     font-family:    Arial, Helvetica, sans-serif;
     background-color: #c0d0e0;
     padding:        2px 2px 2px 2px;
+}
+
+#top-menu.tm-top-menu-wo-side {
     border-radius:  12px;
+}
+#top-menu {
+    border-radius:  12px 12px 12px 0px;
+}
+
+#side-menu {
+    border-radius:  0px 0px 12px 12px;
+}
+
+#head-wrap {
+    line-height:    180%;
 }
 
 #top-menu ul li a, #side-menu ul li a {
@@ -215,8 +291,10 @@ dl {
  * Navigation in on the left side.
  */
 
+
+/* Side menu: */
 #side-menu {
-    padding-top:    36px;
+    /* margin-top and padding-top are set up in layout !*/
     margin-right:   3px;
     margin-left:    3px;
     margin-bottom:  3px;
@@ -234,21 +312,172 @@ dl {
 }
 
 #side-menu li {
-    padding-bottom: 0.8em;
-    line-height:    1.2em;
-    text-align:     center;
+    padding-top:    0.3em;
+    padding-bottom: 0.3em;
+    line-height:    1.0em;
+    text-align:     left;
 }
 
-#side-footer {
-    position:       absolute;
-    top:            auto;
-    bottom:         0;
-    left:           auto;
-    right:          auto;
+#side-menu .subheader_item {
+    font-style:     italic;
+    font-size:      1.1em;
+    text-decoration: underline;
+}
 
-    width:          107px;
+.subheader_item:not(:first-child) {
+    margin-top:     0.5em;
+}
+
+/* The following is for the element of / not element of checkbox, supplying text and hiding the actual box. */
+input.tm-side-filter-union-input {
+    display:        none;
+}
+input.tm-side-filter-union-input + label {
+    vertical-align: middle;
+}
+input.tm-side-filter-union-input[type=checkbox]:checked + label::after {
+    content:        '∉'; /* U+2209: not an element of. */
+}
+input.tm-side-filter-union-input[type=checkbox] + label::after {
+    content:        '∈'; /* U+2208: element of. */
+}
+
+/* Webkit: Pretty scroll bars on the menu body as well as inside filter criteria. */
+#side-menu ::-webkit-scrollbar {
+    width:                  8px;
+}
+#side-menu ::-webkit-scrollbar-track {
+    -webkit-box-shadow:     inset 0 0 3px rgba(0, 0, 0, 0.3);
+    -webkit-border-radius:  4px;
+    border-radius:          4px;
+}
+#side-menu ::-webkit-scrollbar-thumb {
+    -webkit-box-shadow:     inset 0 0 3px rgba(0, 0, 0, 0.5);
+    -webkit-border-radius:  4px;
+    border-radius:          4px;
+    background:             rgba(112, 128, 144, 0.9);
+}
+#side-menu ::-webkit-scrollbar-thumb:window-inactive {
+    background:             rgba(112, 128, 144, 0.7);
+}
+
+/* Filters: */
+.tm-side-filter-title-buttons {
+    float:          right;
+}
+body.tm-wide-side-menu .tm-side-filter-title-buttons input {
+    display:        none;
+}
+.tm-side-filter-title-buttons input {
+    display:        inline;
+}
+.tm-side-filter-title-buttons input {
+    font-size:      0.6em;
+}
+.tm-side-filter-dt-buttons input {
+    font-size:      0.6em;
+}
+body.tm-wide-side-menu .tm-side-filter-dt-buttons input[type=submit] {
+    display:        inline;
+}
+.tm-side-filter-dt-buttons input[type=submit] {
+    display:        none;
+}
+.tm-side-filter-dt-buttons {
+    float:          right;
+}
+
+#side-filters p:first-child {
+    margin-top:     0.5em;
+    font-style:     italic;
+    font-size:      1.1em;
+    text-decoration: underline;
+}
+
+#side-filters dd.sf-collapsible {
+    display:        block;
+}
+
+#side-filters dd.sf-expandable {
+    display:        none;
+}
+
+#side-filters a {
+    text-decoration: none;
+    color:          #000000;
+}
+
+#side-filters dt {
+    margin-top:     0.4em;
+}
+
+#side-filters dd {
+    font-size:      0.82em;
+    font-family:    "Arial Narrow", Arial, sans-serif;
+    font-weight:    normal;
+    clear:          both;       /* cancel .tm-side-filter-dt-buttons */
+}
+
+#side-filters li, #side-filters input[type=checkbox], #side-filters p {
+    line-height:    0.9em;
+    vertical-align: text-bottom;
+}
+
+#side-filters input[type=checkbox] {
+    margin-right:   0.20em;
+    width:          1.0em;
+    height:         1.0em;
+}
+@supports(-moz-appearance:meterbar) {
+    #side-filters input[type=checkbox] {
+        /* not currently used */
+    }
+}
+@media all and (-ms-high-contrast: none), (-ms-high-contrast: active) { /* IE 10+ specific tweaks */
+    #side-filters input[type=checkbox] {
+        width:          1.1em;
+        height:         1.1em;
+    }
+}
+
+#side-filters dd > ul {
+    max-height:     22em;
+    overflow:       auto;
+}
+
+#side-filters ul ul {
+    margin-left:    1.4em;
+}
+
+#side-filters li {
+    padding-top:    1px;
+    padding-bottom: 1px;
+    overflow-wrap:  break-word;
+}
+
+ul.sf-checkbox-collapsible {
+    display:        block;
+}
+
+ul.sf-checkbox-expandable {
+    display:        none;
+}
+
+.side-filter-irrelevant {
+    font-style:     italic;
+    font-weight:    normal;
+}
+.side-filter-count {
+    font-size:      smaller;
+    vertical-align: text-top;
+}
+
+/* Footer: */
+#side-footer {
+    width:          100%;
     margin-left:    2px;
     margin-right:   2px;
+    margin-top:     1em;
     padding-top:    1em;
     padding-bottom: 0.8em;
     border-top:     thin white ridge;
@@ -257,9 +486,12 @@ dl {
 #side-footer p {
     margin-left:    3px;
     margin-right:   3px;
-    font-family:    "Lucida Sans Unicode", "Lucida Grande", sans-serif;
-    font-size:      8px;
+    margin-bottom:  0.5em;
+    font-family:    Times New, Times, serif;
+    font-size:      0.86em;
     font-style:     normal;
+    font-weight:    normal;
+    line-height:    1.2em;
     text-align:     center;
 }
 
@@ -268,9 +500,8 @@ dl {
  * Navigation in the header.
  */
 #top-menu {
-   margin:          0 auto;
-   margin-right:    10px;
-   margin-left:     10px;
+   margin-right:   3px;                 /* same as #side-menu! */
+   margin-left:    3px;
 }
 
 #top-menu ul li a {
@@ -346,6 +577,19 @@ dl {
 .tmheader {
    background-color: #d0d0d0;
    color:            black;
+}
+
+/*
+ * Generic class for div elements wrapping pre inside a table.  This prevents
+ * the <pre> from taking up way more screen space that available.
+ */
+.tdpre {
+    display:        table;
+    table-layout:   fixed;
+    width:          100%;
+}
+.tdpre pre {
+    overflow:       auto;
 }
 
 
@@ -504,6 +748,31 @@ table.tmchangelog tr.tmoddeven, table.tmchangelog tr.tmeveneven, table.tmchangel
     font-size:      0.86em;
 }
 
+.tmsyschlogattr {
+    font-size:      0.80em;
+}
+
+.tmsyschlogspacer {
+    width:          0.8em;
+}
+
+td.tmsyschlogspacer:not(:last-child) {
+    width:          1.8em;
+    border-bottom:  0px solid green !important;
+}
+
+.tmsyschlogevent {
+    border-bottom:  0px solid green !important;
+}
+
+.tmsyschlogspacerrowabove {
+    height:         0.22em;
+}
+
+.tmsyschlogspacerrowbelow {
+    height:         0.80em;
+}
+
 
 /*
  * Elements to be shows on *Show All* pages.
@@ -534,9 +803,14 @@ table.tmlistnavtab {
  * Note! This _has_ to be redone. It sucks for the wide fields and such.
  */
 .tmform ul {
-    list-style:      none;
+    list-style:     none;
     list-style-type: none;
 }
+
+.tmform li {
+    line-height:    160%;
+}
+
 
 .tmform-field {
     display:        block;
@@ -815,5 +1089,4 @@ table.tmsqltable pre {
     width:      100%;
     overflow:   auto;
 }
-
 

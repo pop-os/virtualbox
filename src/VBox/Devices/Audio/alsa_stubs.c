@@ -35,6 +35,16 @@
         return pfn_ ## function shortsig; \
     }
 
+PROXY_STUB(snd_device_name_hint, int,
+           (int card, const char *iface, void ***hints),
+           (card, iface, hints))
+PROXY_STUB(snd_device_name_free_hint, int,
+           (void **hints),
+           (hints))
+PROXY_STUB(snd_device_name_get_hint, char *,
+           (const void *hint, const char *id),
+           (hint, id))
+
 PROXY_STUB(snd_pcm_hw_params_any, int,
            (snd_pcm_t *pcm, snd_pcm_hw_params_t *params),
            (pcm, params))
@@ -108,6 +118,9 @@ PROXY_STUB(snd_pcm_sw_params_current, int,
 PROXY_STUB(snd_pcm_sw_params_set_start_threshold, int,
            (snd_pcm_t *pcm, snd_pcm_sw_params_t *params, snd_pcm_uframes_t val),
            (pcm, params, val))
+PROXY_STUB(snd_pcm_sw_params_set_avail_min, int,
+           (snd_pcm_t *pcm, snd_pcm_sw_params_t *params, snd_pcm_uframes_t val),
+           (pcm, params, val))
 
 typedef struct
 {
@@ -118,6 +131,10 @@ typedef struct
 #define ELEMENT(function) { #function , (void (**)(void)) & pfn_ ## function }
 static SHARED_FUNC SharedFuncs[] =
 {
+    ELEMENT(snd_device_name_hint),
+    ELEMENT(snd_device_name_get_hint),
+    ELEMENT(snd_device_name_free_hint),
+
     ELEMENT(snd_pcm_hw_params_any),
     ELEMENT(snd_pcm_close),
     ELEMENT(snd_pcm_avail_update),
@@ -149,6 +166,7 @@ static SHARED_FUNC SharedFuncs[] =
     ELEMENT(snd_pcm_hw_params_set_format),
     ELEMENT(snd_pcm_sw_params_current),
     ELEMENT(snd_pcm_sw_params_set_start_threshold),
+    ELEMENT(snd_pcm_sw_params_set_avail_min)
 };
 #undef ELEMENT
 
@@ -190,3 +208,4 @@ int audioLoadAlsaLib(void)
     isLibLoaded = YES;
     return rc;
 }
+

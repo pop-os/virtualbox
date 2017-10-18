@@ -740,7 +740,7 @@ if (yypcb->pcb_token != 0) {
 void
 yybegin(yystate_t state)
 {
-#ifdef	YYDEBUG
+#if YYDEBUG /* VBOX: ifdef YYDEBUG => if YYDEBUG */
 	yydebug = _dtrace_debug;
 #endif
 	if (yypcb->pcb_yystate == state)
@@ -759,7 +759,7 @@ yybegin(yystate_t state)
 		assert(yypcb->pcb_hold == NULL);
 		yypcb->pcb_hold = yypcb->pcb_list;
 		yypcb->pcb_list = NULL;
-		/*FALLTHRU*/
+		RT_FALL_THRU();
 	case YYS_EXPR:
 		BEGIN(S0);
 		break;

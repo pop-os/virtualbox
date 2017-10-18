@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,10 +28,6 @@
 #endif
 #ifndef ___iprt_asm_amd64_x86_watcom_16_h
 #define ___iprt_asm_amd64_x86_watcom_16_h
-
-#if !RT_FAR_DATA
-# error "Only works with far data pointers!"
-#endif
 
 /*
  * Turns out we cannot use 'ds' for segment stuff here because the compiler

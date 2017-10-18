@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -149,6 +149,19 @@ VMM_INT_DECL(bool) DBGFBpIsHwArmed(PVM pVM)
 VMM_INT_DECL(bool) DBGFBpIsHwIoArmed(PVM pVM)
 {
     return pVM->dbgf.s.cEnabledHwIoBreakpoints > 0;
+}
+
+
+/**
+ * Checks if any INT3 breakpoints are armed.
+ *
+ * @returns true if armed, false if not.
+ * @param   pVM        The cross context VM structure.
+ * @remarks Don't call this from CPUMRecalcHyperDRx!
+ */
+VMM_INT_DECL(bool) DBGFBpIsInt3Armed(PVM pVM)
+{
+    return pVM->dbgf.s.cEnabledInt3Breakpoints > 0;
 }
 
 

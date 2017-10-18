@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2016 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_VD_Interfaces_h
-#define ___VBox_VD_Interfaces_h
+#ifndef ___VBox_vd_ifs_h
+#define ___VBox_vd_ifs_h
 
 #include <iprt/assert.h>
 #include <iprt/string.h>
@@ -356,21 +356,21 @@ typedef struct VDINTERFACEIO
      *                          of the request initiator (ie the one who calls
      *                          VDAsyncRead or VDAsyncWrite) in pvCompletion
      *                          if this is NULL.
-     * @param   ppStorage       Where to store the opaque storage handle.
+     * @param   ppvStorage      Where to store the opaque storage handle.
      */
     DECLR3CALLBACKMEMBER(int, pfnOpen, (void *pvUser, const char *pszLocation,
                                         uint32_t fOpen,
                                         PFNVDCOMPLETED pfnCompleted,
-                                        void **ppStorage));
+                                        void **ppvStorage));
 
     /**
      * Close callback.
      *
      * @return  VBox status code.
      * @param   pvUser          The opaque data passed on container creation.
-     * @param   pStorage        The opaque storage handle to close.
+     * @param   pvStorage       The opaque storage handle to close.
      */
-    DECLR3CALLBACKMEMBER(int, pfnClose, (void *pvUser, void *pStorage));
+    DECLR3CALLBACKMEMBER(int, pfnClose, (void *pvUser, void *pvStorage));
 
     /**
      * Delete callback.
@@ -418,10 +418,10 @@ typedef struct VDINTERFACEIO
      *
      * @return  VBox status code.
      * @param   pvUser          The opaque data passed on container creation.
-     * @param   pStorage        The opaque storage handle to close.
-     * @param   pcbSize         Where to store the size of the storage backend.
+     * @param   pvStorage       The opaque storage handle to get the size from.
+     * @param   pcb             Where to store the size of the storage backend.
      */
-    DECLR3CALLBACKMEMBER(int, pfnGetSize, (void *pvUser, void *pStorage, uint64_t *pcbSize));
+    DECLR3CALLBACKMEMBER(int, pfnGetSize, (void *pvUser, void *pvStorage, uint64_t *pcb));
 
     /**
      * Sets the size of the opened storage backend if possible.
@@ -429,8 +429,8 @@ typedef struct VDINTERFACEIO
      * @return  VBox status code.
      * @retval  VERR_NOT_SUPPORTED if the backend does not support this operation.
      * @param   pvUser          The opaque data passed on container creation.
-     * @param   pStorage        The opaque storage handle to close.
-     * @param   cbSize          The new size of the image.
+     * @param   pvStorage       The opaque storage handle to set the size for.
+     * @param   cb              The new size of the image.
      *
      * @note Depending on the host the underlying storage (backing file, etc.)
      *       might not have all required storage allocated (sparse file) which
@@ -440,7 +440,7 @@ typedef struct VDINTERFACEIO
      *       Use VDINTERFACEIO::pfnSetAllocationSize to make sure the storage is
      *       really alloacted.
      */
-    DECLR3CALLBACKMEMBER(int, pfnSetSize, (void *pvUser, void *pStorage, uint64_t cbSize));
+    DECLR3CALLBACKMEMBER(int, pfnSetSize, (void *pvUser, void *pvStorage, uint64_t cb));
 
     /**
      * Sets the size of the opened storage backend making sure the given size
@@ -450,12 +450,12 @@ typedef struct VDINTERFACEIO
      * @retval VERR_NOT_SUPPORTED if the implementer of the interface doesn't support
      *         this method.
      * @param  pvUser          The opaque data passed on container creation.
-     * @param  pStorage        The storage handle.
+     * @param  pvStorage       The storage handle.
      * @param  cbSize          The new size of the image.
      * @param  fFlags          Flags for controlling the allocation strategy.
      *                         Reserved for future use, MBZ.
      */
-    DECLR3CALLBACKMEMBER(int, pfnSetAllocationSize, (void *pvUser, void *pStorage,
+    DECLR3CALLBACKMEMBER(int, pfnSetAllocationSize, (void *pvUser, void *pvStorage,
                                                      uint64_t cbSize, uint32_t fFlags));
 
     /**
@@ -463,44 +463,44 @@ typedef struct VDINTERFACEIO
      *
      * @return  VBox status code.
      * @param   pvUser          The opaque data passed on container creation.
-     * @param   pStorage        The storage handle to use.
-     * @param   uOffset         The offset to start from.
-     * @param   pvBuffer        Pointer to the bits need to be written.
-     * @param   cbBuffer        How many bytes to write.
+     * @param   pvStorage       The storage handle to use.
+     * @param   off             The offset to start from.
+     * @param   pvBuf           Pointer to the bits need to be written.
+     * @param   cbToWrite       How many bytes to write.
      * @param   pcbWritten      Where to store how many bytes were actually written.
      */
-    DECLR3CALLBACKMEMBER(int, pfnWriteSync, (void *pvUser, void *pStorage, uint64_t uOffset,
-                                             const void *pvBuffer, size_t cbBuffer, size_t *pcbWritten));
+    DECLR3CALLBACKMEMBER(int, pfnWriteSync, (void *pvUser, void *pvStorage, uint64_t off,
+                                             const void *pvBuf, size_t cbToWrite, size_t *pcbWritten));
 
     /**
      * Synchronous read callback.
      *
      * @return  VBox status code.
      * @param   pvUser          The opaque data passed on container creation.
-     * @param   pStorage        The storage handle to use.
-     * @param   uOffset         The offset to start from.
-     * @param   pvBuffer        Where to store the read bits.
-     * @param   cbBuffer        How many bytes to read.
+     * @param   pvStorage       The storage handle to use.
+     * @param   off             The offset to start from.
+     * @param   pvBuf           Where to store the read bits.
+     * @param   cbToRead        How many bytes to read.
      * @param   pcbRead         Where to store how many bytes were actually read.
      */
-    DECLR3CALLBACKMEMBER(int, pfnReadSync, (void *pvUser, void *pStorage, uint64_t uOffset,
-                                            void *pvBuffer, size_t cbBuffer, size_t *pcbRead));
+    DECLR3CALLBACKMEMBER(int, pfnReadSync, (void *pvUser, void *pvStorage, uint64_t off,
+                                            void *pvBuf, size_t cbToRead, size_t *pcbRead));
 
     /**
      * Flush data to the storage backend.
      *
      * @return  VBox status code.
      * @param   pvUser          The opaque data passed on container creation.
-     * @param   pStorage        The storage handle to flush.
+     * @param   pvStorage       The storage handle to flush.
      */
-    DECLR3CALLBACKMEMBER(int, pfnFlushSync, (void *pvUser, void *pStorage));
+    DECLR3CALLBACKMEMBER(int, pfnFlushSync, (void *pvUser, void *pvStorage));
 
     /**
      * Initiate an asynchronous read request.
      *
      * @return  VBox status code.
      * @param   pvUser         The opaque user data passed on container creation.
-     * @param   pStorage       The storage handle.
+     * @param   pvStorage      The storage handle.
      * @param   uOffset        The offset to start reading from.
      * @param   paSegments     Scatter gather list to store the data in.
      * @param   cSegments      Number of segments in the list.
@@ -508,7 +508,7 @@ typedef struct VDINTERFACEIO
      * @param   pvCompletion   The opaque user data which is returned upon completion.
      * @param   ppTask         Where to store the opaque task handle.
      */
-    DECLR3CALLBACKMEMBER(int, pfnReadAsync, (void *pvUser, void *pStorage, uint64_t uOffset,
+    DECLR3CALLBACKMEMBER(int, pfnReadAsync, (void *pvUser, void *pvStorage, uint64_t uOffset,
                                              PCRTSGSEG paSegments, size_t cSegments,
                                              size_t cbRead, void *pvCompletion,
                                              void **ppTask));
@@ -518,7 +518,7 @@ typedef struct VDINTERFACEIO
      *
      * @return  VBox status code.
      * @param   pvUser         The opaque user data passed on conatiner creation.
-     * @param   pStorage       The storage handle.
+     * @param   pvStorage      The storage handle.
      * @param   uOffset        The offset to start writing to.
      * @param   paSegments     Scatter gather list of the data to write
      * @param   cSegments      Number of segments in the list.
@@ -526,7 +526,7 @@ typedef struct VDINTERFACEIO
      * @param   pvCompletion   The opaque user data which is returned upon completion.
      * @param   ppTask         Where to store the opaque task handle.
      */
-    DECLR3CALLBACKMEMBER(int, pfnWriteAsync, (void *pvUser, void *pStorage, uint64_t uOffset,
+    DECLR3CALLBACKMEMBER(int, pfnWriteAsync, (void *pvUser, void *pvStorage, uint64_t uOffset,
                                               PCRTSGSEG paSegments, size_t cSegments,
                                               size_t cbWrite, void *pvCompletion,
                                               void **ppTask));
@@ -536,11 +536,11 @@ typedef struct VDINTERFACEIO
      *
      * @return  VBox status code.
      * @param   pvUser          The opaque data passed on container creation.
-     * @param   pStorage        The storage handle to flush.
+     * @param   pvStorage       The storage handle to flush.
      * @param   pvCompletion    The opaque user data which is returned upon completion.
      * @param   ppTask          Where to store the opaque task handle.
      */
-    DECLR3CALLBACKMEMBER(int, pfnFlushAsync, (void *pvUser, void *pStorage,
+    DECLR3CALLBACKMEMBER(int, pfnFlushAsync, (void *pvUser, void *pvStorage,
                                               void *pvCompletion, void **ppTask));
 
 } VDINTERFACEIO, *PVDINTERFACEIO;
@@ -650,6 +650,8 @@ DECLINLINE(int) vdIfIoFileFlushSync(PVDINTERFACEIO pIfIo, void *pStorage)
  */
 VBOXDDU_DECL(int) VDIfCreateVfsStream(PVDINTERFACEIO pVDIfsIo, void *pvStorage, uint32_t fFlags, PRTVFSIOSTREAM phVfsIos);
 
+struct VDINTERFACEIOINT;
+
 /**
  * Create a VFS file handle around a VD I/O interface.
  *
@@ -667,7 +669,8 @@ VBOXDDU_DECL(int) VDIfCreateVfsStream(PVDINTERFACEIO pVDIfsIo, void *pvStorage, 
  * @param   fFlags          RTFILE_O_XXX, access mask requied.
  * @param   phVfsFile       Where to return the VFS file handle on success.
  */
-VBOXDDU_DECL(int) VDIfCreateVfsFile(PVDINTERFACEIO pVDIfs, struct VDINTERFACEIOINT *pVDIfsInt, void *pvStorage, uint32_t fFlags, PRTVFSFILE phVfsFile);
+VBOXDDU_DECL(int) VDIfCreateVfsFile(PVDINTERFACEIO pVDIfs, struct VDINTERFACEIOINT *pVDIfsInt, void *pvStorage,
+                                    uint32_t fFlags, PRTVFSFILE phVfsFile);
 
 /**
  * Creates an VD I/O interface wrapper around an IPRT VFS I/O stream.
@@ -699,7 +702,7 @@ VBOXDDU_DECL(int) VDIfDestroyFromVfsStream(PVDINTERFACEIO pIoIf);
  *
  * @return  VBox status code.
  * @param   pvUser          The opaque user data associated with this interface.
- * @param   uPercent        Completion percentage.
+ * @param   uPercentage     Completion percentage.
  */
 typedef DECLCALLBACK(int) FNVDPROGRESS(void *pvUser, unsigned uPercentage);
 /** Pointer to FNVDPROGRESS() */
@@ -724,6 +727,9 @@ typedef struct VDINTERFACEPROGRESS
 
 } VDINTERFACEPROGRESS, *PVDINTERFACEPROGRESS;
 
+/** Initializer for VDINTERFACEPROGRESS.  */
+#define VDINTERFACEPROGRESS_INITALIZER(a_pfnProgress) { { 0, NULL, NULL, VDINTERFACETYPE_INVALID, 0, NULL }, a_pfnProgress }
+
 /**
  * Get progress interface from interface list.
  *
@@ -743,6 +749,19 @@ DECLINLINE(PVDINTERFACEPROGRESS) VDIfProgressGet(PVDINTERFACE pVDIfs)
     return (PVDINTERFACEPROGRESS)pIf;
 }
 
+/**
+ * Signal new progress information to the frontend.
+ *
+ * @returns VBox status code.
+ * @param   pIfProgress        The progress interface.
+ * @param   uPercentage        Completion percentage.
+ */
+DECLINLINE(int) vdIfProgress(PVDINTERFACEPROGRESS pIfProgress, unsigned uPercentage)
+{
+    if (pIfProgress)
+        return pIfProgress->pfnProgress(pIfProgress->Core.pvUser, uPercentage);
+    return VINF_SUCCESS;
+}
 
 /**
  * Configuration information interface
@@ -1138,23 +1157,23 @@ typedef struct VDINTERFACETCPNET
      * @return  iprt status code.
      * @retval  VERR_NOT_SUPPORTED if the combination of flags is not supported.
      * @param   fFlags    Combination of the VD_INTERFACETCPNET_CONNECT_* \#defines.
-     * @param   pSock     Where to store the handle.
+     * @param   phVdSock  Where to store the handle.
      */
-    DECLR3CALLBACKMEMBER(int, pfnSocketCreate, (uint32_t fFlags, PVDSOCKET pSock));
+    DECLR3CALLBACKMEMBER(int, pfnSocketCreate, (uint32_t fFlags, PVDSOCKET phVdSock));
 
     /**
      * Destroys the socket.
      *
      * @return iprt status code.
-     * @param  Sock       Socket handle (/ pointer).
+     * @param  hVdSock    Socket handle (/ pointer).
      */
-    DECLR3CALLBACKMEMBER(int, pfnSocketDestroy, (VDSOCKET Sock));
+    DECLR3CALLBACKMEMBER(int, pfnSocketDestroy, (VDSOCKET hVdSock));
 
     /**
      * Connect as a client to a TCP port.
      *
      * @return  iprt status code.
-     * @param   Sock            Socket handle (/ pointer)..
+     * @param   hVdSock         Socket handle (/ pointer)..
      * @param   pszAddress      The address to connect to.
      * @param   uPort           The port to connect to.
      * @param   cMillies        Number of milliseconds to wait for the connect attempt to complete.
@@ -1162,135 +1181,135 @@ typedef struct VDINTERFACETCPNET
      *                          Use RT_SOCKETCONNECT_DEFAULT_WAIT to wait for the default time
      *                          configured on the running system.
      */
-    DECLR3CALLBACKMEMBER(int, pfnClientConnect, (VDSOCKET Sock, const char *pszAddress, uint32_t uPort,
+    DECLR3CALLBACKMEMBER(int, pfnClientConnect, (VDSOCKET hVdSock, const char *pszAddress, uint32_t uPort,
                                                  RTMSINTERVAL cMillies));
 
     /**
      * Close a TCP connection.
      *
      * @return  iprt status code.
-     * @param   Sock            Socket handle (/ pointer).
+     * @param   hVdSock         Socket handle (/ pointer).
      */
-    DECLR3CALLBACKMEMBER(int, pfnClientClose, (VDSOCKET Sock));
+    DECLR3CALLBACKMEMBER(int, pfnClientClose, (VDSOCKET hVdSock));
 
     /**
      * Returns whether the socket is currently connected to the client.
      *
      * @returns true if the socket is connected.
      *          false otherwise.
-     * @param   Sock        Socket handle (/ pointer).
+     * @param   hVdSock     Socket handle (/ pointer).
      */
-    DECLR3CALLBACKMEMBER(bool, pfnIsClientConnected, (VDSOCKET Sock));
+    DECLR3CALLBACKMEMBER(bool, pfnIsClientConnected, (VDSOCKET hVdSock));
 
     /**
      * Socket I/O multiplexing.
      * Checks if the socket is ready for reading.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket handle (/ pointer).
+     * @param   hVdSock     Socket handle (/ pointer).
      * @param   cMillies    Number of milliseconds to wait for the socket.
      *                      Use RT_INDEFINITE_WAIT to wait for ever.
      */
-    DECLR3CALLBACKMEMBER(int, pfnSelectOne, (VDSOCKET Sock, RTMSINTERVAL cMillies));
+    DECLR3CALLBACKMEMBER(int, pfnSelectOne, (VDSOCKET hVdSock, RTMSINTERVAL cMillies));
 
     /**
      * Receive data from a socket.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket handle (/ pointer).
+     * @param   hVdSock     Socket handle (/ pointer).
      * @param   pvBuffer    Where to put the data we read.
      * @param   cbBuffer    Read buffer size.
      * @param   pcbRead     Number of bytes read.
      *                      If NULL the entire buffer will be filled upon successful return.
      *                      If not NULL a partial read can be done successfully.
      */
-    DECLR3CALLBACKMEMBER(int, pfnRead, (VDSOCKET Sock, void *pvBuffer, size_t cbBuffer, size_t *pcbRead));
+    DECLR3CALLBACKMEMBER(int, pfnRead, (VDSOCKET hVdSock, void *pvBuffer, size_t cbBuffer, size_t *pcbRead));
 
     /**
      * Send data to a socket.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket handle (/ pointer).
+     * @param   hVdSock     Socket handle (/ pointer).
      * @param   pvBuffer    Buffer to write data to socket.
      * @param   cbBuffer    How much to write.
      */
-    DECLR3CALLBACKMEMBER(int, pfnWrite, (VDSOCKET Sock, const void *pvBuffer, size_t cbBuffer));
+    DECLR3CALLBACKMEMBER(int, pfnWrite, (VDSOCKET hVdSock, const void *pvBuffer, size_t cbBuffer));
 
     /**
      * Send data from scatter/gather buffer to a socket.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket handle (/ pointer).
-     * @param   pSgBuffer   Scatter/gather buffer to write data to socket.
+     * @param   hVdSock     Socket handle (/ pointer).
+     * @param   pSgBuf      Scatter/gather buffer to write data to socket.
      */
-    DECLR3CALLBACKMEMBER(int, pfnSgWrite, (VDSOCKET Sock, PCRTSGBUF pSgBuffer));
+    DECLR3CALLBACKMEMBER(int, pfnSgWrite, (VDSOCKET hVdSock, PCRTSGBUF pSgBuf));
 
     /**
      * Receive data from a socket - not blocking.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket handle (/ pointer).
+     * @param   hVdSock     Socket handle (/ pointer).
      * @param   pvBuffer    Where to put the data we read.
      * @param   cbBuffer    Read buffer size.
      * @param   pcbRead     Number of bytes read.
      */
-    DECLR3CALLBACKMEMBER(int, pfnReadNB, (VDSOCKET Sock, void *pvBuffer, size_t cbBuffer, size_t *pcbRead));
+    DECLR3CALLBACKMEMBER(int, pfnReadNB, (VDSOCKET hVdSock, void *pvBuffer, size_t cbBuffer, size_t *pcbRead));
 
     /**
      * Send data to a socket - not blocking.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket handle (/ pointer).
+     * @param   hVdSock     Socket handle (/ pointer).
      * @param   pvBuffer    Buffer to write data to socket.
      * @param   cbBuffer    How much to write.
      * @param   pcbWritten  Number of bytes written.
      */
-    DECLR3CALLBACKMEMBER(int, pfnWriteNB, (VDSOCKET Sock, const void *pvBuffer, size_t cbBuffer, size_t *pcbWritten));
+    DECLR3CALLBACKMEMBER(int, pfnWriteNB, (VDSOCKET hVdSock, const void *pvBuffer, size_t cbBuffer, size_t *pcbWritten));
 
     /**
      * Send data from scatter/gather buffer to a socket - not blocking.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket handle (/ pointer).
-     * @param   pSgBuffer   Scatter/gather buffer to write data to socket.
+     * @param   hVdSock     Socket handle (/ pointer).
+     * @param   pSgBuf      Scatter/gather buffer to write data to socket.
      * @param   pcbWritten  Number of bytes written.
      */
-    DECLR3CALLBACKMEMBER(int, pfnSgWriteNB, (VDSOCKET Sock, PRTSGBUF pSgBuffer, size_t *pcbWritten));
+    DECLR3CALLBACKMEMBER(int, pfnSgWriteNB, (VDSOCKET hVdSock, PRTSGBUF pSgBuf, size_t *pcbWritten));
 
     /**
      * Flush socket write buffers.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket handle (/ pointer).
+     * @param   hVdSock     Socket handle (/ pointer).
      */
-    DECLR3CALLBACKMEMBER(int, pfnFlush, (VDSOCKET Sock));
+    DECLR3CALLBACKMEMBER(int, pfnFlush, (VDSOCKET hVdSock));
 
     /**
      * Enables or disables delaying sends to coalesce packets.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket handle (/ pointer).
+     * @param   hVdSock     Socket handle (/ pointer).
      * @param   fEnable     When set to true enables coalescing.
      */
-    DECLR3CALLBACKMEMBER(int, pfnSetSendCoalescing, (VDSOCKET Sock, bool fEnable));
+    DECLR3CALLBACKMEMBER(int, pfnSetSendCoalescing, (VDSOCKET hVdSock, bool fEnable));
 
     /**
      * Gets the address of the local side.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket handle (/ pointer).
+     * @param   hVdSock     Socket handle (/ pointer).
      * @param   pAddr       Where to store the local address on success.
      */
-    DECLR3CALLBACKMEMBER(int, pfnGetLocalAddress, (VDSOCKET Sock, PRTNETADDR pAddr));
+    DECLR3CALLBACKMEMBER(int, pfnGetLocalAddress, (VDSOCKET hVdSock, PRTNETADDR pAddr));
 
     /**
      * Gets the address of the other party.
      *
      * @return  iprt status code.
-     * @param   Sock        Socket handle (/ pointer).
+     * @param   hVdSock     Socket handle (/ pointer).
      * @param   pAddr       Where to store the peer address on success.
      */
-    DECLR3CALLBACKMEMBER(int, pfnGetPeerAddress, (VDSOCKET Sock, PRTNETADDR pAddr));
+    DECLR3CALLBACKMEMBER(int, pfnGetPeerAddress, (VDSOCKET hVdSock, PRTNETADDR pAddr));
 
     /**
      * Socket I/O multiplexing - extended version which can be woken up.
@@ -1304,7 +1323,7 @@ typedef struct VDINTERFACETCPNET
      * @param   cMillies    Number of milliseconds to wait for the socket.
      *                      Use RT_INDEFINITE_WAIT to wait for ever.
      */
-    DECLR3CALLBACKMEMBER(int, pfnSelectOneEx, (VDSOCKET Sock, uint32_t fEvents,
+    DECLR3CALLBACKMEMBER(int, pfnSelectOneEx, (VDSOCKET hVdSock, uint32_t fEvents,
                                                uint32_t *pfEvents, RTMSINTERVAL cMillies));
 
     /**
@@ -1313,7 +1332,7 @@ typedef struct VDINTERFACETCPNET
      * @return iprt status code.
      * @param  hVdSock      VD Socket handle(/pointer).
      */
-    DECLR3CALLBACKMEMBER(int, pfnPoke, (VDSOCKET Sock));
+    DECLR3CALLBACKMEMBER(int, pfnPoke, (VDSOCKET hVdSock));
 
 } VDINTERFACETCPNET, *PVDINTERFACETCPNET;
 

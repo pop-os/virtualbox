@@ -271,7 +271,7 @@ public:
                 /* This condition is quite rare: a new client happened to
                  * connect after this event has been posted to the main queue
                  * but before it started to process it. */
-                LogFlowFunc(("Destruction is canceled (refcnt=%d).\n", count));
+                LogRel(("Destruction is canceled (refcnt=%d).\n", count));
             }
 
             RTCritSectLeave(&sLock);
@@ -842,7 +842,8 @@ int main(int argc, char **argv)
             sigaction(SIGINT, &sa, NULL);
             sigaction(SIGQUIT, &sa, NULL);
             sigaction(SIGTERM, &sa, NULL);
-            sigaction(SIGTRAP, &sa, NULL);
+// XXX Temporary allow release assertions to terminate VBoxSVC
+//            sigaction(SIGTRAP, &sa, NULL);
             sigaction(SIGUSR1, &sa, NULL);
         }
 

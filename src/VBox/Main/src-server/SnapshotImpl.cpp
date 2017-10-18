@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -98,6 +98,7 @@ void Snapshot::FinalRelease()
 /**
  *  Initializes the instance
  *
+ *  @param  aVirtualBox    VirtualBox object
  *  @param  aId            id of the snapshot
  *  @param  aName          name of the snapshot
  *  @param  aDescription   name of the snapshot (NULL if no description)
@@ -115,7 +116,7 @@ HRESULT Snapshot::init(VirtualBox *aVirtualBox,
 {
     LogFlowThisFunc(("uuid=%s aParent->uuid=%s\n", aId.toString().c_str(), (aParent) ? aParent->m->uuid.toString().c_str() : ""));
 
-    ComAssertRet(!aId.isZero() && aId.isValid() && !aName.isEmpty() && aMachine, E_INVALIDARG);
+    ComAssertRet(!aId.isZero() && aId.isValid() && aMachine, E_INVALIDARG);
 
     /* Enclose the state transition NotReady->InInit->Ready */
     AutoInitSpan autoInitSpan(this);
@@ -638,8 +639,8 @@ ComObjPtr<Snapshot> Snapshot::i_findChildOrSelf(const Utf8Str &aName)
 
 /**
  * Internal implementation for Snapshot::updateSavedStatePaths (below).
- * @param aOldPath
- * @param aNewPath
+ * @param   strOldPath
+ * @param   strNewPath
  */
 void Snapshot::i_updateSavedStatePathsImpl(const Utf8Str &strOldPath,
                                            const Utf8Str &strNewPath)
@@ -713,13 +714,13 @@ bool Snapshot::i_sharesSavedStateFile(const Utf8Str &strPath,
  *
  *  Intended to be called by Machine::openConfigLoader() only.
  *
- *  @param aOldPath old path (full)
- *  @param aNewPath new path (full)
+ *  @param  strOldPath old path (full)
+ *  @param  strNewPath new path (full)
  *
  *  @note Locks the machine (for the snapshots tree) +  this object + children for writing.
  */
 void Snapshot::i_updateSavedStatePaths(const Utf8Str &strOldPath,
-                                      const Utf8Str &strNewPath)
+                                       const Utf8Str &strNewPath)
 {
     LogFlowThisFunc(("aOldPath={%s} aNewPath={%s}\n", strOldPath.c_str(), strNewPath.c_str()));
 
@@ -1011,17 +1012,17 @@ HRESULT SnapshotMachine::init(SessionMachine *aSessionMachine,
      * contains just references to original objects). Additionally associate
      * media with the snapshot (Machine::uninitDataAndChildObjects() will
      * deassociate at destruction). */
-    mMediaData.allocate();
-    for (MediaData::AttachmentList::const_iterator
-         it = aSessionMachine->mMediaData->mAttachments.begin();
-         it != aSessionMachine->mMediaData->mAttachments.end();
+    mMediumAttachments.allocate();
+    for (MediumAttachmentList::const_iterator
+         it = aSessionMachine->mMediumAttachments->begin();
+         it != aSessionMachine->mMediumAttachments->end();
          ++it)
     {
         ComObjPtr<MediumAttachment> pAtt;
         pAtt.createObject();
         rc = pAtt->initCopy(this, *it);
         if (FAILED(rc)) return rc;
-        mMediaData->mAttachments.push_back(pAtt);
+        mMediumAttachments->push_back(pAtt);
 
         Medium *pMedium = pAtt->i_getMedium();
         if (pMedium) // can be NULL for non-harddisk
@@ -1143,9 +1144,10 @@ HRESULT SnapshotMachine::init(SessionMachine *aSessionMachine,
 /**
  *  Initializes the SnapshotMachine object when loading from the settings file.
  *
- *  @param aMachine machine the snapshot belongs to
- *  @param aHWNode          <Hardware> node
- *  @param aHDAsNode        <HardDiskAttachments> node
+ *  @param aMachine         machine the snapshot belongs to
+ *  @param hardware         hardware settings
+ *  @param pDbg             debuging settings
+ *  @param pAutostart       autostart settings
  *  @param aSnapshotId      snapshot ID of this snapshot machine
  *  @param aStateFilePath   file where the execution state is saved
  *                          (or NULL for the offline snapshot)
@@ -1188,7 +1190,7 @@ HRESULT SnapshotMachine::initFromSettings(Machine *aMachine,
     mUserData.share(aMachine->mUserData);
     /* allocate private copies of all other data (will be loaded from settings) */
     mHWData.allocate();
-    mMediaData.allocate();
+    mMediumAttachments.allocate();
     mStorageControllers.allocate();
     mUSBControllers.allocate();
 
@@ -1507,8 +1509,9 @@ HRESULT SessionMachine::takeSnapshot(const com::Utf8Str &aName,
     ULONG cOperations = 2;              // always at least setting up + finishing up
     ULONG ulTotalOperationsWeight = 2;  // one each for setting up + finishing up
 
-    for (MediaData::AttachmentList::iterator it = mMediaData->mAttachments.begin();
-         it != mMediaData->mAttachments.end();
+    for (MediumAttachmentList::iterator
+         it = mMediumAttachments->begin();
+         it != mMediumAttachments->end();
          ++it)
     {
         const ComObjPtr<MediumAttachment> pAtt(*it);
@@ -1701,7 +1704,7 @@ void SessionMachine::i_takeSnapshotHandler(TakeSnapshotTask &task)
         // Backup the media data so we can recover if something goes wrong.
         // The matching commit() is in fixupMedia() during SessionMachine::i_finishTakingSnapshot()
         i_setModified(IsModified_Storage);
-        mMediaData.backup();
+        mMediumAttachments.backup();
 
         alock.release();
         /* create new differencing hard disks and attach them to this machine */
@@ -1731,6 +1734,7 @@ void SessionMachine::i_takeSnapshotHandler(TakeSnapshotTask &task)
                 task.m_pProgress->i_setCancelCallback(i_takeSnapshotProgressCancelCallback, &task);
                 rc = task.m_pDirectControl->SaveStateWithReason(Reason_Snapshot,
                                                                 task.m_pProgress,
+                                                                task.m_pSnapshot,
                                                                 Bstr(task.m_strStateFilePath).raw(),
                                                                 task.m_fPause,
                                                                 &fSuspendedBySave);
@@ -1890,7 +1894,10 @@ void SessionMachine::i_takeSnapshotProgressCancelCallback(void *pvUser)
  *
  * @note Locks VirtualBox and this object for writing.
  *
- * @param aSuccess Whether Console was successful with the client-side snapshot things.
+ * @param   task
+ * @param   alock
+ * @param   aSuccess    Whether Console was successful with the client-side
+ *                      snapshot things.
  * @return
  */
 HRESULT SessionMachine::i_finishTakingSnapshot(TakeSnapshotTask &task, AutoWriteLock &alock, bool aSuccess)
@@ -2023,8 +2030,9 @@ HRESULT SessionMachine::restoreSnapshot(const ComPtr<ISnapshot> &aSnapshot,
 
     ULONG ulOpCount = 1;            // one for preparations
     ULONG ulTotalWeight = 1;        // one for preparations
-    for (MediaData::AttachmentList::iterator it = pSnapMachine->mMediaData->mAttachments.begin();
-         it != pSnapMachine->mMediaData->mAttachments.end();
+    for (MediumAttachmentList::iterator
+         it = pSnapMachine->mMediumAttachments->begin();
+         it != pSnapMachine->mMediumAttachments->end();
          ++it)
     {
         ComObjPtr<MediumAttachment> &pAttach = *it;
@@ -2080,7 +2088,7 @@ HRESULT SessionMachine::restoreSnapshot(const ComPtr<ISnapshot> &aSnapshot,
  *
  * @note Locks mParent + this object for writing.
  *
- * @param pTask Task data.
+ * @param task Task data.
  */
 void SessionMachine::i_restoreSnapshotHandler(RestoreSnapshotTask &task)
 {
@@ -2103,6 +2111,7 @@ void SessionMachine::i_restoreSnapshotHandler(RestoreSnapshotTask &task)
     }
 
     HRESULT rc = S_OK;
+    Guid snapshotId;
 
     try
     {
@@ -2142,6 +2151,9 @@ void SessionMachine::i_restoreSnapshotHandler(RestoreSnapshotTask &task)
             /* remember the timestamp of the snapshot we're restoring from */
             snapshotTimeStamp = task.m_pSnapshot->i_getTimeStamp();
 
+            // save the snapshot ID (paranoia, here we hold the lock)
+            snapshotId = task.m_pSnapshot->i_getId();
+
             ComPtr<SnapshotMachine> pSnapshotMachine(task.m_pSnapshot->i_getSnapshotMachine());
 
             /* copy all hardware data from the snapshot */
@@ -2151,16 +2163,17 @@ void SessionMachine::i_restoreSnapshotHandler(RestoreSnapshotTask &task)
 
             // restore the attachments from the snapshot
             i_setModified(IsModified_Storage);
-            mMediaData.backup();
-            mMediaData->mAttachments.clear();
-            for (MediaData::AttachmentList::const_iterator it = pSnapshotMachine->mMediaData->mAttachments.begin();
-                 it != pSnapshotMachine->mMediaData->mAttachments.end();
+            mMediumAttachments.backup();
+            mMediumAttachments->clear();
+            for (MediumAttachmentList::const_iterator
+                 it = pSnapshotMachine->mMediumAttachments->begin();
+                 it != pSnapshotMachine->mMediumAttachments->end();
                  ++it)
             {
                 ComObjPtr<MediumAttachment> pAttach;
                 pAttach.createObject();
                 pAttach->initCopy(this, *it);
-                mMediaData->mAttachments.push_back(pAttach);
+                mMediumAttachments->push_back(pAttach);
             }
 
             /* release the locks before the potentially lengthy operation */
@@ -2199,8 +2212,9 @@ void SessionMachine::i_restoreSnapshotHandler(RestoreSnapshotTask &task)
          * become unused and need to be auto-deleted */
         std::list< ComObjPtr<MediumAttachment> > llDiffAttachmentsToDelete;
 
-        for (MediaData::AttachmentList::const_iterator it = mMediaData.backedUpData()->mAttachments.begin();
-             it != mMediaData.backedUpData()->mAttachments.end();
+        for (MediumAttachmentList::const_iterator
+             it = mMediumAttachments.backedUpData()->begin();
+             it != mMediumAttachments.backedUpData()->end();
              ++it)
         {
             ComObjPtr<MediumAttachment> pAttach = *it;
@@ -2229,7 +2243,7 @@ void SessionMachine::i_restoreSnapshotHandler(RestoreSnapshotTask &task)
 
         /* Paranoia: no one must have saved the settings in the mean time. If
          * it happens nevertheless we'll close our eyes and continue below. */
-        Assert(mMediaData.isBackedUp());
+        Assert(mMediumAttachments.isBackedUp());
 
         /* assign the timestamp from the snapshot */
         Assert(RTTimeSpecGetMilli(&snapshotTimeStamp) != 0);
@@ -2257,13 +2271,13 @@ void SessionMachine::i_restoreSnapshotHandler(RestoreSnapshotTask &task)
             // and actually call Medium::removeBackReference(). But that works only half
             // the time in our case so instead we force a detachment here:
             // remove from machine data
-            mMediaData->mAttachments.remove(pAttach);
+            mMediumAttachments->remove(pAttach);
             // Remove it from the backup or else i_saveSettings will try to detach
             // it again and assert. The paranoia check avoids crashes (see
             // assert above) if this code is buggy and saves settings in the
             // wrong place.
-            if (mMediaData.isBackedUp())
-                mMediaData.backedUpData()->mAttachments.remove(pAttach);
+            if (mMediumAttachments.isBackedUp())
+                mMediumAttachments.backedUpData()->remove(pAttach);
             // then clean up backrefs
             pMedium->i_removeBackReference(mData->mUuid);
 
@@ -2323,7 +2337,7 @@ void SessionMachine::i_restoreSnapshotHandler(RestoreSnapshotTask &task)
     task.m_pProgress->i_notifyComplete(rc);
 
     if (SUCCEEDED(rc))
-        mParent->i_onSnapshotRestored(mData->mUuid, Guid());
+        mParent->i_onSnapshotRestored(mData->mUuid, snapshotId);
 
     LogFlowThisFunc(("Done restoring snapshot (rc=%08X)\n", rc));
 
@@ -2483,8 +2497,9 @@ HRESULT SessionMachine::i_deleteSnapshot(const com::Guid &aStartId,
     }
 
     // count normal hard disks and add their sizes to the weight
-    for (MediaData::AttachmentList::iterator it = pSnapMachine->mMediaData->mAttachments.begin();
-         it != pSnapMachine->mMediaData->mAttachments.end();
+    for (MediumAttachmentList::iterator
+         it = pSnapMachine->mMediumAttachments->begin();
+         it != pSnapMachine->mMediumAttachments->end();
          ++it)
     {
         ComObjPtr<MediumAttachment> &pAttach = *it;
@@ -2649,7 +2664,7 @@ typedef std::list<MediumDeleteRec> MediumDeleteRecList;
  *
  * @note Locks the machine + the snapshot + the media tree for writing!
  *
- * @param pTask Task data.
+ * @param task Task data.
  */
 void SessionMachine::i_deleteSnapshotHandler(DeleteSnapshotTask &task)
 {
@@ -2701,8 +2716,9 @@ void SessionMachine::i_deleteSnapshotHandler(DeleteSnapshotTask &task)
         // state we're restoring to; for each such medium, we will need to
         // merge it with its one and only child (the diff image holding the
         // changes written after the snapshot was taken).
-        for (MediaData::AttachmentList::iterator it = pSnapMachine->mMediaData->mAttachments.begin();
-             it != pSnapMachine->mMediaData->mAttachments.end();
+        for (MediumAttachmentList::iterator
+             it = pSnapMachine->mMediumAttachments->begin();
+             it != pSnapMachine->mMediumAttachments->end();
              ++it)
         {
             ComObjPtr<MediumAttachment> &pAttach = *it;
@@ -2748,7 +2764,7 @@ void SessionMachine::i_deleteSnapshotHandler(DeleteSnapshotTask &task)
                 // which are simply moved to a different controller slot do not
                 // prevent online merging in general.
                 pOnlineMediumAttachment =
-                    i_findAttachment(mMediaData->mAttachments,
+                    i_findAttachment(*mMediumAttachments.data(),
                                      pAttach->i_getControllerName(),
                                      pAttach->i_getPort(),
                                      pAttach->i_getDevice());
@@ -2866,23 +2882,21 @@ void SessionMachine::i_deleteSnapshotHandler(DeleteSnapshotTask &task)
             std::multimap<uint32_t,uint64_t> neededStorageFreeSpace;
             std::map<uint32_t,const char*> serialMapToStoragePath;
 
-            MediumDeleteRecList::const_iterator it_md = toDelete.begin();
-
-            while (it_md != toDelete.end())
+            for (MediumDeleteRecList::const_iterator
+                 it = toDelete.begin();
+                 it != toDelete.end();
+                 ++it)
             {
                 uint64_t diskSize = 0;
                 uint32_t pu32Serial = 0;
-                ComObjPtr<Medium> pSource_local = it_md->mpSource;
-                ComObjPtr<Medium> pTarget_local = it_md->mpTarget;
+                ComObjPtr<Medium> pSource_local = it->mpSource;
+                ComObjPtr<Medium> pTarget_local = it->mpTarget;
                 ComPtr<IMediumFormat> pTargetFormat;
 
                 {
                     if (   pSource_local.isNull()
                         || pSource_local == pTarget_local)
-                    {
-                        ++it_md;
                         continue;
-                    }
                 }
 
                 rc = pTarget_local->COMGETTER(MediumFormat)(pTargetFormat.asOutParam());
@@ -2907,8 +2921,6 @@ void SessionMachine::i_deleteSnapshotHandler(DeleteSnapshotTask &task)
                     /* linking storage UID with snapshot path, it is a helper container (just for easy finding needed path) */
                     serialMapToStoragePath.insert(std::make_pair(pu32Serial,pTarget_local->i_getLocationFull().c_str()));
                 }
-
-                ++it_md;
             }
 
             while (!neededStorageFreeSpace.empty())
@@ -3128,14 +3140,14 @@ void SessionMachine::i_deleteSnapshotHandler(DeleteSnapshotTask &task)
             ComObjPtr<MediumAttachment> pAtt;
             if (fReparentTarget)
             {
-                pAtt = i_findAttachment(pSnapMachine->mMediaData->mAttachments,
+                pAtt = i_findAttachment(*(pSnapMachine->mMediumAttachments.data()),
                                         it->mpTarget);
                 it->mpTarget->i_removeBackReference(machineId, snapshotId);
             }
             else
-                pAtt = i_findAttachment(pSnapMachine->mMediaData->mAttachments,
+                pAtt = i_findAttachment(*(pSnapMachine->mMediumAttachments.data()),
                                         it->mpSource);
-            pSnapMachine->mMediaData->mAttachments.remove(pAtt);
+            pSnapMachine->mMediumAttachments->remove(pAtt);
 
             if (fReparentTarget)
             {
@@ -3149,7 +3161,7 @@ void SessionMachine::i_deleteSnapshotHandler(DeleteSnapshotTask &task)
                     pMachine = pChildSnapshot->i_getSnapshotMachine();
                     childSnapshotId = pChildSnapshot->i_getId();
                 }
-                pAtt = i_findAttachment(pMachine->mMediaData->mAttachments, it->mpSource);
+                pAtt = i_findAttachment(*(pMachine->mMediumAttachments).data(), it->mpSource);
                 if (pAtt)
                 {
                     AutoWriteLock attLock(pAtt COMMA_LOCKVAL_SRC_POS);
@@ -3667,7 +3679,7 @@ void SessionMachine::i_cancelDeleteSnapshotMedium(const ComObjPtr<Medium> &aHD,
  * @param aMediumAttachment Identify where the disk is attached in the VM.
  * @param aSource       Source hard disk for merge.
  * @param aTarget       Target hard disk for merge.
- * @param aMergeForward Merge direction.
+ * @param fMergeForward Merge direction.
  * @param aParentForTarget New parent if target needs to be reparented.
  * @param aChildrenToReparent Medium lock list with children which have to be
  *                      reparented to the target.

@@ -394,14 +394,12 @@ void UIGMachinePreview::paint(QPainter *pPainter, const QStyleOptionGraphicsItem
         imageRect.moveCenter(m_vRect.center());
 
 #ifdef VBOX_WS_MAC
-# if QT_VERSION >= 0x050000
         /* Set composition-mode to opaque: */
         pPainter->setCompositionMode(QPainter::CompositionMode_Source);
         /* Replace translucent background with black one: */
         pPainter->fillRect(imageRect, QColor(Qt::black));
         /* Return default composition-mode back: */
         pPainter->setCompositionMode(QPainter::CompositionMode_SourceAtop);
-# endif /* QT_VERSION >= 0x050000 */
 #endif /* VBOX_WS_MAC */
 
         /* Draw preview image: */
@@ -444,7 +442,7 @@ void UIGMachinePreview::setUpdateInterval(PreviewUpdateIntervalType interval, bo
             m_pUpdateTimer->stop();
             /* And continue with other cases: */
         }
-        /* fall thru */
+        RT_FALL_THRU();
         case PreviewUpdateIntervalType_500ms:
         case PreviewUpdateIntervalType_1000ms:
         case PreviewUpdateIntervalType_2000ms:

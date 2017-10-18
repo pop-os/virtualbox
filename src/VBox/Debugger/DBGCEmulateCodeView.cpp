@@ -64,6 +64,7 @@ static FNDBGCCMD dbgcCmdDumpTypeInfo;
 static FNDBGCCMD dbgcCmdDumpTypedVal;
 static FNDBGCCMD dbgcCmdEditMem;
 static FNDBGCCMD dbgcCmdGo;
+static FNDBGCCMD dbgcCmdGoUp;
 static FNDBGCCMD dbgcCmdListModules;
 static FNDBGCCMD dbgcCmdListNear;
 static FNDBGCCMD dbgcCmdListSource;
@@ -74,12 +75,15 @@ static FNDBGCCMD dbgcCmdRegHyper;
 static FNDBGCCMD dbgcCmdRegTerse;
 static FNDBGCCMD dbgcCmdSearchMem;
 static FNDBGCCMD dbgcCmdSearchMemType;
+static FNDBGCCMD dbgcCmdStepTrace;
+static FNDBGCCMD dbgcCmdStepTraceTo;
+static FNDBGCCMD dbgcCmdStepTraceToggle;
 static FNDBGCCMD dbgcCmdEventCtrl;
 static FNDBGCCMD dbgcCmdEventCtrlList;
 static FNDBGCCMD dbgcCmdEventCtrlReset;
 static FNDBGCCMD dbgcCmdStack;
-static FNDBGCCMD dbgcCmdTrace;
 static FNDBGCCMD dbgcCmdUnassemble;
+static FNDBGCCMD dbgcCmdUnassembleCfg;
 
 
 /*********************************************************************************************************************************
@@ -267,6 +271,24 @@ static const DBGCVARDESC    g_aArgMemoryInfo[] =
 };
 
 
+/** 'p', 'pc', 'pt', 't', 'tc' and 'tt' arguments. */
+static const DBGCVARDESC    g_aArgStepTrace[] =
+{
+    /* cTimesMin,   cTimesMax,  enmCategory,            fFlags,                         pszName,        pszDescription */
+    {  0,           1,          DBGCVAR_CAT_NUMBER,     0,                              "count",        "Number of instructions or source lines to step." },
+    {  0,           1,          DBGCVAR_CAT_STRING,     0,                              "cmds",         "String of commands to be executed afterwards. Quote it!" },
+};
+
+
+/** 'pa' and 'ta' arguments. */
+static const DBGCVARDESC    g_aArgStepTraceTo[] =
+{
+    /* cTimesMin,   cTimesMax,  enmCategory,            fFlags,                         pszName,        pszDescription */
+    {  1,           1,          DBGCVAR_CAT_POINTER,    0,                              "address",      "Where to stop" },
+    {  0,           1,          DBGCVAR_CAT_STRING,     0,                              "cmds",         "String of commands to be executed afterwards. Quote it!" },
+};
+
+
 /** 'r' arguments. */
 static const DBGCVARDESC    g_aArgReg[] =
 {
@@ -320,6 +342,13 @@ static const DBGCVARDESC    g_aArgEventCtrlOpt[] =
 
 /** 'u' arguments. */
 static const DBGCVARDESC    g_aArgUnassemble[] =
+{
+    /* cTimesMin,   cTimesMax,  enmCategory,            fFlags,                         pszName,        pszDescription */
+    {  0,           1,          DBGCVAR_CAT_POINTER,    0,                              "address",      "Address where to start disassembling." },
+};
+
+/** 'ucfg' arguments. */
+static const DBGCVARDESC    g_aArgUnassembleCfg[] =
 {
     /* cTimesMin,   cTimesMax,  enmCategory,            fFlags,                         pszName,        pszDescription */
     {  0,           1,          DBGCVAR_CAT_POINTER,    0,                              "address",      "Address where to start disassembling." },
@@ -381,6 +410,7 @@ const DBGCCMD    g_aCmdsCodeView[] =
     { "ed",         2,        2,        &g_aArgEditMem[0],  RT_ELEMENTS(g_aArgEditMem),     0,       dbgcCmdEditMem,     "<addr> <value>",       "Write a 4-byte value to memory." },
     { "eq",         2,        2,        &g_aArgEditMem[0],  RT_ELEMENTS(g_aArgEditMem),     0,       dbgcCmdEditMem,     "<addr> <value>",       "Write a 8-byte value to memory." },
     { "g",          0,        0,        NULL,               0,                              0,       dbgcCmdGo,          "",                     "Continue execution." },
+    { "gu",         0,        0,        NULL,               0,                              0,       dbgcCmdGoUp,        "",                     "Go up - continue execution till after return." },
     { "k",          0,        0,        NULL,               0,                              0,       dbgcCmdStack,       "",                     "Callstack." },
     { "kg",         0,        0,        NULL,               0,                              0,       dbgcCmdStack,       "",                     "Callstack - guest." },
     { "kh",         0,        0,        NULL,               0,                              0,       dbgcCmdStack,       "",                     "Callstack - hypervisor." },
@@ -391,6 +421,11 @@ const DBGCCMD    g_aCmdsCodeView[] =
     { "ln",         0,        ~0U,      &g_aArgListNear[0], RT_ELEMENTS(g_aArgListNear),    0,       dbgcCmdListNear,    "[addr/sym [..]]",      "List symbols near to the address. Default address is CS:EIP." },
     { "ls",         0,        1,        &g_aArgListSource[0],RT_ELEMENTS(g_aArgListSource), 0,       dbgcCmdListSource,  "[addr]",               "Source." },
     { "m",          1,        1,        &g_aArgMemoryInfo[0],RT_ELEMENTS(g_aArgMemoryInfo), 0,       dbgcCmdMemoryInfo,  "<addr>",               "Display information about that piece of memory." },
+    { "p",          0,        2,        &g_aArgStepTrace[0], RT_ELEMENTS(g_aArgStepTrace),  0,       dbgcCmdStepTrace,   "[count] [cmds]",       "Step over." },
+    { "pr",         0,        0,        NULL,               0,                              0,       dbgcCmdStepTraceToggle, "",                 "Toggle displaying registers for tracing & stepping (no code executed)." },
+    { "pa",         1,        1,        &g_aArgStepTraceTo[0], RT_ELEMENTS(g_aArgStepTraceTo), 0,    dbgcCmdStepTraceTo, "<addr> [count] [cmds]","Step to the given address." },
+    { "pc",         0,        0,        &g_aArgStepTrace[0], RT_ELEMENTS(g_aArgStepTrace),  0,       dbgcCmdStepTrace,   "[count] [cmds]",       "Step to the next call instruction." },
+    { "pt",         0,        0,        &g_aArgStepTrace[0], RT_ELEMENTS(g_aArgStepTrace),  0,       dbgcCmdStepTrace,   "[count] [cmds]",       "Step to the next return instruction." },
     { "r",          0,        3,        &g_aArgReg[0],      RT_ELEMENTS(g_aArgReg),         0,       dbgcCmdReg,         "[reg [[=] newval]]",   "Show or set register(s) - active reg set." },
     { "rg",         0,        3,        &g_aArgReg[0],      RT_ELEMENTS(g_aArgReg),         0,       dbgcCmdRegGuest,    "[reg [[=] newval]]",   "Show or set register(s) - guest reg set." },
     { "rg32",       0,        0,        NULL,               0,                              0,       dbgcCmdRegGuest,    "",                     "Show 32-bit guest registers." },
@@ -410,12 +445,18 @@ const DBGCCMD    g_aCmdsCodeView[] =
     { "sxn",        1,       ~0U,       &g_aArgEventCtrl[0], RT_ELEMENTS(g_aArgEventCtrl),  0,       dbgcCmdEventCtrl,      "[-c <cmd>] <event> [..]", "Notify: Display info in the debugger and continue on the specified exceptions, exits and other events. 'all' addresses all." },
     { "sxi",        1,       ~0U,       &g_aArgEventCtrl[0], RT_ELEMENTS(g_aArgEventCtrl),  0,       dbgcCmdEventCtrl,      "[-c <cmd>] <event> [..]", "Ignore: Ignore the specified exceptions, exits and other events ('all' = all of them).  Without the -c option, the guest runs like normal." },
     { "sxr",        0,        0,        &g_aArgEventCtrlOpt[0], RT_ELEMENTS(g_aArgEventCtrlOpt), 0,  dbgcCmdEventCtrlReset, "",                    "Reset the settings to default for exceptions, exits and other events. All if no filter is specified." },
-    { "t",          0,        0,        NULL,               0,                              0,       dbgcCmdTrace,       "",                     "Instruction trace (step into)." },
+    { "t",          0,        2,        &g_aArgStepTrace[0], RT_ELEMENTS(g_aArgStepTrace),  0,       dbgcCmdStepTrace,   "[count] [cmds]",       "Trace ." },
+    { "tr",         0,        0,        NULL,               0,                              0,       dbgcCmdStepTraceToggle, "",                 "Toggle displaying registers for tracing & stepping (no code executed)." },
+    { "ta",         1,        1,        &g_aArgStepTraceTo[0], RT_ELEMENTS(g_aArgStepTraceTo), 0,    dbgcCmdStepTraceTo, "<addr> [count] [cmds]","Trace to the given address." },
+    { "tc",         0,        0,        &g_aArgStepTrace[0], RT_ELEMENTS(g_aArgStepTrace),  0,       dbgcCmdStepTrace,   "[count] [cmds]",       "Trace to the next call instruction." },
+    { "tt",         0,        0,        &g_aArgStepTrace[0], RT_ELEMENTS(g_aArgStepTrace),  0,       dbgcCmdStepTrace,   "[count] [cmds]",       "Trace to the next return instruction." },
     { "u",          0,        1,        &g_aArgUnassemble[0],RT_ELEMENTS(g_aArgUnassemble), 0,       dbgcCmdUnassemble,  "[addr]",               "Unassemble." },
     { "u64",        0,        1,        &g_aArgUnassemble[0],RT_ELEMENTS(g_aArgUnassemble), 0,       dbgcCmdUnassemble,  "[addr]",               "Unassemble 64-bit code." },
     { "u32",        0,        1,        &g_aArgUnassemble[0],RT_ELEMENTS(g_aArgUnassemble), 0,       dbgcCmdUnassemble,  "[addr]",               "Unassemble 32-bit code." },
     { "u16",        0,        1,        &g_aArgUnassemble[0],RT_ELEMENTS(g_aArgUnassemble), 0,       dbgcCmdUnassemble,  "[addr]",               "Unassemble 16-bit code." },
     { "uv86",       0,        1,        &g_aArgUnassemble[0],RT_ELEMENTS(g_aArgUnassemble), 0,       dbgcCmdUnassemble,  "[addr]",               "Unassemble 16-bit code with v8086/real mode addressing." },
+    { "ucfg",       0,        1,        &g_aArgUnassembleCfg[0], RT_ELEMENTS(g_aArgUnassembleCfg), 0, dbgcCmdUnassembleCfg,  "[addr]",               "Unassemble creating a control flow graph." },
+    { "ucfgc",      0,        1,        &g_aArgUnassembleCfg[0], RT_ELEMENTS(g_aArgUnassembleCfg), 0, dbgcCmdUnassembleCfg,  "[addr]",               "Unassemble creating a control flow graph with colors." },
 };
 
 /** The number of commands in the CodeView/WinDbg emulation. */
@@ -584,7 +625,7 @@ const uint32_t   g_cDbgcSxEvents = RT_ELEMENTS(g_aDbgcSxEvents);
 
 
 /**
- * @callback_method_impl{FNDBGCCMD, The 'go' command.}
+ * @callback_method_impl{FNDBGCCMD, The 'g' command.}
  */
 static DECLCALLBACK(int) dbgcCmdGo(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
@@ -602,6 +643,26 @@ static DECLCALLBACK(int) dbgcCmdGo(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUV
 
     NOREF(paArgs); NOREF(cArgs);
     return VINF_SUCCESS;
+}
+
+
+/**
+ * @callback_method_impl{FNDBGCCMD, The 'gu' command.}
+ */
+static DECLCALLBACK(int) dbgcCmdGoUp(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
+{
+    PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
+    RT_NOREF(pCmd, paArgs, cArgs);
+
+    /* The simple way out. */
+    PDBGFADDRESS pStackPop  = NULL; /** @todo try set up some stack limitations */
+    RTGCPTR      cbStackPop = 0;
+    int rc = DBGFR3StepEx(pUVM, pDbgc->idCpu, DBGF_STEP_F_OVER | DBGF_STEP_F_STOP_AFTER_RET, NULL, pStackPop, cbStackPop, _512K);
+    if (RT_SUCCESS(rc))
+        pDbgc->fReady = false;
+    else
+        return DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "DBGFR3StepEx(,,DBGF_STEP_F_OVER | DBGF_STEP_F_STOP_AFTER_RET,) failed");
+    return rc;
 }
 
 
@@ -1023,10 +1084,10 @@ static DECLCALLBACK(int) dbgcCmdBrkSet(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM
      * Try set the breakpoint.
      */
     uint32_t iBp;
-    rc = DBGFR3BpSet(pUVM, &Address, iHitTrigger, iHitDisable, &iBp);
+    PDBGC    pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
+    rc = DBGFR3BpSetInt3(pUVM, pDbgc->idCpu, &Address, iHitTrigger, iHitDisable, &iBp);
     if (RT_SUCCESS(rc))
     {
-        PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
         rc = dbgcBpAdd(pDbgc, iBp, pszCmds);
         if (RT_SUCCESS(rc))
             return DBGCCmdHlpPrintf(pCmdHlp, "Set breakpoint %u at %RGv\n", iBp, Address.FlatPtr);
@@ -1167,7 +1228,7 @@ static DECLCALLBACK(int) dbgcCmdUnassemble(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
     unsigned fFlags = DBGF_DISAS_FLAGS_NO_ADDRESS | DBGF_DISAS_FLAGS_UNPATCHED_BYTES | DBGF_DISAS_FLAGS_ANNOTATE_PATCHED;
     switch (pCmd->pszCmd[1])
     {
-        default: AssertFailed(); /* fall thru */
+        default: AssertFailed(); RT_FALL_THRU();
         case '\0':  fFlags |= DBGF_DISAS_FLAGS_DEFAULT_MODE;    break;
         case '6':   fFlags |= DBGF_DISAS_FLAGS_64BIT_MODE;      break;
         case '3':   fFlags |= DBGF_DISAS_FLAGS_32BIT_MODE;      break;
@@ -1258,7 +1319,7 @@ static DECLCALLBACK(int) dbgcCmdUnassemble(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
             break;
         case DBGCVAR_TYPE_GC_PHYS:
             hDbgAs = DBGF_AS_PHYS;
-            /* fall thru */
+            RT_FALL_THRU();
         case DBGCVAR_TYPE_HC_FLAT:
         case DBGCVAR_TYPE_HC_PHYS:
         {
@@ -1365,6 +1426,710 @@ static DECLCALLBACK(int) dbgcCmdUnassemble(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
 
     NOREF(pCmd);
     return VINF_SUCCESS;
+}
+
+
+/**
+ * @callback_method_impl{FNDGCSCREENBLIT}
+ */
+static DECLCALLBACK(int) dbgcCmdUnassembleCfgBlit(const char *psz, void *pvUser)
+{
+    PDBGCCMDHLP pCmdHlp = (PDBGCCMDHLP)pvUser;
+    return DBGCCmdHlpPrintf(pCmdHlp, "%s", psz);
+}
+
+
+/**
+ * Checks whether both addresses are equal.
+ *
+ * @returns true if both addresses point to the same location, false otherwise.
+ * @param   pAddr1              First address.
+ * @param   pAddr2              Second address.
+ */
+static bool dbgcCmdUnassembleCfgAddrEqual(PDBGFADDRESS pAddr1, PDBGFADDRESS pAddr2)
+{
+    return    pAddr1->Sel == pAddr2->Sel
+           && pAddr1->off == pAddr2->off;
+}
+
+
+/**
+ * Checks whether the first given address is lower than the second one.
+ *
+ * @returns true if both addresses point to the same location, false otherwise.
+ * @param   pAddr1              First address.
+ * @param   pAddr2              Second address.
+ */
+static bool dbgcCmdUnassembleCfgAddrLower(PDBGFADDRESS pAddr1, PDBGFADDRESS pAddr2)
+{
+    return    pAddr1->Sel == pAddr2->Sel
+           && pAddr1->off < pAddr2->off;
+}
+
+
+/**
+ * Calculates the size required for the given basic block including the
+ * border and spacing on the edges.
+ *
+ * @returns nothing.
+ * @param   hFlowBb              The basic block handle.
+ * @param   pDumpBb             The dumper state to fill in for the basic block.
+ */
+static void dbgcCmdUnassembleCfgDumpCalcBbSize(DBGFFLOWBB hFlowBb, PDBGCFLOWBBDUMP pDumpBb)
+{
+    uint32_t fFlags = DBGFR3FlowBbGetFlags(hFlowBb);
+    uint32_t cInstr = DBGFR3FlowBbGetInstrCount(hFlowBb);
+
+    pDumpBb->hFlowBb   = hFlowBb;
+    pDumpBb->cchHeight = cInstr + 4; /* Include spacing and border top and bottom. */
+    pDumpBb->cchWidth  = 0;
+    DBGFR3FlowBbGetStartAddress(hFlowBb, &pDumpBb->AddrStart);
+
+    DBGFFLOWBBENDTYPE enmType = DBGFR3FlowBbGetType(hFlowBb);
+    if (   enmType == DBGFFLOWBBENDTYPE_COND
+        || enmType == DBGFFLOWBBENDTYPE_UNCOND_JMP
+        || enmType == DBGFFLOWBBENDTYPE_UNCOND_INDIRECT_JMP)
+        DBGFR3FlowBbGetBranchAddress(hFlowBb, &pDumpBb->AddrTarget);
+
+    if (fFlags & DBGF_FLOW_BB_F_INCOMPLETE_ERR)
+    {
+        const char *pszErr = NULL;
+        DBGFR3FlowBbQueryError(hFlowBb, &pszErr);
+        if (pszErr)
+        {
+            pDumpBb->cchHeight++;
+            pDumpBb->cchWidth = RT_MAX(pDumpBb->cchWidth, (uint32_t)strlen(pszErr));
+        }
+    }
+    for (unsigned i = 0; i < cInstr; i++)
+    {
+        const char *pszInstr = NULL;
+        int rc = DBGFR3FlowBbQueryInstr(hFlowBb, i, NULL, NULL, &pszInstr);
+        AssertRC(rc);
+        pDumpBb->cchWidth = RT_MAX(pDumpBb->cchWidth, (uint32_t)strlen(pszInstr));
+    }
+    pDumpBb->cchWidth += 4; /* Include spacing and border left and right. */
+}
+
+
+/**
+ * Dumps a top or bottom boundary line.
+ *
+ * @returns nothing.
+ * @param   hScreen             The screen to draw to.
+ * @param   uStartX             Where to start drawing the boundary.
+ * @param   uStartY             Y coordinate.
+ * @param   cchWidth            Width of the boundary.
+ * @param   enmColor            The color to use for drawing.
+ */
+static void dbgcCmdUnassembleCfgDumpBbBoundary(DBGCSCREEN hScreen, uint32_t uStartX, uint32_t uStartY, uint32_t cchWidth,
+                                               DBGCSCREENCOLOR enmColor)
+{
+    dbgcScreenAsciiDrawCharacter(hScreen, uStartX, uStartY, '+', enmColor);
+    dbgcScreenAsciiDrawLineHorizontal(hScreen, uStartX + 1, uStartX + 1 + cchWidth - 2,
+                                      uStartY, '-', enmColor);
+    dbgcScreenAsciiDrawCharacter(hScreen, uStartX + cchWidth - 1, uStartY, '+', enmColor);
+}
+
+
+/**
+ * Dumps a spacing line between the top or bottom boundary and the actual disassembly.
+ *
+ * @returns nothing.
+ * @param   hScreen             The screen to draw to.
+ * @param   uStartX             Where to start drawing the spacing.
+ * @param   uStartY             Y coordinate.
+ * @param   cchWidth            Width of the spacing.
+ * @param   enmColor            The color to use for drawing.
+ */
+static void dbgcCmdUnassembleCfgDumpBbSpacing(DBGCSCREEN hScreen, uint32_t uStartX, uint32_t uStartY, uint32_t cchWidth,
+                                              DBGCSCREENCOLOR enmColor)
+{
+    dbgcScreenAsciiDrawCharacter(hScreen, uStartX, uStartY, '|', enmColor);
+    dbgcScreenAsciiDrawLineHorizontal(hScreen, uStartX + 1, uStartX + 1 + cchWidth - 2,
+                                      uStartY, ' ', enmColor);
+    dbgcScreenAsciiDrawCharacter(hScreen, uStartX + cchWidth - 1, uStartY, '|', enmColor);
+}
+
+
+/**
+ * Writes a given text to the screen.
+ *
+ * @returns nothing.
+ * @param   hScreen             The screen to draw to.
+ * @param   uStartX             Where to start drawing the line.
+ * @param   uStartY             Y coordinate.
+ * @param   cchWidth            Maximum width of the text.
+ * @param   pszText             The text to write.
+ * @param   enmTextColor        The color to use for drawing the text.
+ * @param   enmBorderColor      The color to use for drawing the border.
+ */
+static void dbgcCmdUnassembleCfgDumpBbText(DBGCSCREEN hScreen, uint32_t uStartX, uint32_t uStartY,
+                                           uint32_t cchWidth, const char *pszText,
+                                           DBGCSCREENCOLOR enmTextColor, DBGCSCREENCOLOR enmBorderColor)
+{
+    dbgcScreenAsciiDrawCharacter(hScreen, uStartX, uStartY, '|', enmBorderColor);
+    dbgcScreenAsciiDrawCharacter(hScreen, uStartX + 1, uStartY, ' ', enmTextColor);
+    dbgcScreenAsciiDrawString(hScreen, uStartX + 2, uStartY, pszText, enmTextColor);
+    dbgcScreenAsciiDrawCharacter(hScreen, uStartX + cchWidth - 1, uStartY, '|', enmBorderColor);
+}
+
+
+/**
+ * Dumps one basic block using the dumper callback.
+ *
+ * @returns nothing.
+ * @param   pDumpBb             The basic block dump state to dump.
+ * @param   hScreen             The screen to draw to.
+ */
+static void dbgcCmdUnassembleCfgDumpBb(PDBGCFLOWBBDUMP pDumpBb, DBGCSCREEN hScreen)
+{
+    uint32_t uStartY = pDumpBb->uStartY;
+    bool fError = RT_BOOL(DBGFR3FlowBbGetFlags(pDumpBb->hFlowBb) & DBGF_FLOW_BB_F_INCOMPLETE_ERR);
+    DBGCSCREENCOLOR enmColor = fError ? DBGCSCREENCOLOR_RED_BRIGHT : DBGCSCREENCOLOR_DEFAULT;
+
+    dbgcCmdUnassembleCfgDumpBbBoundary(hScreen, pDumpBb->uStartX, uStartY, pDumpBb->cchWidth, enmColor);
+    uStartY++;
+    dbgcCmdUnassembleCfgDumpBbSpacing(hScreen, pDumpBb->uStartX, uStartY, pDumpBb->cchWidth, enmColor);
+    uStartY++;
+
+    uint32_t cInstr = DBGFR3FlowBbGetInstrCount(pDumpBb->hFlowBb);
+    for (unsigned i = 0; i < cInstr; i++)
+    {
+        const char *pszInstr = NULL;
+        DBGFR3FlowBbQueryInstr(pDumpBb->hFlowBb, i, NULL, NULL, &pszInstr);
+        dbgcCmdUnassembleCfgDumpBbText(hScreen, pDumpBb->uStartX, uStartY + i,
+                                       pDumpBb->cchWidth, pszInstr, DBGCSCREENCOLOR_DEFAULT,
+                                       enmColor);
+    }
+    uStartY += cInstr;
+
+    if (fError)
+    {
+        const char *pszErr = NULL;
+        DBGFR3FlowBbQueryError(pDumpBb->hFlowBb, &pszErr);
+        if (pszErr)
+            dbgcCmdUnassembleCfgDumpBbText(hScreen, pDumpBb->uStartX, uStartY,
+                                           pDumpBb->cchWidth, pszErr, enmColor,
+                                           enmColor);
+        uStartY++;
+    }
+
+    dbgcCmdUnassembleCfgDumpBbSpacing(hScreen, pDumpBb->uStartX, uStartY, pDumpBb->cchWidth, enmColor);
+    uStartY++;
+    dbgcCmdUnassembleCfgDumpBbBoundary(hScreen, pDumpBb->uStartX, uStartY, pDumpBb->cchWidth, enmColor);
+    uStartY++;
+}
+
+
+/**
+ * Dumps one branch table using the dumper callback.
+ *
+ * @returns nothing.
+ * @param   pDumpBranchTbl      The basic block dump state to dump.
+ * @param   hScreen             The screen to draw to.
+ */
+static void dbgcCmdUnassembleCfgDumpBranchTbl(PDBGCFLOWBRANCHTBLDUMP pDumpBranchTbl, DBGCSCREEN hScreen)
+{
+    uint32_t uStartY = pDumpBranchTbl->uStartY;
+    DBGCSCREENCOLOR enmColor = DBGCSCREENCOLOR_CYAN_BRIGHT;
+
+    dbgcCmdUnassembleCfgDumpBbBoundary(hScreen, pDumpBranchTbl->uStartX, uStartY, pDumpBranchTbl->cchWidth, enmColor);
+    uStartY++;
+    dbgcCmdUnassembleCfgDumpBbSpacing(hScreen, pDumpBranchTbl->uStartX, uStartY, pDumpBranchTbl->cchWidth, enmColor);
+    uStartY++;
+
+    uint32_t cSlots = DBGFR3FlowBranchTblGetSlots(pDumpBranchTbl->hFlowBranchTbl);
+    for (unsigned i = 0; i < cSlots; i++)
+    {
+        DBGFADDRESS Addr;
+        char szAddr[128];
+
+        RT_ZERO(szAddr);
+        DBGFR3FlowBranchTblGetAddrAtSlot(pDumpBranchTbl->hFlowBranchTbl, i, &Addr);
+
+        if (Addr.Sel == DBGF_SEL_FLAT)
+            RTStrPrintf(&szAddr[0], sizeof(szAddr), "%RGv", Addr.FlatPtr);
+        else
+            RTStrPrintf(&szAddr[0], sizeof(szAddr), "%04x:%RGv", Addr.Sel, Addr.off);
+
+        dbgcCmdUnassembleCfgDumpBbText(hScreen, pDumpBranchTbl->uStartX, uStartY + i,
+                                       pDumpBranchTbl->cchWidth, &szAddr[0], DBGCSCREENCOLOR_DEFAULT,
+                                       enmColor);
+    }
+    uStartY += cSlots;
+
+    dbgcCmdUnassembleCfgDumpBbSpacing(hScreen, pDumpBranchTbl->uStartX, uStartY, pDumpBranchTbl->cchWidth, enmColor);
+    uStartY++;
+    dbgcCmdUnassembleCfgDumpBbBoundary(hScreen, pDumpBranchTbl->uStartX, uStartY, pDumpBranchTbl->cchWidth, enmColor);
+    uStartY++;
+}
+
+
+/**
+ * Fills in the dump states for the basic blocks and branch tables.
+ *
+ * @returns VBox status code.
+ * @param   hFlowIt             The control flow graph iterator handle.
+ * @param   hFlowBranchTblIt    The control flow graph branch table iterator handle.
+ * @param   paDumpBb            The array of basic block dump states.
+ * @param   paDumpBranchTbl     The array of branch table dump states.
+ * @param   cBbs                Number of basic blocks.
+ * @param   cBranchTbls         Number of branch tables.
+ */
+static int dbgcCmdUnassembleCfgDumpCalcDimensions(DBGFFLOWIT hFlowIt, DBGFFLOWBRANCHTBLIT hFlowBranchTblIt,
+                                                  PDBGCFLOWBBDUMP paDumpBb, PDBGCFLOWBRANCHTBLDUMP paDumpBranchTbl,
+                                                  uint32_t cBbs, uint32_t cBranchTbls)
+{
+    RT_NOREF2(cBbs, cBranchTbls);
+
+    /* Calculate the sizes of each basic block first. */
+    DBGFFLOWBB hFlowBb = DBGFR3FlowItNext(hFlowIt);
+    uint32_t idx = 0;
+    while (hFlowBb)
+    {
+        dbgcCmdUnassembleCfgDumpCalcBbSize(hFlowBb, &paDumpBb[idx]);
+        idx++;
+        hFlowBb = DBGFR3FlowItNext(hFlowIt);
+    }
+
+    if (paDumpBranchTbl)
+    {
+        idx = 0;
+        DBGFFLOWBRANCHTBL hFlowBranchTbl = DBGFR3FlowBranchTblItNext(hFlowBranchTblIt);
+        while (hFlowBranchTbl)
+        {
+            paDumpBranchTbl[idx].hFlowBranchTbl = hFlowBranchTbl;
+            paDumpBranchTbl[idx].cchHeight      = DBGFR3FlowBranchTblGetSlots(hFlowBranchTbl) + 4; /* Spacing and border. */
+            paDumpBranchTbl[idx].cchWidth       = 25 + 4; /* Spacing and border. */
+            idx++;
+            hFlowBranchTbl = DBGFR3FlowBranchTblItNext(hFlowBranchTblIt);
+        }
+    }
+
+    return VINF_SUCCESS;
+}
+
+/**
+ * Dumps the given control flow graph to the output.
+ *
+ * @returns VBox status code.
+ * @param   hCfg                The control flow graph handle.
+ * @param   fUseColor           Flag whether the output should be colorized.
+ * @param   pCmdHlp             The command helper callback table.
+ */
+static int dbgcCmdUnassembleCfgDump(DBGFFLOW hCfg, bool fUseColor, PDBGCCMDHLP pCmdHlp)
+{
+    int rc = VINF_SUCCESS;
+    DBGFFLOWIT hCfgIt = NULL;
+    DBGFFLOWBRANCHTBLIT hFlowBranchTblIt = NULL;
+    uint32_t cBbs = DBGFR3FlowGetBbCount(hCfg);
+    uint32_t cBranchTbls = DBGFR3FlowGetBranchTblCount(hCfg);
+    PDBGCFLOWBBDUMP paDumpBb = (PDBGCFLOWBBDUMP)RTMemTmpAllocZ(cBbs * sizeof(DBGCFLOWBBDUMP));
+    PDBGCFLOWBRANCHTBLDUMP paDumpBranchTbl = NULL;
+
+    if (cBranchTbls)
+        paDumpBranchTbl = (PDBGCFLOWBRANCHTBLDUMP)RTMemAllocZ(cBranchTbls * sizeof(DBGCFLOWBRANCHTBLDUMP));
+
+    if (RT_UNLIKELY(!paDumpBb || (!paDumpBranchTbl && cBranchTbls > 0)))
+        rc = VERR_NO_MEMORY;
+    if (RT_SUCCESS(rc))
+        rc = DBGFR3FlowItCreate(hCfg, DBGFFLOWITORDER_BY_ADDR_LOWEST_FIRST, &hCfgIt);
+    if (RT_SUCCESS(rc) && cBranchTbls > 0)
+        rc = DBGFR3FlowBranchTblItCreate(hCfg, DBGFFLOWITORDER_BY_ADDR_LOWEST_FIRST, &hFlowBranchTblIt);
+
+    if (RT_SUCCESS(rc))
+    {
+        rc = dbgcCmdUnassembleCfgDumpCalcDimensions(hCfgIt, hFlowBranchTblIt, paDumpBb, paDumpBranchTbl,
+                                                    cBbs, cBranchTbls);
+
+        /* Calculate the ASCII screen dimensions and create one. */
+        uint32_t cchWidth = 0;
+        uint32_t cchLeftExtra = 5;
+        uint32_t cchRightExtra = 5;
+        uint32_t cchHeight = 0;
+        for (unsigned i = 0; i < cBbs; i++)
+        {
+            PDBGCFLOWBBDUMP pDumpBb = &paDumpBb[i];
+            cchWidth = RT_MAX(cchWidth, pDumpBb->cchWidth);
+            cchHeight += pDumpBb->cchHeight;
+
+            /* Incomplete blocks don't have a successor. */
+            if (DBGFR3FlowBbGetFlags(pDumpBb->hFlowBb) & DBGF_FLOW_BB_F_INCOMPLETE_ERR)
+                continue;
+
+            switch (DBGFR3FlowBbGetType(pDumpBb->hFlowBb))
+            {
+                case DBGFFLOWBBENDTYPE_EXIT:
+                case DBGFFLOWBBENDTYPE_LAST_DISASSEMBLED:
+                    break;
+                case DBGFFLOWBBENDTYPE_UNCOND_JMP:
+                    if (   dbgcCmdUnassembleCfgAddrLower(&pDumpBb->AddrTarget, &pDumpBb->AddrStart)
+                        || dbgcCmdUnassembleCfgAddrEqual(&pDumpBb->AddrTarget, &pDumpBb->AddrStart))
+                        cchLeftExtra++;
+                    else
+                        cchRightExtra++;
+                    break;
+                case DBGFFLOWBBENDTYPE_UNCOND:
+                    cchHeight += 2; /* For the arrow down to the next basic block. */
+                    break;
+                case DBGFFLOWBBENDTYPE_COND:
+                    cchHeight += 2; /* For the arrow down to the next basic block. */
+                    if (   dbgcCmdUnassembleCfgAddrLower(&pDumpBb->AddrTarget, &pDumpBb->AddrStart)
+                        || dbgcCmdUnassembleCfgAddrEqual(&pDumpBb->AddrTarget, &pDumpBb->AddrStart))
+                        cchLeftExtra++;
+                    else
+                        cchRightExtra++;
+                    break;
+                case DBGFFLOWBBENDTYPE_UNCOND_INDIRECT_JMP:
+                default:
+                    AssertFailed();
+            }
+        }
+
+        for (unsigned i = 0; i < cBranchTbls; i++)
+        {
+            PDBGCFLOWBRANCHTBLDUMP pDumpBranchTbl = &paDumpBranchTbl[i];
+            cchWidth = RT_MAX(cchWidth, pDumpBranchTbl->cchWidth);
+            cchHeight += pDumpBranchTbl->cchHeight;
+        }
+
+        cchWidth += 2;
+
+        DBGCSCREEN hScreen = NULL;
+        rc = dbgcScreenAsciiCreate(&hScreen, cchWidth + cchLeftExtra + cchRightExtra, cchHeight);
+        if (RT_SUCCESS(rc))
+        {
+            uint32_t uY = 0;
+
+            /* Dump the branch tables first. */
+            for (unsigned i = 0; i < cBranchTbls; i++)
+            {
+                paDumpBranchTbl[i].uStartX = cchLeftExtra + (cchWidth - paDumpBranchTbl[i].cchWidth) / 2;
+                paDumpBranchTbl[i].uStartY = uY;
+                dbgcCmdUnassembleCfgDumpBranchTbl(&paDumpBranchTbl[i], hScreen);
+                uY += paDumpBranchTbl[i].cchHeight;
+            }
+
+            /* Dump the basic blocks and connections to the immediate successor. */
+            for (unsigned i = 0; i < cBbs; i++)
+            {
+                paDumpBb[i].uStartX = cchLeftExtra + (cchWidth - paDumpBb[i].cchWidth) / 2;
+                paDumpBb[i].uStartY = uY;
+                dbgcCmdUnassembleCfgDumpBb(&paDumpBb[i], hScreen);
+                uY += paDumpBb[i].cchHeight;
+
+                /* Incomplete blocks don't have a successor. */
+                if (DBGFR3FlowBbGetFlags(paDumpBb[i].hFlowBb) & DBGF_FLOW_BB_F_INCOMPLETE_ERR)
+                    continue;
+
+                switch (DBGFR3FlowBbGetType(paDumpBb[i].hFlowBb))
+                {
+                    case DBGFFLOWBBENDTYPE_EXIT:
+                    case DBGFFLOWBBENDTYPE_LAST_DISASSEMBLED:
+                    case DBGFFLOWBBENDTYPE_UNCOND_JMP:
+                    case DBGFFLOWBBENDTYPE_UNCOND_INDIRECT_JMP:
+                        break;
+                    case DBGFFLOWBBENDTYPE_UNCOND:
+                        /* Draw the arrow down to the next block. */
+                        dbgcScreenAsciiDrawCharacter(hScreen, cchLeftExtra + cchWidth / 2, uY,
+                                                     '|', DBGCSCREENCOLOR_BLUE_BRIGHT);
+                        uY++;
+                        dbgcScreenAsciiDrawCharacter(hScreen, cchLeftExtra + cchWidth / 2, uY,
+                                                     'V', DBGCSCREENCOLOR_BLUE_BRIGHT);
+                        uY++;
+                        break;
+                    case DBGFFLOWBBENDTYPE_COND:
+                        /* Draw the arrow down to the next block. */
+                        dbgcScreenAsciiDrawCharacter(hScreen, cchLeftExtra + cchWidth / 2, uY,
+                                                     '|', DBGCSCREENCOLOR_RED_BRIGHT);
+                        uY++;
+                        dbgcScreenAsciiDrawCharacter(hScreen, cchLeftExtra + cchWidth / 2, uY,
+                                                     'V', DBGCSCREENCOLOR_RED_BRIGHT);
+                        uY++;
+                        break;
+                    default:
+                        AssertFailed();
+                }
+            }
+
+            /* Last pass, connect all remaining branches. */
+            uint32_t uBackConns = 0;
+            uint32_t uFwdConns = 0;
+            for (unsigned i = 0; i < cBbs; i++)
+            {
+                PDBGCFLOWBBDUMP pDumpBb = &paDumpBb[i];
+                DBGFFLOWBBENDTYPE enmEndType = DBGFR3FlowBbGetType(pDumpBb->hFlowBb);
+
+                /* Incomplete blocks don't have a successor. */
+                if (DBGFR3FlowBbGetFlags(pDumpBb->hFlowBb) & DBGF_FLOW_BB_F_INCOMPLETE_ERR)
+                    continue;
+
+                switch (enmEndType)
+                {
+                    case DBGFFLOWBBENDTYPE_EXIT:
+                    case DBGFFLOWBBENDTYPE_LAST_DISASSEMBLED:
+                    case DBGFFLOWBBENDTYPE_UNCOND:
+                        break;
+                    case DBGFFLOWBBENDTYPE_COND:
+                    case DBGFFLOWBBENDTYPE_UNCOND_JMP:
+                    {
+                        /* Find the target first to get the coordinates. */
+                        PDBGCFLOWBBDUMP pDumpBbTgt = NULL;
+                        for (unsigned idxDumpBb = 0; idxDumpBb < cBbs; idxDumpBb++)
+                        {
+                            pDumpBbTgt = &paDumpBb[idxDumpBb];
+                            if (dbgcCmdUnassembleCfgAddrEqual(&pDumpBb->AddrTarget, &pDumpBbTgt->AddrStart))
+                                break;
+                        }
+
+                        DBGCSCREENCOLOR enmColor =   enmEndType == DBGFFLOWBBENDTYPE_UNCOND_JMP
+                                                   ? DBGCSCREENCOLOR_YELLOW_BRIGHT
+                                                   : DBGCSCREENCOLOR_GREEN_BRIGHT;
+
+                        /*
+                         * Use the right side for targets with higher addresses,
+                         * left when jumping backwards.
+                         */
+                        if (   dbgcCmdUnassembleCfgAddrLower(&pDumpBb->AddrTarget, &pDumpBb->AddrStart)
+                            || dbgcCmdUnassembleCfgAddrEqual(&pDumpBb->AddrTarget, &pDumpBb->AddrStart))
+                        {
+                            /* Going backwards. */
+                            uint32_t uXVerLine = /*cchLeftExtra - 1 -*/ uBackConns + 1;
+                            uint32_t uYHorLine = pDumpBb->uStartY + pDumpBb->cchHeight - 1 - 2;
+                            uBackConns++;
+
+                            /* Draw the arrow pointing to the target block. */
+                            dbgcScreenAsciiDrawCharacter(hScreen, pDumpBbTgt->uStartX - 1, pDumpBbTgt->uStartY,
+                                                         '>', enmColor);
+                            /* Draw the horizontal line. */
+                            dbgcScreenAsciiDrawLineHorizontal(hScreen, uXVerLine + 1, pDumpBbTgt->uStartX - 2,
+                                                              pDumpBbTgt->uStartY, '-', enmColor);
+                            dbgcScreenAsciiDrawCharacter(hScreen, uXVerLine, pDumpBbTgt->uStartY, '+',
+                                                         enmColor);
+                            /* Draw the vertical line down to the source block. */
+                            dbgcScreenAsciiDrawLineVertical(hScreen, uXVerLine, pDumpBbTgt->uStartY + 1, uYHorLine - 1,
+                                                            '|', enmColor);
+                            dbgcScreenAsciiDrawCharacter(hScreen, uXVerLine, uYHorLine, '+', enmColor);
+                            /* Draw the horizontal connection between the source block and vertical part. */
+                            dbgcScreenAsciiDrawLineHorizontal(hScreen, uXVerLine + 1, pDumpBb->uStartX - 1,
+                                                              uYHorLine, '-', enmColor);
+
+                        }
+                        else
+                        {
+                            /* Going forward. */
+                            uint32_t uXVerLine = cchWidth + cchLeftExtra + (cchRightExtra - uFwdConns) - 1;
+                            uint32_t uYHorLine = pDumpBb->uStartY + pDumpBb->cchHeight - 1 - 2;
+                            uFwdConns++;
+
+                            /* Draw the horizontal line. */
+                            dbgcScreenAsciiDrawLineHorizontal(hScreen, pDumpBb->uStartX + pDumpBb->cchWidth,
+                                                              uXVerLine - 1, uYHorLine, '-', enmColor);
+                            dbgcScreenAsciiDrawCharacter(hScreen, uXVerLine, uYHorLine, '+', enmColor);
+                            /* Draw the vertical line down to the target block. */
+                            dbgcScreenAsciiDrawLineVertical(hScreen, uXVerLine, uYHorLine + 1, pDumpBbTgt->uStartY - 1,
+                                                            '|', enmColor);
+                            /* Draw the horizontal connection between the target block and vertical part. */
+                            dbgcScreenAsciiDrawLineHorizontal(hScreen, pDumpBbTgt->uStartX + pDumpBbTgt->cchWidth,
+                                                              uXVerLine, pDumpBbTgt->uStartY, '-', enmColor);
+                            dbgcScreenAsciiDrawCharacter(hScreen, uXVerLine, pDumpBbTgt->uStartY, '+',
+                                                         enmColor);
+                            /* Draw the arrow pointing to the target block. */
+                            dbgcScreenAsciiDrawCharacter(hScreen, pDumpBbTgt->uStartX + pDumpBbTgt->cchWidth,
+                                                         pDumpBbTgt->uStartY, '<', enmColor);
+                        }
+                        break;
+                    }
+                    case DBGFFLOWBBENDTYPE_UNCOND_INDIRECT_JMP:
+                    default:
+                        AssertFailed();
+                }
+            }
+
+            rc = dbgcScreenAsciiBlit(hScreen, dbgcCmdUnassembleCfgBlit, pCmdHlp, fUseColor);
+            dbgcScreenAsciiDestroy(hScreen);
+        }
+    }
+
+    if (paDumpBb)
+    {
+        for (unsigned i = 0; i < cBbs; i++)
+            DBGFR3FlowBbRelease(paDumpBb[i].hFlowBb);
+        RTMemTmpFree(paDumpBb);
+    }
+
+    if (paDumpBranchTbl)
+    {
+        for (unsigned i = 0; i < cBranchTbls; i++)
+            DBGFR3FlowBranchTblRelease(paDumpBranchTbl[i].hFlowBranchTbl);
+        RTMemTmpFree(paDumpBranchTbl);
+    }
+
+    if (hCfgIt)
+        DBGFR3FlowItDestroy(hCfgIt);
+    if (hFlowBranchTblIt)
+        DBGFR3FlowBranchTblItDestroy(hFlowBranchTblIt);
+
+    return rc;
+}
+
+
+/**
+ * @callback_method_impl{FNDBGCCMD, The 'ucfg' command.}
+ */
+static DECLCALLBACK(int) dbgcCmdUnassembleCfg(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
+{
+    PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
+
+    /*
+     * Validate input.
+     */
+    DBGC_CMDHLP_REQ_UVM_RET(pCmdHlp, pCmd, pUVM);
+    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, -1, cArgs <= 1);
+    DBGC_CMDHLP_ASSERT_PARSER_RET(pCmdHlp, pCmd, 0, cArgs == 0 || DBGCVAR_ISPOINTER(paArgs[0].enmType));
+
+    if (!cArgs && !DBGCVAR_ISPOINTER(pDbgc->DisasmPos.enmType))
+        return DBGCCmdHlpFail(pCmdHlp, pCmd, "Don't know where to start disassembling");
+
+    /*
+     * Check the desired mode.
+     */
+    unsigned fFlags =  DBGF_DISAS_FLAGS_UNPATCHED_BYTES | DBGF_DISAS_FLAGS_ANNOTATE_PATCHED;
+    bool fUseColor = false;
+    switch (pCmd->pszCmd[4])
+    {
+        default: AssertFailed(); RT_FALL_THRU();
+        case '\0':  fFlags |= DBGF_DISAS_FLAGS_DEFAULT_MODE;    break;
+        case '6':   fFlags |= DBGF_DISAS_FLAGS_64BIT_MODE;      break;
+        case '3':   fFlags |= DBGF_DISAS_FLAGS_32BIT_MODE;      break;
+        case '1':   fFlags |= DBGF_DISAS_FLAGS_16BIT_MODE;      break;
+        case 'v':   fFlags |= DBGF_DISAS_FLAGS_16BIT_REAL_MODE; break;
+        case 'c':   fUseColor = true; break;
+    }
+
+    /** @todo should use DBGFADDRESS for everything */
+
+    /*
+     * Find address.
+     */
+    if (!cArgs)
+    {
+        if (!DBGCVAR_ISPOINTER(pDbgc->DisasmPos.enmType))
+        {
+            /** @todo Batch query CS, RIP, CPU mode and flags. */
+            PVMCPU pVCpu = VMMR3GetCpuByIdU(pUVM, pDbgc->idCpu);
+            if (    pDbgc->fRegCtxGuest
+                &&  CPUMIsGuestIn64BitCode(pVCpu))
+            {
+                pDbgc->DisasmPos.enmType    = DBGCVAR_TYPE_GC_FLAT;
+                pDbgc->SourcePos.u.GCFlat   = CPUMGetGuestRIP(pVCpu);
+            }
+            else
+            {
+                pDbgc->DisasmPos.enmType     = DBGCVAR_TYPE_GC_FAR;
+                pDbgc->SourcePos.u.GCFar.off = pDbgc->fRegCtxGuest ? CPUMGetGuestEIP(pVCpu) : CPUMGetHyperEIP(pVCpu);
+                pDbgc->SourcePos.u.GCFar.sel = pDbgc->fRegCtxGuest ? CPUMGetGuestCS(pVCpu)  : CPUMGetHyperCS(pVCpu);
+                if (   (fFlags & DBGF_DISAS_FLAGS_MODE_MASK) == DBGF_DISAS_FLAGS_DEFAULT_MODE
+                    && pDbgc->fRegCtxGuest
+                    && (CPUMGetGuestEFlags(pVCpu) & X86_EFL_VM))
+                {
+                    fFlags &= ~DBGF_DISAS_FLAGS_MODE_MASK;
+                    fFlags |= DBGF_DISAS_FLAGS_16BIT_REAL_MODE;
+                }
+            }
+
+            if (pDbgc->fRegCtxGuest)
+                fFlags |= DBGF_DISAS_FLAGS_CURRENT_GUEST;
+            else
+                fFlags |= DBGF_DISAS_FLAGS_CURRENT_HYPER | DBGF_DISAS_FLAGS_HYPER;
+        }
+        else if ((fFlags & DBGF_DISAS_FLAGS_MODE_MASK) == DBGF_DISAS_FLAGS_DEFAULT_MODE && pDbgc->fDisasm)
+        {
+            fFlags &= ~DBGF_DISAS_FLAGS_MODE_MASK;
+            fFlags |= pDbgc->fDisasm & (DBGF_DISAS_FLAGS_MODE_MASK | DBGF_DISAS_FLAGS_HYPER);
+        }
+        pDbgc->DisasmPos.enmRangeType = DBGCVAR_RANGE_NONE;
+    }
+    else
+        pDbgc->DisasmPos = paArgs[0];
+    pDbgc->pLastPos = &pDbgc->DisasmPos;
+
+    /*
+     * Range.
+     */
+    switch (pDbgc->DisasmPos.enmRangeType)
+    {
+        case DBGCVAR_RANGE_NONE:
+            pDbgc->DisasmPos.enmRangeType = DBGCVAR_RANGE_ELEMENTS;
+            pDbgc->DisasmPos.u64Range     = 10;
+            break;
+
+        case DBGCVAR_RANGE_ELEMENTS:
+            if (pDbgc->DisasmPos.u64Range > 2048)
+                return DBGCCmdHlpFail(pCmdHlp, pCmd, "Too many lines requested. Max is 2048 lines");
+            break;
+
+        case DBGCVAR_RANGE_BYTES:
+            if (pDbgc->DisasmPos.u64Range > 65536)
+                return DBGCCmdHlpFail(pCmdHlp, pCmd, "The requested range is too big. Max is 64KB");
+            break;
+
+        default:
+            return DBGCCmdHlpFail(pCmdHlp, pCmd, "Unknown range type %d", pDbgc->DisasmPos.enmRangeType);
+    }
+
+    /*
+     * Convert physical and host addresses to guest addresses.
+     */
+    RTDBGAS hDbgAs = pDbgc->hDbgAs;
+    int rc;
+    switch (pDbgc->DisasmPos.enmType)
+    {
+        case DBGCVAR_TYPE_GC_FLAT:
+        case DBGCVAR_TYPE_GC_FAR:
+            break;
+        case DBGCVAR_TYPE_GC_PHYS:
+            hDbgAs = DBGF_AS_PHYS;
+            RT_FALL_THRU();
+        case DBGCVAR_TYPE_HC_FLAT:
+        case DBGCVAR_TYPE_HC_PHYS:
+        {
+            DBGCVAR VarTmp;
+            rc = DBGCCmdHlpEval(pCmdHlp, &VarTmp, "%%(%Dv)", &pDbgc->DisasmPos);
+            if (RT_FAILURE(rc))
+                return DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "failed to evaluate '%%(%Dv)'", &pDbgc->DisasmPos);
+            pDbgc->DisasmPos = VarTmp;
+            break;
+        }
+        default: AssertFailed(); break;
+    }
+
+    DBGFADDRESS CurAddr;
+    if (   (fFlags & DBGF_DISAS_FLAGS_MODE_MASK) == DBGF_DISAS_FLAGS_16BIT_REAL_MODE
+        && pDbgc->DisasmPos.enmType == DBGCVAR_TYPE_GC_FAR)
+        DBGFR3AddrFromFlat(pUVM, &CurAddr, ((uint32_t)pDbgc->DisasmPos.u.GCFar.sel << 4) + pDbgc->DisasmPos.u.GCFar.off);
+    else
+    {
+        rc = DBGCCmdHlpVarToDbgfAddr(pCmdHlp, &pDbgc->DisasmPos, &CurAddr);
+        if (RT_FAILURE(rc))
+            return DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "DBGCCmdHlpVarToDbgfAddr failed on '%Dv'", &pDbgc->DisasmPos);
+    }
+
+    DBGFFLOW hCfg;
+    rc = DBGFR3FlowCreate(pUVM, pDbgc->idCpu, &CurAddr, 0 /*cbDisasmMax*/,
+                          DBGF_FLOW_CREATE_F_TRY_RESOLVE_INDIRECT_BRANCHES, fFlags, &hCfg);
+    if (RT_SUCCESS(rc))
+    {
+        /* Dump the graph. */
+        rc = dbgcCmdUnassembleCfgDump(hCfg, fUseColor, pCmdHlp);
+        DBGFR3FlowRelease(hCfg);
+    }
+    else
+        rc = DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "DBGFR3FlowCreate failed on '%Dv'", &pDbgc->DisasmPos);
+
+    NOREF(pCmd);
+    return rc;
 }
 
 
@@ -1770,7 +2535,7 @@ static DECLCALLBACK(int) dbgcCmdRegGuest(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PU
         /*
          * Disassemble one instruction at cs:[r|e]ip.
          */
-        if (!f64BitMode && strstr(pszRegs, " vm ")) /* a big ugly... */
+        if (!f64BitMode && strstr(pszRegs, " vm ")) /* a bit ugly... */
             return pCmdHlp->pfnExec(pCmdHlp, "uv86 %s", szDisAndRegs + 2);
         return pCmdHlp->pfnExec(pCmdHlp, "%s", szDisAndRegs);
     }
@@ -1842,19 +2607,85 @@ static DECLCALLBACK(int) dbgcCmdRegTerse(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PU
 
 
 /**
- * @callback_method_impl{FNDBGCCMD, The 't' command.}
+ * @callback_method_impl{FNDBGCCMD, The 'pr' and 'tr' commands.}
  */
-static DECLCALLBACK(int) dbgcCmdTrace(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
+static DECLCALLBACK(int) dbgcCmdStepTraceToggle(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
+{
+    PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
+    Assert(cArgs == 0); NOREF(pCmd); NOREF(pUVM); NOREF(paArgs); NOREF(cArgs);
+
+    /* Note! windbg accepts 'r' as a flag to 'p', 'pa', 'pc', 'pt', 't',
+             'ta', 'tc' and 'tt'.  We've simplified it.  */
+    pDbgc->fStepTraceRegs = !pDbgc->fStepTraceRegs;
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * @callback_method_impl{FNDBGCCMD, The 'p'\, 'pc'\, 'pt'\, 't'\, 'tc'\, and 'tt' commands.}
+ */
+static DECLCALLBACK(int) dbgcCmdStepTrace(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
 {
     PDBGC   pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
+    if (cArgs != 0)
+        return DBGCCmdHlpFail(pCmdHlp, pCmd,
+                              "Sorry, but the '%s' command does not currently implement any arguments.\n", pCmd->pszCmd);
 
-    int rc = DBGFR3Step(pUVM, pDbgc->idCpu);
+    /* The 'count' has to be implemented by DBGC, whereas the
+       filtering is taken care of by DBGF. */
+
+    /*
+     * Convert the command to DBGF_STEP_F_XXX and other API input.
+     */
+    //DBGFADDRESS StackPop;
+    PDBGFADDRESS pStackPop  = NULL;
+    RTGCPTR      cbStackPop = 0;
+    uint32_t     cMaxSteps  = pCmd->pszCmd[0] == 'p' ? _512K : _64K;
+    uint32_t     fFlags     = pCmd->pszCmd[0] == 'p' ? DBGF_STEP_F_OVER : DBGF_STEP_F_INTO;
+    if (pCmd->pszCmd[1] == 'c')
+        fFlags |= DBGF_STEP_F_STOP_ON_CALL;
+    else if (pCmd->pszCmd[1] == 't')
+        fFlags |= DBGF_STEP_F_STOP_ON_RET;
+    else if (pCmd->pszCmd[0] != 'p')
+        cMaxSteps = 1;
+    else
+    {
+        /** @todo consider passing RSP + 1 in for 'p' and something else sensible for
+         *        the 'pt' command. */
+    }
+
+    int rc = DBGFR3StepEx(pUVM, pDbgc->idCpu, fFlags, NULL, pStackPop, cbStackPop, cMaxSteps);
     if (RT_SUCCESS(rc))
         pDbgc->fReady = false;
     else
-        rc = pDbgc->CmdHlp.pfnVBoxError(&pDbgc->CmdHlp, rc, "When trying to single step VM %p\n", pDbgc->pVM);
+        return DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "DBGFR3StepEx(,,%#x,) failed", fFlags);
 
     NOREF(pCmd); NOREF(paArgs); NOREF(cArgs);
+    return rc;
+}
+
+
+/**
+ * @callback_method_impl{FNDBGCCMD, The 'pa' and 'ta' commands.}
+ */
+static DECLCALLBACK(int) dbgcCmdStepTraceTo(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUVM pUVM, PCDBGCVAR paArgs, unsigned cArgs)
+{
+    PDBGC pDbgc = DBGC_CMDHLP2DBGC(pCmdHlp);
+    if (cArgs != 1)
+        return DBGCCmdHlpFail(pCmdHlp, pCmd,
+                              "Sorry, but the '%s' command only implements a single argument at present.\n", pCmd->pszCmd);
+    DBGFADDRESS Address;
+    int rc = pCmdHlp->pfnVarToDbgfAddr(pCmdHlp, &paArgs[0], &Address);
+    if (RT_FAILURE(rc))
+        return pCmdHlp->pfnVBoxError(pCmdHlp, rc, "VarToDbgfAddr(,%Dv,)\n", &paArgs[0]);
+
+    uint32_t cMaxSteps = pCmd->pszCmd[0] == 'p' ? _512K : 1;
+    uint32_t fFlags    = pCmd->pszCmd[0] == 'p' ? DBGF_STEP_F_OVER : DBGF_STEP_F_INTO;
+    rc = DBGFR3StepEx(pUVM, pDbgc->idCpu, fFlags, &Address, NULL, 0, cMaxSteps);
+    if (RT_SUCCESS(rc))
+        pDbgc->fReady = false;
+    else
+        return DBGCCmdHlpFailRc(pCmdHlp, pCmd, rc, "DBGFR3StepEx(,,%#x,) failed", fFlags);
     return rc;
 }
 
@@ -3591,11 +4422,11 @@ static DECLCALLBACK(int) dbgcCmdDumpTSS(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, PUV
             else
                 DBGCCmdHlpPrintf(pCmdHlp, "TSS64 at %Dv (min=%04x)\n", &VarTssAddr, cbTssMin);
             DBGCCmdHlpPrintf(pCmdHlp,
-                             "rsp0=%016RX16 rsp1=%016RX16 rsp2=%016RX16\n"
-                             "ist1=%016RX16 ist2=%016RX16\n"
-                             "ist3=%016RX16 ist4=%016RX16\n"
-                             "ist5=%016RX16 ist6=%016RX16\n"
-                             "ist7=%016RX16 iomap=%04x\n"
+                             "rsp0=%016RX64 rsp1=%016RX64 rsp2=%016RX64\n"
+                             "ist1=%016RX64 ist2=%016RX64\n"
+                             "ist3=%016RX64 ist4=%016RX64\n"
+                             "ist5=%016RX64 ist6=%016RX64\n"
+                             "ist7=%016RX64 iomap=%04x\n"
                              ,
                              pTss->rsp0, pTss->rsp1, pTss->rsp2,
                              pTss->ist1, pTss->ist2,
@@ -3886,6 +4717,7 @@ static DECLCALLBACK(int) dbgcCmdMemoryInfo(PCDBGCCMD pCmd, PDBGCCMDHLP pCmdHlp, 
  * @retval  VERR_INTERNAL_ERROR on bad variable type, bitched.
  * @retval  VINF_SUCCESS on success.
  *
+ * @param   pCmdHlp The command helper callback table.
  * @param   pvBuf   The buffer to convert into.
  * @param   pcbBuf  The buffer size on input. The size of the result on output.
  * @param   cbUnit  The unit size to apply when converting.

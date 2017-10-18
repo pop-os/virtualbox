@@ -20,7 +20,6 @@
 #include <VBox/VBoxGuest.h>
 #include <VBox/VBoxGuestLib.h>
 #include <VBox/HostServices/VBoxCrOpenGLSvc.h>
-#include "../../common/VBoxGuestLib/VBGLR3Internal.h" /* HACK ALERT! Using vbglR3DoIOCtl directly!! */
 
 #include <stdlib.h>
 
@@ -29,7 +28,7 @@
 static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
 {
     int rc;
-    HGCMCLIENTID cClientID;
+    HGCMCLIENTID idClient;
     CRVBOXHGCMGETCAPS caps;
     LogFlowFunc(("\n"));
 
@@ -39,23 +38,19 @@ static int run(struct VBCLSERVICE **ppInterface, bool fDaemonised)
     rc = VbglR3InitUser();
     if (RT_FAILURE(rc))
         exit(1);
-    rc = VbglR3HGCMConnect("VBoxSharedCrOpenGL", &cClientID);
+    rc = VbglR3HGCMConnect("VBoxSharedCrOpenGL", &idClient);
     if (RT_FAILURE(rc))
         exit(1);
-    caps.hdr.result      = VERR_WRONG_ORDER;
-    caps.hdr.u32ClientID = cClientID;
-    caps.hdr.u32Function = SHCRGL_GUEST_FN_GET_CAPS_LEGACY;
-    caps.hdr.cParms      = SHCRGL_CPARMS_GET_CAPS_LEGACY;
 
+    VBGL_HGCM_HDR_INIT(&caps.hdr, idClient, SHCRGL_GUEST_FN_GET_CAPS_LEGACY, SHCRGL_CPARMS_GET_CAPS_LEGACY);
     caps.Caps.type       = VMMDevHGCMParmType_32bit;
     caps.Caps.u.value32  = 0;
-
-    rc = vbglR3DoIOCtl(VBOXGUEST_IOCTL_HGCM_CALL(sizeof(caps)), &caps, sizeof(caps));
+    rc = VbglR3HGCMCall(&caps.hdr, sizeof(caps));
     if (RT_FAILURE(rc))
         exit(1);
     if (caps.Caps.u.value32 & CR_VBOX_CAP_HOST_CAPS_NOT_SUFFICIENT)
         exit(1);
-    VbglR3HGCMDisconnect(cClientID);
+    VbglR3HGCMDisconnect(idClient);
     VbglR3Term();
     LogFlowFunc(("returning %Rrc\n", rc));
     return rc;

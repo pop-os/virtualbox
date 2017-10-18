@@ -1,6 +1,6 @@
 /* $Id: DevVGA-SVGA.cpp $ */
 /** @file
- * VMWare SVGA device.
+ * VMware SVGA device.
  *
  * Logging levels guidelines for this and related files:
  *  - Log() for normal bits.
@@ -20,6 +20,103 @@
  * Foundation, in version 2 as it comes in the "COPYING" file of the
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ */
+
+
+/** @page pg_dev_vmsvga     VMSVGA - VMware SVGA II Device Emulation
+ *
+ * This device emulation was contributed by trivirt AG.  It offers an
+ * alternative to our Bochs based VGA graphics and 3d emulations.  This is
+ * valuable for Xorg based guests, as there is driver support shipping with Xorg
+ * since it forked from XFree86.
+ *
+ *
+ * @section sec_dev_vmsvga_sdk  The VMware SDK
+ *
+ * This is officially deprecated now, however it's still quite useful,
+ * especially for getting the old features working:
+ * http://vmware-svga.sourceforge.net/
+ *
+ * They currently point developers at the following resources.
+ *  - http://cgit.freedesktop.org/xorg/driver/xf86-video-vmware/
+ *  - http://cgit.freedesktop.org/mesa/mesa/tree/src/gallium/drivers/svga/
+ *  - http://cgit.freedesktop.org/mesa/vmwgfx/
+ *
+ * @subsection subsec_dev_vmsvga_sdk_results  Test results
+ *
+ * Test results:
+ *  - 2dmark.img:
+ *       + todo
+ *  - backdoor-tclo.img:
+ *       + todo
+ *  - blit-cube.img:
+ *       + todo
+ *  - bunnies.img:
+ *       + todo
+ *  - cube.img:
+ *       + todo
+ *  - cubemark.img:
+ *       + todo
+ *  - dynamic-vertex-stress.img:
+ *       + todo
+ *  - dynamic-vertex.img:
+ *       + todo
+ *  - fence-stress.img:
+ *       + todo
+ *  - gmr-test.img:
+ *       + todo
+ *  - half-float-test.img:
+ *       + todo
+ *  - noscreen-cursor.img:
+ *       - The CURSOR I/O and FIFO registers are not implemented, so the mouse
+ *         cursor doesn't show. (Hacking the GUI a little, would make the cursor
+ *         visible though.)
+ *       - Cursor animation via the palette doesn't work.
+ *       - During debugging, it turns out that the framebuffer content seems to
+ *         be halfways ignore or something (memset(fb, 0xcc, lots)).
+ *       - Trouble with way to small FIFO and the 256x256 cursor fails. Need to
+ *         grow it 0x10 fold (128KB -> 2MB like in WS10).
+ *  - null.img:
+ *       + todo
+ *  - pong.img:
+ *       + todo
+ *  - presentReadback.img:
+ *       + todo
+ *  - resolution-set.img:
+ *       + todo
+ *  - rt-gamma-test.img:
+ *       + todo
+ *  - screen-annotation.img:
+ *       + todo
+ *  - screen-cursor.img:
+ *       + todo
+ *  - screen-dma-coalesce.img:
+ *       + todo
+ *  - screen-gmr-discontig.img:
+ *       + todo
+ *  - screen-gmr-remap.img:
+ *       + todo
+ *  - screen-multimon.img:
+ *       + todo
+ *  - screen-present-clip.img:
+ *       + todo
+ *  - screen-render-test.img:
+ *       + todo
+ *  - screen-simple.img:
+ *       + todo
+ *  - screen-text.img:
+ *       + todo
+ *  - simple-shaders.img:
+ *       + todo
+ *  - simple_blit.img:
+ *       + todo
+ *  - tiny-2d-updates.img:
+ *       + todo
+ *  - video-formats.img:
+ *       + todo
+ *  - video-sync.img:
+ *       + todo
+ *
  */
 
 
@@ -48,7 +145,7 @@
 #endif
 
 #include <VBox/VMMDev.h>
-#include <VBox/VBoxVideo.h>
+#include <VBoxVideo.h>
 #include <VBox/bioslogo.h>
 
 /* should go BEFORE any other DevVGA include to make all DevVGA.h config defines be visible */
@@ -361,10 +458,11 @@ static SSMFIELD const g_aVGAStateSVGAFields[] =
     SSMFIELD_ENTRY_IGN_HCPTR(       VMSVGAState, pFIFOR0),
     SSMFIELD_ENTRY_IGN_HCPTR(       VMSVGAState, pSvgaR3State),
     SSMFIELD_ENTRY_IGN_HCPTR(       VMSVGAState, p3dState),
-    SSMFIELD_ENTRY_IGN_HCPTR(       VMSVGAState, pFrameBufferBackup),
+    SSMFIELD_ENTRY_IGN_HCPTR(       VMSVGAState, pbVgaFrameBufferR3),
     SSMFIELD_ENTRY_IGN_HCPTR(       VMSVGAState, pvFIFOExtCmdParam),
     SSMFIELD_ENTRY_IGN_GCPHYS(      VMSVGAState, GCPhysFIFO),
     SSMFIELD_ENTRY_IGNORE(          VMSVGAState, cbFIFO),
+    SSMFIELD_ENTRY_IGNORE(          VMSVGAState, cbFIFOConfig),
     SSMFIELD_ENTRY(                 VMSVGAState, u32SVGAId),
     SSMFIELD_ENTRY(                 VMSVGAState, fEnabled),
     SSMFIELD_ENTRY(                 VMSVGAState, fConfigured),
@@ -415,113 +513,63 @@ static const char *vmsvgaIndexToString(PVGASTATE pThis, uint32_t idxReg)
 {
     switch (idxReg)
     {
-    case SVGA_REG_ID:
-        return "SVGA_REG_ID";
-    case SVGA_REG_ENABLE:
-        return "SVGA_REG_ENABLE";
-    case SVGA_REG_WIDTH:
-        return "SVGA_REG_WIDTH";
-    case SVGA_REG_HEIGHT:
-        return "SVGA_REG_HEIGHT";
-    case SVGA_REG_MAX_WIDTH:
-        return "SVGA_REG_MAX_WIDTH";
-    case SVGA_REG_MAX_HEIGHT:
-        return "SVGA_REG_MAX_HEIGHT";
-    case SVGA_REG_DEPTH:
-        return "SVGA_REG_DEPTH";
-    case SVGA_REG_BITS_PER_PIXEL:      /* Current bpp in the guest */
-        return "SVGA_REG_BITS_PER_PIXEL";
-    case SVGA_REG_HOST_BITS_PER_PIXEL: /* (Deprecated) */
-        return "SVGA_REG_HOST_BITS_PER_PIXEL";
-    case SVGA_REG_PSEUDOCOLOR:
-        return "SVGA_REG_PSEUDOCOLOR";
-    case SVGA_REG_RED_MASK:
-        return "SVGA_REG_RED_MASK";
-    case SVGA_REG_GREEN_MASK:
-        return "SVGA_REG_GREEN_MASK";
-    case SVGA_REG_BLUE_MASK:
-        return "SVGA_REG_BLUE_MASK";
-    case SVGA_REG_BYTES_PER_LINE:
-        return "SVGA_REG_BYTES_PER_LINE";
-    case SVGA_REG_VRAM_SIZE:            /* VRAM size */
-        return "SVGA_REG_VRAM_SIZE";
-    case SVGA_REG_FB_START:             /* Frame buffer physical address. */
-        return "SVGA_REG_FB_START";
-    case SVGA_REG_FB_OFFSET:            /* Offset of the frame buffer in VRAM */
-        return "SVGA_REG_FB_OFFSET";
-    case SVGA_REG_FB_SIZE:              /* Frame buffer size */
-        return "SVGA_REG_FB_SIZE";
-    case SVGA_REG_CAPABILITIES:
-        return "SVGA_REG_CAPABILITIES";
-    case SVGA_REG_MEM_START:           /* FIFO start */
-        return "SVGA_REG_MEM_START";
-    case SVGA_REG_MEM_SIZE:            /* FIFO size */
-        return "SVGA_REG_MEM_SIZE";
-    case SVGA_REG_CONFIG_DONE:         /* Set when memory area configured */
-        return "SVGA_REG_CONFIG_DONE";
-    case SVGA_REG_SYNC:                /* See "FIFO Synchronization Registers" */
-        return "SVGA_REG_SYNC";
-    case SVGA_REG_BUSY:                /* See "FIFO Synchronization Registers" */
-        return "SVGA_REG_BUSY";
-    case SVGA_REG_GUEST_ID:            /* Set guest OS identifier */
-        return "SVGA_REG_GUEST_ID";
-    case SVGA_REG_SCRATCH_SIZE:        /* Number of scratch registers */
-        return "SVGA_REG_SCRATCH_SIZE";
-    case SVGA_REG_MEM_REGS:            /* Number of FIFO registers */
-        return "SVGA_REG_MEM_REGS";
-    case SVGA_REG_PITCHLOCK:           /* Fixed pitch for all modes */
-        return "SVGA_REG_PITCHLOCK";
-    case SVGA_REG_IRQMASK:             /* Interrupt mask */
-        return "SVGA_REG_IRQMASK";
-    case SVGA_REG_GMR_ID:
-        return "SVGA_REG_GMR_ID";
-    case SVGA_REG_GMR_DESCRIPTOR:
-        return "SVGA_REG_GMR_DESCRIPTOR";
-    case SVGA_REG_GMR_MAX_IDS:
-        return "SVGA_REG_GMR_MAX_IDS";
-    case SVGA_REG_GMR_MAX_DESCRIPTOR_LENGTH:
-        return "SVGA_REG_GMR_MAX_DESCRIPTOR_LENGTH";
-    case SVGA_REG_TRACES:            /* Enable trace-based updates even when FIFO is on */
-        return "SVGA_REG_TRACES";
-    case SVGA_REG_GMRS_MAX_PAGES:    /* Maximum number of 4KB pages for all GMRs */
-        return "SVGA_REG_GMRS_MAX_PAGES";
-    case SVGA_REG_MEMORY_SIZE:       /* Total dedicated device memory excluding FIFO */
-        return "SVGA_REG_MEMORY_SIZE";
-    case SVGA_REG_TOP:               /* Must be 1 more than the last register */
-        return "SVGA_REG_TOP";
-    case SVGA_PALETTE_BASE:         /* Base of SVGA color map */
-        return "SVGA_PALETTE_BASE";
-    case SVGA_REG_CURSOR_ID:
-        return "SVGA_REG_CURSOR_ID";
-    case SVGA_REG_CURSOR_X:
-        return "SVGA_REG_CURSOR_X";
-    case SVGA_REG_CURSOR_Y:
-        return "SVGA_REG_CURSOR_Y";
-    case SVGA_REG_CURSOR_ON:
-        return "SVGA_REG_CURSOR_ON";
-    case SVGA_REG_NUM_GUEST_DISPLAYS:/* Number of guest displays in X/Y direction */
-        return "SVGA_REG_NUM_GUEST_DISPLAYS";
-    case SVGA_REG_DISPLAY_ID:        /* Display ID for the following display attributes */
-        return "SVGA_REG_DISPLAY_ID";
-    case SVGA_REG_DISPLAY_IS_PRIMARY:/* Whether this is a primary display */
-        return "SVGA_REG_DISPLAY_IS_PRIMARY";
-    case SVGA_REG_DISPLAY_POSITION_X:/* The display position x */
-        return "SVGA_REG_DISPLAY_POSITION_X";
-    case SVGA_REG_DISPLAY_POSITION_Y:/* The display position y */
-        return "SVGA_REG_DISPLAY_POSITION_Y";
-    case SVGA_REG_DISPLAY_WIDTH:     /* The display's width */
-        return "SVGA_REG_DISPLAY_WIDTH";
-    case SVGA_REG_DISPLAY_HEIGHT:    /* The display's height */
-        return "SVGA_REG_DISPLAY_HEIGHT";
-    case SVGA_REG_NUM_DISPLAYS:        /* (Deprecated) */
-        return "SVGA_REG_NUM_DISPLAYS";
+        case SVGA_REG_ID:                       return "SVGA_REG_ID";
+        case SVGA_REG_ENABLE:                   return "SVGA_REG_ENABLE";
+        case SVGA_REG_WIDTH:                    return "SVGA_REG_WIDTH";
+        case SVGA_REG_HEIGHT:                   return "SVGA_REG_HEIGHT";
+        case SVGA_REG_MAX_WIDTH:                return "SVGA_REG_MAX_WIDTH";
+        case SVGA_REG_MAX_HEIGHT:               return "SVGA_REG_MAX_HEIGHT";
+        case SVGA_REG_DEPTH:                    return "SVGA_REG_DEPTH";
+        case SVGA_REG_BITS_PER_PIXEL:           return "SVGA_REG_BITS_PER_PIXEL"; /* Current bpp in the guest */
+        case SVGA_REG_HOST_BITS_PER_PIXEL:      return "SVGA_REG_HOST_BITS_PER_PIXEL"; /* (Deprecated) */
+        case SVGA_REG_PSEUDOCOLOR:              return "SVGA_REG_PSEUDOCOLOR";
+        case SVGA_REG_RED_MASK:                 return "SVGA_REG_RED_MASK";
+        case SVGA_REG_GREEN_MASK:               return "SVGA_REG_GREEN_MASK";
+        case SVGA_REG_BLUE_MASK:                return "SVGA_REG_BLUE_MASK";
+        case SVGA_REG_BYTES_PER_LINE:           return "SVGA_REG_BYTES_PER_LINE";
+        case SVGA_REG_VRAM_SIZE:                return "SVGA_REG_VRAM_SIZE"; /* VRAM size */
+        case SVGA_REG_FB_START:                 return "SVGA_REG_FB_START"; /* Frame buffer physical address. */
+        case SVGA_REG_FB_OFFSET:                return "SVGA_REG_FB_OFFSET"; /* Offset of the frame buffer in VRAM */
+        case SVGA_REG_FB_SIZE:                  return "SVGA_REG_FB_SIZE"; /* Frame buffer size */
+        case SVGA_REG_CAPABILITIES:             return "SVGA_REG_CAPABILITIES";
+        case SVGA_REG_MEM_START:                return "SVGA_REG_MEM_START"; /* FIFO start */
+        case SVGA_REG_MEM_SIZE:                 return "SVGA_REG_MEM_SIZE"; /* FIFO size */
+        case SVGA_REG_CONFIG_DONE:              return "SVGA_REG_CONFIG_DONE"; /* Set when memory area configured */
+        case SVGA_REG_SYNC:                     return "SVGA_REG_SYNC"; /* See "FIFO Synchronization Registers" */
+        case SVGA_REG_BUSY:                     return "SVGA_REG_BUSY"; /* See "FIFO Synchronization Registers" */
+        case SVGA_REG_GUEST_ID:                 return "SVGA_REG_GUEST_ID"; /* Set guest OS identifier */
+        case SVGA_REG_SCRATCH_SIZE:             return "SVGA_REG_SCRATCH_SIZE"; /* Number of scratch registers */
+        case SVGA_REG_MEM_REGS:                 return "SVGA_REG_MEM_REGS"; /* Number of FIFO registers */
+        case SVGA_REG_PITCHLOCK:                return "SVGA_REG_PITCHLOCK"; /* Fixed pitch for all modes */
+        case SVGA_REG_IRQMASK:                  return "SVGA_REG_IRQMASK"; /* Interrupt mask */
+        case SVGA_REG_GMR_ID:                   return "SVGA_REG_GMR_ID";
+        case SVGA_REG_GMR_DESCRIPTOR:           return "SVGA_REG_GMR_DESCRIPTOR";
+        case SVGA_REG_GMR_MAX_IDS:              return "SVGA_REG_GMR_MAX_IDS";
+        case SVGA_REG_GMR_MAX_DESCRIPTOR_LENGTH:return "SVGA_REG_GMR_MAX_DESCRIPTOR_LENGTH";
+        case SVGA_REG_TRACES:                   return "SVGA_REG_TRACES"; /* Enable trace-based updates even when FIFO is on */
+        case SVGA_REG_GMRS_MAX_PAGES:           return "SVGA_REG_GMRS_MAX_PAGES"; /* Maximum number of 4KB pages for all GMRs */
+        case SVGA_REG_MEMORY_SIZE:              return "SVGA_REG_MEMORY_SIZE"; /* Total dedicated device memory excluding FIFO */
+        case SVGA_REG_TOP:                      return "SVGA_REG_TOP"; /* Must be 1 more than the last register */
+        case SVGA_PALETTE_BASE:                 return "SVGA_PALETTE_BASE"; /* Base of SVGA color map */
+        case SVGA_REG_CURSOR_ID:                return "SVGA_REG_CURSOR_ID";
+        case SVGA_REG_CURSOR_X:                 return "SVGA_REG_CURSOR_X";
+        case SVGA_REG_CURSOR_Y:                 return "SVGA_REG_CURSOR_Y";
+        case SVGA_REG_CURSOR_ON:                return "SVGA_REG_CURSOR_ON";
+        case SVGA_REG_NUM_GUEST_DISPLAYS:       return "SVGA_REG_NUM_GUEST_DISPLAYS"; /* Number of guest displays in X/Y direction */
+        case SVGA_REG_DISPLAY_ID:               return "SVGA_REG_DISPLAY_ID";  /* Display ID for the following display attributes */
+        case SVGA_REG_DISPLAY_IS_PRIMARY:       return "SVGA_REG_DISPLAY_IS_PRIMARY"; /* Whether this is a primary display */
+        case SVGA_REG_DISPLAY_POSITION_X:       return "SVGA_REG_DISPLAY_POSITION_X"; /* The display position x */
+        case SVGA_REG_DISPLAY_POSITION_Y:       return "SVGA_REG_DISPLAY_POSITION_Y"; /* The display position y */
+        case SVGA_REG_DISPLAY_WIDTH:            return "SVGA_REG_DISPLAY_WIDTH";    /* The display's width */
+        case SVGA_REG_DISPLAY_HEIGHT:           return "SVGA_REG_DISPLAY_HEIGHT";   /* The display's height */
+        case SVGA_REG_NUM_DISPLAYS:             return "SVGA_REG_NUM_DISPLAYS";     /* (Deprecated) */
 
-    default:
-        if (idxReg - (uint32_t)SVGA_SCRATCH_BASE < pThis->svga.cScratchRegion)
-            return "SVGA_SCRATCH_BASE reg";
-        if (idxReg - (uint32_t)SVGA_PALETTE_BASE < (uint32_t)SVGA_NUM_PALETTE_REGS)
-            return "SVGA_PALETTE_BASE reg";
-        return "UNKNOWN";
+        default:
+            if (idxReg - (uint32_t)SVGA_SCRATCH_BASE < pThis->svga.cScratchRegion)
+                return "SVGA_SCRATCH_BASE reg";
+            if (idxReg - (uint32_t)SVGA_PALETTE_BASE < (uint32_t)SVGA_NUM_PALETTE_REGS)
+                return "SVGA_PALETTE_BASE reg";
+            return "UNKNOWN";
     }
 }
 
@@ -536,112 +584,59 @@ static const char *vmsvgaFIFOCmdToString(uint32_t u32Cmd)
 {
     switch (u32Cmd)
     {
-    case SVGA_CMD_INVALID_CMD:
-        return "SVGA_CMD_INVALID_CMD";
-    case SVGA_CMD_UPDATE:
-        return "SVGA_CMD_UPDATE";
-    case SVGA_CMD_RECT_COPY:
-        return "SVGA_CMD_RECT_COPY";
-    case SVGA_CMD_DEFINE_CURSOR:
-        return "SVGA_CMD_DEFINE_CURSOR";
-    case SVGA_CMD_DEFINE_ALPHA_CURSOR:
-        return "SVGA_CMD_DEFINE_ALPHA_CURSOR";
-    case SVGA_CMD_UPDATE_VERBOSE:
-        return "SVGA_CMD_UPDATE_VERBOSE";
-    case SVGA_CMD_FRONT_ROP_FILL:
-        return "SVGA_CMD_FRONT_ROP_FILL";
-    case SVGA_CMD_FENCE:
-        return "SVGA_CMD_FENCE";
-    case SVGA_CMD_ESCAPE:
-        return "SVGA_CMD_ESCAPE";
-    case SVGA_CMD_DEFINE_SCREEN:
-        return "SVGA_CMD_DEFINE_SCREEN";
-    case SVGA_CMD_DESTROY_SCREEN:
-        return "SVGA_CMD_DESTROY_SCREEN";
-    case SVGA_CMD_DEFINE_GMRFB:
-        return "SVGA_CMD_DEFINE_GMRFB";
-    case SVGA_CMD_BLIT_GMRFB_TO_SCREEN:
-        return "SVGA_CMD_BLIT_GMRFB_TO_SCREEN";
-    case SVGA_CMD_BLIT_SCREEN_TO_GMRFB:
-        return "SVGA_CMD_BLIT_SCREEN_TO_GMRFB";
-    case SVGA_CMD_ANNOTATION_FILL:
-        return "SVGA_CMD_ANNOTATION_FILL";
-    case SVGA_CMD_ANNOTATION_COPY:
-        return "SVGA_CMD_ANNOTATION_COPY";
-    case SVGA_CMD_DEFINE_GMR2:
-        return "SVGA_CMD_DEFINE_GMR2";
-    case SVGA_CMD_REMAP_GMR2:
-        return "SVGA_CMD_REMAP_GMR2";
-    case SVGA_3D_CMD_SURFACE_DEFINE:
-        return "SVGA_3D_CMD_SURFACE_DEFINE";
-    case SVGA_3D_CMD_SURFACE_DESTROY:
-        return "SVGA_3D_CMD_SURFACE_DESTROY";
-    case SVGA_3D_CMD_SURFACE_COPY:
-        return "SVGA_3D_CMD_SURFACE_COPY";
-    case SVGA_3D_CMD_SURFACE_STRETCHBLT:
-        return "SVGA_3D_CMD_SURFACE_STRETCHBLT";
-    case SVGA_3D_CMD_SURFACE_DMA:
-        return "SVGA_3D_CMD_SURFACE_DMA";
-    case SVGA_3D_CMD_CONTEXT_DEFINE:
-        return "SVGA_3D_CMD_CONTEXT_DEFINE";
-    case SVGA_3D_CMD_CONTEXT_DESTROY:
-        return "SVGA_3D_CMD_CONTEXT_DESTROY";
-    case SVGA_3D_CMD_SETTRANSFORM:
-        return "SVGA_3D_CMD_SETTRANSFORM";
-    case SVGA_3D_CMD_SETZRANGE:
-        return "SVGA_3D_CMD_SETZRANGE";
-    case SVGA_3D_CMD_SETRENDERSTATE:
-        return "SVGA_3D_CMD_SETRENDERSTATE";
-    case SVGA_3D_CMD_SETRENDERTARGET:
-        return "SVGA_3D_CMD_SETRENDERTARGET";
-    case SVGA_3D_CMD_SETTEXTURESTATE:
-        return "SVGA_3D_CMD_SETTEXTURESTATE";
-    case SVGA_3D_CMD_SETMATERIAL:
-        return "SVGA_3D_CMD_SETMATERIAL";
-    case SVGA_3D_CMD_SETLIGHTDATA:
-        return "SVGA_3D_CMD_SETLIGHTDATA";
-    case SVGA_3D_CMD_SETLIGHTENABLED:
-        return "SVGA_3D_CMD_SETLIGHTENABLED";
-    case SVGA_3D_CMD_SETVIEWPORT:
-        return "SVGA_3D_CMD_SETVIEWPORT";
-    case SVGA_3D_CMD_SETCLIPPLANE:
-        return "SVGA_3D_CMD_SETCLIPPLANE";
-    case SVGA_3D_CMD_CLEAR:
-        return "SVGA_3D_CMD_CLEAR";
-    case SVGA_3D_CMD_PRESENT:
-        return "SVGA_3D_CMD_PRESENT";
-    case SVGA_3D_CMD_SHADER_DEFINE:
-        return "SVGA_3D_CMD_SHADER_DEFINE";
-    case SVGA_3D_CMD_SHADER_DESTROY:
-        return "SVGA_3D_CMD_SHADER_DESTROY";
-    case SVGA_3D_CMD_SET_SHADER:
-        return "SVGA_3D_CMD_SET_SHADER";
-    case SVGA_3D_CMD_SET_SHADER_CONST:
-        return "SVGA_3D_CMD_SET_SHADER_CONST";
-    case SVGA_3D_CMD_DRAW_PRIMITIVES:
-        return "SVGA_3D_CMD_DRAW_PRIMITIVES";
-    case SVGA_3D_CMD_SETSCISSORRECT:
-        return "SVGA_3D_CMD_SETSCISSORRECT";
-    case SVGA_3D_CMD_BEGIN_QUERY:
-        return "SVGA_3D_CMD_BEGIN_QUERY";
-    case SVGA_3D_CMD_END_QUERY:
-        return "SVGA_3D_CMD_END_QUERY";
-    case SVGA_3D_CMD_WAIT_FOR_QUERY:
-        return "SVGA_3D_CMD_WAIT_FOR_QUERY";
-    case SVGA_3D_CMD_PRESENT_READBACK:
-        return "SVGA_3D_CMD_PRESENT_READBACK";
-    case SVGA_3D_CMD_BLIT_SURFACE_TO_SCREEN:
-        return "SVGA_3D_CMD_BLIT_SURFACE_TO_SCREEN";
-    case SVGA_3D_CMD_SURFACE_DEFINE_V2:
-        return "SVGA_3D_CMD_SURFACE_DEFINE_V2";
-    case SVGA_3D_CMD_GENERATE_MIPMAPS:
-        return "SVGA_3D_CMD_GENERATE_MIPMAPS";
-    case SVGA_3D_CMD_ACTIVATE_SURFACE:
-        return "SVGA_3D_CMD_ACTIVATE_SURFACE";
-    case SVGA_3D_CMD_DEACTIVATE_SURFACE:
-        return "SVGA_3D_CMD_DEACTIVATE_SURFACE";
-    default:
-        return "UNKNOWN";
+        case SVGA_CMD_INVALID_CMD:              return "SVGA_CMD_INVALID_CMD";
+        case SVGA_CMD_UPDATE:                   return "SVGA_CMD_UPDATE";
+        case SVGA_CMD_RECT_COPY:                return "SVGA_CMD_RECT_COPY";
+        case SVGA_CMD_DEFINE_CURSOR:            return "SVGA_CMD_DEFINE_CURSOR";
+        case SVGA_CMD_DEFINE_ALPHA_CURSOR:      return "SVGA_CMD_DEFINE_ALPHA_CURSOR";
+        case SVGA_CMD_UPDATE_VERBOSE:           return "SVGA_CMD_UPDATE_VERBOSE";
+        case SVGA_CMD_FRONT_ROP_FILL:           return "SVGA_CMD_FRONT_ROP_FILL";
+        case SVGA_CMD_FENCE:                    return "SVGA_CMD_FENCE";
+        case SVGA_CMD_ESCAPE:                   return "SVGA_CMD_ESCAPE";
+        case SVGA_CMD_DEFINE_SCREEN:            return "SVGA_CMD_DEFINE_SCREEN";
+        case SVGA_CMD_DESTROY_SCREEN:           return "SVGA_CMD_DESTROY_SCREEN";
+        case SVGA_CMD_DEFINE_GMRFB:             return "SVGA_CMD_DEFINE_GMRFB";
+        case SVGA_CMD_BLIT_GMRFB_TO_SCREEN:     return "SVGA_CMD_BLIT_GMRFB_TO_SCREEN";
+        case SVGA_CMD_BLIT_SCREEN_TO_GMRFB:     return "SVGA_CMD_BLIT_SCREEN_TO_GMRFB";
+        case SVGA_CMD_ANNOTATION_FILL:          return "SVGA_CMD_ANNOTATION_FILL";
+        case SVGA_CMD_ANNOTATION_COPY:          return "SVGA_CMD_ANNOTATION_COPY";
+        case SVGA_CMD_DEFINE_GMR2:              return "SVGA_CMD_DEFINE_GMR2";
+        case SVGA_CMD_REMAP_GMR2:               return "SVGA_CMD_REMAP_GMR2";
+        case SVGA_3D_CMD_SURFACE_DEFINE:        return "SVGA_3D_CMD_SURFACE_DEFINE";
+        case SVGA_3D_CMD_SURFACE_DESTROY:       return "SVGA_3D_CMD_SURFACE_DESTROY";
+        case SVGA_3D_CMD_SURFACE_COPY:          return "SVGA_3D_CMD_SURFACE_COPY";
+        case SVGA_3D_CMD_SURFACE_STRETCHBLT:    return "SVGA_3D_CMD_SURFACE_STRETCHBLT";
+        case SVGA_3D_CMD_SURFACE_DMA:           return "SVGA_3D_CMD_SURFACE_DMA";
+        case SVGA_3D_CMD_CONTEXT_DEFINE:        return "SVGA_3D_CMD_CONTEXT_DEFINE";
+        case SVGA_3D_CMD_CONTEXT_DESTROY:       return "SVGA_3D_CMD_CONTEXT_DESTROY";
+        case SVGA_3D_CMD_SETTRANSFORM:          return "SVGA_3D_CMD_SETTRANSFORM";
+        case SVGA_3D_CMD_SETZRANGE:             return "SVGA_3D_CMD_SETZRANGE";
+        case SVGA_3D_CMD_SETRENDERSTATE:        return "SVGA_3D_CMD_SETRENDERSTATE";
+        case SVGA_3D_CMD_SETRENDERTARGET:       return "SVGA_3D_CMD_SETRENDERTARGET";
+        case SVGA_3D_CMD_SETTEXTURESTATE:       return "SVGA_3D_CMD_SETTEXTURESTATE";
+        case SVGA_3D_CMD_SETMATERIAL:           return "SVGA_3D_CMD_SETMATERIAL";
+        case SVGA_3D_CMD_SETLIGHTDATA:          return "SVGA_3D_CMD_SETLIGHTDATA";
+        case SVGA_3D_CMD_SETLIGHTENABLED:       return "SVGA_3D_CMD_SETLIGHTENABLED";
+        case SVGA_3D_CMD_SETVIEWPORT:           return "SVGA_3D_CMD_SETVIEWPORT";
+        case SVGA_3D_CMD_SETCLIPPLANE:          return "SVGA_3D_CMD_SETCLIPPLANE";
+        case SVGA_3D_CMD_CLEAR:                 return "SVGA_3D_CMD_CLEAR";
+        case SVGA_3D_CMD_PRESENT:               return "SVGA_3D_CMD_PRESENT";
+        case SVGA_3D_CMD_SHADER_DEFINE:         return "SVGA_3D_CMD_SHADER_DEFINE";
+        case SVGA_3D_CMD_SHADER_DESTROY:        return "SVGA_3D_CMD_SHADER_DESTROY";
+        case SVGA_3D_CMD_SET_SHADER:            return "SVGA_3D_CMD_SET_SHADER";
+        case SVGA_3D_CMD_SET_SHADER_CONST:      return "SVGA_3D_CMD_SET_SHADER_CONST";
+        case SVGA_3D_CMD_DRAW_PRIMITIVES:       return "SVGA_3D_CMD_DRAW_PRIMITIVES";
+        case SVGA_3D_CMD_SETSCISSORRECT:        return "SVGA_3D_CMD_SETSCISSORRECT";
+        case SVGA_3D_CMD_BEGIN_QUERY:           return "SVGA_3D_CMD_BEGIN_QUERY";
+        case SVGA_3D_CMD_END_QUERY:             return "SVGA_3D_CMD_END_QUERY";
+        case SVGA_3D_CMD_WAIT_FOR_QUERY:        return "SVGA_3D_CMD_WAIT_FOR_QUERY";
+        case SVGA_3D_CMD_PRESENT_READBACK:      return "SVGA_3D_CMD_PRESENT_READBACK";
+        case SVGA_3D_CMD_BLIT_SURFACE_TO_SCREEN:return "SVGA_3D_CMD_BLIT_SURFACE_TO_SCREEN";
+        case SVGA_3D_CMD_SURFACE_DEFINE_V2:     return "SVGA_3D_CMD_SURFACE_DEFINE_V2";
+        case SVGA_3D_CMD_GENERATE_MIPMAPS:      return "SVGA_3D_CMD_GENERATE_MIPMAPS";
+        case SVGA_3D_CMD_ACTIVATE_SURFACE:      return "SVGA_3D_CMD_ACTIVATE_SURFACE";
+        case SVGA_3D_CMD_DEACTIVATE_SURFACE:    return "SVGA_3D_CMD_DEACTIVATE_SURFACE";
+        default:                                return "UNKNOWN";
     }
 }
 # endif /* IN_RING3 */
@@ -833,7 +828,7 @@ PDMBOTHCBDECL(int) vmsvgaReadPort(PVGASTATE pThis, uint32_t *pu32)
 
     case SVGA_REG_PSEUDOCOLOR:
         STAM_REL_COUNTER_INC(&pThis->svga.StatRegPsuedoColorRd);
-        *pu32 = 0;
+        *pu32 = pThis->svga.uBpp == 8; /* See section 6 "Pseudocolor" in svga_interface.txt. */
         break;
 
     case SVGA_REG_RED_MASK:
@@ -1174,8 +1169,15 @@ PDMBOTHCBDECL(int) vmsvgaReadPort(PVGASTATE pThis, uint32_t *pu32)
         }
         else if ((offReg = idxReg - SVGA_PALETTE_BASE) < (uint32_t)SVGA_NUM_PALETTE_REGS)
         {
+            /* Note! Using last_palette rather than palette here to preserve the VGA one. */
             STAM_REL_COUNTER_INC(&pThis->svga.StatRegPaletteRd);
-            /* Next 768 (== 256*3) registers exist for colormap */
+            uint32_t u32 = pThis->last_palette[offReg / 3];
+            switch (offReg % 3)
+            {
+                case 0: *pu32 = (u32 >> 16) & 0xff; break; /* red */
+                case 1: *pu32 = (u32 >>  8) & 0xff; break; /* green */
+                case 2: *pu32 =  u32        & 0xff; break; /* blue */
+            }
         }
         else
         {
@@ -1317,12 +1319,12 @@ PDMBOTHCBDECL(int) vmsvgaWritePort(PVGASTATE pThis, uint32_t u32)
     {
     case SVGA_REG_ID:
         STAM_REL_COUNTER_INC(&pThis->svga.StatRegIdWr);
-        if (    u32 == SVGA_ID_0
-            ||  u32 == SVGA_ID_1
-            ||  u32 == SVGA_ID_2)
+        if (   u32 == SVGA_ID_0
+            || u32 == SVGA_ID_1
+            || u32 == SVGA_ID_2)
             pThis->svga.u32SVGAId = u32;
         else
-            AssertMsgFailed(("%#x\n", u32));
+            PDMDevHlpDBGFStop(pThis->CTX_SUFF(pDevIns), RT_SRC_POS, "Trying to set SVGA_REG_ID to %#x (%d)\n", u32, u32);
         break;
 
     case SVGA_REG_ENABLE:
@@ -1341,8 +1343,10 @@ PDMBOTHCBDECL(int) vmsvgaWritePort(PVGASTATE pThis, uint32_t u32)
         if (    u32 == 1
             &&  pThis->svga.fEnabled == false)
         {
-            /* Make a backup copy of the first 32k in order to save font data etc. */
-            memcpy(pThis->svga.pFrameBufferBackup, pThis->vram_ptrR3, VMSVGA_FRAMEBUFFER_BACKUP_SIZE);
+            /* Make a backup copy of the first 512kb in order to save font data etc. */
+            /** @todo should probably swap here, rather than copy + zero */
+            memcpy(pThis->svga.pbVgaFrameBufferR3, pThis->vram_ptrR3, VMSVGA_VGA_FB_BACKUP_SIZE);
+            memset(pThis->vram_ptrR3, 0, VMSVGA_VGA_FB_BACKUP_SIZE);
         }
 
         pThis->svga.fEnabled = u32;
@@ -1377,7 +1381,7 @@ PDMBOTHCBDECL(int) vmsvgaWritePort(PVGASTATE pThis, uint32_t u32)
         else
         {
             /* Restore the text mode backup. */
-            memcpy(pThis->vram_ptrR3, pThis->svga.pFrameBufferBackup, VMSVGA_FRAMEBUFFER_BACKUP_SIZE);
+            memcpy(pThis->vram_ptrR3, pThis->svga.pbVgaFrameBufferR3, VMSVGA_VGA_FB_BACKUP_SIZE);
 
 /*            pThis->svga.uHeight    = -1;
             pThis->svga.uWidth     = -1;
@@ -1388,9 +1392,9 @@ PDMBOTHCBDECL(int) vmsvgaWritePort(PVGASTATE pThis, uint32_t u32)
             /* Enable dirty page tracking again when going into legacy mode. */
             vmsvgaSetTraces(pThis, true);
         }
-#else
+#else  /* !IN_RING3 */
         rc = VINF_IOM_R3_IOPORT_WRITE;
-#endif
+#endif /* !IN_RING3 */
         break;
 
     case SVGA_REG_WIDTH:
@@ -1709,8 +1713,18 @@ PDMBOTHCBDECL(int) vmsvgaWritePort(PVGASTATE pThis, uint32_t u32)
         }
         else if ((offReg = idxReg - SVGA_PALETTE_BASE) < (uint32_t)SVGA_NUM_PALETTE_REGS)
         {
+            /* Note! Using last_palette rather than palette here to preserve the VGA one.
+                     Btw, see rgb_to_pixel32.  */
             STAM_REL_COUNTER_INC(&pThis->svga.StatRegPaletteWr);
-            /* Next 768 (== 256*3) registers exist for colormap */
+            u32 &= 0xff;
+            uint32_t uRgb = pThis->last_palette[offReg / 3];
+            switch (offReg % 3)
+            {
+                case 0: uRgb = (uRgb & UINT32_C(0x0000ffff)) | (u32 << 16); break; /* red */
+                case 1: uRgb = (uRgb & UINT32_C(0x00ff00ff)) | (u32 <<  8); break; /* green */
+                case 2: uRgb = (uRgb & UINT32_C(0x00ffff00)) |  u32       ; break; /* blue */
+            }
+            pThis->last_palette[offReg / 3] = uRgb;
         }
         else
         {
@@ -2319,6 +2333,329 @@ static DECLCALLBACK(int) vmsvgaResetGMRHandlers(PVGASTATE pThis)
 
 #ifdef IN_RING3
 
+
+/**
+ * Common worker for changing the pointer shape.
+ *
+ * @param   pThis               The VGA instance data.
+ * @param   pSVGAState          The VMSVGA ring-3 instance data.
+ * @param   fAlpha              Whether there is alpha or not.
+ * @param   xHot                Hotspot x coordinate.
+ * @param   yHot                Hotspot y coordinate.
+ * @param   cx                  Width.
+ * @param   cy                  Height.
+ * @param   pbData              Heap copy of the cursor data.  Consumed.
+ * @param   cbData              The size of the data.
+ */
+static void vmsvgaR3InstallNewCursor(PVGASTATE pThis, PVMSVGAR3STATE pSVGAState, bool fAlpha,
+                                     uint32_t xHot, uint32_t yHot, uint32_t cx, uint32_t cy, uint8_t *pbData, uint32_t cbData)
+{
+    Log(("vmsvgaR3InstallNewCursor: cx=%d cy=%d xHot=%d yHot=%d fAlpha=%d cbData=%#x\n", cx, cy, xHot, yHot, fAlpha, cbData));
+#ifdef LOG_ENABLED
+    if (LogIs2Enabled())
+    {
+        uint32_t cbAndLine = RT_ALIGN(cx, 8) / 8;
+        if (!fAlpha)
+        {
+            Log2(("VMSVGA Cursor AND mask (%d,%d):\n", cx, cy));
+            for (uint32_t y = 0; y < cy; y++)
+            {
+                Log2(("%3u:", y));
+                uint8_t const *pbLine = &pbData[y * cbAndLine];
+                for (uint32_t x = 0; x < cx; x += 8)
+                {
+                    uint8_t   b = pbLine[x / 8];
+                    char      szByte[12];
+                    szByte[0] = b & 0x80 ? '*' : ' '; /* most significant bit first */
+                    szByte[1] = b & 0x40 ? '*' : ' ';
+                    szByte[2] = b & 0x20 ? '*' : ' ';
+                    szByte[3] = b & 0x10 ? '*' : ' ';
+                    szByte[4] = b & 0x08 ? '*' : ' ';
+                    szByte[5] = b & 0x04 ? '*' : ' ';
+                    szByte[6] = b & 0x02 ? '*' : ' ';
+                    szByte[7] = b & 0x01 ? '*' : ' ';
+                    szByte[8] = '\0';
+                    Log2(("%s", szByte));
+                }
+                Log2(("\n"));
+            }
+        }
+
+        Log2(("VMSVGA Cursor XOR mask (%d,%d):\n", cx, cy));
+        uint32_t const *pu32Xor = (uint32_t const *)&pbData[RT_ALIGN_32(cbAndLine * cy, 4)];
+        for (uint32_t y = 0; y < cy; y++)
+        {
+            Log2(("%3u:", y));
+            uint32_t const *pu32Line = &pu32Xor[y * cx];
+            for (uint32_t x = 0; x < cx; x++)
+                Log2((" %08x", pu32Line[x]));
+            Log2(("\n"));
+        }
+    }
+#endif
+
+    int rc = pThis->pDrv->pfnVBVAMousePointerShape(pThis->pDrv, true /*fVisible*/, fAlpha, xHot, yHot, cx, cy, pbData);
+    AssertRC(rc);
+
+    if (pSVGAState->Cursor.fActive)
+        RTMemFree(pSVGAState->Cursor.pData);
+
+    pSVGAState->Cursor.fActive  = true;
+    pSVGAState->Cursor.xHotspot = xHot;
+    pSVGAState->Cursor.yHotspot = yHot;
+    pSVGAState->Cursor.width    = cx;
+    pSVGAState->Cursor.height   = cy;
+    pSVGAState->Cursor.cbData   = cbData;
+    pSVGAState->Cursor.pData    = pbData;
+}
+
+
+/**
+ * Handles the SVGA_CMD_DEFINE_CURSOR command.
+ *
+ * @param   pThis               The VGA instance data.
+ * @param   pSVGAState          The VMSVGA ring-3 instance data.
+ * @param   pCursor             The cursor.
+ * @param   pbSrcAndMask        The AND mask.
+ * @param   cbSrcAndLine        The scanline length of the AND mask.
+ * @param   pbSrcXorMask        The XOR mask.
+ * @param   cbSrcXorLine        The scanline length of the XOR mask.
+ */
+static void vmsvgaR3CmdDefineCursor(PVGASTATE pThis, PVMSVGAR3STATE pSVGAState, SVGAFifoCmdDefineCursor const *pCursor,
+                                    uint8_t const *pbSrcAndMask, uint32_t cbSrcAndLine,
+                                    uint8_t const *pbSrcXorMask, uint32_t cbSrcXorLine)
+{
+    uint32_t const cx = pCursor->width;
+    uint32_t const cy = pCursor->height;
+
+    /*
+     * Convert the input to 1-bit AND mask and a 32-bit BRGA XOR mask.
+     * The AND data uses 8-bit aligned scanlines.
+     * The XOR data must be starting on a 32-bit boundrary.
+     */
+    uint32_t cbDstAndLine = RT_ALIGN_32(cx, 8) / 8;
+    uint32_t cbDstAndMask = cbDstAndLine          * cy;
+    uint32_t cbDstXorMask = cx * sizeof(uint32_t) * cy;
+    uint32_t cbCopy = RT_ALIGN_32(cbDstAndMask, 4) + cbDstXorMask;
+
+    uint8_t *pbCopy = (uint8_t *)RTMemAlloc(cbCopy);
+    AssertReturnVoid(pbCopy);
+
+    /* Convert the AND mask. */
+    uint8_t       *pbDst     = pbCopy;
+    uint8_t const *pbSrc     = pbSrcAndMask;
+    switch (pCursor->andMaskDepth)
+    {
+        case 1:
+            if (cbSrcAndLine == cbDstAndLine)
+                memcpy(pbDst, pbSrc, cbSrcAndLine * cy);
+            else
+            {
+                Assert(cbSrcAndLine > cbDstAndLine); /* lines are dword alined in source, but only byte in destination. */
+                for (uint32_t y = 0; y < cy; y++)
+                {
+                    memcpy(pbDst, pbSrc, cbDstAndLine);
+                    pbDst += cbDstAndLine;
+                    pbSrc += cbSrcAndLine;
+                }
+            }
+            break;
+        /* Should take the XOR mask into account for the multi-bit AND mask. */
+        case 8:
+            for (uint32_t y = 0; y < cy; y++)
+            {
+                for (uint32_t x = 0; x < cx; )
+                {
+                    uint8_t bDst = 0;
+                    uint8_t fBit = 1;
+                    do
+                    {
+                        uintptr_t const idxPal = pbSrc[x] * 3;
+                        if (((   pThis->last_palette[idxPal]
+                              | (pThis->last_palette[idxPal] >>  8)
+                              | (pThis->last_palette[idxPal] >> 16)) & 0xff) > 0xfc)
+                            bDst |= fBit;
+                        fBit <<= 1;
+                        x++;
+                    } while (x < cx && (x & 7));
+                    pbDst[(x - 1) / 8] = bDst;
+                }
+                pbDst += cbDstAndLine;
+                pbSrc += cbSrcAndLine;
+            }
+            break;
+        case 15:
+            for (uint32_t y = 0; y < cy; y++)
+            {
+                for (uint32_t x = 0; x < cx; )
+                {
+                    uint8_t bDst = 0;
+                    uint8_t fBit = 1;
+                    do
+                    {
+                        if ((pbSrc[x * 2] | (pbSrc[x * 2 + 1] & 0x7f)) >= 0xfc)
+                            bDst |= fBit;
+                        fBit <<= 1;
+                        x++;
+                    } while (x < cx && (x & 7));
+                    pbDst[(x - 1) / 8] = bDst;
+                }
+                pbDst += cbDstAndLine;
+                pbSrc += cbSrcAndLine;
+            }
+            break;
+        case 16:
+            for (uint32_t y = 0; y < cy; y++)
+            {
+                for (uint32_t x = 0; x < cx; )
+                {
+                    uint8_t bDst = 0;
+                    uint8_t fBit = 1;
+                    do
+                    {
+                        if ((pbSrc[x * 2] | pbSrc[x * 2 + 1]) >= 0xfc)
+                            bDst |= fBit;
+                        fBit <<= 1;
+                        x++;
+                    } while (x < cx && (x & 7));
+                    pbDst[(x - 1) / 8] = bDst;
+                }
+                pbDst += cbDstAndLine;
+                pbSrc += cbSrcAndLine;
+            }
+            break;
+        case 24:
+            for (uint32_t y = 0; y < cy; y++)
+            {
+                for (uint32_t x = 0; x < cx; )
+                {
+                    uint8_t bDst = 0;
+                    uint8_t fBit = 1;
+                    do
+                    {
+                        if ((pbSrc[x * 3] | pbSrc[x * 3 + 1] | pbSrc[x * 3 + 2]) >= 0xfc)
+                            bDst |= fBit;
+                        fBit <<= 1;
+                        x++;
+                    } while (x < cx && (x & 7));
+                    pbDst[(x - 1) / 8] = bDst;
+                }
+                pbDst += cbDstAndLine;
+                pbSrc += cbSrcAndLine;
+            }
+            break;
+        case 32:
+            for (uint32_t y = 0; y < cy; y++)
+            {
+                for (uint32_t x = 0; x < cx; )
+                {
+                    uint8_t bDst = 0;
+                    uint8_t fBit = 1;
+                    do
+                    {
+                        if ((pbSrc[x * 4] | pbSrc[x * 4 + 1] | pbSrc[x * 4 + 2] | pbSrc[x * 4 + 3]) >= 0xfc)
+                            bDst |= fBit;
+                        fBit <<= 1;
+                        x++;
+                    } while (x < cx && (x & 7));
+                    pbDst[(x - 1) / 8] = bDst;
+                }
+                pbDst += cbDstAndLine;
+                pbSrc += cbSrcAndLine;
+            }
+            break;
+        default:
+            RTMemFree(pbCopy);
+            AssertFailedReturnVoid();
+    }
+
+    /* Convert the XOR mask. */
+    uint32_t *pu32Dst = (uint32_t *)(pbCopy + cbDstAndMask);
+    pbSrc  = pbSrcXorMask;
+    switch (pCursor->xorMaskDepth)
+    {
+        case 1:
+            for (uint32_t y = 0; y < cy; y++)
+            {
+                for (uint32_t x = 0; x < cx; )
+                {
+                    /* most significant bit is the left most one. */
+                    uint8_t bSrc = pbSrc[x / 8];
+                    do
+                    {
+                        *pu32Dst++ = bSrc & 0x80 ? UINT32_C(0x00ffffff) : 0;
+                        bSrc <<= 1;
+                        x++;
+                    } while ((x & 7) && x < cx);
+                }
+                pbSrc += cbSrcXorLine;
+            }
+            break;
+        case 8:
+            for (uint32_t y = 0; y < cy; y++)
+            {
+                for (uint32_t x = 0; x < cx; x++)
+                {
+                    uint32_t u = pThis->last_palette[pbSrc[x]];
+                    *pu32Dst++ = u;//RT_MAKE_U32_FROM_U8(RT_BYTE1(u), RT_BYTE2(u), RT_BYTE3(u), 0);
+                }
+                pbSrc += cbSrcXorLine;
+            }
+            break;
+        case 15: /* Src: RGB-5-5-5 */
+            for (uint32_t y = 0; y < cy; y++)
+            {
+                for (uint32_t x = 0; x < cx; x++)
+                {
+                    uint32_t const uValue = RT_MAKE_U16(pbSrc[x * 2], pbSrc[x * 2 + 1]);
+                    *pu32Dst++ = RT_MAKE_U32_FROM_U8(( uValue        & 0x1f) << 3,
+                                                     ((uValue >>  5) & 0x1f) << 3,
+                                                     ((uValue >> 10) & 0x1f) << 3, 0);
+                }
+                pbSrc += cbSrcXorLine;
+            }
+            break;
+        case 16: /* Src: RGB-5-6-5 */
+            for (uint32_t y = 0; y < cy; y++)
+            {
+                for (uint32_t x = 0; x < cx; x++)
+                {
+                    uint32_t const uValue = RT_MAKE_U16(pbSrc[x * 2], pbSrc[x * 2 + 1]);
+                    *pu32Dst++ = RT_MAKE_U32_FROM_U8(( uValue        & 0x1f) << 3,
+                                                     ((uValue >>  5) & 0x3f) << 2,
+                                                     ((uValue >> 11) & 0x1f) << 3, 0);
+                }
+                pbSrc += cbSrcXorLine;
+            }
+            break;
+        case 24:
+            for (uint32_t y = 0; y < cy; y++)
+            {
+                for (uint32_t x = 0; x < cx; x++)
+                    *pu32Dst++ = RT_MAKE_U32_FROM_U8(pbSrc[x*3], pbSrc[x*3 + 1], pbSrc[x*3 + 2], 0);
+                pbSrc += cbSrcXorLine;
+            }
+            break;
+        case 32:
+            for (uint32_t y = 0; y < cy; y++)
+            {
+                for (uint32_t x = 0; x < cx; x++)
+                    *pu32Dst++ = RT_MAKE_U32_FROM_U8(pbSrc[x*4], pbSrc[x*4 + 1], pbSrc[x*4 + 2], 0);
+                pbSrc += cbSrcXorLine;
+            }
+            break;
+        default:
+            RTMemFree(pbCopy);
+            AssertFailedReturnVoid();
+    }
+
+    /*
+     * Pass it to the frontend/whatever.
+     */
+    vmsvgaR3InstallNewCursor(pThis, pSVGAState, false /*fAlpha*/, pCursor->hotspotX, pCursor->hotspotY, cx, cy, pbCopy, cbCopy);
+}
+
+
 /**
  * Worker for vmsvgaR3FifoThread that handles an external command.
  *
@@ -2559,7 +2896,7 @@ static void *vmsvgaFIFOGetCmdPayload(uint32_t cbPayloadReq, uint32_t volatile *p
     Assert(pcbAlreadyRead);
     Assert(offFifoMin < offFifoMax);
     Assert(offCurrentCmd >= offFifoMin && offCurrentCmd < offFifoMax);
-    Assert(offFifoMax <= VMSVGA_FIFO_SIZE);
+    Assert(offFifoMax <= pThis->svga.cbFIFO);
 
     /*
      * Check if the requested payload size has already been satisfied                                                                                                .
@@ -2720,7 +3057,7 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
      * Allocate a bounce buffer for command we get from the FIFO.
      * (All code must return via the end of the function to free this buffer.)
      */
-    uint8_t *pbBounceBuf = (uint8_t *)RTMemAllocZ(VMSVGA_FIFO_SIZE);
+    uint8_t *pbBounceBuf = (uint8_t *)RTMemAllocZ(pThis->svga.cbFIFO);
     AssertReturn(pbBounceBuf, VERR_NO_MEMORY);
 
     /*
@@ -2821,7 +3158,7 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
         uint32_t       offCurrentCmd = pFIFO[SVGA_FIFO_STOP];
         if (RT_UNLIKELY(   !VMSVGA_IS_VALID_FIFO_REG(SVGA_FIFO_STOP, offFifoMin)
                         || offFifoMax <= offFifoMin
-                        || offFifoMax > VMSVGA_FIFO_SIZE
+                        || offFifoMax > pThis->svga.cbFIFO
                         || (offFifoMax & 3) != 0
                         || (offFifoMin & 3) != 0
                         || offCurrentCmd < offFifoMin
@@ -2894,7 +3231,8 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
             Assert(offCurrentCmd < offFifoMax && offCurrentCmd >= offFifoMin);
 
             /* First check any pending actions. */
-            if (ASMBitTestAndClear(&pThis->svga.u32ActionFlags, VMSVGA_ACTION_CHANGEMODE_BIT))
+            if (   ASMBitTestAndClear(&pThis->svga.u32ActionFlags, VMSVGA_ACTION_CHANGEMODE_BIT)
+                && pThis->svga.p3dState != NULL)
 # ifdef VBOX_WITH_VMSVGA3D
                 vmsvga3dChangeMode(pThis);
 # else
@@ -2965,7 +3303,22 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                 SVGAFifoCmdDefineCursor *pCursor;
                 VMSVGAFIFO_GET_CMD_BUFFER_BREAK(pCursor, SVGAFifoCmdDefineCursor, sizeof(*pCursor));
                 STAM_REL_COUNTER_INC(&pSVGAState->StatR3CmdDefineCursor);
-                AssertFailed(); /** @todo implement when necessary. */
+
+                Log(("vmsvgaFIFOLoop: CURSOR id=%d size (%d,%d) hotspot (%d,%d) andMaskDepth=%d xorMaskDepth=%d\n",
+                     pCursor->id, pCursor->width, pCursor->height, pCursor->hotspotX, pCursor->hotspotY,
+                     pCursor->andMaskDepth, pCursor->xorMaskDepth));
+                AssertBreak(pCursor->height < 2048 && pCursor->width < 2048);
+                AssertBreak(pCursor->andMaskDepth <= 32);
+                AssertBreak(pCursor->xorMaskDepth <= 32);
+
+                uint32_t cbAndLine = RT_ALIGN_32(pCursor->width * (pCursor->andMaskDepth + (pCursor->andMaskDepth == 15)), 32) / 8;
+                uint32_t cbAndMask = cbAndLine * pCursor->height;
+                uint32_t cbXorLine = RT_ALIGN_32(pCursor->width * (pCursor->xorMaskDepth + (pCursor->xorMaskDepth == 15)), 32) / 8;
+                uint32_t cbXorMask = cbXorLine * pCursor->height;
+                VMSVGAFIFO_GET_MORE_CMD_BUFFER_BREAK(pCursor, SVGAFifoCmdDefineCursor, sizeof(*pCursor) + cbAndMask + cbXorMask);
+
+                vmsvgaR3CmdDefineCursor(pThis, pSVGAState, pCursor, (uint8_t const *)(pCursor + 1), cbAndLine,
+                                        (uint8_t const *)(pCursor + 1) + cbAndMask, cbXorLine);
                 break;
             }
 
@@ -2998,33 +3351,13 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                 pCursorCopy = (uint8_t *)RTMemAlloc(cbCursorShape);
                 AssertBreak(pCursorCopy);
 
-                Log2(("Cursor data:\n%.*Rhxd\n", pCursor->width * pCursor->height * sizeof(uint32_t), pCursor+1));
-
                 /* Transparency is defined by the alpha bytes, so make the whole bitmap visible. */
                 memset(pCursorCopy, 0xff, cbAndMask);
                 /* Colour data */
                 memcpy(pCursorCopy + cbAndMask, (pCursor + 1), pCursor->width * pCursor->height * sizeof(uint32_t));
 
-                rc = pThis->pDrv->pfnVBVAMousePointerShape (pThis->pDrv,
-                                                            true,
-                                                            true,
-                                                            pCursor->hotspotX,
-                                                            pCursor->hotspotY,
-                                                            pCursor->width,
-                                                            pCursor->height,
-                                                            pCursorCopy);
-                AssertRC(rc);
-
-                if (pSVGAState->Cursor.fActive)
-                    RTMemFree(pSVGAState->Cursor.pData);
-
-                pSVGAState->Cursor.fActive  = true;
-                pSVGAState->Cursor.xHotspot = pCursor->hotspotX;
-                pSVGAState->Cursor.yHotspot = pCursor->hotspotY;
-                pSVGAState->Cursor.width    = pCursor->width;
-                pSVGAState->Cursor.height   = pCursor->height;
-                pSVGAState->Cursor.cbData   = cbCursorShape;
-                pSVGAState->Cursor.pData    = pCursorCopy;
+                vmsvgaR3InstallNewCursor(pThis, pSVGAState, true /*fAlpha*/, pCursor->hotspotX, pCursor->hotspotY,
+                                         pCursor->width, pCursor->height, pCursorCopy, cbCursorShape);
                 break;
             }
 
@@ -3036,7 +3369,7 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                 STAM_REL_COUNTER_INC(&pSVGAState->StatR3CmdEscape);
 
                 /* Refetch the command buffer with the variable data; undo size increase (ugly) */
-                AssertBreak(pEscape->size < VMSVGA_FIFO_SIZE);
+                AssertBreak(pEscape->size < pThis->svga.cbFIFO);
                 uint32_t cbCmd = sizeof(SVGAFifoCmdEscape) + pEscape->size;
                 VMSVGAFIFO_GET_MORE_CMD_BUFFER_BREAK(pEscape, SVGAFifoCmdEscape, cbCmd);
 
@@ -3137,7 +3470,7 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                     }
                     else
                     {
-                        AssertBreak(pCmd->numPages <= VMSVGA_FIFO_SIZE / cbPageDesc);
+                        AssertBreak(pCmd->numPages <= pThis->svga.cbFIFO / cbPageDesc);
                         cbCmd += cbPageDesc * pCmd->numPages;
                     }
                 }
@@ -3417,7 +3750,7 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                     /* All 3d commands start with a common header, which defines the size of the command. */
                     SVGA3dCmdHeader *pHdr;
                     VMSVGAFIFO_GET_CMD_BUFFER_BREAK(pHdr, SVGA3dCmdHeader, sizeof(*pHdr));
-                    AssertBreak(pHdr->size < VMSVGA_FIFO_SIZE);
+                    AssertBreak(pHdr->size < pThis->svga.cbFIFO);
                     uint32_t cbCmd = sizeof(SVGA3dCmdHeader) + pHdr->size;
                     VMSVGAFIFO_GET_MORE_CMD_BUFFER_BREAK(pHdr, SVGA3dCmdHeader, cbCmd);
 
@@ -4179,13 +4512,14 @@ DECLCALLBACK(int) vmsvgaR3IORegionMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, ui
             /*
              * Mapping the FIFO RAM.
              */
+            AssertLogRelMsg(cb == pThis->svga.cbFIFO, ("cb=%#RGp cbFIFO=%#x\n", cb, pThis->svga.cbFIFO));
             rc = PDMDevHlpMMIOExMap(pDevIns, pPciDev, iRegion, GCPhysAddress);
             AssertRC(rc);
 
 # ifdef DEBUG_FIFO_ACCESS
             if (RT_SUCCESS(rc))
             {
-                rc = PGMHandlerPhysicalRegister(PDMDevHlpGetVM(pDevIns), GCPhysAddress, GCPhysAddress + (VMSVGA_FIFO_SIZE - 1),
+                rc = PGMHandlerPhysicalRegister(PDMDevHlpGetVM(pDevIns), GCPhysAddress, GCPhysAddress + (pThis->svga.cbFIFO - 1),
                                                 pThis->svga.hFifoAccessHandlerType, pThis, NIL_RTR0PTR, NIL_RTRCPTR,
                                                 "VMSVGA FIFO");
                 AssertRC(rc);
@@ -4194,7 +4528,7 @@ DECLCALLBACK(int) vmsvgaR3IORegionMap(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, ui
             if (RT_SUCCESS(rc))
             {
                 pThis->svga.GCPhysFIFO = GCPhysAddress;
-                Log(("vmsvgaR3IORegionMap: FIFO address = %RGp\n", GCPhysAddress));
+                Log(("vmsvgaR3IORegionMap: GCPhysFIFO=%RGp cbFIFO=%#x\n", GCPhysAddress, pThis->svga.cbFIFO));
             }
         }
         else
@@ -4356,9 +4690,25 @@ int vmsvgaLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint3
     rc = SSMR3GetStructEx(pSSM, &pThis->svga, sizeof(pThis->svga), 0, g_aVGAStateSVGAFields, NULL);
     AssertRCReturn(rc, rc);
 
-    /* Load the framebuffer backup. */
-    rc = SSMR3GetMem(pSSM, pThis->svga.pFrameBufferBackup, VMSVGA_FRAMEBUFFER_BACKUP_SIZE);
+    /* Load the VGA framebuffer. */
+    AssertCompile(VMSVGA_VGA_FB_BACKUP_SIZE >= _32K);
+    uint32_t cbVgaFramebuffer = _32K;
+    if (uVersion >= VGA_SAVEDSTATE_VERSION_VMSVGA_VGA_FB_FIX)
+    {
+        rc = SSMR3GetU32(pSSM, &cbVgaFramebuffer);
+        AssertRCReturn(rc, rc);
+        AssertLogRelMsgReturn(cbVgaFramebuffer <= _4M && cbVgaFramebuffer >= _32K && RT_IS_POWER_OF_TWO(cbVgaFramebuffer),
+                              ("cbVgaFramebuffer=%#x - expected 32KB..4MB, power of two\n", cbVgaFramebuffer),
+                              VERR_SSM_DATA_UNIT_FORMAT_CHANGED);
+        AssertCompile(VMSVGA_VGA_FB_BACKUP_SIZE <= _4M);
+        AssertCompile(RT_IS_POWER_OF_TWO(VMSVGA_VGA_FB_BACKUP_SIZE));
+    }
+    rc = SSMR3GetMem(pSSM, pThis->svga.pbVgaFrameBufferR3, RT_MIN(cbVgaFramebuffer, VMSVGA_VGA_FB_BACKUP_SIZE));
     AssertRCReturn(rc, rc);
+    if (cbVgaFramebuffer > VMSVGA_VGA_FB_BACKUP_SIZE)
+        SSMR3Skip(pSSM, cbVgaFramebuffer - VMSVGA_VGA_FB_BACKUP_SIZE);
+    else if (cbVgaFramebuffer < VMSVGA_VGA_FB_BACKUP_SIZE)
+        RT_BZERO(&pThis->svga.pbVgaFrameBufferR3[cbVgaFramebuffer], VMSVGA_VGA_FB_BACKUP_SIZE - cbVgaFramebuffer);
 
     /* Load the VMSVGA state. */
     rc = SSMR3GetStructEx(pSSM, pSVGAState, sizeof(*pSVGAState), 0, g_aVMSVGAR3STATEFields, NULL);
@@ -4458,7 +4808,8 @@ int vmsvgaSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
     AssertLogRelRCReturn(rc, rc);
 
     /* Save the framebuffer backup. */
-    rc = SSMR3PutMem(pSSM, pThis->svga.pFrameBufferBackup, VMSVGA_FRAMEBUFFER_BACKUP_SIZE);
+    rc = SSMR3PutU32(pSSM, VMSVGA_VGA_FB_BACKUP_SIZE);
+    rc = SSMR3PutMem(pSSM, pThis->svga.pbVgaFrameBufferR3, VMSVGA_VGA_FB_BACKUP_SIZE);
     AssertLogRelRCReturn(rc, rc);
 
     /* Save the VMSVGA state. */
@@ -4524,7 +4875,7 @@ int vmsvgaReset(PPDMDEVINS pDevIns)
     pThis->svga.cScratchRegion = VMSVGA_SCRATCH_SIZE;
     RT_ZERO(pThis->svga.au32ScratchRegion);
     RT_ZERO(*pThis->svga.pSvgaR3State);
-    RT_BZERO(pThis->svga.pFrameBufferBackup, VMSVGA_FRAMEBUFFER_BACKUP_SIZE);
+    RT_BZERO(pThis->svga.pbVgaFrameBufferR3, VMSVGA_VGA_FB_BACKUP_SIZE);
 
     /* Register caps. */
     pThis->svga.u32RegCaps = SVGA_CAP_GMR | SVGA_CAP_GMR2 | SVGA_CAP_CURSOR | SVGA_CAP_CURSOR_BYPASS_2 | SVGA_CAP_EXTENDED_FIFO | SVGA_CAP_IRQMASK | SVGA_CAP_PITCHLOCK | SVGA_CAP_TRACES | SVGA_CAP_SCREEN_OBJECT_2 | SVGA_CAP_ALPHA_CURSOR;
@@ -4601,8 +4952,11 @@ int vmsvgaDestruct(PPDMDEVINS pDevIns)
     /*
      * Free our resources residing in the VGA state.
      */
-    if (pThis->svga.pFrameBufferBackup)
-        RTMemFree(pThis->svga.pFrameBufferBackup);
+    if (pThis->svga.pbVgaFrameBufferR3)
+    {
+        RTMemFree(pThis->svga.pbVgaFrameBufferR3);
+        pThis->svga.pbVgaFrameBufferR3 = NULL;
+    }
     if (pThis->svga.FIFOExtCmdSem != NIL_RTSEMEVENT)
     {
         RTSemEventDestroy(pThis->svga.FIFOExtCmdSem);
@@ -4638,8 +4992,8 @@ int vmsvgaInit(PPDMDEVINS pDevIns)
     pSVGAState = pThis->svga.pSvgaR3State;
 
     /* Necessary for creating a backup of the text mode frame buffer when switching into svga mode. */
-    pThis->svga.pFrameBufferBackup = RTMemAllocZ(VMSVGA_FRAMEBUFFER_BACKUP_SIZE);
-    AssertReturn(pThis->svga.pFrameBufferBackup, VERR_NO_MEMORY);
+    pThis->svga.pbVgaFrameBufferR3 = (uint8_t *)RTMemAllocZ(VMSVGA_VGA_FB_BACKUP_SIZE);
+    AssertReturn(pThis->svga.pbVgaFrameBufferR3, VERR_NO_MEMORY);
 
     /* Create event semaphore. */
     pThis->svga.pSupDrvSession = PDMDevHlpGetSupDrvSession(pDevIns);

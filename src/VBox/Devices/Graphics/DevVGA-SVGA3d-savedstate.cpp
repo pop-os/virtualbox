@@ -28,7 +28,7 @@
 #include <iprt/mem.h>
 
 #include <VBox/vmm/pgm.h> /* required by DevVGA.h */
-#include <VBox/VBoxVideo.h> /* required by DevVGA.h */
+#include <VBoxVideo.h> /* required by DevVGA.h */
 
 /* should go BEFORE any other DevVGA include to make all DevVGA.h config defines be visible */
 #include "DevVGA.h"
@@ -755,7 +755,7 @@ int vmsvga3dSaveExec(PVGASTATE pThis, PSSMHANDLE pSSM)
                         {
                         default:
                             AssertFailed();
-                            /* no break */
+                            RT_FALL_THRU();
                         case SVGA3D_SURFACE_HINT_DEPTHSTENCIL:
                         case SVGA3D_SURFACE_HINT_DEPTHSTENCIL | SVGA3D_SURFACE_HINT_TEXTURE:
                             /** @todo fetch data from the renderbuffer */

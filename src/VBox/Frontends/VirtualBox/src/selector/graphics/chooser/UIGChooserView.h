@@ -20,12 +20,14 @@
 
 /* GUI includes: */
 #include "QIGraphicsView.h"
+#include "QIWithRetranslateUI.h"
 
 /* Forward declarations: */
+class UIGChooser;
 class UIGChooserItem;
 
 /* Graphics chooser-view: */
-class UIGChooserView : public QIGraphicsView
+class UIGChooserView : public QIWithRetranslateUI<QIGraphicsView>
 {
     Q_OBJECT;
 
@@ -36,8 +38,12 @@ signals:
 
 public:
 
-    /* Constructor: */
-    UIGChooserView(QWidget *pParent);
+    /** Constructs a chooser-view passing @a pParent to the base-class.
+      * @param  pParent  Brings the chooser container to embed into. */
+    UIGChooserView(UIGChooser *pParent);
+
+    /** Returns the chooser reference. */
+    UIGChooser *chooser() const { return m_pChooser; }
 
 private slots:
 
@@ -50,11 +56,17 @@ private slots:
 
 private:
 
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */;
+
     /* Handler: Resize-event stuff: */
     void resizeEvent(QResizeEvent *pEvent);
 
     /* Helper: Update stuff: */
     void updateSceneRect();
+
+    /** Holds the chooser reference. */
+    UIGChooser *m_pChooser;
 
     /* Variables: */
     int m_iMinimumWidthHint;

@@ -28,6 +28,7 @@
         <file alias="os_win95_hidpi.png">images/hidpi/os_win95_hidpi.png</file>
         <file alias="os_win98_hidpi.png">images/hidpi/os_win98_hidpi.png</file>
         <file alias="os_win_other_hidpi.png">images/hidpi/os_win_other_hidpi.png</file>
+        <file alias="os_win_other_64_hidpi.png">images/hidpi/os_win_other_64_hidpi.png</file>
         <file alias="os_winme_hidpi.png">images/hidpi/os_winme_hidpi.png</file>
         <file alias="os_winnt4_hidpi.png">images/hidpi/os_winnt4_hidpi.png</file>
         <file alias="os_winvista_64_hidpi.png">images/hidpi/os_winvista_64_hidpi.png</file>
@@ -36,10 +37,6 @@
         <file alias="os_winxp_hidpi.png">images/hidpi/os_winxp_hidpi.png</file>
         <file alias="os_xandros_64_hidpi.png">images/hidpi/os_xandros_64_hidpi.png</file>
         <file alias="os_xandros_hidpi.png">images/hidpi/os_xandros_hidpi.png</file>
-        <file alias="parallel_port_16px_hidpi.png">images/hidpi/parallel_port_16px_hidpi.png</file>
-        <file alias="parallel_port_24px_hidpi.png">images/hidpi/parallel_port_24px_hidpi.png</file>
-        <file alias="parallel_port_32px_hidpi.png">images/hidpi/parallel_port_32px_hidpi.png</file>
-        <file alias="parallel_port_warning_16px_hidpi.png">images/hidpi/parallel_port_warning_16px_hidpi.png</file>
         <file alias="pin_16px_hidpi.png">images/hidpi/pin_16px_hidpi.png</file>
         <file alias="preview_empty_16to10_242x167px_hidpi.png">images/hidpi/preview_empty_16to10_242x167px_hidpi.png</file>
         <file alias="preview_empty_16to9_242x155px_hidpi.png">images/hidpi/preview_empty_16to9_242x155px_hidpi.png</file>
@@ -57,6 +54,8 @@
         <file alias="progress_install_guest_additions_90px_hidpi.png">images/hidpi/progress_install_guest_additions_90px_hidpi.png</file>
         <file alias="progress_media_create_90px_hidpi.png">images/hidpi/progress_media_create_90px_hidpi.png</file>
         <file alias="progress_media_delete_90px_hidpi.png">images/hidpi/progress_media_delete_90px_hidpi.png</file>
+        <file alias="progress_media_move_90px_hidpi.png">images/hidpi/progress_media_move_90px_hidpi.png</file>
+        <file alias="progress_media_resize_90px_hidpi.png">images/hidpi/progress_media_resize_90px_hidpi.png</file>
         <file alias="progress_network_interface_90px_hidpi.png">images/hidpi/progress_network_interface_90px_hidpi.png</file>
         <file alias="progress_poweroff_90px_hidpi.png">images/hidpi/progress_poweroff_90px_hidpi.png</file>
         <file alias="progress_reading_appliance_90px_hidpi.png">images/hidpi/progress_reading_appliance_90px_hidpi.png</file>
@@ -83,6 +82,8 @@
         <file alias="refresh_warning_16px_hidpi.png">images/hidpi/refresh_warning_16px_hidpi.png</file>
         <file alias="remove_host_iface_16px_hidpi.png">images/hidpi/remove_host_iface_16px_hidpi.png</file>
         <file alias="remove_host_iface_disabled_16px_hidpi.png">images/hidpi/remove_host_iface_disabled_16px_hidpi.png</file>
+        <file alias="remove_host_iface_22px_hidpi.png">images/hidpi/remove_host_iface_22px_hidpi.png</file>
+        <file alias="remove_host_iface_disabled_22px_hidpi.png">images/hidpi/remove_host_iface_disabled_22px_hidpi.png</file>
         <file alias="reset_warnings_16px_hidpi.png">images/hidpi/reset_warnings_16px_hidpi.png</file>
         <file alias="restore_16px_hidpi.png">images/hidpi/restore_16px_hidpi.png</file>
         <file alias="sata_16px_hidpi.png">images/hidpi/sata_16px_hidpi.png</file>
@@ -142,10 +143,16 @@
         <file alias="site_forum_16px_hidpi.png">images/hidpi/site_forum_16px_hidpi.png</file>
         <file alias="site_oracle_16px_hidpi.png">images/hidpi/site_oracle_16px_hidpi.png</file>
         <file alias="site_warning_16px_hidpi.png">images/hidpi/site_warning_16px_hidpi.png</file>
+        <file alias="snapshot_commit_details_16px_hidpi.png">images/hidpi/snapshot_commit_details_16px_hidpi.png</file>
+        <file alias="snapshot_commit_details_22px_hidpi.png">images/hidpi/snapshot_commit_details_22px_hidpi.png</file>
+        <file alias="snapshot_commit_details_disabled_16px_hidpi.png">images/hidpi/snapshot_commit_details_disabled_16px_hidpi.png</file>
+        <file alias="snapshot_commit_details_disabled_22px_hidpi.png">images/hidpi/snapshot_commit_details_disabled_22px_hidpi.png</file>
         <file alias="snapshot_delete_16px_hidpi.png">images/hidpi/snapshot_delete_16px_hidpi.png</file>
         <file alias="snapshot_delete_22px_hidpi.png">images/hidpi/snapshot_delete_22px_hidpi.png</file>
         <file alias="snapshot_delete_disabled_16px_hidpi.png">images/hidpi/snapshot_delete_disabled_16px_hidpi.png</file>
         <file alias="snapshot_delete_disabled_22px_hidpi.png">images/hidpi/snapshot_delete_disabled_22px_hidpi.png</file>
+        <file alias="snapshot_manager_16px_hidpi.png">images/hidpi/snapshot_manager_16px_hidpi.png</file>
+        <file alias="snapshot_manager_22px_hidpi.png">images/hidpi/snapshot_manager_22px_hidpi.png</file>
         <file alias="snapshot_offline_16px_hidpi.png">images/hidpi/snapshot_offline_16px_hidpi.png</file>
         <file alias="snapshot_online_16px_hidpi.png">images/hidpi/snapshot_online_16px_hidpi.png</file>
         <file alias="snapshot_restore_16px_hidpi.png">images/hidpi/snapshot_restore_16px_hidpi.png</file>
@@ -183,6 +190,10 @@
         <file alias="statusbar_on_disabled_16px_hidpi.png">images/hidpi/statusbar_on_disabled_16px_hidpi.png</file>
         <file alias="statusbar_settings_16px_hidpi.png">images/hidpi/statusbar_settings_16px_hidpi.png</file>
         <file alias="statusbar_settings_disabled_16px_hidpi.png">images/hidpi/statusbar_settings_disabled_16px_hidpi.png</file>
+        <file alias="tools_banner_global_200px_hidpi.png">images/hidpi/tools_banner_global_200px_hidpi.png</file>
+        <file alias="tools_banner_machine_200px_hidpi.png">images/hidpi/tools_banner_machine_200px_hidpi.png</file>
+        <file alias="tools_global_32px_hidpi.png">images/hidpi/tools_global_32px_hidpi.png</file>
+        <file alias="tools_machine_32px_hidpi.png">images/hidpi/tools_machine_32px_hidpi.png</file>
         <file alias="usb_16px_hidpi.png">images/hidpi/usb_16px_hidpi.png</file>
         <file alias="usb_24px_hidpi.png">images/hidpi/usb_24px_hidpi.png</file>
         <file alias="usb_32px_hidpi.png">images/hidpi/usb_32px_hidpi.png</file>
@@ -279,5 +290,6 @@
         <file alias="web_camera_disabled_16px_hidpi.png">images/hidpi/web_camera_disabled_16px_hidpi.png</file>
         <file alias="web_camera_unavailable_16px_hidpi.png">images/hidpi/web_camera_unavailable_16px_hidpi.png</file>
         <file alias="web_camera_unavailable_disabled_16px_hidpi.png">images/hidpi/web_camera_unavailable_disabled_16px_hidpi.png</file>
+        <file alias="welcome_200px_hidpi.png">images/hidpi/welcome_200px_hidpi.png</file>
     </qresource>
 </RCC>

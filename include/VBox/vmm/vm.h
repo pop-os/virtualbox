@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -155,7 +155,7 @@ typedef struct VMCPU
 #ifdef ___HMInternal_h
         struct HMCPU    s;
 #endif
-        uint8_t             padding[5760];      /* multiple of 64 */
+        uint8_t             padding[5824];      /* multiple of 64 */
     } hm;
 
     /** EM part. */
@@ -228,7 +228,7 @@ typedef struct VMCPU
 #ifdef ___GIMInternal_h
         struct GIMCPU s;
 #endif
-        uint8_t             padding[256];       /* multiple of 64 */
+        uint8_t             padding[512];       /* multiple of 64 */
     } gim;
 
     /** APIC part. */
@@ -237,7 +237,7 @@ typedef struct VMCPU
 #ifdef ___APICInternal_h
         struct APICCPU      s;
 #endif
-        uint8_t             padding[768];      /* multiple of 64 */
+        uint8_t             padding[1792];      /* multiple of 64 */
     } apic;
 
     /*
@@ -253,7 +253,7 @@ typedef struct VMCPU
     STAMPROFILEADV          aStatAdHoc[8];                          /* size: 40*8 = 320 */
 
     /** Align the following members on page boundary. */
-    uint8_t                 abAlignment2[3448];
+    uint8_t                 abAlignment2[2104];
 
     /** PGM part. */
     union VMCPUUNIONPGM
@@ -485,6 +485,8 @@ typedef struct VMCPU
 /** The bit number for VMCPU_FF_CPUM. */
 # define VMCPU_FF_CPUM_BIT                  30
 #endif /* VBOX_WITH_RAW_MODE */
+/** Hardware virtualized nested-guest interrupt pending. */
+#define VMCPU_FF_INTERRUPT_NESTED_GUEST     RT_BIT_32(31)
 
 /** Externally VM forced actions. Used to quit the idle/wait loop. */
 #define VM_FF_EXTERNAL_SUSPENDED_MASK           (  VM_FF_CHECK_VM_STATE | VM_FF_DBGF | VM_FF_REQUEST | VM_FF_EMT_RENDEZVOUS )
@@ -822,30 +824,32 @@ typedef struct VMCPU
 #if defined(IN_RC) || defined(IN_RING0)
 # define VMCPU_ASSERT_EMT_OR_NOT_RUNNING(pVCpu) \
     Assert(    VMCPU_IS_EMT(pVCpu) \
-           || !VM_IS_RUNNING((pVCpu)->CTX_SUFF(pVM)) )
+           || !VM_IS_RUNNING_FOR_ASSERTIONS_ONLY((pVCpu)->CTX_SUFF(pVM)) )
 #else
 # define VMCPU_ASSERT_EMT_OR_NOT_RUNNING(pVCpu) \
     AssertMsg(    VMCPU_IS_EMT(pVCpu) \
-              || !VM_IS_RUNNING((pVCpu)->CTX_SUFF(pVM)), \
+              || !VM_IS_RUNNING_FOR_ASSERTIONS_ONLY((pVCpu)->CTX_SUFF(pVM)), \
               ("Not emulation thread! Thread=%RTnthrd ThreadEMT=%RTnthrd idCpu=%#x\n", \
                RTThreadNativeSelf(), (pVCpu)->hNativeThread, (pVCpu)->idCpu))
 #endif
 
-/** @def VM_IS_RUNNING
+/** @def VM_IS_RUNNING_FOR_ASSERTIONS_ONLY
  * Checks if the the VM is running.
+ * @note Thie is only for pure debug assertions.  No AssertReturn or similar!
  */
-#define VM_IS_RUNNING(pVM)                  (   (pVM)->enmVMState == VMSTATE_RUNNING    \
-                                             || (pVM)->enmVMState == VMSTATE_RUNNING_LS \
-                                             || (pVM)->enmVMState == VMSTATE_RUNNING_FT)
+#define VM_IS_RUNNING_FOR_ASSERTIONS_ONLY(pVM) \
+    (   (pVM)->enmVMState == VMSTATE_RUNNING \
+     || (pVM)->enmVMState == VMSTATE_RUNNING_LS \
+     || (pVM)->enmVMState == VMSTATE_RUNNING_FT )
 
 /** @def VM_ASSERT_IS_NOT_RUNNING
  * Asserts that the VM is not running.
  */
 #if defined(IN_RC) || defined(IN_RING0)
-#define VM_ASSERT_IS_NOT_RUNNING(pVM)       Assert(!VM_IS_RUNNING(pVM))
+#define VM_ASSERT_IS_NOT_RUNNING(pVM)       Assert(!VM_IS_RUNNING_FOR_ASSERTIONS_ONLY(pVM))
 #else
-#define VM_ASSERT_IS_NOT_RUNNING(pVM)       AssertMsg(!VM_IS_RUNNING(pVM), ("VM is running. enmVMState=%d\n", \
-                                                      (pVM)->enmVMState))
+#define VM_ASSERT_IS_NOT_RUNNING(pVM)       AssertMsg(!VM_IS_RUNNING_FOR_ASSERTIONS_ONLY(pVM), \
+                                                      ("VM is running. enmVMState=%d\n", (pVM)->enmVMState))
 #endif
 
 /** @def VM_ASSERT_EMT0
@@ -1209,8 +1213,15 @@ typedef struct VM
             uint32_t                    cHardIntBreakpoints;
             /** Enabled software interrupt breakpoints. */
             uint32_t                    cSoftIntBreakpoints;
-            /** Number of selected events. */
+            /** The number of selected events. */
             uint32_t                    cSelectedEvents;
+            /** The number of enabled hardware breakpoints. */
+            uint8_t                     cEnabledHwBreakpoints;
+            /** The number of enabled hardware I/O breakpoints. */
+            uint8_t                     cEnabledHwIoBreakpoints;
+            /** The number of enabled INT3 breakpoints. */
+            uint8_t                     cEnabledInt3Breakpoints;
+            uint8_t                     abPadding[1]; /**< Unused padding space up for grabs. */
         } const     ro;
 #endif
         uint8_t     padding[2368];      /* multiple of 64 */

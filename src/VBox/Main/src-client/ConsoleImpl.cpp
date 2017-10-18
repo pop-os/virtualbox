@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2016 Oracle Corporation
+ * Copyright (C) 2005-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,6 +14,9 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
+
+#define LOG_GROUP LOG_GROUP_MAIN_CONSOLE
+#include "LoggingNew.h"
 
 /** @todo Move the TAP mess back into the driver! */
 #if defined(RT_OS_WINDOWS)
@@ -58,6 +61,9 @@
 #ifdef VBOX_WITH_VRDE_AUDIO
 # include "DrvAudioVRDE.h"
 #endif
+#ifdef VBOX_WITH_AUDIO_VIDEOREC
+# include "DrvAudioVideoRec.h"
+#endif
 #include "Nvram.h"
 #ifdef VBOX_WITH_USB_CARDREADER
 # include "UsbCardReader.h"
@@ -74,8 +80,11 @@
 
 #include "VBoxEvents.h"
 #include "AutoCaller.h"
-#include "Logging.h"
 #include "ThreadTask.h"
+
+#ifdef VBOX_WITH_VIDEOREC
+# include "VideoRec.h"
+#endif
 
 #include <VBox/com/array.h>
 #include "VBox/com/ErrorInfo.h"
@@ -97,6 +106,7 @@
 #include <VBox/vmm/vmapi.h>
 #include <VBox/vmm/vmm.h>
 #include <VBox/vmm/pdmapi.h>
+#include <VBox/vmm/pdmaudioifs.h>
 #include <VBox/vmm/pdmasynccompletion.h>
 #include <VBox/vmm/pdmnetifs.h>
 #include <VBox/vmm/pdmstorageifs.h>
@@ -391,6 +401,9 @@ Console::Console()
     , mpVmm2UserMethods(NULL)
     , m_pVMMDev(NULL)
     , mAudioVRDE(NULL)
+#ifdef VBOX_WITH_AUDIO_VIDEOREC
+    , mAudioVideoRec(NULL)
+#endif
     , mNvram(NULL)
 #ifdef VBOX_WITH_USB_CARDREADER
     , mUsbCardReader(NULL)
@@ -432,6 +445,7 @@ HRESULT Console::FinalConstruct()
     pVmm2UserMethods->pfnNotifyPdmtInit = Console::i_vmm2User_NotifyPdmtInit;
     pVmm2UserMethods->pfnNotifyPdmtTerm = Console::i_vmm2User_NotifyPdmtTerm;
     pVmm2UserMethods->pfnNotifyResetTurnedIntoPowerOff = Console::i_vmm2User_NotifyResetTurnedIntoPowerOff;
+    pVmm2UserMethods->pfnQueryGenericObject = Console::i_vmm2User_QueryGenericObject;
     pVmm2UserMethods->u32EndMagic       = VMM2USERMETHODS_MAGIC;
     pVmm2UserMethods->pConsole          = this;
     mpVmm2UserMethods = pVmm2UserMethods;
@@ -573,6 +587,10 @@ HRESULT Console::init(IMachine *aMachine, IInternalMachineControl *aControl, Loc
 #ifdef VBOX_WITH_VRDE_AUDIO
         unconst(mAudioVRDE) = new AudioVRDE(this);
         AssertReturn(mAudioVRDE, E_FAIL);
+#endif
+#ifdef VBOX_WITH_AUDIO_VIDEOREC
+        unconst(mAudioVideoRec) = new AudioVideoRec(this);
+        AssertReturn(mAudioVideoRec, E_FAIL);
 #endif
         FirmwareType_T enmFirmwareType;
         mMachine->COMGETTER(FirmwareType)(&enmFirmwareType);
@@ -718,6 +736,14 @@ void Console::uninit()
     }
 #endif
 
+#ifdef VBOX_WITH_AUDIO_VIDEOREC
+    if (mAudioVideoRec)
+    {
+        delete mAudioVideoRec;
+        unconst(mAudioVideoRec) = NULL;
+    }
+#endif
+
     // if the VM had a VMMDev with an HGCM thread, then remove that here
     if (m_pVMMDev)
     {
@@ -799,6 +825,10 @@ void Console::uninit()
 
     // we don't perform uninit() as it's possible that some pending event refers to this source
     unconst(mEventSource).setNull();
+
+#ifdef VBOX_WITH_EXTPACK
+    unconst(mptrExtPackManager).setNull();
+#endif
 
     LogFlowThisFuncLeave();
 }
@@ -1127,7 +1157,7 @@ int Console::i_VRDPClientLogon(uint32_t u32ClientId, const char *pszUser, const 
 
             LogFlowFunc(("External auth asked for guest judgement\n"));
         }
-        /* fall thru */
+        RT_FALL_THRU();
 
         case AuthType_Guest:
         {
@@ -1568,7 +1598,8 @@ HRESULT Console::i_loadDataFromSavedState()
  * Callback handler to save various console data to the state file,
  * called when the user saves the VM state.
  *
- * @param pvUser       pointer to Console
+ * @param pSSM      SSM handle.
+ * @param pvUser    pointer to Console
  *
  * @note Locks the Console object for reading.
  */
@@ -1622,6 +1653,7 @@ DECLCALLBACK(void) Console::i_saveStateFileExec(PSSMHANDLE pSSM, void *pvUser)
  * Callback handler to load various console data from the state file.
  * Called when the VM is being restored from the saved state.
  *
+ * @param pSSM         SSM handle.
  * @param pvUser       pointer to Console
  * @param uVersion     Console unit version.
  *                     Should match sSSMConsoleVer.
@@ -1648,9 +1680,9 @@ Console::i_loadStateFileExec(PSSMHANDLE pSSM, void *pvUser, uint32_t uVersion, u
 
 /**
  * Method to load various console data from the state file.
- * Called from #loadDataFromSavedState.
+ * Called from #i_loadDataFromSavedState.
  *
- * @param pvUser       pointer to Console
+ * @param pSSM         SSM handle.
  * @param u32Version   Console unit version.
  *                     Should match sSSMConsoleVer.
  *
@@ -3247,7 +3279,7 @@ HRESULT Console::i_setInvalidMachineStateError()
 
 
 /* static */
-const char *Console::i_convertControllerTypeToDev(StorageControllerType_T enmCtrlType)
+const char *Console::i_storageControllerTypeToStr(StorageControllerType_T enmCtrlType)
 {
     switch (enmCtrlType)
     {
@@ -3274,7 +3306,7 @@ const char *Console::i_convertControllerTypeToDev(StorageControllerType_T enmCtr
     }
 }
 
-HRESULT Console::i_convertBusPortDeviceToLun(StorageBus_T enmBus, LONG port, LONG device, unsigned &uLun)
+HRESULT Console::i_storageBusPortDeviceToLun(StorageBus_T enmBus, LONG port, LONG device, unsigned &uLun)
 {
     switch (enmBus)
     {
@@ -3318,7 +3350,7 @@ HRESULT Console::i_convertBusPortDeviceToLun(StorageBus_T enmBus, LONG port, LON
  * @param pUVM              Safe VM handle.
  * @param pAlock            The automatic lock instance. This is for when we have
  *                          to leave it in order to avoid deadlocks.
- * @param pfSuspend         where to store the information if we need to resume
+ * @param pfResume          where to store the information if we need to resume
  *                          afterwards.
  */
 HRESULT Console::i_suspendBeforeConfigChange(PUVM pUVM, AutoWriteLock *pAlock, bool *pfResume)
@@ -3445,7 +3477,7 @@ HRESULT Console::i_doMediumChange(IMediumAttachment *aMediumAttachment, bool fFo
     StorageControllerType_T enmCtrlType;
     rc = pStorageController->COMGETTER(ControllerType)(&enmCtrlType);
     AssertComRC(rc);
-    pszDevice = i_convertControllerTypeToDev(enmCtrlType);
+    pszDevice = i_storageControllerTypeToStr(enmCtrlType);
 
     StorageBus_T enmBus;
     rc = pStorageController->COMGETTER(Bus)(&enmBus);
@@ -3514,14 +3546,10 @@ HRESULT Console::i_doMediumChange(IMediumAttachment *aMediumAttachment, bool fFo
  * @param   pUVM            The VM handle.
  * @param   pcszDevice      The PDM device name.
  * @param   uInstance       The PDM device instance.
- * @param   uLun            The PDM LUN number of the drive.
- * @param   fHostDrive      True if this is a host drive attachment.
- * @param   pszPath         The path to the media / drive which is now being mounted / captured.
- *                          If NULL no media or drive is attached and the LUN will be configured with
- *                          the default block driver with no media. This will also be the state if
- *                          mounting / capturing the specified media / drive fails.
- * @param   pszFormat       Medium format string, usually "RAW".
- * @param   fPassthrough    Enables using passthrough mode of the host DVD drive if applicable.
+ * @param   enmBus          The storage bus type of the controller.
+ * @param   fUseHostIOCache Whether to use the host I/O cache (disable async I/O).
+ * @param   aMediumAtt      The medium attachment.
+ * @param   fForce          Force unmounting.
  *
  * @thread  EMT
  * @note The VM must not be running since it might have pending I/O to the drive which is being changed.
@@ -3555,6 +3583,7 @@ DECLCALLBACK(int) Console::i_changeRemovableMedium(Console *pThis,
                                              fUseHostIOCache,
                                              false /* fSetupMerge */,
                                              false /* fBuiltinIOCache */,
+                                             false /* fInsertDiskIntegrityDrv. */,
                                              0 /* uMergeSource */,
                                              0 /* uMergeTarget */,
                                              aMediumAtt,
@@ -3626,7 +3655,7 @@ HRESULT Console::i_doStorageDeviceAttach(IMediumAttachment *aMediumAttachment, P
     StorageControllerType_T enmCtrlType;
     rc = pStorageController->COMGETTER(ControllerType)(&enmCtrlType);
     AssertComRC(rc);
-    pszDevice = i_convertControllerTypeToDev(enmCtrlType);
+    pszDevice = i_storageControllerTypeToStr(enmCtrlType);
 
     StorageBus_T enmBus;
     rc = pStorageController->COMGETTER(Bus)(&enmBus);
@@ -3696,6 +3725,9 @@ HRESULT Console::i_doStorageDeviceAttach(IMediumAttachment *aMediumAttachment, P
  * @param   pUVM            The VM handle.
  * @param   pcszDevice      The PDM device name.
  * @param   uInstance       The PDM device instance.
+ * @param   enmBus          The storage bus type of the controller.
+ * @param   fUseHostIOCache Whether to use the host I/O cache (disable async I/O).
+ * @param   aMediumAtt      The medium attachment.
  * @param   fSilent         Flag whether to inform the guest about the attached device.
  *
  * @thread  EMT
@@ -3730,6 +3762,7 @@ DECLCALLBACK(int) Console::i_attachStorageDevice(Console *pThis,
                                              fUseHostIOCache,
                                              false /* fSetupMerge */,
                                              false /* fBuiltinIOCache */,
+                                             false /* fInsertDiskIntegrityDrv. */,
                                              0 /* uMergeSource */,
                                              0 /* uMergeTarget */,
                                              aMediumAtt,
@@ -3800,7 +3833,7 @@ HRESULT Console::i_doStorageDeviceDetach(IMediumAttachment *aMediumAttachment, P
     StorageControllerType_T enmCtrlType;
     rc = pStorageController->COMGETTER(ControllerType)(&enmCtrlType);
     AssertComRC(rc);
-    pszDevice = i_convertControllerTypeToDev(enmCtrlType);
+    pszDevice = i_storageControllerTypeToStr(enmCtrlType);
 
     StorageBus_T enmBus;
     rc = pStorageController->COMGETTER(Bus)(&enmBus);
@@ -3866,6 +3899,8 @@ HRESULT Console::i_doStorageDeviceDetach(IMediumAttachment *aMediumAttachment, P
  * @param   pUVM            The VM handle.
  * @param   pcszDevice      The PDM device name.
  * @param   uInstance       The PDM device instance.
+ * @param   enmBus          The storage bus type of the controller.
+ * @param   pMediumAtt      Pointer to the medium attachment.
  * @param   fSilent         Flag whether to notify the guest about the detached device.
  *
  * @thread  EMT
@@ -3912,7 +3947,7 @@ DECLCALLBACK(int) Console::i_detachStorageDevice(Console *pThis,
     hrc = pMediumAtt->COMGETTER(Device)(&lDev);                             H();
     hrc = pMediumAtt->COMGETTER(Port)(&lPort);                              H();
     hrc = pMediumAtt->COMGETTER(Type)(&lType);                              H();
-    hrc = Console::i_convertBusPortDeviceToLun(enmBus, lPort, lDev, uLUN);  H();
+    hrc = Console::i_storageBusPortDeviceToLun(enmBus, lPort, lDev, uLUN);  H();
 
 #undef H
 
@@ -4390,14 +4425,14 @@ HRESULT Console::i_initSecretKeyIfOnAllAttachments(void)
         StorageControllerType_T enmCtrlType;
         hrc = pStorageCtrl->COMGETTER(ControllerType)(&enmCtrlType);
         AssertComRC(hrc);
-        const char *pcszDevice = i_convertControllerTypeToDev(enmCtrlType);
+        const char *pcszDevice = i_storageControllerTypeToStr(enmCtrlType);
 
         StorageBus_T enmBus;
         hrc = pStorageCtrl->COMGETTER(Bus)(&enmBus);
         AssertComRC(hrc);
 
         unsigned uLUN;
-        hrc = Console::i_convertBusPortDeviceToLun(enmBus, lPort, lDev, uLUN);
+        hrc = Console::i_storageBusPortDeviceToLun(enmBus, lPort, lDev, uLUN);
         AssertComRC(hrc);
 
         PPDMIBASE pIBase = NULL;
@@ -4425,7 +4460,7 @@ HRESULT Console::i_initSecretKeyIfOnAllAttachments(void)
  * Useful when changing the key store or dropping it.
  *
  * @returns COM status code.
- * @param   aId    The ID to look for.
+ * @param   strId    The ID to look for.
  */
 HRESULT Console::i_clearDiskEncryptionKeysOnAllAttachmentsWithKeyId(const Utf8Str &strId)
 {
@@ -4502,14 +4537,14 @@ HRESULT Console::i_clearDiskEncryptionKeysOnAllAttachmentsWithKeyId(const Utf8St
             StorageControllerType_T enmCtrlType;
             hrc = pStorageCtrl->COMGETTER(ControllerType)(&enmCtrlType);
             AssertComRC(hrc);
-            const char *pcszDevice = i_convertControllerTypeToDev(enmCtrlType);
+            const char *pcszDevice = i_storageControllerTypeToStr(enmCtrlType);
 
             StorageBus_T enmBus;
             hrc = pStorageCtrl->COMGETTER(Bus)(&enmBus);
             AssertComRC(hrc);
 
             unsigned uLUN;
-            hrc = Console::i_convertBusPortDeviceToLun(enmBus, lPort, lDev, uLUN);
+            hrc = Console::i_storageBusPortDeviceToLun(enmBus, lPort, lDev, uLUN);
             AssertComRC(hrc);
 
             PPDMIBASE pIBase = NULL;
@@ -4625,14 +4660,14 @@ HRESULT Console::i_configureEncryptionForDisk(const com::Utf8Str &strId, unsigne
             StorageControllerType_T enmCtrlType;
             hrc = pStorageCtrl->COMGETTER(ControllerType)(&enmCtrlType);
             AssertComRC(hrc);
-            const char *pcszDevice = i_convertControllerTypeToDev(enmCtrlType);
+            const char *pcszDevice = i_storageControllerTypeToStr(enmCtrlType);
 
             StorageBus_T enmBus;
             hrc = pStorageCtrl->COMGETTER(Bus)(&enmBus);
             AssertComRC(hrc);
 
             unsigned uLUN;
-            hrc = Console::i_convertBusPortDeviceToLun(enmBus, lPort, lDev, uLUN);
+            hrc = Console::i_storageBusPortDeviceToLun(enmBus, lPort, lDev, uLUN);
             AssertComRCReturnRC(hrc);
 
             PPDMIBASE pIBase = NULL;
@@ -4686,8 +4721,9 @@ HRESULT Console::i_configureEncryptionForDisk(const com::Utf8Str &strId, unsigne
 /**
  * Parses the encryption configuration for one disk.
  *
- * @returns Pointer to the string following encryption configuration.
- * @param   psz    Pointer to the configuration for the encryption of one disk.
+ * @returns COM status code.
+ * @param   psz     Pointer to the configuration for the encryption of one disk.
+ * @param   ppszEnd Pointer to the string following encrpytion configuration.
  */
 HRESULT Console::i_consoleParseDiskEncryption(const char *psz, const char **ppszEnd)
 {
@@ -4824,7 +4860,7 @@ void Console::i_removeSecretKeysOnSuspend()
  *
  * @returns COM status code.
  *
- * @parma   pUVM                The VM handle (caller hold this safely).
+ * @param   pUVM                The VM handle (caller hold this safely).
  * @param   pszDevice           The PDM device name.
  * @param   uInstance           The PDM device instance.
  * @param   uLun                The PDM LUN number of the drive.
@@ -4937,6 +4973,116 @@ DECLCALLBACK(int) Console::i_changeNetworkAttachment(Console *pThis,
     return rc;
 }
 
+/**
+ * Returns the device name of a given audio adapter.
+ *
+ * @returns Device name, or an empty string if no device is configured.
+ * @param   aAudioAdapter       Audio adapter to return device name for.
+ */
+Utf8Str Console::i_getAudioAdapterDeviceName(IAudioAdapter *aAudioAdapter)
+{
+    Utf8Str strDevice;
+
+    AudioControllerType_T audioController;
+    HRESULT hrc = aAudioAdapter->COMGETTER(AudioController)(&audioController);
+    AssertComRC(hrc);
+    if (SUCCEEDED(hrc))
+    {
+        switch (audioController)
+        {
+            case AudioControllerType_HDA:  strDevice = "hda";     break;
+            case AudioControllerType_AC97: strDevice = "ichac97"; break;
+            case AudioControllerType_SB16: strDevice = "sb16";    break;
+            default:                                              break; /* None. */
+        }
+    }
+
+    return strDevice;
+}
+
+/**
+ * Called by IInternalSessionControl::OnAudioAdapterChange().
+ */
+HRESULT Console::i_onAudioAdapterChange(IAudioAdapter *aAudioAdapter)
+{
+    LogFlowThisFunc(("\n"));
+
+    AutoCaller autoCaller(this);
+    AssertComRCReturnRC(autoCaller.rc());
+
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
+    HRESULT hrc = S_OK;
+
+    /* don't trigger audio changes if the VM isn't running */
+    SafeVMPtrQuiet ptrVM(this);
+    if (ptrVM.isOk())
+    {
+        BOOL fEnabledIn, fEnabledOut;
+        hrc = aAudioAdapter->COMGETTER(EnabledIn)(&fEnabledIn);
+        AssertComRC(hrc);
+        if (SUCCEEDED(hrc))
+        {
+            hrc = aAudioAdapter->COMGETTER(EnabledOut)(&fEnabledOut);
+            AssertComRC(hrc);
+            if (SUCCEEDED(hrc))
+            {
+                int rc = VINF_SUCCESS;
+
+                for (ULONG ulLUN = 0; ulLUN < 16 /** @todo Use a define */; ulLUN++)
+                {
+                    PPDMIBASE pBase;
+                    int rc2 = PDMR3QueryDriverOnLun(ptrVM.rawUVM(),
+                                                    i_getAudioAdapterDeviceName(aAudioAdapter).c_str(), 0 /* iInstance */,
+                                                    ulLUN, "AUDIO", &pBase);
+                    if (RT_FAILURE(rc2))
+                        continue;
+
+                    if (pBase)
+                    {
+                        PPDMIAUDIOCONNECTOR pAudioCon =
+                             (PPDMIAUDIOCONNECTOR)pBase->pfnQueryInterface(pBase, PDMIAUDIOCONNECTOR_IID);
+
+                        if (   pAudioCon
+                            && pAudioCon->pfnEnable)
+                        {
+                            int rcIn = pAudioCon->pfnEnable(pAudioCon, PDMAUDIODIR_IN, RT_BOOL(fEnabledIn));
+                            if (RT_FAILURE(rcIn))
+                                LogRel(("Audio: Failed to %s input of LUN#%RU32, rc=%Rrc\n",
+                                        fEnabledIn ? "enable" : "disable", ulLUN, rcIn));
+
+                            if (RT_SUCCESS(rc))
+                                rc = rcIn;
+
+                            int rcOut = pAudioCon->pfnEnable(pAudioCon, PDMAUDIODIR_OUT, RT_BOOL(fEnabledOut));
+                            if (RT_FAILURE(rcOut))
+                                LogRel(("Audio: Failed to %s output of LUN#%RU32, rc=%Rrc\n",
+                                        fEnabledIn ? "enable" : "disable", ulLUN, rcOut));
+
+                            if (RT_SUCCESS(rc))
+                                rc = rcOut;
+                        }
+                    }
+                }
+
+                if (RT_SUCCESS(rc))
+                    LogRel(("Audio: Status has changed (input is %s, output is %s)\n",
+                            fEnabledIn  ? "enabled" : "disabled", fEnabledOut ? "enabled" : "disabled"));
+            }
+        }
+
+        ptrVM.release();
+    }
+
+    alock.release();
+
+    /* notify console callbacks on success */
+    if (SUCCEEDED(hrc))
+        fireAudioAdapterChangedEvent(mEventSource, aAudioAdapter);
+
+    LogFlowThisFunc(("Leaving rc=%#x\n", S_OK));
+    return S_OK;
+}
 
 /**
  * Called by IInternalSessionControl::OnSerialPortChange().
@@ -5357,38 +5503,45 @@ HRESULT Console::i_onVideoCaptureChange()
 
     HRESULT rc = S_OK;
 
-    /* don't trigger video capture changes if the VM isn't running */
+#ifdef VBOX_WITH_VIDEOREC
+    /* Don't trigger video capture changes if the VM isn't running. */
     SafeVMPtrQuiet ptrVM(this);
     if (ptrVM.isOk())
     {
-        BOOL fEnabled;
-        rc = mMachine->COMGETTER(VideoCaptureEnabled)(&fEnabled);
-        SafeArray<BOOL> screens;
-        if (SUCCEEDED(rc))
-            rc = mMachine->COMGETTER(VideoCaptureScreens)(ComSafeArrayAsOutParam(screens));
         if (mDisplay)
         {
-            int vrc = VINF_SUCCESS;
-            if (SUCCEEDED(rc))
-                vrc = mDisplay->i_VideoCaptureEnableScreens(ComSafeArrayAsInParam(screens));
+            Display *pDisplay = mDisplay;
+            AssertPtr(pDisplay);
+
+            /* Release lock because the call scheduled on EMT may also try to take it. */
+            alock.release();
+
+            int vrc = VMR3ReqCallWaitU(ptrVM.rawUVM(), VMCPUID_ANY /*idDstCpu*/,
+                                       (PFNRT)Display::i_videoRecConfigure, 3,
+                                       pDisplay, pDisplay->i_videoRecGetConfig(), true /* fAttachDetach */);
             if (RT_SUCCESS(vrc))
             {
-                if (fEnabled)
+                /* Make sure to acquire the lock again after we're done running in EMT. */
+                alock.acquire();
+
+                if (!mDisplay->i_videoRecStarted())
                 {
-                    vrc = mDisplay->i_VideoCaptureStart();
+                    vrc = mDisplay->i_videoRecStart();
                     if (RT_FAILURE(vrc))
                         rc = setError(E_FAIL, tr("Unable to start video capturing (%Rrc)"), vrc);
                 }
                 else
-                    mDisplay->i_VideoCaptureStop();
+                    mDisplay->i_videoRecStop();
             }
             else
                 rc = setError(E_FAIL, tr("Unable to set screens for capturing (%Rrc)"), vrc);
         }
+
         ptrVM.release();
     }
+#endif /* VBOX_WITH_VIDEOREC */
 
-    /* notify console callbacks on success */
+    /* Notify console callbacks on success. */
     if (SUCCEEDED(rc))
     {
         alock.release();
@@ -5447,10 +5600,10 @@ HRESULT Console::i_onSharedFolderChange(BOOL aGlobal)
  * @return S_OK if the device was attached to the VM.
  * @return failure if not attached.
  *
- * @param aDevice
- *     The device in question.
- * @param aMaskedIfs
- *     The interfaces to hide from the guest.
+ * @param aDevice       The device in question.
+ * @param aError        Error information.
+ * @param aMaskedIfs    The interfaces to hide from the guest.
+ * @param aCaptureFilename File name where to store the USB traffic.
  *
  * @note Locks this object for writing.
  */
@@ -6043,7 +6196,7 @@ HRESULT Console::i_onlineMergeMedium(IMediumAttachment *aMediumAttachment,
     StorageControllerType_T enmCtrlType;
     rc = pStorageController->COMGETTER(ControllerType)(&enmCtrlType);
     AssertComRC(rc);
-    const char *pcszDevice = i_convertControllerTypeToDev(enmCtrlType);
+    const char *pcszDevice = i_storageControllerTypeToStr(enmCtrlType);
 
     StorageBus_T enmBus;
     rc = pStorageController->COMGETTER(Bus)(&enmBus);
@@ -6056,7 +6209,7 @@ HRESULT Console::i_onlineMergeMedium(IMediumAttachment *aMediumAttachment,
     AssertComRC(rc);
 
     unsigned uLUN;
-    rc = Console::i_convertBusPortDeviceToLun(enmBus, lPort, lDev, uLUN);
+    rc = Console::i_storageBusPortDeviceToLun(enmBus, lPort, lDev, uLUN);
     AssertComRCReturnRC(rc);
 
     Assert(mMachineState == MachineState_DeletingSnapshotOnline);
@@ -6067,12 +6220,20 @@ HRESULT Console::i_onlineMergeMedium(IMediumAttachment *aMediumAttachment,
     if (FAILED(rc))
         return rc;
 
+    bool fInsertDiskIntegrityDrv = false;
+    Bstr strDiskIntegrityFlag;
+    rc = mMachine->GetExtraData(Bstr("VBoxInternal2/EnableDiskIntegrityDriver").raw(),
+                                strDiskIntegrityFlag.asOutParam());
+    if (   rc   == S_OK
+        && strDiskIntegrityFlag == "1")
+        fInsertDiskIntegrityDrv = true;
+
     alock.release();
     vrc = VMR3ReqCallWaitU(ptrVM.rawUVM(), VMCPUID_ANY,
-                           (PFNRT)i_reconfigureMediumAttachment, 13,
+                           (PFNRT)i_reconfigureMediumAttachment, 14,
                            this, ptrVM.rawUVM(), pcszDevice, uInstance, enmBus, fUseHostIOCache,
-                           fBuiltinIOCache, true /* fSetupMerge */, aSourceIdx, aTargetIdx,
-                           aMediumAttachment, mMachineState, &rc);
+                           fBuiltinIOCache, fInsertDiskIntegrityDrv, true /* fSetupMerge */,
+                           aSourceIdx, aTargetIdx, aMediumAttachment, mMachineState, &rc);
     /* error handling is after resuming the VM */
 
     if (fResume)
@@ -6114,10 +6275,11 @@ HRESULT Console::i_onlineMergeMedium(IMediumAttachment *aMediumAttachment,
     rc = mControl->FinishOnlineMergeMedium();
 
     vrc = VMR3ReqCallWaitU(ptrVM.rawUVM(), VMCPUID_ANY,
-                           (PFNRT)i_reconfigureMediumAttachment, 13,
+                           (PFNRT)i_reconfigureMediumAttachment, 14,
                            this, ptrVM.rawUVM(), pcszDevice, uInstance, enmBus, fUseHostIOCache,
-                           fBuiltinIOCache, false /* fSetupMerge */, 0 /* uMergeSource */,
-                           0 /* uMergeTarget */, aMediumAttachment, mMachineState, &rc);
+                           fBuiltinIOCache, fInsertDiskIntegrityDrv, false /* fSetupMerge */,
+                           0 /* uMergeSource */, 0 /* uMergeTarget */, aMediumAttachment,
+                           mMachineState, &rc);
     /* error handling is after resuming the VM */
 
     if (fResume)
@@ -6181,21 +6343,30 @@ HRESULT Console::i_reconfigureMediumAttachments(const std::vector<ComPtr<IMedium
         if (FAILED(rc))
             throw rc;
 
-        const char *pcszDevice = i_convertControllerTypeToDev(enmController);
+        const char *pcszDevice = i_storageControllerTypeToStr(enmController);
 
         BOOL fBuiltinIOCache;
         rc = mMachine->COMGETTER(IOCacheEnabled)(&fBuiltinIOCache);
         if (FAILED(rc))
             throw rc;
 
+        bool fInsertDiskIntegrityDrv = false;
+        Bstr strDiskIntegrityFlag;
+        rc = mMachine->GetExtraData(Bstr("VBoxInternal2/EnableDiskIntegrityDriver").raw(),
+                                    strDiskIntegrityFlag.asOutParam());
+        if (   rc   == S_OK
+            && strDiskIntegrityFlag == "1")
+            fInsertDiskIntegrityDrv = true;
+
         alock.release();
 
         IMediumAttachment *pAttachment = aAttachments[i];
         int vrc = VMR3ReqCallWaitU(ptrVM.rawUVM(), VMCPUID_ANY,
-                                   (PFNRT)i_reconfigureMediumAttachment, 13,
+                                   (PFNRT)i_reconfigureMediumAttachment, 14,
                                    this, ptrVM.rawUVM(), pcszDevice, lInstance, enmBus, fUseHostIOCache,
-                                   fBuiltinIOCache, false /* fSetupMerge */, 0 /* uMergeSource */,
-                                   0 /* uMergeTarget */, pAttachment, mMachineState, &rc);
+                                   fBuiltinIOCache, fInsertDiskIntegrityDrv,
+                                   false /* fSetupMerge */, 0 /* uMergeSource */, 0 /* uMergeTarget */,
+                                   pAttachment, mMachineState, &rc);
         if (RT_FAILURE(vrc))
             throw setError(E_FAIL, tr("%Rrc"), vrc);
         if (FAILED(rc))
@@ -6405,13 +6576,16 @@ HRESULT Console::i_resume(Reason_T aReason, AutoWriteLock &alock)
  *
  * @note Locks this object for writing.
  */
-HRESULT Console::i_saveState(Reason_T aReason, const ComPtr<IProgress> &aProgress, const Utf8Str &aStateFilePath, bool aPauseVM, bool &aLeftPaused)
+HRESULT Console::i_saveState(Reason_T aReason, const ComPtr<IProgress> &aProgress,
+                             const ComPtr<ISnapshot> &aSnapshot,
+                             const Utf8Str &aStateFilePath, bool aPauseVM, bool &aLeftPaused)
 {
     LogFlowThisFuncEnter();
     aLeftPaused = false;
 
     AssertReturn(!aProgress.isNull(), E_INVALIDARG);
     AssertReturn(!aStateFilePath.isEmpty(), E_INVALIDARG);
+    Assert(aSnapshot.isNull() || aReason == Reason_Snapshot);
 
     AutoCaller autoCaller(this);
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
@@ -6479,6 +6653,7 @@ HRESULT Console::i_saveState(Reason_T aReason, const ComPtr<IProgress> &aProgres
 
     LogFlowFunc(("Saving the state to '%s'...\n", aStateFilePath.c_str()));
 
+    mpVmm2UserMethods->pISnapshot = aSnapshot;
     mptrCancelableProgress = aProgress;
     alock.release();
     int vrc = VMR3Save(ptrVM.rawUVM(),
@@ -6488,6 +6663,7 @@ HRESULT Console::i_saveState(Reason_T aReason, const ComPtr<IProgress> &aProgres
                        static_cast<IProgress *>(aProgress),
                        &aLeftPaused);
     alock.acquire();
+    mpVmm2UserMethods->pISnapshot = NULL;
     mptrCancelableProgress.setNull();
     if (RT_FAILURE(vrc))
     {
@@ -6551,6 +6727,27 @@ HRESULT Console::i_cancelSaveState()
     LogFlowFuncLeave();
     return S_OK;
 }
+
+#ifdef VBOX_WITH_AUDIO_VIDEOREC
+/**
+ * Sends audio (frame) data to the display's video capturing routines.
+ *
+ * @returns HRESULT
+ * @param   pvData              Audio data to send.
+ * @param   cbData              Size (in bytes) of audio data to send.
+ * @param   uDurationMs         Duration (in ms) of audio data.
+ */
+HRESULT Console::i_audioVideoRecSendAudio(const void *pvData, size_t cbData, uint64_t uDurationMs)
+{
+    if (mDisplay)
+    {
+        int rc2 = mDisplay->i_videoRecSendAudio(pvData, cbData, uDurationMs);
+        AssertRC(rc2);
+    }
+
+    return S_OK;
+}
+#endif /* VBOX_WITH_AUDIO_VIDEOREC */
 
 /**
  * Gets called by Session::UpdateMachineState()
@@ -7868,7 +8065,7 @@ HRESULT Console::i_setMachineState(MachineState_T aMachineState,
  * Searches for a shared folder with the given logical name
  * in the collection of shared folders.
  *
- * @param aName            logical name of the shared folder
+ * @param strName          logical name of the shared folder
  * @param aSharedFolder    where to return the found object
  * @param aSetError        whether to set the error info if the folder is
  *                         not found
@@ -8045,7 +8242,7 @@ HRESULT Console::i_fetchSharedFolders(BOOL aGlobal)
  * Searches for a shared folder with the given name in the list of machine
  * shared folders and then in the list of the global shared folders.
  *
- * @param aName    Name of the folder to search for.
+ * @param strName  Name of the folder to search for.
  * @param aIt      Where to store the pointer to the found folder.
  * @return         @c true if the folder was found and @c false otherwise.
  *
@@ -8073,8 +8270,8 @@ bool Console::i_findOtherSharedFolder(const Utf8Str &strName,
 /**
  * Calls the HGCM service to add a shared folder definition.
  *
- * @param aName        Shared folder name.
- * @param aHostPath    Shared folder path.
+ * @param strName      Shared folder name.
+ * @param aData        Shared folder data.
  *
  * @note Must be called from under AutoVMCaller and when mpUVM != NULL!
  * @note Doesn't lock anything.
@@ -8186,7 +8383,7 @@ HRESULT Console::i_createSharedFolder(const Utf8Str &strName, const SharedFolder
 /**
  * Calls the HGCM service to remove the shared folder definition.
  *
- * @param aName        Shared folder name.
+ * @param strName       Shared folder name.
  *
  * @note Must be called from under AutoVMCaller and when mpUVM != NULL!
  * @note Doesn't lock anything.
@@ -8385,7 +8582,7 @@ DECLCALLBACK(void) Console::i_vmstateChangeCallback(PUVM pUVM, VMSTATE enmState,
             {
                 default:
                     AssertFailed();
-                    /* fall through */
+                    RT_FALL_THRU();
                 case MachineState_Stopping:
                     /* successfully powered down */
                     that->i_setMachineState(MachineState_PoweredOff);
@@ -9218,7 +9415,7 @@ DECLCALLBACK(int) Console::i_stateProgressCallback(PUVM pUVM, unsigned uPercent,
  */
 /*static*/ DECLCALLBACK(void)
 Console::i_genericVMSetErrorCallback(PUVM pUVM, void *pvUser, int rc, RT_SRC_POS_DECL,
-                                     const char *pszErrorFmt, va_list va)
+                                     const char *pszFormat, va_list args)
 {
     RT_SRC_POS_NOREF();
     Utf8Str *pErrorText = (Utf8Str *)pvUser;
@@ -9226,14 +9423,14 @@ Console::i_genericVMSetErrorCallback(PUVM pUVM, void *pvUser, int rc, RT_SRC_POS
 
     /* We ignore RT_SRC_POS_DECL arguments to avoid confusion of end-users. */
     va_list va2;
-    va_copy(va2, va);
+    va_copy(va2, args);
 
     /* Append to any the existing error message. */
     if (pErrorText->length())
         *pErrorText = Utf8StrFmt("%s.\n%N (%Rrc)", pErrorText->c_str(),
-                                 pszErrorFmt, &va2, rc, rc);
+                                 pszFormat, &va2, rc, rc);
     else
-        *pErrorText = Utf8StrFmt("%N (%Rrc)", pszErrorFmt, &va2, rc, rc);
+        *pErrorText = Utf8StrFmt("%N (%Rrc)", pszFormat, &va2, rc, rc);
 
     va_end(va2);
 
@@ -9948,17 +10145,21 @@ void Console::i_powerUpThreadTask(VMPowerUpTask *pTask)
 /**
  * Reconfigures a medium attachment (part of taking or deleting an online snapshot).
  *
- * @param   pThis         Reference to the console object.
- * @param   pUVM          The VM handle.
- * @param   lInstance     The instance of the controller.
- * @param   pcszDevice    The name of the controller type.
- * @param   enmBus        The storage bus type of the controller.
- * @param   fSetupMerge   Whether to set up a medium merge
- * @param   uMergeSource  Merge source image index
- * @param   uMergeTarget  Merge target image index
- * @param   aMediumAtt    The medium attachment.
- * @param   aMachineState The current machine state.
- * @param   phrc          Where to store com error - only valid if we return VERR_GENERAL_FAILURE.
+ * @param   pThis                   Reference to the console object.
+ * @param   pUVM                    The VM handle.
+ * @param   pcszDevice              The name of the controller type.
+ * @param   uInstance               The instance of the controller.
+ * @param   enmBus                  The storage bus type of the controller.
+ * @param   fUseHostIOCache         Use the host I/O cache (disable async I/O).
+ * @param   fBuiltinIOCache         Use the builtin I/O cache.
+ * @param   fInsertDiskIntegrityDrv Flag whether to insert the disk integrity driver into the chain
+ *                                  for additionalk debugging aids.
+ * @param   fSetupMerge             Whether to set up a medium merge
+ * @param   uMergeSource            Merge source image index
+ * @param   uMergeTarget            Merge target image index
+ * @param   aMediumAtt              The medium attachment.
+ * @param   aMachineState           The current machine state.
+ * @param   phrc                    Where to store com error - only valid if we return VERR_GENERAL_FAILURE.
  * @return  VBox status code.
  */
 /* static */
@@ -9969,6 +10170,7 @@ DECLCALLBACK(int) Console::i_reconfigureMediumAttachment(Console *pThis,
                                                          StorageBus_T enmBus,
                                                          bool fUseHostIOCache,
                                                          bool fBuiltinIOCache,
+                                                         bool fInsertDiskIntegrityDrv,
                                                          bool fSetupMerge,
                                                          unsigned uMergeSource,
                                                          unsigned uMergeTarget,
@@ -9996,6 +10198,7 @@ DECLCALLBACK(int) Console::i_reconfigureMediumAttachment(Console *pThis,
                                              enmBus,
                                              fUseHostIOCache,
                                              fBuiltinIOCache,
+                                             fInsertDiskIntegrityDrv,
                                              fSetupMerge,
                                              uMergeSource,
                                              uMergeTarget,
@@ -10137,7 +10340,35 @@ Console::i_vmm2User_NotifyResetTurnedIntoPowerOff(PCVMM2USERMETHODS pThis, PUVM 
     pConsole->mfPowerOffCausedByReset = true;
 }
 
+/**
+ * @interface_method_impl{VMM2USERMETHODS,pfnQueryGenericObject}
+ */
+/*static*/ DECLCALLBACK(void *)
+Console::i_vmm2User_QueryGenericObject(PCVMM2USERMETHODS pThis, PUVM pUVM, PCRTUUID pUuid)
+{
+    Console *pConsole = ((MYVMM2USERMETHODS *)pThis)->pConsole;
+    NOREF(pUVM);
 
+    /* To simplify comparison we copy the UUID into a com::Guid object. */
+    com::Guid const UuidCopy(*pUuid);
+
+    if (UuidCopy == COM_IIDOF(IConsole))
+    {
+        IConsole *pIConsole = static_cast<IConsole *>(pConsole);
+        return pIConsole;
+    }
+
+    if (UuidCopy == COM_IIDOF(IMachine))
+    {
+        IMachine *pIMachine = pConsole->mMachine;
+        return pIMachine;
+    }
+
+    if (UuidCopy == COM_IIDOF(ISnapshot))
+        return ((MYVMM2USERMETHODS *)pThis)->pISnapshot;
+
+    return NULL;
+}
 
 
 /**

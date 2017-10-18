@@ -76,10 +76,6 @@
         <source>Accessibility</source>
         <translation type="vanished">Tilgængelighed</translation>
     </message>
-    <message>
-        <source>Video</source>
-        <translation>Video</translation>
-    </message>
 </context>
 <context>
     <name>Phonon::Gstreamer::Backend</name>
@@ -138,10 +134,6 @@ libgstreamer-plugins-base er installeret.</translation>
     <message>
         <source>Use this slider to adjust the volume. The leftmost position is 0%, the rightmost is %1%</source>
         <translation type="vanished">Anvend denne skyder til at indstille lydstyrken. Længst til venstre er 0% og længst til højre er %1%</translation>
-    </message>
-    <message>
-        <source>Volume: %1%</source>
-        <translation>Volume: %1%</translation>
     </message>
 </context>
 <context>
@@ -428,10 +420,6 @@ Kontrollér sti og filnavn.</translation>
         <source>Select a Directory</source>
         <translation type="vanished">Vælg et katalog</translation>
     </message>
-    <message>
-        <source>Type</source>
-        <translation>Type</translation>
-    </message>
 </context>
 <context>
     <name>Q3LocalFs</name>
@@ -519,10 +507,6 @@ to
         <source>Cancel</source>
         <translation type="vanished">Annuller</translation>
     </message>
-    <message>
-        <source>OK</source>
-        <translation>OK</translation>
-    </message>
 </context>
 <context>
     <name>Q3TextEdit</name>
@@ -608,10 +592,6 @@ to
     <message>
         <source>Holds the name of the window and contains controls to manipulate it</source>
         <translation type="vanished">Viser vinduets navn og indeholder kontroller til indstilling af vinduet</translation>
-    </message>
-    <message>
-        <source>System</source>
-        <translation>System</translation>
     </message>
 </context>
 <context>
@@ -1322,14 +1302,6 @@ Press ESC to cancel</source>
         <source>SpeedoMeter</source>
         <translation type="vanished">Speedometer</translation>
     </message>
-    <message>
-        <source>QDial</source>
-        <translation>QDial</translation>
-    </message>
-    <message>
-        <source>SliderHandle</source>
-        <translation>Skyderhåndtag</translation>
-    </message>
 </context>
 <context>
     <name>QDialog</name>
@@ -1435,10 +1407,6 @@ Press ESC to cancel</source>
     <message>
         <source>&amp;Save</source>
         <translation type="vanished">&amp;Gem</translation>
-    </message>
-    <message>
-        <source>&amp;OK</source>
-        <translation>&amp;OK</translation>
     </message>
 </context>
 <context>
@@ -2192,10 +2160,6 @@ Do you want to delete it anyway?</source>
         <source>N&apos;Ko</source>
         <translation type="unfinished"></translation>
     </message>
-    <message>
-        <source>Normal</source>
-        <translation>Normal</translation>
-    </message>
 </context>
 <context>
     <name>QFontDialog</name>
@@ -2745,10 +2709,6 @@ Do you want to delete it anyway?</source>
         <source>Mac OS X input method</source>
         <translation type="vanished">Mac OS X input-metode</translation>
     </message>
-    <message>
-        <source>XIM</source>
-        <translation>XIM</translation>
-    </message>
 </context>
 <context>
     <name>QInputDialog</name>
@@ -2937,10 +2897,6 @@ Do you want to delete it anyway?</source>
     <message>
         <source>&apos;%1&apos; is not a Qt plugin</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Could not mmap &apos;%1&apos;: %2</source>
-        <translation>Kunne ikke mmap &apos;%1&apos;: %2</translation>
     </message>
 </context>
 <context>
@@ -4693,126 +4649,6 @@ Please turn one of those options off.</source>
     <message>
         <source>Automatic</source>
         <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A0</source>
-        <translation>A0</translation>
-    </message>
-    <message>
-        <source>A1</source>
-        <translation>A1</translation>
-    </message>
-    <message>
-        <source>A2</source>
-        <translation>A2</translation>
-    </message>
-    <message>
-        <source>A3</source>
-        <translation>A3</translation>
-    </message>
-    <message>
-        <source>A4</source>
-        <translation>A4</translation>
-    </message>
-    <message>
-        <source>A5</source>
-        <translation>A5</translation>
-    </message>
-    <message>
-        <source>A6</source>
-        <translation>A6</translation>
-    </message>
-    <message>
-        <source>A7</source>
-        <translation>A7</translation>
-    </message>
-    <message>
-        <source>A8</source>
-        <translation>A8</translation>
-    </message>
-    <message>
-        <source>A9</source>
-        <translation>A9</translation>
-    </message>
-    <message>
-        <source>B0</source>
-        <translation>B0</translation>
-    </message>
-    <message>
-        <source>B1</source>
-        <translation></translation>
-    </message>
-    <message>
-        <source>B2</source>
-        <translation>B2</translation>
-    </message>
-    <message>
-        <source>B3</source>
-        <translation>B3</translation>
-    </message>
-    <message>
-        <source>B4</source>
-        <translation>B4</translation>
-    </message>
-    <message>
-        <source>B5</source>
-        <translation>B5</translation>
-    </message>
-    <message>
-        <source>B6</source>
-        <translation>B6</translation>
-    </message>
-    <message>
-        <source>B7</source>
-        <translation>B7</translation>
-    </message>
-    <message>
-        <source>B8</source>
-        <translation>B8</translation>
-    </message>
-    <message>
-        <source>B9</source>
-        <translation>B9</translation>
-    </message>
-    <message>
-        <source>B10</source>
-        <translation>B10</translation>
-    </message>
-    <message>
-        <source>C5E</source>
-        <translation>C5E</translation>
-    </message>
-    <message>
-        <source>DLE</source>
-        <translation>DLE</translation>
-    </message>
-    <message>
-        <source>Executive</source>
-        <translation>Executive</translation>
-    </message>
-    <message>
-        <source>Folio</source>
-        <translation>Folio</translation>
-    </message>
-    <message>
-        <source>Ledger</source>
-        <translation>Ledger</translation>
-    </message>
-    <message>
-        <source>Legal</source>
-        <translation>Legal</translation>
-    </message>
-    <message>
-        <source>Letter</source>
-        <translation>Brev</translation>
-    </message>
-    <message>
-        <source>Tabloid</source>
-        <translation>Tabloid</translation>
-    </message>
-    <message>
-        <source>US Common #10 Envelope</source>
-        <translation>US Common #10 Envelope</translation>
     </message>
 </context>
 <context>
@@ -8230,16 +8066,6 @@ Role of an accessible object</extracomment>
         <source>Insert a new line</source>
         <translation type="vanished">Insert ny linie</translation>
     </message>
-    <message>
-        <source>LTR</source>
-        <comment>Left to Right context menu item</comment>
-        <translation>LTR</translation>
-    </message>
-    <message>
-        <source>RTL</source>
-        <comment>Right to Left context menu item</comment>
-        <translation>RTL</translation>
-    </message>
 </context>
 <context>
     <name>QWhatsThisAction</name>
@@ -8403,10 +8229,6 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <message>
         <source>&amp;Unshade</source>
         <translation type="vanished">&amp;Fjern skygge</translation>
-    </message>
-    <message>
-        <source>%1 - [%2]</source>
-        <translation>%1 - [%2]</translation>
     </message>
 </context>
 <context>
@@ -8745,506 +8567,12 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
         <source>Dividing a value of type %1 by %2 (not-a-number) is not allowed.</source>
         <translation type="vanished">Division af værdi af typen %1 med %2 (ikke et tal) er ikke tilladt.</translation>
     </message>
-    <message>
-        <source>Dividing a value of type %1 by %2 or %3 (plus or minus zero) is not allowed.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Multiplication of a value of type %1 by %2 or %3 (plus or minus infinity) is not allowed.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A value of type %1 cannot have an Effective Boolean Value.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Effective Boolean Value cannot be calculated for a sequence containing two or more atomic values.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Value %1 of type %2 exceeds maximum (%3).</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Value %1 of type %2 is below minimum (%3).</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A value of type %1 must contain an even number of digits. The value %2 does not.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 is not valid as a value of type %2.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Operator %1 cannot be used on type %2.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Operator %1 cannot be used on atomic values of type %2 and %3.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The namespace URI in the name for a computed attribute cannot be %1.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The name for a computed attribute cannot have the namespace URI %1 with the local name %2.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Type error in cast, expected %1, received %2.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>When casting to %1 or types derived from it, the source value must be of the same type, or it must be a string literal. Type %2 is not allowed.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No casting is possible with %1 as the target type.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>It is not possible to cast from %1 to %2.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Casting to %1 is not possible because it is an abstract type, and can therefore never be instantiated.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>It&apos;s not possible to cast the value %1 of type %2 to %3</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Failure when casting from %1 to %2: %3</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A comment cannot contain %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A comment cannot end with a %1.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No comparisons can be done involving the type %1.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Operator %1 is not available between atomic values of type %2 and %3.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>An attribute node cannot be a child of a document node. Therefore, the attribute %1 is out of place.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A library module cannot be evaluated directly. It must be imported from a main module.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A value of type %1 cannot be a predicate. A predicate must have either a numeric type or an Effective Boolean Value type.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A positional predicate must evaluate to a single numeric value.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The target name in a processing instruction cannot be %1 in any combination of upper and lower case. Therefore, is %2 invalid.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 is not a valid target name in a processing instruction. It must be a %2 value, e.g. %3.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The last step in a path must contain either nodes or atomic values. It cannot be a mixture between the two.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The data of a processing instruction cannot contain the string %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No namespace binding exists for the prefix %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No namespace binding exists for the prefix %1 in %2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 is an invalid %2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message numerus="yes">
-        <source>%1 takes at most %n argument(s). %2 is therefore invalid.</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>%1 requires at least %n argument(s). %2 is therefore invalid.</source>
-        <translation type="unfinished">
-            <numerusform></numerusform>
-            <numerusform></numerusform>
-        </translation>
-    </message>
-    <message>
-        <source>The first argument to %1 cannot be of type %2. It must be a numeric type, xs:yearMonthDuration or xs:dayTimeDuration.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The first argument to %1 cannot be of type %2. It must be of type %3, %4, or %5.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The second argument to %1 cannot be of type %2. It must be of type %3, %4, or %5.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 is not a valid XML 1.0 character.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The first argument to %1 cannot be of type %2.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>If both values have zone offsets, they must have the same zone offset. %1 and %2 are not the same.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 was called.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 must be followed by %2 or %3, not at the end of the replacement string.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>In the replacement string, %1 must be followed by at least one digit when not escaped.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>In the replacement string, %1 can only be used to escape itself or %2, not %3</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 matches newline characters</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 and %2 match the start and end of a line.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Matches are case insensitive</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Whitespace characters are removed, except when they appear in character classes</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 is an invalid regular expression pattern: %2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 is an invalid flag for regular expressions. Valid flags are:</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>If the first argument is the empty sequence or a zero-length string (no namespace), a prefix cannot be specified. Prefix %1 was specified.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>It will not be possible to retrieve %1.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The root node of the second argument to function %1 must be a document node. %2 is not a document node.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The default collection is undefined</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 cannot be retrieved</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The normalization form %1 is unsupported. The supported forms are %2, %3, %4, and %5, and none, i.e. the empty string (no normalization).</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A zone offset must be in the range %1..%2 inclusive. %3 is out of range.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 is not a whole number of minutes.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Required cardinality is %1; got cardinality %2.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The item %1 did not match the required type %2.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 is an unknown schema type.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Only one %1 declaration can occur in the query prolog.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The initialization of variable %1 depends on itself</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No variable by name %1 exists</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The variable %1 is unused</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Version %1 is not supported. The supported XQuery version is 1.0.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The encoding %1 is invalid. It must contain Latin characters only, must not contain whitespace, and must match the regular expression %2.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No function with signature %1 is available</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A default namespace declaration must occur before function, variable, and option declarations.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Namespace declarations must occur before function, variable, and option declarations.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Module imports must occur before function, variable, and option declarations.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>It is not possible to redeclare prefix %1.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Only the prefix %1 can be declared to bind the namespace %2. By default, it is already bound to the prefix %1.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Prefix %1 is already declared in the prolog.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The name of an option must have a prefix. There is no default namespace for options.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The Schema Import feature is not supported, and therefore %1 declarations cannot occur.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The target namespace of a %1 cannot be empty.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The module import feature is not supported</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A variable by name %1 has already been declared in the prolog.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No value is available for the external variable by name %1.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The namespace %1 is reserved; therefore user defined functions may not use it. Try the predefined prefix %2, which exists for these cases.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The namespace of a user defined function in a library module must be equivalent to the module namespace. In other words, it should be %1 instead of %2</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A function already exists with the signature %1.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No external functions are supported. All supported functions can be used directly, without first declaring them as external</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>An argument by name %1 has already been declared. Every argument name must be unique.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The name of a variable bound in a for-expression must be different from the positional variable. Hence, the two variables named %1 collide.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The Schema Validation Feature is not supported. Hence, %1-expressions may not be used.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>None of the pragma expressions are supported. Therefore, a fallback expression must be present</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The %1-axis is unsupported in XQuery</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 is not a valid numeric literal.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>No function by name %1 is available.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The namespace URI cannot be the empty string when binding to a prefix, %1.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 is an invalid namespace URI.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>It is not possible to bind to the prefix %1</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Namespace %1 can only be bound to %2 (and it is, in either case, pre-declared).</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Prefix %1 can only be bound to %2 (and it is, in either case, pre-declared).</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Two namespace declaration attributes have the same name: %1.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The namespace URI must be a constant and cannot use enclosed expressions.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>An attribute by name %1 has already appeared on this element.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A direct element constructor is not well-formed. %1 is ended with %2.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The name %1 does not refer to any schema type.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 is an complex type. Casting to complex types is not possible. However, casting to atomic types such as %2 works.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 is not an atomic type. Casting is only possible to atomic types.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 is not a valid name for a processing-instruction. Therefore this name test will never match.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>%1 is not in the in-scope attribute declarations. Note that the schema import feature is not supported.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The name of an extension expression must be in a namespace.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>empty</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>zero or one</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>exactly one</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>one or more</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>zero or more</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Required type is %1, but %2 was found.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Promoting %1 to %2 may cause loss of precision.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The focus is undefined.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>It&apos;s not possible to add attributes after any other kind of node.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>An attribute by name %1 has already been created.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Only the Unicode Codepoint Collation is supported(%1). %2 is unsupported.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>Attribute %1 can&apos;t be serialized because it appears at the top level.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>The namespace for a user defined function cannot be empty (try the predefined prefix %1 which exists for cases like this)</source>
-        <translation type="unfinished"></translation>
-    </message>
 </context>
 <context>
     <name>VolumeSlider</name>
     <message>
         <source>Volume: %1%</source>
         <translation type="vanished">Lydstyrke: %1%</translation>
-    </message>
-    <message>
-        <source>Muted</source>
-        <translation>Stilhed</translation>
     </message>
 </context>
 <context>
@@ -9300,25 +8628,6 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <message>
         <source>Scroll down</source>
         <translation type="vanished">Rul ned</translation>
-    </message>
-</context>
-<context>
-    <name>QDateTimeEdit</name>
-    <message>
-        <source>AM</source>
-        <translation>AM</translation>
-    </message>
-    <message>
-        <source>am</source>
-        <translation>am</translation>
-    </message>
-    <message>
-        <source>PM</source>
-        <translation>PM</translation>
-    </message>
-    <message>
-        <source>pm</source>
-        <translation>pm</translation>
     </message>
 </context>
 </TS>

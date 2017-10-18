@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -82,7 +82,7 @@ static FNDISPARSE ParseInvOpModRm;
 static FNDISPARSE ParseTwoByteEsc;
 static FNDISPARSE ParseThreeByteEsc4;
 static FNDISPARSE ParseThreeByteEsc5;
-static FNDISPARSE ParseImmGrpl;
+static FNDISPARSE ParseGrp1;
 static FNDISPARSE ParseShiftGrp2;
 static FNDISPARSE ParseGrp3;
 static FNDISPARSE ParseGrp4;
@@ -133,7 +133,7 @@ static PFNDISPARSE const g_apfnFullDisasm[IDX_ParseMax] =
     ParseImmUlong,
     ParseImmQword,
     ParseTwoByteEsc,
-    ParseImmGrpl,
+    ParseGrp1,
     ParseShiftGrp2,
     ParseGrp3,
     ParseGrp4,
@@ -183,7 +183,7 @@ static PFNDISPARSE const g_apfnCalcSize[IDX_ParseMax] =
     ParseImmUlong_SizeOnly,
     ParseImmQword_SizeOnly,
     ParseTwoByteEsc,
-    ParseImmGrpl,
+    ParseGrp1,
     ParseShiftGrp2,
     ParseGrp3,
     ParseGrp4,
@@ -976,7 +976,7 @@ static size_t UseModRM(size_t const offInstr, PCDISOPCODE pOp, PDISSTATE pDis, P
                 if (mod != 3)
                     break;  /* memory operand */
                 reg = rm; /* the RM field specifies the xmm register */
-                /* fall thru */
+                RT_FALL_THRU();
 
             case OP_PARM_P: //MMX register
                 reg &= 7;   /* REX.R has no effect here */
@@ -999,11 +999,11 @@ static size_t UseModRM(size_t const offInstr, PCDISOPCODE pOp, PDISSTATE pDis, P
             case OP_PARM_W: //XMM register or memory operand
                 if (mod != 3)
                     break;  /* memory operand */
-                /* fall thru */
+                RT_FALL_THRU();
 
             case OP_PARM_U: // XMM/YMM register
                 reg = rm; /* the RM field specifies the xmm register */
-                /* fall thru */
+                RT_FALL_THRU();
 
             case OP_PARM_V: //XMM register
                 if (VEXREG_IS256B(pDis->bVexDestReg)
@@ -2205,7 +2205,7 @@ static size_t ParseNopPause(size_t offInstr, PCDISOPCODE pOp, PDISSTATE pDis, PD
 }
 //*****************************************************************************
 //*****************************************************************************
-static size_t ParseImmGrpl(size_t offInstr, PCDISOPCODE pOp, PDISSTATE pDis, PDISOPPARAM pParam)
+static size_t ParseGrp1(size_t offInstr, PCDISOPCODE pOp, PDISSTATE pDis, PDISOPPARAM pParam)
 {
     RT_NOREF_PV(pParam);
 

@@ -43,11 +43,6 @@
 /** Use VBE bytewise I/O. Only needed for Windows Longhorn/Vista betas and backwards compatibility. */
 #define VBE_BYTEWISE_IO
 
-/** Use VBE new dynamic mode list.
- * If this is not defined, no checks are carried out to see if the modes all
- * fit into the framebuffer! See the VRAM_SIZE_FIX define. */
-#define VBE_NEW_DYN_LIST
-
 #ifdef VBOX
 /** The default amount of VRAM. */
 # define VGA_VRAM_DEFAULT    (_4M)
@@ -57,7 +52,8 @@
 # define VGA_VRAM_MIN        (_1M)
 #endif
 
-#include <VBox/Hardware/VBoxVideoVBE.h>
+#include <VBoxVideoVBE.h>
+#include <VBoxVideoVBEPrivate.h>
 
 #ifdef VBOX_WITH_HGSMI
 # include "HGSMI/HGSMIHost.h"
@@ -68,7 +64,7 @@
 # include "DevVGA-SVGA.h"
 #endif
 
-# include <iprt/list.h>
+#include <iprt/list.h>
 
 #define MSR_COLOR_EMULATION 0x01
 #define MSR_PAGE_SELECT     0x20
@@ -81,7 +77,7 @@
 
 #ifdef CONFIG_BOCHS_VBE
 
-/* Cross reference with <VBox/Hardware/VBoxVideoVBE.h> */
+/* Cross reference with <VBoxVideoVBE.h> */
 #define VBE_DISPI_INDEX_NB_SAVED        0xb /* Number of saved registers (vbe_regs array) */
 #define VBE_DISPI_INDEX_NB              0xc /* Total number of VBE registers */
 
@@ -211,233 +207,6 @@ typedef struct _VBOX_VHWA_PENDINGCMD
 } VBOX_VHWA_PENDINGCMD;
 #endif
 
-#ifdef VBOX_WITH_VMSVGA
-
-#ifdef DEBUG
-/* Enable to log FIFO register accesses. */
-//# define DEBUG_FIFO_ACCESS
-/* Enable to log GMR page accesses. */
-//# define DEBUG_GMR_ACCESS
-#endif
-
-#define VMSVGA_FIFO_EXTCMD_NONE                         0
-#define VMSVGA_FIFO_EXTCMD_TERMINATE                    1
-#define VMSVGA_FIFO_EXTCMD_SAVESTATE                    2
-#define VMSVGA_FIFO_EXTCMD_LOADSTATE                    3
-#define VMSVGA_FIFO_EXTCMD_RESET                        4
-#define VMSVGA_FIFO_EXTCMD_UPDATE_SURFACE_HEAP_BUFFERS  5
-
-/** Size of the region to backup when switching into svga mode. */
-#define VMSVGA_FRAMEBUFFER_BACKUP_SIZE  (32*1024)
-
-typedef struct
-{
-    PSSMHANDLE      pSSM;
-    uint32_t        uVersion;
-    uint32_t        uPass;
-} VMSVGA_STATE_LOAD, *PVMSVGA_STATE_LOAD;
-
-/** Host screen viewport.
- * (4th quadrant with negated Y values - usual Windows and X11 world view.) */
-typedef struct VMSVGAVIEWPORT
-{
-    uint32_t        x;                  /**< x coordinate (left). */
-    uint32_t        y;                  /**< y coordinate (top). */
-    uint32_t        cx;                 /**< width. */
-    uint32_t        cy;                 /**< height. */
-    /** Right side coordinate (exclusive). Same as x + cx. */
-    uint32_t        xRight;
-    /** First quadrant low y coordinate.
-     * Same as y + cy - 1 in window coordinates. */
-    uint32_t        yLowWC;
-    /** First quadrant high y coordinate (exclusive) - yLowWC + cy.
-     * Same as y - 1 in window coordinates. */
-    uint32_t        yHighWC;
-    /** Alignment padding. */
-    uint32_t        uAlignment;
-} VMSVGAVIEWPORT;
-
-/** Pointer to the private VMSVGA ring-3 state structure.
- * @todo Still not entirely satisfired with the type name, but better than
- *       the previous lower/upper case only distinction. */
-typedef struct VMSVGAR3STATE *PVMSVGAR3STATE;
-/** Pointer to the private (implementation specific) VMSVGA3d state. */
-typedef struct VMSVGA3DSTATE *PVMSVGA3DSTATE;
-
-typedef struct VMSVGAState
-{
-    /** The host window handle */
-    uint64_t                    u64HostWindowId;
-    /** The R3 FIFO pointer. */
-    R3PTRTYPE(uint32_t *)       pFIFOR3;
-    /** The R0 FIFO pointer. */
-    R0PTRTYPE(uint32_t *)       pFIFOR0;
-    /** R3 Opaque pointer to svga state. */
-    R3PTRTYPE(PVMSVGAR3STATE)   pSvgaR3State;
-    /** R3 Opaque pointer to 3d state. */
-    R3PTRTYPE(PVMSVGA3DSTATE)   p3dState;
-    /** R3 Opaque pointer to a copy of the first 32k of the framebuffer before switching into svga mode. */
-    R3PTRTYPE(void *)           pFrameBufferBackup;
-    /** R3 Opaque pointer to an external fifo cmd parameter. */
-    R3PTRTYPE(void * volatile)  pvFIFOExtCmdParam;
-
-    /** Guest physical address of the FIFO memory range. */
-    RTGCPHYS                    GCPhysFIFO;
-    /** Size in bytes of the FIFO memory range. */
-    uint32_t                    cbFIFO;
-    /** SVGA id. */
-    uint32_t                    u32SVGAId;
-    /** SVGA extensions enabled or not. */
-    uint32_t                    fEnabled;
-    /** SVGA memory area configured status. */
-    uint32_t                    fConfigured;
-    /** Device is busy handling FIFO requests (VMSVGA_BUSY_F_FIFO,
-     *  VMSVGA_BUSY_F_EMT_FORCE). */
-    uint32_t volatile           fBusy;
-#define VMSVGA_BUSY_F_FIFO          RT_BIT_32(0) /**< The normal true/false busy FIFO bit. */
-#define VMSVGA_BUSY_F_EMT_FORCE     RT_BIT_32(1) /**< Bit preventing race status flickering when EMT kicks the FIFO thread. */
-    /** Traces (dirty page detection) enabled or not. */
-    uint32_t                    fTraces;
-    /** Guest OS identifier. */
-    uint32_t                    u32GuestId;
-    /** Scratch region size. */
-    uint32_t                    cScratchRegion;
-    /** Scratch array. */
-    uint32_t                    au32ScratchRegion[VMSVGA_SCRATCH_SIZE];
-    /** Irq status. */
-    uint32_t                    u32IrqStatus;
-    /** Irq mask. */
-    uint32_t                    u32IrqMask;
-    /** Pitch lock. */
-    uint32_t                    u32PitchLock;
-    /** Current GMR id. (SVGA_REG_GMR_ID) */
-    uint32_t                    u32CurrentGMRId;
-    /** Register caps. */
-    uint32_t                    u32RegCaps;
-    uint32_t                    Padding2;
-    /** Physical address of command mmio range. */
-    RTIOPORT                    BasePort;
-    /** Port io index register. */
-    uint32_t                    u32IndexReg;
-    /** The support driver session handle for use with FIFORequestSem. */
-    R3R0PTRTYPE(PSUPDRVSESSION) pSupDrvSession;
-    /** FIFO request semaphore. */
-    SUPSEMEVENT                 FIFORequestSem;
-    /** FIFO external command semaphore. */
-    R3PTRTYPE(RTSEMEVENT)       FIFOExtCmdSem;
-    /** FIFO IO Thread. */
-    R3PTRTYPE(PPDMTHREAD)       pFIFOIOThread;
-    uint32_t                    uWidth;
-    uint32_t                    uHeight;
-    uint32_t                    uBpp;
-    uint32_t                    cbScanline;
-    /** Maximum width supported. */
-    uint32_t                    u32MaxWidth;
-    /** Maximum height supported. */
-    uint32_t                    u32MaxHeight;
-    /** Viewport rectangle, i.e. what's currently visible of the target host
-     *  window.  This is usually (0,0)(uWidth,uHeight), but if the window is
-     *  shrunk and scrolling applied, both the origin and size may differ.  */
-    VMSVGAVIEWPORT              viewport;
-    /** Action flags */
-    uint32_t                    u32ActionFlags;
-    /** SVGA 3d extensions enabled or not. */
-    bool                        f3DEnabled;
-    /** VRAM page monitoring enabled or not. */
-    bool                        fVRAMTracking;
-    /** External command to be executed in the FIFO thread. */
-    uint8_t volatile            u8FIFOExtCommand;
-    /** Set by vmsvgaR3RunExtCmdOnFifoThread when it temporarily resumes the FIFO
-     * thread and does not want it do anything but the command. */
-    bool volatile               fFifoExtCommandWakeup;
-# if defined(DEBUG_GMR_ACCESS) || defined(DEBUG_FIFO_ACCESS)
-    /** GMR debug access handler type handle. */
-    PGMPHYSHANDLERTYPE          hGmrAccessHandlerType;
-    /** FIFO debug access handler type handle. */
-    PGMPHYSHANDLERTYPE          hFifoAccessHandlerType;
-# endif
-
-    STAMCOUNTER                 StatRegBitsPerPixelWr;
-    STAMCOUNTER                 StatRegBusyWr;
-    STAMCOUNTER                 StatRegCursorXxxxWr;
-    STAMCOUNTER                 StatRegDepthWr;
-    STAMCOUNTER                 StatRegDisplayHeightWr;
-    STAMCOUNTER                 StatRegDisplayIdWr;
-    STAMCOUNTER                 StatRegDisplayIsPrimaryWr;
-    STAMCOUNTER                 StatRegDisplayPositionXWr;
-    STAMCOUNTER                 StatRegDisplayPositionYWr;
-    STAMCOUNTER                 StatRegDisplayWidthWr;
-    STAMCOUNTER                 StatRegEnableWr;
-    STAMCOUNTER                 StatRegGmrIdWr;
-    STAMCOUNTER                 StatRegGuestIdWr;
-    STAMCOUNTER                 StatRegHeightWr;
-    STAMCOUNTER                 StatRegIdWr;
-    STAMCOUNTER                 StatRegIrqMaskWr;
-    STAMCOUNTER                 StatRegNumDisplaysWr;
-    STAMCOUNTER                 StatRegNumGuestDisplaysWr;
-    STAMCOUNTER                 StatRegPaletteWr;
-    STAMCOUNTER                 StatRegPitchLockWr;
-    STAMCOUNTER                 StatRegPseudoColorWr;
-    STAMCOUNTER                 StatRegReadOnlyWr;
-    STAMCOUNTER                 StatRegScratchWr;
-    STAMCOUNTER                 StatRegSyncWr;
-    STAMCOUNTER                 StatRegTopWr;
-    STAMCOUNTER                 StatRegTracesWr;
-    STAMCOUNTER                 StatRegUnknownWr;
-    STAMCOUNTER                 StatRegWidthWr;
-
-    STAMCOUNTER                 StatRegBitsPerPixelRd;
-    STAMCOUNTER                 StatRegBlueMaskRd;
-    STAMCOUNTER                 StatRegBusyRd;
-    STAMCOUNTER                 StatRegBytesPerLineRd;
-    STAMCOUNTER                 StatRegCapabilitesRd;
-    STAMCOUNTER                 StatRegConfigDoneRd;
-    STAMCOUNTER                 StatRegCursorXxxxRd;
-    STAMCOUNTER                 StatRegDepthRd;
-    STAMCOUNTER                 StatRegDisplayHeightRd;
-    STAMCOUNTER                 StatRegDisplayIdRd;
-    STAMCOUNTER                 StatRegDisplayIsPrimaryRd;
-    STAMCOUNTER                 StatRegDisplayPositionXRd;
-    STAMCOUNTER                 StatRegDisplayPositionYRd;
-    STAMCOUNTER                 StatRegDisplayWidthRd;
-    STAMCOUNTER                 StatRegEnableRd;
-    STAMCOUNTER                 StatRegFbOffsetRd;
-    STAMCOUNTER                 StatRegFbSizeRd;
-    STAMCOUNTER                 StatRegFbStartRd;
-    STAMCOUNTER                 StatRegGmrIdRd;
-    STAMCOUNTER                 StatRegGmrMaxDescriptorLengthRd;
-    STAMCOUNTER                 StatRegGmrMaxIdsRd;
-    STAMCOUNTER                 StatRegGmrsMaxPagesRd;
-    STAMCOUNTER                 StatRegGreenMaskRd;
-    STAMCOUNTER                 StatRegGuestIdRd;
-    STAMCOUNTER                 StatRegHeightRd;
-    STAMCOUNTER                 StatRegHostBitsPerPixelRd;
-    STAMCOUNTER                 StatRegIdRd;
-    STAMCOUNTER                 StatRegIrqMaskRd;
-    STAMCOUNTER                 StatRegMaxHeightRd;
-    STAMCOUNTER                 StatRegMaxWidthRd;
-    STAMCOUNTER                 StatRegMemorySizeRd;
-    STAMCOUNTER                 StatRegMemRegsRd;
-    STAMCOUNTER                 StatRegMemSizeRd;
-    STAMCOUNTER                 StatRegMemStartRd;
-    STAMCOUNTER                 StatRegNumDisplaysRd;
-    STAMCOUNTER                 StatRegNumGuestDisplaysRd;
-    STAMCOUNTER                 StatRegPaletteRd;
-    STAMCOUNTER                 StatRegPitchLockRd;
-    STAMCOUNTER                 StatRegPsuedoColorRd;
-    STAMCOUNTER                 StatRegRedMaskRd;
-    STAMCOUNTER                 StatRegScratchRd;
-    STAMCOUNTER                 StatRegScratchSizeRd;
-    STAMCOUNTER                 StatRegSyncRd;
-    STAMCOUNTER                 StatRegTopRd;
-    STAMCOUNTER                 StatRegTracesRd;
-    STAMCOUNTER                 StatRegUnknownRd;
-    STAMCOUNTER                 StatRegVramSizeRd;
-    STAMCOUNTER                 StatRegWidthRd;
-    STAMCOUNTER                 StatRegWriteOnlyRd;
-} VMSVGAState;
-#endif /* VBOX_WITH_VMSVGA */
-
 
 typedef struct VGAState {
 #ifndef VBOX
@@ -481,6 +250,8 @@ typedef struct VGAState {
     uint8_t double_scan;
     uint8_t padding1[2];
     uint32_t line_offset;
+    uint32_t vga_addr_mask;
+    uint32_t padding1a;
     uint32_t line_compare;
     uint32_t start_addr;
     uint32_t plane_updated;
@@ -488,7 +259,8 @@ typedef struct VGAState {
     uint32_t last_width, last_height; /* in chars or pixels */
     uint32_t last_scr_width, last_scr_height; /* in pixels */
     uint32_t last_bpp;
-    uint8_t cursor_start, cursor_end, padding3[2];
+    uint8_t cursor_start, cursor_end;
+    bool last_cur_blink, last_chr_blink;
     uint32_t cursor_offset;
     /* hardware mouse cursor support */
     uint32_t invalidated_y_table[VGA_MAX_HEIGHT / 32];
@@ -523,7 +295,7 @@ typedef struct VGAState {
 # else
     RTR3PTR                     Padding2;
 # endif
-    /** Status LUN\#0: Leds interface. */
+    /** Status LUN: Leds interface. */
     PDMILEDPORTS                ILeds;
 
     /** Pointer to base interface of the driver. */
@@ -533,8 +305,6 @@ typedef struct VGAState {
 
     /** Status LUN: Partner of ILeds. */
     R3PTRTYPE(PPDMILEDCONNECTORS)   pLedsConnector;
-    /** Status LUN: Media Notifys. */
-    R3PTRTYPE(PPDMIMEDIANOTIFY)     pMediaNotify;
 
     /** Refresh timer handle - HC. */
     PTMTIMERR3                  RefreshTimer;
@@ -543,10 +313,6 @@ typedef struct VGAState {
     PPDMDEVINSR0                pDevInsR0;
     /** The R0 vram pointer... */
     R0PTRTYPE(uint8_t *)        vram_ptrR0;
-
-# if HC_ARCH_BITS == 32
-    uint32_t                    Padding3;
-# endif
 
 # ifdef VBOX_WITH_VMSVGA
     VMSVGAState                 svga;
@@ -611,13 +377,9 @@ typedef struct VGAState {
     /** VBE write data/index one byte buffer */
     uint8_t                     cbWriteVBEData;
     uint8_t                     cbWriteVBEIndex;
-#  ifdef VBE_NEW_DYN_LIST
     /** VBE Extra Data write address one byte buffer */
     uint8_t                     cbWriteVBEExtraAddress;
     uint8_t                     Padding5;
-#  else
-    uint8_t                     Padding5[2];
-#  endif
 # endif
 
     /** Retrace emulation state */
@@ -625,7 +387,6 @@ typedef struct VGAState {
     bool                        Padding6[HC_ARCH_BITS == 64 ? 7 : 3];
     vga_retrace_s               retrace_state;
 
-# ifdef VBE_NEW_DYN_LIST
     /** The VBE BIOS extra data. */
     R3PTRTYPE(uint8_t *)        pbVBEExtraData;
     /** The size of the VBE BIOS extra data. */
@@ -633,7 +394,6 @@ typedef struct VGAState {
     /** The VBE BIOS current memory address. */
     uint16_t                    u16VBEExtraAddress;
     uint16_t                    Padding7[2];
-# endif
 
     /** The BIOS logo data. */
     R3PTRTYPE(uint8_t *)        pbLogo;
@@ -728,37 +488,10 @@ AssertCompileMemberAlignment(VGASTATE, last_ch_attr, 8);
 AssertCompileMemberAlignment(VGASTATE, u32Marker, 8);
 #endif
 
-#ifdef VBE_NEW_DYN_LIST
-/**
- * VBE Bios Extra Data structure.
- * @remark duplicated in vbe.h.
- */
-typedef struct VBEHeader
-{
-    /** Signature (VBEHEADER_MAGIC). */
-    uint16_t        u16Signature;
-    /** Data size. */
-    uint16_t        cbData;
-} VBEHeader;
-
 /** VBE Extra Data. */
 typedef VBEHeader VBEHEADER;
 /** Pointer to the VBE Extra Data. */
 typedef VBEHEADER *PVBEHEADER;
-
-/** The value of the VBEHEADER::u16Signature field.
- * @remark duplicated in vbe.h. */
-#define VBEHEADER_MAGIC      0x77CC
-
-/** The extra port which is used to read the mode list.
- * @remark duplicated in vbe.h. */
-#define VBE_EXTRA_PORT       0x3b6
-
-/** The extra port which is used for debug printf.
- * @remark duplicated in vbe.h. */
-#define VBE_PRINTF_PORT      0x3b7
-
-#endif /* VBE_NEW_DYN_LIST */
 
 #if !defined(VBOX) || defined(IN_RING3)
 static inline int c6_to_8(int v)

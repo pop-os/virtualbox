@@ -58,7 +58,6 @@
 #ifdef CHROMIUM_THREADSAFE
 # include <cr_threads.h>
 #endif
-/*#define VBOX_TEST_MEGOO*/
 
 #if 0 && defined(CR_NEWWINTRACK) && !defined(WINDOWS)
 #define XLOCK(dpy) XLockDisplay(dpy)
@@ -142,7 +141,6 @@ struct context_info_t
 #elif defined(GLX)
     Display *dpy;
     ContextInfo *share;
-    XVisualInfo *visual;
     Bool direct;
     GLXContext glxContext;
     CRHashTable *pGLXPixmapsHash;

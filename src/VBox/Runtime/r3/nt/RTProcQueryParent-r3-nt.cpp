@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -53,7 +53,7 @@ RTR3DECL(int) RTProcQueryParent(RTPROCESS hProcess, PRTPROCESS phParent)
     else
     {
         CLIENT_ID ClientId;
-        ClientId.UniqueProcess = (HANDLE)hProcess;
+        ClientId.UniqueProcess = (HANDLE)(uintptr_t)hProcess;
         ClientId.UniqueThread  = NULL;
 
         OBJECT_ATTRIBUTES ObjAttrs;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2016 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,7 +64,7 @@ RTDECL(int) RTFileReadAllByHandleEx(RTFILE File, RTFOFF off, RTFOFF cbMax, uint3
                 /*
                  * Try allocate the required memory and initialize the header (hardcoded fun).
                  */
-                void *pvHdr = RTMemAlloc(cbAllocMem + 32);
+                void *pvHdr = RTMemAlloc(cbAllocMem + 32 + (fFlags & RTFILE_RDALL_F_TRAILING_ZERO_BYTE ? 1 : 0));
                 if (pvHdr)
                 {
                     memset(pvHdr, 0xff, 32);
@@ -80,6 +80,9 @@ RTDECL(int) RTFileReadAllByHandleEx(RTFILE File, RTFOFF off, RTFOFF cbMax, uint3
                         rc = RTFileRead(File, pvFile, cbAllocMem, NULL);
                         if (RT_SUCCESS(rc))
                         {
+                            if (fFlags & RTFILE_RDALL_F_TRAILING_ZERO_BYTE)
+                                ((uint8_t *)pvFile)[cbAllocFile] = '\0';
+
                             /*
                              * Success - fill in the return values.
                              */

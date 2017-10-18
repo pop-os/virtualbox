@@ -1,10 +1,10 @@
-/* $Id:  $ */
+/* $Id: UIGlobalSettingsNetwork.h $ */
 /** @file
  * VBox Qt GUI - UIGlobalSettingsNetwork class declaration.
  */
 
 /*
- * Copyright (C) 2009-2016 Oracle Corporation
+ * Copyright (C) 2009-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIGlobalSettingsNetwork_h__
-#define __UIGlobalSettingsNetwork_h__
+#ifndef ___UIGlobalSettingsNetwork_h___
+#define ___UIGlobalSettingsNetwork_h___
 
 /* GUI includes: */
 #include "UISettingsPage.h"
@@ -25,189 +25,111 @@
 
 /* Forward declarations: */
 class UIItemNetworkNAT;
-class UIItemNetworkHost;
+struct UIDataSettingsGlobalNetwork;
+struct UIDataSettingsGlobalNetworkNAT;
+typedef UISettingsCache<UIDataPortForwardingRule> UISettingsCachePortForwardingRule;
+typedef UISettingsCachePoolOfTwo<UIDataSettingsGlobalNetworkNAT, UISettingsCachePortForwardingRule, UISettingsCachePortForwardingRule> UISettingsCacheGlobalNetworkNAT;
+typedef UISettingsCachePool<UIDataSettingsGlobalNetwork, UISettingsCacheGlobalNetworkNAT> UISettingsCacheGlobalNetwork;
 
 
-/* Global settings / Network page / NAT network data: */
-struct UIDataSettingsGlobalNetworkNAT
-{
-    /* NAT Network: */
-    bool m_fEnabled;
-    QString m_strName;
-    QString m_strNewName;
-    QString m_strCIDR;
-    bool m_fSupportsDHCP;
-    bool m_fSupportsIPv6;
-    bool m_fAdvertiseDefaultIPv6Route;
-    UIPortForwardingDataList m_ipv4rules;
-    UIPortForwardingDataList m_ipv6rules;
-    bool operator==(const UIDataSettingsGlobalNetworkNAT &other) const
-    {
-        return m_fEnabled == other.m_fEnabled &&
-               m_strName == other.m_strName &&
-               m_strNewName == other.m_strNewName &&
-               m_strCIDR == other.m_strCIDR &&
-               m_fSupportsDHCP == other.m_fSupportsDHCP &&
-               m_fSupportsIPv6 == other.m_fSupportsIPv6 &&
-               m_fAdvertiseDefaultIPv6Route == other.m_fAdvertiseDefaultIPv6Route &&
-               m_ipv4rules == other.m_ipv4rules &&
-               m_ipv6rules == other.m_ipv6rules;
-    }
-};
-
-
-/* Global settings / Network page / Host interface data: */
-struct UIDataSettingsGlobalNetworkHostInterface
-{
-    /* Host Interface: */
-    QString m_strName;
-    bool m_fDhcpClientEnabled;
-    QString m_strInterfaceAddress;
-    QString m_strInterfaceMask;
-    bool m_fIpv6Supported;
-    QString m_strInterfaceAddress6;
-    QString m_strInterfaceMaskLength6;
-    bool operator==(const UIDataSettingsGlobalNetworkHostInterface &other) const
-    {
-        return m_strName == other.m_strName &&
-               m_fDhcpClientEnabled == other.m_fDhcpClientEnabled &&
-               m_strInterfaceAddress == other.m_strInterfaceAddress &&
-               m_strInterfaceMask == other.m_strInterfaceMask &&
-               m_fIpv6Supported == other.m_fIpv6Supported &&
-               m_strInterfaceAddress6 == other.m_strInterfaceAddress6 &&
-               m_strInterfaceMaskLength6 == other.m_strInterfaceMaskLength6;
-    }
-};
-
-/* Global settings / Network page / Host DHCP server data: */
-struct UIDataSettingsGlobalNetworkDHCPServer
-{
-    /* DHCP Server: */
-    bool m_fDhcpServerEnabled;
-    QString m_strDhcpServerAddress;
-    QString m_strDhcpServerMask;
-    QString m_strDhcpLowerAddress;
-    QString m_strDhcpUpperAddress;
-    bool operator==(const UIDataSettingsGlobalNetworkDHCPServer &other) const
-    {
-        return m_fDhcpServerEnabled == other.m_fDhcpServerEnabled &&
-               m_strDhcpServerAddress == other.m_strDhcpServerAddress &&
-               m_strDhcpServerMask == other.m_strDhcpServerMask &&
-               m_strDhcpLowerAddress == other.m_strDhcpLowerAddress &&
-               m_strDhcpUpperAddress == other.m_strDhcpUpperAddress;
-    }
-};
-
-/* Global settings / Network page / Host network data: */
-struct UIDataSettingsGlobalNetworkHost
-{
-    UIDataSettingsGlobalNetworkHostInterface m_interface;
-    UIDataSettingsGlobalNetworkDHCPServer m_dhcpserver;
-    bool operator==(const UIDataSettingsGlobalNetworkHost &other) const
-    {
-        return m_interface == other.m_interface &&
-               m_dhcpserver == other.m_dhcpserver;
-    }
-};
-
-
-/* Global settings / Network page / Global network cache: */
-struct UISettingsCacheGlobalNetwork
-{
-    QList<UIDataSettingsGlobalNetworkNAT> m_networksNAT;
-    QList<UIDataSettingsGlobalNetworkHost> m_networksHost;
-};
-
-
-/* Global settings / Network page: */
-class UIGlobalSettingsNetwork : public UISettingsPageGlobal, public Ui::UIGlobalSettingsNetwork
+/** Global settings: Network page. */
+class UIGlobalSettingsNetwork : public UISettingsPageGlobal,
+                                public Ui::UIGlobalSettingsNetwork
 {
     Q_OBJECT;
 
 public:
 
-    /* Constructor: */
+    /** Constructs Network settings page. */
     UIGlobalSettingsNetwork();
+    /** Destructs Network settings page. */
+    ~UIGlobalSettingsNetwork();
 
 protected:
 
-    /* API:
-     * Load data to cache from corresponding external object(s),
-     * this task COULD be performed in other than GUI thread: */
-    void loadToCacheFrom(QVariant &data);
-    /* API:
-     * Load data to corresponding widgets from cache,
-     * this task SHOULD be performed in GUI thread only: */
-    void getFromCache();
+    /** Loads data into the cache from corresponding external object(s),
+      * this task COULD be performed in other than the GUI thread. */
+    virtual void loadToCacheFrom(QVariant &data) /* override */;
+    /** Loads data into corresponding widgets from the cache,
+      * this task SHOULD be performed in the GUI thread only. */
+    virtual void getFromCache() /* override */;
 
-    /* API:
-     * Save data from corresponding widgets to cache,
-     * this task SHOULD be performed in GUI thread only: */
-    void putToCache();
-    /* API:
-     * Save data from cache to corresponding external object(s),
-     * this task COULD be performed in other than GUI thread: */
-    void saveFromCacheTo(QVariant &data);
+    /** Saves data from corresponding widgets to the cache,
+      * this task SHOULD be performed in the GUI thread only. */
+    virtual void putToCache() /* override */;
+    /** Saves data from the cache to corresponding external object(s),
+      * this task COULD be performed in other than the GUI thread. */
+    virtual void saveFromCacheTo(QVariant &data) /* overrride */;
 
-    /* API: Validation stuff: */
-    bool validate(QList<UIValidationMessage> &messages);
+    /** Performs validation, updates @a messages list if something is wrong. */
+    virtual bool validate(QList<UIValidationMessage> &messages) /* override */;
 
-    /* API: Navigation stuff: */
-    void setOrderAfter(QWidget *pWidget);
-
-    /* API: Translation stuff: */
-    void retranslateUi();
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */;
 
 private slots:
 
-    /* Handlers: NAT network stuff: */
-    void sltAddNetworkNAT();
-    void sltDelNetworkNAT();
-    void sltEditNetworkNAT();
-    void sltHandleItemChangeNetworkNAT(QTreeWidgetItem *pChangedItem);
-    void sltHandleCurrentItemChangeNetworkNAT();
-    void sltShowContextMenuNetworkNAT(const QPoint &pos);
+    /** Handles command to add NAT network. */
+    void sltAddNATNetwork();
+    /** Handles command to remove NAT network. */
+    void sltRemoveNATNetwork();
+    /** Handles command to edit NAT network. */
+    void sltEditNATNetwork();
 
-    /* Handlers: Host network stuff: */
-    void sltAddNetworkHost();
-    void sltDelNetworkHost();
-    void sltEditNetworkHost();
-    void sltHandleCurrentItemChangeNetworkHost();
-    void sltShowContextMenuNetworkHost(const QPoint &pos);
+    /** Handles @a pChangedItem change for NAT network tree. */
+    void sltHandleItemChangeNATNetwork(QTreeWidgetItem *pChangedItem);
+    /** Handles NAT network tree current item change. */
+    void sltHandleCurrentItemChangeNATNetwork();
+    /** Handles context menu request for @a position of NAT network tree. */
+    void sltHandleContextMenuRequestNATNetwork(const QPoint &position);
 
 private:
 
-    /* Helpers: NAT network cache stuff: */
-    UIDataSettingsGlobalNetworkNAT generateDataNetworkNAT(const CNATNetwork &network);
-    void saveCacheItemNetworkNAT(const UIDataSettingsGlobalNetworkNAT &data);
+    /** Prepares all. */
+    void prepare();
+    /** Prepares NAT network tree. */
+    void prepareNATNetworkTree();
+    /** Prepares NAT network toolbar. */
+    void prepareNATNetworkToolbar();
+    /** Prepares connections. */
+    void prepareConnections();
+    /** Cleanups all. */
+    void cleanup();
 
-    /* Helpers: NAT network tree stuff: */
-    void createTreeItemNetworkNAT(const UIDataSettingsGlobalNetworkNAT &data, bool fChooseItem = false);
-    void removeTreeItemNetworkNAT(UIItemNetworkNAT *pItem);
+    /** Saves existing network data from the cache. */
+    bool saveNetworkData();
 
-    /* Helpers: Host network cache stuff: */
-    UIDataSettingsGlobalNetworkHost generateDataNetworkHost(const CHostNetworkInterface &iface);
-    void saveCacheItemNetworkHost(const UIDataSettingsGlobalNetworkHost &data);
+    /** Uploads NAT @a network data into passed @a cache storage unit. */
+    void loadToCacheFromNATNetwork(const CNATNetwork &network, UISettingsCacheGlobalNetworkNAT &cache);
+    /** Removes corresponding NAT network on the basis of @a cache. */
+    bool removeNATNetwork(const UISettingsCacheGlobalNetworkNAT &cache);
+    /** Creates corresponding NAT network on the basis of @a cache. */
+    bool createNATNetwork(const UISettingsCacheGlobalNetworkNAT &cache);
+    /** Updates @a cache of corresponding NAT network. */
+    bool updateNATNetwork(const UISettingsCacheGlobalNetworkNAT &cache);
+    /** Creates a new item in the NAT network tree on the basis of passed @a cache. */
+    void createTreeWidgetItemForNATNetwork(const UISettingsCacheGlobalNetworkNAT &cache);
+    /** Creates a new item in the NAT network tree on the basis of passed
+      * @a data, @a ipv4rules, @a ipv6rules, @a fChooseItem if requested. */
+    void createTreeWidgetItemForNATNetwork(const UIDataSettingsGlobalNetworkNAT &data,
+                                           const UIPortForwardingDataList &ipv4rules,
+                                           const UIPortForwardingDataList &ipv6rules,
+                                           bool fChooseItem = false);
+    /** Removes existing @a pItem from the NAT network tree. */
+    void removeTreeWidgetItemOfNATNetwork(UIItemNetworkNAT *pItem);
+    /** Returns whether the NAT network described by the @a cache could be updated or recreated otherwise. */
+    bool isNetworkCouldBeUpdated(const UISettingsCacheGlobalNetworkNAT &cache) const;
 
-    /* Helpers: Host network tree stuff: */
-    void createTreeItemNetworkHost(const UIDataSettingsGlobalNetworkHost &data, bool fChooseItem = false);
-    void removeTreeItemNetworkHost(UIItemNetworkHost *pItem);
+    /** Holds the Add NAT network action instance. */
+    QAction *m_pActionAddNATNetwork;
+    /** Holds the Remove NAT network action instance. */
+    QAction *m_pActionRemoveNATNetwork;
+    /** Holds the Edit NAT network action instance. */
+    QAction *m_pActionEditNATNetwork;
 
-    /* Variables: NAT network actions: */
-    QAction *m_pActionAddNetworkNAT;
-    QAction *m_pActionDelNetworkNAT;
-    QAction *m_pActionEditNetworkNAT;
-
-    /* Variables: Host network actions: */
-    QAction *m_pActionAddNetworkHost;
-    QAction *m_pActionDelNetworkHost;
-    QAction *m_pActionEditNetworkHost;
-
-    /* Variable: Editness flag: */
-    bool m_fChanged;
-
-    /* Variable: Cache: */
-    UISettingsCacheGlobalNetwork m_cache;
+    /** Holds the page data cache instance. */
+    UISettingsCacheGlobalNetwork *m_pCache;
 };
 
-#endif // __UIGlobalSettingsNetwork_h__
+#endif /* !___UIGlobalSettingsNetwork_h___ */
+

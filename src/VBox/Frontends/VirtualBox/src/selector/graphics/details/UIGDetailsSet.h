@@ -81,6 +81,9 @@ private:
         SetData_Spacing
     };
 
+    /** Returns the description of the item. */
+    virtual QString description() const /* override */;
+
     /* Data provider: */
     QVariant data(int iKey) const;
 

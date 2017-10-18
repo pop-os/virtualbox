@@ -24,6 +24,7 @@
 #ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
 # include <QPointer>
 #endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
+#include <QSize>
 
 /* GUI includes: */
 #include "UIExtraDataDefs.h"
@@ -66,6 +67,8 @@ signals:
     void sigSelectorUIShortcutChange();
     /** Notifies about Runtime UI keyboard shortcut change. */
     void sigRuntimeUIShortcutChange();
+    /** Notifies about Runtime UI host-key combination change. */
+    void sigRuntimeUIHostKeyCombinationChange();
 
     /** Notifies about menu-bar configuration change. */
     void sigMenuBarConfigurationChange(const QString &strMachineID);
@@ -174,16 +177,50 @@ public:
     /** @} */
 #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
 
+    /** @name Progress
+      * @{ */
+        /** Returns whether legacy progress handling method is requested. */
+        bool legacyProgressHandlingRequested();
+    /** @} */
+
     /** @name Settings
       * @{ */
+        /** Returns whether GUI @a enmFeature is enabled. */
+        bool guiFeatureEnabled(GUIFeatureType enmFeature);
+
         /** Returns restricted global settings pages. */
         QList<GlobalSettingsPageType> restrictedGlobalSettingsPages();
         /** Returns restricted machine settings pages. */
         QList<MachineSettingsPageType> restrictedMachineSettingsPages(const QString &strID);
     /** @} */
 
+    /** @name Settings: General
+      * @{ */
+        /** Returns whether the host screen-saver should be disabled. */
+        bool hostScreenSaverDisabled();
+        /** Defines whether the host screen-saver should be @a fDisabled. */
+        void setHostScreenSaverDisabled(bool fDisabled);
+    /** @} */
+
+    /** @name Settings: Language
+      * @{ */
+        /** Returns the GUI language ID. */
+        QString languageId();
+        /** Defines the GUI @a strLanguageId. */
+        void setLanguageId(const QString &strLanguageId);
+    /** @} */
+
     /** @name Settings: Display
       * @{ */
+        /** Returns maximum guest-screen resolution policy. */
+        MaxGuestResolutionPolicy maxGuestResolutionPolicy();
+        /** Defines maximum guest-screen resolution @a enmPolicy or @a resolution itself for Fixed policy. */
+        void setMaxGuestScreenResolution(MaxGuestResolutionPolicy enmPolicy, const QSize resolution = QSize());
+        /** Returns maximum guest-screen resolution for fixed policy. */
+        QSize maxGuestResolutionForPolicyFixed();
+        /** Defines maximum guest-screen @a resolution for fixed policy. */
+        void setMaxGuestResolutionForPolicyFixed(const QSize &resolution);
+
         /** Returns whether hovered machine-window should be activated. */
         bool activateHoveredMachineWindow();
         /** Defines whether hovered machine-window should be @a fActivated. */
@@ -192,8 +229,29 @@ public:
 
     /** @name Settings: Keyboard
       * @{ */
+        /** Returns the Runtime UI host-key combination. */
+        QString hostKeyCombination();
+        /** Defines the Runtime UI host-key combination. */
+        void setHostKeyCombination(const QString &strHostCombo);
+
         /** Returns shortcut overrides for shortcut-pool with @a strPoolExtraDataID. */
         QStringList shortcutOverrides(const QString &strPoolExtraDataID);
+
+        /** Returns whether the Runtime UI auto-capture is enabled. */
+        bool autoCaptureEnabled();
+        /** Defines whether the Runtime UI auto-capture is @a fEnabled. */
+        void setAutoCaptureEnabled(bool fEnabled);
+
+        /** Returns the Runtime UI remapped scan codes. */
+        QString remappedScanCodes();
+    /** @} */
+
+    /** @name Settings: Proxy
+      * @{ */
+        /** Returns VBox proxy settings. */
+        QString proxySettings();
+        /** Defines VBox proxy @a strSettings. */
+        void setProxySettings(const QString &strSettings);
     /** @} */
 
     /** @name Settings: Storage
@@ -244,6 +302,21 @@ public:
         /** Defines whether selector-window tool-bar @a fVisible. */
         void setSelectorWindowToolBarVisible(bool fVisible);
 
+        /** Returns whether selector-window tool-bar text visible. */
+        bool selectorWindowToolBarTextVisible();
+        /** Defines whether selector-window tool-bar text @a fVisible. */
+        void setSelectorWindowToolBarTextVisible(bool fVisible);
+
+        /** Returns selector-window machine tools order. */
+        QList<ToolTypeMachine> selectorWindowToolsOrderMachine();
+        /** Defines selector-window machine tools @a aOrder. */
+        void setSelectorWindowToolsOrderMachine(const QList<ToolTypeMachine> &aOrder);
+
+        /** Returns selector-window global tools order. */
+        QList<ToolTypeGlobal> selectorWindowToolsOrderGlobal();
+        /** Defines selector-window global tools @a aOrder. */
+        void setSelectorWindowToolsOrderGlobal(const QList<ToolTypeGlobal> &aOrder);
+
         /** Returns whether selector-window status-bar visible. */
         bool selectorWindowStatusBarVisible();
         /** Defines whether selector-window status-bar @a fVisible. */
@@ -272,6 +345,30 @@ public:
         void setSelectorWindowPreviewUpdateInterval(PreviewUpdateIntervalType interval);
     /** @} */
 
+    /** @name Snapshot Manager
+      * @{ */
+        /** Returns whether Snapshot Manager details expanded. */
+        bool snapshotManagerDetailsExpanded();
+        /** Defines whether Snapshot Manager details @a fExpanded. */
+        void setSnapshotManagerDetailsExpanded(bool fExpanded);
+    /** @} */
+
+    /** @name Virtual Media Manager
+      * @{ */
+        /** Returns whether Virtual Media Manager details expanded. */
+        bool virtualMediaManagerDetailsExpanded();
+        /** Defines whether Virtual Media Manager details @a fExpanded. */
+        void setVirtualMediaManagerDetailsExpanded(bool fExpanded);
+    /** @} */
+
+    /** @name Host Network Manager
+      * @{ */
+        /** Returns whether Host Network Manager details expanded. */
+        bool hostNetworkManagerDetailsExpanded();
+        /** Defines whether Host Network Manager details @a fExpanded. */
+        void setHostNetworkManagerDetailsExpanded(bool fExpanded);
+    /** @} */
+
     /** @name Wizards
       * @{ */
         /** Returns mode for wizard of passed @a type. */
@@ -297,9 +394,9 @@ public:
         /** Returns whether this machine is fFirstTimeStarted. */
         void setMachineFirstTimeStarted(bool fFirstTimeStarted, const QString &strID);
 
-#ifndef VBOX_WS_MAC
         /** Except Mac OS X: Returns redefined machine-window icon names. */
         QStringList machineWindowIconNames(const QString &strID);
+#ifndef VBOX_WS_MAC
         /** Except Mac OS X: Returns redefined machine-window name postfix. */
         QString machineWindowNamePostfix(const QString &strID);
 #endif /* !VBOX_WS_MAC */
@@ -621,6 +718,8 @@ private:
       * otherwise => only to global one. */
     bool isFeatureRestricted(const QString &strKey, const QString &strID = GlobalID);
 
+    /** Translates bool flag into QString value. */
+    QString toFeatureState(bool fState);
     /** Translates bool flag into 'allowed' value. */
     QString toFeatureAllowed(bool fAllowed);
     /** Translates bool flag into 'restricted' value. */

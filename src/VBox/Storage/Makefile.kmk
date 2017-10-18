@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2016 Oracle Corporation
+# Copyright (C) 2006-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -24,10 +24,6 @@ if !defined(VBOX_ONLY_EXTPACKS)
  include $(PATH_SUB_CURRENT)/testcase/Makefile.kmk
  include $(PATH_SUB_CURRENT)/Debug/Makefile.kmk
 
- ifndef VBOX_OSE
-  include $(PATH_SUB_CURRENT)/VDFormats/Makefile.kmk
- endif
-
  #
  # StorageLib - The storage Library.
  #
@@ -41,6 +37,7 @@ if !defined(VBOX_ONLY_EXTPACKS)
 
  StorageLib_SOURCES  = \
 	VD.cpp \
+	VDPlugin.cpp \
 	VDVfs.cpp \
 	VDIfVfs.cpp \
 	VDIfVfs2.cpp \
@@ -54,6 +51,8 @@ if !defined(VBOX_ONLY_EXTPACKS)
 	QED.cpp \
 	QCOW.cpp \
 	VHDX.cpp \
+	CUE.cpp \
+	VISO.cpp \
 	VCICache.cpp
 endif
 
@@ -61,7 +60,7 @@ if defined(VBOX_WITH_EXTPACK_PUEL) && defined(VBOX_WITH_EXTPACK_PUEL_BUILD)
  if defined(VBOX_WITH_PLUGIN_CRYPT)
   DLLS += VDPluginCrypt
   VDPluginCrypt_TEMPLATE      = VBoxR3ExtPackPuelWithOpenSsl
-  VDPluginCrypt_LDFLAGS.linux = -Wl,--no-undefined
+  VDPluginCrypt_LDFLAGS.linux = $(VBOX_GCC_NO_UNDEFINED)
 
   VDPluginCrypt_SOURCES  = \
 	VDFilterCrypt.cpp \

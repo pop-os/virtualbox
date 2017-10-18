@@ -4,28 +4,36 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
- * This file is part of VirtualBox Open Source Edition (OSE), as
- * available from http://www.virtualbox.org. This file is free software;
- * you can redistribute it and/or modify it under the terms of the GNU
- * General Public License (GPL) as published by the Free Software
- * Foundation, in version 2 as it comes in the "COPYING" file of the
- * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
- * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
+ * Permission is hereby granted, free of charge, to any person obtaining a
+ * copy of this software and associated documentation files (the "Software"),
+ * to deal in the Software without restriction, including without limitation
+ * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+ * and/or sell copies of the Software, and to permit persons to whom the
+ * Software is furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in
+ * all copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NON-INFRINGEMENT. IN NO EVENT SHALL
+ * THE COPYRIGHT HOLDERS, AUTHORS AND/OR ITS SUPPLIERS BE LIABLE FOR ANY CLAIM,
+ * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+ * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+ * USE OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
 #include "vboxvideo.h"
-#include <VBox/VMMDev.h>
 
 #define NEED_XF86_TYPES
-#include <iprt/string.h>
-
 #include "xf86.h"
 
 #ifdef XORG_7X
 # include <stdio.h>
 # include <stdlib.h>
+# include <string.h>
 #endif
 
 #ifdef VBOXVIDEO_13
@@ -165,15 +173,14 @@ void VBoxInitialiseSizeHints(ScrnInfoPtr pScrn)
     pScrn->modes->VDisplay = pVBox->pScreens[0].aPreferredSize.cy;
 }
 
-static bool useHardwareCursor(uint32_t fCursorCapabilities)
+static Bool useHardwareCursor(uint32_t fCursorCapabilities)
 {
-    if (   !(fCursorCapabilities & VMMDEV_MOUSE_HOST_CANNOT_HWPOINTER)
-        && (fCursorCapabilities & VMMDEV_MOUSE_HOST_WANTS_ABSOLUTE))
+    if (fCursorCapabilities & VBOX_VBVA_CURSOR_CAPABILITY_HARDWARE)
         return true;
     return false;
 }
 
-static void compareAndMaybeSetUseHardwareCursor(VBOXPtr pVBox, uint32_t fCursorCapabilities, bool *pfChanged, bool fSet)
+static void compareAndMaybeSetUseHardwareCursor(VBOXPtr pVBox, uint32_t fCursorCapabilities, Bool *pfChanged, Bool fSet)
 {
     if (pVBox->fUseHardwareCursor != useHardwareCursor(fCursorCapabilities))
         *pfChanged = true;
@@ -193,18 +200,18 @@ do { \
 
 /** Read in information about the most recent size hints and cursor
  * capabilities requested for the guest screens from HGSMI. */
-void vbvxReadSizesAndCursorIntegrationFromHGSMI(ScrnInfoPtr pScrn, bool *pfNeedUpdate)
+void vbvxReadSizesAndCursorIntegrationFromHGSMI(ScrnInfoPtr pScrn, Bool *pfNeedUpdate)
 {
     VBOXPtr pVBox = VBOXGetRec(pScrn);
     int rc;
     unsigned i;
-    bool fChanged = false;
+    Bool fChanged = false;
     uint32_t fCursorCapabilities;
 
     if (!pVBox->fHaveHGSMIModeHints)
         return;
     rc = VBoxHGSMIGetModeHints(&pVBox->guestCtx, pVBox->cScreens, pVBox->paVBVAModeHints);
-    VBVXASSERT(rc == VINF_SUCCESS, ("VBoxHGSMIGetModeHints failed, rc=%d.\n", rc));
+    AssertMsg(rc == VINF_SUCCESS, ("VBoxHGSMIGetModeHints failed, rc=%d.\n", rc));
     for (i = 0; i < pVBox->cScreens; ++i)
         if (pVBox->paVBVAModeHints[i].magic == VBVAMODEHINT_MAGIC)
         {
@@ -221,7 +228,7 @@ void vbvxReadSizesAndCursorIntegrationFromHGSMI(ScrnInfoPtr pScrn, bool *pfNeedU
                 COMPARE_AND_MAYBE_SET(&pVBox->pScreens[i].afHaveLocation, false, &fChanged, true);
         }
     rc = VBoxQueryConfHGSMI(&pVBox->guestCtx, VBOX_VBVA_CONF32_CURSOR_CAPABILITIES, &fCursorCapabilities);
-    VBVXASSERT(rc == VINF_SUCCESS, ("Getting VBOX_VBVA_CONF32_CURSOR_CAPABILITIES failed, rc=%d.\n", rc));
+    AssertMsg(rc == VINF_SUCCESS, ("Getting VBOX_VBVA_CONF32_CURSOR_CAPABILITIES failed, rc=%d.\n", rc));
     compareAndMaybeSetUseHardwareCursor(pVBox, fCursorCapabilities, &fChanged, true);
     if (pfNeedUpdate != NULL && fChanged)
         *pfNeedUpdate = true;
@@ -245,7 +252,7 @@ static void acpiEventHandler(int fd, void *pvData)
         rc = read(fd, &event, sizeof(event));
     while (rc > 0 || (rc == -1 && errno == EINTR));
     /* Why do they return EAGAIN instead of zero bytes read like everyone else does? */
-    VBVXASSERT(rc != -1 || errno == EAGAIN, ("Reading ACPI input event failed.\n"));
+    AssertMsg(rc != -1 || errno == EAGAIN, ("Reading ACPI input event failed.\n"));
 }
 
 void vbvxSetUpLinuxACPI(ScreenPtr pScreen)

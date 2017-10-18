@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -332,7 +332,7 @@ static bool rtDirFilterWinNtMatchStar(unsigned iDepth, RTUNICP uc, const char *p
                 if (rtDirFilterWinNtMatchEon(puszFilter))
                     return true;
                 ucFilter = '.';
-                /* fall thru */
+                RT_FALL_THRU();
 
             /*
              * Ok, we've got zero or more characters.

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,6 +36,7 @@
 #include <iprt/string.h>
 #include <iprt/uuid.h>
 #include <iprt/cdefs.h>
+#include <VBox/bios.h>
 #include <VBox/err.h>
 #include <VBox/param.h>
 
@@ -214,13 +215,35 @@ typedef struct DEVPCBIOS
     bool            fClearShutdownStatusOnHardReset;
     /** Number of soft resets we've logged. */
     uint32_t        cLoggedSoftResets;
+    /** Current port number for Bochs shutdown (used by APM). */
+    RTIOPORT        ShutdownPort;
+    /** True=use new port number for Bochs shutdown (used by APM). */
+    bool            fNewShutdownPort;
 } DEVPCBIOS;
 /** Pointer to the BIOS device state. */
 typedef DEVPCBIOS *PDEVPCBIOS;
 
 
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
+/** The saved state version. */
+#define PCBIOS_SSM_VERSION 0
+
+
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
+/** Saved state DEVPCBIOS field descriptors. */
+static SSMFIELD const g_aPcBiosFields[] =
+{
+    SSMFIELD_ENTRY(         DEVPCBIOS, fNewShutdownPort),
+    SSMFIELD_ENTRY_TERM()
+};
+
+
 /**
- * @callback_method_impl{FNIOMIOPORTIN, Boch Debug and Shutdown ports.}
+ * @callback_method_impl{FNIOMIOPORTIN, Bochs Debug and Shutdown ports.}
  */
 static DECLCALLBACK(int) pcbiosIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t *pu32, unsigned cb)
 {
@@ -230,11 +253,12 @@ static DECLCALLBACK(int) pcbiosIOPortRead(PPDMDEVINS pDevIns, void *pvUser, RTIO
 
 
 /**
- * @callback_method_impl{FNIOMIOPORTOUT, Boch Debug and Shutdown ports.}
+ * @callback_method_impl{FNIOMIOPORTOUT, Bochs Debug and Shutdown ports.}
  */
 static DECLCALLBACK(int) pcbiosIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTIOPORT Port, uint32_t u32, unsigned cb)
 {
     RT_NOREF1(pvUser);
+    PDEVPCBIOS pThis = PDMINS_2_DATA(pDevIns, PDEVPCBIOS);
 
     /*
      * Bochs BIOS char printing.
@@ -243,7 +267,6 @@ static DECLCALLBACK(int) pcbiosIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTI
         &&  (   Port == 0x402
              || Port == 0x403))
     {
-        PDEVPCBIOS pThis = PDMINS_2_DATA(pDevIns, PDEVPCBIOS);
         /* The raw version. */
         switch (u32)
         {
@@ -278,17 +301,16 @@ static DECLCALLBACK(int) pcbiosIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTI
     /*
      * Bochs BIOS shutdown request.
      */
-    if (cb == 1 && Port == 0x8900)
+    if (cb == 1 && Port == pThis->ShutdownPort)
     {
         static const unsigned char szShutdown[] = "Shutdown";
-        PDEVPCBIOS pThis = PDMINS_2_DATA(pDevIns, PDEVPCBIOS);
         if (u32 == szShutdown[pThis->iShutdown])
         {
             pThis->iShutdown++;
             if (pThis->iShutdown == 8)
             {
                 pThis->iShutdown = 0;
-                LogRel(("PcBios: 8900h shutdown request\n"));
+                LogRel(("PcBios: APM shutdown request\n"));
                 return PDMDevHlpVMPowerOff(pDevIns);
             }
         }
@@ -299,6 +321,84 @@ static DECLCALLBACK(int) pcbiosIOPortWrite(PPDMDEVINS pDevIns, void *pvUser, RTI
 
     /* not in use. */
     return VINF_SUCCESS;
+}
+
+
+/**
+ * Register the Bochs shutdown port.
+ * This is used by pcbiosConstruct, pcbiosReset and pcbiosLoadExec.
+ */
+static int pcbiosRegisterShutdown(PPDMDEVINS pDevIns, PDEVPCBIOS pThis, bool fNewShutdownPort)
+{
+    if (pThis->ShutdownPort != 0)
+    {
+        int rc = PDMDevHlpIOPortDeregister(pDevIns, pThis->ShutdownPort, 1);
+        AssertRC(rc);
+    }
+    pThis->fNewShutdownPort = fNewShutdownPort;
+    if (fNewShutdownPort)
+        pThis->ShutdownPort = VBOX_BIOS_SHUTDOWN_PORT;
+    else
+        pThis->ShutdownPort = VBOX_BIOS_OLD_SHUTDOWN_PORT;
+    return PDMDevHlpIOPortRegister(pDevIns, pThis->ShutdownPort, 1, NULL,
+                                   pcbiosIOPortWrite, pcbiosIOPortRead,
+                                   NULL, NULL, "Bochs PC BIOS - Shutdown");
+}
+
+
+/**
+ * @callback_method_impl{FNSSMDEVSAVEEXEC}
+ */
+static DECLCALLBACK(int) pcbiosSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
+{
+    PDEVPCBIOS pThis = PDMINS_2_DATA(pDevIns, PDEVPCBIOS);
+    SSMR3PutStruct(pSSM, pThis, g_aPcBiosFields);
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * @callback_method_impl{FNSSMDEVLOADPREP,
+ *      Clears the fNewShutdownPort flag prior to loading the state so that old
+ *      saved VM states keeps using the old port address (no pcbios state)}
+ */
+static DECLCALLBACK(int) pcbiosLoadPrep(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
+{
+    RT_NOREF(pSSM);
+    PDEVPCBIOS pThis = PDMINS_2_DATA(pDevIns, PDEVPCBIOS);
+
+    /* Since there are legacy saved state files without any SSM data for PCBIOS
+     * this is the only way to handle them correctly. */
+    pThis->fNewShutdownPort = false;
+
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * @callback_method_impl{FNSSMDEVLOADEXEC}
+ */
+static DECLCALLBACK(int) pcbiosLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint32_t uPass)
+{
+    PDEVPCBIOS pThis = PDMINS_2_DATA(pDevIns, PDEVPCBIOS);
+
+    if (uVersion > PCBIOS_SSM_VERSION)
+        return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
+    Assert(uPass == SSM_PASS_FINAL); NOREF(uPass);
+
+    return SSMR3GetStruct(pSSM, pThis, g_aPcBiosFields);
+}
+
+
+/**
+ * @callback_method_impl{FNSSMDEVLOADDONE,
+ *      Updates the shutdown port registration to match the flag loaded (or not).}
+ */
+static DECLCALLBACK(int) pcbiosLoadDone(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
+{
+    RT_NOREF(pSSM);
+    PDEVPCBIOS pThis = PDMINS_2_DATA(pDevIns, PDEVPCBIOS);
+    return pcbiosRegisterShutdown(pDevIns, pThis, pThis->fNewShutdownPort);
 }
 
 
@@ -379,6 +479,9 @@ static DECLCALLBACK(void) pcbiosReset(PPDMDEVINS pDevIns)
             pcbiosCmosWrite(pDevIns, 0xf, 0);
         }
     }
+
+    /* After reset the new BIOS code is active, use the new shutdown port. */
+    pcbiosRegisterShutdown(pDevIns, pThis, true /* fNewShutdownPort */);
 }
 
 
@@ -387,7 +490,7 @@ static DECLCALLBACK(void) pcbiosReset(PPDMDEVINS pDevIns)
  * (partition table).
  *
  * @returns VBox status code.
- * @param   pBlock          The block device interface of the disk.
+ * @param   pMedia          The media device interface of the disk.
  * @param   pLCHSGeometry   Where to return the disk geometry on success
  */
 static int biosGuessDiskLCHS(PPDMIMEDIA pMedia, PPDMMEDIAGEOMETRY pLCHSGeometry)
@@ -639,12 +742,12 @@ static DECLCALLBACK(int) pcbiosInitComplete(PPDMDEVINS pDevIns)
     pcbiosCmosWrite(pDevIns, 0x31, RT_BYTE2(u32));  /* 31h - Extended Memory in K, High Byte */
 
     /* Bochs BIOS specific? Anyway, it's the amount of memory above 16MB
-       and below 4GB (as it can only hold 4GB+16M). We have to chop off the
-       top 2MB or it conflict with what the ACPI tables return. (Should these
+       and below 4GB (as it can only hold 4GB-16M). We have to chop off the
+       top 32MB or it conflict with what the ACPI tables return. (Should these
        be adjusted, we still have to chop it at 0xfffc0000 or it'll conflict
        with the high BIOS mapping.) */
     if (cbRamSize > 16 * _1M)
-        u32 = (RT_MIN(cbBelow4GB, UINT32_C(0xffe00000)) - 16U * _1M) / _64K;
+        u32 = (RT_MIN(cbBelow4GB, UINT32_C(0xfe000000)) - 16U * _1M) / _64K;
     else
         u32 = 0;
     pcbiosCmosWrite(pDevIns, 0x34, RT_BYTE1(u32));
@@ -983,49 +1086,49 @@ static DECLCALLBACK(int) pcbiosDestruct(PPDMDEVINS pDevIns)
      */
     if (pThis->pu8PcBios)
     {
-        MMR3HeapFree(pThis->pu8PcBios);
+        PDMDevHlpMMHeapFree(pDevIns, pThis->pu8PcBios);
         pThis->pu8PcBios = NULL;
     }
 
     if (pThis->pszPcBiosFile)
     {
-        MMR3HeapFree(pThis->pszPcBiosFile);
+        PDMDevHlpMMHeapFree(pDevIns, pThis->pszPcBiosFile);
         pThis->pszPcBiosFile = NULL;
     }
 
     if (pThis->pu8LanBoot)
     {
-        MMR3HeapFree(pThis->pu8LanBoot);
+        PDMDevHlpMMHeapFree(pDevIns, pThis->pu8LanBoot);
         pThis->pu8LanBoot = NULL;
     }
 
     if (pThis->pszLanBootFile)
     {
-        MMR3HeapFree(pThis->pszLanBootFile);
+        PDMDevHlpMMHeapFree(pDevIns, pThis->pszLanBootFile);
         pThis->pszLanBootFile = NULL;
     }
 
     if (pThis->pszHDDevice)
     {
-        MMR3HeapFree(pThis->pszHDDevice);
+        PDMDevHlpMMHeapFree(pDevIns, pThis->pszHDDevice);
         pThis->pszHDDevice = NULL;
     }
 
     if (pThis->pszFDDevice)
     {
-        MMR3HeapFree(pThis->pszFDDevice);
+        PDMDevHlpMMHeapFree(pDevIns, pThis->pszFDDevice);
         pThis->pszFDDevice = NULL;
     }
 
     if (pThis->pszSataDevice)
     {
-        MMR3HeapFree(pThis->pszSataDevice);
+        PDMDevHlpMMHeapFree(pDevIns, pThis->pszSataDevice);
         pThis->pszSataDevice = NULL;
     }
 
     if (pThis->pszScsiDevice)
     {
-        MMR3HeapFree(pThis->pszScsiDevice);
+        PDMDevHlpMMHeapFree(pDevIns, pThis->pszScsiDevice);
         pThis->pszScsiDevice = NULL;
     }
 
@@ -1037,6 +1140,7 @@ static DECLCALLBACK(int) pcbiosDestruct(PPDMDEVINS pDevIns)
  * Convert config value to DEVPCBIOSBOOT.
  *
  * @returns VBox status code.
+ * @param   pDevIns         Device instance data.
  * @param   pCfg            Configuration handle.
  * @param   pszParam        The name of the value to read.
  * @param   penmBoot        Where to store the boot method.
@@ -1256,10 +1360,17 @@ static DECLCALLBACK(int)  pcbiosConstruct(PPDMDEVINS pDevIns, int iInstance, PCF
                                  NULL, NULL, "Bochs PC BIOS - Panic & Debug");
     if (RT_FAILURE(rc))
         return rc;
-    rc = PDMDevHlpIOPortRegister(pDevIns, 0x8900, 1, NULL, pcbiosIOPortWrite, pcbiosIOPortRead,
-                                 NULL, NULL, "Bochs PC BIOS - Shutdown");
+    rc = pcbiosRegisterShutdown(pDevIns, pThis, true /* fNewShutdownPort */);
     if (RT_FAILURE(rc))
         return rc;
+
+    /*
+     * Register SSM handlers, for remembering which shutdown port to use.
+     */
+    rc = PDMDevHlpSSMRegisterEx(pDevIns, PCBIOS_SSM_VERSION, 1 /* cbGuess */, NULL,
+                                NULL, NULL, NULL,
+                                NULL, pcbiosSaveExec, NULL,
+                                pcbiosLoadPrep, pcbiosLoadExec, pcbiosLoadDone);
 
     /*
      * Read the PXE debug logging option.

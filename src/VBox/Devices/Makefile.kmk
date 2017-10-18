@@ -84,6 +84,11 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	Storage/VSCSI/VSCSIIoReq.cpp \
  	Storage/VSCSI/VSCSIVpdPagePool.cpp \
  	build/VBoxDDUDeps.cpp
+
+ ifdef VBOX_WITH_VSCSI_SSC
+  VBoxDDU_SOURCES        += Storage/VSCSI/VSCSILunSsc.cpp
+  VBoxDDU_DEFS		 += VBOX_WITH_VSCSI_SSC
+ endif
  ifdef VBOX_WITH_USB
   VBoxDDU_INCS.os2       += \
  	$(PATH_ROOT)/src/VBox/HostDrivers/VBoxUSB/os2
@@ -103,7 +108,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   VBoxDDU_LDFLAGS.darwin += -framework IOKit
  endif
 
- VBoxDDU_LDFLAGS.linux    = -Wl,--no-undefined
+ VBoxDDU_LDFLAGS.linux    = $(VBOX_GCC_NO_UNDEFINED)
  $(call VBOX_SET_VER_INFO_DLL,VBoxDDU,VirtualBox VMM Devices and Drivers Utilities)
 
  #
@@ -114,12 +119,12 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  Storage/DrvHostDVD.cpp_SDKS.win = ReorderCompilerIncs $(VBOX_WINDDK)
  VBoxDD_INCS             = \
  	build \
- 	Network/slirp
+ 	Network/slirp \
+ 	$(VBOX_GRAPHICS_INCS)
  VBoxDD_DEFS             = \
  	VBOX_ACPI \
  	VBOX_HGCM_HOST_CODE \
  	$(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,) \
- 	$(if $(VBOX_WITH_NEW_IOAPIC),VBOX_WITH_NEW_IOAPIC,) \
  	$(if $(VBOX_BIOS_DMI_FALLBACK),VBOX_BIOS_DMI_FALLBACK,) \
  	VBOX_WITH_DMI_CHASSIS \
  	VBOX_WITH_DMI_OEMSTRINGS
@@ -158,7 +163,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	Network/DevPCNet.cpp \
  	PC/DevDMA.cpp \
  	PC/DevHPET.cpp \
- 	$(if $(VBOX_WITH_NEW_IOAPIC),PC/DevIoApic.cpp,) \
+ 	PC/DevIoApic.cpp \
  	Storage/DevFdc.cpp \
  	Serial/DevSerial.cpp \
  	Parallel/DevParallel.cpp \
@@ -193,7 +198,22 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   VBoxDD_SOURCES += Storage/HBDMgmt-generic.cpp
  endif
 
- VBoxDD_SOURCES.darwin += Storage/HBDMgmt-darwin.cpp
+ VBoxDD_SOURCES.darwin += \
+ 	Storage/HBDMgmt-darwin.cpp \
+ 	Storage/DrvHostBase-darwin.cpp
+
+ VBoxDD_SOURCES.freebsd += \
+ 	Storage/DrvHostBase-freebsd.cpp
+
+ VBoxDD_SOURCES.linux += \
+ 	Storage/DrvHostBase-linux.cpp
+
+ VBoxDD_SOURCES.solaris += \
+ 	Storage/DrvHostBase-solaris.cpp
+
+ VBoxDD_SOURCES.win += \
+ 	Storage/DrvHostBase-win.cpp
+
  #VBoxDD_SOURCES.win += Storage/HBDMgmt-win.cpp #Disabled until remaining issues are sorted out
 
  VBoxDD_LIBS             = # more later.
@@ -205,7 +225,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	-framework Carbon \
  	-framework DiskArbitration \
  	-framework SystemConfiguration
- VBoxDD_LDFLAGS.linux    = -Wl,--no-undefined
+ VBoxDD_LDFLAGS.linux    = $(VBOX_GCC_NO_UNDEFINED)
 
  # --- Tracing bits. ---
 
@@ -395,7 +415,6 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   VBoxDD_SOURCES        += \
  	USB/DevOHCI.cpp \
  	USB/DrvVUSBRootHub.cpp \
- 	USB/VUSBBufferedPipe.cpp \
  	USB/VUSBDevice.cpp \
  	USB/VUSBSniffer.cpp \
  	USB/VUSBSnifferPcapNg.cpp \
@@ -490,8 +509,6 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   VBoxDD_DEFS           += VBOX_WITH_SCSI
   VBoxDD_SOURCES        += \
   	Storage/DrvSCSI.cpp
-  VBoxDD_SOURCES.linux  += \
-  	Storage/DrvSCSIHost.cpp
  endif
 
  ifdef VBOX_WITH_ISCSI
@@ -502,7 +519,8 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  ifdef VBOX_WITH_DRV_DISK_INTEGRITY
   VBoxDD_DEFS           += VBOX_WITH_DRV_DISK_INTEGRITY
   VBoxDD_SOURCES        += \
-  	Storage/DrvDiskIntegrity.cpp
+  	Storage/DrvDiskIntegrity.cpp \
+  	Storage/DrvRamDisk.cpp
   VBoxDD_LIBS           += \
  	$(PATH_STAGE_LIB)/StorageDbgLib$(VBOX_SUFF_LIB)
  endif
@@ -532,22 +550,73 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
 
  # --- Audio bits. ---
 
- # Enable Audio Queues implementation for macOS hosts (Core Audio backend).
- VBoxDD_DEFS.darwin += VBOX_WITH_AUDIO_CA_QUEUES
+ if 0 # Not stable yet.
+  # Enable microphone-in support for HDA. Otherwise only line-in is supported.
+  VBoxDD_DEFS += VBOX_WITH_AUDIO_HDA_MIC_IN
 
- VBoxDD_SOURCES += \
- 	Audio/DevIchAc97.cpp \
- 	Audio/DevSB16.cpp \
- 	Audio/DevHDA.cpp \
- 	Audio/HDACodec.cpp \
- 	Audio/HDAStreamPeriod.cpp \
- 	Audio/AudioMixBuffer.cpp \
- 	Audio/AudioMixer.cpp \
- 	Audio/DrvAudio.cpp \
- 	Audio/DrvAudioCommon.cpp \
- 	Audio/DrvHostNullAudio.cpp
+  # Enable interleavig streams support for HDA. Needed for 5.1 surround support.
+  VBoxDD_DEFS += VBOX_WITH_AUDIO_HDA_INTERLEAVING_STREAMS_SUPPORT
 
- VBoxDD_DEFS += $(if $(VBOX_AUDIO_DEBUG_DUMP_PCM_DATA),VBOX_AUDIO_DEBUG_DUMP_PCM_DATA,)
+  # Enable 5.1 surround support (Front, Center/LFE, Rear) for HDA.
+  # Without this, only stereo output (Front) is supported.
+  VBoxDD_DEFS += VBOX_WITH_AUDIO_HDA_51_SURROUND
+ endif
+
+ # Enable backend-independent device enumeration support.
+ VBoxDD_DEFS  += VBOX_WITH_AUDIO_ENUM
+
+ # Enable backend callback support.
+ VBoxDD_DEFS  += VBOX_WITH_AUDIO_CALLBACKS
+
+ # Disable one-time audio stream initialization at device creation (VM startup) instead
+ # of creating the stream when needed at some later point in time.
+ #
+ # This was the default behavior ever since.
+ #
+ # We now go with the new behavior by default now.
+ #VBoxDD_DEFS  += VBOX_WITH_AUDIO_SB16_ONETIME_INIT
+ #VBoxDD_DEFS  += VBOX_WITH_AUDIO_AC97_ONETIME_INIT
+ #VBoxDD_DEFS  += VBOX_WITH_AUDIO_HDA_ONETIME_INIT
+
+ #
+ # Enables asynchronous audio data handling
+ # to speed up the actual DMA data routines and keeping up
+ # audio processing out of EMT as much as possible.
+ #
+ # Disabled for AC'97 for now.
+ #VBoxDD_DEFS  += VBOX_WITH_AUDIO_AC97_ASYNC_IO
+ VBoxDD_DEFS  += VBOX_WITH_AUDIO_HDA_ASYNC_IO
+
+ # Not yet enabled: Callbacks for the device emulation to let the backends
+ #                  tell the emulation when and how to process data.
+ if 0
+  VBOX_DEFS   += VBOX_WITH_AUDIO_SB16_CALLBACKS
+  VBOX_DEFS   += VBOX_WITH_AUDIO_AC97_CALLBACKS
+  VBOX_DEFS   += VBOX_WITH_AUDIO_HDA_CALLBACKS
+ endif
+
+ VBoxDD_SOURCES         += \
+	Audio/DevIchAc97.cpp \
+	Audio/DevSB16.cpp \
+	Audio/DevHDA.cpp \
+	Audio/DevHDACommon.cpp \
+	Audio/HDACodec.cpp \
+	Audio/HDAStream.cpp \
+	Audio/HDAStreamChannel.cpp \
+	Audio/HDAStreamMap.cpp \
+	Audio/HDAStreamPeriod.cpp \
+	Audio/AudioMixBuffer.cpp \
+	Audio/AudioMixer.cpp \
+	Audio/DrvAudio.cpp \
+	Audio/DrvAudioCommon.cpp \
+	Audio/DrvHostNullAudio.cpp
+
+ ifdef VBOX_WITH_AUDIO_DEBUG
+  VBoxDD_DEFS    += VBOX_WITH_AUDIO_DEBUG
+  VBoxDD_SOURCES += \
+	Audio/DrvHostDebugAudio.cpp
+ endif
+
  ifdef VBOX_WITH_AUDIO_VALIDATIONKIT
   VBoxDD_DEFS    += VBOX_WITH_AUDIO_VALIDATIONKIT
   VBoxDD_SOURCES += \
@@ -562,6 +631,11 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  ifeq ($(KBUILD_TARGET),win)
   VBoxDD_SOURCES += \
 	Audio/DrvHostDSound.cpp
+  ifdef VBOX_WITH_AUDIO_MMNOTIFICATION_CLIENT
+   VBoxDD_SOURCES += \
+	Audio/VBoxMMNotificationClient.cpp
+   VBoxDD_DEFS    += VBOX_WITH_AUDIO_MMNOTIFICATION_CLIENT
+  endif
  endif
 
  ifdef VBOX_WITH_AUDIO_OSS
@@ -840,7 +914,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  Bus/DevPciRaw.cpp_INCS   = Bus
 
  # For finding and generating vbetables.h (see Graphics/BIOS/Makefile.kmk).
- Graphics/DevVGA.cpp_INCS = $(VgaBiosBin_0_OUTDIR)
+ Graphics/DevVGA.cpp_INCS = $(VgaBiosBin_0_OUTDIR) $(VBOX_GRAPHICS_INCS)
  Graphics/DevVGA.cpp_DEPS = $(VgaBiosBin_0_OUTDIR)/vbetables.h
 
  $(call VBOX_SET_VER_INFO_DLL,VBoxDD,VirtualBox VMM Devices and Drivers) # (last!)
@@ -855,7 +929,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
    VBoxDDRC_DEFS.darwin   = VBOX_WITH_2X_4GB_ADDR_SPACE
   endif
   VBoxDDRC_DEFS           = $(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,)
-  VBoxDDRC_INCS           = build
+  VBoxDDRC_INCS           = build $(VBOX_GRAPHICS_INCS)
   VBoxDDRC_SOURCES        = \
   	Bus/DevPCI.cpp \
   	Bus/DevPciIch9.cpp \
@@ -867,7 +941,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   	Input/PS2K.cpp \
   	Input/PS2M.cpp \
   	PC/DevACPI.cpp \
-  	$(if $(VBOX_WITH_NEW_IOAPIC),PC/DevIoApic.cpp,) \
+  	PC/DevIoApic.cpp \
   	PC/DevPit-i8254.cpp \
   	PC/DevPIC.cpp \
   	PC/DevRTC.cpp \
@@ -879,7 +953,8 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   	VMMDev/VMMDevTesting.cpp
 
   VBoxDDRC_SOURCES      += \
- 	Audio/DevHDA.cpp
+ 	Audio/DevHDA.cpp \
+ 	Audio/DevHDACommon.cpp
 
   ifdef VBOX_WITH_E1000
    VBoxDDRC_DEFS        += VBOX_WITH_E1000
@@ -986,17 +1061,13 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  VBoxDD2_TEMPLATE        = VBoxR3DllWarnNoPic
  VBoxDD2_DEFS            = \
 	IN_VBOXDD2 \
-	$(if $(VBOX_WITH_PXE_ROM),VBOX_WITH_PXE_ROM,) \
-	$(if $(VBOX_WITH_NEW_APIC),VBOX_WITH_NEW_APIC,) \
-	$(if $(VBOX_WITH_NEW_IOAPIC),VBOX_WITH_NEW_IOAPIC,)
+	$(if $(VBOX_WITH_PXE_ROM),VBOX_WITH_PXE_ROM,)
  VBoxDD2_INCS           := \
 	build \
  	$(PATH_SUB_CURRENT)
  VBoxDD2_SOURCES         = \
  	build/VBoxDD2.cpp  \
- 	PC/DevLPC.cpp \
-	$(if $(VBOX_WITH_NEW_APIC),,PC/DevAPIC.cpp) \
-	$(if $(VBOX_WITH_NEW_IOAPIC),,PC/DevIoApic_Old.cpp)
+ 	PC/DevLPC.cpp
  VBoxDD2_LIBS            = \
  	$(PATH_STAGE_LIB)/PcBiosBin$(VBOX_SUFF_LIB) \
  	$(PATH_STAGE_LIB)/VgaBiosBin$(VBOX_SUFF_LIB) \
@@ -1008,7 +1079,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	$(LIB_RUNTIME)
  VBoxDD2_LIBS.darwin    += $(LIB_REM)
  VBoxDD2_LDFLAGS.darwin  = -install_name $(VBOX_DYLD_EXECUTABLE_PATH)/VBoxDD2.dylib
- VBoxDD2_LDFLAGS.linux   = -Wl,--no-undefined
+ VBoxDD2_LDFLAGS.linux   = $(VBOX_GCC_NO_UNDEFINED)
 
  $(call VBOX_SET_VER_INFO_DLL,VBoxDD2,VirtualBox VMM Devices and Drivers 2) # (last!)
 
@@ -1018,7 +1089,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  VBoxDDR0_TEMPLATE       = VBoxR0
  VBoxDDR0_DEFS           = IN_RT_R0 $(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,) # - WTF is IN_RT_R0 doing here?
  VBoxDDR0_DEFS.win      += VBOX_WITH_WIN_PARPORT_SUP
- VBoxDDR0_INCS           = build
+ VBoxDDR0_INCS           = build $(VBOX_GRAPHICS_INCS)
  VBoxDDR0_SDKS.win 	  = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK)
  VBoxDDR0_SOURCES        = \
  	build/VBoxDDR0.cpp \
@@ -1032,7 +1103,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	Input/PS2K.cpp \
  	Input/PS2M.cpp \
  	PC/DevACPI.cpp \
- 	$(if $(VBOX_WITH_NEW_IOAPIC),PC/DevIoApic.cpp,) \
+ 	PC/DevIoApic.cpp \
  	PC/DevPit-i8254.cpp \
  	PC/DevPIC.cpp \
  	PC/DevRTC.cpp \
@@ -1043,12 +1114,11 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	Parallel/DevParallel.cpp \
  	VMMDev/VMMDevTesting.cpp \
  	Network/DrvIntNet.cpp \
- 	Network/DrvDedicatedNic.cpp
+ 	Network/DrvDedicatedNic.cpp \
+ 	Audio/DevHDA.cpp \
+ 	Audio/DevHDACommon.cpp
 
- VBoxDDR0_SOURCES       += \
- 	Audio/DevHDA.cpp
-
- VBoxDDR0_SOURCES.win   += Parallel/DrvHostParallel.cpp
+ VBoxDDR0_SOURCES.win += Parallel/DrvHostParallel.cpp
 
  VBoxDDR0_DEFS          += \
 	$(if $(VBOX_WITH_HGSMI),VBOX_WITH_HGSMI,) \
@@ -1158,8 +1228,6 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   VBoxDD2RC_TEMPLATE       = VBoxRc
   VBoxDD2RC_INCS           = build
   VBoxDD2RC_SOURCES        = \
- 	$(if $(VBOX_WITH_NEW_IOAPIC),,PC/DevIoApic_Old.cpp) \
-   	$(if $(VBOX_WITH_NEW_APIC),,PC/DevAPIC.cpp) \
  	build/VBoxDD2R0.cpp # Dummy to prevent linking errors.
   if1of ($(VBOX_LDR_FMT32), pe lx)
    VBoxDD2RC_LIBS          = \
@@ -1177,9 +1245,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  VBoxDD2R0_DEFS           = IN_RT_R0
  VBoxDD2R0_INCS           = build
  VBoxDD2R0_SOURCES        = \
- 	build/VBoxDD2R0.cpp \
- 	$(if $(VBOX_WITH_NEW_IOAPIC),,PC/DevIoApic_Old.cpp) \
- 	$(if $(VBOX_WITH_NEW_APIC),,PC/DevAPIC.cpp)
+ 	build/VBoxDD2R0.cpp
  if1of ($(VBOX_LDR_FMT), pe lx)
   VBoxDD2R0_LIBS          = \
   	$(PATH_STAGE_LIB)/VMMR0Imp$(VBOX_SUFF_LIB) \
@@ -1430,6 +1496,7 @@ if defined(VBOX_WITH_VMSVGA3D) && !defined(VBOX_ONLY_EXTPACKS)
  	__builtin_ms_va_list=va_list \
  	__stdcall= \
  	ms_abi=
+ VBoxSVGA3D_INCS = $(VBOX_GRAPHICS_INCS)
  VBoxSVGA3D_INCS.win    := \
  	Graphics/shaderlib/libWineStub/include
  VBoxSVGA3D_INCS.linux  := \

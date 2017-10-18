@@ -9,7 +9,7 @@ See VBoxConstantWrappingHack for details.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2016 Oracle Corporation
+Copyright (C) 2010-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -28,7 +28,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard Python imports.
@@ -38,16 +38,18 @@ import sys
 class VBoxConstantWrappingHack(object):                                         # pylint: disable=R0903
     """
     This is a hack to avoid the self.oVBoxMgr.constants.MachineState_Running
-    uglyness that forces one into the rigth margin...  Anyone using this module
+    ugliness that forces one into the right margin...  Anyone using this module
     can get to the constants easily by:
 
-        import testdriver.vbox as vbox
-        if self.o.machine.state == vbox.MachineState_Running:
+        from testdriver import vboxcon
+        if self.o.machine.state == vboxcon.MachineState_Running:
             do stuff;
 
-    For our own convenience we have a global variable 'vbox' that refers to the
-    instance of this class so we can do the same thing from within the module
-    as well (if we didn't we'd have to do testdriver.vbox.MachineState_Running).
+    For our own convenience there's a vboxcon attribute set up in vbox.py, 
+    class TestDriver which is the basis for the VirtualBox testcases. It takes
+    care of setting things up properly through the global variable
+    'goHackModuleClass' that refers to the instance of this class(if we didn't
+    we'd have to use testdriver.vboxcon.MachineState_Running).
     """
     def __init__(self, oWrapped):
         self.oWrapped = oWrapped;

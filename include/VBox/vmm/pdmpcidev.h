@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,15 +42,13 @@
  * @param   pDevIns         Pointer to the device instance the PCI device
  *                          belongs to.
  * @param   pPciDev         Pointer to PCI device. Use pPciDev->pDevIns to get the device instance.
- * @param   Address         The configuration space register address. [0..4096]
+ * @param   uAddress        The configuration space register address. [0..4096]
  * @param   cb              The register size. [1,2,4]
  *
  * @remarks Called with the PDM lock held.  The device lock is NOT take because
  *          that is very likely be a lock order violation.
- *
- * @todo add pDevIns parameter.
  */
-typedef DECLCALLBACK(uint32_t) FNPCICONFIGREAD(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t Address, unsigned cb);
+typedef DECLCALLBACK(uint32_t) FNPCICONFIGREAD(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t uAddress, unsigned cb);
 /** Pointer to a FNPCICONFIGREAD() function. */
 typedef FNPCICONFIGREAD *PFNPCICONFIGREAD;
 /** Pointer to a PFNPCICONFIGREAD. */
@@ -62,17 +60,15 @@ typedef PFNPCICONFIGREAD *PPFNPCICONFIGREAD;
  * @param   pDevIns         Pointer to the device instance the PCI device
  *                          belongs to.
  * @param   pPciDev         Pointer to PCI device. Use pPciDev->pDevIns to get the device instance.
- * @param   Address         The configuration space register address. [0..4096]
+ * @param   uAddress        The configuration space register address. [0..4096]
  * @param   u32Value        The value that's being written. The number of bits actually used from
  *                          this value is determined by the cb parameter.
  * @param   cb              The register size. [1,2,4]
  *
  * @remarks Called with the PDM lock held.  The device lock is NOT take because
  *          that is very likely be a lock order violation.
- *
- * @todo add pDevIns parameter and fix iRegion type.
  */
-typedef DECLCALLBACK(void) FNPCICONFIGWRITE(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t Address, uint32_t u32Value, unsigned cb);
+typedef DECLCALLBACK(void) FNPCICONFIGWRITE(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t uAddress, uint32_t u32Value, unsigned cb);
 /** Pointer to a FNPCICONFIGWRITE() function. */
 typedef FNPCICONFIGWRITE *PFNPCICONFIGWRITE;
 /** Pointer to a PFNPCICONFIGWRITE. */
@@ -84,7 +80,7 @@ typedef PFNPCICONFIGWRITE *PPFNPCICONFIGWRITE;
  * @returns VBox status code.
  * @param   pDevIns         Pointer to the device instance the PCI device
  *                          belongs to.
- * @param   pPciDev         Pointer to PCI device. Use pPciDev->pDevIns to get the device instance.
+ * @param   pPciDev         Pointer to the PCI device.
  * @param   iRegion         The region number.
  * @param   GCPhysAddress   Physical address of the region. If enmType is PCI_ADDRESS_SPACE_IO, this
  *                          is an I/O port, otherwise it's a physical address.
@@ -98,13 +94,27 @@ typedef PFNPCICONFIGWRITE *PPFNPCICONFIGWRITE;
  *
  * @remarks Called with the PDM lock held.  The device lock is NOT take because
  *          that is very likely be a lock order violation.
- *
- * @todo add pDevIns parameter and fix iRegion type.
  */
 typedef DECLCALLBACK(int) FNPCIIOREGIONMAP(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
                                            RTGCPHYS GCPhysAddress, RTGCPHYS cb, PCIADDRESSSPACE enmType);
 /** Pointer to a FNPCIIOREGIONMAP() function. */
 typedef FNPCIIOREGIONMAP *PFNPCIIOREGIONMAP;
+
+
+/**
+ * Sets the size and type for old saved states from within a
+ * PDMPCIDEV::pfnRegionLoadChangeHookR3 callback.
+ *
+ * @returns VBox status code.
+ * @param   pPciDev         Pointer to the PCI device.
+ * @param   iRegion         The region number.
+ * @param   cbRegion        The region size.
+ * @param   enmType         Combination of the PCI_ADDRESS_SPACE_* values.
+ */
+typedef DECLCALLBACK(int) FNPCIIOREGIONOLDSETTER(PPDMPCIDEV pPciDev, uint32_t iRegion, RTGCPHYS cbRegion, PCIADDRESSSPACE enmType);
+/** Pointer to a FNPCIIOREGIONOLDSETTER() function. */
+typedef FNPCIIOREGIONOLDSETTER *PFNPCIIOREGIONOLDSETTER;
+
 
 
 /*
@@ -122,7 +132,7 @@ typedef FNPCIIOREGIONMAP *PFNPCIIOREGIONMAP;
  * devices associated with it.  The first PCI device that it registers
  * automatically becomes the default PCI device and can be used implicitly
  * with the device helper APIs.  Subsequent PCI devices must be specified
- * expeclitly to the device helper APIs when used.
+ * explicitly to the device helper APIs when used.
  */
 typedef struct PDMPCIDEV
 {
@@ -135,7 +145,7 @@ typedef struct PDMPCIDEV
 #ifdef PDMPCIDEVINT_DECLARED
         PDMPCIDEVINT        s;
 #endif
-        uint8_t             padding[HC_ARCH_BITS == 32 ? 272 : 384];
+        uint8_t             padding[HC_ARCH_BITS == 32 ? 288 : 384];
     } Int;
 
     /** @name Read only data.
@@ -147,9 +157,34 @@ typedef struct PDMPCIDEV
     uint32_t                Alignment0; /**< Alignment. */
     /** Device name. */
     R3PTRTYPE(const char *) pszNameR3;
-    /** Reserved. */
-    RTR3PTR                 pvReserved;
     /** @} */
+
+    /**
+     * Callback for dealing with size changes.
+     *
+     * This is set by the PCI device when needed.  It is only needed if any changes
+     * in the PCI resources have been made that may be incompatible with saved state
+     * (i.e. does not reflect configuration, but configuration defaults changed).
+     *
+     * The implementation can use PDMDevHlpMMIOExReduce to adjust the resource
+     * allocation down in size.  There is currently no way of growing resources.
+     * Dropping a resource is automatic.
+     *
+     * @returns VBox status code.
+     * @param   pDevIns         Pointer to the device instance the PCI device
+     *                          belongs to.
+     * @param   pPciDev         Pointer to the PCI device.
+     * @param   iRegion         The region number or UINT32_MAX if old saved state call.
+     * @param   cbRegion        The size being loaded, RTGCPHYS_MAX if old saved state
+     *                          call, or 0 for dummy 64-bit top half region.
+     * @param   enmType         The type being loaded, -1 if old saved state call, or
+     *                          0xff if dummy 64-bit top half region.
+     * @param   pfnOldSetter    Callback for setting size and type for call
+     *                          regarding old saved states.  NULL otherwise.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnRegionLoadChangeHookR3,(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t iRegion,
+                                                         uint64_t cbRegion, PCIADDRESSSPACE enmType,
+                                                         PFNPCIIOREGIONOLDSETTER pfnOldSetter));
 } PDMPCIDEV;
 #ifdef PDMPCIDEVINT_DECLARED
 AssertCompile(RT_SIZEOFMEMB(PDMPCIDEV, Int.s) <= RT_SIZEOFMEMB(PDMPCIDEV, Int.padding));

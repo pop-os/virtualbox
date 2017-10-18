@@ -68,7 +68,8 @@ static int vgdrvSolarisOpen(dev_t *pDev, int fFlag, int fType, cred_t *pCred);
 static int vgdrvSolarisClose(dev_t Dev, int fFlag, int fType, cred_t *pCred);
 static int vgdrvSolarisRead(dev_t Dev, struct uio *pUio, cred_t *pCred);
 static int vgdrvSolarisWrite(dev_t Dev, struct uio *pUio, cred_t *pCred);
-static int vgdrvSolarisIOCtl(dev_t Dev, int Cmd, intptr_t pArg, int Mode, cred_t *pCred, int *pVal);
+static int vgdrvSolarisIOCtl(dev_t Dev, int iCmd, intptr_t pArg, int Mode, cred_t *pCred, int *pVal);
+static int vgdrvSolarisIOCtlSlow(PVBOXGUESTSESSION pSession, int iCmd, int Mode, intptr_t iArgs);
 static int vgdrvSolarisPoll(dev_t Dev, short fEvents, int fAnyYet, short *pReqEvents, struct pollhead **ppPollHead);
 
 static int vgdrvSolarisGetInfo(dev_info_t *pDip, ddi_info_cmd_t enmCmd, void *pArg, void **ppResult);
@@ -188,14 +189,15 @@ static pollhead_t           g_PollHead;
 static kmutex_t             g_IrqMtx;
 /** The IRQ high-level Mutex. */
 static kmutex_t             g_HighLevelIrqMtx;
-/** Layered device handle for kernel keep-attached opens */
-static ldi_handle_t         g_LdiHandle = NULL;
-/** Ref counting for IDCOpen calls */
-static uint64_t             g_cLdiOpens = 0;
-/** The Mutex protecting the LDI handle in IDC opens */
-static kmutex_t             g_LdiMtx;
 /** Whether soft-ints are setup. */
 static bool                 g_fSoftIntRegistered = false;
+
+/** Additional IPRT function we need to drag in for vboxfs. */
+PFNRT g_Deps[] =
+{
+    (PFNRT)RTErrConvertToErrno,
+};
+
 
 /**
  * Kernel entry points
@@ -217,8 +219,6 @@ int _init(void)
             RTLogRelSetDefaultInstance(pRelLogger);
         else
             cmn_err(CE_NOTE, "failed to initialize driver logging rc=%d!\n", rc);
-
-        mutex_init(&g_LdiMtx, NULL, MUTEX_DRIVER, NULL);
 
         /*
          * Prevent module autounloading.
@@ -258,17 +258,14 @@ int _fini(void)
     RTLogDestroy(RTLogSetDefaultInstance(NULL));
 
     if (!rc)
-    {
-        mutex_destroy(&g_LdiMtx);
         RTR0Term();
-    }
     return rc;
 }
 
 
 int _info(struct modinfo *pModInfo)
 {
-    LogFlow((DEVICE_NAME ":_info\n"));
+    /* LogFlow((DEVICE_NAME ":_info\n")); - Called too early, causing RTThreadPreemtIsEnabled warning. */
     return mod_info(&g_vgdrvSolarisModLinkage, pModInfo);
 }
 
@@ -485,8 +482,12 @@ static int vgdrvSolarisGetInfo(dev_info_t *pDip, ddi_info_cmd_t enmCmd, void *pv
 
 /**
  * User context entry points
+ *
+ * @remarks fFlags are the flags passed to open() or to ldi_open_by_name.  In
+ *          the latter case the FKLYR flag is added to indicate that the caller
+ *          is a kernel component rather than user land.
  */
-static int vgdrvSolarisOpen(dev_t *pDev, int fFlag, int fType, cred_t *pCred)
+static int vgdrvSolarisOpen(dev_t *pDev, int fFlags, int fType, cred_t *pCred)
 {
     int                 rc;
     PVBOXGUESTSESSION   pSession = NULL;
@@ -519,10 +520,16 @@ static int vgdrvSolarisOpen(dev_t *pDev, int fFlag, int fType, cred_t *pCred)
     /*
      * Create a new session.
      */
-    rc = VGDrvCommonCreateUserSession(&g_DevExt, &pSession);
+    if (!(fFlags & FKLYR))
+        rc = VGDrvCommonCreateUserSession(&g_DevExt, &pSession);
+    else
+        rc = VGDrvCommonCreateKernelSession(&g_DevExt, &pSession);
     if (RT_SUCCESS(rc))
     {
-        pState->pvProcRef = proc_ref();
+        if (!(fFlags & FKLYR))
+            pState->pvProcRef = proc_ref();
+        else
+            pState->pvProcRef = NULL;
         pState->pSession = pSession;
         *pDev = makedevice(getmajor(*pDev), iOpenInstance);
         Log(("vgdrvSolarisOpen: pSession=%p pState=%p pid=%d\n", pSession, pState, (int)RTProcSelf()));
@@ -549,7 +556,11 @@ static int vgdrvSolarisClose(dev_t Dev, int flag, int fType, cred_t *pCred)
         return EFAULT;
     }
 
-    proc_unref(pState->pvProcRef);
+    if (pState->pvProcRef != NULL)
+    {
+        proc_unref(pState->pvProcRef);
+        pState->pvProcRef = NULL;
+    }
     pSession = pState->pSession;
     pState->pSession = NULL;
     Log(("vgdrvSolarisClose: pSession=%p pState=%p\n", pSession, pState));
@@ -563,7 +574,8 @@ static int vgdrvSolarisClose(dev_t Dev, int flag, int fType, cred_t *pCred)
     /*
      * Close the session.
      */
-    VGDrvCommonCloseSession(&g_DevExt, pSession);
+    if (pSession)
+        VGDrvCommonCloseSession(&g_DevExt, pSession);
     return 0;
 }
 
@@ -600,176 +612,229 @@ static int vgdrvSolarisWrite(dev_t Dev, struct uio *pUio, cred_t *pCred)
  * This is normally defined by sys/ioccom.h on BSD systems...
  */
 #ifndef IOCPARM_LEN
-# define IOCPARM_LEN(Code)                      (((Code) >> 16) & IOCPARM_MASK)
+# define IOCPARM_LEN(x)     ( ((x) >> 16) & IOCPARM_MASK )
 #endif
-
-
-/**
- * Converts a VBox status code to a Solaris error code.
- *
- * @returns corresponding Solaris errno.
- * @param   rcVBox        VirtualBox error code to convert.
- */
-static int vgdrvSolarisConvertToErrno(int rcVBox)
-{
-    /* RTErrConvertToErrno() below will ring-0 debug assert if we don't do such stuff. */
-    if (rcVBox == VERR_PERMISSION_DENIED)
-        rcVBox = VERR_ACCESS_DENIED;
-
-    if (   rcVBox > -1000
-        && rcVBox < 1000)
-        return RTErrConvertToErrno(rcVBox);
-
-    switch (rcVBox)
-    {
-        case VERR_HGCM_SERVICE_NOT_FOUND:      return ESRCH;
-        case VINF_HGCM_CLIENT_REJECTED:        return 0;
-        case VERR_HGCM_INVALID_CMD_ADDRESS:    return EFAULT;
-        case VINF_HGCM_ASYNC_EXECUTE:          return 0;
-        case VERR_HGCM_INTERNAL:               return EPROTO;
-        case VERR_HGCM_INVALID_CLIENT_ID:      return EINVAL;
-        case VINF_HGCM_SAVE_STATE:             return 0;
-        /* No reason to return this to a guest. */
-        /* case VERR_HGCM_SERVICE_EXISTS:      return EEXIST; */
-
-        default:
-        {
-            AssertMsgFailed(("Unhandled error code %Rrc\n", rcVBox));
-            return EINVAL;
-        }
-    }
-}
 
 
 /**
  * Driver ioctl, an alternate entry point for this character driver.
  *
  * @param   Dev             Device number
- * @param   Cmd             Operation identifier
- * @param   pArg            Arguments from user to driver
+ * @param   iCmd            Operation identifier
+ * @param   iArgs           Arguments from user to driver
  * @param   Mode            Information bitfield (read/write, address space etc.)
  * @param   pCred           User credentials
  * @param   pVal            Return value for calling process.
  *
  * @return  corresponding solaris error code.
  */
-static int vgdrvSolarisIOCtl(dev_t Dev, int Cmd, intptr_t pArg, int Mode, cred_t *pCred, int *pVal)
+static int vgdrvSolarisIOCtl(dev_t Dev, int iCmd, intptr_t iArgs, int Mode, cred_t *pCred, int *pVal)
 {
-    LogFlow(("vgdrvSolarisIOCtl: iCmd=%#x\n", Cmd));
-
     /*
      * Get the session from the soft state item.
      */
     vboxguest_state_t *pState = ddi_get_soft_state(g_pvgdrvSolarisState, getminor(Dev));
     if (!pState)
     {
-        LogRel((DEVICE_NAME "::IOCtl: no state data for %d\n", getminor(Dev)));
+        LogRel(("vgdrvSolarisIOCtl: no state data for %#x (%d)\n", Dev, getminor(Dev)));
         return EINVAL;
     }
 
     PVBOXGUESTSESSION pSession = pState->pSession;
     if (!pSession)
     {
-        LogRel((DEVICE_NAME "::IOCtl: no session data for %d\n", getminor(Dev)));
-        return EINVAL;
+        LogRel(("vgdrvSolarisIOCtl: no session in state data for %#x (%d)\n", Dev, getminor(Dev)));
+        return DDI_SUCCESS;
     }
 
     /*
-     * Read and validate the request wrapper.
+     * Deal with fast requests.
      */
-    VBGLBIGREQ ReqWrap;
-    if (IOCPARM_LEN(Cmd) != sizeof(ReqWrap))
+    if (VBGL_IOCTL_IS_FAST(iCmd))
     {
-        LogRel((DEVICE_NAME "::IOCtl: bad request %#x size=%d expected=%d\n", Cmd, IOCPARM_LEN(Cmd), sizeof(ReqWrap)));
-        return ENOTTY;
+        *pVal = VGDrvCommonIoCtlFast(iCmd, &g_DevExt, pSession);
+        return 0;
     }
 
-    int rc = ddi_copyin((void *)pArg, &ReqWrap, sizeof(ReqWrap), Mode);
+    /*
+     * It's kind of simple if this is a kernel session, take slow path if user land.
+     */
+    if (pSession->R0Process == NIL_RTR0PROCESS)
+    {
+        if (IOCPARM_LEN(iCmd) == sizeof(VBGLREQHDR))
+        {
+            PVBGLREQHDR pHdr = (PVBGLREQHDR)iArgs;
+            int rc;
+            if (iCmd != VBGL_IOCTL_IDC_DISCONNECT)
+                rc =VGDrvCommonIoCtl(iCmd, &g_DevExt, pSession, pHdr, RT_MAX(pHdr->cbIn, pHdr->cbOut));
+            else
+            {
+                pState->pSession = NULL;
+                rc = VGDrvCommonIoCtl(iCmd, &g_DevExt, pSession, pHdr, RT_MAX(pHdr->cbIn, pHdr->cbOut));
+                if (RT_FAILURE(rc))
+                    pState->pSession = pSession;
+            }
+            return rc;
+        }
+    }
+
+    return vgdrvSolarisIOCtlSlow(pSession, iCmd, Mode, iArgs);
+}
+
+
+/**
+ * Worker for VBoxSupDrvIOCtl that takes the slow IOCtl functions.
+ *
+ * @returns Solaris errno.
+ *
+ * @param   pSession    The session.
+ * @param   iCmd        The IOCtl command.
+ * @param   Mode        Information bitfield (for specifying ownership of data)
+ * @param   iArg        User space address of the request buffer.
+ */
+static int vgdrvSolarisIOCtlSlow(PVBOXGUESTSESSION pSession, int iCmd, int Mode, intptr_t iArg)
+{
+    int         rc;
+    uint32_t    cbBuf = 0;
+    union
+    {
+        VBGLREQHDR  Hdr;
+        uint8_t     abBuf[64];
+    }           StackBuf;
+    PVBGLREQHDR  pHdr;
+
+
+    /*
+     * Read the header.
+     */
+    if (RT_UNLIKELY(IOCPARM_LEN(iCmd) != sizeof(StackBuf.Hdr)))
+    {
+        LogRel(("vgdrvSolarisIOCtlSlow: iCmd=%#x len %d expected %d\n", iCmd, IOCPARM_LEN(iCmd), sizeof(StackBuf.Hdr)));
+        return EINVAL;
+    }
+    rc = ddi_copyin((void *)iArg, &StackBuf.Hdr, sizeof(StackBuf.Hdr), Mode);
     if (RT_UNLIKELY(rc))
     {
-        LogRel((DEVICE_NAME "::IOCtl: ddi_copyin failed to read header pArg=%p Cmd=%d. rc=%#x.\n", pArg, Cmd, rc));
+        LogRel(("vgdrvSolarisIOCtlSlow: ddi_copyin(,%#lx,) failed; iCmd=%#x. rc=%d\n", iArg, iCmd, rc));
+        return EFAULT;
+    }
+    if (RT_UNLIKELY(StackBuf.Hdr.uVersion != VBGLREQHDR_VERSION))
+    {
+        LogRel(("vgdrvSolarisIOCtlSlow: bad header version %#x; iCmd=%#x\n", StackBuf.Hdr.uVersion, iCmd));
         return EINVAL;
     }
-
-    if (ReqWrap.u32Magic != VBGLBIGREQ_MAGIC)
+    cbBuf = RT_MAX(StackBuf.Hdr.cbIn, StackBuf.Hdr.cbOut);
+    if (RT_UNLIKELY(   StackBuf.Hdr.cbIn < sizeof(StackBuf.Hdr)
+                    || (StackBuf.Hdr.cbOut < sizeof(StackBuf.Hdr) && StackBuf.Hdr.cbOut != 0)
+                    || cbBuf > _1M*16))
     {
-        LogRel((DEVICE_NAME "::IOCtl: bad magic %#x; pArg=%p Cmd=%#x.\n", ReqWrap.u32Magic, pArg, Cmd));
-        return EINVAL;
-    }
-    if (RT_UNLIKELY(ReqWrap.cbData > _1M*16))
-    {
-        LogRel((DEVICE_NAME "::IOCtl: bad size %#x; pArg=%p Cmd=%#x.\n", ReqWrap.cbData, pArg, Cmd));
+        LogRel(("vgdrvSolarisIOCtlSlow: max(%#x,%#x); iCmd=%#x\n", StackBuf.Hdr.cbIn, StackBuf.Hdr.cbOut, iCmd));
         return EINVAL;
     }
 
     /*
-     * Read the request payload if any; requests like VBOXGUEST_IOCTL_CANCEL_ALL_WAITEVENTS have no data payload.
+     * Buffer the request.
+     *
+     * Note! Common code revalidates the header sizes and version. So it's
+     *       fine to read it once more.
      */
-    void *pvBuf = NULL;
-    if (RT_LIKELY(ReqWrap.cbData > 0))
+    if (cbBuf <= sizeof(StackBuf))
+        pHdr = &StackBuf.Hdr;
+    else
     {
-        pvBuf = RTMemTmpAlloc(ReqWrap.cbData);
-        if (RT_UNLIKELY(!pvBuf))
+        pHdr = RTMemTmpAlloc(cbBuf);
+        if (RT_UNLIKELY(!pHdr))
         {
-            LogRel((DEVICE_NAME "::IOCtl: RTMemTmpAlloc failed to alloc %d bytes.\n", ReqWrap.cbData));
+            LogRel(("vgdrvSolarisIOCtlSlow: failed to allocate buffer of %d bytes for iCmd=%#x.\n", cbBuf, iCmd));
             return ENOMEM;
         }
-
-        rc = ddi_copyin((void *)(uintptr_t)ReqWrap.pvDataR3, pvBuf, ReqWrap.cbData, Mode);
-        if (RT_UNLIKELY(rc))
-        {
-            RTMemTmpFree(pvBuf);
-            LogRel((DEVICE_NAME "::IOCtl: ddi_copyin failed; pvBuf=%p pArg=%p Cmd=%d. rc=%d\n", pvBuf, pArg, Cmd, rc));
-            return EFAULT;
-        }
-        if (RT_UNLIKELY(!VALID_PTR(pvBuf)))
-        {
-            RTMemTmpFree(pvBuf);
-            LogRel((DEVICE_NAME "::IOCtl: pvBuf invalid pointer %p\n", pvBuf));
-            return EINVAL;
-        }
     }
-    Log(("vgdrvSolarisIOCtl: pSession=%p pid=%d.\n", pSession, (int)RTProcSelf()));
+    rc = ddi_copyin((void *)iArg, pHdr, cbBuf, Mode);
+    if (RT_UNLIKELY(rc))
+    {
+        LogRel(("vgdrvSolarisIOCtlSlow: copy_from_user(,%#lx, %#x) failed; iCmd=%#x. rc=%d\n", iArg, cbBuf, iCmd, rc));
+        if (pHdr != &StackBuf.Hdr)
+            RTMemFree(pHdr);
+        return EFAULT;
+    }
 
     /*
      * Process the IOCtl.
      */
-    size_t cbDataReturned = 0;
-    rc = VGDrvCommonIoCtl(Cmd, &g_DevExt, pSession, pvBuf, ReqWrap.cbData, &cbDataReturned);
+    rc = VGDrvCommonIoCtl(iCmd, &g_DevExt, pSession, pHdr, cbBuf);
+
+    /*
+     * Copy ioctl data and output buffer back to user space.
+     */
     if (RT_SUCCESS(rc))
     {
-        rc = 0;
-        if (RT_UNLIKELY(cbDataReturned > ReqWrap.cbData))
+        uint32_t cbOut = pHdr->cbOut;
+        if (RT_UNLIKELY(cbOut > cbBuf))
         {
-            LogRel((DEVICE_NAME "::IOCtl: too much output data %d expected %d\n", cbDataReturned, ReqWrap.cbData));
-            cbDataReturned = ReqWrap.cbData;
+            LogRel(("vgdrvSolarisIOCtlSlow: too much output! %#x > %#x; iCmd=%#x!\n", cbOut, cbBuf, iCmd));
+            cbOut = cbBuf;
         }
-        if (cbDataReturned > 0)
+        rc = ddi_copyout(pHdr, (void *)iArg, cbOut, Mode);
+        if (RT_UNLIKELY(rc != 0))
         {
-            rc = ddi_copyout(pvBuf, (void *)(uintptr_t)ReqWrap.pvDataR3, cbDataReturned, Mode);
-            if (RT_UNLIKELY(rc))
-            {
-                LogRel((DEVICE_NAME "::IOCtl: ddi_copyout failed; pvBuf=%p pArg=%p cbDataReturned=%u Cmd=%d. rc=%d\n",
-                        pvBuf, pArg, cbDataReturned, Cmd, rc));
-                rc = EFAULT;
-            }
+            /* this is really bad */
+            LogRel(("vgdrvSolarisIOCtlSlow: ddi_copyout(,%p,%d) failed. rc=%d\n", (void *)iArg, cbBuf, rc));
+            rc = EFAULT;
         }
     }
     else
-    {
-        /*
-         * We Log() instead of LogRel() here because VBOXGUEST_IOCTL_WAITEVENT can return VERR_TIMEOUT,
-         * VBOXGUEST_IOCTL_CANCEL_ALL_EVENTS can return VERR_INTERRUPTED and possibly more in the future;
-         * which are not really failures that require logging.
-         */
-        Log(("vgdrvSolarisIOCtl: VGDrvCommonIoCtl failed. Cmd=%#x rc=%d\n", Cmd, rc));
-        rc = vgdrvSolarisConvertToErrno(rc);
-    }
-    *pVal = rc;
-    if (pvBuf)
-        RTMemTmpFree(pvBuf);
+        rc = EINVAL;
+
+    if (pHdr != &StackBuf.Hdr)
+        RTMemTmpFree(pHdr);
     return rc;
 }
+
+
+#if 0
+/**
+ * @note This code is duplicated on other platforms with variations, so please
+ *       keep them all up to date when making changes!
+ */
+int VBOXCALL VBoxGuestIDC(void *pvSession, uintptr_t uReq, PVBGLREQHDR pReqHdr, size_t cbReq)
+{
+    /*
+     * Simple request validation (common code does the rest).
+     */
+    int rc;
+    if (   RT_VALID_PTR(pReqHdr)
+        && cbReq >= sizeof(*pReqHdr))
+    {
+        /*
+         * All requests except the connect one requires a valid session.
+         */
+        PVBOXGUESTSESSION pSession = (PVBOXGUESTSESSION)pvSession;
+        if (pSession)
+        {
+            if (   RT_VALID_PTR(pSession)
+                && pSession->pDevExt == &g_DevExt)
+                rc = VGDrvCommonIoCtl(uReq, &g_DevExt, pSession, pReqHdr, cbReq);
+            else
+                rc = VERR_INVALID_HANDLE;
+        }
+        else if (uReq == VBGL_IOCTL_IDC_CONNECT)
+        {
+            rc = VGDrvCommonCreateKernelSession(&g_DevExt, &pSession);
+            if (RT_SUCCESS(rc))
+            {
+                rc = VGDrvCommonIoCtl(uReq, &g_DevExt, pSession, pReqHdr, cbReq);
+                if (RT_FAILURE(rc))
+                    VGDrvCommonCloseSession(&g_DevExt, pSession);
+            }
+        }
+        else
+            rc = VERR_INVALID_HANDLE;
+    }
+    else
+        rc = VERR_INVALID_POINTER;
+    return rc;
+}
+#endif
 
 
 static int vgdrvSolarisPoll(dev_t Dev, short fEvents, int fAnyYet, short *pReqEvents, struct pollhead **ppPollHead)
@@ -795,11 +860,9 @@ static int vgdrvSolarisPoll(dev_t Dev, short fEvents, int fAnyYet, short *pReqEv
 
         return 0;
     }
-    else
-    {
-        Log(("vgdrvSolarisPoll: no state data for %d\n", getminor(Dev)));
-        return EINVAL;
-    }
+
+    Log(("vgdrvSolarisPoll: no state data for %d\n", getminor(Dev)));
+    return EINVAL;
 }
 
 
@@ -1026,16 +1089,13 @@ void VGDrvNativeISRMousePollEvent(PVBOXGUESTDEVEXT pDevExt)
  * @param   pDevExt   Pointer to the device extension.
  * @param   pNotify   Pointer to the mouse notify struct.
  */
-int VGDrvNativeSetMouseNotifyCallback(PVBOXGUESTDEVEXT pDevExt, VBoxGuestMouseSetNotifyCallback *pNotify)
+int VGDrvNativeSetMouseNotifyCallback(PVBOXGUESTDEVEXT pDevExt, PVBGLIOCSETMOUSENOTIFYCALLBACK pNotify)
 {
     /* Take the mutex here so as to not race with VGDrvCommonISR() which invokes the mouse notify callback. */
     mutex_enter(&g_IrqMtx);
-    pDevExt->MouseNotifyCallback = *pNotify;
+    pDevExt->pfnMouseNotifyCallback   = pNotify->u.In.pfnNotify;
+    pDevExt->pvMouseNotifyCallbackArg = pNotify->u.In.pvUser;
     mutex_exit(&g_IrqMtx);
     return VINF_SUCCESS;
 }
-
-
-/* Common code that depend on g_DevExt. */
-#include "VBoxGuestIDC-unix.c.h"
 

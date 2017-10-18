@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2016 Oracle Corporation
+ * Copyright (C) 2012-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -47,9 +47,6 @@ static struct
 {
     { "VMMR0.r0",       true,  NULL },
     { "VBoxDDR0.r0",    true,  NULL },
-#if !defined(VBOX_WITH_NEW_APIC) || !defined(VBOX_WITH_NEW_IOAPIC)
-    { "VBoxDD2R0.r0",   true,  NULL },
-#endif
 };
 
 static uint32_t     g_cVerbose = 1;

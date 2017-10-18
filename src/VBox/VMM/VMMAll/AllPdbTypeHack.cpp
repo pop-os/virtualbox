@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016 Oracle Corporation
+ * Copyright (C) 2016-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,9 +45,7 @@
 #include "../include/VMMInternal.h"
 #include "../include/DBGFInternal.h"
 #include "../include/GIMInternal.h"
-#ifdef VBOX_WITH_NEW_APIC
-# include "../include/APICInternal.h"
-#endif
+#include "../include/APICInternal.h"
 #include "../include/STAMInternal.h"
 #include "../include/VMInternal.h"
 #include "../include/EMInternal.h"

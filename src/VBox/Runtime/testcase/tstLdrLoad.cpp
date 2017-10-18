@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -49,7 +49,7 @@ int main(int argc, char **argv)
      */
     for (int i = 1; i < argc; i++)
     {
-        RTLDRMOD hLdrMod = (RTLDRMOD)0xbaadffaa;
+        RTLDRMOD hLdrMod = (RTLDRMOD)(uintptr_t)0xbaadffaa;
         int rc = RTLdrLoad(argv[i], &hLdrMod);
         if (RT_SUCCESS(rc))
         {

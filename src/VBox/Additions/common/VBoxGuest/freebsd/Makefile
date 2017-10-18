@@ -27,12 +27,11 @@ CFLAGS += -DRT_OS_FREEBSD -DIN_RING0 -DIN_RT_R0 -DIN_SUP_R0 -DVBOX -DRT_WITH_VBO
 SRCS = \
 	VBoxGuest.c \
 	VBoxGuest-freebsd.c \
-	GenericRequest.c \
-	HGCMInternal.c \
-	Init.c \
-	PhysHeap.c \
-	SysHlp.c \
-	VMMDev.c
+	VBoxGuestR0LibGenericRequest.c \
+	VBoxGuestR0LibHGCMInternal.c \
+	VBoxGuestR0LibInit.c \
+	VBoxGuestR0LibPhysHeap.c \
+	VBoxGuestR0LibVMMDev.c
 
 # Include needed interface headers so they are created during build
 SRCS += \
@@ -150,8 +149,7 @@ SRCS += \
 	spinlock-r0drv-freebsd.c \
 	thread-r0drv-freebsd.c \
 	thread2-r0drv-freebsd.c \
-	time-r0drv-freebsd.c \
-	timer-r0drv-freebsd.c
+	time-r0drv-freebsd.c
 
 .PATH:	${.CURDIR}/r0drv/generic
 SRCS += \

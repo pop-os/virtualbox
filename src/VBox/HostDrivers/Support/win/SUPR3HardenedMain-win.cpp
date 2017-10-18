@@ -2842,7 +2842,7 @@ static void supR3HardenedWinInstallHooks(void)
     *(uint32_t *)&g_abSupHardReadWriteExecPage[offExecPage] = RT_ALIGN_32(offExecPage + 4, 8) - (offExecPage + 4);
     offExecPage = RT_ALIGN_32(offExecPage + 4, 8);
     *(uint64_t *)&g_abSupHardReadWriteExecPage[offExecPage] = (uintptr_t)&pbLdrLoadDll[offJmpBack];
-    offExecPage = RT_ALIGN_32(offJmpBack + 8, 16);
+    offExecPage = RT_ALIGN_32(offExecPage + 8, 16);
 
     /* Assemble the LdrLoadDll patch. */
     Assert(offJmpBack >= 12);
@@ -2876,7 +2876,7 @@ static void supR3HardenedWinInstallHooks(void)
     g_abSupHardReadWriteExecPage[offExecPage++] = 0xe9; /* jmp rel32 */
     *(uint32_t *)&g_abSupHardReadWriteExecPage[offExecPage] = (uintptr_t)&pbLdrLoadDll[offJmpBack]
                                                             - (uintptr_t)&g_abSupHardReadWriteExecPage[offExecPage + 4];
-    offExecPage = RT_ALIGN_32(offJmpBack + 4, 16);
+    offExecPage = RT_ALIGN_32(offExecPage + 4, 16);
 
     /* Assemble the LdrLoadDll patch. */
     memcpy(g_abLdrLoadDllPatch, pbLdrLoadDll, sizeof(g_abLdrLoadDllPatch));
@@ -5945,7 +5945,8 @@ static uint32_t supR3HardenedWinFindAdversaries(void)
     HANDLE hDir;
     NTSTATUS rcNt = NtOpenDirectoryObject(&hDir, DIRECTORY_QUERY | FILE_LIST_DIRECTORY, &ObjAttr);
 #ifdef VBOX_STRICT
-    SUPR3HARDENED_ASSERT_NT_SUCCESS(rcNt);
+    if (rcNt != STATUS_ACCESS_DENIED) /* non-admin */
+        SUPR3HARDENED_ASSERT_NT_SUCCESS(rcNt);
 #endif
     if (NT_SUCCESS(rcNt))
     {

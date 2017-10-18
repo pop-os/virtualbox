@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,10 +26,9 @@
 #ifndef ___VBox_HostService_VBoxOpenGLSvc_h
 #define ___VBox_HostService_VBoxOpenGLSvc_h
 
-#include <VBox/types.h>
-#include <VBox/VBoxGuest.h>
+#include <VBox/VMMDevCoreTypes.h>
+#include <VBox/VBoxGuestCoreTypes.h>
 #include <VBox/hgcmsvc.h>
-#include <VBox/VMMDev.h>
 
 /* OpenGL command buffer size */
 #define VBOX_OGL_MAX_CMD_BUFFER                     (128*1024)
@@ -84,7 +83,7 @@ typedef struct
 /** Parameters structure. */
 typedef struct
 {
-    VBoxGuestHGCMCallInfo   hdr;
+    VBGLIOCHGCMCALL   hdr;
 
     /** 32bit, in: name
      * GLenum name parameter
@@ -109,7 +108,7 @@ typedef struct
 /** Parameters structure. */
 typedef struct
 {
-    VBoxGuestHGCMCallInfo   hdr;
+    VBGLIOCHGCMCALL   hdr;
 
     /** pointer, in
      * Command buffer
@@ -143,7 +142,7 @@ typedef struct
 /** Parameters structure. */
 typedef struct
 {
-    VBoxGuestHGCMCallInfo   hdr;
+    VBGLIOCHGCMCALL   hdr;
 
     /** pointer, in
      * Command buffer
@@ -183,7 +182,7 @@ typedef struct
 /** Parameters structure. */
 typedef struct
 {
-    VBoxGuestHGCMCallInfo   hdr;
+    VBGLIOCHGCMCALL   hdr;
 
     /** pointer, in
      * Extension function name

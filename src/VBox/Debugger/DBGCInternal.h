@@ -139,6 +139,8 @@ typedef struct DBGC
     bool                fRegCtxGuest;
     /** Indicates whether the register are terse or sparse. */
     bool                fRegTerse;
+    /** Whether to display registers when tracing. */
+    bool                fStepTraceRegs;
     /** Counter use to suppress the printing of the headers. */
     uint8_t             cPagingHierarchyDumps;
 
@@ -424,6 +426,51 @@ typedef DBGCSXEVT const *PCDBGCSXEVT;
 /** @} */
 
 
+/**
+ * Control flow graph basic block dumper state
+ */
+typedef struct DBGCFLOWBBDUMP
+{
+    /** The basic block referenced. */
+    DBGFFLOWBB              hFlowBb;
+    /** Cached start address. */
+    DBGFADDRESS             AddrStart;
+    /** Target address. */
+    DBGFADDRESS             AddrTarget;
+    /** Width of the basic block in chars. */
+    uint32_t                cchWidth;
+    /** Height of the basic block in chars. */
+    uint32_t                cchHeight;
+    /** X coordinate of the start. */
+    uint32_t                uStartX;
+    /** Y coordinate of the start. */
+    uint32_t                uStartY;
+} DBGCFLOWBBDUMP;
+/** Pointer to the control flow graph basic block dump state. */
+typedef DBGCFLOWBBDUMP *PDBGCFLOWBBDUMP;
+
+
+/**
+ * Control flow graph branch table dumper state.
+ */
+typedef struct DBGCFLOWBRANCHTBLDUMP
+{
+    /** The branch table referenced. */
+    DBGFFLOWBRANCHTBL       hFlowBranchTbl;
+    /** Cached start address. */
+    DBGFADDRESS             AddrStart;
+    /** Width of the branch table in chars. */
+    uint32_t                cchWidth;
+    /** Height of the branch table in chars. */
+    uint32_t                cchHeight;
+    /** X coordinate of the start. */
+    uint32_t                uStartX;
+    /** Y coordinate of the start. */
+    uint32_t                uStartY;
+} DBGCFLOWBRANCHTBLDUMP;
+/** Pointer to control flow graph branch table state. */
+typedef DBGCFLOWBRANCHTBLDUMP *PDBGCFLOWBRANCHTBLDUMP;
+
 /*******************************************************************************
 *   Internal Functions                                                         *
 *******************************************************************************/
@@ -455,6 +502,71 @@ void    dbgcInitCmdHlp(PDBGC pDbgc);
 void    dbgcEventInit(PDBGC pDbgc);
 void    dbgcEventTerm(PDBGC pDbgc);
 
+/** Console ASCII screen handle. */
+typedef struct DBGCSCREENINT *DBGCSCREEN;
+/** Pointer to ASCII screen handle. */
+typedef DBGCSCREEN *PDBGCSCREEN;
+
+/**
+ * ASCII screen blit callback.
+ *
+ * @returns VBox status code. Any non VINF_SUCCESS status code will abort the dumping.
+ *
+ * @param   psz             The string to dump
+ * @param   pvUser          Opaque user data.
+ */
+typedef DECLCALLBACK(int) FNDGCSCREENBLIT(const char *psz, void *pvUser);
+/** Pointer to a FNDGCSCREENBLIT. */
+typedef FNDGCSCREENBLIT *PFNDGCSCREENBLIT;
+
+/**
+ * ASCII screen supported colors.
+ */
+typedef enum DBGCSCREENCOLOR
+{
+    /** Invalid color. */
+    DBGCSCREENCOLOR_INVALID = 0,
+    /** Default color of the terminal. */
+    DBGCSCREENCOLOR_DEFAULT,
+    /** Black. */
+    DBGCSCREENCOLOR_BLACK,
+    DBGCSCREENCOLOR_BLACK_BRIGHT,
+    /** Red. */
+    DBGCSCREENCOLOR_RED,
+    DBGCSCREENCOLOR_RED_BRIGHT,
+    /** Green. */
+    DBGCSCREENCOLOR_GREEN,
+    DBGCSCREENCOLOR_GREEN_BRIGHT,
+    /** Yellow. */
+    DBGCSCREENCOLOR_YELLOW,
+    DBGCSCREENCOLOR_YELLOW_BRIGHT,
+    /** Blue. */
+    DBGCSCREENCOLOR_BLUE,
+    DBGCSCREENCOLOR_BLUE_BRIGHT,
+    /** Magenta. */
+    DBGCSCREENCOLOR_MAGENTA,
+    DBGCSCREENCOLOR_MAGENTA_BRIGHT,
+    /** Cyan. */
+    DBGCSCREENCOLOR_CYAN,
+    DBGCSCREENCOLOR_CYAN_BRIGHT,
+    /** White. */
+    DBGCSCREENCOLOR_WHITE,
+    DBGCSCREENCOLOR_WHITE_BRIGHT
+} DBGCSCREENCOLOR;
+/** Pointer to a screen color. */
+typedef DBGCSCREENCOLOR *PDBGCSCREENCOLOR;
+
+DECLHIDDEN(int)  dbgcScreenAsciiCreate(PDBGCSCREEN phScreen, uint32_t cchWidth, uint32_t cchHeight);
+DECLHIDDEN(void) dbgcScreenAsciiDestroy(DBGCSCREEN hScreen);
+DECLHIDDEN(int)  dbgcScreenAsciiBlit(DBGCSCREEN hScreen, PFNDGCSCREENBLIT pfnBlit, void *pvUser, bool fAddColors);
+DECLHIDDEN(int)  dbgcScreenAsciiDrawLineVertical(DBGCSCREEN hScreen, uint32_t uX, uint32_t uStartY,
+                                                 uint32_t uEndY, char ch, DBGCSCREENCOLOR enmColor);
+DECLHIDDEN(int)  dbgcScreenAsciiDrawLineHorizontal(DBGCSCREEN hScreen, uint32_t uStartX, uint32_t uEndX,
+                                                   uint32_t uY, char ch, DBGCSCREENCOLOR enmColor);
+DECLHIDDEN(int)  dbgcScreenAsciiDrawCharacter(DBGCSCREEN hScreen, uint32_t uX, uint32_t uY, char ch,
+                                              DBGCSCREENCOLOR enmColor);
+DECLHIDDEN(int)  dbgcScreenAsciiDrawString(DBGCSCREEN hScreen, uint32_t uX, uint32_t uY, const char *pszText,
+                                           DBGCSCREENCOLOR enmColor);
 
 /* For tstDBGCParser: */
 int     dbgcCreate(PDBGC *ppDbgc, PDBGCBACK pBack, unsigned fFlags);

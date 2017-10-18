@@ -73,6 +73,7 @@ void SerialPort::FinalRelease()
  *  Initializes the Serial Port object.
  *
  *  @param aParent  Handle of the parent object.
+ *  @param aSlot    Slot number the serial port is plugged into.
  */
 HRESULT SerialPort::init(Machine *aParent, ULONG aSlot)
 {
@@ -492,7 +493,7 @@ HRESULT SerialPort::setServer(BOOL aServer)
  *  Loads settings from the given port node.
  *  May be called once right after this object creation.
  *
- *  @param aPortNode <Port> node.
+ *  @param data Configuration settings.
  *
  *  @note Locks this object for writing.
  */
@@ -515,7 +516,7 @@ HRESULT SerialPort::i_loadSettings(const settings::SerialPort &data)
  *
  *  Note that the given Port node is completely empty on input.
  *
- *  @param aPortNode <Port> node.
+ *  @param data Configuration settings.
  *
  *  @note Locks this object for reading.
  */

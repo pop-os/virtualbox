@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,9 +46,7 @@
 #include "VMMInternal.h"
 #include "DBGFInternal.h"
 #include "GIMInternal.h"
-#ifdef VBOX_WITH_NEW_APIC
-# include "APICInternal.h"
-#endif
+#include "APICInternal.h"
 #include "STAMInternal.h"
 #include "VMInternal.h"
 #include "EMInternal.h"
@@ -238,9 +236,7 @@ int main()
 #endif
     CHECK_PADDING_VM(8, vm);
     CHECK_PADDING_VM(8, cfgm);
-#ifdef VBOX_WITH_NEW_APIC
     CHECK_PADDING_VM(8, apic);
-#endif
 
     PRINT_OFFSET(VMCPU, cpum);
     CHECK_PADDING_VMCPU(64, iem);
@@ -253,9 +249,8 @@ int main()
     CHECK_PADDING_VMCPU(64, iom);
     CHECK_PADDING_VMCPU(64, dbgf);
     CHECK_PADDING_VMCPU(64, gim);
-#ifdef VBOX_WITH_NEW_APIC
     CHECK_PADDING_VMCPU(64, apic);
-#endif
+
     PRINT_OFFSET(VMCPU, pgm);
     CHECK_PADDING_VMCPU(4096, pgm);
     CHECK_PADDING_VMCPU(4096, cpum);
@@ -316,6 +311,7 @@ int main()
     CHECK_MEMBER_ALIGNMENT(CPUMCTX, idtr.pIdt, 8);
     CHECK_MEMBER_ALIGNMENT(CPUMCTX, gdtr.pGdt, 8);
     CHECK_MEMBER_ALIGNMENT(CPUMCTX, SysEnter, 8);
+    CHECK_MEMBER_ALIGNMENT(CPUMCTX, hwvirt, 8);
     CHECK_CPUMCTXCORE(rax);
     CHECK_CPUMCTXCORE(rcx);
     CHECK_CPUMCTXCORE(rdx);

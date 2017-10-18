@@ -28,7 +28,7 @@
 #include <iprt/mem.h>
 
 #include <VBox/vmm/pgm.h> /* required by DevVGA.h */
-#include <VBox/VBoxVideo.h> /* required by DevVGA.h */
+#include <VBoxVideo.h> /* required by DevVGA.h */
 
 /* should go BEFORE any other DevVGA include to make all DevVGA.h config defines be visible */
 #include "DevVGA.h"
@@ -1035,7 +1035,7 @@ void vmsvga3dAsciiPrint(PFMVMSVGAASCIIPRINTLN pfnPrintLine, void *pvUser, void c
                     AssertMsgFailed(("%s is not implemented\n", vmsvgaLookupEnum((int)enmFormat, &g_SVGA3dSurfaceFormat2String)));
                     fHitFormatAssert = true;
                 }
-                /* fall thru */
+                RT_FALL_THRU();
             default:
                 /* Lazy programmer fallbacks. */
                 if (cbSrcPixel == 4)
@@ -1269,7 +1269,7 @@ char *vmsvga3dFormatRenderState(char *pszBuffer, size_t cbBuffer, SVGA3dRenderSt
                                 uValue.u <= SVGA3D_WRAPCOORD_ALL ? " (out of bounds" : "");
                     break;
                 default:
-                    AssertFailed();
+                    AssertFailed();  RT_FALL_THRU();
                 case 'b': //SVGA3dBlendOp
                 case 'e': //SVGA3dBlendEquation
                 case 'p': //SVGA3dCmpFunc
@@ -1601,6 +1601,7 @@ static void vmsvga3dInfoContextWorkerOne(PCDBGFINFOHLP pHlp, PVMSVGA3DCONTEXT pC
     for (uint32_t i = 0; i < RT_ELEMENTS(pContext->state.aClipPlane); i++)
         if (pContext->state.aClipPlane[i].fValid)
             pHlp->pfnPrintf(pHlp, "aClipPlane[%#04x]: [ " FLOAT_FMT_STR ", " FLOAT_FMT_STR ", " FLOAT_FMT_STR ", " FLOAT_FMT_STR " ]\n",
+                            i,
                             FLOAT_FMT_ARGS(pContext->state.aClipPlane[i].plane[0]),
                             FLOAT_FMT_ARGS(pContext->state.aClipPlane[i].plane[1]),
                             FLOAT_FMT_ARGS(pContext->state.aClipPlane[i].plane[2]),

@@ -15,7 +15,9 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#include "Logging.h"
+#define LOG_GROUP LOG_GROUP_DEV_PCI_RAW
+#include "LoggingNew.h"
+
 #include "PCIRawDevImpl.h"
 #include "PCIDeviceAttachmentImpl.h"
 #include "ConsoleImpl.h"
@@ -66,7 +68,7 @@ DECLCALLBACK(void *) PCIRawDev::drvQueryInterface(PPDMIBASE pInterface, const ch
 
 
 /**
- * @interface_method_impl{PDMIPCIRAWUP,pfnPciDeviceConstructComplete}
+ * @interface_method_impl{PDMIPCIRAWCONNECTOR,pfnDeviceConstructComplete}
  */
 DECLCALLBACK(int) PCIRawDev::drvDeviceConstructComplete(PPDMIPCIRAWCONNECTOR pInterface, const char *pcszName,
                                                         uint32_t uHostPCIAddress, uint32_t uGuestPCIAddress,

@@ -54,10 +54,8 @@
 #include <String.h>
 
 #include "VBoxMouseFilter.h"
-#include <VBox/VBoxGuest.h> /** @todo use the VbglR3 interface! */
 #include <VBox/VBoxGuestLib.h>
 #include <VBoxGuestInternal.h>
-#include <VBox/VMMDev.h>
 #include <VBox/log.h>
 #include <iprt/err.h>
 

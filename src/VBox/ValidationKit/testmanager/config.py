@@ -7,7 +7,7 @@ Test Manager Configuration.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,14 +26,14 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 107845 $"
+__version__ = "$Revision: 118412 $"
 
 import os;
 
 ## Test Manager version string.
-g_ksVersion             = 'v0.0.3';
+g_ksVersion             = 'v0.1.0';
 ## Test Manager revision string.
-g_ksRevision            = ('$Revision: 107845 $')[11:-2];
+g_ksRevision            = ('$Revision: 118412 $')[11:-2];
 
 ## Enable VBox specific stuff.
 g_kfVBoxSpecific        = True;
@@ -123,7 +123,7 @@ g_kcMaxTestValuesPerTR  = 256;
 ## The max number of test result message per test result.
 g_kcMaxTestMsgsPerTR    = 4;
 ## The max test result nesting depth.
-g_kcMaxTestResultDepth  = 8;
+g_kcMaxTestResultDepth  = 10;
 
 ## The max length of a test result name.
 g_kcchMaxTestResultName = 64;
@@ -135,9 +135,9 @@ g_kcchMaxTestMsg        = 128;
 ## The max size of the main log file.
 g_kcMbMaxMainLog        = 32;
 ## The max size of an uploaded file (individual).
-g_kcMbMaxUploadSingle   = 16;
+g_kcMbMaxUploadSingle   = 150;
 ## The max size of all uploaded file.
-g_kcMbMaxUploadTotal    = 128;
+g_kcMbMaxUploadTotal    = 200;
 ## The max number of files that can be uploaded.
 g_kcMaxUploads          = 256;
 ## @}
@@ -156,7 +156,7 @@ g_ksSrcGlueDebugLogDst  = None;
 g_kfSrvGlueCgiTb        = False;
 ## Enables glue debug output.
 g_kfSrvGlueDebug        = False;
-## Timestamp the glue debug output.
+## Timestamp and pid prefix the glue debug output.
 g_kfSrvGlueDebugTS      = True;
 ## Enables task scheduler debug output to g_ksSrcGlueDebugLogDst.
 g_kfSrvGlueDebugScheduler = False;

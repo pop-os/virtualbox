@@ -38,7 +38,7 @@
  *
  *  @param  aFilter     The filter.
  *  @param  aIdx        The field index.
- *  @param  aStr        The output string.
+ *  @param  rstrOut     The output string.
  */
 static void i_usbFilterFieldToString(PCUSBFILTER aFilter, USBFILTERIDX aIdx, Utf8Str &rstrOut)
 {
@@ -82,8 +82,7 @@ const char* USBDeviceFilter::i_describeUSBFilterIdx(USBFILTERIDX aIdx)
  *
  *  @param  aFilter     The filter.
  *  @param  aIdx        The field index.
- *  @param  aStr        The input string.
- *  @param  aName       The field name for use in the error string.
+ *  @param  aValue      The input string.
  *  @param  aErrStr     Where to return the error string on failure.
  *
  *  @return COM status code.
@@ -277,6 +276,7 @@ HRESULT USBDeviceFilter::init(USBDeviceFilters *aParent,
  *  Initializes the USB device filter object (short version).
  *
  *  @param aParent  Handle of the parent object.
+ *  @param aName    Name of the filter.
  */
 HRESULT USBDeviceFilter::init(USBDeviceFilters *aParent, IN_BSTR aName)
 {
@@ -316,6 +316,8 @@ HRESULT USBDeviceFilter::init(USBDeviceFilters *aParent, IN_BSTR aName)
  *  (a kind of copy constructor). This object shares data with
  *  the object passed as an argument.
  *
+ *  @param  aParent  Handle of the parent object.
+ *  @param  aThat
  *  @param  aReshare
  *      When false, the original object will remain a data owner.
  *      Otherwise, data ownership will be transferred from the original
@@ -777,7 +779,7 @@ HRESULT USBDeviceFilter::i_usbFilterFieldGetter(USBFILTERIDX aIdx, com::Utf8Str 
  *  Generic USB filter field setter, expects UTF-8 input.
  *
  *  @param  aIdx    The field index.
- *  @param  aStr    The new value.
+ *  @param  strNew  The new value.
  *
  *  @return COM status.
  */
@@ -856,6 +858,7 @@ void HostUSBDeviceFilter::FinalRelease()
  *  Initializes the USB device filter object.
  *
  *  @param aParent  Handle of the parent object.
+ *  @param data     Settings data.
  */
 HRESULT HostUSBDeviceFilter::init(Host *aParent,
                                   const settings::USBDeviceFilter &data)
@@ -926,6 +929,7 @@ HRESULT HostUSBDeviceFilter::init(Host *aParent,
  *  Initializes the USB device filter object (short version).
  *
  *  @param aParent  Handle of the parent object.
+ *  @param aName    Filter name.
  */
 HRESULT HostUSBDeviceFilter::init(Host *aParent, IN_BSTR aName)
 {
@@ -1244,7 +1248,6 @@ void HostUSBDeviceFilter::i_saveSettings(settings::USBDeviceFilter &data)
  *
  *  @param  aIdx    The field index.
  *  @param  aStr    The new value.
- *  @param  aName   The translated field name (for error messages).
  *
  *  @return COM status.
  */

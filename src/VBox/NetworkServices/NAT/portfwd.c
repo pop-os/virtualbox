@@ -72,12 +72,10 @@ portfwd_chan_send(struct portfwd_msg *msg)
 
     nsent = pollmgr_chan_send(POLLMGR_CHAN_PORTFWD, &msg, sizeof(msg));
     if (nsent < 0) {
-        DPRINTF(("%s: failed to send %p\n", __func__, msg));
         free(msg);
         return -1;
     }
 
-    DPRINTF(("%s: sent %p\n", __func__, msg));
     return 0;
 }
 
@@ -122,8 +120,6 @@ portfwd_pmgr_chan(struct pollmgr_handler *handler, SOCKET fd, int revents)
 {
     void *ptr = pollmgr_chan_recv_ptr(handler, fd, revents);
     struct portfwd_msg *msg = (struct portfwd_msg *)ptr;
-
-    DPRINTF(("%s: received %p\n", __func__, msg));
 
     if (msg->fwspec->stype == SOCK_STREAM) {
         if (msg->add) {

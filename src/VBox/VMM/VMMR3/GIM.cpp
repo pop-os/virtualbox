@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2016 Oracle Corporation
+ * Copyright (C) 2014-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -222,9 +222,9 @@ static DECLCALLBACK(int) gimR3Save(PVM pVM, PSSMHANDLE pSSM)
     AssertReturn(pVM,  VERR_INVALID_PARAMETER);
     AssertReturn(pSSM, VERR_SSM_INVALID_STATE);
 
-    /** @todo Save per-CPU data. */
     int rc = VINF_SUCCESS;
 #if 0
+    /* Save per-CPU data. */
     SSMR3PutU32(pSSM, pVM->cCpus);
     for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
@@ -271,9 +271,9 @@ static DECLCALLBACK(int) gimR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, 
     if (uVersion != GIM_SAVED_STATE_VERSION)
         return VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION;
 
-    /** @todo Load per-CPU data. */
     int rc;
 #if 0
+    /* Load per-CPU data. */
     for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         rc = SSMR3PutXYZ(pSSM, pVM->aCpus[i].gim.s.XYZ);
@@ -346,6 +346,28 @@ VMMR3_INT_DECL(int) GIMR3Term(PVM pVM)
             break;
     }
     return VINF_SUCCESS;
+}
+
+
+/**
+ * Applies relocations to data and code managed by this
+ * component. This function will be called at init and
+ * whenever the VMM need to relocate it self inside the GC.
+ *
+ * @param   pVM         The cross context VM structure.
+ * @param   offDelta    Relocation delta relative to old location.
+ */
+VMMR3_INT_DECL(void) GIMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
+{
+    switch (pVM->gim.s.enmProviderId)
+    {
+        case GIMPROVIDERID_HYPERV:
+            gimR3HvRelocate(pVM, offDelta);
+            break;
+
+        default:
+            break;
+    }
 }
 
 

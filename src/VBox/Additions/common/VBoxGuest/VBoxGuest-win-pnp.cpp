@@ -25,6 +25,7 @@
 #include <VBox/log.h>
 #include <VBox/version.h>
 #include <VBox/VBoxGuestLib.h>
+#include <iprt/assert.h>
 
 
 /*********************************************************************************************************************************
@@ -485,7 +486,7 @@ NTSTATUS vgdrvNtPower(PDEVICE_OBJECT pDevObj, PIRP pIrp)
 
                             /* Tell the VMM that we no longer support mouse pointer integration. */
                             VMMDevReqMouseStatus *pReq = NULL;
-                            int vrc = VbglGRAlloc((VMMDevRequestHeader **)&pReq, sizeof (VMMDevReqMouseStatus),
+                            int vrc = VbglR0GRAlloc((VMMDevRequestHeader **)&pReq, sizeof (VMMDevReqMouseStatus),
                                                   VMMDevReq_SetMouseStatus);
                             if (RT_SUCCESS(vrc))
                             {
@@ -493,13 +494,13 @@ NTSTATUS vgdrvNtPower(PDEVICE_OBJECT pDevObj, PIRP pIrp)
                                 pReq->pointerXPos = 0;
                                 pReq->pointerYPos = 0;
 
-                                vrc = VbglGRPerform(&pReq->header);
+                                vrc = VbglR0GRPerform(&pReq->header);
                                 if (RT_FAILURE(vrc))
                                 {
                                     Log(("vgdrvNtPower: error communicating new power status to VMMDev. vrc = %Rrc\n", vrc));
                                 }
 
-                                VbglGRFree(&pReq->header);
+                                VbglR0GRFree(&pReq->header);
                             }
 
                             /* Don't do any cleanup here; there might be still coming in some IOCtls after we got this
@@ -522,7 +523,7 @@ NTSTATUS vgdrvNtPower(PDEVICE_OBJECT pDevObj, PIRP pIrp)
                                     pReq->header.requestType = VMMDevReq_SetPowerStatus;
                                     pReq->powerState = VMMDevPowerState_PowerOff;
 
-                                    vrc = VbglGRPerform(&pReq->header);
+                                    vrc = VbglR0GRPerform(&pReq->header);
                                 }
                                 if (RT_FAILURE(vrc))
                                     Log(("vgdrvNtPower: Error communicating new power status to VMMDev. vrc = %Rrc\n", vrc));

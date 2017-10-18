@@ -187,7 +187,7 @@ void VRDEServer::uninit()
  *  Loads settings from the given machine node.
  *  May be called once right after this object creation.
  *
- *  @param aMachineNode <Machine> node.
+ *  @param data Configuration settings.
  *
  *  @note Locks this object for writing.
  */
@@ -207,7 +207,7 @@ HRESULT VRDEServer::i_loadSettings(const settings::VRDESettings &data)
 /**
  *  Saves settings to the given machine node.
  *
- *  @param aMachineNode <Machine> node.
+ *  @param data Configuration settings.
  *
  *  @note Locks this object for reading.
  */
@@ -306,9 +306,9 @@ static int i_portParseNumber(uint16_t *pu16Port, const char *pszStart, const cha
     return VERR_INVALID_PARAMETER;
 }
 
-static int i_vrdpServerVerifyPortsString(com::Utf8Str portRange)
+static int i_vrdpServerVerifyPortsString(const com::Utf8Str &aPortRange)
 {
-    const char *pszPortRange = portRange.c_str();
+    const char *pszPortRange = aPortRange.c_str();
 
     if (!pszPortRange || *pszPortRange == 0) /* Reject empty string. */
         return VERR_INVALID_PARAMETER;

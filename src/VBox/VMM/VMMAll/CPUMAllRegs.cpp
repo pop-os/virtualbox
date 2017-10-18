@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,7 +23,7 @@
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/patm.h>
 #include <VBox/vmm/dbgf.h>
-#include <VBox/vmm/pdm.h>
+#include <VBox/vmm/apic.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/em.h>
@@ -1079,14 +1079,14 @@ VMMDECL(int) CPUMGetGuestCRx(PVMCPU pVCpu, unsigned iReg, uint64_t *pValue)
         case DISCREG_CR8:
         {
             uint8_t u8Tpr;
-            int rc = PDMApicGetTPR(pVCpu, &u8Tpr, NULL /* pfPending */, NULL /* pu8PendingIrq */);
+            int rc = APICGetTpr(pVCpu, &u8Tpr, NULL /* pfPending */, NULL /* pu8PendingIrq */);
             if (RT_FAILURE(rc))
             {
                 AssertMsg(rc == VERR_PDM_NO_APIC_INSTANCE, ("%Rrc\n", rc));
                 *pValue = 0;
                 return rc;
             }
-            *pValue = u8Tpr >> 4; /* bits 7-4 contain the task priority that go in cr8, bits 3-0*/
+            *pValue = u8Tpr >> 4; /* bits 7-4 contain the task priority that go in cr8, bits 3-0 */
             break;
         }
 
@@ -1366,7 +1366,7 @@ VMMDECL(void) CPUMGetGuestCpuId(PVMCPU pVCpu, uint32_t uLeaf, uint32_t uSubLeaf,
         {
             default:
                 AssertFailed();
-                /* fall thru */
+                RT_FALL_THRU();
             case CPUMUNKNOWNCPUID_DEFAULTS:
             case CPUMUNKNOWNCPUID_LAST_STD_LEAF: /* ASSUME this is executed */
             case CPUMUNKNOWNCPUID_LAST_STD_LEAF_WITH_ECX: /** @todo Implement CPUMUNKNOWNCPUID_LAST_STD_LEAF_WITH_ECX */
@@ -2540,5 +2540,150 @@ VMMDECL(DISCPUMODE)     CPUMGetGuestDisMode(PVMCPU pVCpu)
 VMMDECL(uint32_t) CPUMGetGuestMxCsrMask(PVM pVM)
 {
     return pVM->cpum.s.GuestInfo.fMxCsrMask;
+}
+
+
+/**
+ * Checks whether the SVM nested-guest is in a state to receive physical (APIC)
+ * interrupts.
+ *
+ * @returns VBox status code.
+ * @retval  true if it's ready, false otherwise.
+ *
+ * @param   pCtx        The guest-CPU context.
+ */
+VMM_INT_DECL(bool) CPUMCanSvmNstGstTakePhysIntr(PCCPUMCTX pCtx)
+{
+#ifdef IN_RC
+    RT_NOREF(pCtx);
+    AssertReleaseFailedReturn(false);
+#else
+    Assert(CPUMIsGuestInSvmNestedHwVirtMode(pCtx));
+    Assert(pCtx->hwvirt.svm.fGif);
+
+    PCSVMVMCBCTRL pVmcbCtrl = &pCtx->hwvirt.svm.CTX_SUFF(pVmcb)->ctrl;
+    X86EFLAGS fEFlags;
+    if (pVmcbCtrl->IntCtrl.n.u1VIntrMasking)
+        fEFlags.u = pCtx->hwvirt.svm.HostState.rflags.u;
+    else
+        fEFlags.u = pCtx->eflags.u;
+
+    return fEFlags.Bits.u1IF;
+#endif
+}
+
+
+/**
+ * Checks whether the SVM nested-guest is in a state to receive virtual
+ * (injected by VMRUN) interrupts.
+ *
+ * @returns VBox status code.
+ * @retval  true if it's ready, false otherwise.
+ *
+ * @param   pCtx        The guest-CPU context.
+ */
+VMM_INT_DECL(bool) CPUMCanSvmNstGstTakeVirtIntr(PCCPUMCTX pCtx)
+{
+#ifdef IN_RC
+    RT_NOREF(pCtx);
+    AssertReleaseFailedReturn(false);
+#else
+    Assert(CPUMIsGuestInSvmNestedHwVirtMode(pCtx));
+
+    PCSVMVMCBCTRL pVmcbCtrl = &pCtx->hwvirt.svm.CTX_SUFF(pVmcb)->ctrl;
+    if (   !pVmcbCtrl->IntCtrl.n.u1IgnoreTPR
+        &&  pVmcbCtrl->IntCtrl.n.u4VIntrPrio <= pVmcbCtrl->IntCtrl.n.u8VTPR)
+        return false;
+
+    if (!pCtx->rflags.Bits.u1IF)
+        return false;
+
+    if (!pCtx->hwvirt.svm.fGif)
+        return false;
+
+    return true;
+#endif
+}
+
+
+/**
+ * Gets the pending SVM nested-guest interrupt.
+ *
+ * @returns The nested-guest interrupt to inject.
+ * @param   pCtx            The guest-CPU context.
+ */
+VMM_INT_DECL(uint8_t) CPUMGetSvmNstGstInterrupt(PCCPUMCTX pCtx)
+{
+#ifdef IN_RC
+    RT_NOREF(pCtx);
+    AssertReleaseFailedReturn(0);
+#else
+    PCSVMVMCBCTRL pVmcbCtrl = &pCtx->hwvirt.svm.CTX_SUFF(pVmcb)->ctrl;
+    return pVmcbCtrl->IntCtrl.n.u8VIntrVector;
+#endif
+}
+
+
+/**
+ * Restores the host-state from the host-state save area as part of a \#VMEXIT.
+ *
+ * @param   pCtx        The guest-CPU context.
+ */
+VMM_INT_DECL(void) CPUMSvmVmExitRestoreHostState(PCPUMCTX pCtx)
+{
+    /*
+     * Reload the guest's "host state".
+     */
+    PSVMHOSTSTATE pHostState = &pCtx->hwvirt.svm.HostState;
+    pCtx->es         = pHostState->es;
+    pCtx->cs         = pHostState->cs;
+    pCtx->ss         = pHostState->ss;
+    pCtx->ds         = pHostState->ds;
+    pCtx->gdtr       = pHostState->gdtr;
+    pCtx->idtr       = pHostState->idtr;
+    pCtx->msrEFER    = pHostState->uEferMsr;
+    pCtx->cr0        = pHostState->uCr0 | X86_CR0_PE;
+    pCtx->cr3        = pHostState->uCr3;
+    pCtx->cr4        = pHostState->uCr4;
+    pCtx->rflags     = pHostState->rflags;
+    pCtx->rflags.Bits.u1VM = 0;
+    pCtx->rip        = pHostState->uRip;
+    pCtx->rsp        = pHostState->uRsp;
+    pCtx->rax        = pHostState->uRax;
+    pCtx->dr[7]     &= ~(X86_DR7_ENABLED_MASK | X86_DR7_RAZ_MASK | X86_DR7_MBZ_MASK);
+    pCtx->dr[7]     |= X86_DR7_RA1_MASK;
+    Assert(pCtx->ss.Attr.n.u2Dpl == 0);
+
+    /** @todo if RIP is not canonical or outside the CS segment limit, we need to
+     *        raise \#GP(0) in the guest. */
+
+    /** @todo check the loaded host-state for consistency. Figure out what
+     *        exactly this involves? */
+}
+
+
+/**
+ * Saves the host-state to the host-state save area as part of a VMRUN.
+ *
+ * @param   pCtx        The guest-CPU context.
+ * @param   cbInstr     The length of the VMRUN instruction in bytes.
+ */
+VMM_INT_DECL(void) CPUMSvmVmRunSaveHostState(PCPUMCTX pCtx, uint8_t cbInstr)
+{
+    PSVMHOSTSTATE pHostState = &pCtx->hwvirt.svm.HostState;
+    pHostState->es       = pCtx->es;
+    pHostState->cs       = pCtx->cs;
+    pHostState->ss       = pCtx->ss;
+    pHostState->ds       = pCtx->ds;
+    pHostState->gdtr     = pCtx->gdtr;
+    pHostState->idtr     = pCtx->idtr;
+    pHostState->uEferMsr = pCtx->msrEFER;
+    pHostState->uCr0     = pCtx->cr0;
+    pHostState->uCr3     = pCtx->cr3;
+    pHostState->uCr4     = pCtx->cr4;
+    pHostState->rflags   = pCtx->rflags;
+    pHostState->uRip     = pCtx->rip + cbInstr;
+    pHostState->uRsp     = pCtx->rsp;
+    pHostState->uRax     = pCtx->rax;
 }
 

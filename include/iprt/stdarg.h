@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,9 +46,12 @@
 #endif
 
 /*
- * MSC doesn't implement va_copy.
+ * Older MSC versions doesn't implement va_copy.  Newer (12.0+?) ones does
+ * implement it like below, but for now it's easier to continue like for the
+ * older ones so we can more easily handle R0, RC and other weird contexts.
  */
-#ifndef va_copy
+#if !defined(va_copy) || defined(_MSC_VER)
+# undef  va_copy
 # define va_copy(dst, src) do { (dst) = (src); } while (0) /** @todo check AMD64 */
 #endif
 

@@ -37,7 +37,7 @@ public:
     QObjectPropertySetter(QObject *pParent, const QString &strName)
         : QObject(pParent), m_strName(strName) {}
 
-private slots:
+public slots:
 
     /** Assigns property value. */
     void sltAssignProperty(const QString &strValue)
@@ -47,36 +47,6 @@ private:
 
     /** Holds property name. */
     const QString m_strName;
-};
-
-/**
- *  Simple class that filters out all key presses and releases
- *  got while the Alt key is pressed. For some very strange reason,
- *  QLineEdit accepts those combinations that are not used as accelerators,
- *  and inserts the corresponding characters to the entry field.
- */
-class QIAltKeyFilter : protected QObject
-{
-    Q_OBJECT;
-
-public:
-
-    QIAltKeyFilter (QObject *aParent) :QObject (aParent) {}
-
-    void watchOn (QObject *aObject) { aObject->installEventFilter (this); }
-
-protected:
-
-    bool eventFilter (QObject * /* aObject */, QEvent *aEvent)
-    {
-        if (aEvent->type() == QEvent::KeyPress || aEvent->type() == QEvent::KeyRelease)
-        {
-            QKeyEvent *pEvent = static_cast<QKeyEvent *> (aEvent);
-            if (pEvent->modifiers() & Qt::AltModifier)
-                return true;
-        }
-        return false;
-    }
 };
 
 /**

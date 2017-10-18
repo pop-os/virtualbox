@@ -22,21 +22,6 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_HOST_FLOPPY
-#ifdef RT_OS_LINUX
-# include <sys/ioctl.h>
-# include <linux/fd.h>
-# include <sys/fcntl.h>
-# include <errno.h>
-
-# elif defined(RT_OS_WINDOWS)
-# include <iprt/win/windows.h>
-# include <dbt.h>
-
-#elif defined(RT_OS_L4)
-
-#else /* !RT_OS_WINDOWS nor RT_OS_LINUX nor RT_OS_L4 */
-# error "Unsupported Platform."
-#endif /* !RT_OS_WINDOWS nor RT_OS_LINUX nor RT_OS_L4 */
 
 #include <VBox/vmm/pdmdrv.h>
 #include <VBox/vmm/pdmstorageifs.h>
@@ -53,129 +38,6 @@
 #include "DrvHostBase.h"
 
 
-/**
- * Floppy driver instance data.
- */
-typedef struct DRVHOSTFLOPPY
-{
-    DRVHOSTBASE     Base;
-    /** Previous poll status. */
-    bool            fPrevDiskIn;
-
-} DRVHOSTFLOPPY, *PDRVHOSTFLOPPY;
-
-
-
-#ifdef RT_OS_WINDOWS
-/**
- * Get media size - needs a special IOCTL.
- *
- * @param   pThis   The instance data.
- */
-static DECLCALLBACK(int) drvHostFloppyGetMediaSize(PDRVHOSTBASE pThis, uint64_t *pcb)
-{
-    DISK_GEOMETRY   geom;
-    DWORD           cbBytesReturned;
-    int             rc;
-    int             cbSectors;
-
-    memset(&geom, 0, sizeof(geom));
-    rc = DeviceIoControl((HANDLE)RTFileToNative(pThis->hFileDevice), IOCTL_DISK_GET_DRIVE_GEOMETRY,
-                         NULL, 0, &geom, sizeof(geom), &cbBytesReturned,  NULL);
-    if (rc) {
-        cbSectors = geom.Cylinders.QuadPart * geom.TracksPerCylinder * geom.SectorsPerTrack;
-        *pcb = cbSectors * geom.BytesPerSector;
-        rc = VINF_SUCCESS;
-    }
-    else
-    {
-        DWORD   dwLastError;
-
-        dwLastError = GetLastError();
-        rc = RTErrConvertFromWin32(dwLastError);
-        Log(("DrvHostFloppy: IOCTL_DISK_GET_DRIVE_GEOMETRY(%s) failed, LastError=%d rc=%Rrc\n",
-             pThis->pszDevice, dwLastError, rc));
-        return rc;
-    }
-
-    return rc;
-}
-#endif /* RT_OS_WINDOWS */
-
-#ifdef RT_OS_LINUX
-/**
- * Get media size and do change processing.
- *
- * @param   pThis   The instance data.
- */
-static DECLCALLBACK(int) drvHostFloppyGetMediaSize(PDRVHOSTBASE pThis, uint64_t *pcb)
-{
-    int rc = ioctl(RTFileToNative(pThis->hFileDevice), FDFLUSH);
-    if (rc)
-    {
-        rc = RTErrConvertFromErrno (errno);
-        Log(("DrvHostFloppy: FDFLUSH ioctl(%s) failed, errno=%d rc=%Rrc\n", pThis->pszDevice, errno, rc));
-        return rc;
-    }
-
-    floppy_drive_struct DrvStat;
-    rc = ioctl(RTFileToNative(pThis->hFileDevice), FDGETDRVSTAT, &DrvStat);
-    if (rc)
-    {
-        rc = RTErrConvertFromErrno(errno);
-        Log(("DrvHostFloppy: FDGETDRVSTAT ioctl(%s) failed, errno=%d rc=%Rrc\n", pThis->pszDevice, errno, rc));
-        return rc;
-    }
-    pThis->fReadOnly = !(DrvStat.flags & FD_DISK_WRITABLE);
-
-    return RTFileSeek(pThis->hFileDevice, 0, RTFILE_SEEK_END, pcb);
-}
-#endif /* RT_OS_LINUX */
-
-
-#ifdef RT_OS_LINUX
-/**
- * This thread will periodically poll the Floppy for media presence.
- *
- * @returns Ignored.
- * @param   ThreadSelf  Handle of this thread. Ignored.
- * @param   pvUser      Pointer to the driver instance structure.
- */
-static DECLCALLBACK(int) drvHostFloppyPoll(PDRVHOSTBASE pThis)
-{
-    PDRVHOSTFLOPPY          pThisFloppy = (PDRVHOSTFLOPPY)pThis;
-    floppy_drive_struct     DrvStat;
-    int rc = ioctl(RTFileToNative(pThis->hFileDevice), FDPOLLDRVSTAT, &DrvStat);
-    if (rc)
-        return RTErrConvertFromErrno(errno);
-
-    RTCritSectEnter(&pThis->CritSect);
-    bool fDiskIn = !(DrvStat.flags & (FD_VERIFY | FD_DISK_NEWCHANGE));
-    if (    fDiskIn
-        &&  !pThisFloppy->fPrevDiskIn)
-    {
-        if (pThis->fMediaPresent)
-            DRVHostBaseMediaNotPresent(pThis);
-        rc = DRVHostBaseMediaPresent(pThis);
-        if (RT_FAILURE(rc))
-        {
-            pThisFloppy->fPrevDiskIn = fDiskIn;
-            RTCritSectLeave(&pThis->CritSect);
-            return rc;
-        }
-    }
-
-    if (    !fDiskIn
-        &&  pThisFloppy->fPrevDiskIn
-        &&  pThis->fMediaPresent)
-        DRVHostBaseMediaNotPresent(pThis);
-    pThisFloppy->fPrevDiskIn = fDiskIn;
-
-    RTCritSectLeave(&pThis->CritSect);
-    return VINF_SUCCESS;
-}
-#endif /* RT_OS_LINUX */
-
 
 /**
  * @copydoc FNPDMDRVCONSTRUCT
@@ -183,55 +45,13 @@ static DECLCALLBACK(int) drvHostFloppyPoll(PDRVHOSTBASE pThis)
 static DECLCALLBACK(int) drvHostFloppyConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags)
 {
     RT_NOREF(fFlags);
-    PDRVHOSTFLOPPY pThis = PDMINS_2_DATA(pDrvIns, PDRVHOSTFLOPPY);
     LogFlow(("drvHostFloppyConstruct: iInstance=%d\n", pDrvIns->iInstance));
 
     /*
      * Init instance data.
      */
-    int rc = DRVHostBaseInitData(pDrvIns, pCfg, PDMMEDIATYPE_FLOPPY_1_44);
-    if (RT_SUCCESS(rc))
-    {
-        /*
-         * Validate configuration.
-         */
-        if (CFGMR3AreValuesValid(pCfg, "Path\0ReadOnly\0Interval\0Locked\0BIOSVisible\0"))
-        {
-            /*
-             * Override stuff.
-             */
-#ifdef RT_OS_WINDOWS
-            pThis->Base.pfnGetMediaSize = drvHostFloppyGetMediaSize;
-#endif
-#ifdef RT_OS_LINUX
-            pThis->Base.pfnPoll         = drvHostFloppyPoll;
-            pThis->Base.pfnGetMediaSize = drvHostFloppyGetMediaSize;
-#endif
-
-            /*
-             * 2nd init part.
-             */
-            rc = DRVHostBaseInitFinish(&pThis->Base);
-        }
-        else
-        {
-            pThis->Base.fAttachFailError = true;
-            rc = VERR_PDM_DRVINS_UNKNOWN_CFG_VALUES;
-        }
-    }
-    if (RT_FAILURE(rc))
-    {
-        if (!pThis->Base.fAttachFailError)
-        {
-            /* Suppressing the attach failure error must not affect the normal
-             * DRVHostBaseDestruct, so reset this flag below before leaving. */
-            pThis->Base.fKeepInstance = true;
-            rc = VINF_SUCCESS;
-        }
-        DRVHostBaseDestruct(pDrvIns);
-        pThis->Base.fKeepInstance = false;
-    }
-
+    int rc = DRVHostBaseInit(pDrvIns, pCfg, "Path\0ReadOnly\0Interval\0Locked\0BIOSVisible\0",
+                             PDMMEDIATYPE_FLOPPY_1_44);
     LogFlow(("drvHostFloppyConstruct: returns %Rrc\n", rc));
     return rc;
 }
@@ -259,7 +79,7 @@ const PDMDRVREG g_DrvHostFloppy =
     /* cMaxInstances */
     ~0U,
     /* cbInstance */
-    sizeof(DRVHOSTFLOPPY),
+    sizeof(DRVHOSTBASE),
     /* pfnConstruct */
     drvHostFloppyConstruct,
     /* pfnDestruct */

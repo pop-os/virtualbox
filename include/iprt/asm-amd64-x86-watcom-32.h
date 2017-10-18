@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -209,34 +209,34 @@
     "cpuid" \
     "mov [edi], ecx" \
     "mov [esi], edx" \
-    parm [ecx] [edi] [esi] \
+    parm [eax] [edi] [esi] \
     modify exact [eax ebx ecx edx];
 
 #undef      ASMCpuId_EAX
 #pragma aux ASMCpuId_EAX = \
     "cpuid" \
-    parm [ecx] \
+    parm [eax] \
     value [eax] \
     modify exact [eax ebx ecx edx];
 
 #undef      ASMCpuId_EBX
 #pragma aux ASMCpuId_EBX = \
     "cpuid" \
-    parm [ecx] \
+    parm [eax] \
     value [ebx] \
     modify exact [eax ebx ecx edx];
 
 #undef      ASMCpuId_ECX
 #pragma aux ASMCpuId_ECX = \
     "cpuid" \
-    parm [ecx] \
+    parm [eax] \
     value [ecx] \
     modify exact [eax ebx ecx edx];
 
 #undef      ASMCpuId_EDX
 #pragma aux ASMCpuId_EDX = \
     "cpuid" \
-    parm [ecx] \
+    parm [eax] \
     value [edx] \
     modify exact [eax ebx ecx edx];
 

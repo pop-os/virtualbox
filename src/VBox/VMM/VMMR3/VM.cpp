@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -60,9 +60,7 @@
 #ifdef VBOX_WITH_REM
 # include <VBox/vmm/rem.h>
 #endif
-#ifdef VBOX_WITH_NEW_APIC
-# include <VBox/vmm/apic.h>
-#endif
+#include <VBox/vmm/apic.h>
 #include <VBox/vmm/tm.h>
 #include <VBox/vmm/stam.h>
 #include <VBox/vmm/patm.h>
@@ -1263,6 +1261,7 @@ VMMR3_INT_DECL(void) VMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
     IEMR3Relocate(pVM);
     DBGFR3Relocate(pVM, offDelta);
     PDMR3Relocate(pVM, offDelta);
+    GIMR3Relocate(pVM, offDelta);
 }
 
 
@@ -2309,6 +2308,8 @@ static DECLCALLBACK(VBOXSTRICTRC) vmR3PowerOff(PVM pVM, PVMCPU pVCpu, void *pvUs
             RTLogRelPrintf("****************** Guest state at power off for VCpu %u ******************\n", pVCpu->idCpu);
             DBGFR3InfoEx(pVM->pUVM, pVCpu->idCpu, "cpumguest", "verbose", DBGFR3InfoLogRelHlp());
             RTLogRelPrintf("***\n");
+            DBGFR3InfoEx(pVM->pUVM, pVCpu->idCpu, "cpumguesthwvirt", "verbose", DBGFR3InfoLogRelHlp());
+            RTLogRelPrintf("***\n");
             DBGFR3InfoEx(pVM->pUVM, pVCpu->idCpu, "mode", NULL, DBGFR3InfoLogRelHlp());
             RTLogRelPrintf("***\n");
             DBGFR3Info(pVM->pUVM, "activetimers", NULL, DBGFR3InfoLogRelHlp());
@@ -2341,6 +2342,8 @@ static DECLCALLBACK(VBOXSTRICTRC) vmR3PowerOff(PVM pVM, PVMCPU pVCpu, void *pvUs
         bool fOldBuffered = RTLogRelSetBuffering(true /*fBuffered*/);
         RTLogRelPrintf("****************** Guest state at power off for VCpu %u ******************\n", pVCpu->idCpu);
         DBGFR3InfoEx(pVM->pUVM, pVCpu->idCpu, "cpumguest", "verbose", DBGFR3InfoLogRelHlp());
+        RTLogRelPrintf("***\n");
+        DBGFR3InfoEx(pVM->pUVM, pVCpu->idCpu, "cpumguesthwvirt", "verbose", DBGFR3InfoLogRelHlp());
         RTLogRelPrintf("***\n");
         DBGFR3InfoEx(pVM->pUVM, pVCpu->idCpu, "mode", NULL, DBGFR3InfoLogRelHlp());
         RTLogRelPrintf("***\n");
@@ -2531,6 +2534,19 @@ DECLCALLBACK(int) vmR3Destroy(PVM pVM)
         ASMAtomicWriteU32(&pVM->fGlobalForcedActions, VM_FF_CHECK_VM_STATE); /* Can't hurt... */
         LogFlow(("vmR3Destroy: returning %Rrc\n", VINF_EM_TERMINATE));
     }
+
+    /*
+     * Decrement the active EMT count here.
+     */
+    PUVMCPU pUVCpu = &pUVM->aCpus[pVCpu->idCpu];
+    if (!pUVCpu->vm.s.fBeenThruVmDestroy)
+    {
+        pUVCpu->vm.s.fBeenThruVmDestroy = true;
+        ASMAtomicDecU32(&pUVM->vm.s.cActiveEmts);
+    }
+    else
+        AssertFailed();
+
     return VINF_EM_TERMINATE;
 }
 

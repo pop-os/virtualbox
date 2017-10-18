@@ -7,7 +7,7 @@ Test Manager - Test Case Arguments Variations.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard python imports.
@@ -272,7 +272,7 @@ class TestCaseArgsLogic(ModelLogicBase):
         """
 
         # Create a set of global resource IDs.
-        if len(oDataEx.aoGlobalRsrc) == 0:
+        if not oDataEx.aoGlobalRsrc:
             return True;
         asIdRsrcs = [str(oDep.idGlobalRsrc) for oDep, _ in oDataEx.aoGlobalRsrc];
 
@@ -385,7 +385,7 @@ class TestCaseArgsLogic(ModelLogicBase):
             if self._oDb.getRowCount() == 1:
                 aaoRow = self._oDb.fetchOne();
                 oEntry = TestCaseArgsDataEx();
-                tsNow  = oEntry.initFromDbRow(aaoRow).tsEffective if fNeedTsNow else None;
+                tsNow  = TestCaseArgsData().initFromDbRow(aaoRow).tsEffective if fNeedTsNow else None;
                 oEntry.initFromDbRowEx(aaoRow, self._oDb, tsNow, tsNow);
                 self.dCache[idTestCaseArgs] = oEntry;
         return oEntry;

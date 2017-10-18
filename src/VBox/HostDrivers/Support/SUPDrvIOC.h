@@ -27,9 +27,6 @@
 #ifndef ___SUPDrvIOC_h___
 #define ___SUPDrvIOC_h___
 
-/*
- * Basic types.
- */
 #include <iprt/types.h>
 #include <VBox/sup.h>
 
@@ -213,8 +210,10 @@ typedef SUPREQHDR *PSUPREQHDR;
  *
  * @todo Pending work on next major version change:
  *          - nothing.
+ *
+ * @remarks 0x002a0000 is used by 5.1. The next version number must be 0x002b0000.
  */
-#define SUPDRV_IOC_VERSION                              0x002a0000
+#define SUPDRV_IOC_VERSION                              0x00290000
 
 /** SUP_IOCTL_COOKIE. */
 typedef struct SUPCOOKIE

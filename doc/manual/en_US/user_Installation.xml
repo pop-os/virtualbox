@@ -775,14 +775,6 @@ virtualbox virtualbox/delete-old-modules boolean true</screen>The first line
 
       <screen>pkgadd -d VirtualBox-@VBOX_VERSION_STRING@-SunOS.pkg</screen>
 
-      <note>
-        <para>If you are using Solaris Zones, to install VirtualBox only into
-        the current zone and not into any other zone, use
-        <computeroutput>pkgadd -G</computeroutput>. For more information refer
-        to the <computeroutput>pkgadd</computeroutput> manual; see also <xref
-        linkend="solaris-zones" />.</para>
-      </note>
-
       <para>The installer will then prompt you to enter the package you wish
       to install. Choose "1" or "all" and proceed. Next the installer will ask
       you if you want to allow the postinstall script to be executed. Choose
@@ -795,6 +787,11 @@ virtualbox virtualbox/delete-old-modules boolean true</screen>The first line
       <computeroutput>autoresponse</computeroutput> files from your system.
       VirtualBox would be installed in
       <computeroutput>/opt/VirtualBox</computeroutput>.</para>
+
+      <note>
+        <para>If you need to use VirtualBox from non-global zones, please read
+        <xref linkend="solaris-zones" />.</para>
+      </note>
     </sect2>
 
     <sect2>
@@ -903,6 +900,19 @@ zonecfg:vboxzone&gt;exit</screen>
       above, you may add a device for <computeroutput>/dev/vboxusbmon</computeroutput>
       too, similar to what was shown above. This does not apply to Solaris 10
       hosts due to lack of USB support.</para>
+
+      <para>If you are not using sparse root zones, you will need to loopback
+      mount <computeroutput>/opt/VirtualBox</computeroutput> from the global zone
+      (specified below using the <computeroutput>dir</computeroutput> attribute) into
+      the non-global zone at the same path (specified using the
+      <computeroutput>special</computeroutput> attribute). For example:</para>
+
+      <screen>zonecfg:vboxzone&gt;add fs
+zonecfg:vboxzone:device&gt;set dir=/opt/VirtualBox
+zonecfg:vboxzone:device&gt;set special=/opt/VirtualBox
+zonecfg:vboxzone:device&gt;set type=lofs
+zonecfg:vboxzone:device&gt;end
+zonecfg:vboxzone&gt;exit</screen>
 
       <para>Next reboot the zone using <computeroutput>zoneadm</computeroutput>
       and you should be able to run VirtualBox from within the configured zone.</para>

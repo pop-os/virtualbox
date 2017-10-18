@@ -857,6 +857,8 @@ static const VUSBDESCCONFIGEX g_UsbHidMConfigDesc =
         /* .MaxPower = */           50 /* 100mA */
     },
     NULL,                           /* pvMore */
+    NULL,                           /* pvClass */
+    0,                              /* cbClass */
     &g_aUsbHidMInterfaces[0],
     NULL                            /* pvOriginal */
 };
@@ -874,6 +876,8 @@ static const VUSBDESCCONFIGEX g_UsbHidTConfigDesc =
         /* .MaxPower = */           50 /* 100mA */
     },
     NULL,                           /* pvMore */
+    NULL,                           /* pvClass */
+    0,                              /* cbClass */
     &g_aUsbHidTInterfaces[0],
     NULL                            /* pvOriginal */
 };
@@ -891,6 +895,8 @@ static const VUSBDESCCONFIGEX g_UsbHidMTConfigDesc =
         /* .MaxPower = */           50 /* 100mA */
     },
     NULL,                           /* pvMore */
+    NULL,                           /* pvClass */
+    0,                              /* cbClass */
     &g_aUsbHidMTInterfaces[0],
     NULL                            /* pvOriginal */
 };
@@ -2169,7 +2175,7 @@ static DECLCALLBACK(int) usbHidQueue(PPDMUSBINS pUsbIns, PVUSBURB pUrb)
 
         case 0x81:
             AssertFailed();
-            /* fall thru */
+            RT_FALL_THRU();
         case 0x01:
             rc = usbHidHandleIntrDevToHost(pThis, &pThis->aEps[1], pUrb);
             break;

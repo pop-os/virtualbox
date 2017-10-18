@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,16 +15,19 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN_SESSION
+#include "LoggingNew.h"
+
 #include "SessionImpl.h"
 #include "ConsoleImpl.h"
 #include "Global.h"
 #include "ClientTokenHolder.h"
 
 #include "AutoCaller.h"
-#include "Logging.h"
 
 #include <VBox/err.h>
 #include <iprt/process.h>
+
 
 /**
  *  Local macro to check whether the session is open and return an error if not.
@@ -584,6 +587,24 @@ HRESULT Session::onNetworkAdapterChange(const ComPtr<INetworkAdapter> &aNetworkA
 #endif
 }
 
+HRESULT Session::onAudioAdapterChange(const ComPtr<IAudioAdapter> &aAudioAdapter)
+{
+    LogFlowThisFunc(("\n"));
+
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    AssertReturn(mState == SessionState_Locked, VBOX_E_INVALID_VM_STATE);
+    AssertReturn(mType == SessionType_WriteLock, VBOX_E_INVALID_OBJECT_STATE);
+#ifndef VBOX_COM_INPROC_API_CLIENT
+    AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
+
+    return mConsole->i_onAudioAdapterChange(aAudioAdapter);
+#else
+    RT_NOREF(aAudioAdapter);
+    return S_OK;
+#endif
+
+}
+
 HRESULT Session::onSerialPortChange(const ComPtr<ISerialPort> &aSerialPort)
 {
     LogFlowThisFunc(("\n"));
@@ -1045,7 +1066,10 @@ HRESULT Session::resumeWithReason(Reason_T aReason)
 #endif
 }
 
-HRESULT Session::saveStateWithReason(Reason_T aReason, const ComPtr<IProgress> &aProgress, const Utf8Str &aStateFilePath,
+HRESULT Session::saveStateWithReason(Reason_T aReason,
+                                     const ComPtr<IProgress> &aProgress,
+                                     const ComPtr<ISnapshot> &aSnapshot,
+                                     const Utf8Str &aStateFilePath,
                                      BOOL aPauseVM, BOOL *aLeftPaused)
 {
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -1055,12 +1079,12 @@ HRESULT Session::saveStateWithReason(Reason_T aReason, const ComPtr<IProgress> &
     AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
 
     bool fLeftPaused = false;
-    HRESULT rc = mConsole->i_saveState(aReason, aProgress, aStateFilePath, !!aPauseVM, fLeftPaused);
+    HRESULT rc = mConsole->i_saveState(aReason, aProgress, aSnapshot, aStateFilePath, !!aPauseVM, fLeftPaused);
     if (aLeftPaused)
         *aLeftPaused = fLeftPaused;
     return rc;
 #else
-    RT_NOREF(aReason, aProgress, aStateFilePath, aPauseVM, aLeftPaused);
+    RT_NOREF(aReason, aProgress, aSnapshot, aStateFilePath, aPauseVM, aLeftPaused);
     AssertFailed();
     return E_NOTIMPL;
 #endif
@@ -1089,11 +1113,12 @@ HRESULT Session::cancelSaveStateWithReason()
  *
  *  @param aFinalRelease    called as a result of FinalRelease()
  *  @param aFromServer      called as a result of Uninitialize()
- *  @param pLockW           The write lock this object is protected with.
+ *  @param aLockW           The write lock this object is protected with.
  *                          Must be acquired already and will be released
  *                          and later reacquired during the unlocking.
  *
- *  @note To be called only from #uninit(), #UnlockMachine() or #Uninitialize().
+ *  @note To be called only from #uninit(), ISession::UnlockMachine() or
+ *        ISession::Uninitialize().
  */
 HRESULT Session::i_unlockMachine(bool aFinalRelease, bool aFromServer, AutoWriteLock &aLockW)
 {

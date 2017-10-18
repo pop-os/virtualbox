@@ -30,7 +30,7 @@
 
 /**
  * Set video mode (VGA).
- * @params    New video mode.
+ * @param   mode    New video mode.
  */
 void set_mode(uint8_t mode);
 #pragma aux set_mode =      \
@@ -41,7 +41,7 @@ void set_mode(uint8_t mode);
 
 /**
  * Set VESA video mode.
- * @params    New video mode.
+ * @param   mode    New video mode.
  */
 uint16_t vesa_set_mode(uint16_t mode);
 #pragma aux vesa_set_mode = \
@@ -51,7 +51,7 @@ uint16_t vesa_set_mode(uint16_t mode);
 
 /**
  * Get current VESA video mode.
- * @params    New video mode.
+ * @param   mode    New video mode.
  */
 uint16_t vesa_get_mode(uint16_t __far *mode);
 #pragma aux vesa_get_mode = \
@@ -409,6 +409,8 @@ void show_logo(void)
             }
         }
     }
+    else if (!f12_pressed)
+        outw(LOGO_IO_PORT, LOGO_CMD_SHOW_BMP | 0);
 
 done:
     // Clear forced boot drive setting.

@@ -3,7 +3,7 @@
 ; VMM Ring-3 Context DLL - Definition file.
 
 ;
-; Copyright (C) 2010-2016 Oracle Corporation
+; Copyright (C) 2010-2017 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -129,6 +129,43 @@ EXPORTS
     DBGFR3AsGetConfig
     DBGFR3CpuGetMode
     DBGFR3AddrFromSelOff
+    DBGFR3FlowCreate
+    DBGFR3FlowRetain
+    DBGFR3FlowRelease
+    DBGFR3FlowQueryStartBb
+    DBGFR3FlowQueryBbByAddress
+    DBGFR3FlowQueryBranchTblByAddress
+    DBGFR3FlowGetBbCount
+    DBGFR3FlowGetBranchTblCount
+    DBGFR3FlowBbRetain
+    DBGFR3FlowBbRelease
+    DBGFR3FlowBbGetStartAddress
+    DBGFR3FlowBbGetEndAddress
+    DBGFR3FlowBbGetBranchAddress
+    DBGFR3FlowBbGetFollowingAddress
+    DBGFR3FlowBbGetType
+    DBGFR3FlowBbGetInstrCount
+    DBGFR3FlowBbGetFlags
+    DBGFR3FlowBbQueryBranchTbl
+    DBGFR3FlowBbQueryError
+    DBGFR3FlowBbQueryInstr
+    DBGFR3FlowBbQuerySuccessors
+    DBGFR3FlowBbGetRefBbCount
+    DBGFR3FlowBbGetRefBb
+    DBGFR3FlowBranchTblRetain
+    DBGFR3FlowBranchTblRelease
+    DBGFR3FlowBranchTblGetSlots
+    DBGFR3FlowBranchTblGetStartAddress
+    DBGFR3FlowBranchTblGetAddrAtSlot
+    DBGFR3FlowBranchTblQueryAddresses
+    DBGFR3FlowItCreate
+    DBGFR3FlowItDestroy
+    DBGFR3FlowItNext
+    DBGFR3FlowItReset
+    DBGFR3FlowBranchTblItCreate
+    DBGFR3FlowBranchTblItDestroy
+    DBGFR3FlowBranchTblItNext
+    DBGFR3FlowBranchTblItReset
     DBGFR3PlugInLoad
     DBGFR3PlugInUnload
     DBGFR3PlugInLoadAll
@@ -172,6 +209,7 @@ EXPORTS
     PDMR3DeviceAttach
     PDMR3DeviceDetach
     PDMR3DriverAttach
+    PDMR3DriverDetach
     PDMR3NsBwGroupSetLimit
     PDMR3QueryDeviceLun
     PDMR3QueryDriverOnLun
@@ -215,6 +253,7 @@ EXPORTS
     PDMR3UsbDriverAttach
     PDMR3UsbDriverDetach
     PDMR3UsbQueryLun
+    PDMR3UsbQueryDriverOnLun
 
     PGMHandlerPhysicalPageTempOff
     PGMPhysReadGCPtr
@@ -316,6 +355,7 @@ EXPORTS
     TMR3TimerSetCritSect
     TMR3TimerLoad
     TMR3TimerSave
+    TMR3TimerSkip
     TMR3TimerDestroy
     TMTimerFromMicro
     TMTimerFromMilli

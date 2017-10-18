@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -882,7 +882,7 @@ static int dbgfR3VMMWait(PVM pVM)
                     /* remember return code. */
                     default:
                         AssertReleaseMsgFailed(("rc=%Rrc is not in the switch!\n", rc));
-                        /* fall thru */
+                        RT_FALL_THRU();
                     case VINF_EM_RESET:
                     case VINF_EM_SUSPEND:
                     case VINF_EM_HALT:

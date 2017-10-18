@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,7 +64,7 @@ typedef struct RTMANIFESTATTR
     /** Whether it was visited by the equals operation or not. */
     bool                fVisited;
     /** The normalized property name that StrCore::pszString points at. */
-    char                szName[1];
+    char                szName[RT_FLEXIBLE_ARRAY];
 } RTMANIFESTATTR;
 /** Pointer to a manifest attribute. */
 typedef RTMANIFESTATTR *PRTMANIFESTATTR;
@@ -85,7 +85,7 @@ typedef struct RTMANIFESTENTRY
     /** Whether it was visited by the equals operation or not. */
     bool                fVisited;
     /** The normalized entry name that StrCore::pszString points at. */
-    char                szName[1];
+    char                szName[RT_FLEXIBLE_ARRAY_NESTED];
 } RTMANIFESTENTRY;
 /** Pointer to a manifest entry. */
 typedef RTMANIFESTENTRY *PRTMANIFESTENTRY;
@@ -192,7 +192,7 @@ RTDECL(int) RTManifestCreate(uint32_t fFlags, PRTMANIFEST phManifest)
     AssertReturn(!fFlags, VERR_INVALID_PARAMETER);
     AssertPtr(phManifest);
 
-    RTMANIFESTINT *pThis = (RTMANIFESTINT *)RTMemAlloc(sizeof(*pThis));
+    RTMANIFESTINT *pThis = (RTMANIFESTINT *)RTMemAlloc(RT_UOFFSETOF(RTMANIFESTINT, SelfEntry.szName[1]));
     if (!pThis)
         return VERR_NO_MEMORY;
 
@@ -553,8 +553,13 @@ static DECLCALLBACK(int) rtManifestEntryCompare(PRTSTRSPACECORE pStr, void *pvUs
     pEntry2 = (PRTMANIFESTENTRY)RTStrSpaceGet(&pEquals->pThis2->Entries, pEntry1->StrCore.pszString);
     if (!pEntry2)
     {
-        RTStrPrintf(pEquals->pszError, pEquals->cbError, "'%s' not found in the 2nd manifest", pEntry1->StrCore.pszString);
-        return VERR_NOT_EQUAL;
+        if (!(pEquals->fFlags & RTMANIFEST_EQUALS_IGN_MISSING_ENTRIES_2ND))
+        {
+            RTStrPrintf(pEquals->pszError, pEquals->cbError, "'%s' not found in the 2nd manifest", pEntry1->StrCore.pszString);
+            return VERR_NOT_EQUAL;
+        }
+        pEntry1->fVisited = true;
+        return VINF_SUCCESS;
     }
 
     Assert(!pEntry1->fVisited);
@@ -589,7 +594,7 @@ RTDECL(int) RTManifestEqualsEx(RTMANIFEST hManifest1, RTMANIFEST hManifest2, con
         AssertPtrReturn(pThis2, VERR_INVALID_HANDLE);
         AssertReturn(pThis2->u32Magic == RTMANIFEST_MAGIC, VERR_INVALID_HANDLE);
     }
-    AssertReturn(!(fFlags & ~(RTMANIFEST_EQUALS_IGN_MISSING_ATTRS)), VERR_INVALID_PARAMETER);
+    AssertReturn(!(fFlags & ~RTMANIFEST_EQUALS_VALID_MASK), VERR_INVALID_PARAMETER);
 
     /*
      * The simple cases.
@@ -697,8 +702,8 @@ static int rtManifestSetAttrWorker(PRTMANIFESTENTRY pEntry, const char *pszAttr,
     }
     else
     {
-        size_t          cbName = strlen(pszAttr) + 1;
-        pAttr = (PRTMANIFESTATTR)RTMemAllocVar(RT_OFFSETOF(RTMANIFESTATTR, szName[cbName]));
+        size_t const cbName = strlen(pszAttr) + 1;
+        pAttr = (PRTMANIFESTATTR)RTMemAllocVar(RT_UOFFSETOF(RTMANIFESTATTR, szName[cbName]));
         if (!pAttr)
         {
             RTStrFree(pszValueCopy);
@@ -1064,7 +1069,7 @@ RTDECL(int) RTManifestEntrySetAttr(RTMANIFEST hManifest, const char *pszEntry, c
     rc = rtManifestGetEntry(pThis, pszEntry, fNeedNormalization, cchEntry, &pEntry);
     if (rc == VERR_NOT_FOUND)
     {
-        pEntry = (PRTMANIFESTENTRY)RTMemAlloc(RT_OFFSETOF(RTMANIFESTENTRY, szName[cchEntry + 1]));
+        pEntry = (PRTMANIFESTENTRY)RTMemAlloc(RT_UOFFSETOF(RTMANIFESTENTRY, szName[cchEntry + 1]));
         if (!pEntry)
             return VERR_NO_MEMORY;
 
@@ -1190,7 +1195,7 @@ RTDECL(int) RTManifestEntryAdd(RTMANIFEST hManifest, const char *pszEntry)
     rc = rtManifestGetEntry(pThis, pszEntry, fNeedNormalization, cchEntry, &pEntry);
     if (rc == VERR_NOT_FOUND)
     {
-        pEntry = (PRTMANIFESTENTRY)RTMemAlloc(RT_OFFSETOF(RTMANIFESTENTRY, szName[cchEntry + 1]));
+        pEntry = (PRTMANIFESTENTRY)RTMemAlloc(RT_UOFFSETOF(RTMANIFESTENTRY, szName[cchEntry + 1]));
         if (pEntry)
         {
             pEntry->StrCore.cchString = cchEntry;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2016 Oracle Corporation
+ * Copyright (C) 2012-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1712,10 +1712,14 @@ static int rtHttpWinConfigureProxyForUrl(PRTHTTPINTERNAL pThis, const char *pszU
                     else
                     {
                         DWORD dwErr = GetLastError();
-                        if (dwErr == ERROR_WINHTTP_AUTODETECTION_FAILED)
+                        if (   dwErr == ERROR_WINHTTP_AUTODETECTION_FAILED
+                            || (   dwErr == ERROR_WINHTTP_UNRECOGNIZED_SCHEME
+                                && (   RTStrNICmp(pszUrl, RT_STR_TUPLE("https://")) == 0
+                                    || RTStrNICmp(pszUrl, RT_STR_TUPLE("http://")) == 0) ) )
                             rcRet = rtHttpUpdateAutomaticProxyDisable(pThis);
                         else
-                            AssertMsgFailed(("g_pfnWinHttpGetProxyForUrl -> %u\n", dwErr));
+                            AssertMsgFailed(("g_pfnWinHttpGetProxyForUrl(%s) -> %u; lpszAutoConfigUrl=%sx\n",
+                                             pszUrl, dwErr, AutoProxyOptions.lpszAutoConfigUrl));
                     }
                     RTUtf16Free(pwszUrl);
                 }

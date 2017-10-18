@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -891,7 +891,6 @@ static void BldProgStrTab_PrintCStringLitteral(PBLDPROGSTRTAB pThis, PBLDPROGSTR
         {
 # ifdef BLDPROG_STRTAB_PURE_ASCII
             abort();
-            fprintf(pOut, "\\x%02x", (unsigned)uch);
 # else
             RTUNICP uc = RTStrGetCp((const char *)psz);
             psz += RTStrCpSize(uc);
@@ -901,6 +900,7 @@ static void BldProgStrTab_PrintCStringLitteral(PBLDPROGSTRTAB pThis, PBLDPROGSTR
 #else
         else
             fprintf(pOut, "\\x%02", (unsigned)uch);
+        NOREF(pThis);
 #endif
     }
 }

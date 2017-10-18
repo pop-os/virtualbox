@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2016 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_VDDbg_h
-#define ___VBox_VDDbg_h
+#ifndef ___VBox_vddbg_h
+#define ___VBox_vddbg_h
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>

@@ -68,6 +68,9 @@ public:
     /* API: Parent stuff: */
     UIGDetailsItem* parentItem() const;
 
+    /** Returns the description of the item. */
+    virtual QString description() const = 0;
+
     /* API: Children stuff: */
     virtual void addItem(UIGDetailsItem *pItem) = 0;
     virtual void removeItem(UIGDetailsItem *pItem) = 0;

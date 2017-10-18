@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2016 Oracle Corporation
+ * Copyright (C) 2012-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,65 +15,71 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIGlobalSettingsDisplay_h__
-#define __UIGlobalSettingsDisplay_h__
+#ifndef ___UIGlobalSettingsDisplay_h___
+#define ___UIGlobalSettingsDisplay_h___
 
-/* Local includes: */
+/* GUI includes: */
 #include "UISettingsPage.h"
 #include "UIGlobalSettingsDisplay.gen.h"
 
-/* Global settings / Display page / Cache: */
-struct UISettingsCacheGlobalDisplay
-{
-    QString m_strMaxGuestResolution;
-    bool m_fActivateHoveredMachineWindow;
-};
+/* Forward declarations: */
+struct UIDataSettingsGlobalDisplay;
+typedef UISettingsCache<UIDataSettingsGlobalDisplay> UISettingsCacheGlobalDisplay;
 
-/* Global settings / Display page: */
-class UIGlobalSettingsDisplay : public UISettingsPageGlobal, public Ui::UIGlobalSettingsDisplay
+
+/** Global settings: Display page. */
+class UIGlobalSettingsDisplay : public UISettingsPageGlobal,
+                                public Ui::UIGlobalSettingsDisplay
 {
     Q_OBJECT;
 
 public:
 
-    /* Constructor: */
+    /** Constructs Display settings page. */
     UIGlobalSettingsDisplay();
+    /** Destructs Display settings page. */
+    ~UIGlobalSettingsDisplay();
 
 protected:
 
-    /* Load data to cache from corresponding external object(s),
-     * this task COULD be performed in other than GUI thread: */
-    void loadToCacheFrom(QVariant &data);
-    /* Load data to corresponding widgets from cache,
-     * this task SHOULD be performed in GUI thread only: */
-    void getFromCache();
+    /** Loads data into the cache from corresponding external object(s),
+      * this task COULD be performed in other than the GUI thread. */
+    virtual void loadToCacheFrom(QVariant &data) /* override */;
+    /** Loads data into corresponding widgets from the cache,
+      * this task SHOULD be performed in the GUI thread only. */
+    virtual void getFromCache() /* override */;
 
-    /* Save data from corresponding widgets to cache,
-     * this task SHOULD be performed in GUI thread only: */
-    void putToCache();
-    /* Save data from cache to corresponding external object(s),
-     * this task COULD be performed in other than GUI thread: */
-    void saveFromCacheTo(QVariant &data);
+    /** Saves data from corresponding widgets to the cache,
+      * this task SHOULD be performed in the GUI thread only. */
+    virtual void putToCache() /* override */;
+    /** Saves data from the cache to corresponding external object(s),
+      * this task COULD be performed in other than the GUI thread. */
+    virtual void saveFromCacheTo(QVariant &data) /* overrride */;
 
-    /* Helper: Navigation stuff: */
-    void setOrderAfter(QWidget *pWidget);
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */;
 
-    /* Helper: Translation stuff: */
-    void retranslateUi();
+private slots:
 
-protected slots:
-
-    /* Handler: Resolution-combo stuff: */
-    void sltMaxResolutionComboActivated();
+    /** Handles maximum guest-screen size policy change. */
+    void sltHandleMaximumGuestScreenSizePolicyChange();
 
 private:
 
-    /* Helper: Resolution-combo stuff: */
-    void populate();
+    /** Prepares all. */
+    void prepare();
+    /** Cleanups all. */
+    void cleanup();
 
-    /* Cache: */
-    UISettingsCacheGlobalDisplay m_cache;
+    /** Reloads maximum guest-screen size policy combo-box. */
+    void reloadMaximumGuestScreenSizePolicyComboBox();
+
+    /** Saves existing display data from the cache. */
+    bool saveDisplayData();
+
+    /** Holds the page data cache instance. */
+    UISettingsCacheGlobalDisplay *m_pCache;
 };
 
-#endif // __UIGlobalSettingsDisplay_h__
+#endif /* !___UIGlobalSettingsDisplay_h___ */
 

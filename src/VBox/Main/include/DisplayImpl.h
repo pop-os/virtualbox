@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,7 +23,7 @@
 #include <iprt/semaphore.h>
 #include <VBox/vmm/pdmdrv.h>
 #include <VBox/VMMDev.h>
-#include <VBox/VBoxVideo.h>
+#include <VBoxVideo.h>
 #include <VBox/vmm/pdmifs.h>
 #include "DisplayWrap.h"
 
@@ -31,12 +31,15 @@
 # include <VBox/HostServices/VBoxCrOpenGLSvc.h>
 #endif
 
+#ifdef VBOX_WITH_VIDEOREC
+# include "../src-client/VideoRec.h"
+struct VIDEORECCONTEXT;
+#endif
+
 #include "DisplaySourceBitmapWrap.h"
 
-#define NEW_RESIZE
 
 class Console;
-struct VIDEORECCONTEXT;
 
 typedef struct _DISPLAYFBINFO
 {
@@ -97,12 +100,12 @@ typedef struct _DISPLAYFBINFO
     } pendingViewportInfo;
 #endif /* VBOX_WITH_CROGL */
 
-#ifdef VBOX_WITH_VPX
+#ifdef VBOX_WITH_VIDEOREC
     struct
     {
         ComPtr<IDisplaySourceBitmap> pSourceBitmap;
-    } videoCapture;
-#endif
+    } videoRec;
+#endif /* VBOX_WITH_VIDEOREC */
 } DISPLAYFBINFO;
 
 /* The legacy VBVA (VideoAccel) data.
@@ -157,14 +160,9 @@ public:
     int  i_registerSSM(PUVM pUVM);
 
     // public methods only for internal purposes
-#ifndef NEW_RESIZE
-    int  i_handleDisplayResize(unsigned uScreenId, uint32_t bpp, void *pvVRAM, uint32_t cbLine,
-                               uint32_t w, uint32_t h, uint16_t flags);
-#else
     int i_handleDisplayResize(unsigned uScreenId, uint32_t bpp, void *pvVRAM,
                               uint32_t cbLine, uint32_t w, uint32_t h, uint16_t flags,
                               int32_t xOrigin, int32_t yOrigin, bool fVGAResize);
-#endif
     void i_handleDisplayUpdate(unsigned uScreenId, int x, int y, int w, int h);
     void i_handleUpdateVMMDevSupportsGraphics(bool fSupportsGraphics);
     void i_handleUpdateGuestVBVACapabilities(uint32_t fNewCapabilities);
@@ -209,11 +207,18 @@ public:
     int  VideoAccelEnableVMMDev(bool fEnable, VBVAMEMORY *pVbvaMemory);
     void VideoAccelFlushVMMDev(void);
 
-    int  i_VideoCaptureStart();
-    void i_VideoCaptureStop();
-    int  i_VideoCaptureEnableScreens(ComSafeArrayIn(BOOL, aScreens));
-#ifdef VBOX_WITH_VPX
-    void videoCaptureScreenChanged(unsigned uScreenId);
+#ifdef VBOX_WITH_VIDEOREC
+    PVIDEORECCFG             i_videoRecGetConfig(void) { return &mVideoRecCfg; }
+    VIDEORECFEATURES         i_videoRecGetEnabled(void);
+    bool                     i_videoRecStarted(void);
+# ifdef VBOX_WITH_AUDIO_VIDEOREC
+    int                      i_videoRecConfigureAudioDriver(const Utf8Str& strAdapter, unsigned uInstance, unsigned uLun, bool fAttach);
+# endif
+    static DECLCALLBACK(int) i_videoRecConfigure(Display *pThis, PVIDEORECCFG pCfg, bool fAttachDetach);
+    int                      i_videoRecSendAudio(const void *pvData, size_t cbData, uint64_t uDurationMs);
+    int                      i_videoRecStart(void);
+    void                     i_videoRecStop(void);
+    void                     i_videoRecScreenChanged(unsigned uScreenId);
 #endif
 
     void i_notifyPowerDown(void);
@@ -295,6 +300,7 @@ private:
     virtual HRESULT notifyHiDPIOutputPolicyChange(BOOL fUnscaledHiDPI);
     virtual HRESULT setScreenLayout(ScreenLayoutMode_T aScreenLayoutMode,
                                     const std::vector<ComPtr<IGuestScreenInfo> > &aGuestScreenInfo);
+    virtual HRESULT detachScreens(const std::vector<LONG> &aScreenIds);
 
     // Wrapped IEventListener properties
 
@@ -308,9 +314,7 @@ private:
                                  ULONG aHeight,
                                  BitmapFormat_T aBitmapFormat,
                                  ULONG *pcbOut);
-#ifdef NEW_RESIZE
     int processVBVAResize(PCVBVAINFOVIEW pView, PCVBVAINFOSCREEN pScreen, void *pvVRAM, bool fResetInputMapping);
-#endif
 
 #ifdef VBOX_WITH_CRHGSMI
     void i_setupCrHgsmiData(void);
@@ -401,10 +405,6 @@ private:
     Console * const         mParent;
     /** Pointer to the associated display driver. */
     struct DRVMAINDISPLAY   *mpDrv;
-    /** Pointer to the device instance for the VMM Device. */
-    PPDMDEVINS              mpVMMDev;
-    /** Set after the first attempt to find the VMM Device. */
-    bool                    mfVMMDevInited;
 
     unsigned mcMonitors;
     /** Input mapping rectangle top left X relative to the first screen. */
@@ -470,11 +470,18 @@ private:
     void processAdapterData(void *pvVRAM, uint32_t u32VRAMSize);
     void processDisplayData(void *pvVRAM, unsigned uScreenId);
 
-    /* Serializes access to mVideoAccelLegacy and mfVideoAccelVRDP, etc between VRDP and Display. */
-    RTCRITSECT mVideoAccelLock;
-#ifdef VBOX_WITH_VPX
-    /* Serializes access to video capture source bitmaps. */
-    RTCRITSECT mVideoCaptureLock;
+    /** Serializes access to mVideoAccelLegacy and mfVideoAccelVRDP, etc between VRDP and Display. */
+    RTCRITSECT           mVideoAccelLock;
+
+#ifdef VBOX_WITH_VIDEOREC
+    /* Serializes access to video recording source bitmaps. */
+    RTCRITSECT           mVideoRecLock;
+    /** The current video recording configuration being used. */
+    VIDEORECCFG          mVideoRecCfg;
+    /** The video recording context. */
+    VIDEORECCONTEXT     *mpVideoRecCtx;
+    /** Array which defines which screens are being enabled for recording. */
+    bool                 maVideoRecEnabled[SchemaDefs::MaxGuestMonitors];
 #endif
 
 public:
@@ -511,11 +518,6 @@ private:
 
 #ifdef VBOX_WITH_HGSMI
     volatile uint32_t mu32UpdateVBVAFlags;
-#endif
-
-#ifdef VBOX_WITH_VPX
-    VIDEORECCONTEXT *mpVideoRecCtx;
-    bool maVideoRecEnabled[SchemaDefs::MaxGuestMonitors];
 #endif
 
 private:
@@ -595,5 +597,5 @@ private:
     Data m;
 };
 
-#endif // ____H_DISPLAYIMPL
+#endif // !____H_DISPLAYIMPL
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

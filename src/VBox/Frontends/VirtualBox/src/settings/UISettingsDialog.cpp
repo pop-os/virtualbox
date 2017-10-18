@@ -33,7 +33,7 @@
 # include "UIMessageCenter.h"
 # include "UIPopupCenter.h"
 # include "QIWidgetValidator.h"
-# include "VBoxSettingsSelector.h"
+# include "UISettingsSelector.h"
 # include "UIModalWindowManager.h"
 # include "UISettingsSerializer.h"
 # include "UISettingsPage.h"
@@ -91,7 +91,7 @@ UISettingsDialog::UISettingsDialog(QWidget *pParent)
     /* No page-title with tool-bar: */
     m_pLbTitle->hide();
     /* Create modern tool-bar selector: */
-    m_pSelector = new VBoxSettingsToolBarSelector(this);
+    m_pSelector = new UISettingsSelectorToolBar(this);
     static_cast<UIToolBar*>(m_pSelector->widget())->enableMacToolbar();
     addToolBar(qobject_cast<QToolBar*>(m_pSelector->widget()));
     /* No title in this mode, we change the title of the window: */
@@ -99,12 +99,12 @@ UISettingsDialog::UISettingsDialog(QWidget *pParent)
     pMainLayout->setHorizontalSpacing(0);
 #else
     /* Create classical tree-view selector: */
-    m_pSelector = new VBoxSettingsTreeViewSelector(this);
+    m_pSelector = new UISettingsSelectorTreeView(this);
     pMainLayout->addWidget(m_pSelector->widget(), 0, 0, 2, 1);
     m_pSelector->widget()->setFocus();
     pMainLayout->setSpacing(10);
 #endif /* VBOX_GUI_WITH_TOOLBAR_SETTINGS */
-    connect(m_pSelector, SIGNAL(categoryChanged(int)), this, SLOT(sltCategoryChanged(int)));
+    connect(m_pSelector, SIGNAL(sigCategoryChanged(int)), this, SLOT(sltCategoryChanged(int)));
 
     /* Prepare page-stack: */
     m_pStack = new QStackedWidget(m_pWtStackHandler);
@@ -189,22 +189,6 @@ void UISettingsDialog::sltCategoryChanged(int cId)
 {
     int index = m_pages[cId];
 #ifdef VBOX_WS_MAC
-# if QT_VERSION < 0x050000
-    QSize cs = size();
-    if (index < m_sizeList.count())
-    {
-        QSize ss = m_sizeList.at(index);
-        /* Switch to the new page first if we are shrinking: */
-        if (cs.height() > ss.height())
-            m_pStack->setCurrentIndex(index);
-        /* Do the animation: */
-        ::darwinWindowAnimateResize(this, QRect (x(), y(), ss.width(), ss.height()));
-        /* Switch to the new page last if we are zooming: */
-        if (cs.height() <= ss.height())
-            m_pStack->setCurrentIndex(index);
-    }
-    ::darwinSetShowsResizeIndicator(this, false);
-# else /* QT_VERSION >= 0x050000 */
     /* If index is within the stored size list bounds: */
     if (index < m_sizeList.count())
     {
@@ -233,14 +217,14 @@ void UISettingsDialog::sltCategoryChanged(int cId)
             pLayout->activate();
         }
     }
-# endif /* QT_VERSION >= 0x050000 */
 #else
-    m_pLbTitle->setText(m_pSelector->itemText(cId));
     m_pStack->setCurrentIndex(index);
 #endif
 #ifdef VBOX_GUI_WITH_TOOLBAR_SETTINGS
     setWindowTitle(title());
-#endif /* VBOX_GUI_WITH_TOOLBAR_SETTINGS */
+#else
+    m_pLbTitle->setText(m_pSelector->itemText(cId));
+#endif
 }
 
 void UISettingsDialog::sltMarkLoaded()
@@ -630,34 +614,6 @@ void UISettingsDialog::showEvent(QShowEvent *pEvent)
     /* Remove all title bar buttons (Buggy Qt): */
     ::darwinSetHidesAllTitleButtons(this);
 
-# if QT_VERSION < 0x050000
-    /* Set all size policies to ignored: */
-    for (int i = 0; i < m_pStack->count(); ++i)
-        m_pStack->widget(i)->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Ignored);
-    /* Activate every single page to get the optimal size: */
-    for (int i = m_pStack->count() - 1; i >= 0; --i)
-    {
-        m_pStack->widget(i)->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
-        /* Prevent this widgets to go in the Small/Mini size state which is
-         * available on Mac OS X. Not sure why this happens but this seems to help
-         * against. */
-        QList <QWidget*> list = m_pStack->widget(i)->findChildren<QWidget*>();
-        for (int a = 0; a < list.size(); ++a)
-        {
-            QWidget *w = list.at(a);
-            if (w->parent() == m_pStack->widget(i))
-                w->setFixedHeight(w->sizeHint().height());
-        }
-        m_pStack->setCurrentIndex(i);
-        /* Now make sure the layout is freshly calculated. */
-        layout()->activate();
-        QSize s = minimumSize();
-        if (iMinWidth > s.width())
-            s.setWidth(iMinWidth);
-        m_sizeList.insert(0, s);
-        m_pStack->widget(i)->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Ignored);
-    }
-# else /* QT_VERSION >= 0x050000 */
     /* Unlock all page policies initially: */
     for (int i = 0; i < m_pStack->count(); ++i)
         m_pStack->widget(i)->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Ignored);
@@ -693,7 +649,6 @@ void UISettingsDialog::showEvent(QShowEvent *pEvent)
         /* Unlock the policy for current page again: */
         m_pStack->widget(i)->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Ignored);
     }
-# endif /* QT_VERSION >= 0x050000 */
 
     sltCategoryChanged(m_pSelector->currentId());
 #else /* VBOX_WS_MAC */

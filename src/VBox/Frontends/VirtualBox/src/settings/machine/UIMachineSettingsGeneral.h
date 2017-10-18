@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,82 +19,14 @@
 #define ___UIMachineSettingsGeneral_h___
 
 /* GUI includes: */
+#include "UIAddDiskEncryptionPasswordDialog.h"
 #include "UISettingsPage.h"
 #include "UIMachineSettingsGeneral.gen.h"
-#include "UIAddDiskEncryptionPasswordDialog.h"
 
-/** Machine settings: General page: Data structure. */
-struct UIDataSettingsMachineGeneral
-{
-    /** Constructor. */
-    UIDataSettingsMachineGeneral()
-        : m_strName(QString())
-        , m_strGuestOsTypeId(QString())
-        , m_strSnapshotsFolder(QString())
-        , m_strSnapshotsHomeDir(QString())
-        , m_clipboardMode(KClipboardMode_Disabled)
-        , m_dndMode(KDnDMode_Disabled)
-        , m_strDescription(QString())
-        , m_fEncryptionEnabled(false)
-        , m_fEncryptionCipherChanged(false)
-        , m_fEncryptionPasswordChanged(false)
-        , m_iEncryptionCipherIndex(-1)
-        , m_strEncryptionPassword(QString())
-    {}
-
-    /** Returns whether passed @a other is equal to this. */
-    bool equal(const UIDataSettingsMachineGeneral &other) const
-    {
-        return (m_strName == other.m_strName) &&
-               (m_strGuestOsTypeId == other.m_strGuestOsTypeId) &&
-               (m_strSnapshotsFolder == other.m_strSnapshotsFolder) &&
-               (m_strSnapshotsHomeDir == other.m_strSnapshotsHomeDir) &&
-               (m_clipboardMode == other.m_clipboardMode) &&
-               (m_dndMode == other.m_dndMode) &&
-               (m_strDescription == other.m_strDescription) &&
-               (m_fEncryptionEnabled == other.m_fEncryptionEnabled) &&
-               (m_fEncryptionCipherChanged == other.m_fEncryptionCipherChanged) &&
-               (m_fEncryptionPasswordChanged == other.m_fEncryptionPasswordChanged);
-    }
-
-    /** Operator== implementation which returns whether passed @a other is equal to this. */
-    bool operator==(const UIDataSettingsMachineGeneral &other) const { return equal(other); }
-    /** Operator!= implementation which returns whether passed @a other is differs from this. */
-    bool operator!=(const UIDataSettingsMachineGeneral &other) const { return !equal(other); }
-
-    /** Holds the VM name. */
-    QString m_strName;
-    /** Holds the VM OS type ID. */
-    QString m_strGuestOsTypeId;
-
-    /** Holds the VM snapshot folder. */
-    QString m_strSnapshotsFolder;
-    /** Holds the default VM snapshot folder. */
-    QString m_strSnapshotsHomeDir;
-    /** Holds the VM shared clipboard mode. */
-    KClipboardMode m_clipboardMode;
-    /** Holds the VM drag&drop mode. */
-    KDnDMode m_dndMode;
-
-    /** Holds the VM description. */
-    QString m_strDescription;
-
-    /** Holds whether the encryption is enabled. */
-    bool m_fEncryptionEnabled;
-    /** Holds whether the encryption cipher was changed. */
-    bool m_fEncryptionCipherChanged;
-    /** Holds whether the encryption password was changed. */
-    bool m_fEncryptionPasswordChanged;
-    /** Holds the encryption cipher index. */
-    int m_iEncryptionCipherIndex;
-    /** Holds the encryption password. */
-    QString m_strEncryptionPassword;
-    /** Holds the encrypted medium ids. */
-    EncryptedMediumMap m_encryptedMediums;
-    /** Holds the encryption passwords. */
-    EncryptionPasswordMap m_encryptionPasswords;
-};
+/* Forward declarations: */
+struct UIDataSettingsMachineGeneral;
 typedef UISettingsCache<UIDataSettingsMachineGeneral> UISettingsCacheMachineGeneral;
+
 
 /** Machine settings: General page. */
 class UIMachineSettingsGeneral : public UISettingsPageMachine,
@@ -104,8 +36,10 @@ class UIMachineSettingsGeneral : public UISettingsPageMachine,
 
 public:
 
-    /** Constructor. */
+    /** Constructs General settings page. */
     UIMachineSettingsGeneral();
+    /** Destructs General settings page. */
+    ~UIMachineSettingsGeneral();
 
     /** Returns the VM OS type ID. */
     CGuestOSType guestOSType() const;
@@ -121,31 +55,34 @@ public:
 
 protected:
 
+    /** Returns whether the page content was changed. */
+    virtual bool changed() const /* override */;
+
     /** Loads data into the cache from the corresponding external object(s).
       * @note This task COULD be performed in other than GUI thread. */
-    void loadToCacheFrom(QVariant &data);
+    virtual void loadToCacheFrom(QVariant &data) /* override */;
     /** Loads data into the corresponding widgets from the cache,
       * @note This task SHOULD be performed in GUI thread only! */
-    void getFromCache();
-
-    /** Returns whether the page was changed: */
-    bool changed() const { return m_cache.wasChanged(); }
+    virtual void getFromCache() /* override */;
 
     /** Saves the data from the corresponding widgets into the cache,
       * @note This task SHOULD be performed in GUI thread only! */
-    void putToCache();
+    virtual void putToCache() /* override */;
     /** Save data from the cache into the corresponding external object(s).
       * @note This task COULD be performed in other than GUI thread. */
-    void saveFromCacheTo(QVariant &data);
+    virtual void saveFromCacheTo(QVariant &data) /* overrride */;
 
-    /** Validation routine. */
-    bool validate(QList<UIValidationMessage> &messages);
+    /** Performs validation, updates @a messages list if something is wrong. */
+    virtual bool validate(QList<UIValidationMessage> &messages) /* override */;
 
-    /** Tab-order assignment routine. */
-    void setOrderAfter(QWidget *aWidget);
+    /** Defines TAB order for passed @a pWidget. */
+    virtual void setOrderAfter(QWidget *pWidget) /* override */;
 
-    /** Translation routine. */
-    void retranslateUi();
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */;
+
+    /** Performs final page polishing. */
+    virtual void polishPage() /* override */;
 
 private slots:
 
@@ -156,38 +93,51 @@ private slots:
 
 private:
 
-    /** Prepare routine. */
+    /** Prepares all. */
     void prepare();
-    /** Prepare 'Basic' tab routine. */
+    /** Prepares 'Basic' tab. */
     void prepareTabBasic();
-    /** Prepare 'Advanced' tab routine. */
+    /** Prepares 'Advanced' tab. */
     void prepareTabAdvanced();
-    /** Prepare 'Description' tab routine. */
+    /** Prepares 'Description' tab. */
     void prepareTabDescription();
-    /** Prepare 'Encryption' tab routine. */
+    /** Prepares 'Encryption' tab. */
     void prepareTabEncryption();
+    /** Prepares connections. */
+    void prepareConnections();
+    /** Cleanups all. */
+    void cleanup();
 
-    /** Polish routine. */
-    void polishPage();
-
-    /** Holds the page cache. */
-    UISettingsCacheMachineGeneral m_cache;
+    /** Saves existing general data from the cache. */
+    bool saveGeneralData();
+    /** Saves existing 'Basic' data from the cache. */
+    bool saveBasicData();
+    /** Saves existing 'Advanced' data from the cache. */
+    bool saveAdvancedData();
+    /** Saves existing 'Description' data from the cache. */
+    bool saveDescriptionData();
+    /** Saves existing 'Encryption' data from the cache. */
+    bool saveEncryptionData();
 
     /** Holds whether HW virtualization extension is enabled. */
-    bool m_fHWVirtExEnabled;
+    bool  m_fHWVirtExEnabled;
 
     /** Holds whether the encryption cipher was changed.
       * We are holding that argument here because we do not know
       * the old <i>cipher</i> for sure to compare the new one with. */
-    bool m_fEncryptionCipherChanged;
+    bool  m_fEncryptionCipherChanged;
     /** Holds whether the encryption password was changed.
       * We are holding that argument here because we do not know
       * the old <i>password</i> at all to compare the new one with. */
-    bool m_fEncryptionPasswordChanged;
+    bool  m_fEncryptionPasswordChanged;
 
     /** Holds the hard-coded encryption cipher list.
       * We are hard-coding it because there is no place we can get it from. */
-    QStringList m_encryptionCiphers;
+    QStringList  m_encryptionCiphers;
+
+    /** Holds the page data cache instance. */
+    UISettingsCacheMachineGeneral *m_pCache;
 };
 
 #endif /* !___UIMachineSettingsGeneral_h___ */
+

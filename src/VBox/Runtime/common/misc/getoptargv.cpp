@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -157,13 +157,13 @@ DECLINLINE(bool) rtGetOptIsAsciiInSet(char ch, const char *pszSeparators, size_t
 {
     switch (cchSeparators)
     {
-        case 8: if (ch == pszSeparators[7]) return true; /* fall thru */
-        case 7: if (ch == pszSeparators[6]) return true; /* fall thru */
-        case 6: if (ch == pszSeparators[5]) return true; /* fall thru */
-        case 5: if (ch == pszSeparators[4]) return true; /* fall thru */
-        case 4: if (ch == pszSeparators[3]) return true; /* fall thru */
-        case 3: if (ch == pszSeparators[2]) return true; /* fall thru */
-        case 2: if (ch == pszSeparators[1]) return true; /* fall thru */
+        case 8: if (ch == pszSeparators[7]) return true; RT_FALL_THRU();
+        case 7: if (ch == pszSeparators[6]) return true; RT_FALL_THRU();
+        case 6: if (ch == pszSeparators[5]) return true; RT_FALL_THRU();
+        case 5: if (ch == pszSeparators[4]) return true; RT_FALL_THRU();
+        case 4: if (ch == pszSeparators[3]) return true; RT_FALL_THRU();
+        case 3: if (ch == pszSeparators[2]) return true; RT_FALL_THRU();
+        case 2: if (ch == pszSeparators[1]) return true; RT_FALL_THRU();
         case 1: if (ch == pszSeparators[0]) return true;
             return false;
         default:
@@ -230,8 +230,10 @@ RTDECL(int) RTGetOptArgvFromString(char ***ppapszArgv, int *pcArgs, const char *
     AssertPtr(pszCmdLine);
     AssertPtr(pcArgs);
     AssertPtr(ppapszArgv);
-    AssertReturn(   fFlags == RTGETOPTARGV_CNV_QUOTE_BOURNE_SH
-                 || fFlags == RTGETOPTARGV_CNV_QUOTE_MS_CRT, VERR_INVALID_FLAGS);
+    AssertReturn(   (fFlags & RTGETOPTARGV_CNV_QUOTE_MASK) == RTGETOPTARGV_CNV_QUOTE_BOURNE_SH
+                 || (fFlags & RTGETOPTARGV_CNV_QUOTE_MASK) == RTGETOPTARGV_CNV_QUOTE_MS_CRT, VERR_INVALID_FLAGS);
+    AssertReturn(~(fFlags & ~RTGETOPTARGV_CNV_VALID_MASK), VERR_INVALID_FLAGS);
+
     if (!pszSeparators)
         pszSeparators = " \t\n\r";
     else
@@ -242,12 +244,18 @@ RTDECL(int) RTGetOptArgvFromString(char ***ppapszArgv, int *pcArgs, const char *
     /*
      * Parse the command line and chop off it into argv individual argv strings.
      */
-    int         rc        = VINF_SUCCESS;
     const char *pszSrc    = pszCmdLine;
-    char       *pszDup    = (char *)RTMemAlloc(strlen(pszSrc) + 1);
-    char       *pszDst    = pszDup;
-    if (!pszDup)
-        return VERR_NO_STR_MEMORY;
+    char       *pszDup    = NULL;
+    char       *pszDst;
+    if (fFlags & RTGETOPTARGV_CNV_MODIFY_INPUT)
+        pszDst = (char *)pszCmdLine;
+    else
+    {
+        pszDst = pszDup = (char *)RTMemAlloc(strlen(pszSrc) + 1);
+        if (!pszDup)
+            return VERR_NO_STR_MEMORY;
+    }
+    int         rc        = VINF_SUCCESS;
     char      **papszArgs = NULL;
     unsigned    iArg      = 0;
     while (*pszSrc)
@@ -424,13 +432,21 @@ RTDECL(int) RTGetOptArgvFromString(char ***ppapszArgv, int *pcArgs, const char *
 
 RTDECL(void) RTGetOptArgvFree(char **papszArgv)
 {
+    RTGetOptArgvFreeEx(papszArgv, 0);
+}
+
+
+RTDECL(void) RTGetOptArgvFreeEx(char **papszArgv, uint32_t fFlags)
+{
+    Assert(~(fFlags & ~RTGETOPTARGV_CNV_VALID_MASK));
     if (papszArgv)
     {
         /*
          * We've really only _two_ allocations here. Check the code in
          * RTGetOptArgvFromString for the particulars.
          */
-        RTMemFree(papszArgv[0]);
+        if (!(fFlags & RTGETOPTARGV_CNV_MODIFY_INPUT))
+            RTMemFree(papszArgv[0]);
         RTMemFree(papszArgv);
     }
 }
@@ -501,7 +517,8 @@ DECLINLINE(bool) rtGetOptArgvMsCrtIsSlashQuote(const char *psz)
 
 RTDECL(int) RTGetOptArgvToString(char **ppszCmdLine, const char * const *papszArgv, uint32_t fFlags)
 {
-    AssertReturn(fFlags <= RTGETOPTARGV_CNV_UNQUOTED, VERR_INVALID_PARAMETER);
+    AssertReturn((fFlags & RTGETOPTARGV_CNV_QUOTE_MASK) <= RTGETOPTARGV_CNV_UNQUOTED, VERR_INVALID_FLAGS);
+    AssertReturn(!(fFlags & (~RTGETOPTARGV_CNV_VALID_MASK | RTGETOPTARGV_CNV_MODIFY_INPUT)), VERR_INVALID_FLAGS);
 
 #define PUT_CH(ch) \
         if (RT_UNLIKELY(off + 1 >= cbCmdLineAlloc)) { \

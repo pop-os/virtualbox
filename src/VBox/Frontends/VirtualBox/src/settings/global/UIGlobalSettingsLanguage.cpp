@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,8 @@
 
 /* GUI includes: */
 # include "UIGlobalSettingsLanguage.h"
-# include "VBoxGlobalSettings.h"
+# include "UIExtraDataManager.h"
+# include "UIMessageCenter.h"
 # include "VBoxGlobal.h"
 
 /* Other VBox includes: */
@@ -37,6 +38,7 @@
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
+/* Other VBox includes: */
 #include <iprt/err.h>
 
 
@@ -46,18 +48,42 @@ extern const char *gVBoxLangFileExt;
 extern const char *gVBoxLangIDRegExp;
 extern const char *gVBoxBuiltInLangName;
 
+
+/** Global settings: Language page data structure. */
+struct UIDataSettingsGlobalLanguage
+{
+    /** Constructs data. */
+    UIDataSettingsGlobalLanguage()
+        : m_strLanguageId(QString())
+    {}
+
+    /** Returns whether the @a other passed data is equal to this one. */
+    bool equal(const UIDataSettingsGlobalLanguage &other) const
+    {
+        return true
+               && (m_strLanguageId == other.m_strLanguageId)
+               ;
+    }
+
+    /** Returns whether the @a other passed data is equal to this one. */
+    bool operator==(const UIDataSettingsGlobalLanguage &other) const { return equal(other); }
+    /** Returns whether the @a other passed data is different from this one. */
+    bool operator!=(const UIDataSettingsGlobalLanguage &other) const { return !equal(other); }
+
+    /** Holds the current language id. */
+    QString m_strLanguageId;
+};
+
+
 /* Language item: */
-class UILanguageItem : public QTreeWidgetItem
+class UILanguageItem : public QITreeWidgetItem
 {
 public:
 
-    /* Language item type: */
-    enum { UILanguageItemType = QTreeWidgetItem::UserType + 1 };
-
     /* Language item constructor: */
-    UILanguageItem(QTreeWidget *pParent, const QTranslator &translator,
+    UILanguageItem(QITreeWidget *pParent, const QTranslator &translator,
                    const QString &strId, bool fBuiltIn = false)
-        : QTreeWidgetItem(pParent, UILanguageItemType), m_fBuiltIn(fBuiltIn)
+        : QITreeWidgetItem(pParent), m_fBuiltIn(fBuiltIn)
     {
         Assert (!strId.isEmpty());
 
@@ -112,8 +138,8 @@ public:
 
     /* Constructs an item for an invalid language ID
      * (i.e. when a language file is missing or corrupt): */
-    UILanguageItem(QTreeWidget *pParent, const QString &strId)
-        : QTreeWidgetItem(pParent, UILanguageItemType), m_fBuiltIn(false)
+    UILanguageItem(QITreeWidget *pParent, const QString &strId)
+        : QITreeWidgetItem(pParent), m_fBuiltIn(false)
     {
         Assert(!strId.isEmpty());
 
@@ -130,8 +156,8 @@ public:
 
     /* Constructs an item for the default language ID
      * (column 1 will be set to QString::null): */
-    UILanguageItem(QTreeWidget *pParent)
-        : QTreeWidgetItem(pParent, UILanguageItemType), m_fBuiltIn(false)
+    UILanguageItem(QITreeWidget *pParent)
+        : QITreeWidgetItem(pParent), m_fBuiltIn(false)
     {
         setText(0, UIGlobalSettingsLanguage::tr("Default", "Language"));
         setText(1, QString::null);
@@ -158,9 +184,9 @@ public:
             return false;
         if (m_fBuiltIn)
             return true;
-        if (other.type() == UILanguageItemType && ((UILanguageItem*)&other)->m_fBuiltIn)
+        if (other.type() == ItemType && ((UILanguageItem*)&other)->m_fBuiltIn)
             return false;
-        return QTreeWidgetItem::operator<(other);
+        return QITreeWidgetItem::operator<(other);
     }
 
 private:
@@ -178,85 +204,76 @@ private:
     bool m_fBuiltIn : 1;
 };
 
-/* Language page constructor: */
+
 UIGlobalSettingsLanguage::UIGlobalSettingsLanguage()
     : m_fPolished(false)
-    , m_fIsLanguageChanged(false)
+    , m_pCache(0)
 {
-    /* Apply UI decorations: */
-    Ui::UIGlobalSettingsLanguage::setupUi(this);
-
-    /* Setup widgets: */
-    m_pLanguageTree->header()->hide();
-    m_pLanguageTree->hideColumn(1);
-    m_pLanguageTree->hideColumn(2);
-    m_pLanguageTree->hideColumn(3);
-    m_pLanguageTree->setMinimumHeight(150);
-    m_pLanguageInfo->setWordWrapMode(QTextOption::WordWrap);
-    m_pLanguageInfo->setMinimumHeight(QFontMetrics(m_pLanguageInfo->font(), m_pLanguageInfo).height() * 5);
-
-    /* Setup connections: */
-    connect(m_pLanguageTree, SIGNAL(painted(QTreeWidgetItem*, QPainter*)),
-            this, SLOT(sltLanguageItemPainted(QTreeWidgetItem*, QPainter*)));
-    connect(m_pLanguageTree, SIGNAL(currentItemChanged(QTreeWidgetItem*, QTreeWidgetItem*)),
-            this, SLOT(sltCurrentLanguageChanged(QTreeWidgetItem*)));
-
-    /* Apply language settings: */
-    retranslateUi();
+    /* Prepare: */
+    prepare();
 }
 
-/* Load data to cache from corresponding external object(s),
- * this task COULD be performed in other than GUI thread: */
+UIGlobalSettingsLanguage::~UIGlobalSettingsLanguage()
+{
+    /* Cleanup: */
+    cleanup();
+}
+
 void UIGlobalSettingsLanguage::loadToCacheFrom(QVariant &data)
 {
-    /* Fetch data to properties & settings: */
+    /* Fetch data to properties: */
     UISettingsPageGlobal::fetchData(data);
 
-    /* Load to cache: */
-    m_cache.m_strLanguageId = m_settings.languageId();
+    /* Clear cache initially: */
+    m_pCache->clear();
 
-    /* Upload properties & settings to data: */
+    /* Prepare old language data: */
+    UIDataSettingsGlobalLanguage oldLanguageData;
+
+    /* Gather old language data: */
+    oldLanguageData.m_strLanguageId = gEDataManager->languageId();
+
+    /* Cache old language data: */
+    m_pCache->cacheInitialData(oldLanguageData);
+
+    /* Upload properties to data: */
     UISettingsPageGlobal::uploadData(data);
 }
 
-/* Load data to corresponding widgets from cache,
- * this task SHOULD be performed in GUI thread only: */
 void UIGlobalSettingsLanguage::getFromCache()
 {
-    /* Fetch from cache: */
-    reload(m_cache.m_strLanguageId);
+    /* Get old language data from the cache: */
+    const UIDataSettingsGlobalLanguage &oldLanguageData = m_pCache->base();
+
+    /* Load old language data from the cache: */
+    reloadLanguageTree(oldLanguageData.m_strLanguageId);
 }
 
-/* Save data from corresponding widgets to cache,
- * this task SHOULD be performed in GUI thread only: */
 void UIGlobalSettingsLanguage::putToCache()
 {
-    /* Upload to cache: */
+    /* Prepare new language data: */
+    UIDataSettingsGlobalLanguage newInputData = m_pCache->base();
+
+    /* Gather new language data: */
     QTreeWidgetItem *pCurrentItem = m_pLanguageTree->currentItem();
     Assert(pCurrentItem);
     if (pCurrentItem)
-        m_cache.m_strLanguageId = pCurrentItem->text(1);
+        newInputData.m_strLanguageId = pCurrentItem->text(1);
+
+    /* Cache new language data: */
+    m_pCache->cacheCurrentData(newInputData);
 }
 
-/* Save data from cache to corresponding external object(s),
- * this task COULD be performed in other than GUI thread: */
 void UIGlobalSettingsLanguage::saveFromCacheTo(QVariant &data)
 {
-    /* Fetch data to properties & settings: */
+    /* Fetch data to properties: */
     UISettingsPageGlobal::fetchData(data);
 
-    /* Save from cache: */
-    if (m_fIsLanguageChanged)
-        m_settings.setLanguageId(m_cache.m_strLanguageId);
+    /* Update language data and failing state: */
+    setFailed(!saveLanguageData());
 
-    /* Upload properties & settings to data: */
+    /* Upload properties to data: */
     UISettingsPageGlobal::uploadData(data);
-}
-
-void UIGlobalSettingsLanguage::setOrderAfter(QWidget *pWidget)
-{
-    /* Configure navigation: */
-    setTabOrder(pWidget, m_pLanguageTree);
 }
 
 void UIGlobalSettingsLanguage::retranslateUi()
@@ -265,7 +282,7 @@ void UIGlobalSettingsLanguage::retranslateUi()
     Ui::UIGlobalSettingsLanguage::retranslateUi(this);
 
     /* Reload language tree: */
-    reload(VBoxGlobal::languageId());
+    reloadLanguageTree(VBoxGlobal::languageId());
 }
 
 void UIGlobalSettingsLanguage::showEvent(QShowEvent *pEvent)
@@ -282,13 +299,93 @@ void UIGlobalSettingsLanguage::showEvent(QShowEvent *pEvent)
     polishEvent(pEvent);
 }
 
-void UIGlobalSettingsLanguage::polishEvent(QShowEvent*)
+void UIGlobalSettingsLanguage::polishEvent(QShowEvent * /* pEvent */)
 {
     /* Remember current info-label width: */
     m_pLanguageInfo->setMinimumTextWidth(m_pLanguageInfo->width());
 }
 
-void UIGlobalSettingsLanguage::reload(const QString &strLangId)
+void UIGlobalSettingsLanguage::sltHandleItemPainting(QTreeWidgetItem *pItem, QPainter *pPainter)
+{
+    if (pItem && pItem->type() == QITreeWidgetItem::ItemType)
+    {
+        UILanguageItem *pLanguageItem = static_cast<UILanguageItem*>(pItem);
+        if (pLanguageItem->isBuiltIn())
+        {
+            const QRect rect = m_pLanguageTree->visualItemRect(pLanguageItem);
+            pPainter->setPen(m_pLanguageTree->palette().color(QPalette::Mid));
+            pPainter->drawLine(rect.x(), rect.y() + rect.height() - 1,
+                               rect.x() + rect.width(), rect.y() + rect.height() - 1);
+        }
+    }
+}
+
+void UIGlobalSettingsLanguage::sltHandleCurrentItemChange(QTreeWidgetItem *pCurrentItem)
+{
+    if (!pCurrentItem)
+        return;
+
+    /* Disable labels for the Default language item: */
+    const bool fEnabled = !pCurrentItem->text (1).isNull();
+
+    m_pLanguageInfo->setEnabled(fEnabled);
+    m_pLanguageInfo->setText(QString("<table>"
+                             "<tr><td>%1&nbsp;</td><td>%2</td></tr>"
+                             "<tr><td>%3&nbsp;</td><td>%4</td></tr>"
+                             "</table>")
+                             .arg(tr("Language:"))
+                             .arg(pCurrentItem->text(2))
+                             .arg(tr("Author(s):"))
+                             .arg(pCurrentItem->text(3)));
+}
+
+void UIGlobalSettingsLanguage::prepare()
+{
+    /* Apply UI decorations: */
+    Ui::UIGlobalSettingsLanguage::setupUi(this);
+
+    /* Prepare cache: */
+    m_pCache = new UISettingsCacheGlobalLanguage;
+    AssertPtrReturnVoid(m_pCache);
+
+    /* Layout created in the .ui file. */
+    {
+        /* Tree-widget created in the .ui file. */
+        AssertPtrReturnVoid(m_pLanguageTree);
+        {
+            /* Configure tree-widget: */
+            m_pLanguageTree->header()->hide();
+            m_pLanguageTree->hideColumn(1);
+            m_pLanguageTree->hideColumn(2);
+            m_pLanguageTree->hideColumn(3);
+            m_pLanguageTree->setMinimumHeight(150);
+            connect(m_pLanguageTree, SIGNAL(painted(QTreeWidgetItem *, QPainter *)),
+                    this, SLOT(sltHandleItemPainting(QTreeWidgetItem *, QPainter *)));
+            connect(m_pLanguageTree, SIGNAL(currentItemChanged(QTreeWidgetItem *, QTreeWidgetItem *)),
+                    this, SLOT(sltHandleCurrentItemChange(QTreeWidgetItem *)));
+        }
+
+        /* Rich-text label created in the .ui file. */
+        AssertPtrReturnVoid(m_pLanguageInfo);
+        {
+            /* Configure rich-text label: */
+            m_pLanguageInfo->setWordWrapMode(QTextOption::WordWrap);
+            m_pLanguageInfo->setMinimumHeight(QFontMetrics(m_pLanguageInfo->font(), m_pLanguageInfo).height() * 5);
+        }
+    }
+
+    /* Apply language settings: */
+    retranslateUi();
+}
+
+void UIGlobalSettingsLanguage::cleanup()
+{
+    /* Cleanup cache: */
+    delete m_pCache;
+    m_pCache = 0;
+}
+
+void UIGlobalSettingsLanguage::reloadLanguageTree(const QString &strLanguageId)
 {
     /* Clear languages tree: */
     m_pLanguageTree->clear();
@@ -331,12 +428,12 @@ void UIGlobalSettingsLanguage::reload(const QString &strLangId)
     m_pLanguageTree->resizeColumnToContents(0);
 
     /* Search for necessary language: */
-    QList<QTreeWidgetItem*> itemsList = m_pLanguageTree->findItems(strLangId, Qt::MatchExactly, 1);
+    QList<QTreeWidgetItem*> itemsList = m_pLanguageTree->findItems(strLanguageId, Qt::MatchExactly, 1);
     QTreeWidgetItem *pItem = itemsList.isEmpty() ? 0 : itemsList[0];
     if (!pItem)
     {
         /* Add an pItem for an invalid language to represent it in the list: */
-        pItem = new UILanguageItem(m_pLanguageTree, strLangId);
+        pItem = new UILanguageItem(m_pLanguageTree, strLanguageId);
         m_pLanguageTree->resizeColumnToContents(0);
     }
     Assert(pItem);
@@ -345,41 +442,25 @@ void UIGlobalSettingsLanguage::reload(const QString &strLangId)
 
     m_pLanguageTree->sortItems(0, Qt::AscendingOrder);
     m_pLanguageTree->scrollToItem(pItem);
-    m_fIsLanguageChanged = false;
 }
 
-void UIGlobalSettingsLanguage::sltLanguageItemPainted(QTreeWidgetItem *pItem, QPainter *pPainter)
+bool UIGlobalSettingsLanguage::saveLanguageData()
 {
-    if (pItem && pItem->type() == UILanguageItem::UILanguageItemType)
+    /* Prepare result: */
+    bool fSuccess = true;
+    /* Save language settings from the cache: */
+    if (fSuccess && m_pCache->wasChanged())
     {
-        UILanguageItem *pLanguageItem = static_cast<UILanguageItem*>(pItem);
-        if (pLanguageItem->isBuiltIn())
-        {
-            QRect rect = m_pLanguageTree->visualItemRect(pLanguageItem);
-            pPainter->setPen(m_pLanguageTree->palette().color(QPalette::Mid));
-            pPainter->drawLine(rect.x(), rect.y() + rect.height() - 1,
-                               rect.x() + rect.width(), rect.y() + rect.height() - 1);
-        }
+        /* Get old language data from the cache: */
+        const UIDataSettingsGlobalLanguage &oldLanguageData = m_pCache->base();
+        /* Get new language data from the cache: */
+        const UIDataSettingsGlobalLanguage &newLanguageData = m_pCache->data();
+
+        /* Save new language data from the cache: */
+        if (newLanguageData.m_strLanguageId != oldLanguageData.m_strLanguageId)
+            gEDataManager->setLanguageId(newLanguageData.m_strLanguageId);
     }
-}
-
-void UIGlobalSettingsLanguage::sltCurrentLanguageChanged(QTreeWidgetItem *pItem)
-{
-    if (!pItem) return;
-
-    /* Disable labels for the Default language item: */
-    bool fEnabled = !pItem->text (1).isNull();
-
-    m_pLanguageInfo->setEnabled(fEnabled);
-    m_pLanguageInfo->setText(QString("<table>"
-                             "<tr><td>%1&nbsp;</td><td>%2</td></tr>"
-                             "<tr><td>%3&nbsp;</td><td>%4</td></tr>"
-                             "</table>")
-                             .arg(tr("Language:"))
-                             .arg(pItem->text(2))
-                             .arg(tr("Author(s):"))
-                             .arg(pItem->text(3)));
-
-    m_fIsLanguageChanged = true;
+    /* Return result: */
+    return fSuccess;
 }
 

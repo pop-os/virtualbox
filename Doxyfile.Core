@@ -239,6 +239,43 @@ ALIASES                += \
 <b>Type:</b> \2 <br> \
 "
 
+# UDF spec reference - 1=section, 2=page
+ALIASES += udf260{2}="<a href=\"http://www.osta.org/specs/pdf/udf260.pdf#page=\2\">UDF-2.60:\1</a>"
+# Generic ECMA spec reference - 1=spec-number 2=section, 3=page
+ALIASES += ecma{3}="<a href=\"https://www.ecma-international.org/publications/files/ECMA-ST/Ecma-\1.pdf#page=\3\">ECMA-\1:\2</a>"
+# ECMA-167 spec reference - 1=part 2=section, 3=page
+ALIASES += ecma167{3}=\ecma{167,Part\1/\2,\3}
+
+# For IEM opcode specs.
+ALIASES += opbrief=""
+ALIASES += opdesc=""
+ALIASES += opmnemonic="Mnemonic: "
+ALIASES += op1="Operand \#1: "
+ALIASES += op2="Operand \#2: "
+ALIASES += op3="Operand \#3: "
+ALIASES += op4="Operand \#4: "
+ALIASES += oppfx="Req.Prefix: "
+ALIASES += opmaps="Opcode Maps: "
+ALIASES += opcode="Opcode Byte: "
+ALIASES += openc="Encoding: "
+ALIASES += opfltest="EFLAGS Tested: "
+ALIASES += opflmodify="EFLAGS Modified: "
+ALIASES += opflundef="EFLAGS Undefined: "
+ALIASES += opflset="EFLAGS Set: "
+ALIASES += opflclear="EFLAGS Cleared: "
+ALIASES += ophints="Hints, Flags, ++: "
+ALIASES += opmincpu="Minimum CPU: "
+ALIASES += opcpuid="CPUID: "
+ALIASES += opgroup="@ingroup "
+ALIASES += opunused="Unused Encoding: "
+ALIASES += opinvalid="Invalid Encoding: "
+ALIASES += opinvlstyle="Invalid/Unused Encoding Style: "
+ALIASES += optest="Testcase: "
+ALIASES += opstats="IEM Stats:"
+ALIASES += opfunction="IEM Function"
+ALIASES += opdone="-------------------------"
+
+
 # bugref - xTracker bug reference, takes one to four bug numbers.
 ALIASES               += bugref{1}="https://xtracker.innotek.de/index.php?bug=\1"
 ALIASES               += bugref{2}="https://xtracker.innotek.de/index.php?bug=\1, \
@@ -638,11 +675,18 @@ PREDEFINED            += \
 # COM/XPCOM hacks.
 PREDEFINED            += \
     STDMETHODIMP=HRESULT \
+    IFACEMETHODIMP=HRESULT \
+    IFACEMETHODIMP_(t)=t \
     "COMGETTER(n)=get_##n" \
     "COMSETTER(n)=set_##n" \
     "ComSafeArrayIn(aType,aArg)=aType *aArg" \
     "ComSafeArrayOut(aType, aArg)=aType **aArg" \
-    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(a)=
+    DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(a)= \
+    DECLARE_NOT_AGGREGATABLE(a)= \
+    DECLARE_CLASSFACTORY()= \
+    DECLARE_CLASSFACTORY_SINGLETON(a)= \
+    VIRTUALBOXBASE_ADD_ERRORINFO_SUPPORT(a,b)= \
+    "DECLARE_EMPTY_CTOR_DTOR(a):=a(); virtual ~a();"
 
 # COM hacks from From http://www.stack.nl/~dimitri/doxygen/preprocessing.html
 PREDEFINED          += \
@@ -651,6 +695,10 @@ PREDEFINED          += \
     "PURE= = 0" \
     THIS_= \
     THIS= \
+    NTSTATUS=long \
+    LONG=long \
+    NTAPI= \
+    WINAPI= \
     DECLARE_REGISTRY_RESOURCEID=// \
     DECLARE_PROTECT_FINAL_CONSTRUCT=// \
     "DECLARE_AGGREGATABLE(Class)= " \
@@ -724,6 +772,7 @@ EXPAND_AS_DEFINED      = \
     DECLASMTYPE \
     DECLCALLBACK \
     DECLCALLBACKMEMBER \
+    DECLCALLBACKPTR \
     DECLHCCALLBACKMEMBER \
     DECLRCCALLBACKMEMBER \
     DECLR3CALLBACKMEMBER \
@@ -742,6 +791,7 @@ EXPAND_AS_DEFINED      = \
     STDMETHOD \
     STDMETHOD_ \
     STDMETHODIMP \
+    IFACEMETHODIMP \
     \
     DBGDECL \
     DISDECL \
@@ -774,7 +824,11 @@ EXPAND_AS_DEFINED      = \
     VMMRCDECL \
     VMMR0DECL \
     VMMR3DECL \
-    VMM_INT_DECL
+    VMM_INT_DECL \
+    VD_BACKEND_CALLBACK_GET_COMMENT_DEF_NOT_SUPPORTED \
+    VD_BACKEND_CALLBACK_SET_COMMENT_DEF_NOT_SUPPORTED \
+    VD_BACKEND_CALLBACK_GET_UUID_DEF_NOT_SUPPORTED \
+    VD_BACKEND_CALLBACK_SET_UUID_DEF_NOT_SUPPORTED
 
 SKIP_FUNCTION_MACROS   = NO
 #---------------------------------------------------------------------------

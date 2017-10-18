@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -529,20 +529,7 @@ VMMR3_INT_DECL(void) PDMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
      * The registered APIC.
      */
     if (pVM->pdm.s.Apic.pDevInsRC)
-    {
         pVM->pdm.s.Apic.pDevInsRC           += offDelta;
-        pVM->pdm.s.Apic.pfnGetInterruptRC   += offDelta;
-        pVM->pdm.s.Apic.pfnSetBaseMsrRC     += offDelta;
-        pVM->pdm.s.Apic.pfnGetBaseMsrRC     += offDelta;
-        pVM->pdm.s.Apic.pfnSetTprRC         += offDelta;
-        pVM->pdm.s.Apic.pfnGetTprRC         += offDelta;
-        pVM->pdm.s.Apic.pfnWriteMsrRC       += offDelta;
-        pVM->pdm.s.Apic.pfnReadMsrRC        += offDelta;
-        pVM->pdm.s.Apic.pfnBusDeliverRC     += offDelta;
-        if (pVM->pdm.s.Apic.pfnLocalInterruptRC)
-            pVM->pdm.s.Apic.pfnLocalInterruptRC += offDelta;
-        pVM->pdm.s.Apic.pfnGetTimerFreqRC   += offDelta;
-    }
 
     /*
      * The registered I/O APIC.
@@ -1656,19 +1643,6 @@ VMMR3_INT_DECL(void) PDMR3MemSetup(PVM pVM, bool fAtReset)
             pDevIns->pReg->pfnMemSetup(pDevIns, enmCtx);
             PDMCritSectLeave(pDevIns->pCritSectRoR3);
         }
-
-    /*
-     * Run Fake PCI BIOS after reset.
-     */
-    if (fAtReset && pVM->pdm.s.aPciBuses[0].pDevInsR3)
-    {
-        pdmLock(pVM);
-        int rc = pVM->pdm.s.aPciBuses[0].pfnFakePCIBIOSR3(pVM->pdm.s.aPciBuses[0].pDevInsR3);
-        pdmUnlock(pVM);
-        if (RT_FAILURE(rc))
-            AssertMsgFailed(("PCI BIOS fake failed rc=%Rrc\n", rc));
-    }
-
 
     LogFlow(("PDMR3MemSetup: returns void\n"));
 }

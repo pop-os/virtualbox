@@ -19,6 +19,7 @@
         <file alias="os_win95.png">images/os_win95.png</file>
         <file alias="os_win98.png">images/os_win98.png</file>
         <file alias="os_win_other.png">images/os_win_other.png</file>
+        <file alias="os_win_other_64.png">images/os_win_other_64.png</file>
         <file alias="os_winme.png">images/os_winme.png</file>
         <file alias="os_winnt4.png">images/os_winnt4.png</file>
         <file alias="os_winvista.png">images/os_winvista.png</file>
@@ -27,10 +28,6 @@
         <file alias="os_winxp_64.png">images/os_winxp_64.png</file>
         <file alias="os_xandros.png">images/os_xandros.png</file>
         <file alias="os_xandros_64.png">images/os_xandros_64.png</file>
-        <file alias="parallel_port_16px.png">images/parallel_port_16px.png</file>
-        <file alias="parallel_port_24px.png">images/parallel_port_24px.png</file>
-        <file alias="parallel_port_32px.png">images/parallel_port_32px.png</file>
-        <file alias="parallel_port_warning_16px.png">images/parallel_port_warning_16px.png</file>
         <file alias="pin_16px.png">images/pin_16px.png</file>
         <file alias="preview_empty_16to10_242x167px.png">images/preview_empty_16to10_242x167px.png</file>
         <file alias="preview_empty_16to9_242x155px.png">images/preview_empty_16to9_242x155px.png</file>
@@ -48,6 +45,8 @@
         <file alias="progress_install_guest_additions_90px.png">images/progress_install_guest_additions_90px.png</file>
         <file alias="progress_media_create_90px.png">images/progress_media_create_90px.png</file>
         <file alias="progress_media_delete_90px.png">images/progress_media_delete_90px.png</file>
+        <file alias="progress_media_move_90px.png">images/progress_media_move_90px.png</file>
+        <file alias="progress_media_resize_90px.png">images/progress_media_resize_90px.png</file>
         <file alias="progress_network_interface_90px.png">images/progress_network_interface_90px.png</file>
         <file alias="progress_poweroff_90px.png">images/progress_poweroff_90px.png</file>
         <file alias="progress_reading_appliance_90px.png">images/progress_reading_appliance_90px.png</file>
@@ -74,6 +73,8 @@
         <file alias="refresh_warning_16px.png">images/refresh_warning_16px.png</file>
         <file alias="remove_host_iface_16px.png">images/remove_host_iface_16px.png</file>
         <file alias="remove_host_iface_disabled_16px.png">images/remove_host_iface_disabled_16px.png</file>
+        <file alias="remove_host_iface_22px.png">images/remove_host_iface_22px.png</file>
+        <file alias="remove_host_iface_disabled_22px.png">images/remove_host_iface_disabled_22px.png</file>
         <file alias="reset_warnings_16px.png">images/reset_warnings_16px.png</file>
         <file alias="restore_16px.png">images/restore_16px.png</file>
         <file alias="sata_16px.png">images/sata_16px.png</file>
@@ -133,10 +134,16 @@
         <file alias="site_forum_16px.png">images/site_forum_16px.png</file>
         <file alias="site_oracle_16px.png">images/site_oracle_16px.png</file>
         <file alias="site_warning_16px.png">images/site_warning_16px.png</file>
+        <file alias="snapshot_commit_details_16px.png">images/snapshot_commit_details_16px.png</file>
+        <file alias="snapshot_commit_details_22px.png">images/snapshot_commit_details_22px.png</file>
+        <file alias="snapshot_commit_details_disabled_16px.png">images/snapshot_commit_details_disabled_16px.png</file>
+        <file alias="snapshot_commit_details_disabled_22px.png">images/snapshot_commit_details_disabled_22px.png</file>
         <file alias="snapshot_delete_16px.png">images/snapshot_delete_16px.png</file>
         <file alias="snapshot_delete_22px.png">images/snapshot_delete_22px.png</file>
         <file alias="snapshot_delete_disabled_16px.png">images/snapshot_delete_disabled_16px.png</file>
         <file alias="snapshot_delete_disabled_22px.png">images/snapshot_delete_disabled_22px.png</file>
+        <file alias="snapshot_manager_16px.png">images/snapshot_manager_16px.png</file>
+        <file alias="snapshot_manager_22px.png">images/snapshot_manager_22px.png</file>
         <file alias="snapshot_offline_16px.png">images/snapshot_offline_16px.png</file>
         <file alias="snapshot_online_16px.png">images/snapshot_online_16px.png</file>
         <file alias="snapshot_restore_16px.png">images/snapshot_restore_16px.png</file>
@@ -174,6 +181,10 @@
         <file alias="statusbar_on_disabled_16px.png">images/statusbar_on_disabled_16px.png</file>
         <file alias="statusbar_settings_16px.png">images/statusbar_settings_16px.png</file>
         <file alias="statusbar_settings_disabled_16px.png">images/statusbar_settings_disabled_16px.png</file>
+        <file alias="tools_banner_global_200px.png">images/tools_banner_global_200px.png</file>
+        <file alias="tools_banner_machine_200px.png">images/tools_banner_machine_200px.png</file>
+        <file alias="tools_global_32px.png">images/tools_global_32px.png</file>
+        <file alias="tools_machine_32px.png">images/tools_machine_32px.png</file>
         <file alias="tpixel.png">images/tpixel.png</file>
         <file alias="usb_16px.png">images/usb_16px.png</file>
         <file alias="usb_24px.png">images/usb_24px.png</file>
@@ -285,6 +296,6 @@
         <file alias="web_camera_disabled_16px.png">images/web_camera_disabled_16px.png</file>
         <file alias="web_camera_unavailable_16px.png">images/web_camera_unavailable_16px.png</file>
         <file alias="web_camera_unavailable_disabled_16px.png">images/web_camera_unavailable_disabled_16px.png</file>
-        <file alias="welcome.png">images/welcome.png</file>
+        <file alias="welcome_200px.png">images/welcome_200px.png</file>
     </qresource>
 </RCC>

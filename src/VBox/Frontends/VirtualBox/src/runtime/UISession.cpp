@@ -22,6 +22,7 @@
 /* Qt includes: */
 # include <QApplication>
 # include <QBitmap>
+# include <QMenuBar>
 # include <QWidget>
 # ifdef VBOX_WS_MAC
 #  include <QTimer>
@@ -48,7 +49,6 @@
 #  include "VBoxFBOverlay.h"
 # endif /* VBOX_WITH_VIDEOHWACCEL */
 # ifdef VBOX_WS_MAC
-#  include "UIMenuBar.h"
 #  include "VBoxUtils-darwin.h"
 # endif /* VBOX_WS_MAC */
 
@@ -58,6 +58,7 @@
 # endif /* VBOX_GUI_WITH_KEYS_RESET_HANDLER */
 
 /* COM includes: */
+# include "CAudioAdapter.h"
 # include "CSystemProperties.h"
 # include "CStorageController.h"
 # include "CMediumAttachment.h"
@@ -74,9 +75,7 @@
 
 /* Qt includes: */
 #ifdef VBOX_WS_WIN
-# if QT_VERSION >= 0x050000
-#  include <QtWin>
-# endif /* QT_VERSION >= 0x050000 */
+# include <QtWin>
 #endif /* VBOX_WS_WIN */
 
 #ifdef VBOX_WS_X11
@@ -166,7 +165,7 @@ bool UISession::initialize()
         return false;
 
     /* Notify user about mouse&keyboard auto-capturing: */
-    if (vboxGlobal().settings().autoCapture())
+    if (gEDataManager->autoCaptureEnabled())
         popupCenter().remindAboutAutoCapture(machineLogic()->activeMachineWindow());
 
     /* Check if we are in teleportation waiting mode.
@@ -538,115 +537,52 @@ void UISession::sltInstallGuestAdditionsFrom(const QString &strSource)
      * First try updating the Guest Additions directly without mounting the .ISO. */
     bool fDoMount = false;
 
-    /* Auto-update in GUI currently is disabled. */
+    /* Auto-update through GUI is currently disabled. */
 #ifndef VBOX_WITH_ADDITIONS_AUTOUPDATE_UI
     fDoMount = true;
 #else /* VBOX_WITH_ADDITIONS_AUTOUPDATE_UI */
-    QVector<KAdditionsUpdateFlag> aFlagsUpdate;
+    /* Initiate installation progress: */
     QVector<QString> aArgs;
-    CProgress progressInstall = guest().UpdateGuestAdditions(strSource,
-                                                             aArgs, aFlagsUpdate);
-    bool fResult = guest().isOk();
-    if (fResult)
+    QVector<KAdditionsUpdateFlag> aFlagsUpdate;
+    CProgress comProgressInstall = guest().UpdateGuestAdditions(strSource, aArgs, aFlagsUpdate);
+    if (guest().isOk() && comProgressInstall.isNotNull())
     {
-        msgCenter().showModalProgressDialog(progressInstall, tr("Updating Guest Additions"),
+        /* Show installation progress: */
+        msgCenter().showModalProgressDialog(comProgressInstall, tr("Updating Guest Additions"),
                                             ":/progress_install_guest_additions_90px.png",
                                             0, 500 /* 500ms delay. */);
-        if (progressInstall.GetCanceled())
+        if (comProgressInstall.GetCanceled())
             return;
 
-        HRESULT rc = progressInstall.GetResultCode();
-        if (!progressInstall.isOk() || rc != S_OK)
+        /* Check whether progress result isn't Ok: */
+        const HRESULT rc = comProgressInstall.GetResultCode();
+        if (!comProgressInstall.isOk() || rc != S_OK)
         {
-            /* If we got back a VBOX_E_NOT_SUPPORTED we don't complain (guest OS
-             * simply isn't supported yet), so silently fall back to "old" .ISO
-             * mounting method. */
+            /* If we got back a VBOX_E_NOT_SUPPORTED we don't complain (guest OS simply isn't
+             * supported yet), so silently fall back to "old" .ISO mounting method. */
             if (   !SUCCEEDED_WARNING(rc)
                 && rc != VBOX_E_NOT_SUPPORTED)
             {
-                msgCenter().cannotUpdateGuestAdditions(progressInstall);
+                msgCenter().cannotUpdateGuestAdditions(comProgressInstall);
 
-                /* Log the error message in the release log. */
-                QString strErr = progressInstall.GetErrorInfo().GetText();
+                /* Throw the error message into release log as well: */
+                const QString &strErr = comProgressInstall.GetErrorInfo().GetText();
                 if (!strErr.isEmpty())
                     LogRel(("%s\n", strErr.toLatin1().constData()));
             }
-            fDoMount = true; /* Since automatic updating failed, fall back to .ISO mounting. */
+
+            /* Since automatic updating failed, fall back to .ISO mounting: */
+            fDoMount = true;
         }
     }
 #endif /* VBOX_WITH_ADDITIONS_AUTOUPDATE_UI */
 
-    /* Do we still want mounting? */
+    /* Check whether we still want mounting? */
     if (!fDoMount)
         return;
 
-    /* Open corresponding medium: */
-    QString strMediumID;
-    CVirtualBox vbox = vboxGlobal().virtualBox();
-    CMedium image = vbox.OpenMedium(strSource, KDeviceType_DVD, KAccessMode_ReadWrite, false /* fForceNewUuid */);
-    if (vbox.isOk() && !image.isNull())
-        strMediumID = image.GetId();
-    else
-    {
-        msgCenter().cannotOpenMedium(vbox, UIMediumType_DVD, strSource, mainMachineWindow());
-        return;
-    }
-
-    /* Make sure GA medium ID is valid: */
-    AssertReturnVoid(!strMediumID.isNull());
-
-    /* Search for a suitable storage slots: */
-    QList<ExactStorageSlot> freeStorageSlots;
-    QList<ExactStorageSlot> busyStorageSlots;
-    foreach (const CStorageController &controller, machine().GetStorageControllers())
-    {
-        foreach (const CMediumAttachment &attachment, machine().GetMediumAttachmentsOfController(controller.GetName()))
-        {
-            /* Look for an optical device: */
-            if (attachment.GetType() == KDeviceType_DVD)
-            {
-                /* Append storage slot to corresponding list: */
-                if (attachment.GetMedium().isNull())
-                    freeStorageSlots << ExactStorageSlot(controller.GetName(), controller.GetBus(),
-                                                         attachment.GetPort(), attachment.GetDevice());
-                else
-                    busyStorageSlots << ExactStorageSlot(controller.GetName(), controller.GetBus(),
-                                                         attachment.GetPort(), attachment.GetDevice());
-            }
-        }
-    }
-
-    /* Make sure at least one storage slot found: */
-    QList<ExactStorageSlot> storageSlots = freeStorageSlots + busyStorageSlots;
-    if (storageSlots.isEmpty())
-    {
-        msgCenter().cannotMountGuestAdditions(machineName());
-        return;
-    }
-
-    /* Try to find UIMedium among cached: */
-    UIMedium medium = vboxGlobal().medium(strMediumID);
-    if (medium.isNull())
-    {
-        /* Create new one if necessary: */
-        medium = UIMedium(image, UIMediumType_DVD, KMediumState_Created);
-        vboxGlobal().createMedium(medium);
-    }
-
-    /* Try to mount medium to first storage slot: */
-    bool fMounted = false;
-    while (!storageSlots.isEmpty() && !fMounted)
-    {
-        const ExactStorageSlot storageSlot = storageSlots.takeFirst();
-        machine().MountMedium(storageSlot.controller, storageSlot.port, storageSlot.device, medium.medium(), false /* force */);
-        if (machine().isOk())
-            fMounted = true;
-    }
-    if (!machine().isOk())
-    {
-        msgCenter().cannotRemountMedium(machine(), medium, true /* mount? */,
-                                        false /* retry? */, mainMachineWindow());
-    }
+    /* Mount medium add-hoc: */
+    mountAdHocImage(KDeviceType_DVD, UIMediumType_DVD, strSource);
 }
 
 void UISession::sltCloseRuntimeUI()
@@ -822,6 +758,26 @@ void UISession::sltHandleStorageDeviceChange(const CMediumAttachment &attachment
     emit sigStorageDeviceChange(attachment, fRemoved, fSilent);
 }
 
+void UISession::sltAudioAdapterChange()
+{
+    /* Make sure Audio adapter is present: */
+    const CAudioAdapter comAdapter = machine().GetAudioAdapter();
+    AssertMsgReturnVoid(machine().isOk() && comAdapter.isNotNull(),
+                        ("Audio adapter should NOT be null!\n"));
+
+    /* Check/Uncheck Audio adapter output/input actions depending on features status: */
+    actionPool()->action(UIActionIndexRT_M_Devices_M_Audio_T_Output)->blockSignals(true);
+    actionPool()->action(UIActionIndexRT_M_Devices_M_Audio_T_Output)->setChecked(comAdapter.GetEnabledOut());
+    actionPool()->action(UIActionIndexRT_M_Devices_M_Audio_T_Output)->blockSignals(false);
+    actionPool()->action(UIActionIndexRT_M_Devices_M_Audio_T_Input)->blockSignals(true);
+    actionPool()->action(UIActionIndexRT_M_Devices_M_Audio_T_Input)->setChecked(comAdapter.GetEnabledIn());
+    actionPool()->action(UIActionIndexRT_M_Devices_M_Audio_T_Input)->blockSignals(false);
+
+    /* Notify listeners about Audio adapter change: */
+    emit sigAudioAdapterChange();
+
+}
+
 #ifdef RT_OS_DARWIN
 /**
  * MacOS X: Restarts display-reconfiguration watchdog timer from the beginning.
@@ -956,9 +912,7 @@ UISession::UISession(UIMachine *pMachine)
     /* Common variables: */
     , m_machineStatePrevious(KMachineState_Null)
     , m_machineState(KMachineState_Null)
-#ifndef VBOX_WS_MAC
     , m_pMachineWindowIcon(0)
-#endif /* !VBOX_WS_MAC */
     , m_requestedVisualStateType(UIVisualStateType_Invalid)
 #ifdef VBOX_WS_WIN
     , m_alphaCursor(0)
@@ -1110,7 +1064,7 @@ void UISession::prepareActions()
 
 #ifdef VBOX_WS_MAC
         /* Create Mac OS X menu-bar: */
-        m_pMenuBar = new UIMenuBar;
+        m_pMenuBar = new QMenuBar;
         AssertPtrReturnVoid(m_pMenuBar);
         {
             /* Configure Mac OS X menu-bar: */
@@ -1204,6 +1158,9 @@ void UISession::prepareConsoleEventHandlers()
 
     connect(gConsoleEvents, SIGNAL(sigGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)),
             this, SLOT(sltGuestMonitorChange(KGuestMonitorChangedEventType, ulong, QRect)));
+
+    connect(gConsoleEvents, SIGNAL(sigAudioAdapterChange()),
+            this, SLOT(sltAudioAdapterChange()));
 }
 
 void UISession::prepareScreens()
@@ -1288,18 +1245,24 @@ void UISession::loadSessionSettings()
         /* Get machine ID: */
         const QString strMachineID = vboxGlobal().managedVMUuid();
 
-#ifndef VBOX_WS_MAC
-        /* Load/prepare user's machine-window icon: */
-        QIcon icon;
-        foreach (const QString &strIconName, gEDataManager->machineWindowIconNames(strMachineID))
-            if (!strIconName.isEmpty() && QFile::exists(strIconName))
-                icon.addFile(strIconName);
-        if (!icon.isNull())
+        /* Prepare machine-window icon: */
+        {
+            /* Acquire user machine-window icon: */
+            QIcon icon = vboxGlobal().vmUserIcon(machine());
+            /* Use the OS type icon if user one was not set: */
+            if (icon.isNull())
+                icon = vboxGlobal().vmGuestOSTypeIcon(machine().GetOSTypeId());
+            /* Use the default icon if nothing else works: */
+            if (icon.isNull())
+                icon = QIcon(":/VirtualBox_48px.png");
+            /* Store the icon dynamically: */
             m_pMachineWindowIcon = new QIcon(icon);
+        }
 
+#ifndef VBOX_WS_MAC
         /* Load user's machine-window name postfix: */
         m_strMachineWindowNamePostfix = gEDataManager->machineWindowNamePostfix(strMachineID);
-#endif /* !VBOX_WS_MAC */
+#endif
 
         /* Is there should be First RUN Wizard? */
         m_fIsFirstTimeStarted = gEDataManager->machineFirstTimeStarted(strMachineID);
@@ -1311,7 +1274,7 @@ void UISession::loadSessionSettings()
 #ifndef VBOX_WS_MAC
         /* Menu-bar options: */
         {
-            const bool fEnabledGlobally = !vboxGlobal().settings().isFeatureActive("noMenuBar");
+            const bool fEnabledGlobally = !gEDataManager->guiFeatureEnabled(GUIFeatureType_NoMenuBar);
             const bool fEnabledForMachine = gEDataManager->menuBarEnabled(strMachineID);
             const bool fEnabled = fEnabledGlobally && fEnabledForMachine;
             QAction *pActionMenuBarSettings = actionPool()->action(UIActionIndexRT_M_View_M_MenuBar_S_Settings);
@@ -1325,7 +1288,7 @@ void UISession::loadSessionSettings()
 
         /* Status-bar options: */
         {
-            const bool fEnabledGlobally = !vboxGlobal().settings().isFeatureActive("noStatusBar");
+            const bool fEnabledGlobally = !gEDataManager->guiFeatureEnabled(GUIFeatureType_NoStatusBar);
             const bool fEnabledForMachine = gEDataManager->statusBarEnabled(strMachineID);
             const bool fEnabled = fEnabledGlobally && fEnabledForMachine;
             QAction *pActionStatusBarSettings = actionPool()->action(UIActionIndexRT_M_View_M_StatusBar_S_Settings);
@@ -1338,6 +1301,17 @@ void UISession::loadSessionSettings()
 
         /* Input options: */
         actionPool()->action(UIActionIndexRT_M_Input_M_Mouse_T_Integration)->setChecked(isMouseIntegrated());
+
+        /* Devices options: */
+        {
+            const CAudioAdapter comAudio = m_machine.GetAudioAdapter();
+            actionPool()->action(UIActionIndexRT_M_Devices_M_Audio_T_Output)->blockSignals(true);
+            actionPool()->action(UIActionIndexRT_M_Devices_M_Audio_T_Output)->setChecked(comAudio.GetEnabledOut());
+            actionPool()->action(UIActionIndexRT_M_Devices_M_Audio_T_Output)->blockSignals(false);
+            actionPool()->action(UIActionIndexRT_M_Devices_M_Audio_T_Input)->blockSignals(true);
+            actionPool()->action(UIActionIndexRT_M_Devices_M_Audio_T_Input)->setChecked(comAudio.GetEnabledIn());
+            actionPool()->action(UIActionIndexRT_M_Devices_M_Audio_T_Input)->blockSignals(false);
+        }
 
         /* What is the default close action and the restricted are? */
         m_defaultCloseAction = gEDataManager->defaultMachineCloseAction(strMachineID);
@@ -1367,11 +1341,9 @@ void UISession::saveSessionSettings()
             gEDataManager->setGuestScreenAutoResizeEnabled(pGuestAutoresizeSwitch->isChecked(), vboxGlobal().managedVMUuid());
         }
 
-#ifndef VBOX_WS_MAC
-        /* Cleanup user's machine-window icon: */
+        /* Cleanup machine-window icon: */
         delete m_pMachineWindowIcon;
         m_pMachineWindowIcon = 0;
-#endif /* !VBOX_WS_MAC */
     }
 }
 
@@ -1601,7 +1573,7 @@ static void renderCursorPixels(const uint32_t *pu32XOR, const uint8_t *pu8AND,
     }
 }
 
-#if defined(VBOX_WS_WIN) && QT_VERSION >= 0x050000
+#ifdef VBOX_WS_WIN
 static bool isPointer1bpp(const uint8_t *pu8XorMask,
                           uint uWidth,
                           uint uHeight)
@@ -1625,7 +1597,7 @@ static bool isPointer1bpp(const uint8_t *pu8XorMask,
 
     return true;
 }
-#endif
+#endif /* VBOX_WS_WIN */
 
 void UISession::setPointerShape(const uchar *pShapeData, bool fHasAlpha,
                                 uint uXHot, uint uYHot, uint uWidth, uint uHeight)
@@ -1640,131 +1612,6 @@ void UISession::setPointerShape(const uchar *pShapeData, bool fHasAlpha,
 
 #if defined (VBOX_WS_WIN)
 
-# if QT_VERSION < 0x050000
-    BITMAPV5HEADER bi;
-    HBITMAP hBitmap;
-    void *lpBits;
-
-    ::ZeroMemory(&bi, sizeof (BITMAPV5HEADER));
-    bi.bV5Size = sizeof(BITMAPV5HEADER);
-    bi.bV5Width = uWidth;
-    bi.bV5Height = - (LONG)uHeight;
-    bi.bV5Planes = 1;
-    bi.bV5BitCount = 32;
-    bi.bV5Compression = BI_BITFIELDS;
-    bi.bV5RedMask   = 0x00FF0000;
-    bi.bV5GreenMask = 0x0000FF00;
-    bi.bV5BlueMask  = 0x000000FF;
-    if (fHasAlpha)
-        bi.bV5AlphaMask = 0xFF000000;
-    else
-        bi.bV5AlphaMask = 0;
-
-    HDC hdc = GetDC(NULL);
-
-    /* Create the DIB section with an alpha channel: */
-    hBitmap = CreateDIBSection(hdc, (BITMAPINFO *)&bi, DIB_RGB_COLORS, (void **)&lpBits, NULL, (DWORD) 0);
-
-    ReleaseDC(NULL, hdc);
-
-    HBITMAP hMonoBitmap = NULL;
-    if (fHasAlpha)
-    {
-        /* Create an empty mask bitmap: */
-        hMonoBitmap = CreateBitmap(uWidth, uHeight, 1, 1, NULL);
-    }
-    else
-    {
-        /* Word aligned AND mask. Will be allocated and created if necessary. */
-        uint8_t *pu8AndMaskWordAligned = NULL;
-
-        /* Width in bytes of the original AND mask scan line. */
-        uint32_t cbAndMaskScan = (uWidth + 7) / 8;
-
-        if (cbAndMaskScan & 1)
-        {
-            /* Original AND mask is not word aligned. */
-
-            /* Allocate memory for aligned AND mask. */
-            pu8AndMaskWordAligned = (uint8_t *)RTMemTmpAllocZ((cbAndMaskScan + 1) * uHeight);
-
-            Assert(pu8AndMaskWordAligned);
-
-            if (pu8AndMaskWordAligned)
-            {
-                /* According to MSDN the padding bits must be 0.
-                 * Compute the bit mask to set padding bits to 0 in the last byte of original AND mask. */
-                uint32_t u32PaddingBits = cbAndMaskScan * 8  - uWidth;
-                Assert(u32PaddingBits < 8);
-                uint8_t u8LastBytesPaddingMask = (uint8_t)(0xFF << u32PaddingBits);
-
-                Log(("u8LastBytesPaddingMask = %02X, aligned w = %d, width = %d, cbAndMaskScan = %d\n",
-                      u8LastBytesPaddingMask, (cbAndMaskScan + 1) * 8, uWidth, cbAndMaskScan));
-
-                uint8_t *src = (uint8_t *)srcAndMaskPtr;
-                uint8_t *dst = pu8AndMaskWordAligned;
-
-                unsigned i;
-                for (i = 0; i < uHeight; i++)
-                {
-                    memcpy(dst, src, cbAndMaskScan);
-
-                    dst[cbAndMaskScan - 1] &= u8LastBytesPaddingMask;
-
-                    src += cbAndMaskScan;
-                    dst += cbAndMaskScan + 1;
-                }
-            }
-        }
-
-        /* Create the AND mask bitmap: */
-        hMonoBitmap = ::CreateBitmap(uWidth, uHeight, 1, 1,
-                                     pu8AndMaskWordAligned? pu8AndMaskWordAligned: srcAndMaskPtr);
-
-        if (pu8AndMaskWordAligned)
-        {
-            RTMemTmpFree(pu8AndMaskWordAligned);
-        }
-    }
-
-    Assert(hBitmap);
-    Assert(hMonoBitmap);
-    if (hBitmap && hMonoBitmap)
-    {
-        DWORD *dstShapePtr = (DWORD *) lpBits;
-
-        for (uint y = 0; y < uHeight; y ++)
-        {
-            memcpy(dstShapePtr, srcShapePtr, srcShapePtrScan);
-            srcShapePtr += srcShapePtrScan;
-            dstShapePtr += uWidth;
-        }
-
-        ICONINFO ii;
-        ii.fIcon = FALSE;
-        ii.xHotspot = uXHot;
-        ii.yHotspot = uYHot;
-        ii.hbmMask = hMonoBitmap;
-        ii.hbmColor = hBitmap;
-
-        HCURSOR hAlphaCursor = CreateIconIndirect(&ii);
-        Assert(hAlphaCursor);
-        if (hAlphaCursor)
-        {
-            /* Set the new cursor: */
-            m_cursor = QCursor(hAlphaCursor);
-            if (m_alphaCursor)
-                DestroyIcon(m_alphaCursor);
-            m_alphaCursor = hAlphaCursor;
-            m_fIsValidPointerShapePresent = true;
-        }
-    }
-
-    if (hMonoBitmap)
-        DeleteObject(hMonoBitmap);
-    if (hBitmap)
-        DeleteObject(hBitmap);
-# else /* QT_VERSION >= 0x050000 */
     /* Create a ARGB image out of the shape data: */
 
     /*
@@ -1909,7 +1756,6 @@ void UISession::setPointerShape(const uchar *pShapeData, bool fHasAlpha,
 
     m_fIsValidPointerShapePresent = true;
     NOREF(srcShapePtrScan);
-# endif /* QT_VERSION >= 0x050000 */
 
 #elif defined(VBOX_WS_X11) || defined(VBOX_WS_MAC)
 
@@ -2029,54 +1875,97 @@ bool UISession::preprocessInitialization()
     return true;
 }
 
-bool UISession::mountAdHocImage(KDeviceType enmDeviceType, UIMediumType enmMediumType, const QString &strImage)
+bool UISession::mountAdHocImage(KDeviceType enmDeviceType, UIMediumType enmMediumType, const QString &strMediumName)
 {
-    /* The 'none' image name means ejecting what ever is in the drive,
-     * so leave the image variables null. */
-    CVirtualBox vbox = vboxGlobal().virtualBox();
-    UIMedium uiImage;
-    if (strImage != "none")
+    /* Get VBox: */
+    CVirtualBox comVBox = vboxGlobal().virtualBox();
+
+    /* Prepare medium to mount: */
+    UIMedium guiMedium;
+
+    /* The 'none' medium name means ejecting what ever is in the drive,
+     * in that case => leave the guiMedium variable null. */
+    if (strMediumName != "none")
     {
-        /* Open the image: */
-        CVirtualBox vbox = vboxGlobal().virtualBox();
-        CMedium vboxImage = vbox.OpenMedium(strImage, enmDeviceType, KAccessMode_ReadWrite, false /* fForceNewUuid */);
-        if (!vbox.isOk() || vboxImage.isNull())
+        /* Open the medium: */
+        const CMedium comMedium = comVBox.OpenMedium(strMediumName, enmDeviceType, KAccessMode_ReadWrite, false /* fForceNewUuid */);
+        if (!comVBox.isOk() || comMedium.isNull())
         {
-            msgCenter().cannotOpenMedium(vbox, enmMediumType, strImage);
+            popupCenter().cannotOpenMedium(machineLogic()->activeMachineWindow(), comVBox, enmMediumType, strMediumName);
             return false;
         }
 
-        /* Work the cache and use the cached image if possible: */
-        uiImage = vboxGlobal().medium(vboxImage.GetId());
-        if (uiImage.isNull())
+        /* Make sure medium ID is valid: */
+        const QString strMediumId = comMedium.GetId();
+        AssertReturn(!strMediumId.isNull(), false);
+
+        /* Try to find UIMedium among cached: */
+        guiMedium = vboxGlobal().medium(strMediumId);
+        if (guiMedium.isNull())
         {
-            uiImage = UIMedium(vboxImage, enmMediumType, KMediumState_Created);
-            vboxGlobal().createMedium(uiImage);
+            /* Cache new one if necessary: */
+            guiMedium = UIMedium(comMedium, enmMediumType, KMediumState_Created);
+            vboxGlobal().createMedium(guiMedium);
         }
     }
-    if (vbox.isOk())
+
+    /* Search for a suitable storage slots: */
+    QList<ExactStorageSlot> aFreeStorageSlots;
+    QList<ExactStorageSlot> aBusyStorageSlots;
+    foreach (const CStorageController &comController, machine().GetStorageControllers())
     {
-        /* Find suitable storage controller: */
-        foreach (const CStorageController &controller, machine().GetStorageControllers())
+        foreach (const CMediumAttachment &comAttachment, machine().GetMediumAttachmentsOfController(comController.GetName()))
         {
-            foreach (const CMediumAttachment &attachment, machine().GetMediumAttachmentsOfController(controller.GetName()))
+            /* Look for an optical devices only: */
+            if (comAttachment.GetType() == enmDeviceType)
             {
-                if (attachment.GetType() == enmDeviceType)
-                {
-                    /* Mount the image: */
-                    machine().MountMedium(controller.GetName(), attachment.GetPort(), attachment.GetDevice(), uiImage.medium(), true /* force */);
-                    if (machine().isOk())
-                        return true;
-                    msgCenter().cannotRemountMedium(machine(), uiImage, !uiImage.isNull() /* mount */, false /* retry */);
-                    return false;
-                }
+                /* Append storage slot to corresponding list: */
+                if (comAttachment.GetMedium().isNull())
+                    aFreeStorageSlots << ExactStorageSlot(comController.GetName(), comController.GetBus(),
+                                                          comAttachment.GetPort(), comAttachment.GetDevice());
+                else
+                    aBusyStorageSlots << ExactStorageSlot(comController.GetName(), comController.GetBus(),
+                                                          comAttachment.GetPort(), comAttachment.GetDevice());
             }
         }
-        msgCenter().cannotRemountMedium(machine(), uiImage, !uiImage.isNull() /* mount */, false /* retry */);
     }
-    else
-        msgCenter().cannotOpenMedium(vbox, enmMediumType, strImage);
-    return false;
+
+    /* Make sure at least one storage slot found: */
+    QList<ExactStorageSlot> sStorageSlots = aFreeStorageSlots + aBusyStorageSlots;
+    if (sStorageSlots.isEmpty())
+    {
+        popupCenter().cannotMountImage(machineLogic()->activeMachineWindow(), machineName(), strMediumName);
+        return false;
+    }
+
+    /* Try to mount medium into first available storage slot: */
+    while (!sStorageSlots.isEmpty())
+    {
+        const ExactStorageSlot storageSlot = sStorageSlots.takeFirst();
+        machine().MountMedium(storageSlot.controller, storageSlot.port, storageSlot.device, guiMedium.medium(), false /* force */);
+        if (machine().isOk())
+            break;
+    }
+
+    /* Show error message if necessary: */
+    if (!machine().isOk())
+    {
+        msgCenter().cannotRemountMedium(machine(), guiMedium, true /* mount? */, false /* retry? */, mainMachineWindow());
+        return false;
+    }
+
+    /* Save machine settings: */
+    machine().SaveSettings();
+
+    /* Show error message if necessary: */
+    if (!machine().isOk())
+    {
+        popupCenter().cannotSaveMachineSettings(machineLogic()->activeMachineWindow(), machine());
+        return false;
+    }
+
+    /* True by default: */
+    return true;
 }
 
 bool UISession::postprocessInitialization()
@@ -2263,6 +2152,14 @@ void UISession::updateActionRestrictions()
             restrictionForDevices = (UIExtraDataMetaDefs::RuntimeMenuDevicesActionType)(restrictionForDevices | UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_OpticalDevices);
         if (!iDevicesCountFD)
             restrictionForDevices = (UIExtraDataMetaDefs::RuntimeMenuDevicesActionType)(restrictionForDevices | UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_FloppyDevices);
+    }
+
+    /* Audio stuff: */
+    {
+        /* Check whether audio controller is enabled. */
+        const CAudioAdapter &comAdapter = machine().GetAudioAdapter();
+        if (comAdapter.isNull() || !comAdapter.GetEnabled())
+            restrictionForDevices = (UIExtraDataMetaDefs::RuntimeMenuDevicesActionType)(restrictionForDevices | UIExtraDataMetaDefs::RuntimeMenuDevicesActionType_Audio);
     }
 
     /* Network stuff: */

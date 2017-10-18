@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIMachineSettingsStorage_h__
-#define __UIMachineSettingsStorage_h__
+#ifndef ___UIMachineSettingsStorage_h___
+#define ___UIMachineSettingsStorage_h___
 
 /* Qt includes: */
 #ifdef VBOX_WS_MAC
@@ -29,6 +29,7 @@
 #include <QPointer>
 
 /* GUI includes: */
+#include "QITreeView.h"
 #include "UISettingsPage.h"
 #include "UIMachineSettingsStorage.gen.h"
 
@@ -36,6 +37,12 @@
 class AttachmentItem;
 class ControllerItem;
 class UIMediumIDHolder;
+struct UIDataSettingsMachineStorage;
+struct UIDataSettingsMachineStorageController;
+struct UIDataSettingsMachineStorageAttachment;
+typedef UISettingsCache<UIDataSettingsMachineStorageAttachment> UISettingsCacheMachineStorageAttachment;
+typedef UISettingsCachePool<UIDataSettingsMachineStorageController, UISettingsCacheMachineStorageAttachment> UISettingsCacheMachineStorageController;
+typedef UISettingsCachePool<UIDataSettingsMachineStorage, UISettingsCacheMachineStorageController> UISettingsCacheMachineStorage;
 
 /* Internal Types */
 typedef QList <StorageSlot> SlotsList;
@@ -44,6 +51,7 @@ typedef QList <KStorageControllerType> ControllerTypeList;
 Q_DECLARE_METATYPE (SlotsList);
 Q_DECLARE_METATYPE (DeviceTypeList);
 Q_DECLARE_METATYPE (ControllerTypeList);
+
 
 /** Known item states. */
 enum ItemState
@@ -243,8 +251,10 @@ private:
 };
 
 /* Abstract Item */
-class AbstractItem
+class AbstractItem : public QITreeViewItem
 {
+    Q_OBJECT;
+
 public:
 
     enum ItemType
@@ -255,7 +265,8 @@ public:
         Type_AttachmentItem = 3
     };
 
-    AbstractItem (AbstractItem *aParent = 0);
+    AbstractItem(QITreeView *pParent);
+    AbstractItem(AbstractItem *pParentItem);
     virtual ~AbstractItem();
 
     AbstractItem* parent() const;
@@ -265,11 +276,9 @@ public:
     void setMachineId (const QString &aMchineId);
 
     virtual ItemType rtti() const = 0;
-    virtual AbstractItem* childByPos (int aIndex) = 0;
-    virtual AbstractItem* childById (const QUuid &aId) = 0;
+    virtual AbstractItem* childItem (int aIndex) const = 0;
+    virtual AbstractItem* childItemById (const QUuid &aId) const = 0;
     virtual int posOfChild (AbstractItem *aItem) const = 0;
-    virtual int childCount() const = 0;
-    virtual QString text() const = 0;
     virtual QString tip() const = 0;
     virtual QPixmap pixmap (ItemState aState = State_DefaultItem) = 0;
 
@@ -278,7 +287,7 @@ protected:
     virtual void addChild (AbstractItem *aItem) = 0;
     virtual void delChild (AbstractItem *aItem) = 0;
 
-    AbstractItem *mParent;
+    AbstractItem *m_pParentItem;
     QUuid         mId;
     QString       mMachineId;
 };
@@ -289,7 +298,7 @@ class RootItem : public AbstractItem
 {
 public:
 
-    RootItem();
+    RootItem(QITreeView *pParent);
    ~RootItem();
 
     ULONG childCount (KStorageBus aBus) const;
@@ -297,8 +306,8 @@ public:
 private:
 
     ItemType rtti() const;
-    AbstractItem* childByPos (int aIndex);
-    AbstractItem* childById (const QUuid &aId);
+    AbstractItem* childItem (int aIndex) const;
+    AbstractItem* childItemById (const QUuid &aId) const;
     int posOfChild (AbstractItem *aItem) const;
     int childCount() const;
     QString text() const;
@@ -320,6 +329,7 @@ public:
    ~ControllerItem();
 
     KStorageBus ctrBusType() const;
+    QString oldCtrName() const;
     QString ctrName() const;
     KStorageControllerType ctrType() const;
     ControllerTypeList ctrTypes() const;
@@ -341,8 +351,8 @@ public:
 private:
 
     ItemType rtti() const;
-    AbstractItem* childByPos (int aIndex);
-    AbstractItem* childById (const QUuid &aId);
+    AbstractItem* childItem (int aIndex) const;
+    AbstractItem* childItemById (const QUuid &aId) const;
     int posOfChild (AbstractItem *aItem) const;
     int childCount() const;
     QString text() const;
@@ -351,6 +361,7 @@ private:
     void addChild (AbstractItem *aItem);
     void delChild (AbstractItem *aItem);
 
+    QString mOldCtrName;
     QString mCtrName;
     AbstractControllerType *mCtrType;
     uint mPortCount;
@@ -397,8 +408,8 @@ private:
     void cache();
 
     ItemType rtti() const;
-    AbstractItem* childByPos (int aIndex);
-    AbstractItem* childById (const QUuid &aId);
+    AbstractItem* childItem (int aIndex) const;
+    AbstractItem* childItemById (const QUuid &aId) const;
     int posOfChild (AbstractItem *aItem) const;
     int childCount() const;
     QString text() const;
@@ -458,6 +469,7 @@ public:
         R_IsMoreNVMeControllersPossible,
         R_IsMoreAttachmentsPossible,
 
+        R_CtrOldName,
         R_CtrName,
         R_CtrType,
         R_CtrTypes,
@@ -513,7 +525,7 @@ public:
         FDAdderToolTip  = 4
     };
 
-    StorageModel (QObject *aParent);
+    StorageModel(QITreeView *pParent);
    ~StorageModel();
 
     int rowCount (const QModelIndex &aParent = QModelIndex()) const;
@@ -581,247 +593,255 @@ public:
 private:
 
     void paint (QPainter *aPainter, const QStyleOptionViewItem &aOption, const QModelIndex &aIndex) const;
-
-    bool mDisableStaticControls;
 };
 
-/* Machine settings / Storage page / Storage attachment data: */
-struct UIDataSettingsMachineStorageAttachment
-{
-    /* Default constructor: */
-    UIDataSettingsMachineStorageAttachment()
-        : m_attachmentType(KDeviceType_Null)
-        , m_iAttachmentPort(-1)
-        , m_iAttachmentDevice(-1)
-        , m_strAttachmentMediumId(QString())
-        , m_fAttachmentPassthrough(false)
-        , m_fAttachmentTempEject(false)
-        , m_fAttachmentNonRotational(false)
-        , m_fAttachmentHotPluggable(false)
-    {}
-    /* Functions: */
-    bool equal(const UIDataSettingsMachineStorageAttachment &other) const
-    {
-        return (m_attachmentType == other.m_attachmentType) &&
-               (m_iAttachmentPort == other.m_iAttachmentPort) &&
-               (m_iAttachmentDevice == other.m_iAttachmentDevice) &&
-               (m_strAttachmentMediumId == other.m_strAttachmentMediumId) &&
-               (m_fAttachmentPassthrough == other.m_fAttachmentPassthrough) &&
-               (m_fAttachmentTempEject == other.m_fAttachmentTempEject) &&
-               (m_fAttachmentNonRotational == other.m_fAttachmentNonRotational) &&
-               (m_fAttachmentHotPluggable == other.m_fAttachmentHotPluggable);
-    }
-    /* Operators: */
-    bool operator==(const UIDataSettingsMachineStorageAttachment &other) const { return equal(other); }
-    bool operator!=(const UIDataSettingsMachineStorageAttachment &other) const { return !equal(other); }
-    /* Variables: */
-    KDeviceType m_attachmentType;
-    LONG m_iAttachmentPort;
-    LONG m_iAttachmentDevice;
-    QString m_strAttachmentMediumId;
-    bool m_fAttachmentPassthrough;
-    bool m_fAttachmentTempEject;
-    bool m_fAttachmentNonRotational;
-    bool m_fAttachmentHotPluggable;
-};
-typedef UISettingsCache<UIDataSettingsMachineStorageAttachment> UISettingsCacheMachineStorageAttachment;
 
-/* Machine settings / Storage page / Storage controller data: */
-struct UIDataSettingsMachineStorageController
-{
-    /* Default constructor: */
-    UIDataSettingsMachineStorageController()
-        : m_strControllerName(QString())
-        , m_controllerBus(KStorageBus_Null)
-        , m_controllerType(KStorageControllerType_Null)
-        , m_uPortCount(0)
-        , m_fUseHostIOCache(false) {}
-    /* Functions: */
-    bool equal(const UIDataSettingsMachineStorageController &other) const
-    {
-        return (m_strControllerName == other.m_strControllerName) &&
-               (m_controllerBus == other.m_controllerBus) &&
-               (m_controllerType == other.m_controllerType) &&
-               (m_uPortCount == other.m_uPortCount) &&
-               (m_fUseHostIOCache == other.m_fUseHostIOCache);
-    }
-    /* Operators: */
-    bool operator==(const UIDataSettingsMachineStorageController &other) const { return equal(other); }
-    bool operator!=(const UIDataSettingsMachineStorageController &other) const { return !equal(other); }
-    /* Variables: */
-    QString m_strControllerName;
-    KStorageBus m_controllerBus;
-    KStorageControllerType m_controllerType;
-    uint m_uPortCount;
-    bool m_fUseHostIOCache;
-};
-typedef UISettingsCachePool<UIDataSettingsMachineStorageController, UISettingsCacheMachineStorageAttachment> UISettingsCacheMachineStorageController;
-
-/* Machine settings / Storage page / Storage data: */
-struct UIDataSettingsMachineStorage
-{
-    /* Default constructor: */
-    UIDataSettingsMachineStorage() {}
-    /* Operators: */
-    bool operator==(const UIDataSettingsMachineStorage& /* other */) const { return true; }
-    bool operator!=(const UIDataSettingsMachineStorage& /* other */) const { return false; }
-};
-typedef UISettingsCachePool<UIDataSettingsMachineStorage, UISettingsCacheMachineStorageController> UISettingsCacheMachineStorage;
-
-/* Machine settings / Storage page: */
+/** Machine settings: Storage page. */
 class UIMachineSettingsStorage : public UISettingsPageMachine,
-                         public Ui::UIMachineSettingsStorage
+                                 public Ui::UIMachineSettingsStorage
 {
     Q_OBJECT;
 
-public:
-
-    UIMachineSettingsStorage();
-    ~UIMachineSettingsStorage();
-
-    void setChipsetType(KChipsetType type);
-
 signals:
 
-    void storageChanged();
+    /** Notifies listeners about storage changed. */
+    void sigStorageChanged();
+
+public:
+
+    /** Constructs Storage settings page. */
+    UIMachineSettingsStorage();
+    /** Destructs Storage settings page. */
+    ~UIMachineSettingsStorage();
+
+    /** Defines chipset @a type. */
+    void setChipsetType(KChipsetType enmType);
 
 protected:
 
-    /* Load data to cache from corresponding external object(s),
-     * this task COULD be performed in other than GUI thread: */
-    void loadToCacheFrom(QVariant &data);
-    /* Load data to corresponding widgets from cache,
-     * this task SHOULD be performed in GUI thread only: */
-    void getFromCache();
+    /** Returns whether the page content was changed. */
+    virtual bool changed() const /* override */;
 
-    /* Save data from corresponding widgets to cache,
-     * this task SHOULD be performed in GUI thread only: */
-    void putToCache();
-    /* Save data from cache to corresponding external object(s),
-     * this task COULD be performed in other than GUI thread: */
-    void saveFromCacheTo(QVariant &data);
+    /** Loads data into the cache from corresponding external object(s),
+      * this task COULD be performed in other than the GUI thread. */
+    virtual void loadToCacheFrom(QVariant &data) /* override */;
+    /** Loads data into corresponding widgets from the cache,
+      * this task SHOULD be performed in the GUI thread only. */
+    virtual void getFromCache() /* override */;
 
-    /* Page changed: */
-    bool changed() const { return m_cache.wasChanged(); }
+    /** Saves data from corresponding widgets to the cache,
+      * this task SHOULD be performed in the GUI thread only. */
+    virtual void putToCache() /* override */;
+    /** Saves data from the cache to corresponding external object(s),
+      * this task COULD be performed in other than the GUI thread. */
+    virtual void saveFromCacheTo(QVariant &data) /* overrride */;
 
-    /* API: Validation stuff: */
-    bool validate(QList<UIValidationMessage> &messages);
+    /** Performs validation, updates @a messages list if something is wrong. */
+    virtual bool validate(QList<UIValidationMessage> &messages) /* override */;
 
-    void retranslateUi();
+    /** Defines the configuration access @a enmLevel. */
+    virtual void setConfigurationAccessLevel(ConfigurationAccessLevel enmLevel) /* override */;
 
-    void showEvent (QShowEvent *aEvent);
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */;
+
+    /** Performs final page polishing. */
+    virtual void polishPage() /* override */;
+
+    /** Handles show @a pEvent. */
+    virtual void showEvent(QShowEvent *pEvent) /* override */;
 
 private slots:
 
-    /* Handlers: Medium-processing stuff: */
-    void sltHandleMediumEnumerated(const QString &strMediumID);
-    void sltHandleMediumDeleted(const QString &strMediumID);
+    /** Handles enumeration of medium with @a strMediumId. */
+    void sltHandleMediumEnumerated(const QString &strMediumId);
+    /** Handles removing of medium with @a strMediumId. */
+    void sltHandleMediumDeleted(const QString &strMediumId);
 
-    void addController();
-    void addIDEController();
-    void addSATAController();
-    void addSCSIController();
-    void addFloppyController();
-    void addSASController();
-    void addUSBController();
-    void addNVMeController();
-    void delController();
+    /** Handles command to add controller. */
+    void sltAddController();
+    /** Handles command to add IDE controller. */
+    void sltAddControllerIDE();
+    /** Handles command to add SATA controller. */
+    void sltAddControllerSATA();
+    /** Handles command to add SCSI controller. */
+    void sltAddControllerSCSI();
+    /** Handles command to add Floppy controller. */
+    void sltAddControllerFloppy();
+    /** Handles command to add SAS controller. */
+    void sltAddControllerSAS();
+    /** Handles command to add USB controller. */
+    void sltAddControllerUSB();
+    /** Handles command to add NVMe controller. */
+    void sltAddControllerNVMe();
+    /** Handles command to remove controller. */
+    void sltRemoveController();
 
-    void addAttachment();
-    void addHDAttachment();
-    void addCDAttachment();
-    void addFDAttachment();
-    void delAttachment();
+    /** Handles command to add attachment. */
+    void sltAddAttachment();
+    /** Handles command to add HD attachment. */
+    void sltAddAttachmentHD();
+    /** Handles command to add CD attachment. */
+    void sltAddAttachmentCD();
+    /** Handles command to add FD attachment. */
+    void sltAddAttachmentFD();
+    /** Handles command to remove attachment. */
+    void sltRemoveAttachment();
 
-    void getInformation();
-    void setInformation();
+    /** Loads information from model to widgets. */
+    void sltGetInformation();
+    /** Saves information from widgets to model. */
+    void sltSetInformation();
 
+    /** Prepares 'Open Medium' menu. */
     void sltPrepareOpenMediumMenu();
+    /** Mounts newly created hard-drive. */
     void sltCreateNewHardDisk();
+    /** Unmounts current device. */
     void sltUnmountDevice();
+    /** Mounts existing medium. */
     void sltChooseExistingMedium();
+    /** Mounts existing host-drive. */
     void sltChooseHostDrive();
+    /** Mounts one of recent mediums. */
     void sltChooseRecentMedium();
 
-    void updateActionsState();
+    /** Updates action states. */
+    void sltUpdateActionStates();
 
-    void onRowInserted (const QModelIndex &aParent, int aIndex);
-    void onRowRemoved();
+    /** Handles row insertion into @a parent on @a iPosition. */
+    void sltHandleRowInsertion(const QModelIndex &parent, int iPosition);
+    /** Handles row removal. */
+    void sltHandleRowRemoval();
 
-    void onCurrentItemChanged();
+    /** Handles current item change. */
+    void sltHandleCurrentItemChange();
 
-    void onContextMenuRequested (const QPoint &aPosition);
+    /** Handles context menu request for @a position. */
+    void sltHandleContextMenuRequest(const QPoint &position);
 
-    void onDrawItemBranches (QPainter *aPainter, const QRect &aRect, const QModelIndex &aIndex);
+    /** Handles item branch drawing with @a pPainter, within @a rect for item with @a index. */
+    void sltHandleDrawItemBranches(QPainter *pPainter, const QRect &rect, const QModelIndex &index);
 
-    void onMouseMoved (QMouseEvent *aEvent);
-    void onMouseClicked (QMouseEvent *aEvent);
+    /** Handles mouse-move @a pEvent. */
+    void sltHandleMouseMove(QMouseEvent *pEvent);
+    /** Handles mouse-click @a pEvent. */
+    void sltHandleMouseClick(QMouseEvent *pEvent);
 
 private:
 
-    void addControllerWrapper (const QString &aName, KStorageBus aBus, KStorageControllerType aType);
-    void addAttachmentWrapper (KDeviceType aDevice);
+    /** Prepares all. */
+    void prepare();
+    /** Prepares storage tree. */
+    void prepareStorageTree();
+    /** Prepares storage toolbar. */
+    void prepareStorageToolbar();
+    /** Prepares storage widgets. */
+    void prepareStorageWidgets();
+    /** Prepares connections. */
+    void prepareConnections();
+    /** Cleanups all. */
+    void cleanup();
 
+    /** Adds controller with @a strName, @a enmBus and @a enmType. */
+    void addControllerWrapper(const QString &strName, KStorageBus enmBus, KStorageControllerType enmType);
+    /** Adds attachment with @a enmDevice. */
+    void addAttachmentWrapper(KDeviceType enmDevice);
+
+    /** Creates new hard-drive. */
     QString getWithNewHDWizard();
 
-    void updateAdditionalObjects (KDeviceType aType);
+    /** Updates additions details according to passed @a enmType. */
+    void updateAdditionalDetails(KDeviceType enmType);
 
-    QString generateUniqueName (const QString &aTemplate) const;
+    /** Generates unique controller name based on passed @a strTemplate. */
+    QString generateUniqueControllerName(const QString &strTemplate) const;
 
-    uint32_t deviceCount (KDeviceType aType) const;
+    /** Returns current devices count for passed @a enmType. */
+    uint32_t deviceCount(KDeviceType enmType) const;
 
+    /** Adds 'Choose Existing Medium' action into passed @a pOpenMediumMenu under passed @a strActionName. */
     void addChooseExistingMediumAction(QMenu *pOpenMediumMenu, const QString &strActionName);
+    /** Adds 'Choose Host Drive' actions into passed @a pOpenMediumMenu. */
     void addChooseHostDriveActions(QMenu *pOpenMediumMenu);
-    void addRecentMediumActions(QMenu *pOpenMediumMenu, UIMediumType recentMediumType);
+    /** Adds 'Choose Recent Medium' actions of passed @a enmRecentMediumType into passed @a pOpenMediumMenu. */
+    void addRecentMediumActions(QMenu *pOpenMediumMenu, UIMediumType enmRecentMediumType);
 
-    bool updateStorageData();
+    /** Saves existing storage data from the cache. */
+    bool saveStorageData();
+    /** Removes existing storage controller described by the @a controllerCache. */
     bool removeStorageController(const UISettingsCacheMachineStorageController &controllerCache);
+    /** Creates existing storage controller described by the @a controllerCache. */
     bool createStorageController(const UISettingsCacheMachineStorageController &controllerCache);
-    bool updateStorageController(const UISettingsCacheMachineStorageController &controllerCache);
+    /** Updates existing storage controller described by the @a controllerCache. */
+    bool updateStorageController(const UISettingsCacheMachineStorageController &controllerCache,
+                                 bool fRemovingStep);
+    /** Removes existing storage attachment described by the @a controllerCache and @a attachmentCache. */
     bool removeStorageAttachment(const UISettingsCacheMachineStorageController &controllerCache,
                                  const UISettingsCacheMachineStorageAttachment &attachmentCache);
+    /** Creates existing storage attachment described by the @a controllerCache and @a attachmentCache. */
     bool createStorageAttachment(const UISettingsCacheMachineStorageController &controllerCache,
                                  const UISettingsCacheMachineStorageAttachment &attachmentCache);
+    /** Updates existing storage attachment described by the @a controllerCache and @a attachmentCache. */
     bool updateStorageAttachment(const UISettingsCacheMachineStorageController &controllerCache,
                                  const UISettingsCacheMachineStorageAttachment &attachmentCache);
+    /** Returns whether the controller described by the @a controllerCache could be updated or recreated otherwise. */
     bool isControllerCouldBeUpdated(const UISettingsCacheMachineStorageController &controllerCache) const;
+    /** Returns whether the attachment described by the @a attachmentCache could be updated or recreated otherwise. */
     bool isAttachmentCouldBeUpdated(const UISettingsCacheMachineStorageAttachment &attachmentCache) const;
 
-    /** Defines configuration access level. */
-    void setConfigurationAccessLevel(ConfigurationAccessLevel configurationAccessLevel);
+    /** Holds the machine ID. */
+    QString  m_strMachineId;
+    /** Holds the machine settings file-path. */
+    QString  m_strMachineSettingsFilePath;
+    /** Holds the machine guest OS type ID. */
+    QString  m_strMachineGuestOSTypeId;
 
-    void polishPage();
+    /** Holds the storage-tree instance. */
+    QITreeView   *m_pTreeStorage;
+    /** Holds the storage-model instance. */
+    StorageModel *m_pModelStorage;
 
-    QString m_strMachineId;
-    QString m_strMachineSettingsFilePath;
-    QString m_strMachineGuestOSTypeId;
+    /** Holds the 'Add Controller' action instance. */
+    QAction *m_pActionAddController;
+    /** Holds the 'Remove Controller' action instance. */
+    QAction *m_pActionRemoveController;
+    /** Holds the 'Add IDE Controller' action instance. */
+    QAction *m_pActionAddControllerIDE;
+    /** Holds the 'Add SATA Controller' action instance. */
+    QAction *m_pActionAddControllerSATA;
+    /** Holds the 'Add SCSI Controller' action instance. */
+    QAction *m_pActionAddControllerSCSI;
+    /** Holds the 'Add SAS Controller' action instance. */
+    QAction *m_pActionAddControllerSAS;
+    /** Holds the 'Add Floppy Controller' action instance. */
+    QAction *m_pActionAddControllerFloppy;
+    /** Holds the 'Add USB Controller' action instance. */
+    QAction *m_pActionAddControllerUSB;
+    /** Holds the 'Add NVMe Controller' action instance. */
+    QAction *m_pActionAddControllerNVMe;
+    /** Holds the 'Add Attachment' action instance. */
+    QAction *m_pActionAddAttachment;
+    /** Holds the 'Remove Attachment' action instance. */
+    QAction *m_pActionRemoveAttachment;
+    /** Holds the 'Add HD Attachment' action instance. */
+    QAction *m_pActionAddAttachmentHD;
+    /** Holds the 'Add CD Attachment' action instance. */
+    QAction *m_pActionAddAttachmentCD;
+    /** Holds the 'Add FD Attachment' action instance. */
+    QAction *m_pActionAddAttachmentFD;
 
-    StorageModel *mStorageModel;
-
-    QAction *mAddCtrAction;
-    QAction *mDelCtrAction;
-    QAction *mAddIDECtrAction;
-    QAction *mAddSATACtrAction;
-    QAction *mAddSCSICtrAction;
-    QAction *mAddSASCtrAction;
-    QAction *mAddFloppyCtrAction;
-    QAction *mAddUSBCtrAction;
-    QAction *mAddNVMeCtrAction;
-    QAction *mAddAttAction;
-    QAction *mDelAttAction;
-    QAction *mAddHDAttAction;
-    QAction *mAddCDAttAction;
-    QAction *mAddFDAttAction;
-
+    /** Holds the medium ID wrapper instance. */
     UIMediumIDHolder *m_pMediumIdHolder;
 
-    bool mIsLoadingInProgress;
-    bool mIsPolished;
-    bool mDisableStaticControls;
+    /** Holds whether the page is polished. */
+    bool  m_fPolished;
+    /** Holds whether the loading is in progress. */
+    bool  m_fLoadingInProgress;
 
-    /* Cache: */
-    UISettingsCacheMachineStorage m_cache;
+    /** Holds the page data cache instance. */
+    UISettingsCacheMachineStorage *m_pCache;
 };
 
-#endif // __UIMachineSettingsStorage_h__
+#endif /* !___UIMachineSettingsStorage_h___ */
 

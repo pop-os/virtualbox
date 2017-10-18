@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,12 +15,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN_CONSOLE
+#include "LoggingNew.h"
+
 #include "ConsoleVRDPServer.h"
 #include "ConsoleImpl.h"
 #include "DisplayImpl.h"
 #include "KeyboardImpl.h"
 #include "MouseImpl.h"
+#ifdef VBOX_WITH_VRDE_AUDIO
 #include "DrvAudioVRDE.h"
+#endif
 #ifdef VBOX_WITH_EXTPACK
 # include "ExtPackManagerImpl.h"
 #endif
@@ -32,7 +37,6 @@
 
 #include "Global.h"
 #include "AutoCaller.h"
-#include "Logging.h"
 
 #include <iprt/asm.h>
 #include <iprt/alloca.h>
@@ -45,6 +49,7 @@
 #include <VBox/RemoteDesktop/VRDEOrders.h>
 #include <VBox/com/listeners.h>
 #include <VBox/HostServices/VBoxCrOpenGLSvc.h>
+
 
 class VRDPConsoleListener
 {
@@ -955,9 +960,11 @@ DECLCALLBACK(void) ConsoleVRDPServer::VRDPCallbackClientDisconnect(void *pvCallb
         LogFunc(("Disconnected client %u\n", u32ClientId));
         ASMAtomicWriteU32(&pServer->mu32AudioInputClientId, 0);
 
+#ifdef VBOX_WITH_VRDE_AUDIO
         AudioVRDE *pVRDE = pServer->mConsole->i_getAudioVRDE();
         if (pVRDE)
             pVRDE->onVRDEInputIntercept(false /* fIntercept */);
+#endif
     }
 
     int32_t cClients = ASMAtomicDecS32(&pServer->mcClients);
@@ -1016,9 +1023,11 @@ DECLCALLBACK(int) ConsoleVRDPServer::VRDPCallbackIntercept(void *pvCallback, uin
             {
                 LogFunc(("Intercepting audio input by client %RU32\n", u32ClientId));
 
+#ifdef VBOX_WITH_VRDE_AUDIO
                 AudioVRDE *pVRDE = pServer->mConsole->i_getAudioVRDE();
                 if (pVRDE)
                     pVRDE->onVRDEInputIntercept(true /* fIntercept */);
+#endif
             }
             else
             {
@@ -1289,6 +1298,7 @@ DECLCALLBACK(void) ConsoleVRDPServer::VRDECallbackAudioIn(void *pvCallback,
     ConsoleVRDPServer *pServer = static_cast<ConsoleVRDPServer*>(pvCallback);
     AssertPtrReturnVoid(pServer);
 
+#ifdef VBOX_WITH_VRDE_AUDIO
     AudioVRDE *pVRDE = pServer->mConsole->i_getAudioVRDE();
     if (!pVRDE) /* Nothing to do, bail out early. */
         return;
@@ -1312,6 +1322,9 @@ DECLCALLBACK(void) ConsoleVRDPServer::VRDECallbackAudioIn(void *pvCallback,
         default:
             break;
     }
+#else
+    RT_NOREF(pvCtx, u32Event, pvData, cbData);
+#endif /* VBOX_WITH_VRDE_AUDIO */
 }
 
 ConsoleVRDPServer::ConsoleVRDPServer(Console *console)

@@ -7,7 +7,7 @@ Test Manager WUI - Build Sources.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Validation Kit imports.
@@ -79,10 +79,10 @@ class WuiAdminBuildSrcList(WuiListContentBase):
     WUI Build Source content generator.
     """
 
-    def __init__(self, aoEntries, iPage, cItemsPerPage, tsEffective, fnDPrint, oDisp):
+    def __init__(self, aoEntries, iPage, cItemsPerPage, tsEffective, fnDPrint, oDisp, aiSelectedSortColumns = None):
         WuiListContentBase.__init__(self, aoEntries, iPage, cItemsPerPage, tsEffective,
                                     sTitle = 'Registered Build Sources', sId = 'build sources',
-                                    fnDPrint = fnDPrint, oDisp = oDisp);
+                                    fnDPrint = fnDPrint, oDisp = oDisp, aiSelectedSortColumns = aiSelectedSortColumns);
         self._asColumnHeaders = ['ID', 'Name', 'Description', 'Product',
                                  'Branch', 'Build Types', 'OS/ARCH', 'First Revision', 'Last Revision', 'Max Age',
                                  'Actions' ];
@@ -117,21 +117,24 @@ class WuiAdminBuildSrcList(WuiListContentBase):
                       { WuiAdmin.ksParamAction: WuiAdmin.ksActionBuildSrcDetails,
                         BuildSourceData.ksParam_idBuildSrc: oEntry.idBuildSrc,
                         WuiAdmin.ksParamEffectiveDate: self._tsEffectiveDate, }),
-            WuiTmLink('Clone', WuiAdmin.ksScriptName,
-                      { WuiAdmin.ksParamAction: WuiAdmin.ksActionBuildSrcClone,
-                        BuildSourceData.ksParam_idBuildSrc: oEntry.idBuildSrc,
-                        WuiAdmin.ksParamEffectiveDate: self._tsEffectiveDate, }),
         ];
-        if isDbTimestampInfinity(oEntry.tsExpire):
+        if self._oDisp is None or not self._oDisp.isReadOnlyUser():
             aoActions += [
-                WuiTmLink('Modify', WuiAdmin.ksScriptName,
-                          { WuiAdmin.ksParamAction: WuiAdmin.ksActionBuildSrcEdit,
-                            BuildSourceData.ksParam_idBuildSrc: oEntry.idBuildSrc } ),
-                WuiTmLink('Remove', WuiAdmin.ksScriptName,
-                          { WuiAdmin.ksParamAction: WuiAdmin.ksActionBuildSrcDoRemove,
-                            BuildSourceData.ksParam_idBuildSrc: oEntry.idBuildSrc },
-                          sConfirm = 'Are you sure you want to remove build source #%d?' % (oEntry.idBuildSrc,) )
+                WuiTmLink('Clone', WuiAdmin.ksScriptName,
+                          { WuiAdmin.ksParamAction: WuiAdmin.ksActionBuildSrcClone,
+                            BuildSourceData.ksParam_idBuildSrc: oEntry.idBuildSrc,
+                            WuiAdmin.ksParamEffectiveDate: self._tsEffectiveDate, }),
             ];
+            if isDbTimestampInfinity(oEntry.tsExpire):
+                aoActions += [
+                    WuiTmLink('Modify', WuiAdmin.ksScriptName,
+                              { WuiAdmin.ksParamAction: WuiAdmin.ksActionBuildSrcEdit,
+                                BuildSourceData.ksParam_idBuildSrc: oEntry.idBuildSrc } ),
+                    WuiTmLink('Remove', WuiAdmin.ksScriptName,
+                              { WuiAdmin.ksParamAction: WuiAdmin.ksActionBuildSrcDoRemove,
+                                BuildSourceData.ksParam_idBuildSrc: oEntry.idBuildSrc },
+                              sConfirm = 'Are you sure you want to remove build source #%d?' % (oEntry.idBuildSrc,) )
+                ];
 
         return [ oEntry.idBuildSrc,
                  oEntry.sName,

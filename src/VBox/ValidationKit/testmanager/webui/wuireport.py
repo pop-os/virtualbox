@@ -7,7 +7,7 @@ Test Manager WUI - Reports.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Validation Kit imports.
@@ -66,12 +66,13 @@ class WuiReportBase(WuiContentBase):
     Base class for the reports.
     """
 
-    def __init__(self, oModel, dParams, fSubReport = False, fnDPrint = None, oDisp = None):
+    def __init__(self, oModel, dParams, fSubReport = False, aiSortColumns = None, fnDPrint = None, oDisp = None):
         WuiContentBase.__init__(self, fnDPrint = fnDPrint, oDisp = oDisp);
         self._oModel        = oModel;
         self._dParams       = dParams;
         self._fSubReport    = fSubReport;
         self._sTitle        = None;
+        self._aiSortColumns = aiSortColumns;
 
         # Additional URL parameters for reports
         self._dExtraParams  = {};
@@ -115,6 +116,34 @@ class WuiReportBase(WuiContentBase):
         sReport += '\n\n<!-- HEYYOU: sSubject=%s aidSubjects=%s -->\n\n' % (self._oModel.sSubject, self._oModel.aidSubjects);
         return (sTitle, sReport);
 
+    @staticmethod
+    def fmtPct(cHits, cTotal):
+        """
+        Formats a percent number.
+        Returns a string.
+        """
+        uPct = cHits * 100 / cTotal;
+        if uPct >= 10 and (uPct > 103 or uPct <= 95):
+            return '%s%%' % (uPct,);
+        return '%.1f%%' % (cHits * 100.0 / cTotal,);
+
+    @staticmethod
+    def fmtPctWithHits(cHits, cTotal):
+        """
+        Formats a percent number with total in parentheses.
+        Returns a string.
+        """
+        return '%s (%s)' % (WuiReportBase.fmtPct(cHits, cTotal), cHits);
+
+    @staticmethod
+    def fmtPctWithHitsAndTotal(cHits, cTotal):
+        """
+        Formats a percent number with total in parentheses.
+        Returns a string.
+        """
+        return '%s (%s/%s)' % (WuiReportBase.fmtPct(cHits, cTotal), cHits, cTotal);
+
+
 
 class WuiReportSuccessRate(WuiReportBase):
     """
@@ -136,13 +165,13 @@ class WuiReportSuccessRate(WuiReportBase):
             cTotal    = cSuccess + dStatuses[ReportModelBase.ksTestStatus_Failure];
             sPeriod   = self._oModel.getPeriodDesc(i);
             if cTotal > 0:
-                iPctSuccess = dStatuses[ReportModelBase.ksTestStatus_Success] * 100 / cTotal;
-                iPctSkipped = dStatuses[ReportModelBase.ksTestStatus_Skipped] * 100 / cTotal;
-                iPctFailure = dStatuses[ReportModelBase.ksTestStatus_Failure] * 100 / cTotal;
-                oTable.addRow(sPeriod, [ iPctSuccess, iPctSkipped, iPctFailure ],
-                              [ '%s%% (%d)' % (iPctSuccess, dStatuses[ReportModelBase.ksTestStatus_Success]),
-                                '%s%% (%d)' % (iPctSkipped, dStatuses[ReportModelBase.ksTestStatus_Skipped]),
-                                '%s%% (%d)' % (iPctFailure, dStatuses[ReportModelBase.ksTestStatus_Failure]), ]);
+                oTable.addRow(sPeriod,
+                              [ dStatuses[ReportModelBase.ksTestStatus_Success] * 100 / cTotal,
+                                dStatuses[ReportModelBase.ksTestStatus_Skipped] * 100 / cTotal,
+                                dStatuses[ReportModelBase.ksTestStatus_Failure] * 100 / cTotal, ],
+                              [ self.fmtPctWithHits(dStatuses[ReportModelBase.ksTestStatus_Success], cTotal),
+                                self.fmtPctWithHits(dStatuses[ReportModelBase.ksTestStatus_Skipped], cTotal),
+                                self.fmtPctWithHits(dStatuses[ReportModelBase.ksTestStatus_Failure], cTotal), ]);
             else:
                 oTable.addRow(sPeriod, [ 0, 0, 0 ], [ '0%', '0%', '0%' ]);
 
@@ -228,7 +257,7 @@ class WuiReportFailuresBase(WuiReportBase):
 
         sHtml  = u'<h4>Movements:</h4>\n' \
                  u'<ul>\n';
-        if len(oSet.aoEnterInfo) == 0 and len(oSet.aoLeaveInfo) == 0:
+        if not oSet.aoEnterInfo and not oSet.aoLeaveInfo:
             sHtml += u'<li>No changes</li>\n';
         else:
             for oTransient in oSet.aoEnterInfo:
@@ -282,11 +311,13 @@ class WuiReportFailuresBase(WuiReportBase):
         sHtml += u' <tr><thead><th>#</th>';
         sHtml += self._formatSeriesNameColumnHeadersForTable();
         for iPeriod, oPeriod in enumerate(reversed(oSet.aoPeriods)):
-            sHtml += u'<th colspan="%d">%s%s</th>' % ( cColsPerSeries, webutils.escapeElem(oPeriod.sDesc),
-                                                       '&#x25bc;' if iPeriod == iSortColumn else '');
+            sHtml += u'<th colspan="%d"><a href="javascript:ahrefActionSortByColumns(\'%s\',[%s]);">%s</a>%s</th>' \
+                   % ( cColsPerSeries, self._oDisp.ksParamSortColumns, iPeriod, webutils.escapeElem(oPeriod.sDesc),
+                       '&#x25bc;' if iPeriod == iSortColumn else '');
         if fWithTotals:
-            sHtml += u'<th colspan="%d">Total%s</th>' % (cColsPerSeries,
-                                                         '&#x25bc;' if iSortColumn == len(oSet.aoPeriods) else '');
+            sHtml += u'<th colspan="%d"><a href="javascript:ahrefActionSortByColumns(\'%s\',[%s]);">Total</a>%s</th>' \
+                   % ( cColsPerSeries, self._oDisp.ksParamSortColumns, len(oSet.aoPeriods),
+                       '&#x25bc;' if iSortColumn == len(oSet.aoPeriods) else '');
         sHtml += u'</thead></td>\n';
 
         # Each data series.
@@ -319,30 +350,36 @@ class WuiReportFailuresWithTotalBase(WuiReportFailuresBase):
         """
         return str(oSubject);
 
-    def _getSortedIds(self, oSet, fByTotal = None):
+    def _getSortedIds(self, oSet):
         """
         Get default sorted subject IDs and which column.
         """
 
-        if fByTotal is None:
-            fByTotal = oSet.cMaxTotal < 10;
+        # Figure the sorting column.
+        if self._aiSortColumns is not None \
+          and self._aiSortColumns \
+          and abs(self._aiSortColumns[0]) <= len(oSet.aoPeriods):
+            iSortColumn = abs(self._aiSortColumns[0]);
+            fByTotal = iSortColumn >= len(oSet.aoPeriods); # pylint: disable=unused-variable
+        elif oSet.cMaxTotal < 10:
+            iSortColumn = len(oSet.aoPeriods);
+        else:
+            iSortColumn = 0;
 
-        if fByTotal is True:
+        if iSortColumn >= len(oSet.aoPeriods):
             # Sort the total.
             aidSortedRaw = sorted(oSet.dSubjects,
                                   key = lambda idKey: oSet.dcHitsPerId[idKey] * 10000 / oSet.dcTotalPerId[idKey],
                                   reverse = True);
-            iColumn = len(oSet.aoPeriods);
         else:
             # Sort by NOW column.
             dTmp = {};
             for idKey in oSet.dSubjects:
-                oRow = oSet.aoPeriods[-1].dRowsById.get(idKey, None);
+                oRow = oSet.aoPeriods[-1 - iSortColumn].dRowsById.get(idKey, None);
                 if oRow is None:    dTmp[idKey] = 0;
                 else:               dTmp[idKey] = oRow.cHits * 10000 / max(1, oRow.cTotal);
             aidSortedRaw = sorted(dTmp, key = lambda idKey: dTmp[idKey], reverse = True);
-            iColumn = 0;
-        return (aidSortedRaw, iColumn);
+        return (aidSortedRaw, iSortColumn);
 
     def _generateGraph(self, oSet, sIdBase, aidSortedRaw):
         """
@@ -370,9 +407,8 @@ class WuiReportFailuresWithTotalBase(WuiReportFailuresBase):
                     for idKey in aidSorted:
                         oRow = oPeriod.dRowsById.get(idKey, None);
                         if oRow is not None:
-                            uPct = oRow.cHits * 100 / oRow.cTotal;
-                            aiValues.append(uPct);
-                            asValues.append('%u%% (%u/%u)' % (uPct, oRow.cHits, oRow.cTotal));
+                            aiValues.append(oRow.cHits * 100 / oRow.cTotal);
+                            asValues.append(self.fmtPctWithHitsAndTotal(oRow.cHits, oRow.cTotal));
                         else:
                             aiValues.append(0);
                             asValues.append('0');
@@ -385,7 +421,7 @@ class WuiReportFailuresWithTotalBase(WuiReportFailuresBase):
                     for idKey in aidSorted:
                         uPct = oSet.dcHitsPerId[idKey] * 100 / oSet.dcTotalPerId[idKey];
                         aiValues.append(uPct);
-                        asValues.append('%u%% (%u/%u)' % (uPct, oSet.dcHitsPerId[idKey], oSet.dcTotalPerId[idKey]));
+                        asValues.append(self.fmtPctWithHitsAndTotal(oSet.dcHitsPerId[idKey], oSet.dcTotalPerId[idKey]));
                     oTable.addRow('Totals', aiValues, asValues);
 
                 oGraph = WuiHlpBarGraph(sIdBase, oTable, self._oDisp);
@@ -525,7 +561,7 @@ class WuiReportTestCaseArgsFailures(WuiReportFailuresWithTotalBase):
     @staticmethod
     def _formatName(oTestCaseArgs):
         """ Internal helper for formatting the testcase name. """
-        if oTestCaseArgs.sSubName is not None and len(oTestCaseArgs.sSubName) > 0:
+        if oTestCaseArgs.sSubName:
             sName = u'%s / %s'  % ( oTestCaseArgs.oTestCase.sName, oTestCaseArgs.sSubName, );
         else:
             sName = u'%s / #%u' % ( oTestCaseArgs.oTestCase.sName, oTestCaseArgs.idTestCaseArgs, );
@@ -628,15 +664,20 @@ class WuiReportSummary(WuiReportBase):
         aoReports = [];
 
         aoReports.append(WuiReportSuccessRate(     self._oModel, self._dParams, fSubReport = True,
+                                                   aiSortColumns = self._aiSortColumns,
                                                    fnDPrint = self._fnDPrint, oDisp = self._oDisp));
         aoReports.append(WuiReportTestCaseFailures(self._oModel, self._dParams, fSubReport = True,
+                                                   aiSortColumns = self._aiSortColumns,
                                                    fnDPrint = self._fnDPrint, oDisp = self._oDisp));
         if self._oModel.sSubject == ReportModelBase.ksSubTestCase:
             aoReports.append(WuiReportTestCaseArgsFailures(self._oModel, self._dParams, fSubReport = True,
+                                                           aiSortColumns = self._aiSortColumns,
                                                            fnDPrint = self._fnDPrint, oDisp = self._oDisp));
         aoReports.append(WuiReportTestBoxFailures( self._oModel, self._dParams, fSubReport = True,
+                                                   aiSortColumns = self._aiSortColumns,
                                                    fnDPrint = self._fnDPrint, oDisp = self._oDisp));
         aoReports.append(WuiReportFailureReasons(  self._oModel, self._dParams, fSubReport = True,
+                                                   aiSortColumns = self._aiSortColumns,
                                                    fnDPrint = self._fnDPrint, oDisp = self._oDisp));
 
         for oReport in aoReports:

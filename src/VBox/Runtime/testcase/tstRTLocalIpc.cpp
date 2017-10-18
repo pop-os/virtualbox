@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2016 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -361,7 +361,7 @@ static void testSessionWait(const char *pszExecPath)
 
         /*
          * Wait for the server thread to indicate that it has processed one
-         * connection, the shut it all down.
+         * connection, then shut it all down.
          */
         if (RT_SUCCESS(rc))
             RTTESTI_CHECK_RC_OK(RTThreadUserWait(hListenThread, RT_MS_1MIN / 2));
@@ -639,7 +639,7 @@ static void testSessionData(const char *pszExecPath)
 
         /*
          * Wait for the server thread to indicate that it has processed one
-         * connection, the shut it all down.
+         * connection, then shut it all down.
          */
         if (RT_SUCCESS(rc))
             RTTESTI_CHECK_RC_OK(RTThreadUserWait(hListenThread, RT_MS_1MIN * 3));
@@ -838,7 +838,7 @@ static void testSessionPerf(const char *pszExecPath)
 
         /*
          * Wait for the server thread to indicate that it has processed one
-         * connection, the shut it all down.
+         * connection, then shut it all down.
          */
         if (RT_SUCCESS(rc))
             RTTESTI_CHECK_RC_OK(RTThreadUserWait(hListenThread, RT_MS_1MIN / 2));

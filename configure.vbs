@@ -776,6 +776,18 @@ end sub
 
 
 ''
+' No SDL
+sub DisableSDL(strReason)
+   if g_blnDisableSDL = False then
+      LogPrint "Disabled SDL frontend: " & strReason
+      g_blnDisableSDL = True
+      g_strDisableSDL = strReason
+      CfgPrint "VBOX_WITH_VBOXSDL="
+   end if
+end sub
+
+
+''
 ' Checks the the path doesn't contain characters the tools cannot deal with.
 sub CheckSourcePath
    dim sPwd
@@ -2015,9 +2027,6 @@ sub CheckForQt(strOptQt5)
    if strPathQt5 = "" then
       CfgPrint "VBOX_WITH_QTGUI       :="
    end if
-   if strPathQt5 = "" then
-      CfgPrint "VBOX_WITH_QTGUI_V5    :="
-   end if
 end sub
 
 
@@ -2097,6 +2106,7 @@ sub usage
    Print "Components:"
    Print "  --disable-COM"
    Print "  --disable-UDPTunnel"
+   Print "  --disable-SDL"
    Print ""
    Print "Locations:"
    Print "  --with-kBuild=PATH    "
@@ -2157,6 +2167,7 @@ Sub Main
    strOptMkisofs = ""
    blnOptDisableCOM = False
    blnOptDisableUDPTunnel = False
+   blnOptDisableSDL = False
    for i = 1 to Wscript.Arguments.Count
       dim str, strArg, strPath
 
@@ -2217,6 +2228,8 @@ Sub Main
             blnOptDisableCOM = False
          case "--disable-udptunnel"
             blnOptDisableUDPTunnel = True
+         case "--disable-sdl"
+            blnOptDisableSDL = True
          case "--internal"
             g_blnInternalMode = True
          case "--internal-last"

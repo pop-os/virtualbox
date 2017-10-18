@@ -271,7 +271,7 @@ static const osTypePattern g_osTypesPattern64[] =
 /**
  * Private helper func that suggests a VirtualBox guest OS type
  * for the given OVF operating system type.
- * @param osTypeVBox
+ * @param strType
  * @param c
  * @param cStr
  */
@@ -374,26 +374,25 @@ Utf8Str convertNetworkAttachmentTypeToString(NetworkAttachmentType_T type)
 /**
  * Implementation for IVirtualBox::createAppliance.
  *
- * @param anAppliance IAppliance object created if S_OK is returned.
+ * @param aAppliance IAppliance object created if S_OK is returned.
  * @return S_OK or error.
  */
 HRESULT VirtualBox::createAppliance(ComPtr<IAppliance> &aAppliance)
 {
-    HRESULT rc;
-
     ComObjPtr<Appliance> appliance;
-    appliance.createObject();
-    rc = appliance->init(this);
-
-    if (SUCCEEDED(rc))
-        appliance.queryInterfaceTo(aAppliance.asOutParam());
-
-    return rc;
+    HRESULT hrc = appliance.createObject();
+    if (SUCCEEDED(hrc))
+    {
+        hrc = appliance->init(this);
+        if (SUCCEEDED(hrc))
+            hrc = appliance.queryInterfaceTo(aAppliance.asOutParam());
+    }
+    return hrc;
 }
 
 /**
  * Appliance COM initializer.
- * @param
+ * @param   aVirtualBox     The VirtualBox object.
  * @return
  */
 HRESULT Appliance::init(VirtualBox *aVirtualBox)
@@ -447,7 +446,7 @@ void Appliance::uninit()
 
 /**
  * Public method implementation.
- * @param
+ * @param   aPath
  * @return
  */
 HRESULT Appliance::getPath(com::Utf8Str &aPath)
@@ -464,7 +463,7 @@ HRESULT Appliance::getPath(com::Utf8Str &aPath)
 
 /**
  * Public method implementation.
- * @param
+ * @param aDisks
  * @return
  */
 HRESULT Appliance::getDisks(std::vector<com::Utf8Str> &aDisks)
@@ -532,7 +531,7 @@ HRESULT Appliance::getCertificate(ComPtr<ICertificate> &aCertificateInfo)
 
 /**
  * Public method implementation.
- * @param
+ * @param   aVirtualSystemDescriptions
  * @return
  */
 HRESULT Appliance::getVirtualSystemDescriptions(std::vector<ComPtr<IVirtualSystemDescription> > &aVirtualSystemDescriptions)
@@ -554,7 +553,7 @@ HRESULT Appliance::getVirtualSystemDescriptions(std::vector<ComPtr<IVirtualSyste
 
 /**
  * Public method implementation.
- * @param aDisks
+ * @param aMachines
  * @return
  */
 HRESULT Appliance::getMachines(std::vector<com::Utf8Str> &aMachines)
@@ -870,6 +869,43 @@ HRESULT Appliance::i_findMediumFormatFromDiskImage(const ovf::DiskImage &di, Com
     }
 
     return rc;
+}
+
+/**
+ * Setup automatic I/O stream digest calculation, adding it to hOurManifest.
+ *
+ * @returns Passthru I/O stream, of @a hVfsIos if no digest calc needed.
+ * @param   hVfsIos             The stream to wrap. Always consumed.
+ * @param   pszManifestEntry    The manifest entry.
+ * @param   fRead               Set if read stream, clear if write.
+ * @throws  Nothing.
+ */
+RTVFSIOSTREAM Appliance::i_manifestSetupDigestCalculationForGivenIoStream(RTVFSIOSTREAM hVfsIos, const char *pszManifestEntry,
+                                                                          bool fRead /*= true */)
+{
+    int vrc;
+    Assert(!RTManifestPtIosIsInstanceOf(hVfsIos));
+
+    if (m->fDigestTypes == 0)
+        return hVfsIos;
+
+    /* Create the manifest if necessary. */
+    if (m->hOurManifest == NIL_RTMANIFEST)
+    {
+        vrc = RTManifestCreate(0 /*fFlags*/, &m->hOurManifest);
+        AssertRCReturnStmt(vrc, RTVfsIoStrmRelease(hVfsIos), NIL_RTVFSIOSTREAM);
+    }
+
+    /* Setup the stream. */
+    RTVFSIOSTREAM hVfsIosPt;
+    vrc = RTManifestEntryAddPassthruIoStream(m->hOurManifest, hVfsIos, pszManifestEntry, m->fDigestTypes, fRead, &hVfsIosPt);
+
+    RTVfsIoStrmRelease(hVfsIos);        /* always consumed! */
+    if (RT_SUCCESS(vrc))
+        return hVfsIosPt;
+
+    setErrorVrc(vrc, "RTManifestEntryAddPassthruIoStream failed with rc=%Rrc", vrc);
+    return NIL_RTVFSIOSTREAM;
 }
 
 /**
@@ -1395,7 +1431,7 @@ void VirtualSystemDescription::uninit()
 
 /**
  * Public method implementation.
- * @param
+ * @param   aCount
  * @return
  */
 HRESULT VirtualSystemDescription::getCount(ULONG *aCount)
@@ -1565,8 +1601,8 @@ HRESULT VirtualSystemDescription::addDescription(VirtualSystemDescriptionType_T 
  * Internal method; adds a new description item to the member list.
  * @param aType Type of description for the new item.
  * @param strRef Reference item; only used with hard disk controllers.
- * @param aOrigValue Corresponding original value from OVF.
- * @param aAutoValue Initial configuration value (can be overridden by caller with setFinalValues).
+ * @param aOvfValue Corresponding original value from OVF.
+ * @param aVBoxValue Initial configuration value (can be overridden by caller with setFinalValues).
  * @param ulSizeMB Weight for IProgress
  * @param strExtraConfig Extra configuration; meaning dependent on type.
  */

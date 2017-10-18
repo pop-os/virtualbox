@@ -218,31 +218,66 @@ void vringWriteUsedElem(PVPCISTATE pState, PVRING pVRing, uint32_t uIndex, uint3
                           &elem, sizeof(elem));
 }
 
-void vqueuePut(PVPCISTATE pState, PVQUEUE pQueue, PVQUEUEELEM pElem, uint32_t uLen, uint32_t uReserved)
-{
-    unsigned int i, uOffset, cbReserved = uReserved;
 
-    Log2(("%s vqueuePut: %s desc_idx=%u acb=%u\n", INSTANCE(pState),
-          QUEUENAME(pState, pQueue), pElem->uIndex, uLen));
-    for (i = uOffset = 0; i < pElem->nIn && uOffset < uLen - uReserved; i++)
+void vqueuePut(PVPCISTATE pState, PVQUEUE pQueue,
+               PVQUEUEELEM pElem, uint32_t uTotalLen, uint32_t uReserved)
+{
+    Log2(("%s vqueuePut: %s"
+          " desc_idx=%u acb=%u (%u)\n",
+          INSTANCE(pState), QUEUENAME(pState, pQueue),
+          pElem->uIndex, uTotalLen, uReserved));
+
+    Assert(uReserved < uTotalLen);
+
+    uint32_t cbLen = uTotalLen - uReserved;
+    uint32_t cbSkip = uReserved;
+
+    for (unsigned i = 0; i < pElem->nIn && cbLen > 0; ++i)
     {
-        uint32_t cbSegLen = RT_MIN(uLen - cbReserved - uOffset, pElem->aSegsIn[i].cb - cbReserved);
-        if (pElem->aSegsIn[i].pv)
+        if (cbSkip >= pElem->aSegsIn[i].cb) /* segment completely skipped? */
         {
-            Log2(("%s vqueuePut: %s used_idx=%u seg=%u addr=%p pv=%p cb=%u acb=%u\n", INSTANCE(pState),
-                  QUEUENAME(pState, pQueue), pQueue->uNextUsedIndex, i, pElem->aSegsIn[i].addr, pElem->aSegsIn[i].pv, pElem->aSegsIn[i].cb, cbSegLen));
-            PDMDevHlpPCIPhysWrite(pState->CTX_SUFF(pDevIns), pElem->aSegsIn[i].addr + cbReserved,
-                                  pElem->aSegsIn[i].pv, cbSegLen);
-            cbReserved = 0;
+            cbSkip -= pElem->aSegsIn[i].cb;
+            continue;
         }
-        uOffset += cbSegLen;
+
+        uint32_t cbSegLen = pElem->aSegsIn[i].cb - cbSkip;
+        if (cbSegLen > cbLen)   /* last segment only partially used? */
+            cbSegLen = cbLen;
+
+        /*
+         * XXX: We should assert pv != NULL, but we need to check and
+         * fix all callers first.
+         */
+        if (pElem->aSegsIn[i].pv != NULL)
+        {
+            Log2(("%s vqueuePut: %s"
+                  " used_idx=%u seg=%u addr=%p pv=%p cb=%u acb=%u\n",
+                  INSTANCE(pState), QUEUENAME(pState, pQueue),
+                  pQueue->uNextUsedIndex, i,
+                  (void *)pElem->aSegsIn[i].addr, pElem->aSegsIn[i].pv,
+                  pElem->aSegsIn[i].cb, cbSegLen));
+
+            PDMDevHlpPCIPhysWrite(pState->CTX_SUFF(pDevIns),
+                                  pElem->aSegsIn[i].addr + cbSkip,
+                                  pElem->aSegsIn[i].pv,
+                                  cbSegLen);
+        }
+
+        cbSkip = 0;
+        cbLen -= cbSegLen;
     }
 
-    Assert((uReserved + uOffset) == uLen || pElem->nIn == 0);
-    Log2(("%s vqueuePut: %s used_idx=%u guest_used_idx=%u id=%u len=%u\n", INSTANCE(pState),
-          QUEUENAME(pState, pQueue), pQueue->uNextUsedIndex, vringReadUsedIndex(pState, &pQueue->VRing), pElem->uIndex, uLen));
-    vringWriteUsedElem(pState, &pQueue->VRing, pQueue->uNextUsedIndex++, pElem->uIndex, uLen);
+    Log2(("%s vqueuePut: %s"
+          " used_idx=%u guest_used_idx=%u id=%u len=%u\n",
+          INSTANCE(pState), QUEUENAME(pState, pQueue),
+          pQueue->uNextUsedIndex, vringReadUsedIndex(pState, &pQueue->VRing),
+          pElem->uIndex, uTotalLen));
+
+    vringWriteUsedElem(pState, &pQueue->VRing,
+                       pQueue->uNextUsedIndex++,
+                       pElem->uIndex, uTotalLen);
 }
+
 
 void vqueueNotify(PVPCISTATE pState, PVQUEUE pQueue)
 {
@@ -456,26 +491,36 @@ int vpciIOPortOut(PPDMDEVINS                pDevIns,
     switch (Port)
     {
         case VPCI_GUEST_FEATURES:
-            /* Check if the guest negotiates properly, fall back to basics if it does not. */
-            if (VPCI_F_BAD_FEATURE & u32)
+        {
+            const uint32_t uHostFeatures = vpciGetHostFeatures(pState, pCallbacks->pfnGetHostFeatures);
+
+            if (RT_LIKELY((u32 & ~uHostFeatures) == 0))
             {
-                Log(("%s WARNING! Guest failed to negotiate properly (guest=%x)\n",
-                     INSTANCE(pState), u32));
-                pState->uGuestFeatures = pCallbacks->pfnGetHostMinimalFeatures(pState);
-            }
-            /* The guest may potentially desire features we don't support! */
-            else if (~vpciGetHostFeatures(pState, pCallbacks->pfnGetHostFeatures) & u32)
-            {
-                Log(("%s Guest asked for features host does not support! (host=%x guest=%x)\n",
-                     INSTANCE(pState),
-                     vpciGetHostFeatures(pState, pCallbacks->pfnGetHostFeatures), u32));
-                pState->uGuestFeatures =
-                    vpciGetHostFeatures(pState, pCallbacks->pfnGetHostFeatures);
+                pState->uGuestFeatures = u32;
             }
             else
-                pState->uGuestFeatures = u32;
+            {
+                /*
+                 * Guest requests features we don't advertise.  Stick
+                 * to the minimum if negotiation looks completely
+                 * botched, otherwise restrict to advertised features.
+                 */
+                if (u32 & VPCI_F_BAD_FEATURE)
+                {
+                    Log(("%s WARNING! Guest failed to negotiate properly (guest=%x)\n",
+                         INSTANCE(pState), u32));
+                    pState->uGuestFeatures = pCallbacks->pfnGetHostMinimalFeatures(pState);
+                }
+                else
+                {
+                    Log(("%s Guest asked for features host does not support! (host=%x guest=%x)\n",
+                         INSTANCE(pState), uHostFeatures, u32));
+                    pState->uGuestFeatures = u32 & uHostFeatures;
+                }
+            }
             pCallbacks->pfnSetHostFeatures(pState, pState->uGuestFeatures);
             break;
+        }
 
         case VPCI_QUEUE_PFN:
             /*

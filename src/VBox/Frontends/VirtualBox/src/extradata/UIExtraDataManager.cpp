@@ -22,6 +22,7 @@
 /* Qt includes: */
 # include <QMutex>
 # include <QMetaEnum>
+# include <QRegularExpression>
 # ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
 #  include <QMenuBar>
 #  include <QListView>
@@ -39,8 +40,8 @@
 /* GUI includes: */
 # include "UIDesktopWidgetWatchdog.h"
 # include "UIExtraDataManager.h"
+# include "UIHostComboEditor.h"
 # include "UIMainEventListener.h"
-# include "VBoxGlobalSettings.h"
 # include "VBoxGlobal.h"
 # include "UIActionPool.h"
 # include "UIConverter.h"
@@ -191,11 +192,11 @@ void UIExtraDataEventHandler::prepareListener()
 void UIExtraDataEventHandler::prepareConnections()
 {
     /* Create direct (sync) connections for signals of main listener: */
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigExtraDataCanChange(QString, QString, QString, bool&, QString&)),
-            this, SLOT(sltPreprocessExtraDataCanChange(QString, QString, QString, bool&, QString&)),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigExtraDataCanChange,
+            this, &UIExtraDataEventHandler::sltPreprocessExtraDataCanChange,
             Qt::DirectConnection);
-    connect(m_pQtListener->getWrapped(), SIGNAL(sigExtraDataChange(QString, QString, QString)),
-            this, SLOT(sltPreprocessExtraDataChange(QString, QString, QString)),
+    connect(m_pQtListener->getWrapped(), &UIMainEventListener::sigExtraDataChange,
+            this, &UIExtraDataEventHandler::sltPreprocessExtraDataChange,
             Qt::DirectConnection);
 }
 
@@ -235,27 +236,17 @@ void UIExtraDataEventHandler::cleanup()
     cleanupListener();
 }
 
-void UIExtraDataEventHandler::sltPreprocessExtraDataCanChange(QString strMachineID, QString strKey, QString strValue, bool &fVeto, QString &strVetoReason)
+void UIExtraDataEventHandler::sltPreprocessExtraDataCanChange(QString strMachineID, QString strKey, QString /* strValue */, bool & /* fVeto */, QString & /* strVetoReason */)
 {
     /* Preprocess global 'extra-data can change' event: */
     if (QUuid(strMachineID).isNull())
     {
         if (strKey.startsWith("GUI/"))
         {
-            /* Try to set the global setting to check its syntax: */
-            VBoxGlobalSettings gs(false /* non-null */);
-            /* Known GUI property key? */
-            if (gs.setPublicProperty(strKey, strValue))
-            {
-                /* But invalid GUI property value? */
-                if (!gs)
-                {
-                    /* Remember veto reason: */
-                    strVetoReason = gs.lastError();
-                    /* And disallow that change: */
-                    fVeto = true;
-                }
-            }
+            /* Check whether global extra-data property can be applied: */
+            // TODO: Here can be various extra-data flags handling.
+            //       Generally we should check whether one or another flag feats some rule (like reg-exp).
+            //       For each required strValue we should set fVeto = true; and fill strVetoReason = "with some text".
         }
     }
 }
@@ -267,11 +258,11 @@ void UIExtraDataEventHandler::sltPreprocessExtraDataChange(QString strMachineID,
     {
         if (strKey.startsWith("GUI/"))
         {
-            /* Apply global property: */
-            m_mutex.lock();
-            vboxGlobal().settings().setPublicProperty(strKey, strValue);
-            m_mutex.unlock();
-            AssertMsgReturnVoid(!!vboxGlobal().settings(), ("Failed to apply global property.\n"));
+            /* Apply global extra-data property: */
+            // TODO: Here can be various extra-data flags handling.
+            //       Generally we should push one or another flag to various instances which want to handle
+            //       those flags independently from UIExtraDataManager. Remember to process each required strValue
+            //       from under the m_mutex lock (since we are in another thread) and unlock that m_mutex afterwards.
         }
     }
 
@@ -420,7 +411,7 @@ void UIChooserPaneDelegate::fetchPixmapInfo(const QModelIndex &index, QPixmap &p
 {
     /* If proper machine ID passed => return corresponding pixmap/size: */
     if (index.data(Field_ID).toString() != UIExtraDataManager::GlobalID)
-        pixmap = vboxGlobal().vmGuestOSTypeIcon(index.data(Field_OsTypeID).toString(), &pixmapSize);
+        pixmap = vboxGlobal().vmGuestOSTypePixmapDefault(index.data(Field_OsTypeID).toString(), &pixmapSize);
     else
     {
         /* For global ID we return static pixmap/size: */
@@ -484,16 +475,22 @@ public:
         void showAndRaise(QWidget *pCenterWidget);
     /** @} */
 
+public slots:
+
+    /** @name General
+      * @{ */
+        /** Handles extra-data map acknowledging. */
+        void sltExtraDataMapAcknowledging(QString strID);
+        /** Handles extra-data change. */
+        void sltExtraDataChange(QString strID, QString strKey, QString strValue);
+    /** @} */
+
 private slots:
 
     /** @name General
       * @{ */
         /** Handles machine (un)registration. */
         void sltMachineRegistered(QString strID, bool fAdded);
-        /** Handles extra-data map acknowledging. */
-        void sltExtraDataMapAcknowledging(QString strID);
-        /** Handles extra-data change. */
-        void sltExtraDataChange(QString strID, QString strKey, QString strValue);
     /** @} */
 
     /** @name Chooser-pane
@@ -1015,16 +1012,16 @@ void UIExtraDataManagerWindow::sltAdd()
                     AssertPtrReturnVoid(pKeyPropertySetter);
                     {
                         /* Configure key-editor property setter: */
-                        connect(pEditorKey, SIGNAL(editTextChanged(const QString&)),
-                                pKeyPropertySetter, SLOT(sltAssignProperty(const QString&)));
+                        connect(pEditorKey, &QComboBox::editTextChanged,
+                                pKeyPropertySetter, &QObjectPropertySetter::sltAssignProperty);
                     }
                     /* Create key-editor validator: */
                     QObjectValidator *pKeyValidator = new QObjectValidator(new QRegExpValidator(QRegExp("[\\s\\S]+"), this));
                     AssertPtrReturnVoid(pKeyValidator);
                     {
                         /* Configure key-editor validator: */
-                        connect(pEditorKey, SIGNAL(editTextChanged(const QString&)),
-                                pKeyValidator, SLOT(sltValidate(QString)));
+                        connect(pEditorKey, &QComboBox::editTextChanged,
+                                pKeyValidator, &QObjectValidator::sltValidate);
                         /* Add key-editor validator into dialog validator group: */
                         pValidatorGroup->addObjectValidator(pKeyValidator);
                     }
@@ -1049,16 +1046,16 @@ void UIExtraDataManagerWindow::sltAdd()
                     AssertPtrReturnVoid(pValuePropertySetter);
                     {
                         /* Configure value-editor property setter: */
-                        connect(pEditorValue, SIGNAL(textEdited(const QString&)),
-                                pValuePropertySetter, SLOT(sltAssignProperty(const QString&)));
+                        connect(pEditorValue, &QLineEdit::textEdited,
+                                pValuePropertySetter, &QObjectPropertySetter::sltAssignProperty);
                     }
                     /* Create value-editor validator: */
                     QObjectValidator *pValueValidator = new QObjectValidator(new QRegExpValidator(QRegExp("[\\s\\S]+"), this));
                     AssertPtrReturnVoid(pValueValidator);
                     {
                         /* Configure value-editor validator: */
-                        connect(pEditorValue, SIGNAL(textEdited(const QString&)),
-                                pValueValidator, SLOT(sltValidate(QString)));
+                        connect(pEditorValue, &QLineEdit::textEdited,
+                                pValueValidator, &QObjectValidator::sltValidate);
                         /* Add value-editor validator into dialog validator group: */
                         pValidatorGroup->addObjectValidator(pValueValidator);
                     }
@@ -1079,10 +1076,10 @@ void UIExtraDataManagerWindow::sltAdd()
                 pButtonBox->button(QDialogButtonBox::Ok)->setAutoDefault(true);
                 pButtonBox->button(QDialogButtonBox::Ok)->setEnabled(pValidatorGroup->result());
                 pButtonBox->button(QDialogButtonBox::Cancel)->setShortcut(Qt::Key_Escape);
-                connect(pValidatorGroup, SIGNAL(sigValidityChange(bool)),
-                        pButtonBox->button(QDialogButtonBox::Ok), SLOT(setEnabled(bool)));
-                connect(pButtonBox, SIGNAL(accepted()), pInputDialog, SLOT(accept()));
-                connect(pButtonBox, SIGNAL(rejected()), pInputDialog, SLOT(reject()));
+                connect(pValidatorGroup, &QObjectValidatorGroup::sigValidityChange,
+                        pButtonBox->button(QDialogButtonBox::Ok), &QPushButton::setEnabled);
+                connect(pButtonBox, &QIDialogButtonBox::accepted, pInputDialog.data(), &QIDialog::accept);
+                connect(pButtonBox, &QIDialogButtonBox::rejected, pInputDialog.data(), &QIDialog::reject);
                 /* Add button-box into main-layout: */
                 pMainLayout->addWidget(pButtonBox);
             }
@@ -1373,8 +1370,8 @@ void UIExtraDataManagerWindow::prepareThis()
 void UIExtraDataManagerWindow::prepareConnections()
 {
     /* Prepare connections: */
-    connect(gVBoxEvents, SIGNAL(sigMachineRegistered(QString, bool)),
-            this, SLOT(sltMachineRegistered(QString, bool)));
+    connect(gVBoxEvents, &UIVirtualBoxEventHandler::sigMachineRegistered,
+            this, &UIExtraDataManagerWindow::sltMachineRegistered);
 }
 
 void UIExtraDataManagerWindow::prepareMenu()
@@ -1391,7 +1388,7 @@ void UIExtraDataManagerWindow::prepareMenu()
             m_pActionAdd->setIcon(UIIconPool::iconSetFull(":/edata_add_22px.png", ":/edata_add_16px.png",
                                                           ":/edata_add_disabled_22px.png", ":/edata_add_disabled_16px.png"));
             m_pActionAdd->setShortcut(QKeySequence("Ctrl+T"));
-            connect(m_pActionAdd, SIGNAL(triggered(bool)), this, SLOT(sltAdd()));
+            connect(m_pActionAdd, &QAction::triggered, this, &UIExtraDataManagerWindow::sltAdd);
         }
         /* Create 'Del' action: */
         m_pActionDel = pActionsMenu->addAction("Remove");
@@ -1401,7 +1398,7 @@ void UIExtraDataManagerWindow::prepareMenu()
             m_pActionDel->setIcon(UIIconPool::iconSetFull(":/edata_remove_22px.png", ":/edata_remove_16px.png",
                                                           ":/edata_remove_disabled_22px.png", ":/edata_remove_disabled_16px.png"));
             m_pActionDel->setShortcut(QKeySequence("Ctrl+R"));
-            connect(m_pActionDel, SIGNAL(triggered(bool)), this, SLOT(sltDel()));
+            connect(m_pActionDel, &QAction::triggered, this, &UIExtraDataManagerWindow::sltDel);
         }
 
         /* Add separator: */
@@ -1415,7 +1412,7 @@ void UIExtraDataManagerWindow::prepareMenu()
             m_pActionLoad->setIcon(UIIconPool::iconSetFull(":/edata_load_22px.png", ":/edata_load_16px.png",
                                                            ":/edata_load_disabled_22px.png", ":/edata_load_disabled_16px.png"));
             m_pActionLoad->setShortcut(QKeySequence("Ctrl+L"));
-            connect(m_pActionLoad, SIGNAL(triggered(bool)), this, SLOT(sltLoad()));
+            connect(m_pActionLoad, &QAction::triggered, this, &UIExtraDataManagerWindow::sltLoad);
         }
         /* Create 'Save' action: */
         m_pActionSave = pActionsMenu->addAction("Save As...");
@@ -1425,7 +1422,7 @@ void UIExtraDataManagerWindow::prepareMenu()
             m_pActionSave->setIcon(UIIconPool::iconSetFull(":/edata_save_22px.png", ":/edata_save_16px.png",
                                                            ":/edata_save_disabled_22px.png", ":/edata_save_disabled_16px.png"));
             m_pActionSave->setShortcut(QKeySequence("Ctrl+S"));
-            connect(m_pActionSave, SIGNAL(triggered(bool)), this, SLOT(sltSave()));
+            connect(m_pActionSave, &QAction::triggered, this, &UIExtraDataManagerWindow::sltSave);
         }
     }
 }
@@ -1514,17 +1511,14 @@ void UIExtraDataManagerWindow::preparePanes()
     /* Prepare data-pane: */
     preparePaneData();
     /* Link chooser and data panes: */
-    connect(m_pViewOfChooser->selectionModel(),
-            SIGNAL(currentChanged(const QModelIndex&, const QModelIndex&)),
-            this, SLOT(sltChooserHandleCurrentChanged(const QModelIndex&)));
-    connect(m_pViewOfChooser->selectionModel(),
-            SIGNAL(selectionChanged(const QItemSelection&, const QItemSelection&)),
-            this, SLOT(sltChooserHandleSelectionChanged(const QItemSelection&, const QItemSelection&)));
-    connect(m_pViewOfData->selectionModel(),
-            SIGNAL(selectionChanged(const QItemSelection&, const QItemSelection&)),
-            this, SLOT(sltDataHandleSelectionChanged(const QItemSelection&, const QItemSelection&)));
-    connect(m_pModelSourceOfData, SIGNAL(itemChanged(QStandardItem*)),
-            this, SLOT(sltDataHandleItemChanged(QStandardItem*)));
+    connect(m_pViewOfChooser->selectionModel(), &QItemSelectionModel::currentChanged,
+            this, &UIExtraDataManagerWindow::sltChooserHandleCurrentChanged);
+    connect(m_pViewOfChooser->selectionModel(), &QItemSelectionModel::selectionChanged,
+            this, &UIExtraDataManagerWindow::sltChooserHandleSelectionChanged);
+    connect(m_pViewOfData->selectionModel(), &QItemSelectionModel::selectionChanged,
+            this, &UIExtraDataManagerWindow::sltDataHandleSelectionChanged);
+    connect(m_pModelSourceOfData, &QStandardItemModel::itemChanged,
+            this, &UIExtraDataManagerWindow::sltDataHandleItemChanged);
     /* Make sure chooser have current-index if possible: */
     makeSureChooserHaveCurrentIndexIfPossible();
 }
@@ -1546,11 +1540,9 @@ void UIExtraDataManagerWindow::preparePaneChooser()
             m_pFilterOfChooser = new QLineEdit;
             {
                 /* Configure chooser-filter: */
-#if QT_VERSION >= 0x040700
                 m_pFilterOfChooser->setPlaceholderText("Search..");
-#endif /* QT_VERSION >= 0x040700 */
-                connect(m_pFilterOfChooser, SIGNAL(textChanged(const QString&)),
-                        this, SLOT(sltChooserApplyFilter(const QString&)));
+                connect(m_pFilterOfChooser, &QLineEdit::textChanged,
+                        this, &UIExtraDataManagerWindow::sltChooserApplyFilter);
                 /* Add chooser-filter into layout: */
                 pLayout->addWidget(m_pFilterOfChooser);
             }
@@ -1613,11 +1605,9 @@ void UIExtraDataManagerWindow::preparePaneData()
             m_pFilterOfData = new QLineEdit;
             {
                 /* Configure data-filter: */
-#if QT_VERSION >= 0x040700
                 m_pFilterOfData->setPlaceholderText("Search..");
-#endif /* QT_VERSION >= 0x040700 */
-                connect(m_pFilterOfData, SIGNAL(textChanged(const QString&)),
-                        this, SLOT(sltDataApplyFilter(const QString&)));
+                connect(m_pFilterOfData, &QLineEdit::textChanged,
+                        this, &UIExtraDataManagerWindow::sltDataApplyFilter);
                 /* Add data-filter into layout: */
                 pLayout->addWidget(m_pFilterOfData);
             }
@@ -1648,8 +1638,8 @@ void UIExtraDataManagerWindow::preparePaneData()
                 m_pViewOfData->setContextMenuPolicy(Qt::CustomContextMenu);
                 m_pViewOfData->setSelectionMode(QAbstractItemView::ExtendedSelection);
                 m_pViewOfData->setSelectionBehavior(QAbstractItemView::SelectRows);
-                connect(m_pViewOfData, SIGNAL(customContextMenuRequested(const QPoint&)),
-                        this, SLOT(sltDataHandleCustomContextMenuRequested(const QPoint&)));
+                connect(m_pViewOfData, &QTableView::customContextMenuRequested,
+                        this, &UIExtraDataManagerWindow::sltDataHandleCustomContextMenuRequested);
                 QHeaderView *pVHeader = m_pViewOfData->verticalHeader();
                 QHeaderView *pHHeader = m_pViewOfData->horizontalHeader();
                 pVHeader->hide();
@@ -1674,8 +1664,8 @@ void UIExtraDataManagerWindow::prepareButtonBox()
         /* Configure button-box: */
         m_pButtonBox->setStandardButtons(QDialogButtonBox::Help | QDialogButtonBox::Close);
         m_pButtonBox->button(QDialogButtonBox::Close)->setShortcut(Qt::Key_Escape);
-        connect(m_pButtonBox, SIGNAL(helpRequested()), &msgCenter(), SLOT(sltShowHelpHelpDialog()));
-        connect(m_pButtonBox, SIGNAL(rejected()), this, SLOT(close()));
+        connect(m_pButtonBox, &QIDialogButtonBox::helpRequested, &msgCenter(), &UIMessageCenter::sltShowHelpHelpDialog);
+        connect(m_pButtonBox, &QIDialogButtonBox::rejected,      this, &UIExtraDataManagerWindow::close);
         /* Add button-box into main layout: */
         m_pMainLayout->addWidget(m_pButtonBox);
     }
@@ -1944,19 +1934,22 @@ QStringList UIExtraDataManagerWindow::knownExtraDataKeys()
 {
     return QStringList()
            << QString()
-           << GUI_LanguageId
            << GUI_EventHandlingType
            << GUI_SuppressMessages << GUI_InvertMessageOption
 #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
            << GUI_PreventApplicationUpdate << GUI_UpdateDate << GUI_UpdateCheckCount
 #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
+           << GUI_Progress_LegacyMode
            << GUI_RestrictedGlobalSettingsPages << GUI_RestrictedMachineSettingsPages
+           << GUI_LanguageID
            << GUI_ActivateHoveredMachineWindow
            << GUI_Input_SelectorShortcuts << GUI_Input_MachineShortcuts
            << GUI_RecentFolderHD << GUI_RecentFolderCD << GUI_RecentFolderFD
            << GUI_RecentListHD << GUI_RecentListCD << GUI_RecentListFD
            << GUI_LastSelectorWindowPosition << GUI_SplitterSizes
-           << GUI_Toolbar << GUI_Statusbar
+           << GUI_Toolbar << GUI_Toolbar_Text
+           << GUI_Toolbar_MachineTools_Order << GUI_Toolbar_GlobalTools_Order
+           << GUI_Statusbar
            << GUI_GroupDefinitions << GUI_LastItemSelected
            << GUI_DetailsPageBoxes << GUI_PreviewUpdate
            << GUI_HideDescriptionForWizards
@@ -2298,6 +2291,22 @@ void UIExtraDataManager::incrementApplicationUpdateCheckCounter()
 }
 #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
 
+bool UIExtraDataManager::legacyProgressHandlingRequested()
+{
+    /* 'True' unless feature restricted: */
+    return !isFeatureRestricted(GUI_Progress_LegacyMode);
+}
+
+bool UIExtraDataManager::guiFeatureEnabled(GUIFeatureType enmFeature)
+{
+    /* Acquire GUI feature list: */
+    GUIFeatureType enmFeatures = GUIFeatureType_None;
+    foreach (const QString &strValue, extraDataStringList(GUI_Customizations))
+        enmFeatures = static_cast<GUIFeatureType>(enmFeatures | gpConverter->fromInternalString<GUIFeatureType>(strValue));
+    /* Return whether the requested feature is enabled: */
+    return enmFeatures & enmFeature;
+}
+
 QList<GlobalSettingsPageType> UIExtraDataManager::restrictedGlobalSettingsPages()
 {
     /* Prepare result: */
@@ -2328,6 +2337,79 @@ QList<MachineSettingsPageType> UIExtraDataManager::restrictedMachineSettingsPage
     return result;
 }
 
+bool UIExtraDataManager::hostScreenSaverDisabled()
+{
+    /* 'False' unless feature allowed: */
+    return isFeatureAllowed(GUI_HostScreenSaverDisabled);
+}
+
+void UIExtraDataManager::setHostScreenSaverDisabled(bool fDisabled)
+{
+    /* 'True' if feature allowed, null-string otherwise: */
+    setExtraDataString(GUI_HostScreenSaverDisabled, toFeatureAllowed(fDisabled));
+}
+
+QString UIExtraDataManager::languageId()
+{
+    /* Load language ID: */
+    return extraDataString(GUI_LanguageID);
+}
+
+void UIExtraDataManager::setLanguageId(const QString &strLanguageId)
+{
+    /* Save language ID: */
+    setExtraDataString(GUI_LanguageID, strLanguageId);
+}
+
+MaxGuestResolutionPolicy UIExtraDataManager::maxGuestResolutionPolicy()
+{
+    /* Return maximum guest-screen resolution policy: */
+    return gpConverter->fromInternalString<MaxGuestResolutionPolicy>(extraDataString(GUI_MaxGuestResolution));
+}
+
+void UIExtraDataManager::setMaxGuestScreenResolution(MaxGuestResolutionPolicy enmPolicy, const QSize resolution /* = QSize() */)
+{
+    /* If policy is 'Fixed' => call the wrapper: */
+    if (enmPolicy == MaxGuestResolutionPolicy_Fixed)
+        setMaxGuestResolutionForPolicyFixed(resolution);
+    /* Otherwise => just store the value: */
+    else
+        setExtraDataString(GUI_MaxGuestResolution, gpConverter->toInternalString(enmPolicy));
+}
+
+QSize UIExtraDataManager::maxGuestResolutionForPolicyFixed()
+{
+    /* Acquire maximum guest-screen resolution policy: */
+    const QString strPolicy = extraDataString(GUI_MaxGuestResolution);
+    const MaxGuestResolutionPolicy enmPolicy = gpConverter->fromInternalString<MaxGuestResolutionPolicy>(strPolicy);
+
+    /* Make sure maximum guest-screen resolution policy is really Fixed: */
+    if (enmPolicy != MaxGuestResolutionPolicy_Fixed)
+        return QSize();
+
+    /* Parse maximum guest-screen resolution: */
+    const QStringList values = strPolicy.split(',');
+    int iWidth = values.at(0).toInt();
+    int iHeight = values.at(1).toInt();
+    if (iWidth <= 0)
+        iWidth = 640;
+    if (iHeight <= 0)
+        iHeight = 480;
+
+    /* Return maximum guest-screen resolution: */
+    return QSize(iWidth, iHeight);
+}
+
+void UIExtraDataManager::setMaxGuestResolutionForPolicyFixed(const QSize &resolution)
+{
+    /* If resolution is 'empty' => call the wrapper: */
+    if (resolution.isEmpty())
+        setMaxGuestScreenResolution(MaxGuestResolutionPolicy_Automatic);
+    /* Otherwise => just store the value: */
+    else
+        setExtraDataString(GUI_MaxGuestResolution, QString("%1,%2").arg(resolution.width()).arg(resolution.height()));
+}
+
 bool UIExtraDataManager::activateHoveredMachineWindow()
 {
     /* 'False' unless feature allowed: */
@@ -2340,6 +2422,38 @@ void UIExtraDataManager::setActivateHoveredMachineWindow(bool fActivate)
     setExtraDataString(GUI_ActivateHoveredMachineWindow, toFeatureAllowed(fActivate));
 }
 
+QString UIExtraDataManager::hostKeyCombination()
+{
+    /* Acquire host-key combination: */
+    QString strHostCombo = extraDataString(GUI_Input_HostKeyCombination);
+    /* Invent some sane default if it's absolutely wrong or invalid: */
+    QRegularExpression reTemplate("0|[1-9]\\d*(,[1-9]\\d*)?(,[1-9]\\d*)?");
+    if (!reTemplate.match(strHostCombo).hasMatch() || !UIHostCombo::isValidKeyCombo(strHostCombo))
+    {
+#if   defined (VBOX_WS_MAC)
+        strHostCombo = "55"; // QZ_LMETA
+#elif defined (VBOX_WS_WIN)
+        strHostCombo = "163"; // VK_RCONTROL
+#elif defined (VBOX_WS_X11)
+        strHostCombo = "65508"; // XK_Control_R
+#else
+# warning "port me!"
+#endif
+    }
+    /* Return host-key combination: */
+    return strHostCombo;
+}
+
+void UIExtraDataManager::setHostKeyCombination(const QString &strHostCombo)
+{
+    /* Do not save anything if it's absolutely wrong or invalid: */
+    QRegularExpression reTemplate("0|[1-9]\\d*(,[1-9]\\d*)?(,[1-9]\\d*)?");
+    if (!reTemplate.match(strHostCombo).hasMatch() || !UIHostCombo::isValidKeyCombo(strHostCombo))
+        return;
+    /* Define host-combo: */
+    setExtraDataString(GUI_Input_HostKeyCombination, strHostCombo);
+}
+
 QStringList UIExtraDataManager::shortcutOverrides(const QString &strPoolExtraDataID)
 {
     if (strPoolExtraDataID == GUI_Input_SelectorShortcuts)
@@ -2347,6 +2461,57 @@ QStringList UIExtraDataManager::shortcutOverrides(const QString &strPoolExtraDat
     if (strPoolExtraDataID == GUI_Input_MachineShortcuts)
         return extraDataStringList(GUI_Input_MachineShortcuts);
     return QStringList();
+}
+
+bool UIExtraDataManager::autoCaptureEnabled()
+{
+    /* Prepare auto-capture flag: */
+    bool fAutoCapture = true /* indifferently */;
+    /* Acquire whether the auto-capture is restricted: */
+    QString strAutoCapture = extraDataString(GUI_Input_AutoCapture);
+    /* Invent some sane default if it's empty: */
+    if (strAutoCapture.isEmpty())
+    {
+#if defined(VBOX_WS_X11) && defined(DEBUG)
+        fAutoCapture = false;
+#else
+        fAutoCapture = true;
+#endif
+    }
+    /* 'True' unless feature restricted: */
+    else
+        fAutoCapture = !isFeatureRestricted(GUI_Input_AutoCapture);
+    /* Return auto-capture flag: */
+    return fAutoCapture;
+}
+
+void UIExtraDataManager::setAutoCaptureEnabled(bool fEnabled)
+{
+    /* Store actual feature state, whether it is "true" or "false",
+     * because absent state means default, different on various hosts: */
+    setExtraDataString(GUI_Input_AutoCapture, toFeatureState(fEnabled));
+}
+
+QString UIExtraDataManager::remappedScanCodes()
+{
+    /* Acquire remapped scan codes: */
+    QString strRemappedScanCodes = extraDataString(GUI_RemapScancodes);
+    /* Clear the record if it's absolutely wrong: */
+    QRegularExpression reTemplate("(\\d+=\\d+,)*\\d+=\\d+");
+    if (!reTemplate.match(strRemappedScanCodes).hasMatch())
+        strRemappedScanCodes.clear();
+    /* Return remapped scan codes: */
+    return strRemappedScanCodes;
+}
+
+QString UIExtraDataManager::proxySettings()
+{
+    return extraDataString(GUI_ProxySettings);
+}
+
+void UIExtraDataManager::setProxySettings(const QString &strSettings)
+{
+    setExtraDataString(GUI_ProxySettings, strSettings);
 }
 
 QString UIExtraDataManager::recentFolderForHardDrives()
@@ -2517,6 +2682,80 @@ void UIExtraDataManager::setSelectorWindowToolBarVisible(bool fVisible)
     setExtraDataString(GUI_Toolbar, toFeatureRestricted(!fVisible));
 }
 
+bool UIExtraDataManager::selectorWindowToolBarTextVisible()
+{
+    /* 'True' unless feature restricted: */
+    return !isFeatureRestricted(GUI_Toolbar_Text);
+}
+
+void UIExtraDataManager::setSelectorWindowToolBarTextVisible(bool fVisible)
+{
+    /* 'False' if feature restricted, null-string otherwise: */
+    setExtraDataString(GUI_Toolbar_Text, toFeatureRestricted(!fVisible));
+}
+
+QList<ToolTypeMachine> UIExtraDataManager::selectorWindowToolsOrderMachine()
+{
+    /* Prepare result: */
+    QList<ToolTypeMachine> aLoadedOrder;
+    /* Get machine tools order: */
+    foreach (const QString &strValue, extraDataStringList(GUI_Toolbar_MachineTools_Order))
+    {
+        const ToolTypeMachine enmValue = gpConverter->fromInternalString<ToolTypeMachine>(strValue);
+        if (!aLoadedOrder.contains(enmValue))
+            aLoadedOrder << enmValue;
+    }
+
+    /* If the list is empty => add 'Details' at least: */
+    if (aLoadedOrder.isEmpty())
+        aLoadedOrder << ToolTypeMachine_Details;
+
+    /* Return result: */
+    return aLoadedOrder;
+}
+
+void UIExtraDataManager::setSelectorWindowToolsOrderMachine(const QList<ToolTypeMachine> &aOrder)
+{
+    /* Parse passed list: */
+    QStringList aSavedOrder;
+    foreach (const ToolTypeMachine &enmToolType, aOrder)
+        aSavedOrder << gpConverter->toInternalString(enmToolType);
+
+    /* If the list is empty => add 'None' at least: */
+    if (aSavedOrder.isEmpty())
+        aSavedOrder << gpConverter->toInternalString(ToolTypeMachine_Invalid);
+
+    /* Re-cache corresponding extra-data: */
+    setExtraDataStringList(GUI_Toolbar_MachineTools_Order, aSavedOrder);
+}
+
+QList<ToolTypeGlobal> UIExtraDataManager::selectorWindowToolsOrderGlobal()
+{
+    /* Prepare result: */
+    QList<ToolTypeGlobal> aLoadedOrder;
+    /* Get global tools order: */
+    foreach (const QString &strValue, extraDataStringList(GUI_Toolbar_GlobalTools_Order))
+    {
+        const ToolTypeGlobal enmValue = gpConverter->fromInternalString<ToolTypeGlobal>(strValue);
+        if (enmValue != ToolTypeGlobal_Invalid && !aLoadedOrder.contains(enmValue))
+            aLoadedOrder << enmValue;
+    }
+
+    /* Return result: */
+    return aLoadedOrder;
+}
+
+void UIExtraDataManager::setSelectorWindowToolsOrderGlobal(const QList<ToolTypeGlobal> &aOrder)
+{
+    /* Parse passed list: */
+    QStringList aSavedOrder;
+    foreach (const ToolTypeGlobal &enmToolType, aOrder)
+        aSavedOrder << gpConverter->toInternalString(enmToolType);
+
+    /* Re-cache corresponding extra-data: */
+    setExtraDataStringList(GUI_Toolbar_GlobalTools_Order, aSavedOrder);
+}
+
 bool UIExtraDataManager::selectorWindowStatusBarVisible()
 {
     /* 'True' unless feature restricted: */
@@ -2609,6 +2848,42 @@ void UIExtraDataManager::setSelectorWindowPreviewUpdateInterval(PreviewUpdateInt
     setExtraDataString(GUI_PreviewUpdate, gpConverter->toInternalString(interval));
 }
 
+bool UIExtraDataManager::snapshotManagerDetailsExpanded()
+{
+    /* 'False' unless feature allowed: */
+    return isFeatureAllowed(GUI_SnapshotManager_Details_Expanded);
+}
+
+void UIExtraDataManager::setSnapshotManagerDetailsExpanded(bool fExpanded)
+{
+    /* 'True' if feature allowed, null-string otherwise: */
+    return setExtraDataString(GUI_SnapshotManager_Details_Expanded, toFeatureAllowed(fExpanded));
+}
+
+bool UIExtraDataManager::virtualMediaManagerDetailsExpanded()
+{
+    /* 'False' unless feature allowed: */
+    return isFeatureAllowed(GUI_VirtualMediaManager_Details_Expanded);
+}
+
+void UIExtraDataManager::setVirtualMediaManagerDetailsExpanded(bool fExpanded)
+{
+    /* 'True' if feature allowed, null-string otherwise: */
+    return setExtraDataString(GUI_VirtualMediaManager_Details_Expanded, toFeatureAllowed(fExpanded));
+}
+
+bool UIExtraDataManager::hostNetworkManagerDetailsExpanded()
+{
+    /* 'False' unless feature allowed: */
+    return isFeatureAllowed(GUI_HostNetworkManager_Details_Expanded);
+}
+
+void UIExtraDataManager::setHostNetworkManagerDetailsExpanded(bool fExpanded)
+{
+    /* 'True' if feature allowed, null-string otherwise: */
+    return setExtraDataString(GUI_HostNetworkManager_Details_Expanded, toFeatureAllowed(fExpanded));
+}
+
 WizardMode UIExtraDataManager::modeForWizardType(WizardType type)
 {
     /* Some wizard use only 'basic' mode: */
@@ -2673,12 +2948,12 @@ void UIExtraDataManager::setMachineFirstTimeStarted(bool fFirstTimeStarted, cons
     setExtraDataString(GUI_FirstRun, toFeatureAllowed(fFirstTimeStarted), strID);
 }
 
-#ifndef VBOX_WS_MAC
 QStringList UIExtraDataManager::machineWindowIconNames(const QString &strID)
 {
     return extraDataStringList(GUI_MachineWindowIcons, strID);
 }
 
+#ifndef VBOX_WS_MAC
 QString UIExtraDataManager::machineWindowNamePostfix(const QString &strID)
 {
     return extraDataString(GUI_MachineWindowNamePostfix, strID);
@@ -3544,6 +3819,38 @@ QList<IndicatorType> UIExtraDataManager::statusBarIndicatorOrder(const QString &
         if (value != IndicatorType_Invalid && !result.contains(value))
             result << value;
     }
+
+    /* We should update the list with missing indicators: */
+    for (int i = (int)IndicatorType_Invalid; i < (int)IndicatorType_Max; ++i)
+    {
+        /* Skip the IndicatorType_Invalid (we used it as start of this loop): */
+        if (i == (int)IndicatorType_Invalid)
+            continue;
+        /* Skip the IndicatorType_KeyboardExtension (special handling): */
+        if (i == (int)IndicatorType_KeyboardExtension)
+            continue;
+
+        /* Get the current one: */
+        const IndicatorType enmCurrent = (IndicatorType)i;
+
+        /* Skip the current one if it's present: */
+        if (result.contains(enmCurrent))
+            continue;
+
+        /* Let's find the first of those which stays before it and is not missing: */
+        IndicatorType enmPrevious = (IndicatorType)(enmCurrent - 1);
+        while (enmPrevious != IndicatorType_Invalid && !result.contains(enmPrevious))
+            enmPrevious = (IndicatorType)(enmPrevious - 1);
+
+        /* Calculate position to insert missing one: */
+        const int iInsertPosition = enmPrevious != IndicatorType_Invalid
+                                  ? result.indexOf(enmPrevious) + 1
+                                  : 0;
+
+        /* Finally insert missing indicator at required position: */
+        result.insert(iInsertPosition, enmCurrent);
+    }
+
     /* Return result: */
     return result;
 }
@@ -4005,7 +4312,7 @@ void UIExtraDataManager::sltExtraDataChange(QString strMachineID, QString strKey
         if (strKey.startsWith("GUI/"))
         {
             /* Language changed? */
-            if (strKey == GUI_LanguageId)
+            if (strKey == GUI_LanguageID)
                 emit sigLanguageChange(extraDataString(strKey));
             /* Selector UI shortcut changed? */
             else if (strKey == GUI_Input_SelectorShortcuts)
@@ -4013,6 +4320,9 @@ void UIExtraDataManager::sltExtraDataChange(QString strMachineID, QString strKey
             /* Runtime UI shortcut changed? */
             else if (strKey == GUI_Input_MachineShortcuts)
                 emit sigRuntimeUIShortcutChange();
+            /* Runtime UI host-key combintation changed? */
+            else if (strKey == GUI_Input_HostKeyCombination)
+                emit sigRuntimeUIHostKeyCombinationChange();
         }
     }
     /* Machine extra-data 'change' event: */
@@ -4107,8 +4417,8 @@ void UIExtraDataManager::prepareExtraDataEventHandler()
     AssertPtrReturnVoid(m_pHandler);
     {
         /* Create queued (async) connections for signals of event proxy object: */
-        connect(m_pHandler, SIGNAL(sigExtraDataChange(QString, QString, QString)),
-                this, SLOT(sltExtraDataChange(QString, QString, QString)),
+        connect(m_pHandler, &UIExtraDataEventHandler::sigExtraDataChange,
+                this, &UIExtraDataManager::sltExtraDataChange,
                 Qt::QueuedConnection);
     }
 }
@@ -4146,10 +4456,10 @@ void UIExtraDataManager::open(QWidget *pCenterWidget)
         /* Create window: */
         m_pWindow = new UIExtraDataManagerWindow;
         /* Configure window connections: */
-        connect(this, SIGNAL(sigExtraDataMapAcknowledging(QString)),
-                m_pWindow, SLOT(sltExtraDataMapAcknowledging(QString)));
-        connect(this, SIGNAL(sigExtraDataChange(QString, QString, QString)),
-                m_pWindow, SLOT(sltExtraDataChange(QString, QString, QString)));
+        connect(this, &UIExtraDataManager::sigExtraDataMapAcknowledging,
+                m_pWindow.data(), &UIExtraDataManagerWindow::sltExtraDataMapAcknowledging);
+        connect(this, &UIExtraDataManager::sigExtraDataChange,
+                m_pWindow.data(), &UIExtraDataManagerWindow::sltExtraDataChange);
     }
     /* Show and raise window: */
     m_pWindow->showAndRaise(pCenterWidget);
@@ -4218,6 +4528,11 @@ bool UIExtraDataManager::isFeatureRestricted(const QString &strKey, const QStrin
            || strValue.compare("no", Qt::CaseInsensitive) == 0
            || strValue.compare("off", Qt::CaseInsensitive) == 0
            || strValue == "0";
+}
+
+QString UIExtraDataManager::toFeatureState(bool fState)
+{
+    return fState ? QString("true") : QString("false");
 }
 
 QString UIExtraDataManager::toFeatureAllowed(bool fAllowed)

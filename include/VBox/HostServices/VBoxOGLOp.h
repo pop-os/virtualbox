@@ -4,7 +4,7 @@
 
 /*
  *
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +26,8 @@
 
 #ifndef ___VBox_HostService_VBoxOGLOp_h
 #define ___VBox_HostService_VBoxOGLOp_h
+
+#include <iprt/types.h>
 
 #ifdef VBOX_OGL_GUEST_SIDE
 /************************************************************************************************************
@@ -516,7 +518,7 @@
         VBOX_OGL_GEN_OP9(Function, a, b, c, d, e, f, g, h, i);                               \
     }
 
-#elif VBOX_OGL_HOST_SIDE
+#elif defined(VBOX_OGL_HOST_SIDE)
 
 /************************************************************************************************************
  * Host side macro's for generating OpenGL function calls from the packed commands in the command buffer.   *

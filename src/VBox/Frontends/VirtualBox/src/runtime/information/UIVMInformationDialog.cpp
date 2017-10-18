@@ -60,26 +60,27 @@
 
 #include "CVRDEServerInfo.h"
 
+
 /* static */
-UIVMInformationDialog* UIVMInformationDialog::m_spInstance = 0;
+UIVMInformationDialog* UIVMInformationDialog::s_pInstance = 0;
 
 void UIVMInformationDialog::invoke(UIMachineWindow *pMachineWindow)
 {
     /* Make sure dialog instance exists: */
-    if (!m_spInstance)
+    if (!s_pInstance)
     {
         /* Create new dialog instance if it doesn't exists yet: */
         new UIVMInformationDialog(pMachineWindow);
     }
 
     /* Show dialog: */
-    m_spInstance->show();
+    s_pInstance->show();
     /* Raise it: */
-    m_spInstance->raise();
+    s_pInstance->raise();
     /* De-miniaturize if necessary: */
-    m_spInstance->setWindowState(m_spInstance->windowState() & ~Qt::WindowMinimized);
+    s_pInstance->setWindowState(s_pInstance->windowState() & ~Qt::WindowMinimized);
     /* And activate finally: */
-    m_spInstance->activateWindow();
+    s_pInstance->activateWindow();
 }
 
 UIVMInformationDialog::UIVMInformationDialog(UIMachineWindow *pMachineWindow)
@@ -88,7 +89,7 @@ UIVMInformationDialog::UIVMInformationDialog(UIMachineWindow *pMachineWindow)
     , m_pMachineWindow(pMachineWindow)
 {
     /* Initialize instance: */
-    m_spInstance = this;
+    s_pInstance = this;
 
     /* Prepare: */
     prepare();
@@ -100,7 +101,7 @@ UIVMInformationDialog::~UIVMInformationDialog()
     cleanup();
 
     /* Deinitialize instance: */
-    m_spInstance = 0;
+    s_pInstance = 0;
 }
 
 bool UIVMInformationDialog::shouldBeMaximized() const
@@ -110,11 +111,8 @@ bool UIVMInformationDialog::shouldBeMaximized() const
 
 void UIVMInformationDialog::retranslateUi()
 {
-    CMachine machine = gpMachine->uisession()->machine();
-    AssertReturnVoid(!machine.isNull());
-
     /* Setup dialog title: */
-    setWindowTitle(tr("%1 - Session Information").arg(machine.GetName()));
+    setWindowTitle(tr("%1 - Session Information").arg(m_pMachineWindow->machine().GetName()));
 
     /* Translate tabs: */
     m_pTabWidget->setTabText(0, tr("Configuration &Details"));
@@ -124,12 +122,12 @@ void UIVMInformationDialog::retranslateUi()
 bool UIVMInformationDialog::event(QEvent *pEvent)
 {
     /* Pre-process through base-class: */
-    bool fResult = QIMainWindow::event(pEvent);
+    const bool fResult = QIMainWindow::event(pEvent);
 
     /* Process required events: */
     switch (pEvent->type())
     {
-        /* Handle every Resize and Move we keep track of the geometry. */
+        /* Handle Resize event to keep track of the geometry: */
         case QEvent::Resize:
         {
             if (isVisible() && (windowState() & (Qt::WindowMaximized | Qt::WindowMinimized | Qt::WindowFullScreen)) == 0)
@@ -139,6 +137,7 @@ bool UIVMInformationDialog::event(QEvent *pEvent)
             }
             break;
         }
+        /* Handle Move event to keep track of the geometry: */
         case QEvent::Move:
         {
             if (isVisible() && (windowState() & (Qt::WindowMaximized | Qt::WindowMinimized | Qt::WindowFullScreen)) == 0)
@@ -182,18 +181,15 @@ void UIVMInformationDialog::prepareThis()
     connect(m_pMachineWindow, SIGNAL(destroyed(QObject*)), this, SLOT(suicide()));
 
 #ifdef VBOX_WS_MAC
-    /* No window-icon on Mac OX X, because it acts as proxy icon which isn't necessary here. */
+    /* No window-icon on Mac OS X, because it acts as proxy icon which isn't necessary here. */
     setWindowIcon(QIcon());
-#else /* !VBOX_WS_MAC */
-    /* Assign window-icon(s: */
+#else
+    /* Assign window-icons: */
     setWindowIcon(UIIconPool::iconSetFull(":/session_info_32px.png", ":/session_info_16px.png"));
-#endif /* !VBOX_WS_MAC */
+#endif
 
     /* Prepare central-widget: */
     prepareCentralWidget();
-
-    /* Configure handlers: */
-    connect(m_pTabWidget, SIGNAL(currentChanged(int)), this, SLOT(sltHandlePageChanged(int)));
 
     /* Retranslate: */
     retranslateUi();
@@ -219,10 +215,6 @@ void UIVMInformationDialog::prepareCentralWidget()
 
 void UIVMInformationDialog::prepareTabWidget()
 {
-    /* List of VM items: */
-    QList<UIVMItem*> items;
-    items << new UIVMItem(gpMachine->uisession()->machine());
-
     /* Create tab-widget: */
     m_pTabWidget = new QITabWidget;
     AssertPtrReturnVoid(m_pTabWidget);
@@ -231,28 +223,32 @@ void UIVMInformationDialog::prepareTabWidget()
         m_pTabWidget->setTabIcon(0, UIIconPool::iconSet(":/session_info_details_16px.png"));
         m_pTabWidget->setTabIcon(1, UIIconPool::iconSet(":/session_info_runtime_16px.png"));
 
-        /* Add tab-widget into main-layout: */
-        centralWidget()->layout()->addWidget(m_pTabWidget);
-
-        /* Create tabs: */
-        /* Create Configuration details tab: */
-        UIInformationConfiguration *pInformationConfigurationWidget = new UIInformationConfiguration(this, gpMachine->uisession()->machine(), gpMachine->uisession()->console());
+        /* Create Configuration Details tab: */
+        UIInformationConfiguration *pInformationConfigurationWidget =
+            new UIInformationConfiguration(this, m_pMachineWindow->machine(), m_pMachineWindow->console());
         AssertPtrReturnVoid(pInformationConfigurationWidget);
         {
-            //pInformationWidget->setItems(items);
             m_tabs.insert(0, pInformationConfigurationWidget);
             m_pTabWidget->addTab(m_tabs.value(0), QString());
         }
 
-        /* Create Runtime information tab: */
-        UIInformationRuntime *pInformationRuntimeWidget = new UIInformationRuntime(this, gpMachine->uisession()->machine(), gpMachine->uisession()->console());
+        /* Create Runtime Information tab: */
+        UIInformationRuntime *pInformationRuntimeWidget =
+            new UIInformationRuntime(this, m_pMachineWindow->machine(), m_pMachineWindow->console());
         AssertPtrReturnVoid(pInformationRuntimeWidget);
         {
             m_tabs.insert(1, pInformationRuntimeWidget);
             m_pTabWidget->addTab(m_tabs.value(1), QString());
         }
-        /* Set runtime information tab as default: */
+
+        /* Set Runtime Information tab as default: */
         m_pTabWidget->setCurrentIndex(1);
+
+        /* Assign tab-widget page change handler: */
+        connect(m_pTabWidget, SIGNAL(currentChanged(int)), this, SLOT(sltHandlePageChanged(int)));
+
+        /* Add tab-widget into main-layout: */
+        centralWidget()->layout()->addWidget(m_pTabWidget);
     }
 }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2016 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -574,7 +574,7 @@ int main(int argc, char **argv)
                 break;
 
             case 'V':
-                RTPrintf("$Revision: 109302 $\n");
+                RTPrintf("$Revision: 118412 $\n");
                 return 0;
 
             default:
@@ -672,6 +672,7 @@ int main(int argc, char **argv)
              * Disassemble it.
              */
             rc = MyDisasmBlock(argv0, enmCpuMode, uAddress, uHighlightAddr, (uint8_t *)pvFile, cbFile, enmStyle, fListing, enmUndefOp);
+            RTFileReadAllFree(pvFile, cbFile);
             if (RT_FAILURE(rc))
                 break;
         }

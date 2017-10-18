@@ -8,7 +8,7 @@ Preparations:
 
 2. Install the win32 extension for python.
 
-3. Append C:\Python27 to the system PATH.
+3. Append C:\Python27 to the system PATH (tail).
 
 4. Disable UAC.
 
@@ -17,6 +17,18 @@ Preparations:
 
 5. Disable Automatic updates. (No rebooting during tests, thank you!)
 
+   Ideally we would prevent windows from even checking for updates to avoid
+   influencing benchmarks and such, however the microsofties aren't keen on it.
+   So, disable it as much as possible.
+
+   W10: gpedit.msc -> "Administrative Templates" -> "Windows Components"
+   -> "Windows Update":
+     - "Configure Automatic Updates": Enable and select "2 - Notify for
+       download and notiy for install".
+     - "Allow Automatic Updates immediate installation": Disable.
+     - "No auto-restart with logged on users for scheduled automatic
+       updates installations": Enabled.
+
 6. Go to the group policy editor (gpedit.msc) and change "Computer Configuration"
    -> "Windows Settings" -> "Security Settings" -> "Local Policies"
    -> "Security Options" -> "Network security: LAN Manager authentication level"
@@ -24,7 +36,7 @@ Preparations:
    passing the password as an argument to "NET USE" (don't ask why!).
 
 6b. While in the group policy editor, make sure that  "Computer Configuration"
-   -> "Windows Settings" -> "Security Settings" -> "Local Policies"
+   -> "Windows Settings" -> "Security Settings" [ -> "Local Policies" ]
    -> "Account Policy" -> "Password must meet complexity requirements" is
    disabled so the vbox account can be created later one.
 
@@ -68,6 +80,8 @@ Preparations:
         DumpType        [dword] = 1  (minidump)
         CustomDumpFlags [dword] = 0
 
+   mkdir C:\CrashDumps
+
    See also http://msdn.microsoft.com/en-us/library/windows/desktop/bb787181%28v=vs.85%29.aspx
 
 7c. Enable verbose driver installation logging (C:\Windows\setupapi.dev.log):
@@ -75,6 +89,8 @@ Preparations:
    Create the following value under the key
    HKEY_LOCAL_MACHINE\Software\Microsoft\Windows\CurrentVersion\Setup\
         LogLevel        [dword] = 0xFF (255)
+
+   If it already exists (typical on W10), just OR 0xff into the existing value.
 
 8. Install firefox or chrome, download the latest testboxscript*.zip from
    the build box.
@@ -90,27 +106,47 @@ Preparations:
         for /L %i in (6000,1,6100) do netsh firewall add portopening TCP %i "VRDP %i"
         for /L %i in (5000,1,5032) do netsh firewall add portopening TCP %i "NetPerf %i TCP"
         for /L %i in (5000,1,5032) do netsh firewall add portopening UDP %i "NetPerf %i UDP"
+        netsh firewall set icmpsetting type=ALL
 
-20. Setup time server to "wei01-time.de.oracle.com" and update date/time.
+11b. Set a hostname which the test script can resolve to the host's IP address.
 
-21. Activate windows. "https://linserv.de.oracle.com/vbox/wiki/MSDN Volume License Keys"
+12. Setup time server to "wei01-time.de.oracle.com" and update date/time.
 
-22. Disable loading CONIME. Set "HKEY_CURRENT_USER\Console\LoadConIme" to 0.
+13. Activate windows. "https://linserv.de.oracle.com/vbox/wiki/MSDN Volume License Keys"
 
-23. Windows 2012 R2: If you experience mouse pointer problems connecting with rdesktop,
+14. Windows 2012 R2: If you experience mouse pointer problems connecting with rdesktop,
     open the mouse pointer settings and disable mouse pointer shadow.
 
-The install:
+15. Enable RDP access by opening "System Properties" and selecting "Allow
+    remote connections to this computer" in the "Remote" tab.  Ensure that
+    "Allow connections only from computers running Remote Desktop with Network
+    Level Authentication" is not checked or rdesktop can't access it.
 
-23. Unzip (/ copy) the content of the testboxscript-*.zip to C:\testboxscript.
+    W10: Make old rdesktop connect:
+         \HKLM\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp\SecurityLayer
+         Change DWORD Hex '2' -> '1'
 
-24. Copy C:\testboxscript\testboxscript\win\autoexec-testbox.cmd to C:\.
+15b. While you're in "System Properties", in the "Hardware" tab, button
+    "Driver Signing" tell it to ignore logo testing requirements.
 
-25. Create a shortcut to C:\autoexec-testbox.cmd and drag it into
+    W10: Doesn't exist any more.
+
+The install (as user vbox):
+
+16. Disable loading CONIME. Set "HKEY_CURRENT_USER\Console\LoadConIme" to 0.
+
+17. Unzip (/ copy) the content of the testboxscript-*.zip to C:\testboxscript.
+
+18. Copy C:\testboxscript\testboxscript\win\autoexec-testbox.cmd to C:\.
+
+19. Create a shortcut to C:\autoexec-testbox.cmd and drag it into
     "Start" -> "All Programs" -> "Startup".
 
-26. If this is an Intel box and the CPU is capable of Nested Paging, edit C:\autoexec-testbox.cmd
+    W10: Find startup folder by hitting Win+R and entering "shell:startup".
+
+20. If this is an Intel box and the CPU is capable of Nested Paging, edit C:\autoexec-testbox.cmd
     and append '--nested-paging'
+
 
 That's currently it.
 

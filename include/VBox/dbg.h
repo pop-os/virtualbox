@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -413,7 +413,8 @@ typedef struct DBGCCMDHLP
      *
      * @returns VBox status.
      * @param   pCmdHlp     Pointer to the command callback structure.
-     * @param   pcb         Where to store the number of bytes written.
+     * @param   pcbWritten  Where to store the number of bytes written.
+     *                      This is optional.
      * @param   pszFormat   The format string.  This may use all IPRT extensions as
      *                      well as the debugger ones.
      * @param   ...         Arguments specified in the format string.
@@ -426,7 +427,8 @@ typedef struct DBGCCMDHLP
      *
      * @returns VBox status.
      * @param   pCmdHlp     Pointer to the command callback structure.
-     * @param   pcb         Where to store the number of bytes written.
+     * @param   pcbWritten  Where to store the number of bytes written.
+     *                      This is optional. 
      * @param   pszFormat   The format string.  This may use all IPRT extensions as
      *                      well as the debugger ones.
      * @param   args        Arguments specified in the format string.
@@ -479,7 +481,6 @@ typedef struct DBGCCMDHLP
      * @returns VBox status code appropriate to return from a command.
      * @param   pCmdHlp     Pointer to the command callback structure.
      * @param   rc          The VBox status code.
-     * @param   pcb         Where to store the number of bytes written.
      * @param   pszFormat   Format string for additional messages. Can be NULL.
      * @param   args        Format arguments, optional.
      */
@@ -685,7 +686,7 @@ typedef struct DBGCCMDHLP
 #define DBGCCMDHLP_MAGIC    UINT32_C(18211111)
 
 
-#ifdef IN_RING3
+#if defined(IN_RING3) || defined(IN_SLICKEDIT)
 
 /**
  * Command helper for writing formatted text to the debug console.

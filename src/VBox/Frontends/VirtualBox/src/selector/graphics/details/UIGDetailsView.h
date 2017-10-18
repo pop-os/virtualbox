@@ -20,9 +20,13 @@
 
 /* GUI includes: */
 #include "QIGraphicsView.h"
+#include "QIWithRetranslateUI.h"
+
+/* Forward declarations: */
+class UIGDetails;
 
 /* Graphics details-view: */
-class UIGDetailsView : public QIGraphicsView
+class UIGDetailsView : public QIWithRetranslateUI<QIGraphicsView>
 {
     Q_OBJECT;
 
@@ -33,8 +37,12 @@ signals:
 
 public:
 
-    /* Constructor: */
-    UIGDetailsView(QWidget *pParent);
+    /** Constructs a details-view passing @a pParent to the base-class.
+      * @param  pParent  Brings the details container to embed into. */
+    UIGDetailsView(UIGDetails *pParent);
+
+    /** Returns the details reference. */
+    UIGDetails *details() const { return m_pDetails; }
 
 private slots:
 
@@ -44,6 +52,9 @@ private slots:
 
 private:
 
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */;
+
     /* Helper: Prepare stuff: */
     void preparePalette();
 
@@ -52,6 +63,9 @@ private:
 
     /* Helper: Update stuff: */
     void updateSceneRect();
+
+    /** Holds the details reference. */
+    UIGDetails *m_pDetails;
 
     /* Variables: */
     int m_iMinimumWidthHint;

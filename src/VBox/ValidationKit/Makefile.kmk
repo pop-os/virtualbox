@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2016 Oracle Corporation
+# Copyright (C) 2006-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -66,6 +66,7 @@ ValidationKit-testdriver_MODE = a+r,u+w
 ValidationKit-testdriver_SOURCES := \
 	$(PATH_SUB_CURRENT)/testdriver/__init__.py \
 	$(PATH_SUB_CURRENT)/testdriver/base.py \
+	$(PATH_SUB_CURRENT)/testdriver/btresolver.py \
 	$(PATH_SUB_CURRENT)/testdriver/reporter.py \
 	$(PATH_SUB_CURRENT)/testdriver/tst-txsclient.py \
 	$(PATH_SUB_CURRENT)/testdriver/txsclient.py \
@@ -117,7 +118,7 @@ ifndef VBOX_WITHOUT_VALIDATIONKIT_ZIP
 	$(foreach os, darwin freebsd linux os2 solaris win,$(foreach arch, x86 amd64 \
 	,$(if-expr defined(VBOX_WITH_VALIDATIONKIT_PACKING.$(os).$(arch))\
 		,$(NLTAB)$(QUIET)$(REDIRECT) -C $(PATH_OUT_BASE)/$(os).$(arch)/$(KBUILD_TYPE)/ \
-			-- $(VBOX_ZIP) -r9 $@ $(INST_TESTBOXSCRIPT) -x '*.pyc',)))
+			-- $(VBOX_ZIP) -r9X $@ $(INST_TESTBOXSCRIPT) -x '*.pyc',)))
 
 endif # !VBOX_WITHOUT_VALIDATIONKIT_ZIP
 
@@ -195,10 +196,12 @@ endif
 ifdef VBOX_WITH_VALIDATIONKIT_PACKING.linux.x86
  VBOX_VALIDATIONKIT_FILESPEC += $(abspath $(VBOX_PATH_VALIDATIONKIT.linux.x86)/../vboxtxs)
  VBOX_VALIDATIONKIT_FILESPEC += $(abspath $(VBOX_PATH_VALIDATIONKIT.linux.x86)/../vboxtxs-nat)
+ VBOX_VALIDATIONKIT_FILESPEC += $(abspath $(VBOX_PATH_VALIDATIONKIT.linux.x86)/../vboxtxs.service)
 
 else ifdef VBOX_WITH_VALIDATIONKIT_PACKING.linux.amd64
  VBOX_VALIDATIONKIT_FILESPEC += $(abspath $(VBOX_PATH_VALIDATIONKIT.linux.amd64)/../vboxtxs)
  VBOX_VALIDATIONKIT_FILESPEC += $(abspath $(VBOX_PATH_VALIDATIONKIT.linux.amd64)/../vboxtxs-nat)
+ VBOX_VALIDATIONKIT_FILESPEC += $(abspath $(VBOX_PATH_VALIDATIONKIT.linux.amd64)/../vboxtxs.service)
 endif
 
 # OS specific files - OS/2
@@ -229,11 +232,19 @@ ifdef VBOX_WITH_VALIDATIONKIT_PACKING.win.x86
  VBOX_VALIDATIONKIT_FILESPEC += \
  	$(VBOX_PATH_VALIDATIONKIT.win.x86)/ntSetFreq.exe \
  	$(VBOX_PATH_VALIDATIONKIT.win.x86)/ntTimeSources.exe
+    ifdef VBOX_WITH_AUDIO_VALIDATIONKIT
+     	VBOX_VALIDATIONKIT_FILESPEC += \
+     	$(VBOX_PATH_VALIDATIONKIT.win.x86)/ntPlayToneWaveX.exe
+    endif
 endif
 ifdef VBOX_WITH_VALIDATIONKIT_PACKING.win.amd64
  VBOX_VALIDATIONKIT_FILESPEC += \
  	$(VBOX_PATH_VALIDATIONKIT.win.amd64)/ntSetFreq.exe \
  	$(VBOX_PATH_VALIDATIONKIT.win.amd64)/ntTimeSources.exe
+    ifdef VBOX_WITH_AUDIO_VALIDATIONKIT
+     	VBOX_VALIDATIONKIT_FILESPEC += \
+     	$(VBOX_PATH_VALIDATIONKIT.win.amd64)/ntPlayToneWaveX.exe
+    endif
 endif
 ifdef VBOX_WITH_VALIDATIONKIT_PACKING.win.x86
  VBOX_VALIDATIONKIT_FILESPEC += $(abspath $(VBOX_PATH_VALIDATIONKIT.win.x86)/../vboxtxs.cmd)
@@ -254,18 +265,29 @@ endif
 $(VBOX_PATH_VALIDATIONKIT)/VBoxValidationKit.iso: \
 		$(filter-out %=deleteme=, $(subst =,=deleteme= , $(VBOX_VALIDATIONKIT_FILESPEC))) \
 		$(VBOX_SVN_REV_KMK) \
-		$(VBOX_PATH_VALIDATIONKIT_SRC)/Makefile.kmk
-	$(call MSG_TOOL,mkisofs,,$@)
+		$(VBOX_PATH_VALIDATIONKIT_SRC)/Makefile.kmk \
+               | $(if-expr defined(VBOX_USE_RTISOMAKER),$(VBOX_RTISOMAKER),)
+	$(call MSG_TOOL,RTIsoMaker,,$@)
 	$(QUIET)$(MKDIR) -p $(@D)
 ifneq ($(KBUILD_TARGET),os2)
-	$(ECHO) VBOX_VALIDATIONKIT_FILESPEC $(VBOX_VALIDATIONKIT_FILESPEC)
+	$(QUIET)$(ECHO) VBOX_VALIDATIONKIT_FILESPEC $(VBOX_VALIDATIONKIT_FILESPEC)
 endif
-# use iso-level 3 which is the most ISO conforming level with least restrictions; iso-level 4 maps to iso-level 2
-# with some extra restrictions removal (not conforming to ISO9660) which some platforms like Solaris 10 does not like.
-	$(VBOX_MKISOFS) -rational-rock -r -joliet -iso-level 3 \
-		-volid "VBOXVALKIT_$(VBOX_VERSION_STRING_RAW)_$(VBOX_SVN_REV)" -l -graft-points -o $@ \
+	$(VBOX_RTISOMAKER) \
+		--output $@ \
+		--iso-level 3 \
+		--rock-ridge \
+		--joliet \
+		--rational-attribs \
+               --random-order-verification 2048 \
 		$(foreach spec,$(VBOX_VALIDATIONKIT_FILESPEC) \
-			,$(if $(findstring =,$(spec)),$(spec), $(lastword $(subst /$(INST_VALIDATIONKIT), ,$(spec))=$(spec))))
+			,$(if $(findstring =,$(spec)), $(spec), /$(lastword $(subst /$(INST_VALIDATIONKIT), ,$(spec))=$(spec))) ) \
+		$(foreach spec,$(filter-out %.txt %.dll %.xml %.reg %.img, $(VBOX_VALIDATIONKIT_FILESPEC)) \
+			,--chmod=a+x:/$(lastword $(if $(findstring =,$(spec)), \
+				        	   $(subst =, $(SP), $(spec)), \
+						   $(subst /$(INST_VALIDATIONKIT), ,$(spec))))) \
+		--volume-id "VBOXVALK_$(VBOX_SVN_REV)_$(VBOX_VERSION_STRING_RAW)" \
+               --name-setup joliet \
+		--volume-id "VBoxValK $(VBOX_SVN_REV)"
 
 # Alias for creating the iso.
 .PHONY: validationkit-iso

@@ -19,6 +19,9 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
+#define LOG_GROUP LOG_GROUP_GUEST_CONTROL //LOG_GROUP_MAIN_GUESTSESSION
+#include "LoggingNew.h"
+
 #include "GuestImpl.h"
 #ifndef VBOX_WITH_GUEST_CONTROL
 # error "VBOX_WITH_GUEST_CONTROL must defined in this file"
@@ -43,12 +46,6 @@
 #include <VBox/com/array.h>
 #include <VBox/com/listeners.h>
 #include <VBox/version.h>
-
-#ifdef LOG_GROUP
- #undef LOG_GROUP
-#endif
-#define LOG_GROUP LOG_GROUP_GUEST_CONTROL
-#include <VBox/log.h>
 
 
 /**
@@ -1951,7 +1948,7 @@ int GuestSession::i_processCreateExInternal(GuestProcessStartupInfo &procInfo, C
     if (procInfo.mTimeoutMS == 0)
         procInfo.mTimeoutMS = UINT32_MAX;
 
-    /** @tood Implement process priority + affinity. */
+    /** @todo Implement process priority + affinity. */
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -3079,7 +3076,7 @@ HRESULT GuestSession::fileOpenEx(const com::Utf8Str &aPath, FileAccessMode_T aAc
         case (FileAccessMode_T)FileAccessMode_WriteOnly: openInfo.mpszAccessMode = "w"; break;
         case (FileAccessMode_T)FileAccessMode_ReadWrite: openInfo.mpszAccessMode = "r+"; break;
         case (FileAccessMode_T)FileAccessMode_AppendOnly:
-            /* fall thru */
+            RT_FALL_THRU();
         case (FileAccessMode_T)FileAccessMode_AppendRead:
             return setError(E_NOTIMPL, tr("Append access modes are not yet implemented"));
         default:

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,74 +15,82 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIGlobalSettingsLanguage_h__
-#define __UIGlobalSettingsLanguage_h__
+#ifndef ___UIGlobalSettingsLanguage_h___
+#define ___UIGlobalSettingsLanguage_h___
 
 /* GUI includes: */
 #include "UISettingsPage.h"
 #include "UIGlobalSettingsLanguage.gen.h"
 
-/* Global settings / Language page / Cache: */
-struct UISettingsCacheGlobalLanguage
-{
-    QString m_strLanguageId;
-};
+/* Forward declartions: */
+struct UIDataSettingsGlobalLanguage;
+typedef UISettingsCache<UIDataSettingsGlobalLanguage> UISettingsCacheGlobalLanguage;
 
-/* Global settings / Language page: */
-class UIGlobalSettingsLanguage : public UISettingsPageGlobal, public Ui::UIGlobalSettingsLanguage
+
+/** Global settings: Language page. */
+class UIGlobalSettingsLanguage : public UISettingsPageGlobal,
+                                 public Ui::UIGlobalSettingsLanguage
 {
     Q_OBJECT;
 
 public:
 
-    /* Constructor: */
+    /** Constructs Language settings page. */
     UIGlobalSettingsLanguage();
+    /** Destructs Language settings page. */
+    ~UIGlobalSettingsLanguage();
 
 protected:
 
-    /* Load data to cache from corresponding external object(s),
-     * this task COULD be performed in other than GUI thread: */
-    void loadToCacheFrom(QVariant &data);
-    /* Load data to corresponding widgets from cache,
-     * this task SHOULD be performed in GUI thread only: */
-    void getFromCache();
+    /** Loads data into the cache from corresponding external object(s),
+      * this task COULD be performed in other than the GUI thread. */
+    virtual void loadToCacheFrom(QVariant &data) /* override */;
+    /** Loads data into corresponding widgets from the cache,
+      * this task SHOULD be performed in the GUI thread only. */
+    virtual void getFromCache() /* override */;
 
-    /* Save data from corresponding widgets to cache,
-     * this task SHOULD be performed in GUI thread only: */
-    void putToCache();
-    /* Save data from cache to corresponding external object(s),
-     * this task COULD be performed in other than GUI thread: */
-    void saveFromCacheTo(QVariant &data);
+    /** Saves data from corresponding widgets to the cache,
+      * this task SHOULD be performed in the GUI thread only. */
+    virtual void putToCache() /* override */;
+    /** Saves data from the cache to corresponding external object(s),
+      * this task COULD be performed in other than the GUI thread. */
+    virtual void saveFromCacheTo(QVariant &data) /* overrride */;
 
-    /* Helper: Navigation stuff: */
-    void setOrderAfter(QWidget *pWidget);
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */;
 
-    /* Helper: Translation stuff: */
-    void retranslateUi();
-
-    /* Handlers: Event stuff: */
-    void showEvent(QShowEvent *pEvent);
-    void polishEvent(QShowEvent *pEvent);
+    /** Handles show @a pEvent. */
+    virtual void showEvent(QShowEvent *pEvent) /* override */;
+    /** Performs final page polishing. */
+    virtual void polishEvent(QShowEvent *pEvent) /* override */;
 
 private slots:
 
-    /* Handler: List-painting stuff: */
-    void sltLanguageItemPainted(QTreeWidgetItem *pItem, QPainter *pPainter);
+    /** Handles @a pItem painting with passed @a pPainter. */
+    void sltHandleItemPainting(QTreeWidgetItem *pItem, QPainter *pPainter);
 
-    /* Handler: Current-changed stuff: */
-    void sltCurrentLanguageChanged(QTreeWidgetItem *pItem);
+    /** Handles @a pCurrentItem change. */
+    void sltHandleCurrentItemChange(QTreeWidgetItem *pCurrentItem);
 
 private:
 
-    /* Helper: List-loading stuff: */
-    void reload(const QString &strLangId);
+    /** Prepares all. */
+    void prepare();
+    /** Cleanups all. */
+    void cleanup();
 
-    /* Variables: */
+    /** Reloads language list, choosing item with @a strLanguageId as current. */
+    void reloadLanguageTree(const QString &strLanguageId);
+
+    /** Saves existing language data from the cache. */
+    bool saveLanguageData();
+
+    /** Holds whether the page is polished. */
     bool m_fPolished;
-    bool m_fIsLanguageChanged;
 
-    /* Cache: */
-    UISettingsCacheGlobalLanguage m_cache;
+    /** Holds the page data cache instance. */
+    UISettingsCacheGlobalLanguage *m_pCache;
 };
 
-#endif // __UIGlobalSettingsLanguage_h__
+#endif /* !___UIGlobalSettingsLanguage_h___ */
+

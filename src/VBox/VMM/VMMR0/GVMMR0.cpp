@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2016 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -358,9 +358,8 @@ static PGVMM g_pGVMM = NULL;
 *********************************************************************************************************************************/
 static void gvmmR0InitPerVMData(PGVM pGVM);
 static DECLCALLBACK(void) gvmmR0HandleObjDestructor(void *pvObj, void *pvGVMM, void *pvHandle);
-static int gvmmR0ByVM(PVM pVM, PGVM *ppGVM, PGVMM *ppGVMM, bool fTakeUsedLock);
-static int gvmmR0ByVMAndEMT(PVM pVM, VMCPUID idCpu, PGVM *ppGVM, PGVMM *ppGVMM);
 static int gvmmR0ByGVMandVM(PGVM pGVM, PVM pVM, PGVMM *ppGVMM, bool fTakeUsedLock);
+static int gvmmR0ByGVMandVMandEMT(PGVM pGVM, PVM pVM, VMCPUID idCpu, PGVMM *ppGVMM);
 
 #ifdef GVMM_SCHED_WITH_PPT
 static DECLCALLBACK(void) gvmmR0SchedPeriodicPreemptionTimerCallback(PRTTIMER pTimer, void *pvUser, uint64_t iTick);
@@ -1068,36 +1067,28 @@ static void gvmmR0InitPerVMData(PGVM pGVM)
  * Does the VM initialization.
  *
  * @returns VBox status code.
- * @param   pVM         The cross context VM structure.
+ * @param   pGVM        The global (ring-0) VM structure.
  */
-GVMMR0DECL(int) GVMMR0InitVM(PVM pVM)
+GVMMR0DECL(int) GVMMR0InitVM(PGVM pGVM)
 {
-    LogFlow(("GVMMR0InitVM: pVM=%p\n", pVM));
+    LogFlow(("GVMMR0InitVM: pGVM=%p\n", pGVM));
 
-    /*
-     * Validate the VM structure, state and handle.
-     */
-    PGVM pGVM;
-    PGVMM pGVMM;
-    int rc = gvmmR0ByVMAndEMT(pVM, 0 /* idCpu */, &pGVM, &pGVMM);
-    if (RT_SUCCESS(rc))
+    int rc = VERR_INTERNAL_ERROR_3;
+    if (   !pGVM->gvmm.s.fDoneVMMR0Init
+        && pGVM->aCpus[0].gvmm.s.HaltEventMulti == NIL_RTSEMEVENTMULTI)
     {
-        if (   !pGVM->gvmm.s.fDoneVMMR0Init
-            && pGVM->aCpus[0].gvmm.s.HaltEventMulti == NIL_RTSEMEVENTMULTI)
+        for (VMCPUID i = 0; i < pGVM->cCpus; i++)
         {
-            for (VMCPUID i = 0; i < pGVM->cCpus; i++)
+            rc = RTSemEventMultiCreate(&pGVM->aCpus[i].gvmm.s.HaltEventMulti);
+            if (RT_FAILURE(rc))
             {
-                rc = RTSemEventMultiCreate(&pGVM->aCpus[i].gvmm.s.HaltEventMulti);
-                if (RT_FAILURE(rc))
-                {
-                    pGVM->aCpus[i].gvmm.s.HaltEventMulti = NIL_RTSEMEVENTMULTI;
-                    break;
-                }
+                pGVM->aCpus[i].gvmm.s.HaltEventMulti = NIL_RTSEMEVENTMULTI;
+                break;
             }
         }
-        else
-            rc = VERR_WRONG_ORDER;
     }
+    else
+        rc = VERR_WRONG_ORDER;
 
     LogFlow(("GVMMR0InitVM: returns %Rrc\n", rc));
     return rc;
@@ -1108,17 +1099,11 @@ GVMMR0DECL(int) GVMMR0InitVM(PVM pVM)
  * Indicates that we're done with the ring-0 initialization
  * of the VM.
  *
- * @param   pVM         The cross context VM structure.
+ * @param   pGVM        The global (ring-0) VM structure.
  * @thread  EMT(0)
  */
-GVMMR0DECL(void) GVMMR0DoneInitVM(PVM pVM)
+GVMMR0DECL(void) GVMMR0DoneInitVM(PGVM pGVM)
 {
-    /* Validate the VM structure, state and handle. */
-    PGVM pGVM;
-    PGVMM pGVMM;
-    int rc = gvmmR0ByVMAndEMT(pVM, 0 /* idCpu */, &pGVM, &pGVMM);
-    AssertRCReturnVoid(rc);
-
     /* Set the indicator. */
     pGVM->gvmm.s.fDoneVMMR0Init = true;
 }
@@ -1128,21 +1113,13 @@ GVMMR0DECL(void) GVMMR0DoneInitVM(PVM pVM)
  * Indicates that we're doing the ring-0 termination of the VM.
  *
  * @returns true if termination hasn't been done already, false if it has.
- * @param   pVM         The cross context VM structure.
  * @param   pGVM        Pointer to the global VM structure. Optional.
- * @thread  EMT(0)
+ * @thread  EMT(0) or session cleanup thread.
  */
-GVMMR0DECL(bool) GVMMR0DoingTermVM(PVM pVM, PGVM pGVM)
+GVMMR0DECL(bool) GVMMR0DoingTermVM(PGVM pGVM)
 {
     /* Validate the VM structure, state and handle. */
-    AssertPtrNullReturn(pGVM, false);
-    AssertReturn(!pGVM || pGVM->u32Magic == GVM_MAGIC, false);
-    if (!pGVM)
-    {
-        PGVMM pGVMM;
-        int rc = gvmmR0ByVMAndEMT(pVM, 0 /* idCpu */, &pGVM, &pGVMM);
-        AssertRCReturn(rc, false);
-    }
+    AssertPtrReturn(pGVM, false);
 
     /* Set the indicator. */
     if (pGVM->gvmm.s.fDoneVMMR0Term)
@@ -1183,8 +1160,8 @@ GVMMR0DECL(int) GVMMR0DestroyVM(PGVM pGVM, PVM pVM)
                     VERR_WRONG_ORDER);
 
     uint32_t        hGVM = pGVM->hSelf;
-    AssertReturn(hGVM != NIL_GVM_HANDLE, VERR_INVALID_HANDLE);
-    AssertReturn(hGVM < RT_ELEMENTS(pGVMM->aHandles), VERR_INVALID_HANDLE);
+    AssertReturn(hGVM != NIL_GVM_HANDLE, VERR_INVALID_VM_HANDLE);
+    AssertReturn(hGVM < RT_ELEMENTS(pGVMM->aHandles), VERR_INVALID_VM_HANDLE);
 
     PGVMHANDLE      pHandle = &pGVMM->aHandles[hGVM];
     AssertReturn(pHandle->pVM == pVM, VERR_NOT_OWNER);
@@ -1203,9 +1180,6 @@ GVMMR0DECL(int) GVMMR0DestroyVM(PGVM pGVM, PVM pVM)
     int rc = gvmmR0CreateDestroyLock(pGVMM);
     AssertRC(rc);
 
-/** @todo Check that all other EMTs have said bye-bye. */
-
-
     /* Be careful here because we might theoretically be racing someone else cleaning up. */
     if (    pHandle->pVM == pVM
         &&  (   (   pHandle->hEMT0  == hSelf
@@ -1216,20 +1190,24 @@ GVMMR0DECL(int) GVMMR0DestroyVM(PGVM pGVM, PVM pVM)
         &&  VALID_PTR(pHandle->pGVM)
         &&  pHandle->pGVM->u32Magic == GVM_MAGIC)
     {
-        void *pvObj = pHandle->pvObj;
-        pHandle->pvObj = NULL;
-        gvmmR0CreateDestroyUnlock(pGVMM);
-
-        for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+        /* Check that other EMTs have deregistered. */
+        uint32_t cNotDeregistered = 0;
+        for (VMCPUID idCpu = 1; idCpu < pGVM->cCpus; idCpu++)
+            cNotDeregistered += pGVM->aCpus[idCpu].hEMT != ~(RTNATIVETHREAD)1; /* see GVMMR0DeregisterVCpu for the value */
+        if (cNotDeregistered == 0)
         {
-            /** @todo Can we busy wait here for all thread-context hooks to be
-             *        deregistered before releasing (destroying) it? Only until we find a
-             *        solution for not deregistering hooks everytime we're leaving HMR0
-             *        context. */
-            VMMR0ThreadCtxHookDestroyForEmt(&pVM->aCpus[idCpu]);
-        }
+            /* Grab the object pointer. */
+            void *pvObj = pHandle->pvObj;
+            pHandle->pvObj = NULL;
+            gvmmR0CreateDestroyUnlock(pGVMM);
 
-        SUPR0ObjRelease(pvObj, pHandle->pSession);
+            SUPR0ObjRelease(pvObj, pHandle->pSession);
+        }
+        else
+        {
+            gvmmR0CreateDestroyUnlock(pGVMM);
+            rc = VERR_GVMM_NOT_ALL_EMTS_DEREGISTERED;
+        }
     }
     else
     {
@@ -1257,13 +1235,23 @@ static void gvmmR0CleanupVM(PGVM pGVM)
             &&  RTR0MemObjAddress(pGVM->gvmm.s.VMMemObj) == pGVM->pVM)
         {
             LogFlow(("gvmmR0CleanupVM: Calling VMMR0TermVM\n"));
-            VMMR0TermVM(pGVM->pVM, pGVM);
+            VMMR0TermVM(pGVM, pGVM->pVM, NIL_VMCPUID);
         }
         else
             AssertMsgFailed(("gvmmR0CleanupVM: VMMemObj=%p pVM=%p\n", pGVM->gvmm.s.VMMemObj, pGVM->pVM));
     }
 
     GMMR0CleanupVM(pGVM);
+
+    AssertCompile((uintptr_t)NIL_RTTHREADCTXHOOK == 0); /* Depends on zero initialized memory working for NIL at the moment. */
+    for (VMCPUID idCpu = 0; idCpu < pGVM->cCpus; idCpu++)
+    {
+        /** @todo Can we busy wait here for all thread-context hooks to be
+         *        deregistered before releasing (destroying) it? Only until we find a
+         *        solution for not deregistering hooks everytime we're leaving HMR0
+         *        context. */
+        VMMR0ThreadCtxHookDestroyForEmt(&pGVM->pVM->aCpus[idCpu]);
+    }
 }
 
 
@@ -1443,7 +1431,7 @@ static DECLCALLBACK(void) gvmmR0HandleObjDestructor(void *pvObj, void *pvUser1, 
  */
 GVMMR0DECL(int) GVMMR0RegisterVCpu(PGVM pGVM, PVM pVM, VMCPUID idCpu)
 {
-    AssertReturn(idCpu != 0, VERR_NOT_OWNER);
+    AssertReturn(idCpu != 0, VERR_INVALID_FUNCTION);
 
     /*
      * Validate the VM structure, state and handle.
@@ -1482,6 +1470,57 @@ GVMMR0DECL(int) GVMMR0RegisterVCpu(PGVM pGVM, PVM pVM, VMCPUID idCpu)
         }
         else
             rc = VERR_INVALID_CPU_ID;
+    }
+    return rc;
+}
+
+
+/**
+ * Deregisters the calling thread as the EMT of a Virtual CPU.
+ *
+ * Note that VCPU 0 shall call GVMMR0DestroyVM intead of this API.
+ *
+ * @returns VBox status code
+ * @param   pGVM        The global (ring-0) VM structure.
+ * @param   pVM         The cross context VM structure.
+ * @param   idCpu       VCPU id to register the current thread as.
+ */
+GVMMR0DECL(int) GVMMR0DeregisterVCpu(PGVM pGVM, PVM pVM, VMCPUID idCpu)
+{
+    AssertReturn(idCpu != 0, VERR_INVALID_FUNCTION);
+
+    /*
+     * Validate the VM structure, state and handle.
+     */
+    PGVMM pGVMM;
+    int rc = gvmmR0ByGVMandVMandEMT(pGVM, pVM, idCpu, &pGVMM);
+    if (RT_SUCCESS(rc))
+    {
+        /*
+         * Take the destruction lock and recheck the handle state to
+         * prevent racing GVMMR0DestroyVM.
+         */
+        gvmmR0CreateDestroyLock(pGVMM);
+        uint32_t hSelf = pGVM->hSelf;
+        if (   hSelf < RT_ELEMENTS(pGVMM->aHandles)
+            && pGVMM->aHandles[hSelf].pvObj != NULL
+            && pGVMM->aHandles[hSelf].pGVM  == pGVM)
+        {
+            /*
+             * Do per-EMT cleanups.
+             */
+            VMMR0ThreadCtxHookDestroyForEmt(&pVM->aCpus[idCpu]);
+
+            /*
+             * Invalidate hEMT.  We don't use NIL here as that would allow
+             * GVMMR0RegisterVCpu to be called again, and we don't want that.
+             */
+            AssertCompile(~(RTNATIVETHREAD)1 != NIL_RTNATIVETHREAD);
+            pGVM->aCpus[idCpu].hEMT           = ~(RTNATIVETHREAD)1;
+            pVM->aCpus[idCpu].hNativeThreadR0 = NIL_RTNATIVETHREAD;
+        }
+
+        gvmmR0CreateDestroyUnlock(pGVMM);
     }
     return rc;
 }
@@ -1672,7 +1711,7 @@ static int gvmmR0ByGVMandVM(PGVM pGVM, PVM pVM, PGVMM *ppGVMM, bool fTakeUsedLoc
                         GVMMR0_USED_SHARED_UNLOCK(pGVMM);
                 }
             }
-            rc = VERR_INVALID_HANDLE;
+            rc = VERR_INVALID_VM_HANDLE;
         }
         else
             rc = VERR_INVALID_POINTER;
@@ -1684,102 +1723,99 @@ static int gvmmR0ByGVMandVM(PGVM pGVM, PVM pVM, PGVMM *ppGVMM, bool fTakeUsedLoc
 
 
 /**
- * Lookup a GVM structure by the shared VM structure.
+ * Check that the given GVM and VM structures match up.
+ *
+ * The calling thread must be in the same process as the VM. All current lookups
+ * are by threads inside the same process, so this will not be an issue.
  *
  * @returns VBox status code.
- * @param   pVM         The cross context VM structure.
- * @param   ppGVM       Where to store the GVM pointer.
- *
- * @remark  This will not take the 'used'-lock because it doesn't do
- *          nesting and this function will be used from under the lock.
- *          Update: This is no longer true.  Consider taking the lock in shared
- *          mode!
- */
-GVMMR0DECL(int) GVMMR0ByVM(PVM pVM, PGVM *ppGVM)
-{
-    PGVMM pGVMM;
-    return gvmmR0ByVM(pVM, ppGVM, &pGVMM, false /* fTakeUsedLock */);
-}
-
-
-/**
- * Lookup a GVM structure by the shared VM structure and ensuring that the
- * caller is an EMT thread.
- *
- * @returns VBox status code.
- * @param   pVM         The cross context VM structure.
- * @param   idCpu       The Virtual CPU ID of the calling EMT.
- * @param   ppGVM       Where to store the GVM pointer.
- * @param   ppGVMM      Where to store the pointer to the GVMM instance data.
+ * @param   pGVM            The global (ring-0) VM structure.
+ * @param   pVM             The cross context VM structure.
+ * @param   idCpu           The (alleged) Virtual CPU ID of the calling EMT.
+ * @param   ppGVMM          Where to store the pointer to the GVMM instance data.
  * @thread  EMT
  *
- * @remark  This will assert in all failure paths.
+ * @remarks This will assert in all failure paths.
  */
-static int gvmmR0ByVMAndEMT(PVM pVM, VMCPUID idCpu, PGVM *ppGVM, PGVMM *ppGVMM)
+static int gvmmR0ByGVMandVMandEMT(PGVM pGVM, PVM pVM, VMCPUID idCpu, PGVMM *ppGVMM)
 {
+    /*
+     * Check the pointers.
+     */
+    AssertPtrReturn(pGVM, VERR_INVALID_POINTER);
+
+    AssertPtrReturn(pVM,  VERR_INVALID_POINTER);
+    AssertReturn(((uintptr_t)pVM & PAGE_OFFSET_MASK) == 0, VERR_INVALID_POINTER);
+    AssertReturn(pGVM->pVM == pVM, VERR_INVALID_VM_HANDLE);
+
+
+    /*
+     * Get the pGVMM instance and check the VM handle.
+     */
     PGVMM pGVMM;
     GVMM_GET_VALID_INSTANCE(pGVMM, VERR_GVMM_INSTANCE);
 
+    uint16_t hGVM = pGVM->hSelf;
+    AssertReturn(   hGVM != NIL_GVM_HANDLE
+                 && hGVM < RT_ELEMENTS(pGVMM->aHandles), VERR_INVALID_VM_HANDLE);
+
+    RTPROCESS const pidSelf = RTProcSelf();
+    PGVMHANDLE      pHandle = &pGVMM->aHandles[hGVM];
+    AssertReturn(   pHandle->pGVM   == pGVM
+                 && pHandle->pVM    == pVM
+                 && pHandle->ProcId == pidSelf
+                 && RT_VALID_PTR(pHandle->pvObj),
+                 VERR_INVALID_HANDLE);
+
     /*
-     * Validate.
+     * Check the EMT claim.
      */
-    AssertPtrReturn(pVM, VERR_INVALID_POINTER);
-    AssertReturn(!((uintptr_t)pVM & PAGE_OFFSET_MASK), VERR_INVALID_POINTER);
-
-    uint16_t hGVM = pVM->hSelf;
-    AssertReturn(hGVM != NIL_GVM_HANDLE, VERR_INVALID_HANDLE);
-    AssertReturn(hGVM < RT_ELEMENTS(pGVMM->aHandles), VERR_INVALID_HANDLE);
-
-    /*
-     * Look it up.
-     */
-    PGVMHANDLE pHandle = &pGVMM->aHandles[hGVM];
-    AssertReturn(pHandle->pVM == pVM, VERR_NOT_OWNER);
-    RTPROCESS ProcId = RTProcSelf();
-    AssertReturn(pHandle->ProcId == ProcId, VERR_NOT_OWNER);
-    AssertPtrReturn(pHandle->pvObj, VERR_NOT_OWNER);
-
-    PGVM pGVM = pHandle->pGVM;
-    AssertPtrReturn(pGVM, VERR_NOT_OWNER);
-    AssertReturn(pGVM->pVM == pVM, VERR_NOT_OWNER);
-    RTNATIVETHREAD hAllegedEMT = RTThreadNativeSelf();
+    RTNATIVETHREAD const hAllegedEMT = RTThreadNativeSelf();
     AssertReturn(idCpu < pGVM->cCpus, VERR_INVALID_CPU_ID);
     AssertReturn(pGVM->aCpus[idCpu].hEMT == hAllegedEMT, VERR_NOT_OWNER);
 
-    *ppGVM = pGVM;
+    /*
+     * Some more VM data consistency checks.
+     */
+    AssertReturn(pVM->cCpus == pGVM->cCpus, VERR_INCONSISTENT_VM_HANDLE);
+    AssertReturn(pVM->hSelf == hGVM, VERR_INCONSISTENT_VM_HANDLE);
+    AssertReturn(pVM->pVMR0 == pVM, VERR_INCONSISTENT_VM_HANDLE);
+    AssertReturn(   pVM->enmVMState >= VMSTATE_CREATING
+                 && pVM->enmVMState <= VMSTATE_TERMINATED, VERR_INCONSISTENT_VM_HANDLE);
+
     *ppGVMM = pGVMM;
     return VINF_SUCCESS;
 }
 
 
 /**
- * Lookup a GVM structure by the shared VM structure
- * and ensuring that the caller is the EMT thread.
+ * Validates a GVM/VM pair.
  *
  * @returns VBox status code.
+ * @param   pGVM        The global (ring-0) VM structure.
  * @param   pVM         The cross context VM structure.
- * @param   idCpu       The Virtual CPU ID of the calling EMT.
- * @param   ppGVM       Where to store the GVM pointer.
- * @thread  EMT
  */
-GVMMR0DECL(int) GVMMR0ByVMAndEMT(PVM pVM, VMCPUID idCpu, PGVM *ppGVM)
+GVMMR0DECL(int) GVMMR0ValidateGVMandVM(PGVM pGVM, PVM pVM)
 {
-    AssertPtrReturn(ppGVM, VERR_INVALID_POINTER);
     PGVMM pGVMM;
-    return gvmmR0ByVMAndEMT(pVM, idCpu, ppGVM, &pGVMM);
+    return gvmmR0ByGVMandVM(pGVM, pVM, &pGVMM, false /*fTakeUsedLock*/);
 }
 
 
+
 /**
- * Lookup a VM by its global handle.
+ * Validates a GVM/VM/EMT combo.
  *
- * @returns Pointer to the VM on success, NULL on failure.
- * @param   hGVM    The global VM handle. Asserts on bad handle.
+ * @returns VBox status code.
+ * @param   pGVM        The global (ring-0) VM structure.
+ * @param   pVM         The cross context VM structure.
+ * @param   idCpu       The Virtual CPU ID of the calling EMT.
+ * @thread  EMT(idCpu)
  */
-GVMMR0DECL(PVM) GVMMR0GetVMByHandle(uint32_t hGVM)
+GVMMR0DECL(int) GVMMR0ValidateGVMandVMandEMT(PGVM pGVM, PVM pVM, VMCPUID idCpu)
 {
-    PGVM pGVM = GVMMR0ByHandle(hGVM);
-    return pGVM ? pGVM->pVM : NULL;
+    PGVMM pGVMM;
+    return gvmmR0ByGVMandVMandEMT(pGVM, pVM, idCpu, &pGVMM);
 }
 
 
@@ -1994,23 +2030,23 @@ static unsigned gvmmR0SchedDoWakeUps(PGVMM pGVMM, uint64_t u64Now)
  *
  * @returns VINF_SUCCESS normal wakeup (timeout or kicked by other thread).
  *          VERR_INTERRUPTED if a signal was scheduled for the thread.
+ * @param   pGVM                The global (ring-0) VM structure.
  * @param   pVM                 The cross context VM structure.
  * @param   idCpu               The Virtual CPU ID of the calling EMT.
  * @param   u64ExpireGipTime    The time for the sleep to expire expressed as GIP time.
  * @thread  EMT(idCpu).
  */
-GVMMR0DECL(int) GVMMR0SchedHalt(PVM pVM, VMCPUID idCpu, uint64_t u64ExpireGipTime)
+GVMMR0DECL(int) GVMMR0SchedHalt(PGVM pGVM, PVM pVM, VMCPUID idCpu, uint64_t u64ExpireGipTime)
 {
-    LogFlow(("GVMMR0SchedHalt: pVM=%p\n", pVM));
+    LogFlow(("GVMMR0SchedHalt: pGVM=%p pVM=%p idCpu=%#x u64ExpireGipTime=%#RX64\n", pGVM, pVM, idCpu, u64ExpireGipTime));
     GVMM_CHECK_SMAP_SETUP();
     GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
 
     /*
      * Validate the VM structure, state and handle.
      */
-    PGVM pGVM;
     PGVMM pGVMM;
-    int rc = gvmmR0ByVMAndEMT(pVM, idCpu, &pGVM, &pGVMM);
+    int rc = gvmmR0ByGVMandVMandEMT(pGVM, pVM, idCpu, &pGVMM);
     if (RT_FAILURE(rc))
         return rc;
     pGVM->gvmm.s.StatsSched.cHaltCalls++;
@@ -2153,12 +2189,13 @@ DECLINLINE(int) gvmmR0SchedWakeUpOne(PGVM pGVM, PGVMCPU pGVCpu)
  * @retval  VINF_SUCCESS if successfully woken up.
  * @retval  VINF_GVM_NOT_BLOCKED if the EMT wasn't blocked.
  *
+ * @param   pGVM                The global (ring-0) VM structure.
  * @param   pVM                 The cross context VM structure.
  * @param   idCpu               The Virtual CPU ID of the EMT to wake up.
  * @param   fTakeUsedLock       Take the used lock or not
- * @thread  Any but EMT.
+ * @thread  Any but EMT(idCpu).
  */
-GVMMR0DECL(int) GVMMR0SchedWakeUpEx(PVM pVM, VMCPUID idCpu, bool fTakeUsedLock)
+GVMMR0DECL(int) GVMMR0SchedWakeUpEx(PGVM pGVM, PVM pVM, VMCPUID idCpu, bool fTakeUsedLock)
 {
     GVMM_CHECK_SMAP_SETUP();
     GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
@@ -2166,9 +2203,8 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpEx(PVM pVM, VMCPUID idCpu, bool fTakeUsedLock)
     /*
      * Validate input and take the UsedLock.
      */
-    PGVM pGVM;
     PGVMM pGVMM;
-    int rc = gvmmR0ByVM(pVM, &pGVM, &pGVMM, fTakeUsedLock);
+    int rc = gvmmR0ByGVMandVM(pGVM, pVM, &pGVMM, fTakeUsedLock);
     GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
     if (RT_SUCCESS(rc))
     {
@@ -2202,7 +2238,7 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpEx(PVM pVM, VMCPUID idCpu, bool fTakeUsedLock)
         }
     }
 
-    LogFlow(("GVMMR0SchedWakeUp: returns %Rrc\n", rc));
+    LogFlow(("GVMMR0SchedWakeUpEx: returns %Rrc\n", rc));
     return rc;
 }
 
@@ -2214,14 +2250,43 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpEx(PVM pVM, VMCPUID idCpu, bool fTakeUsedLock)
  * @retval  VINF_SUCCESS if successfully woken up.
  * @retval  VINF_GVM_NOT_BLOCKED if the EMT wasn't blocked.
  *
+ * @param   pGVM                The global (ring-0) VM structure.
  * @param   pVM                 The cross context VM structure.
  * @param   idCpu               The Virtual CPU ID of the EMT to wake up.
- * @thread  Any but EMT.
+ * @thread  Any but EMT(idCpu).
  */
-GVMMR0DECL(int) GVMMR0SchedWakeUp(PVM pVM, VMCPUID idCpu)
+GVMMR0DECL(int) GVMMR0SchedWakeUp(PGVM pGVM, PVM pVM, VMCPUID idCpu)
 {
-    return GVMMR0SchedWakeUpEx(pVM, idCpu, true /* fTakeUsedLock */);
+    return GVMMR0SchedWakeUpEx(pGVM, pVM, idCpu, true /* fTakeUsedLock */);
 }
+
+
+/**
+ * Wakes up the halted EMT thread so it can service a pending request, no GVM
+ * parameter and no used locking.
+ *
+ * @returns VBox status code.
+ * @retval  VINF_SUCCESS if successfully woken up.
+ * @retval  VINF_GVM_NOT_BLOCKED if the EMT wasn't blocked.
+ *
+ * @param   pVM                 The cross context VM structure.
+ * @param   idCpu               The Virtual CPU ID of the EMT to wake up.
+ * @thread  Any but EMT(idCpu).
+ * @deprecated  Don't use in new code if possible!  Use the GVM variant.
+ */
+GVMMR0DECL(int) GVMMR0SchedWakeUpNoGVMNoLock(PVM pVM, VMCPUID idCpu)
+{
+    GVMM_CHECK_SMAP_SETUP();
+    GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
+    PGVM pGVM;
+    PGVMM pGVMM;
+    int rc = gvmmR0ByVM(pVM, &pGVM, &pGVMM, false /*fTakeUsedLock*/);
+    GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
+    if (RT_SUCCESS(rc))
+        rc = GVMMR0SchedWakeUpEx(pGVM, pVM, idCpu, false /*fTakeUsedLock*/);
+    return rc;
+}
+
 
 /**
  * Worker common to GVMMR0SchedPoke and GVMMR0SchedWakeUpAndPokeCpus that pokes
@@ -2251,6 +2316,7 @@ DECLINLINE(int) gvmmR0SchedPokeOne(PGVM pGVM, PVMCPU pVCpu)
     return VINF_SUCCESS;
 }
 
+
 /**
  * Pokes an EMT if it's still busy running guest code.
  *
@@ -2258,18 +2324,18 @@ DECLINLINE(int) gvmmR0SchedPokeOne(PGVM pGVM, PVMCPU pVCpu)
  * @retval  VINF_SUCCESS if poked successfully.
  * @retval  VINF_GVM_NOT_BUSY_IN_GC if the EMT wasn't busy in GC.
  *
+ * @param   pGVM                The global (ring-0) VM structure.
  * @param   pVM                 The cross context VM structure.
  * @param   idCpu               The ID of the virtual CPU to poke.
  * @param   fTakeUsedLock       Take the used lock or not
  */
-GVMMR0DECL(int) GVMMR0SchedPokeEx(PVM pVM, VMCPUID idCpu, bool fTakeUsedLock)
+GVMMR0DECL(int) GVMMR0SchedPokeEx(PGVM pGVM, PVM pVM, VMCPUID idCpu, bool fTakeUsedLock)
 {
     /*
      * Validate input and take the UsedLock.
      */
-    PGVM pGVM;
     PGVMM pGVMM;
-    int rc = gvmmR0ByVM(pVM, &pGVM, &pGVMM, fTakeUsedLock);
+    int rc = gvmmR0ByGVMandVM(pGVM, pVM, &pGVMM, fTakeUsedLock);
     if (RT_SUCCESS(rc))
     {
         if (idCpu < pGVM->cCpus)
@@ -2296,12 +2362,42 @@ GVMMR0DECL(int) GVMMR0SchedPokeEx(PVM pVM, VMCPUID idCpu, bool fTakeUsedLock)
  * @retval  VINF_SUCCESS if poked successfully.
  * @retval  VINF_GVM_NOT_BUSY_IN_GC if the EMT wasn't busy in GC.
  *
+ * @param   pGVM                The global (ring-0) VM structure.
  * @param   pVM                 The cross context VM structure.
  * @param   idCpu               The ID of the virtual CPU to poke.
  */
-GVMMR0DECL(int) GVMMR0SchedPoke(PVM pVM, VMCPUID idCpu)
+GVMMR0DECL(int) GVMMR0SchedPoke(PGVM pGVM, PVM pVM, VMCPUID idCpu)
 {
-    return GVMMR0SchedPokeEx(pVM, idCpu, true /* fTakeUsedLock */);
+    return GVMMR0SchedPokeEx(pGVM, pVM, idCpu, true /* fTakeUsedLock */);
+}
+
+
+/**
+ * Pokes an EMT if it's still busy running guest code, no GVM parameter and no
+ * used locking.
+ *
+ * @returns VBox status code.
+ * @retval  VINF_SUCCESS if poked successfully.
+ * @retval  VINF_GVM_NOT_BUSY_IN_GC if the EMT wasn't busy in GC.
+ *
+ * @param   pVM                 The cross context VM structure.
+ * @param   idCpu               The ID of the virtual CPU to poke.
+ *
+ * @deprecated  Don't use in new code if possible!  Use the GVM variant.
+ */
+GVMMR0DECL(int) GVMMR0SchedPokeNoGVMNoLock(PVM pVM, VMCPUID idCpu)
+{
+    PGVM pGVM;
+    PGVMM pGVMM;
+    int rc = gvmmR0ByVM(pVM, &pGVM, &pGVMM, false /*fTakeUsedLock*/);
+    if (RT_SUCCESS(rc))
+    {
+        if (idCpu < pGVM->cCpus)
+            rc = gvmmR0SchedPokeOne(pGVM, &pVM->aCpus[idCpu]);
+        else
+            rc = VERR_INVALID_CPU_ID;
+    }
+    return rc;
 }
 
 
@@ -2310,11 +2406,12 @@ GVMMR0DECL(int) GVMMR0SchedPoke(PVM pVM, VMCPUID idCpu)
  *
  * @returns VBox status code, no informational stuff.
  *
+ * @param   pGVM                The global (ring-0) VM structure.
  * @param   pVM                 The cross context VM structure.
  * @param   pSleepSet           The set of sleepers to wake up.
  * @param   pPokeSet            The set of CPUs to poke.
  */
-GVMMR0DECL(int) GVMMR0SchedWakeUpAndPokeCpus(PVM pVM, PCVMCPUSET pSleepSet, PCVMCPUSET pPokeSet)
+GVMMR0DECL(int) GVMMR0SchedWakeUpAndPokeCpus(PGVM pGVM, PVM pVM, PCVMCPUSET pSleepSet, PCVMCPUSET pPokeSet)
 {
     AssertPtrReturn(pSleepSet, VERR_INVALID_POINTER);
     AssertPtrReturn(pPokeSet, VERR_INVALID_POINTER);
@@ -2325,9 +2422,8 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpAndPokeCpus(PVM pVM, PCVMCPUSET pSleepSet, PCVM
     /*
      * Validate input and take the UsedLock.
      */
-    PGVM pGVM;
     PGVMM pGVMM;
-    int rc = gvmmR0ByVM(pVM, &pGVM, &pGVMM, true /* fTakeUsedLock */);
+    int rc = gvmmR0ByGVMandVM(pGVM, pVM, &pGVMM, true /* fTakeUsedLock */);
     GVMM_CHECK_SMAP_CHECK2(pVM, RT_NOTHING);
     if (RT_SUCCESS(rc))
     {
@@ -2366,10 +2462,11 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpAndPokeCpus(PVM pVM, PCVMCPUSET pSleepSet, PCVM
  * VMMR0 request wrapper for GVMMR0SchedWakeUpAndPokeCpus.
  *
  * @returns see GVMMR0SchedWakeUpAndPokeCpus.
+ * @param   pGVM            The global (ring-0) VM structure.
  * @param   pVM             The cross context VM structure.
  * @param   pReq            Pointer to the request packet.
  */
-GVMMR0DECL(int) GVMMR0SchedWakeUpAndPokeCpusReq(PVM pVM, PGVMMSCHEDWAKEUPANDPOKECPUSREQ pReq)
+GVMMR0DECL(int) GVMMR0SchedWakeUpAndPokeCpusReq(PGVM pGVM, PVM pVM, PGVMMSCHEDWAKEUPANDPOKECPUSREQ pReq)
 {
     /*
      * Validate input and pass it on.
@@ -2377,7 +2474,7 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpAndPokeCpusReq(PVM pVM, PGVMMSCHEDWAKEUPANDPOKE
     AssertPtrReturn(pReq, VERR_INVALID_POINTER);
     AssertMsgReturn(pReq->Hdr.cbReq == sizeof(*pReq), ("%#x != %#x\n", pReq->Hdr.cbReq, sizeof(*pReq)), VERR_INVALID_PARAMETER);
 
-    return GVMMR0SchedWakeUpAndPokeCpus(pVM, &pReq->SleepSet, &pReq->PokeSet);
+    return GVMMR0SchedWakeUpAndPokeCpus(pGVM, pVM, &pReq->SleepSet, &pReq->PokeSet);
 }
 
 
@@ -2390,20 +2487,20 @@ GVMMR0DECL(int) GVMMR0SchedWakeUpAndPokeCpusReq(PVM pVM, PGVMMSCHEDWAKEUPANDPOKE
  *
  * @returns VINF_SUCCESS if not yielded.
  *          VINF_GVM_YIELDED if an attempt to switch to a different VM task was made.
+ * @param   pGVM            The global (ring-0) VM structure.
  * @param   pVM             The cross context VM structure.
  * @param   idCpu           The Virtual CPU ID of the calling EMT.
  * @param   fYield          Whether to yield or not.
  *                          This is for when we're spinning in the halt loop.
  * @thread  EMT(idCpu).
  */
-GVMMR0DECL(int) GVMMR0SchedPoll(PVM pVM, VMCPUID idCpu, bool fYield)
+GVMMR0DECL(int) GVMMR0SchedPoll(PGVM pGVM, PVM pVM, VMCPUID idCpu, bool fYield)
 {
     /*
      * Validate input.
      */
-    PGVM pGVM;
     PGVMM pGVMM;
-    int rc = gvmmR0ByVMAndEMT(pVM, idCpu, &pGVM, &pGVMM);
+    int rc = gvmmR0ByGVMandVMandEMT(pGVM, pVM, idCpu, &pGVMM);
     if (RT_SUCCESS(rc))
     {
         /*
@@ -2610,11 +2707,12 @@ GVMMR0DECL(void) GVMMR0SchedUpdatePeriodicPreemptionTimer(PVM pVM, RTCPUID idHos
  *
  * @param   pStats      Where to put the statistics.
  * @param   pSession    The current session.
- * @param   pVM         The VM to obtain statistics for. Optional.
+ * @param   pGVM        The GVM to obtain statistics for. Optional.
+ * @param   pVM         The VM structure corresponding to @a pGVM.
  */
-GVMMR0DECL(int) GVMMR0QueryStatistics(PGVMMSTATS pStats, PSUPDRVSESSION pSession, PVM pVM)
+GVMMR0DECL(int) GVMMR0QueryStatistics(PGVMMSTATS pStats, PSUPDRVSESSION pSession, PGVM pGVM, PVM pVM)
 {
-    LogFlow(("GVMMR0QueryStatistics: pStats=%p pSession=%p pVM=%p\n", pStats, pSession, pVM));
+    LogFlow(("GVMMR0QueryStatistics: pStats=%p pSession=%p pGVM=%p pVM=%p\n", pStats, pSession, pGVM, pVM));
 
     /*
      * Validate input.
@@ -2627,10 +2725,9 @@ GVMMR0DECL(int) GVMMR0QueryStatistics(PGVMMSTATS pStats, PSUPDRVSESSION pSession
      * Take the lock and get the VM statistics.
      */
     PGVMM pGVMM;
-    if (pVM)
+    if (pGVM)
     {
-        PGVM pGVM;
-        int rc = gvmmR0ByVM(pVM, &pGVM, &pGVMM, true /*fTakeUsedLock*/);
+        int rc = gvmmR0ByGVMandVM(pGVM, pVM, &pGVMM, true /*fTakeUsedLock*/);
         if (RT_FAILURE(rc))
             return rc;
         pStats->SchedVM = pGVM->gvmm.s.StatsSched;
@@ -2655,32 +2752,32 @@ GVMMR0DECL(int) GVMMR0QueryStatistics(PGVMMSTATS pStats, PSUPDRVSESSION pSession
          i != NIL_GVM_HANDLE && i < RT_ELEMENTS(pGVMM->aHandles);
          i = pGVMM->aHandles[i].iNext)
     {
-        PGVM pGVM = pGVMM->aHandles[i].pGVM;
+        PGVM pOtherGVM = pGVMM->aHandles[i].pGVM;
         void *pvObj = pGVMM->aHandles[i].pvObj;
         if (    VALID_PTR(pvObj)
-            &&  VALID_PTR(pGVM)
-            &&  pGVM->u32Magic == GVM_MAGIC
+            &&  VALID_PTR(pOtherGVM)
+            &&  pOtherGVM->u32Magic == GVM_MAGIC
             &&  RT_SUCCESS(SUPR0ObjVerifyAccess(pvObj, pSession, NULL)))
         {
             pStats->cVMs++;
-            pStats->cEMTs += pGVM->cCpus;
+            pStats->cEMTs += pOtherGVM->cCpus;
 
-            pStats->SchedSum.cHaltCalls        += pGVM->gvmm.s.StatsSched.cHaltCalls;
-            pStats->SchedSum.cHaltBlocking     += pGVM->gvmm.s.StatsSched.cHaltBlocking;
-            pStats->SchedSum.cHaltTimeouts     += pGVM->gvmm.s.StatsSched.cHaltTimeouts;
-            pStats->SchedSum.cHaltNotBlocking  += pGVM->gvmm.s.StatsSched.cHaltNotBlocking;
-            pStats->SchedSum.cHaltWakeUps      += pGVM->gvmm.s.StatsSched.cHaltWakeUps;
+            pStats->SchedSum.cHaltCalls        += pOtherGVM->gvmm.s.StatsSched.cHaltCalls;
+            pStats->SchedSum.cHaltBlocking     += pOtherGVM->gvmm.s.StatsSched.cHaltBlocking;
+            pStats->SchedSum.cHaltTimeouts     += pOtherGVM->gvmm.s.StatsSched.cHaltTimeouts;
+            pStats->SchedSum.cHaltNotBlocking  += pOtherGVM->gvmm.s.StatsSched.cHaltNotBlocking;
+            pStats->SchedSum.cHaltWakeUps      += pOtherGVM->gvmm.s.StatsSched.cHaltWakeUps;
 
-            pStats->SchedSum.cWakeUpCalls      += pGVM->gvmm.s.StatsSched.cWakeUpCalls;
-            pStats->SchedSum.cWakeUpNotHalted  += pGVM->gvmm.s.StatsSched.cWakeUpNotHalted;
-            pStats->SchedSum.cWakeUpWakeUps    += pGVM->gvmm.s.StatsSched.cWakeUpWakeUps;
+            pStats->SchedSum.cWakeUpCalls      += pOtherGVM->gvmm.s.StatsSched.cWakeUpCalls;
+            pStats->SchedSum.cWakeUpNotHalted  += pOtherGVM->gvmm.s.StatsSched.cWakeUpNotHalted;
+            pStats->SchedSum.cWakeUpWakeUps    += pOtherGVM->gvmm.s.StatsSched.cWakeUpWakeUps;
 
-            pStats->SchedSum.cPokeCalls        += pGVM->gvmm.s.StatsSched.cPokeCalls;
-            pStats->SchedSum.cPokeNotBusy      += pGVM->gvmm.s.StatsSched.cPokeNotBusy;
+            pStats->SchedSum.cPokeCalls        += pOtherGVM->gvmm.s.StatsSched.cPokeCalls;
+            pStats->SchedSum.cPokeNotBusy      += pOtherGVM->gvmm.s.StatsSched.cPokeNotBusy;
 
-            pStats->SchedSum.cPollCalls        += pGVM->gvmm.s.StatsSched.cPollCalls;
-            pStats->SchedSum.cPollHalts        += pGVM->gvmm.s.StatsSched.cPollHalts;
-            pStats->SchedSum.cPollWakeUps      += pGVM->gvmm.s.StatsSched.cPollWakeUps;
+            pStats->SchedSum.cPollCalls        += pOtherGVM->gvmm.s.StatsSched.cPollCalls;
+            pStats->SchedSum.cPollHalts        += pOtherGVM->gvmm.s.StatsSched.cPollHalts;
+            pStats->SchedSum.cPollWakeUps      += pOtherGVM->gvmm.s.StatsSched.cPollWakeUps;
         }
     }
 
@@ -2723,11 +2820,12 @@ GVMMR0DECL(int) GVMMR0QueryStatistics(PGVMMSTATS pStats, PSUPDRVSESSION pSession
  * VMMR0 request wrapper for GVMMR0QueryStatistics.
  *
  * @returns see GVMMR0QueryStatistics.
+ * @param   pGVM            The global (ring-0) VM structure. Optional.
  * @param   pVM             The cross context VM structure. Optional.
  * @param   pReq            Pointer to the request packet.
  * @param   pSession        The current session.
  */
-GVMMR0DECL(int) GVMMR0QueryStatisticsReq(PVM pVM, PGVMMQUERYSTATISTICSSREQ pReq, PSUPDRVSESSION pSession)
+GVMMR0DECL(int) GVMMR0QueryStatisticsReq(PGVM pGVM, PVM pVM, PGVMMQUERYSTATISTICSSREQ pReq, PSUPDRVSESSION pSession)
 {
     /*
      * Validate input and pass it on.
@@ -2736,7 +2834,7 @@ GVMMR0DECL(int) GVMMR0QueryStatisticsReq(PVM pVM, PGVMMQUERYSTATISTICSSREQ pReq,
     AssertMsgReturn(pReq->Hdr.cbReq == sizeof(*pReq), ("%#x != %#x\n", pReq->Hdr.cbReq, sizeof(*pReq)), VERR_INVALID_PARAMETER);
     AssertReturn(pReq->pSession == pSession, VERR_INVALID_PARAMETER);
 
-    return GVMMR0QueryStatistics(&pReq->Stats, pSession, pVM);
+    return GVMMR0QueryStatistics(&pReq->Stats, pSession, pGVM, pVM);
 }
 
 
@@ -2747,11 +2845,12 @@ GVMMR0DECL(int) GVMMR0QueryStatisticsReq(PVM pVM, PGVMMQUERYSTATISTICSSREQ pReq,
  *
  * @param   pStats      Which statistics to reset, that is, non-zero fields indicates which to reset.
  * @param   pSession    The current session.
- * @param   pVM         The VM to reset statistics for. Optional.
+ * @param   pGVM        The GVM to reset statistics for. Optional.
+ * @param   pVM         The VM structure corresponding to @a pGVM.
  */
-GVMMR0DECL(int) GVMMR0ResetStatistics(PCGVMMSTATS pStats, PSUPDRVSESSION pSession, PVM pVM)
+GVMMR0DECL(int) GVMMR0ResetStatistics(PCGVMMSTATS pStats, PSUPDRVSESSION pSession, PGVM pGVM, PVM pVM)
 {
-    LogFlow(("GVMMR0ResetStatistics: pStats=%p pSession=%p pVM=%p\n", pStats, pSession, pVM));
+    LogFlow(("GVMMR0ResetStatistics: pStats=%p pSession=%p pGVM=%p pVM=%p\n", pStats, pSession, pGVM, pVM));
 
     /*
      * Validate input.
@@ -2763,10 +2862,9 @@ GVMMR0DECL(int) GVMMR0ResetStatistics(PCGVMMSTATS pStats, PSUPDRVSESSION pSessio
      * Take the lock and get the VM statistics.
      */
     PGVMM pGVMM;
-    if (pVM)
+    if (pGVM)
     {
-        PGVM pGVM;
-        int rc = gvmmR0ByVM(pVM, &pGVM, &pGVMM, true /*fTakeUsedLock*/);
+        int rc = gvmmR0ByGVMandVM(pGVM, pVM, &pGVMM, true /*fTakeUsedLock*/);
         if (RT_FAILURE(rc))
             return rc;
 #       define MAYBE_RESET_FIELD(field) \
@@ -2803,15 +2901,15 @@ GVMMR0DECL(int) GVMMR0ResetStatistics(PCGVMMSTATS pStats, PSUPDRVSESSION pSessio
              i != NIL_GVM_HANDLE && i < RT_ELEMENTS(pGVMM->aHandles);
              i = pGVMM->aHandles[i].iNext)
         {
-            PGVM pGVM = pGVMM->aHandles[i].pGVM;
+            PGVM pOtherGVM = pGVMM->aHandles[i].pGVM;
             void *pvObj = pGVMM->aHandles[i].pvObj;
             if (    VALID_PTR(pvObj)
-                &&  VALID_PTR(pGVM)
-                &&  pGVM->u32Magic == GVM_MAGIC
+                &&  VALID_PTR(pOtherGVM)
+                &&  pOtherGVM->u32Magic == GVM_MAGIC
                 &&  RT_SUCCESS(SUPR0ObjVerifyAccess(pvObj, pSession, NULL)))
             {
 #               define MAYBE_RESET_FIELD(field) \
-                    do { if (pStats->SchedSum. field ) { pGVM->gvmm.s.StatsSched. field = 0; } } while (0)
+                    do { if (pStats->SchedSum. field ) { pOtherGVM->gvmm.s.StatsSched. field = 0; } } while (0)
                 MAYBE_RESET_FIELD(cHaltCalls);
                 MAYBE_RESET_FIELD(cHaltBlocking);
                 MAYBE_RESET_FIELD(cHaltTimeouts);
@@ -2840,11 +2938,12 @@ GVMMR0DECL(int) GVMMR0ResetStatistics(PCGVMMSTATS pStats, PSUPDRVSESSION pSessio
  * VMMR0 request wrapper for GVMMR0ResetStatistics.
  *
  * @returns see GVMMR0ResetStatistics.
+ * @param   pGVM            The global (ring-0) VM structure. Optional.
  * @param   pVM             The cross context VM structure. Optional.
  * @param   pReq            Pointer to the request packet.
  * @param   pSession        The current session.
  */
-GVMMR0DECL(int) GVMMR0ResetStatisticsReq(PVM pVM, PGVMMRESETSTATISTICSSREQ pReq, PSUPDRVSESSION pSession)
+GVMMR0DECL(int) GVMMR0ResetStatisticsReq(PGVM pGVM, PVM pVM, PGVMMRESETSTATISTICSSREQ pReq, PSUPDRVSESSION pSession)
 {
     /*
      * Validate input and pass it on.
@@ -2853,6 +2952,6 @@ GVMMR0DECL(int) GVMMR0ResetStatisticsReq(PVM pVM, PGVMMRESETSTATISTICSSREQ pReq,
     AssertMsgReturn(pReq->Hdr.cbReq == sizeof(*pReq), ("%#x != %#x\n", pReq->Hdr.cbReq, sizeof(*pReq)), VERR_INVALID_PARAMETER);
     AssertReturn(pReq->pSession == pSession, VERR_INVALID_PARAMETER);
 
-    return GVMMR0ResetStatistics(&pReq->Stats, pSession, pVM);
+    return GVMMR0ResetStatistics(&pReq->Stats, pSession, pGVM, pVM);
 }
 

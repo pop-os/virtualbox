@@ -7,7 +7,7 @@ Test Manager - User DB records management.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard python imports.
@@ -52,6 +52,7 @@ class UserAccountData(ModelDataBase):
     ksParam_sUsername           = 'UserAccount_sUsername'
     ksParam_sEmail              = 'UserAccount_sEmail'
     ksParam_sFullName           = 'UserAccount_sFullName'
+    ksParam_fReadOnly           = 'UserAccount_fReadOnly'
 
     kasAllowNullAttributes      = ['uid', 'tsEffective', 'tsExpire', 'uidAuthor'];
 
@@ -67,6 +68,7 @@ class UserAccountData(ModelDataBase):
         self.sEmail         = None;
         self.sFullName      = None;
         self.sLoginName     = None;
+        self.fReadOnly      = None;
 
     def initFromDbRow(self, aoRow):
         """
@@ -84,6 +86,7 @@ class UserAccountData(ModelDataBase):
         self.sEmail         = aoRow[5];
         self.sFullName      = aoRow[6];
         self.sLoginName     = aoRow[7];
+        self.fReadOnly      = aoRow[8];
         return self;
 
     def initFromDbWithId(self, oDb, uid, tsNow = None, sPeriodBack = None):
@@ -122,13 +125,14 @@ class UserAccountLogic(ModelLogicBase):
         ModelLogicBase.__init__(self, oDb)
         self.dCache = None;
 
-    def fetchForListing(self, iStart, cMaxRows, tsNow):
+    def fetchForListing(self, iStart, cMaxRows, tsNow, aiSortColumns = None):
         """
         Fetches user accounts.
 
         Returns an array (list) of UserAccountData items, empty list if none.
         Raises exception on error.
         """
+        _ = aiSortColumns;
         if tsNow is None:
             self._oDb.execute('SELECT   *\n'
                               'FROM     Users\n'
@@ -155,7 +159,7 @@ class UserAccountLogic(ModelLogicBase):
         Add user account entry to the DB.
         """
         self._oDb.callProc('UserAccountLogic_addEntry',
-                           (uidAuthor, oData.sUsername, oData.sEmail, oData.sFullName, oData.sLoginName,));
+                           (uidAuthor, oData.sUsername, oData.sEmail, oData.sFullName, oData.sLoginName, oData.fReadOnly));
         self._oDb.maybeCommit(fCommit);
         return True;
 
@@ -164,7 +168,8 @@ class UserAccountLogic(ModelLogicBase):
         Modify user account.
         """
         self._oDb.callProc('UserAccountLogic_editEntry',
-                           (uidAuthor, oData.uid, oData.sUsername, oData.sEmail, oData.sFullName, oData.sLoginName,));
+                           ( uidAuthor, oData.uid, oData.sUsername, oData.sEmail,
+                             oData.sFullName, oData.sLoginName, oData.fReadOnly));
         self._oDb.maybeCommit(fCommit);
         return True;
 

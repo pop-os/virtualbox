@@ -9,7 +9,7 @@ Test Manager - Base class and utilities for the schedulers.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -28,7 +28,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard python imports.
@@ -102,7 +102,7 @@ class ReCreateQueueData(object):
         #
         # Associate extra members with the base data.
         #
-        if len(self.aoTestGroups) > 0:
+        if self.aoTestGroups:
             # Prep the test groups.
             for oTestGroup in self.aoTestGroups:
                 oTestGroup.aoTestCases = list();
@@ -124,7 +124,7 @@ class ReCreateQueueData(object):
             # Associate testcase argument variations with their testcases (group)
             # in both directions.
             oTestGroup = self.aoTestGroups[0];
-            oTestCase  = self.aoTestCases[0] if len(self.aoTestCases) > 0 else None;
+            oTestCase  = self.aoTestCases[0] if self.aoTestCases else None;
             for oArgVariation in self.aoArgsVariations:
                 if oTestGroup.idTestGroup != oArgVariation.idTestGroup:
                     oTestGroup = self.dTestGroups[oArgVariation.idTestGroup];
@@ -136,8 +136,8 @@ class ReCreateQueueData(object):
                 oArgVariation.oTestGroup = oTestGroup;
 
         else:
-            assert len(self.aoTestCases)      == 0;
-            assert len(self.aoArgsVariations) == 0;
+            assert not self.aoTestCases;
+            assert not self.aoArgsVariations;
         # done.
 
     @staticmethod
@@ -197,13 +197,13 @@ class ReCreateQueueData(object):
         aoErrors = list();
         for oTestGroup in self.aoTestGroups:
             for oTestCase in oTestGroup.aoTestCases:
-                if len(oTestCase.aidPreReqs) == 0:
+                if not oTestCase.aidPreReqs:
                     continue;
 
                 # Stupid recursion code using special stack(s).
-                aiIndexes = [(oTestCase, 0), ];
+                aiIndexes = [[oTestCase, 0], ];
                 aidChain  = [oTestCase.idTestGroup,];
-                while len(aiIndexes) > 0:
+                while aiIndexes:
                     (oCur, i) = aiIndexes[-1];
                     if i >= len(oCur.aidPreReqs):
                         aiIndexes.pop();
@@ -221,13 +221,13 @@ class ReCreateQueueData(object):
                             self._addPreReqError(aoErrors, aidChain, oTestCase,
                                                  'TestCase #%s prerequisite #%s creates a cycle!'
                                                  % (oTestCase.idTestCase, idPreReq));
-                        elif len(oDep.aiPreReqs) == 0:
+                        elif not oDep.aiPreReqs:
                             pass;
                         elif len(aidChain) >= 10:
                             self._addPreReqError(aoErrors, aidChain, oTestCase,
                                                  'TestCase #%s prerequisite chain is too long!'  % (oTestCase.idTestCase,));
                         else:
-                            aiIndexes.append((oDep, 0));
+                            aiIndexes.append([oDep, 0]);
                             aidChain.append(idPreReq);
 
         return aoErrors;
@@ -237,7 +237,7 @@ class ReCreateQueueData(object):
         Sorts the testgroups and their testcases by priority and dependencies.
         Note! Don't call this before checking for dependency cycles!
         """
-        if len(self.aoTestGroups) == 0:
+        if not self.aoTestGroups:
             return;
 
         #
@@ -246,16 +246,22 @@ class ReCreateQueueData(object):
         # sorting.
         #
         iGrpPrio = self.aoTestGroups[0].iSchedPriority;
-        for oTestGroup in self.aoTestGroups:
+        for iTestGroup, oTestGroup in enumerate(self.aoTestGroups):
             if oTestGroup.iSchedPriority > iGrpPrio:
-                raise TMExceptionBase('Incorrectly sorted testgroups returned by database.');
+                raise TMExceptionBase('Incorrectly sorted testgroups returned by database: iTestGroup=%s prio=%s %s'
+                                      % ( iTestGroup, iGrpPrio,
+                                          ', '.join(['(%s: %s)' % (oCur.idTestGroup, oCur.iSchedPriority)
+                                                     for oCur in self.aoTestGroups]), ) );
             iGrpPrio = oTestGroup.iSchedPriority;
 
-            if len(oTestGroup.aoTestCases) > 0:
+            if oTestGroup.aoTestCases:
                 iTstPrio = oTestGroup.aoTestCases[0];
-                for oTestCase in oTestGroup.aoTestCases:
+                for iTestCase, oTestCase in enumerate(oTestGroup.aoTestCases):
                     if oTestCase.iSchedPriority > iTstPrio:
-                        raise TMExceptionBase('Incorrectly sorted testcases returned by database.');
+                        raise TMExceptionBase('Incorrectly sorted testcases returned by database: i=%s prio=%s idGrp=%s %s'
+                                              % ( iTestCase, iTstPrio, oTestGroup.idTestGroup,
+                                                  ', '.join(['(%s: %s)' % (oCur.idTestCase, oCur.iSchedPriority)
+                                                            for oCur in oTestGroup.aoTestCases]),));
 
         #
         # Sort the testgroups by dependencies.
@@ -282,7 +288,7 @@ class ReCreateQueueData(object):
             i = 0;
             while i < len(oTestGroup.aoTestCases):
                 oTestCase = oTestGroup.aoTestCases[i];
-                if len(oTestCase.aidPreReqs) > 0:
+                if oTestCase.aidPreReqs:
                     for idPreReq in oTestCase.aidPreReqs:
                         iPreReq = oTestGroup.aoTestCases.index(oTestGroup.dTestCases[idPreReq]);
                         if iPreReq > i:
@@ -471,7 +477,7 @@ class SchedulerBase(object):
 
         def setupSource(self, oDb, idBuildSrc, sOs, sCpuArch, tsNow):
             """ Configures the build cursor for the cache. """
-            if len(self.aoEntries) == 0 and self.oCursor is None:
+            if not self.aoEntries and self.oCursor is None:
                 oBuildSource = BuildSourceData().initFromDbWithId(oDb, idBuildSrc, tsNow);
                 self.oCursor = BuildSourceLogic(oDb).openBuildCursor(oBuildSource, sOs, sCpuArch, tsNow);
             return True;
@@ -593,7 +599,7 @@ class SchedulerBase(object):
         oData = ReCreateQueueData(self._oDb, self._oSchedGrpData.idSchedGroup);
         aoErrors = oData.checkForGroupDepCycles();
         aoErrors.extend(oData.checkForMissingTestCaseDeps());
-        if len(aoErrors) == 0:
+        if not aoErrors:
             oData.deepTestGroupSort();
 
             #
@@ -608,12 +614,12 @@ class SchedulerBase(object):
             # little for gang gathering).
             #
             aoItems = list();
-            if len(oData.aoArgsVariations) > 0:
+            if oData.aoArgsVariations:
                 aoItems = self._recreateQueueItems(oData);
                 self.msgDebug('len(aoItems)=%s' % (len(aoItems),));
                 #for i in range(len(aoItems)):
                 #    self.msgDebug('aoItems[%2d]=%s' % (i, aoItems[i]));
-            if len(aoItems) > 0:
+            if aoItems:
                 self._oDb.execute('SELECT offQueue FROM SchedQueues WHERE idSchedGroup = %s ORDER BY idItem LIMIT 1'
                                   , (self._oSchedGrpData.idSchedGroup,));
                 if self._oDb.getRowCount() > 0:
@@ -652,7 +658,7 @@ class SchedulerBase(object):
                                             oItem.offQueue,
                                             oItem.idGenTestCaseArgs,
                                             oItem.idTestGroup,
-                                            oItem.aidTestGroupPreReqs if len(oItem.aidTestGroupPreReqs) > 0 else None,
+                                            oItem.aidTestGroupPreReqs if oItem.aidTestGroupPreReqs else None,
                                             oItem.bmHourlySchedule,
                                             oItem.cMissingGangMembers
                                         ));
@@ -695,7 +701,7 @@ class SchedulerBase(object):
             oScheduler = SchedulerBase._instantiate(oDb, oSchedGrpData, iVerbosity);
 
             (aoErrors, asMessages) = oScheduler.recreateQueueWorker();
-            if len(aoErrors) == 0:
+            if not aoErrors:
                 SystemLogLogic(oDb).addEntry(SystemLogData.ksEvent_SchedQueueRecreate,
                                              'User #%d recreated sched queue #%d.' % (uidAuthor, idSchedGroup,));
                 oDb.commit();
@@ -1020,8 +1026,8 @@ class SchedulerBase(object):
 
         # Create a SQL values table out of them.
         sPreReqSet = ''
-        if len(dPreReqs) > 0:
-            for idPreReq in sorted(dPreReqs.keys()):
+        if dPreReqs:
+            for idPreReq in sorted(dPreReqs):
                 sPreReqSet += ', (' + str(idPreReq) + ')';
             sPreReqSet = sPreReqSet[2:]; # drop the leading ', '.
 
@@ -1045,7 +1051,7 @@ class SchedulerBase(object):
             # argument variation has been executed successfully.  It is not
             # satisfied if there are any failure runs.
             #
-            if len(sPreReqSet) > 0:
+            if sPreReqSet:
                 fDecision = oEntry.getPreReqDecision(sPreReqSet);
                 if fDecision is None:
                     # Check for missing prereqs.
@@ -1290,16 +1296,19 @@ class SchedulerBase(object):
         return None;
 
     @staticmethod
-    def _pickSchedGroup(oTestBoxDataEx, iWorkItem):
+    def _pickSchedGroup(oTestBoxDataEx, iWorkItem, dIgnoreSchedGroupIds):
         """
         Picks the next scheduling group for the given testbox.
         """
         if len(oTestBoxDataEx.aoInSchedGroups) == 1:
             oSchedGroup = oTestBoxDataEx.aoInSchedGroups[0].oSchedGroup;
-            if oSchedGroup.fEnabled and oSchedGroup.idBuildSrc is not None:
+            if    oSchedGroup.fEnabled \
+              and oSchedGroup.idBuildSrc is not None \
+              and oSchedGroup.idSchedGroup not in dIgnoreSchedGroupIds:
                 return (oSchedGroup, 0);
+            iWorkItem = 0;
 
-        elif len(oTestBoxDataEx.aoInSchedGroups) > 0:
+        elif oTestBoxDataEx.aoInSchedGroups:
             # Construct priority table of currently enabled scheduling groups.
             aaoList1 = [];
             for oInGroup in oTestBoxDataEx.aoInSchedGroups:
@@ -1329,14 +1338,19 @@ class SchedulerBase(object):
                 iHi -= 1;
 
             # Pick the next one.
-            iWorkItem += 1;
-            if iWorkItem >= len(aoFlat):
-                iWorkItem = 0;
-            if iWorkItem < len(aoFlat):
-                return (aoFlat[iWorkItem], iWorkItem);
+            cLeft = len(aoFlat);
+            while cLeft > 0:
+                cLeft     -= 1;
+                iWorkItem += 1;
+                if iWorkItem >= len(aoFlat) or iWorkItem < 0:
+                    iWorkItem = 0;
+                if aoFlat[iWorkItem].idSchedGroup not in dIgnoreSchedGroupIds:
+                    return (aoFlat[iWorkItem], iWorkItem);
+        else:
+            iWorkItem = 0;
 
         # No active group.
-        return (None, 0);
+        return (None, iWorkItem);
 
     @staticmethod
     def scheduleNewTask(oDb, oTestBoxData, iWorkItem, sBaseUrl, iVerbosity = 0):
@@ -1374,20 +1388,36 @@ class SchedulerBase(object):
             if    oTestBoxDataEx.fEnabled \
               and oTestBoxDataEx.idGenTestBox == oTestBoxData.idGenTestBox:
 
-                # Now, pick the scheduling group.
-                (oSchedGroup, iWorkItem) = SchedulerBase._pickSchedGroup(oTestBoxDataEx, iWorkItem);
-                if oSchedGroup is not None:
+                # We may have to skip scheduling groups that are out of work (e.g. 'No build').
+                iInitialWorkItem     = iWorkItem;
+                dIgnoreSchedGroupIds = {};
+                while True:
+                    # Now, pick the scheduling group.
+                    (oSchedGroup, iWorkItem) = SchedulerBase._pickSchedGroup(oTestBoxDataEx, iWorkItem, dIgnoreSchedGroupIds);
+                    if oSchedGroup is None:
+                        break;
                     assert oSchedGroup.fEnabled and oSchedGroup.idBuildSrc is not None;
 
-                    #
                     # Instantiate the specified scheduler and let it do the rest.
-                    #
                     oScheduler = SchedulerBase._instantiate(oDb, oSchedGroup, iVerbosity, tsSecStart);
                     dResponse = oScheduler.scheduleNewTaskWorker(oTestBoxDataEx, tsNow, sBaseUrl);
                     if dResponse is not None:
                         oTBStatusLogic.updateWorkItem(oTestBoxDataEx.idTestBox, iWorkItem);
                         oDb.commit();
                         return dResponse;
+
+                    # Check out the next work item?
+                    if oScheduler.getElapsedSecs() > config.g_kcSecMaxNewTask:
+                        break;
+                    dIgnoreSchedGroupIds[oSchedGroup.idSchedGroup] = oSchedGroup;
+
+                # No luck, but best if we update the work item if we've made progress.
+                # Note! In case of a config.g_kcSecMaxNewTask timeout, this may accidentally skip
+                #       a work item with actually work to do.  But that's a small price to pay.
+                if iWorkItem != iInitialWorkItem:
+                    oTBStatusLogic.updateWorkItem(oTestBoxDataEx.idTestBox, iWorkItem);
+                    oDb.commit();
+                    return None;
         except:
             oDb.rollback();
             raise;

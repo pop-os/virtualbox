@@ -7,7 +7,7 @@ Test Manager WUI - Build categories.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Validation Kit imports.
@@ -41,10 +41,10 @@ class WuiAdminBuildCatList(WuiListContentBase):
     WUI Build Category List Content Generator.
     """
 
-    def __init__(self, aoEntries, iPage, cItemsPerPage, tsEffective, fnDPrint, oDisp):
+    def __init__(self, aoEntries, iPage, cItemsPerPage, tsEffective, fnDPrint, oDisp, aiSelectedSortColumns = None):
         WuiListContentBase.__init__(self, aoEntries, iPage, cItemsPerPage, tsEffective,
                                     sTitle = 'Build Categories', sId = 'buildcategories',
-                                    fnDPrint = fnDPrint, oDisp = oDisp);
+                                    fnDPrint = fnDPrint, oDisp = oDisp, aiSelectedSortColumns = aiSelectedSortColumns);
         self._asColumnHeaders = ([ 'ID', 'Product', 'Repository', 'Branch', 'Build Type', 'OS/Architectures', 'Actions' ]);
         self._asColumnAttribs = (['align="right"', '', '', '', '', 'align="center"' ]);
 
@@ -56,13 +56,16 @@ class WuiAdminBuildCatList(WuiListContentBase):
             WuiTmLink('Details', WuiAdmin.ksScriptName,
                       { WuiAdmin.ksParamAction: WuiAdmin.ksActionBuildCategoryDetails,
                         BuildCategoryData.ksParam_idBuildCategory: oEntry.idBuildCategory, }),
-            WuiTmLink('Clone', WuiAdmin.ksScriptName,
-                      { WuiAdmin.ksParamAction: WuiAdmin.ksActionBuildCategoryClone,
-                        BuildCategoryData.ksParam_idBuildCategory: oEntry.idBuildCategory, }),
-            WuiTmLink('Try Remove', WuiAdmin.ksScriptName,
-                      { WuiAdmin.ksParamAction: WuiAdmin.ksActionBuildCategoryDoRemove,
-                        BuildCategoryData.ksParam_idBuildCategory: oEntry.idBuildCategory, }),
         ];
+        if self._oDisp is None or not self._oDisp.isReadOnlyUser():
+            aoActions += [
+                WuiTmLink('Clone', WuiAdmin.ksScriptName,
+                          { WuiAdmin.ksParamAction: WuiAdmin.ksActionBuildCategoryClone,
+                            BuildCategoryData.ksParam_idBuildCategory: oEntry.idBuildCategory, }),
+                WuiTmLink('Try Remove', WuiAdmin.ksScriptName,
+                          { WuiAdmin.ksParamAction: WuiAdmin.ksActionBuildCategoryDoRemove,
+                            BuildCategoryData.ksParam_idBuildCategory: oEntry.idBuildCategory, }),
+            ];
 
         sHtml = '<ul class="tmshowall">\n';
         for sOsArch in oEntry.asOsArches:

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,12 +27,11 @@
 #ifndef ___VBox_HostService_VBoxCrOpenGLSvc_h
 #define ___VBox_HostService_VBoxCrOpenGLSvc_h
 
-#include <VBox/types.h>
-#include <VBox/VMMDev.h>
-#include <VBox/VBoxGuest2.h>
+#include <VBox/VMMDevCoreTypes.h>
+#include <VBox/VBoxGuestCoreTypes.h>
 #include <VBox/hgcmsvc.h>
-#include <VBox/VBoxVideo.h>
-#include <VBox/VBoxVideoHost3D.h>
+#include <VBox/Graphics/VBoxVideo.h>
+#include <VBox/Graphics/VBoxVideoHost3D.h>
 
 /* crOpenGL host functions */
 #define SHCRGL_HOST_FN_SET_CONSOLE (1)
@@ -222,7 +221,7 @@ typedef struct
 /** GUEST_FN_WRITE Parameters structure. */
 typedef struct
 {
-    VBoxGuestHGCMCallInfo   hdr;
+    VBGLIOCHGCMCALL   hdr;
 
     /** pointer, in
      *  Data buffer
@@ -233,7 +232,7 @@ typedef struct
 /** GUEST_FN_READ Parameters structure. */
 typedef struct
 {
-    VBoxGuestHGCMCallInfo   hdr;
+    VBGLIOCHGCMCALL   hdr;
 
     /** pointer, in/out
      *  Data buffer
@@ -250,7 +249,7 @@ typedef struct
 /** GUEST_FN_WRITE_READ Parameters structure. */
 typedef struct
 {
-    VBoxGuestHGCMCallInfo   hdr;
+    VBGLIOCHGCMCALL   hdr;
 
     /** pointer, in
      *  Data buffer
@@ -272,7 +271,7 @@ typedef struct
 /** GUEST_FN_SET_VERSION Parameters structure. */
 typedef struct
 {
-    VBoxGuestHGCMCallInfo   hdr;
+    VBGLIOCHGCMCALL   hdr;
 
     /** 32bit, in
      *  Major version
@@ -289,7 +288,7 @@ typedef struct
 /** GUEST_FN_GET_CAPS Parameters structure. */
 typedef struct
 {
-    VBoxGuestHGCMCallInfo   hdr;
+    VBGLIOCHGCMCALL   hdr;
 
     /** 32bit, out
      *  Caps
@@ -300,7 +299,7 @@ typedef struct
 /** GUEST_FN_INJECT Parameters structure. */
 typedef struct
 {
-    VBoxGuestHGCMCallInfo   hdr;
+    VBGLIOCHGCMCALL   hdr;
 
     /** 32bit, in
      *  ClientID to inject commands buffer for
@@ -315,7 +314,7 @@ typedef struct
 /** GUEST_FN_SET_PID Parameters structure. */
 typedef struct
 {
-    VBoxGuestHGCMCallInfo   hdr;
+    VBGLIOCHGCMCALL   hdr;
 
     /** 64bit, in
      *  PID
@@ -326,7 +325,7 @@ typedef struct
 /** GUEST_FN_WRITE_BUFFER Parameters structure. */
 typedef struct
 {
-    VBoxGuestHGCMCallInfo   hdr;
+    VBGLIOCHGCMCALL   hdr;
 
     /** 32bit, in/out
      *  Buffer id, 0 means host have to allocate one
@@ -353,7 +352,7 @@ typedef struct
 /** GUEST_FN_WRITE_READ_BUFFERED Parameters structure. */
 typedef struct
 {
-    VBoxGuestHGCMCallInfo   hdr;
+    VBGLIOCHGCMCALL   hdr;
 
     /** 32bit, in
      *  Buffer id.

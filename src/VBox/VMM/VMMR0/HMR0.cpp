@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1613,24 +1613,10 @@ VMMR0_INT_DECL(bool) HMR0SuspendPending(void)
  *
  * @returns The cpu structure pointer.
  */
-VMMR0DECL(PHMGLOBALCPUINFO) HMR0GetCurrentCpu(void)
+VMMR0_INT_DECL(PHMGLOBALCPUINFO) hmR0GetCurrentCpu(void)
 {
     Assert(!RTThreadPreemptIsEnabled(NIL_RTTHREAD));
     RTCPUID idCpu = RTMpCpuId();
-    Assert(idCpu < RT_ELEMENTS(g_HmR0.aCpuInfo));
-    return &g_HmR0.aCpuInfo[idCpu];
-}
-
-
-/**
- * Returns the cpu structure for the current cpu.
- * Keep in mind that there is no guarantee it will stay the same (long jumps to ring 3!!!).
- *
- * @returns The cpu structure pointer.
- * @param   idCpu       id of the VCPU.
- */
-VMMR0DECL(PHMGLOBALCPUINFO) HMR0GetCurrentCpuEx(RTCPUID idCpu)
-{
     Assert(idCpu < RT_ELEMENTS(g_HmR0.aCpuInfo));
     return &g_HmR0.aCpuInfo[idCpu];
 }
@@ -1718,7 +1704,7 @@ VMMR0_INT_DECL(int) HMR0EnterSwitcher(PVM pVM, VMMSWITCHER enmSwitcher, bool *pf
         return VINF_SUCCESS;
 
     /* Ok, disable VT-x. */
-    PHMGLOBALCPUINFO pCpu = HMR0GetCurrentCpu();
+    PHMGLOBALCPUINFO pCpu = hmR0GetCurrentCpu();
     AssertReturn(pCpu && pCpu->hMemObj != NIL_RTR0MEMOBJ && pCpu->pvMemObj && pCpu->HCPhysMemObj != NIL_RTHCPHYS, VERR_HM_IPE_2);
 
     *pfVTxDisabled = true;
@@ -1748,7 +1734,7 @@ VMMR0_INT_DECL(void) HMR0LeaveSwitcher(PVM pVM, bool fVTxDisabled)
         Assert(g_HmR0.fEnabled);
         Assert(g_HmR0.fGlobalInit);
 
-        PHMGLOBALCPUINFO pCpu = HMR0GetCurrentCpu();
+        PHMGLOBALCPUINFO pCpu = hmR0GetCurrentCpu();
         AssertReturnVoid(pCpu && pCpu->hMemObj != NIL_RTR0MEMOBJ && pCpu->pvMemObj && pCpu->HCPhysMemObj != NIL_RTHCPHYS);
 
         VMXR0EnableCpu(pCpu, pVM, pCpu->pvMemObj, pCpu->HCPhysMemObj, false, &g_HmR0.vmx.Msrs);
@@ -1765,7 +1751,7 @@ VMMR0_INT_DECL(void) HMR0LeaveSwitcher(PVM pVM, bool fVTxDisabled)
  * @param   Sel      Selector number.
  * @param   pszMsg   Message to prepend the log entry with.
  */
-VMMR0DECL(void) HMR0DumpDescriptor(PCX86DESCHC pDesc, RTSEL Sel, const char *pszMsg)
+VMMR0_INT_DECL(void) hmR0DumpDescriptor(PCX86DESCHC pDesc, RTSEL Sel, const char *pszMsg)
 {
     /*
      * Make variable description string.
@@ -1888,7 +1874,7 @@ VMMR0DECL(void) HMR0DumpDescriptor(PCX86DESCHC pDesc, RTSEL Sel, const char *psz
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pCtx        Pointer to the CPU context.
  */
-VMMR0DECL(void) HMDumpRegs(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
+VMMR0_INT_DECL(void) hmR0DumpRegs(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 {
     NOREF(pVM);
 

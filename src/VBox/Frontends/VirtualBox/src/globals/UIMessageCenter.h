@@ -164,8 +164,6 @@ public:
     /* API: Global warnings: */
     void cannotFindLanguage(const QString &strLangId, const QString &strNlsPath) const;
     void cannotLoadLanguage(const QString &strLangFile) const;
-    void cannotLoadGlobalConfig(const CVirtualBox &vbox, const QString &strError) const;
-    void cannotSaveGlobalConfig(const CVirtualBox &vbox) const;
     void cannotFindMachineByName(const CVirtualBox &vbox, const QString &strName) const;
     void cannotFindMachineById(const CVirtualBox &vbox, const QString &strId) const;
     void cannotOpenSession(const CSession &session) const;
@@ -200,6 +198,7 @@ public:
     void cannotACPIShutdownMachine(const CConsole &console) const;
     void cannotPowerDownMachine(const CConsole &console) const;
     void cannotPowerDownMachine(const CProgress &progress, const QString &strMachineName) const;
+    bool confirmStartMultipleMachines(const QString &strNames) const;
 
     /* API: Snapshot warnings: */
     int confirmSnapshotRestoring(const QString &strSnapshotName, bool fAlsoCreateNewSnapshot) const;
@@ -212,21 +211,16 @@ public:
     bool cannotRestoreSnapshot(const CProgress &progress, const QString &strSnapshotName, const QString &strMachineName) const;
     void cannotRemoveSnapshot(const CMachine &machine, const QString &strSnapshotName, const QString &strMachineName) const;
     void cannotRemoveSnapshot(const CProgress &progress, const QString &strSnapshotName, const QString &strMachineName) const;
+    void cannotChangeSnapshot(const CSnapshot &comSnapshot, const QString &strSnapshotName, const QString &strMachineName) const;
+    void cannotFindSnapshotByName(const CMachine &comMachine, const QString &strName, QWidget *pParent = 0) const;
+    void cannotFindSnapshotById(const CMachine &comMachine, const QString &strId, QWidget *pParent = 0) const;
+    void cannotAcquireSnapshotAttributes(const CSnapshot &comSnapshot, QWidget *pParent = 0);
 
     /* API: Common settings warnings: */
     void cannotSaveSettings(const QString strDetails, QWidget *pParent = 0) const;
 
     /* API: Global settings warnings: */
     bool confirmNATNetworkRemoval(const QString &strName, QWidget *pParent = 0) const;
-    bool confirmHostOnlyInterfaceRemoval(const QString &strName, QWidget *pParent = 0) const;
-    void cannotCreateNATNetwork(const CVirtualBox &vbox, QWidget *pParent = 0);
-    void cannotRemoveNATNetwork(const CVirtualBox &vbox, const QString &strNetworkName, QWidget *pParent = 0);
-    void cannotCreateDHCPServer(const CVirtualBox &vbox, QWidget *pParent = 0);
-    void cannotRemoveDHCPServer(const CVirtualBox &vbox, const QString &strInterfaceName, QWidget *pParent = 0);
-    void cannotCreateHostInterface(const CHost &host, QWidget *pParent = 0);
-    void cannotCreateHostInterface(const CProgress &progress, QWidget *pParent = 0);
-    void cannotRemoveHostInterface(const CHost &host, const QString &strInterfaceName, QWidget *pParent = 0);
-    void cannotRemoveHostInterface(const CProgress &progress, const QString &strInterfaceName, QWidget *pParent = 0);
     void cannotSetSystemProperties(const CSystemProperties &properties, QWidget *pParent = 0) const;
 
     /* API: Machine settings warnings: */
@@ -244,23 +238,39 @@ public:
     bool warnAboutNameShouldBeUnique(QWidget *pParent = 0) const;
     bool warnAboutRulesConflict(QWidget *pParent = 0) const;
     bool confirmCancelingPortForwardingDialog(QWidget *pParent = 0) const;
-    void cannotCreateSharedFolder(const CMachine &machine, const QString &strName, const QString &strPath, QWidget *pParent = 0);
-    void cannotCreateSharedFolder(const CConsole &console, const QString &strName, const QString &strPath, QWidget *pParent = 0);
-    void cannotRemoveSharedFolder(const CMachine &machine, const QString &strName, const QString &strPath, QWidget *pParent = 0);
-    void cannotRemoveSharedFolder(const CConsole &console, const QString &strName, const QString &strPath, QWidget *pParent = 0);
     void cannotSaveMachineSettings(const CMachine &machine, QWidget *pParent = 0) const;
 
     /* API: Virtual Medium Manager warnings: */
     void cannotChangeMediumType(const CMedium &medium, KMediumType oldMediumType, KMediumType newMediumType, QWidget *pParent = 0) const;
+    void cannotMoveMediumStorage(const CMedium &comMedium, const QString &strLocationOld, const QString &strLocationNew, QWidget *pParent = 0) const;
+    void cannotMoveMediumStorage(const CProgress &comProgress, const QString &strLocationOld, const QString &strLocationNew, QWidget *pParent = 0) const;
+    void cannotChangeMediumDescription(const CMedium &comMedium, const QString &strLocation, QWidget *pParent = 0) const;
     bool confirmMediumRelease(const UIMedium &medium, QWidget *pParent = 0) const;
     bool confirmMediumRemoval(const UIMedium &medium, QWidget *pParent = 0) const;
     int confirmDeleteHardDiskStorage(const QString &strLocation, QWidget *pParent = 0) const;
     void cannotDeleteHardDiskStorage(const CMedium &medium, const QString &strLocation, QWidget *pParent = 0) const;
     void cannotDeleteHardDiskStorage(const CProgress &progress, const QString &strLocation, QWidget *pParent = 0) const;
+    void cannotResizeHardDiskStorage(const CMedium &comMedium, const QString &strLocation, const QString &strSizeOld, const QString &strSizeNew, QWidget *pParent = 0) const;
+    void cannotResizeHardDiskStorage(const CProgress &comProgress, const QString &strLocation, const QString &strSizeOld, const QString &strSizeNew, QWidget *pParent = 0) const;
     void cannotDetachDevice(const CMachine &machine, UIMediumType type, const QString &strLocation, const StorageSlot &storageSlot, QWidget *pParent = 0) const;
     bool cannotRemountMedium(const CMachine &machine, const UIMedium &medium, bool fMount, bool fRetry, QWidget *pParent = 0) const;
     void cannotOpenMedium(const CVirtualBox &vbox, UIMediumType type, const QString &strLocation, QWidget *pParent = 0) const;
     void cannotCloseMedium(const UIMedium &medium, const COMResult &rc, QWidget *pParent = 0) const;
+
+    /* API: Host Network Manager warnings: */
+    bool confirmHostOnlyInterfaceRemoval(const QString &strName, QWidget *pParent = 0) const;
+    void cannotAcquireHostNetworkInterfaces(const CHost &comHost, QWidget *pParent = 0) const;
+    void cannotFindHostNetworkInterface(const CHost &comHost, const QString &strInterfaceName, QWidget *pParent = 0) const;
+    void cannotCreateHostNetworkInterface(const CHost &comHost, QWidget *pParent = 0) const;
+    void cannotCreateHostNetworkInterface(const CProgress &progress, QWidget *pParent = 0) const;
+    void cannotRemoveHostNetworkInterface(const CHost &comHost, const QString &strInterfaceName, QWidget *pParent = 0) const;
+    void cannotRemoveHostNetworkInterface(const CProgress &progress, const QString &strInterfaceName, QWidget *pParent = 0) const;
+    void cannotAcquireHostNetworkInterfaceParameter(const CHostNetworkInterface &comInterface, QWidget *pParent = 0) const;
+    void cannotSaveHostNetworkInterfaceParameter(const CHostNetworkInterface &comInterface, QWidget *pParent = 0) const;
+    void cannotCreateDHCPServer(const CVirtualBox &comVBox, const QString &strInterfaceName, QWidget *pParent = 0) const;
+    void cannotRemoveDHCPServer(const CVirtualBox &comVBox, const QString &strInterfaceName, QWidget *pParent = 0) const;
+    void cannotAcquireDHCPServerParameter(const CDHCPServer &comServer, QWidget *pParent = 0) const;
+    void cannotSaveDHCPServerParameter(const CDHCPServer &comServer, QWidget *pParent = 0) const;
 
     /* API: Wizards warnings: */
     bool confirmHardDisklessMachine(QWidget *pParent = 0) const;
@@ -283,7 +293,6 @@ public:
     void cannotExportAppliance(const CAppliance &appliance, QWidget *pParent = 0) const;
     void cannotExportAppliance(const CMachine &machine, const QString &strPath, QWidget *pParent = 0) const;
     void cannotExportAppliance(const CProgress &progress, const QString &strPath, QWidget *pParent = 0) const;
-    void cannotFindSnapshotByName(const CMachine &machine, const QString &strMachine, QWidget *pParent = 0) const;
     void cannotAddDiskEncryptionPassword(const CAppliance &appliance, QWidget *pParent = 0);
 
     /* API: Runtime UI warnings: */
@@ -303,17 +312,6 @@ public:
     void cannotEnterSeamlessMode(ULONG uWidth, ULONG uHeight, ULONG uBpp, ULONG64 uMinVRAM) const;
     bool cannotSwitchScreenInFullscreen(quint64 uMinVRAM) const;
     void cannotSwitchScreenInSeamless(quint64 uMinVRAM) const;
-    void cannotAttachUSBDevice(const CConsole &console, const QString &strDevice) const;
-    void cannotAttachUSBDevice(const CVirtualBoxErrorInfo &errorInfo, const QString &strDevice, const QString &strMachineName) const;
-    void cannotDetachUSBDevice(const CConsole &console, const QString &strDevice) const;
-    void cannotDetachUSBDevice(const CVirtualBoxErrorInfo &errorInfo, const QString &strDevice, const QString &strMachineName) const;
-    void cannotAttachWebCam(const CEmulatedUSB &dispatcher, const QString &strWebCamName, const QString &strMachineName) const;
-    void cannotDetachWebCam(const CEmulatedUSB &dispatcher, const QString &strWebCamName, const QString &strMachineName) const;
-    void cannotToggleVideoCapture(const CMachine &machine, bool fEnable);
-    void cannotToggleVRDEServer(const CVRDEServer &server, const QString &strMachineName, bool fEnable);
-    void cannotToggleNetworkAdapterCable(const CNetworkAdapter &adapter, const QString &strMachineName, bool fConnect);
-    void remindAboutGuestAdditionsAreNotActive() const;
-    void cannotMountGuestAdditions(const QString &strMachineName) const;
     void cannotAddDiskEncryptionPassword(const CConsole &console);
 
 #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
@@ -374,15 +372,6 @@ public:
     bool confirmOverridingFileIfExists(const QString &strPath, QWidget *pParent = 0) const;
     bool confirmOverridingFilesIfExists(const QVector<QString> &strPaths, QWidget *pParent = 0) const;
 
-    /* API: Static helpers: */
-    static QString formatRC(HRESULT rc);
-    static QString formatRCFull(HRESULT rc);
-    static QString formatErrorInfo(const CProgress &progress);
-    static QString formatErrorInfo(const COMErrorInfo &info, HRESULT wrapperRC = S_OK);
-    static QString formatErrorInfo(const CVirtualBoxErrorInfo &info);
-    static QString formatErrorInfo(const COMBaseWithEI &wrapper);
-    static QString formatErrorInfo(const COMResult &rc);
-
 public slots:
 
     /* Handlers: Help menu stuff: */
@@ -413,9 +402,6 @@ private:
     /* Helpers: Prepare/cleanup stuff: */
     void prepare();
     void cleanup();
-
-    /* Helper: */
-    static QString errorInfoToString(const COMErrorInfo &info, HRESULT wrapperRC = S_OK);
 
     /* Helper: Message-box stuff: */
     int showMessageBox(QWidget *pParent, MessageType type,

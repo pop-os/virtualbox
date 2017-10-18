@@ -65,7 +65,7 @@ using namespace com;
 #include <VBox/param.h>
 #include <VBox/log.h>
 #include <VBox/version.h>
-#include <VBox/VBoxVideo.h>
+#include <VBoxVideo.h>
 #include <VBox/com/listeners.h>
 
 #include <iprt/alloca.h>
@@ -2562,7 +2562,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                             break;
                         }
                     }
-                    /* fall through */
+                    RT_FALL_THRU();
 
                     case HKEYSTATE_DOWN:
                     {
@@ -2626,7 +2626,7 @@ DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
 
                     default:
                         AssertMsgFailed(("enmHKeyState=%d\n", enmHKeyState));
-                        /* fall thru */
+                        RT_FALL_THRU();
                     case HKEYSTATE_NOT_IT:
                     {
                         if ((SDL_GetModState() & ~(KMOD_MODE | KMOD_NUM | KMOD_RESERVED)) == 0)

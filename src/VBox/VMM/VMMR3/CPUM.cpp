@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -110,9 +110,10 @@
 #include <VBox/vmm/cpumdis.h>
 #include <VBox/vmm/cpumctx-v1_6.h>
 #include <VBox/vmm/pgm.h>
-#include <VBox/vmm/pdmapi.h>
+#include <VBox/vmm/apic.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/em.h>
+#include <VBox/vmm/iem.h>
 #include <VBox/vmm/selm.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/patm.h>
@@ -172,6 +173,7 @@ static DECLCALLBACK(int)  cpumR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVer
 static DECLCALLBACK(int)  cpumR3LoadDone(PVM pVM, PSSMHANDLE pSSM);
 static DECLCALLBACK(void) cpumR3InfoAll(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 static DECLCALLBACK(void) cpumR3InfoGuest(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
+static DECLCALLBACK(void) cpumR3InfoGuestHwvirt(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 static DECLCALLBACK(void) cpumR3InfoGuestInstr(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 static DECLCALLBACK(void) cpumR3InfoHyper(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 static DECLCALLBACK(void) cpumR3InfoHost(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
@@ -261,7 +263,6 @@ static const SSMFIELD g_aCpumCtxFields[] =
     SSMFIELD_ENTRY(         CPUMCTX, msrCSTAR),
     SSMFIELD_ENTRY(         CPUMCTX, msrSFMASK),
     SSMFIELD_ENTRY(         CPUMCTX, msrKERNELGSBASE),
-    /* msrApicBase is not included here, it resides in the APIC device state. */
     SSMFIELD_ENTRY(         CPUMCTX, ldtr.Sel),
     SSMFIELD_ENTRY(         CPUMCTX, ldtr.ValidSel),
     SSMFIELD_ENTRY(         CPUMCTX, ldtr.fFlags),
@@ -750,6 +751,111 @@ static void cpumR3CheckLeakyFpu(PVM pVM)
 
 
 /**
+ * Frees memory allocated by cpumR3AllocHwVirtState().
+ *
+ * @param   pVM     The cross context VM structure.
+ */
+static void cpumR3FreeHwVirtState(PVM pVM)
+{
+    Assert(pVM->cpum.ro.GuestFeatures.fSvm);
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[i];
+        if (pVCpu->cpum.s.Guest.hwvirt.svm.pVmcbR3)
+        {
+            SUPR3PageFreeEx(pVCpu->cpum.s.Guest.hwvirt.svm.pVmcbR3, SVM_VMCB_PAGES);
+            pVCpu->cpum.s.Guest.hwvirt.svm.pVmcbR3 = NULL;
+        }
+        pVCpu->cpum.s.Guest.hwvirt.svm.HCPhysVmcb = NIL_RTHCPHYS;
+
+        if (pVCpu->cpum.s.Guest.hwvirt.svm.pvMsrBitmapR3)
+        {
+            SUPR3PageFreeEx(pVCpu->cpum.s.Guest.hwvirt.svm.pvMsrBitmapR3, SVM_MSRPM_PAGES);
+            pVCpu->cpum.s.Guest.hwvirt.svm.pvMsrBitmapR3 = NULL;
+        }
+
+        if (pVCpu->cpum.s.Guest.hwvirt.svm.pvIoBitmapR3)
+        {
+            SUPR3PageFreeEx(pVCpu->cpum.s.Guest.hwvirt.svm.pvIoBitmapR3, SVM_IOPM_PAGES);
+            pVCpu->cpum.s.Guest.hwvirt.svm.pvIoBitmapR3 = NULL;
+        }
+    }
+}
+
+
+/**
+ * Allocates memory required by the hardware virtualization state.
+ *
+ * @returns VBox status code.
+ * @param   pVM     The cross context VM structure.
+ */
+static int cpumR3AllocHwVirtState(PVM pVM)
+{
+    Assert(pVM->cpum.ro.GuestFeatures.fSvm);
+
+    int rc = VINF_SUCCESS;
+    LogRel(("CPUM: Allocating a total of %u pages for the nested-guest SVM MSR and IO permission bitmaps\n",
+            pVM->cCpus * (SVM_MSRPM_PAGES + SVM_IOPM_PAGES)));
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
+    {
+        PVMCPU pVCpu = &pVM->aCpus[i];
+
+        /*
+         * Allocate the nested-guest VMCB.
+         */
+        SUPPAGE SupNstGstVmcbPage;
+        RT_ZERO(SupNstGstVmcbPage);
+        SupNstGstVmcbPage.Phys = NIL_RTHCPHYS;
+        Assert(SVM_VMCB_PAGES == 1);
+        Assert(!pVCpu->cpum.s.Guest.hwvirt.svm.pVmcbR3);
+        rc = SUPR3PageAllocEx(SVM_VMCB_PAGES, 0 /* fFlags */, (void **)&pVCpu->cpum.s.Guest.hwvirt.svm.pVmcbR3,
+                              &pVCpu->cpum.s.Guest.hwvirt.svm.pVmcbR0, &SupNstGstVmcbPage);
+        if (RT_FAILURE(rc))
+        {
+            Assert(!pVCpu->cpum.s.Guest.hwvirt.svm.pVmcbR3);
+            LogRel(("CPUM%u: Failed to alloc %u pages for the nested-guest's VMCB\n", pVCpu->idCpu, SVM_VMCB_PAGES));
+            break;
+        }
+        pVCpu->cpum.s.Guest.hwvirt.svm.HCPhysVmcb = SupNstGstVmcbPage.Phys;
+
+        /*
+         * Allocate the MSRPM (MSR Permission bitmap).
+         */
+        Assert(!pVCpu->cpum.s.Guest.hwvirt.svm.pvMsrBitmapR3);
+        rc = SUPR3PageAllocEx(SVM_MSRPM_PAGES, 0 /* fFlags */, &pVCpu->cpum.s.Guest.hwvirt.svm.pvMsrBitmapR3,
+                              &pVCpu->cpum.s.Guest.hwvirt.svm.pvMsrBitmapR0, NULL /* paPages */);
+        if (RT_FAILURE(rc))
+        {
+            Assert(!pVCpu->cpum.s.Guest.hwvirt.svm.pvMsrBitmapR3);
+            LogRel(("CPUM%u: Failed to alloc %u pages for the nested-guest's MSR permission bitmap\n", pVCpu->idCpu,
+                    SVM_MSRPM_PAGES));
+            break;
+        }
+
+        /*
+         * Allocate the IOPM (IO Permission bitmap).
+         */
+        Assert(!pVCpu->cpum.s.Guest.hwvirt.svm.pvIoBitmapR3);
+        rc = SUPR3PageAllocEx(SVM_IOPM_PAGES, 0 /* fFlags */, &pVCpu->cpum.s.Guest.hwvirt.svm.pvIoBitmapR3,
+                              &pVCpu->cpum.s.Guest.hwvirt.svm.pvIoBitmapR0, NULL /* paPages */);
+        if (RT_FAILURE(rc))
+        {
+            Assert(!pVCpu->cpum.s.Guest.hwvirt.svm.pvIoBitmapR3);
+            LogRel(("CPUM%u: Failed to alloc %u pages for the nested-guest's IO permission bitmap\n", pVCpu->idCpu,
+                    SVM_IOPM_PAGES));
+            break;
+        }
+    }
+
+    /* On any failure, cleanup. */
+    if (RT_FAILURE(rc))
+        cpumR3FreeHwVirtState(pVM);
+
+    return rc;
+}
+
+
+/**
  * Initializes the CPUM.
  *
  * @returns VBox status code.
@@ -885,10 +991,6 @@ VMMR3DECL(int) CPUMR3Init(PVM pVM)
     }
 
     /*
-     * Setup hypervisor startup values.
-     */
-
-    /*
      * Register saved state data item.
      */
     rc = SSMR3RegisterInternal(pVM, "cpum", 1, CPUM_SAVED_STATE_VERSION, sizeof(CPUM),
@@ -905,6 +1007,8 @@ VMMR3DECL(int) CPUMR3Init(PVM pVM)
                                  &cpumR3InfoAll, DBGFINFO_FLAGS_ALL_EMTS);
     DBGFR3InfoRegisterInternalEx(pVM, "cpumguest",        "Displays the guest cpu state.",
                                  &cpumR3InfoGuest, DBGFINFO_FLAGS_ALL_EMTS);
+    DBGFR3InfoRegisterInternalEx(pVM, "cpumguesthwvirt",   "Displays the guest hwvirt. cpu state.",
+                                 &cpumR3InfoGuestHwvirt, DBGFINFO_FLAGS_ALL_EMTS);
     DBGFR3InfoRegisterInternalEx(pVM, "cpumhyper",        "Displays the hypervisor cpu state.",
                                  &cpumR3InfoHyper, DBGFINFO_FLAGS_ALL_EMTS);
     DBGFR3InfoRegisterInternalEx(pVM, "cpumhost",         "Displays the host cpu state.",
@@ -928,6 +1032,17 @@ VMMR3DECL(int) CPUMR3Init(PVM pVM)
     rc = cpumR3InitCpuIdAndMsrs(pVM);
     if (RT_FAILURE(rc))
         return rc;
+
+    /*
+     * Allocate memory required by the guest hardware virtualization state.
+     */
+    if (pVM->cpum.ro.GuestFeatures.fSvm)
+    {
+        rc = cpumR3AllocHwVirtState(pVM);
+        if (RT_FAILURE(rc))
+            return rc;
+    }
+
     CPUMR3Reset(pVM);
     return VINF_SUCCESS;
 }
@@ -1007,9 +1122,10 @@ VMMR3DECL(int) CPUMR3Term(PVM pVM)
         pVCpu->cpum.s.uMagic     = 0;
         pCtx->dr[5]              = 0;
     }
-#else
-    NOREF(pVM);
 #endif
+
+    if (pVM->cpum.ro.GuestFeatures.fSvm)
+        cpumR3FreeHwVirtState(pVM);
     return VINF_SUCCESS;
 }
 
@@ -1153,16 +1269,22 @@ VMMR3DECL(void) CPUMR3ResetCpu(PVM pVM, PVMCPU pVCpu)
 
     /* C-state control. Guesses. */
     pVCpu->cpum.s.GuestMsrs.msr.PkgCStateCfgCtrl = 1 /*C1*/ | RT_BIT_32(25) | RT_BIT_32(26) | RT_BIT_32(27) | RT_BIT_32(28);
-
+    /* For Nehalem+ and Atoms, the 0xE2 MSR (MSR_PKG_CST_CONFIG_CONTROL) is documented. For Core 2,
+     * it's undocumented but exists as MSR_PMG_CST_CONFIG_CONTROL and has similar but not identical
+     * functionality. The default value must be different due to incompatible write mask.
+     */
+    if (CPUMMICROARCH_IS_INTEL_CORE2(pVM->cpum.s.GuestFeatures.enmMicroarch))
+        pVCpu->cpum.s.GuestMsrs.msr.PkgCStateCfgCtrl = 0x202a01;    /* From Mac Pro Harpertown, unlocked. */
 
     /*
-     * Get the APIC base MSR from the APIC device. For historical reasons (saved state), the APIC base
-     * continues to reside in the APIC device and we cache it here in the VCPU for all further accesses.
+     * Hardware virtualization state.
      */
-    PDMApicGetBaseMsr(pVCpu, &pCtx->msrApicBase, true /* fIgnoreErrors */);
-#ifdef VBOX_WITH_NEW_APIC
-    LogRel(("CPUM: VCPU%3d: Cached APIC base MSR = %#RX64\n", pVCpu->idCpu, pVCpu->cpum.s.Guest.msrApicBase));
-#endif
+    /* SVM. */
+    if (pCtx->hwvirt.svm.CTX_SUFF(pVmcb))
+        memset(pCtx->hwvirt.svm.CTX_SUFF(pVmcb), 0, SVM_VMCB_PAGES << PAGE_SHIFT);
+    pCtx->hwvirt.svm.uMsrHSavePa = 0;
+    pCtx->hwvirt.svm.GCPhysVmcb = 0;
+    pCtx->hwvirt.svm.fGif = 1;
 }
 
 
@@ -1610,12 +1732,6 @@ static DECLCALLBACK(int) cpumR3LoadDone(PVM pVM, PSSMHANDLE pSSM)
         /* Notify PGM of the NXE states in case they've changed. */
         PGMNotifyNxeChanged(pVCpu, RT_BOOL(pVCpu->cpum.s.Guest.msrEFER & MSR_K6_EFER_NXE));
 
-        /* Cache the local APIC base from the APIC device. During init. this is done in CPUMR3ResetCpu(). */
-        PDMApicGetBaseMsr(pVCpu, &pVCpu->cpum.s.Guest.msrApicBase, true /* fIgnoreErrors */);
-#ifdef VBOX_WITH_NEW_APIC
-        LogRel(("CPUM: VCPU%3d: Cached APIC base MSR = %#RX64\n", idCpu, pVCpu->cpum.s.Guest.msrApicBase));
-#endif
-
         /* During init. this is done in CPUMR3InitCompleted(). */
         if (fSupportsLongMode)
             pVCpu->cpum.s.fUseFlags |= CPUM_USE_SUPPORTS_LONGMODE;
@@ -2018,6 +2134,7 @@ static DECLCALLBACK(void) cpumR3InfoAll(PVM pVM, PCDBGFINFOHLP pHlp, const char 
 {
     cpumR3InfoGuest(pVM, pHlp, pszArgs);
     cpumR3InfoGuestInstr(pVM, pHlp, pszArgs);
+    cpumR3InfoGuestHwvirt(pVM, pHlp, pszArgs);
     cpumR3InfoHyper(pVM, pHlp, pszArgs);
     cpumR3InfoHost(pVM, pHlp, pszArgs);
 }
@@ -2069,7 +2186,7 @@ static void cpumR3InfoParseArg(const char *pszArgs, CPUMDUMPTYPE *penmType, cons
  *
  * @param   pVM         The cross context VM structure.
  * @param   pHlp        The info helper functions.
- * @param   pszArgs     Arguments, ignored.
+ * @param   pszArgs     Arguments.
  */
 static DECLCALLBACK(void) cpumR3InfoGuest(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs)
 {
@@ -2089,6 +2206,111 @@ static DECLCALLBACK(void) cpumR3InfoGuest(PVM pVM, PCDBGFINFOHLP pHlp, const cha
 
 
 /**
+ * Display the guest's hardware-virtualization cpu state.
+ *
+ * @param   pVM         The cross context VM structure.
+ * @param   pHlp        The info helper functions.
+ * @param   pszArgs     Arguments, ignored.
+ */
+static DECLCALLBACK(void) cpumR3InfoGuestHwvirt(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs)
+{
+    RT_NOREF(pszArgs);
+
+    PVMCPU pVCpu = VMMGetCpu(pVM);
+    if (!pVCpu)
+        pVCpu = &pVM->aCpus[0];
+
+    /*
+     * Figure out what to dump.
+     *
+     * In the future we may need to dump everything whether or not we're actively in nested-guest mode
+     * or not, hence the reason why we use a mask to determine what needs dumping. Currently, we only
+     * dump hwvirt. state when the guest CPU is executing a nested-guest.
+     */
+    /** @todo perhaps make this configurable through pszArgs, depending on how much
+     *        noise we wish to accept when nested hwvirt. isn't used. */
+#define CPUMHWVIRTDUMP_NONE     (0)
+#define CPUMHWVIRTDUMP_SVM      RT_BIT(0)
+#define CPUMHWVIRTDUMP_VMX      RT_BIT(1)
+#define CPUMHWVIRTDUMP_COMMON   RT_BIT(2)
+#define CPUMHWVIRTDUMP_LAST     CPUMHWVIRTDUMP_VMX
+#define CPUMHWVIRTDUMP_ALL      (CPUMHWVIRTDUMP_COMMON | CPUMHWVIRTDUMP_VMX | CPUMHWVIRTDUMP_SVM)
+
+    PCPUMCTX pCtx = &pVCpu->cpum.s.Guest;
+    static const char *const s_aHwvirtModes[] = { "No/inactive", "SVM", "VMX", "Common" };
+    uint8_t const idxHwvirtState = CPUMIsGuestInSvmNestedHwVirtMode(pCtx) ? CPUMHWVIRTDUMP_SVM
+                                 : CPUMIsGuestInVmxNestedHwVirtMode(pCtx) ? CPUMHWVIRTDUMP_VMX : CPUMHWVIRTDUMP_NONE;
+    AssertCompile(CPUMHWVIRTDUMP_LAST <= RT_ELEMENTS(s_aHwvirtModes));
+    Assert(idxHwvirtState < RT_ELEMENTS(s_aHwvirtModes));
+    const char *pcszHwvirtMode   = s_aHwvirtModes[idxHwvirtState];
+    uint32_t const fDumpState    = idxHwvirtState; /* | CPUMHWVIRTDUMP_ALL */
+
+    /*
+     * Dump it.
+     */
+    pHlp->pfnPrintf(pHlp, "VCPU[%u] hardware virtualization state:\n", pVCpu->idCpu);
+
+    if (fDumpState & CPUMHWVIRTDUMP_COMMON)
+        pHlp->pfnPrintf(pHlp, "fLocalForcedActions            = %#RX32\n",  pCtx->hwvirt.fLocalForcedActions);
+    pHlp->pfnPrintf(pHlp, "%s hwvirt state%s\n", pcszHwvirtMode, fDumpState ? ":" : "");
+    if (fDumpState & CPUMHWVIRTDUMP_SVM)
+    {
+        pHlp->pfnPrintf(pHlp, "  uMsrHSavePa                = %#RX64\n",    pCtx->hwvirt.svm.uMsrHSavePa);
+        pHlp->pfnPrintf(pHlp, "  GCPhysVmcb                 = %#RGp\n",     pCtx->hwvirt.svm.GCPhysVmcb);
+        pHlp->pfnPrintf(pHlp, "  VmcbCtrl:\n");
+        HMR3InfoSvmVmcbCtrl(pHlp, &pCtx->hwvirt.svm.pVmcbR3->ctrl, "    " /* pszPrefix */);
+        /** @todo HMR3InfoSvmVmcbStateSave. */
+        pHlp->pfnPrintf(pHlp, "  HostState:\n");
+        pHlp->pfnPrintf(pHlp, "    uEferMsr                   = %#RX64\n",  pCtx->hwvirt.svm.HostState.uEferMsr);
+        pHlp->pfnPrintf(pHlp, "    uCr0                       = %#RX64\n",  pCtx->hwvirt.svm.HostState.uCr0);
+        pHlp->pfnPrintf(pHlp, "    uCr4                       = %#RX64\n",  pCtx->hwvirt.svm.HostState.uCr4);
+        pHlp->pfnPrintf(pHlp, "    uCr3                       = %#RX64\n",  pCtx->hwvirt.svm.HostState.uCr3);
+        pHlp->pfnPrintf(pHlp, "    uRip                       = %#RX64\n",  pCtx->hwvirt.svm.HostState.uRip);
+        pHlp->pfnPrintf(pHlp, "    uRsp                       = %#RX64\n",  pCtx->hwvirt.svm.HostState.uRsp);
+        pHlp->pfnPrintf(pHlp, "    uRax                       = %#RX64\n",  pCtx->hwvirt.svm.HostState.uRax);
+        pHlp->pfnPrintf(pHlp, "    rflags                     = %#RX64\n",  pCtx->hwvirt.svm.HostState.rflags.u64);
+        PCPUMSELREG pSel = &pCtx->hwvirt.svm.HostState.es;
+        pHlp->pfnPrintf(pHlp, "    es                         = {%04x base=%016RX64 limit=%08x flags=%08x}\n",
+                        pSel->Sel, pSel->u64Base, pSel->u32Limit, pSel->fFlags);
+        pSel = &pCtx->hwvirt.svm.HostState.cs;
+        pHlp->pfnPrintf(pHlp, "    cs                         = {%04x base=%016RX64 limit=%08x flags=%08x}\n",
+                        pSel->Sel, pSel->u64Base, pSel->u32Limit, pSel->fFlags);
+        pSel = &pCtx->hwvirt.svm.HostState.ss;
+        pHlp->pfnPrintf(pHlp, "    ss                         = {%04x base=%016RX64 limit=%08x flags=%08x}\n",
+                        pSel->Sel, pSel->u64Base, pSel->u32Limit, pSel->fFlags);
+        pSel = &pCtx->hwvirt.svm.HostState.ds;
+        pHlp->pfnPrintf(pHlp, "    ds                         = {%04x base=%016RX64 limit=%08x flags=%08x}\n",
+                        pSel->Sel, pSel->u64Base, pSel->u32Limit, pSel->fFlags);
+        pHlp->pfnPrintf(pHlp, "    gdtr                       = %016RX64:%04x\n", pCtx->hwvirt.svm.HostState.gdtr.pGdt,
+                        pCtx->hwvirt.svm.HostState.gdtr.cbGdt);
+        pHlp->pfnPrintf(pHlp, "    idtr                       = %016RX64:%04x\n", pCtx->hwvirt.svm.HostState.idtr.pIdt,
+                        pCtx->hwvirt.svm.HostState.idtr.cbIdt);
+        pHlp->pfnPrintf(pHlp, "  fGif                       = %u\n",        pCtx->hwvirt.svm.fGif);
+        pHlp->pfnPrintf(pHlp, "  cPauseFilter               = %RU16\n",     pCtx->hwvirt.svm.cPauseFilter);
+        pHlp->pfnPrintf(pHlp, "  cPauseFilterThreshold      = %RU32\n",     pCtx->hwvirt.svm.cPauseFilterThreshold);
+        pHlp->pfnPrintf(pHlp, "  fInterceptEvents           = %u\n",        pCtx->hwvirt.svm.fInterceptEvents);
+        pHlp->pfnPrintf(pHlp, "  pvMsrBitmapR3              = %p\n",        pCtx->hwvirt.svm.pvMsrBitmapR3);
+        pHlp->pfnPrintf(pHlp, "  pvMsrBitmapR0              = %RKv\n",      pCtx->hwvirt.svm.pvMsrBitmapR0);
+        pHlp->pfnPrintf(pHlp, "  pvIoBitmapR3               = %p\n",        pCtx->hwvirt.svm.pvIoBitmapR3);
+        pHlp->pfnPrintf(pHlp, "  pvIoBitmapR0               = %RKv\n",      pCtx->hwvirt.svm.pvIoBitmapR0);
+    }
+
+    /** @todo Intel.  */
+#if 0
+    if (fDumpState & CPUMHWVIRTDUMP_VMX)
+    {
+    }
+#endif
+
+#undef CPUMHWVIRTDUMP_NONE
+#undef CPUMHWVIRTDUMP_COMMON
+#undef CPUMHWVIRTDUMP_SVM
+#undef CPUMHWVIRTDUMP_VMX
+#undef CPUMHWVIRTDUMP_LAST
+#undef CPUMHWVIRTDUMP_ALL
+}
+
+/**
  * Display the current guest instruction
  *
  * @param   pVM         The cross context VM structure.
@@ -2106,7 +2328,7 @@ static DECLCALLBACK(void) cpumR3InfoGuestInstr(PVM pVM, PCDBGFINFOHLP pHlp, cons
     char szInstruction[256];
     szInstruction[0] = '\0';
     DBGFR3DisasInstrCurrent(pVCpu, szInstruction, sizeof(szInstruction));
-    pHlp->pfnPrintf(pHlp, "\nCPUM: %s\n\n", szInstruction);
+    pHlp->pfnPrintf(pHlp, "\nCPUM%u: %s\n\n", pVCpu->idCpu, szInstruction);
 }
 
 
@@ -2526,20 +2748,6 @@ VMMR3DECL(int) CPUMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
             }
 
             cpumR3MsrRegStats(pVM);
-            break;
-        }
-
-        case VMINITCOMPLETED_RING0:
-        {
-            /* Cache the APIC base (from the APIC device) once it has been initialized. */
-            for (VMCPUID i = 0; i < pVM->cCpus; i++)
-            {
-                PVMCPU pVCpu = &pVM->aCpus[i];
-                PDMApicGetBaseMsr(pVCpu, &pVCpu->cpum.s.Guest.msrApicBase, true /* fIgnoreErrors */);
-#ifdef VBOX_WITH_NEW_APIC
-                LogRel(("CPUM: VCPU%3d: Cached APIC base MSR = %#RX64\n", i, pVCpu->cpum.s.Guest.msrApicBase));
-#endif
-            }
             break;
         }
 

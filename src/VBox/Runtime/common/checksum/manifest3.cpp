@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,6 +42,7 @@
 #include <iprt/string.h>
 #include <iprt/vfs.h>
 #include <iprt/vfslowlevel.h>
+#include <iprt/zero.h>
 
 
 /*********************************************************************************************************************************
@@ -410,9 +411,40 @@ static DECLCALLBACK(int) rtManifestPtIos_Read(void *pvThis, RTFOFF off, PCRTSGBU
 static DECLCALLBACK(int) rtManifestPtIos_Write(void *pvThis, RTFOFF off, PCRTSGBUF pSgBuf, bool fBlocking, size_t *pcbWritten)
 {
     PRTMANIFESTPTIOS pThis = (PRTMANIFESTPTIOS)pvThis;
-    AssertReturn(off == -1 || off == pThis->offCurPos, VERR_WRONG_ORDER);
     Assert(RTVfsIoStrmTell(pThis->hVfsIos) == pThis->offCurPos);
 
+    /*
+     * Validate the offset.
+     */
+    if (off < 0 || off == pThis->offCurPos)
+    { /* likely */ }
+    else
+    {
+        /* We cannot go back and rewrite stuff. Sorry. */
+        AssertReturn(off > pThis->offCurPos, VERR_WRONG_ORDER);
+
+        /*
+         * We've got a gap between the current and new position.
+         * Fill it with zeros and hope for the best.
+         */
+        uint64_t cbZeroGap = off - pThis->offCurPos;
+        do
+        {
+            size_t cbToZero = cbZeroGap >= sizeof(g_abRTZero64K) ? sizeof(g_abRTZero64K) : (size_t)cbZeroGap;
+            size_t cbZeroed = 0;
+            int rc = RTVfsIoStrmWrite(pThis->hVfsIos, g_abRTZero64K, cbToZero, true /*fBlocking*/, &cbZeroed);
+            if (RT_FAILURE(rc))
+                return rc;
+            pThis->offCurPos += cbZeroed;
+            rtManifestHashesUpdate(pThis->pHashes, g_abRTZero64K, cbZeroed);
+            cbZeroGap -= cbZeroed;
+        } while (cbZeroGap > 0);
+        Assert(off == pThis->offCurPos);
+    }
+
+    /*
+     * Do the writing.
+     */
     int rc = RTVfsIoStrmSgWrite(pThis->hVfsIos, -1 /*off*/, pSgBuf, fBlocking, pcbWritten);
     if (RT_SUCCESS(rc))
     {

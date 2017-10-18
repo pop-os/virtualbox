@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +26,9 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
+#ifndef ___VBox_vmm_pdmnetinline_h_
+#define ___VBox_vmm_pdmnetinline_h_
+
 
 /*******************************************************************************
 *   Header Files                                                               *
@@ -36,7 +39,6 @@
 #include <iprt/assert.h>
 #include <iprt/net.h>
 #include <iprt/string.h>
-
 
 
 /** @defgroup grp_pdm_net_inline    The PDM Networking Helper APIs
@@ -668,4 +670,6 @@ DECLINLINE(const char *) PDMNetGsoTypeName(PDMNETWORKGSOTYPE enmType)
 }
 
 /** @} */
+
+#endif
 

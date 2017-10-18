@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -284,7 +284,7 @@ VMMR3DECL(PCFGMNODE) CFGMR3GetRootU(PUVM pUVM)
  *
  * @returns Pointer to the parent node.
  * @returns NULL if pNode is Root or pNode is the start of a
- *          restricted subtree (use CFGMr3GetParentEx() for that).
+ *          restricted subtree (use CFGMR3GetParentEx() for that).
  *
  * @param   pNode           The node which parent we query.
  */
@@ -3242,7 +3242,9 @@ static void cfgmR3Dump(PCFGMNODE pRoot, unsigned iLevel, PCDBGFINFOHLP pHlp)
                     else if (pLeaf->Value.Integer.u64 > _2K)
                         pHlp->pfnPrintf(pHlp, ", %'lld KB", pLeaf->Value.Integer.u64 / _1K);
                     if (pLeaf->Value.Integer.u64 > _2G)
-                        pHlp->pfnPrintf(pHlp, ", %'lld GB", pLeaf->Value.Integer.u64 / _1G);
+                        pHlp->pfnPrintf(pHlp, ", %'lld.%lld GB",
+                                              pLeaf->Value.Integer.u64 / _1G,
+                                              (pLeaf->Value.Integer.u64 % _1G) / (_1G / 10));
                 }
                 pHlp->pfnPrintf(pHlp, ")\n");
                 break;

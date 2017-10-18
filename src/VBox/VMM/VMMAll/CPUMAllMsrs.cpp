@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2016 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,7 +21,7 @@
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_CPUM
 #include <VBox/vmm/cpum.h>
-#include <VBox/vmm/pdmapi.h>
+#include <VBox/vmm/apic.h>
 #include <VBox/vmm/hm.h>
 #include <VBox/vmm/tm.h>
 #include <VBox/vmm/gim.h>
@@ -216,7 +216,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32PlatformId(PVMCPU pVCpu, uint32_
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32ApicBase(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
     RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
-    return PDMApicGetBaseMsr(pVCpu, puValue, false /* fIgnoreErrors */);
+    return APICGetBaseMsr(pVCpu, puValue);
 }
 
 
@@ -224,7 +224,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32ApicBase(PVMCPU pVCpu, uint32_t 
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32ApicBase(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uValue, uint64_t uRawValue)
 {
     RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange); RT_NOREF_PV(uValue); RT_NOREF_PV(uRawValue);
-    return PDMApicSetBaseMsr(pVCpu, uValue);
+    return APICSetBaseMsr(pVCpu, uValue);
 }
 
 
@@ -1214,7 +1214,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32TscDeadline(PVMCPU pVCpu, uint32
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32X2ApicN(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
     RT_NOREF_PV(pRange);
-    return PDMApicReadMsr(pVCpu, idMsr, puValue);
+    return APICReadMsr(pVCpu, idMsr, puValue);
 }
 
 
@@ -1222,7 +1222,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32X2ApicN(PVMCPU pVCpu, uint32_t i
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32X2ApicN(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uValue, uint64_t uRawValue)
 {
     RT_NOREF_PV(pRange); RT_NOREF_PV(uRawValue);
-    return PDMApicWriteMsr(pVCpu, idMsr, uValue);
+    return APICWriteMsr(pVCpu, idMsr, uValue);
 }
 
 
@@ -1434,45 +1434,14 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Amd64Efer(PVMCPU pVCpu, uint32_t idM
 /** @callback_method_impl{FNCPUMWRMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Amd64Efer(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uValue, uint64_t uRawValue)
 {
-    PVM             pVM          = pVCpu->CTX_SUFF(pVM);
-    uint64_t const  uOldEfer     = pVCpu->cpum.s.Guest.msrEFER;
-    uint32_t const  fExtFeatures = pVM->cpum.s.aGuestCpuIdPatmExt[0].uEax >= 0x80000001
-                                 ? pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx
-                                 : 0;
-    uint64_t        fMask        = 0;
-    uint64_t        fIgnoreMask  = MSR_K6_EFER_LMA;
     RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange); RT_NOREF_PV(uRawValue);
-
-    /* Filter out those bits the guest is allowed to change. (e.g. LMA is read-only) */
-    if (fExtFeatures & X86_CPUID_EXT_FEATURE_EDX_NX)
-        fMask |= MSR_K6_EFER_NXE;
-    if (fExtFeatures & X86_CPUID_EXT_FEATURE_EDX_LONG_MODE)
-        fMask |= MSR_K6_EFER_LME;
-    if (fExtFeatures & X86_CPUID_EXT_FEATURE_EDX_SYSCALL)
-        fMask |= MSR_K6_EFER_SCE;
-    if (fExtFeatures & X86_CPUID_AMD_FEATURE_EDX_FFXSR)
-        fMask |= MSR_K6_EFER_FFXSR;
-
-    /* #GP(0) If anything outside the allowed bits is set. */
-    if (uValue & ~(fIgnoreMask | fMask))
-    {
-        Log(("CPUM: Settings disallowed EFER bit. uValue=%#RX64 fAllowed=%#RX64 -> #GP(0)\n", uValue, fMask));
+    uint64_t uValidatedEfer;
+    uint64_t const uOldEfer = pVCpu->cpum.s.Guest.msrEFER;
+    int rc = CPUMQueryValidatedGuestEfer(pVCpu->CTX_SUFF(pVM), pVCpu->cpum.s.Guest.cr0, uOldEfer, uValue, &uValidatedEfer);
+    if (RT_FAILURE(rc))
         return VERR_CPUM_RAISE_GP_0;
-    }
 
-    /* Check for illegal MSR_K6_EFER_LME transitions: not allowed to change LME if
-       paging is enabled. (AMD Arch. Programmer's Manual Volume 2: Table 14-5) */
-    if (   (uOldEfer & MSR_K6_EFER_LME) != (uValue & fMask & MSR_K6_EFER_LME)
-        && (pVCpu->cpum.s.Guest.cr0 & X86_CR0_PG))
-    {
-        Log(("CPUM: Illegal MSR_K6_EFER_LME change: paging is enabled!!\n"));
-        return VERR_CPUM_RAISE_GP_0;
-    }
-
-    /* There are a few more: e.g. MSR_K6_EFER_LMSLE */
-    AssertMsg(!(uValue & ~(MSR_K6_EFER_NXE | MSR_K6_EFER_LME | MSR_K6_EFER_LMA /* ignored anyway */ | MSR_K6_EFER_SCE | MSR_K6_EFER_FFXSR)),
-              ("Unexpected value %RX64\n", uValue));
-    pVCpu->cpum.s.Guest.msrEFER = (uOldEfer & ~fMask) | (uValue & fMask);
+    pVCpu->cpum.s.Guest.msrEFER = uValidatedEfer;
 
     /* AMD64 Architecture Programmer's Manual: 15.15 TLB Control; flush the TLB
        if MSR_K6_EFER_NXE, MSR_K6_EFER_LME or MSR_K6_EFER_LMA are changed. */
@@ -1882,13 +1851,13 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_IntelPkgCStConfigControl(PVMCPU pVCp
 
     if (pVCpu->cpum.s.GuestMsrs.msr.PkgCStateCfgCtrl & RT_BIT_64(15))
     {
-        Log(("CPUM: WRMDR %#x (%s), %#llx: Write protected -> #GP\n", idMsr, pRange->szName, uValue));
+        Log(("CPUM: WRMSR %#x (%s), %#llx: Write protected -> #GP\n", idMsr, pRange->szName, uValue));
         return VERR_CPUM_RAISE_GP_0;
     }
 #if 0 /** @todo check what real (old) hardware does. */
     if ((uValue & 7) >= 5)
     {
-        Log(("CPUM: WRMDR %#x (%s), %#llx: Invalid limit (%d) -> #GP\n", idMsr, pRange->szName, uValue, (uint32_t)(uValue & 7)));
+        Log(("CPUM: WRMSR %#x (%s), %#llx: Invalid limit (%d) -> #GP\n", idMsr, pRange->szName, uValue, (uint32_t)(uValue & 7)));
         return VERR_CPUM_RAISE_GP_0;
     }
 #endif
@@ -3742,9 +3711,12 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_AmdK8SmmMask(PVMCPU pVCpu, uint32_t 
 /** @callback_method_impl{FNCPUMRDMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_AmdK8VmCr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
-    RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
-    /** @todo AMD SVM. */
-    *puValue = 0;
+    RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
+    PVM pVM = pVCpu->CTX_SUFF(pVM);
+    if (pVM->cpum.s.GuestFeatures.fSvm)
+        *puValue = MSR_K8_VM_CR_LOCK;
+    else
+        *puValue = 0;
     return VINF_SUCCESS;
 }
 
@@ -3752,9 +3724,16 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_AmdK8VmCr(PVMCPU pVCpu, uint32_t idM
 /** @callback_method_impl{FNCPUMWRMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_AmdK8VmCr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uValue, uint64_t uRawValue)
 {
-    RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange); RT_NOREF_PV(uValue); RT_NOREF_PV(uRawValue);
-    /** @todo AMD SVM. */
-    return VINF_SUCCESS;
+    RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange); RT_NOREF_PV(uRawValue);
+    PVM pVM = pVCpu->CTX_SUFF(pVM);
+    if (pVM->cpum.s.GuestFeatures.fSvm)
+    {
+        /* Silently ignore writes to LOCK and SVM_DISABLE bit when the LOCK bit is set (see cpumMsrRd_AmdK8VmCr). */
+        if (uValue & (MSR_K8_VM_CR_DPD | MSR_K8_VM_CR_R_INIT | MSR_K8_VM_CR_DIS_A20M))
+            return VERR_CPUM_RAISE_GP_0;
+        return VINF_SUCCESS;
+    }
+    return VERR_CPUM_RAISE_GP_0;
 }
 
 
@@ -3800,8 +3779,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_AmdK8SmmCtl(PVMCPU pVCpu, uint32_t i
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_AmdK8VmHSavePa(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t *puValue)
 {
     RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange);
-    /** @todo AMD SVM. */
-    *puValue = 0;
+    *puValue = pVCpu->cpum.s.Guest.hwvirt.svm.uMsrHSavePa;
     return VINF_SUCCESS;
 }
 
@@ -3809,8 +3787,22 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_AmdK8VmHSavePa(PVMCPU pVCpu, uint32_
 /** @callback_method_impl{FNCPUMWRMSR} */
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_AmdK8VmHSavePa(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uValue, uint64_t uRawValue)
 {
-    RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange); RT_NOREF_PV(uValue); RT_NOREF_PV(uRawValue);
-    /** @todo AMD SVM. */
+    RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange); RT_NOREF_PV(uRawValue);
+    if (uValue & UINT64_C(0xfff))
+    {
+        Log(("CPUM: Invalid setting of low 12 bits set writing host-state save area MSR %#x: %#llx\n", idMsr, uValue));
+        return VERR_CPUM_RAISE_GP_0;
+    }
+
+    uint64_t fInvPhysMask = ~(RT_BIT_64(pVCpu->CTX_SUFF(pVM)->cpum.s.GuestFeatures.cMaxPhysAddrWidth) - 1U);
+    if (fInvPhysMask & uValue)
+    {
+        Log(("CPUM: Invalid physical address bits set writing host-state save area MSR %#x: %#llx (%#llx)\n",
+             idMsr, uValue, uValue & fInvPhysMask));
+        return VERR_CPUM_RAISE_GP_0;
+    }
+
+    pVCpu->cpum.s.Guest.hwvirt.svm.uMsrHSavePa = uValue;
     return VINF_SUCCESS;
 }
 
@@ -5393,7 +5385,7 @@ static const PFNCPUMWRMSR g_aCpumWrMsrFns[kCpumMsrWrFn_End] =
  *
  * @returns Pointer to the range if found, NULL if not.
  * @param   pVM                The cross context VM structure.
- * @param   idMsr               The MSR to look up.
+ * @param   idMsr              The MSR to look up.
  */
 # ifndef IN_RING3
 static
@@ -6109,6 +6101,66 @@ VMMDECL(uint64_t) CPUMGetGuestScalableBusFrequency(PVM pVM)
     return uFreq;
 }
 
+
+/**
+ * Validates an EFER MSR write.
+ *
+ * @returns VBox status code.
+ * @param   pVM             The cross context VM structure.
+ * @param   uCr0            The CR0 of the CPU corresponding to the EFER MSR.
+ * @param   uOldEfer        Value of the previous EFER MSR on the CPU if any.
+ * @param   uNewEfer        The new EFER MSR value being written.
+ * @param   puValidEfer     Where to store the validated EFER (only updated if
+ *                          this function returns VINF_SUCCESS).
+ */
+VMMDECL(int) CPUMQueryValidatedGuestEfer(PVM pVM, uint64_t uCr0, uint64_t uOldEfer, uint64_t uNewEfer, uint64_t *puValidEfer)
+{
+    uint32_t const  fExtFeatures = pVM->cpum.s.aGuestCpuIdPatmExt[0].uEax >= 0x80000001
+                                 ? pVM->cpum.s.aGuestCpuIdPatmExt[1].uEdx
+                                 : 0;
+    uint64_t        fMask        = 0;
+    uint64_t const  fIgnoreMask  = MSR_K6_EFER_LMA;
+
+    /* Filter out those bits the guest is allowed to change. (e.g. LMA is read-only) */
+    if (fExtFeatures & X86_CPUID_EXT_FEATURE_EDX_NX)
+        fMask |= MSR_K6_EFER_NXE;
+    if (fExtFeatures & X86_CPUID_EXT_FEATURE_EDX_LONG_MODE)
+        fMask |= MSR_K6_EFER_LME;
+    if (fExtFeatures & X86_CPUID_EXT_FEATURE_EDX_SYSCALL)
+        fMask |= MSR_K6_EFER_SCE;
+    if (fExtFeatures & X86_CPUID_AMD_FEATURE_EDX_FFXSR)
+        fMask |= MSR_K6_EFER_FFXSR;
+    if (pVM->cpum.s.GuestFeatures.fSvm)
+        fMask |= MSR_K6_EFER_SVME;
+
+    /* #GP(0) If anything outside the allowed bits is set. */
+    if (uNewEfer & ~(fIgnoreMask | fMask))
+    {
+        Log(("CPUM: Settings disallowed EFER bit. uNewEfer=%#RX64 fAllowed=%#RX64 -> #GP(0)\n", uNewEfer, fMask));
+        return VERR_CPUM_RAISE_GP_0;
+    }
+
+    /* Check for illegal MSR_K6_EFER_LME transitions: not allowed to change LME if
+       paging is enabled. (AMD Arch. Programmer's Manual Volume 2: Table 14-5) */
+    if (   (uOldEfer & MSR_K6_EFER_LME) != (uNewEfer & fMask & MSR_K6_EFER_LME)
+        && (uCr0 & X86_CR0_PG))
+    {
+        Log(("CPUM: Illegal MSR_K6_EFER_LME change: paging is enabled!!\n"));
+        return VERR_CPUM_RAISE_GP_0;
+    }
+
+    /* There are a few more: e.g. MSR_K6_EFER_LMSLE */
+    AssertMsg(!(uNewEfer & ~(  MSR_K6_EFER_NXE
+                             | MSR_K6_EFER_LME
+                             | MSR_K6_EFER_LMA /* ignored anyway */
+                             | MSR_K6_EFER_SCE
+                             | MSR_K6_EFER_FFXSR
+                             | MSR_K6_EFER_SVME)),
+              ("Unexpected value %#RX64\n", uNewEfer));
+
+    *puValidEfer = (uOldEfer & ~fMask) | (uNewEfer & fMask);
+    return VINF_SUCCESS;
+}
 
 #ifdef IN_RING0
 

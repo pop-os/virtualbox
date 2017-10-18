@@ -7,7 +7,7 @@ Test Manager WUI - Test Groups.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 # Validation Kit imports.
 from common                             import utils, webutils;
@@ -83,11 +83,11 @@ class WuiTestGroupList(WuiListContentBase):
     WUI test group list content generator.
     """
 
-    def __init__(self, aoEntries, iPage, cItemsPerPage, tsEffective, fnDPrint, oDisp):
-        assert len(aoEntries) == 0 or isinstance(aoEntries[0], TestGroupDataEx)
+    def __init__(self, aoEntries, iPage, cItemsPerPage, tsEffective, fnDPrint, oDisp, aiSelectedSortColumns = None):
+        assert not aoEntries or isinstance(aoEntries[0], TestGroupDataEx)
 
-        WuiListContentBase.__init__(self, aoEntries, iPage, cItemsPerPage, tsEffective,
-                                    sTitle = 'Test Groups', fnDPrint = fnDPrint, oDisp = oDisp);
+        WuiListContentBase.__init__(self, aoEntries, iPage, cItemsPerPage, tsEffective, sTitle = 'Test Groups',
+                                    fnDPrint = fnDPrint, oDisp = oDisp, aiSelectedSortColumns = aiSelectedSortColumns);
         self._asColumnHeaders = [ 'ID', 'Name', 'Description', 'Test Cases', 'Note', 'Actions' ];
         self._asColumnAttribs = [ 'align="right"', '', '', '', 'align="center"', 'align="center"' ];
 
@@ -100,7 +100,7 @@ class WuiTestGroupList(WuiListContentBase):
         # Test case list.
         #
         sHtml = '';
-        if len(oEntry.aoMembers) > 0:
+        if oEntry.aoMembers:
             for oMember in oEntry.aoMembers:
                 sHtml += '<dl>\n' \
                          '  <dd><strong>%s</strong> (priority: %d) %s %s</dd>\n' \
@@ -112,7 +112,9 @@ class WuiTestGroupList(WuiListContentBase):
                            WuiTmLink('Edit', WuiAdmin.ksScriptName,
                                      { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestCaseEdit,
                                        TestCaseData.ksParam_idTestCase: oMember.oTestCase.idTestCase, } ).toHtml()
-                           if isDbTimestampInfinity(oMember.oTestCase.tsExpire) else '',
+                           if     isDbTimestampInfinity(oMember.oTestCase.tsExpire)
+                              and self._oDisp is not None
+                              and not self._oDisp.isReadOnlyUser() else '',
                            );
 
                 sHtml += '  <dt>\n';
@@ -154,23 +156,25 @@ class WuiTestGroupList(WuiListContentBase):
                                 { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestGroupDetails,
                                   TestGroupData.ksParam_idTestGroup: oEntry.idTestGroup,
                                   WuiAdmin.ksParamEffectiveDate: self._tsEffectiveDate, }) ];
-        if isDbTimestampInfinity(oEntry.tsExpire):
-            aoActions.append(WuiTmLink('Modify', WuiAdmin.ksScriptName,
-                                       { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestGroupEdit,
-                                         TestGroupData.ksParam_idTestGroup: oEntry.idTestGroup }));
-            aoActions.append(WuiTmLink('Clone', WuiAdmin.ksScriptName,
-                                       { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestGroupClone,
-                                         TestGroupData.ksParam_idTestGroup: oEntry.idTestGroup,
-                                         WuiAdmin.ksParamEffectiveDate: self._tsEffectiveDate, }));
-            aoActions.append(WuiTmLink('Remove', WuiAdmin.ksScriptName,
-                                       { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestGroupDoRemove,
-                                         TestGroupData.ksParam_idTestGroup: oEntry.idTestGroup },
-                                       sConfirm = 'Do you really want to remove test group #%d?' % (oEntry.idTestGroup,)));
-        else:
-            aoActions.append(WuiTmLink('Clone', WuiAdmin.ksScriptName,
-                                       { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestGroupClone,
-                                         TestGroupData.ksParam_idTestGroup: oEntry.idTestGroup,
-                                         WuiAdmin.ksParamEffectiveDate: self._tsEffectiveDate, }));
+        if self._oDisp is None or not self._oDisp.isReadOnlyUser():
+
+            if isDbTimestampInfinity(oEntry.tsExpire):
+                aoActions.append(WuiTmLink('Modify', WuiAdmin.ksScriptName,
+                                           { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestGroupEdit,
+                                             TestGroupData.ksParam_idTestGroup: oEntry.idTestGroup }));
+                aoActions.append(WuiTmLink('Clone', WuiAdmin.ksScriptName,
+                                           { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestGroupClone,
+                                             TestGroupData.ksParam_idTestGroup: oEntry.idTestGroup,
+                                             WuiAdmin.ksParamEffectiveDate: self._tsEffectiveDate, }));
+                aoActions.append(WuiTmLink('Remove', WuiAdmin.ksScriptName,
+                                           { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestGroupDoRemove,
+                                             TestGroupData.ksParam_idTestGroup: oEntry.idTestGroup },
+                                           sConfirm = 'Do you really want to remove test group #%d?' % (oEntry.idTestGroup,)));
+            else:
+                aoActions.append(WuiTmLink('Clone', WuiAdmin.ksScriptName,
+                                           { WuiAdmin.ksParamAction: WuiAdmin.ksActionTestGroupClone,
+                                             TestGroupData.ksParam_idTestGroup: oEntry.idTestGroup,
+                                             WuiAdmin.ksParamEffectiveDate: self._tsEffectiveDate, }));
 
 
 

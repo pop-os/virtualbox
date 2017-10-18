@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -332,6 +332,10 @@ typedef struct VUSBDESCCONFIGEX
     VUSBDESCCONFIG Core;
     /** Pointer to additional descriptor bytes following what's covered by VUSBDESCCONFIG. */
     void *pvMore;
+    /** Pointer to additional class- or vendor-specific interface descriptors. */
+    const void *pvClass;
+    /** Size of class- or vendor-specific descriptors. */
+    uint16_t cbClass;
     /** Pointer to an array of the interfaces referenced in the configuration.
      * Core.bNumInterfaces in size. */
     const struct VUSBINTERFACE *paIfs;
@@ -660,7 +664,7 @@ typedef struct VUSBIROOTHUBPORT
      *
      * @returns nothing.
      * @param   pInterface      Pointer to this structure.
-     * @param   u32Framerate    The new frame rate.
+     * @param   u32FrameRate    The new frame rate.
      */
     DECLR3CALLBACKMEMBER(void, pfnFrameRateChanged, (PVUSBIROOTHUBPORT pInterface, uint32_t u32FrameRate));
 
@@ -827,6 +831,25 @@ typedef struct VUSBIROOTHUBCONNECTOR
      * @param   pInterface  Pointer to this struct.
      */
     DECLR3CALLBACKMEMBER(uint32_t, pfnGetPeriodicFrameRate, (PVUSBIROOTHUBCONNECTOR pInterface));
+
+    /**
+     * Updates the internally stored isochronous scheduling frame for a given
+     * endpoint and returns the delta between the current and previous frame.
+     *
+     * @returns Delta between currently and previously scheduled frame.
+     * @retval  0 if no previous frame was set.
+     * @param   pInterface  Pointer to this struct.
+     * @param   pDevice     Pointer to a USB device.
+     * @param   EndPt       Endpoint number.
+     * @param   enmDir      Endpoint direction.
+     * @param   uNewFrameID The frame ID of a new transfer.
+     * @param   uBits       The number of significant bits in frame ID.
+     */
+    DECLR3CALLBACKMEMBER(uint32_t, pfnUpdateIsocFrameDelta, (PVUSBIROOTHUBCONNECTOR pInterface, PVUSBIDEVICE pDevice,
+                                                             int EndPt, VUSBDIRECTION enmDir, uint16_t uNewFrameID, uint8_t uBits));
+
+    /** Alignment dummy. */
+    RTR3PTR Alignment;
 
 } VUSBIROOTHUBCONNECTOR;
 AssertCompileSizeAlignment(VUSBIROOTHUBCONNECTOR, 8);
@@ -1170,10 +1193,10 @@ typedef struct VUSBURBISOCPKT
     /** The size of the packet.
      * IN: The packet size. I.e. the number of bytes to the next packet or end of buffer.
      * OUT: The actual size transferred. */
-    uint16_t        cb;
+    uint32_t        cb;
     /** The offset of the packet. (Relative to VUSBURB::abData[0].)
      * OUT: This can be changed by the USB device if it does some kind of buffer squeezing. */
-    uint16_t        off;
+    uint32_t        off;
     /** The status of the transfer.
      * IN: VUSBSTATUS_INVALID
      * OUT: VUSBSTATUS_INVALID if nothing was done, otherwise the correct status. */
@@ -1255,9 +1278,17 @@ typedef struct VUSBURB
      * OUT: This is set when reaping the URB. */
     VUSBSTATUS      enmStatus;
 
+    /** The relative starting frame for isochronous transfers.
+     *  Zero indicates "transfer ASAP".
+     * This is ignored when enmType isn't VUSBXFERTYPE_ISOC. */
+    uint16_t        uStartFrameDelta;
+    /** Flag indicating whether the start frame delta is relative
+     *  to the previous transfer (false) or now (true).
+     * This is ignored when enmType isn't VUSBXFERTYPE_ISOC. */
+    bool            fStartRelToNow;
     /** The number of isochronous packets describe in aIsocPkts.
      * This is ignored when enmType isn't VUSBXFERTYPE_ISOC. */
-    uint32_t        cIsocPkts;
+    uint8_t         cIsocPkts;
     /** The iso packets within abData.
      * This is ignored when enmType isn't VUSBXFERTYPE_ISOC. */
     VUSBURBISOCPKT  aIsocPkts[8];

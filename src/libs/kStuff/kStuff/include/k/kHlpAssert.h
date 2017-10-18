@@ -1,4 +1,4 @@
-/* $Id: kHlpAssert.h 70 2015-08-13 09:03:02Z bird $ */
+/* $Id: kHlpAssert.h 101 2017-10-02 10:37:39Z bird $ */
 /** @file
  * kHlpAssert - Assertion Macros.
  */
@@ -196,7 +196,103 @@ extern "C" {
         } \
     } while (0)
 
+/* Same as above, only no expression. */
+
+# define kHlpAssertFailed() \
+    do { \
+        kHlpAssertMsg1("failed", __FILE__, __LINE__, K_FUNCTION); \
+        kHlpAssertBreakpoint(); \
+    } while (0)
+
+# define kHlpAssertFailedStmt(stmt) \
+    do { \
+        kHlpAssertMsg1("failed", __FILE__, __LINE__, K_FUNCTION); \
+        kHlpAssertBreakpoint(); \
+        stmt; \
+    } while (0)
+
+# define kHlpAssertFailedReturn(rcRet) \
+    do { \
+        kHlpAssertMsg1("failed", __FILE__, __LINE__, K_FUNCTION); \
+        kHlpAssertBreakpoint(); \
+        return (rcRet); \
+    } while (0)
+
+# define kHlpAssertFailedStmtReturn(stmt, rcRet) \
+    do { \
+        kHlpAssertMsg1("failed", __FILE__, __LINE__, K_FUNCTION); \
+        kHlpAssertBreakpoint(); \
+        stmt; \
+        return (rcRet); \
+    } while (0)
+
+# define kHlpAssertFailedReturnVoid() \
+    do { \
+        kHlpAssertMsg1("failed", __FILE__, __LINE__, K_FUNCTION); \
+        kHlpAssertBreakpoint(); \
+        return; \
+    } while (0)
+
+# define kHlpAssertFailedStmtReturnVoid(stmt) \
+    do { \
+        kHlpAssertMsg1("failed", __FILE__, __LINE__, K_FUNCTION); \
+        kHlpAssertBreakpoint(); \
+        stmt; \
+        return; \
+    } while (0)
+
+# define kHlpAssertMsgFailed(msg) \
+    do { \
+        kHlpAssertMsg1("failed", __FILE__, __LINE__, K_FUNCTION); \
+        kHlpAssertMsg2 msg; \
+        kHlpAssertBreakpoint(); \
+    } while (0)
+
+# define kHlpAssertMsgFailedStmt(msg, stmt) \
+    do { \
+        kHlpAssertMsg1("failed", __FILE__, __LINE__, K_FUNCTION); \
+        kHlpAssertMsg2 msg; \
+        kHlpAssertBreakpoint(); \
+        stmt; \
+    } while (0)
+
+# define kHlpAssertMsgFailedReturn(msg, rcRet) \
+    do { \
+        kHlpAssertMsg1("failed", __FILE__, __LINE__, K_FUNCTION); \
+        kHlpAssertMsg2 msg; \
+        kHlpAssertBreakpoint(); \
+        return (rcRet); \
+    } while (0)
+
+# define kHlpAssertMsgFailedStmtReturn(msg, stmt, rcRet) \
+    do { \
+        kHlpAssertMsg1("failed", __FILE__, __LINE__, K_FUNCTION); \
+        kHlpAssertMsg2 msg; \
+        kHlpAssertBreakpoint(); \
+        stmt; \
+        return (rcRet); \
+    } while (0)
+
+# define kHlpAssertMsgFailedReturnVoid(msg) \
+    do { \
+        kHlpAssertMsg1("failed", __FILE__, __LINE__, K_FUNCTION); \
+        kHlpAssertMsg2 msg; \
+        kHlpAssertBreakpoint(); \
+        return; \
+    } while (0)
+
+# define kHlpAssertMsgFailedStmtReturnVoid(msg, stmt) \
+    do { \
+        kHlpAssertMsg1("failed", __FILE__, __LINE__, K_FUNCTION); \
+        kHlpAssertMsg2 msg; \
+        kHlpAssertBreakpoint(); \
+        stmt; \
+        return; \
+    } while (0)
+
+
 #else   /* !K_STRICT */
+
 # define kHlpAssert(expr)                                   do { } while (0)
 # define kHlpAssertStmt(expr, stmt)                         do { if (!(expr)) { stmt; }  } while (0)
 # define kHlpAssertReturn(expr, rcRet)                      do { if (!(expr)) return (rcRet); } while (0)
@@ -209,6 +305,20 @@ extern "C" {
 # define kHlpAssertMsgStmtReturn(expr, msg, stmt, rcRet)    do { if (!(expr)) { stmt; return (rcRet); } } while (0)
 # define kHlpAssertMsgReturnVoid(expr, msg)                 do { if (!(expr)) return; } while (0)
 # define kHlpAssertMsgStmtReturnVoid(expr, msg, stmt)       do { if (!(expr)) { stmt; return; } } while (0)
+/* Same as above, only no expression: */
+# define kHlpAssertFailed()                                 do { } while (0)
+# define kHlpAssertFailedStmt(stmt)                         do { stmt; } while (0)
+# define kHlpAssertFailedReturn(rcRet)                      do { return (rcRet); } while (0)
+# define kHlpAssertFailedStmtReturn(stmt, rcRet)            do { stmt; return (rcRet);  } while (0)
+# define kHlpAssertFailedReturnVoid()                       do { return; } while (0)
+# define kHlpAssertFailedStmtReturnVoid(stmt)               do { stmt; return; }  while (0)
+# define kHlpAssertMsgFailed(msg)                           do { } while (0)
+# define kHlpAssertMsgFailedStmt(msg, stmt)                 do { stmt; } while (0)
+# define kHlpAssertMsgFailedReturn(msg, rcRet)              do { return (rcRet); } while (0)
+# define kHlpAssertMsgFailedStmtReturn(msg, stmt, rcRet)    do { { stmt; return (rcRet); } } while (0)
+# define kHlpAssertMsgFailedReturnVoid(msg)                 do { return; } while (0)
+# define kHlpAssertMsgFailedStmtReturnVoid(msg, stmt)       do { stmt; return; } while (0)
+
 #endif  /* !K_STRICT */
 
 #define kHlpAssertPtr(ptr)                      kHlpAssertMsg(K_VALID_PTR(ptr), ("%s = %p\n", #ptr, (ptr)))
@@ -221,12 +331,7 @@ extern "C" {
 #define kHlpAssertRC(rc)                        kHlpAssertMsg((rc) == 0, ("%s = %d\n", #rc, (rc)))
 #define kHlpAssertRCReturn(rc, rcRet)           kHlpAssertMsgReturn((rc) == 0, ("%s = %d -> %d\n", #rc, (rc), (rcRet)), (rcRet))
 #define kHlpAssertRCReturnVoid(rc)              kHlpAssertMsgReturnVoid((rc) == 0, ("%s = %d -> %d\n", #rc, (rc), (rcRet)))
-#define kHlpAssertFailed()                      kHlpAssert(0)
-#define kHlpAssertFailedReturn(rcRet)           kHlpAssertReturn(0, (rcRet))
-#define kHlpAssertFailedReturnVoid()            kHlpAssertReturnVoid(0)
-#define kHlpAssertMsgFailed(msg)                kHlpAssertMsg(0, msg)
-#define kHlpAssertMsgFailedReturn(msg, rcRet)   kHlpAssertMsgReturn(0, msg, (rcRet))
-#define kHlpAssertMsgFailedReturnVoid(msg)      kHlpAssertMsgReturnVoid(0, msg))
+
 
 /**
  * Helper function that displays the first part of the assertion message.

@@ -57,13 +57,13 @@ protected:
     }
 };
 
-class UIActionSimpleMediumManagerDialog : public UIActionSimple
+class UIActionSimpleVirtualMediumManagerDialog : public UIActionSimple
 {
     Q_OBJECT;
 
 public:
 
-    UIActionSimpleMediumManagerDialog(UIActionPool *pParent)
+    UIActionSimpleVirtualMediumManagerDialog(UIActionPool *pParent)
         : UIActionSimple(pParent, ":/diskimage_16px.png") {}
 
 protected:
@@ -82,6 +82,34 @@ protected:
     {
         setName(QApplication::translate("UIActionPool", "&Virtual Media Manager..."));
         setStatusTip(QApplication::translate("UIActionPool", "Display the Virtual Media Manager window"));
+    }
+};
+
+class UIActionSimpleHostNetworkManagerDialog : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    UIActionSimpleHostNetworkManagerDialog(UIActionPool *pParent)
+        : UIActionSimple(pParent, ":/host_iface_manager_16px.png") {}
+
+protected:
+
+    QString shortcutExtraDataID() const
+    {
+        return QString("HostNetworkManager");
+    }
+
+    QKeySequence defaultShortcut(UIActionPoolType) const
+    {
+        return QKeySequence("Ctrl+W");
+    }
+
+    void retranslateUi()
+    {
+        setName(QApplication::translate("UIActionPool", "&Host Network Manager..."));
+        setStatusTip(QApplication::translate("UIActionPool", "Display the Host Network Manager window"));
     }
 };
 
@@ -899,6 +927,200 @@ protected:
 };
 
 
+class UIActionToggleToolsMachine : public UIActionToggle
+{
+    Q_OBJECT;
+
+public:
+
+    UIActionToggleToolsMachine(UIActionPool *pParent)
+        : UIActionToggle(pParent, ":/tools_machine_32px.png") {}
+
+protected:
+
+    QString shortcutExtraDataID() const
+    {
+        return QString("ToolsMachine");
+    }
+
+    void retranslateUi()
+    {
+        setName(QApplication::translate("UIActionPool", "&Machine Tools"));
+        setStatusTip(QApplication::translate("UIActionPool", "Switch to machine tools"));
+    }
+};
+
+class UIActionMenuToolsMachine : public UIActionMenu
+{
+    Q_OBJECT;
+
+public:
+
+    UIActionMenuToolsMachine(UIActionPool *pParent)
+        : UIActionMenu(pParent) {}
+
+protected:
+
+    QString shortcutExtraDataID() const
+    {
+        return QString("ToolsMachineMenu");
+    }
+
+    void retranslateUi()
+    {
+        setName(QApplication::translate("UIActionPool", "&Machine Tools Menu"));
+        setStatusTip(QApplication::translate("UIActionPool", "Open the machine tools menu"));
+    }
+};
+
+class UIActionSimpleToolsMachineDetails : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    UIActionSimpleToolsMachineDetails(UIActionPool *pParent)
+        : UIActionSimple(pParent,
+                         ":/machine_details_manager_22px.png", ":/machine_details_manager_16px.png",
+                         ":/machine_details_manager_22px.png", ":/machine_details_manager_16px.png") {}
+
+protected:
+
+    QString shortcutExtraDataID() const
+    {
+        return QString("ToolsMachineDetails");
+    }
+
+    void retranslateUi()
+    {
+        setName(QApplication::translate("UIActionPool", "&Details"));
+        setStatusTip(QApplication::translate("UIActionPool", "Open the machine details pane"));
+    }
+};
+
+class UIActionSimpleToolsMachineSnapshots : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    UIActionSimpleToolsMachineSnapshots(UIActionPool *pParent)
+        : UIActionSimple(pParent,
+                         ":/snapshot_manager_22px.png", ":/snapshot_manager_16px.png",
+                         ":/snapshot_manager_22px.png", ":/snapshot_manager_16px.png") {}
+
+protected:
+
+    QString shortcutExtraDataID() const
+    {
+        return QString("ToolsMachineSnapshots");
+    }
+
+    void retranslateUi()
+    {
+        setName(QApplication::translate("UIActionPool", "&Snapshots"));
+        setStatusTip(QApplication::translate("UIActionPool", "Open the machine snapshots pane"));
+    }
+};
+
+
+class UIActionToggleToolsGlobal : public UIActionToggle
+{
+    Q_OBJECT;
+
+public:
+
+    UIActionToggleToolsGlobal(UIActionPool *pParent)
+        : UIActionToggle(pParent, ":/tools_global_32px.png") {}
+
+protected:
+
+    QString shortcutExtraDataID() const
+    {
+        return QString("ToolsGlobal");
+    }
+
+    void retranslateUi()
+    {
+        setName(QApplication::translate("UIActionPool", "&Global Tools"));
+        setStatusTip(QApplication::translate("UIActionPool", "Switch to global tools"));
+    }
+};
+
+class UIActionMenuToolsGlobal : public UIActionMenu
+{
+    Q_OBJECT;
+
+public:
+
+    UIActionMenuToolsGlobal(UIActionPool *pParent)
+        : UIActionMenu(pParent) {}
+
+protected:
+
+    QString shortcutExtraDataID() const
+    {
+        return QString("ToolsGlobalMenu");
+    }
+
+    void retranslateUi()
+    {
+        setName(QApplication::translate("UIActionPool", "&Global Tools Menu"));
+        setStatusTip(QApplication::translate("UIActionPool", "Open the global tools menu"));
+    }
+};
+
+class UIActionSimpleToolsGlobalVirtualMediaManager : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    UIActionSimpleToolsGlobalVirtualMediaManager(UIActionPool *pParent)
+        : UIActionSimple(pParent,
+                         ":/diskimage_22px.png", ":/diskimage_16px.png",
+                         ":/diskimage_22px.png", ":/diskimage_16px.png") {}
+
+protected:
+
+    QString shortcutExtraDataID() const
+    {
+        return QString("ToolsGlobalVirtualMediaManager");
+    }
+
+    void retranslateUi()
+    {
+        setName(QApplication::translate("UIActionPool", "&Virtual Media Manager"));
+        setStatusTip(QApplication::translate("UIActionPool", "Open the Virtual Media Manager"));
+    }
+};
+
+class UIActionSimpleToolsGlobalHostNetworkManager : public UIActionSimple
+{
+    Q_OBJECT;
+
+public:
+
+    UIActionSimpleToolsGlobalHostNetworkManager(UIActionPool *pParent)
+        : UIActionSimple(pParent,
+                         ":/host_iface_manager_22px.png", ":/host_iface_manager_16px.png",
+                         ":/host_iface_manager_22px.png", ":/host_iface_manager_16px.png") {}
+
+protected:
+
+    QString shortcutExtraDataID() const
+    {
+        return QString("ToolsGlobalHostNetworkManager");
+    }
+
+    void retranslateUi()
+    {
+        setName(QApplication::translate("UIActionPool", "&Host Network Manager"));
+        setStatusTip(QApplication::translate("UIActionPool", "Open the Host Network Manager"));
+    }
+};
+
+
 class UIActionMenuClose : public UIActionMenu
 {
     Q_OBJECT;
@@ -1033,7 +1255,8 @@ void UIActionPoolSelector::preparePool()
 {
     /* 'File' actions: */
     m_pool[UIActionIndexST_M_File] = new UIActionMenuFile(this);
-    m_pool[UIActionIndexST_M_File_S_ShowMediumManager] = new UIActionSimpleMediumManagerDialog(this);
+    m_pool[UIActionIndexST_M_File_S_ShowVirtualMediumManager] = new UIActionSimpleVirtualMediumManagerDialog(this);
+    m_pool[UIActionIndexST_M_File_S_ShowHostNetworkManager] = new UIActionSimpleHostNetworkManagerDialog(this);
     m_pool[UIActionIndexST_M_File_S_ImportAppliance] = new UIActionSimpleImportApplianceWizard(this);
     m_pool[UIActionIndexST_M_File_S_ExportAppliance] = new UIActionSimpleExportApplianceWizard(this);
 #ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
@@ -1090,6 +1313,18 @@ void UIActionPoolSelector::preparePool()
     m_pool[UIActionIndexST_M_Machine_S_ShowInFileManager] = new UIActionSimpleCommonShowInFileManager(this);
     m_pool[UIActionIndexST_M_Machine_S_CreateShortcut] = new UIActionSimpleCommonCreateShortcut(this);
     m_pool[UIActionIndexST_M_Machine_S_SortParent] = new UIActionSimpleMachineSortParent(this);
+
+    /* Machine Tools actions: */
+    m_pool[UIActionIndexST_M_Tools_T_Machine] = new UIActionToggleToolsMachine(this);
+    m_pool[UIActionIndexST_M_Tools_M_Machine] = new UIActionMenuToolsMachine(this);
+    m_pool[UIActionIndexST_M_Tools_M_Machine_S_Details] = new UIActionSimpleToolsMachineDetails(this);
+    m_pool[UIActionIndexST_M_Tools_M_Machine_S_Snapshots] = new UIActionSimpleToolsMachineSnapshots(this);
+
+    /* Global Tools actions: */
+    m_pool[UIActionIndexST_M_Tools_T_Global] = new UIActionToggleToolsGlobal(this);
+    m_pool[UIActionIndexST_M_Tools_M_Global] = new UIActionMenuToolsGlobal(this);
+    m_pool[UIActionIndexST_M_Tools_M_Global_S_VirtualMediaManager] = new UIActionSimpleToolsGlobalVirtualMediaManager(this);
+    m_pool[UIActionIndexST_M_Tools_M_Global_S_HostNetworkManager] = new UIActionSimpleToolsGlobalHostNetworkManager(this);
 
     /* Call to base-class: */
     UIActionPool::preparePool();

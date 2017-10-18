@@ -15,15 +15,16 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIApplianceEditorWidget_h__
-#define __UIApplianceEditorWidget_h__
+#ifndef ___UIApplianceEditorWidget_h___
+#define ___UIApplianceEditorWidget_h___
 
 /* Qt includes: */
-#include <QSortFilterProxyModel>
+#include <QAbstractItemModel>
 #include <QItemDelegate>
+#include <QSortFilterProxyModel>
+#include <QWidget>
 
 /* GUI includes: */
-#include "UIApplianceEditorWidget.gen.h"
 #include "QIWithRetranslateUI.h"
 
 /* COM includes: */
@@ -31,260 +32,217 @@
 #include "CVirtualSystemDescription.h"
 
 /* Forward declarations: */
-class ModelItem;
+class UIApplianceModelItem;
+class QCheckBox;
+class QLabel;
+class QTextEdit;
+class QITreeView;
 
-////////////////////////////////////////////////////////////////////////////////
-// Globals
 
-enum TreeViewSection { DescriptionSection = 0, OriginalValueSection, ConfigValueSection };
-
-////////////////////////////////////////////////////////////////////////////////
-// ModelItem
-
-enum ModelItem_type { RootType, VirtualSystem_type, HardwareType };
-
-/* This & the following derived classes represent the data items of a Virtual
-   System. All access/manipulation is done with the help of virtual functions
-   to keep the interface clean. ModelItem is able to handle tree structures
-   with a parent & several children's. */
-class ModelItem
+/** Appliance tree-view section types. */
+enum ApplianceViewSection
 {
-public:
-    ModelItem(int number, ModelItem_type type, ModelItem *pParent = NULL);
-
-    virtual ~ModelItem();
-
-    ModelItem *parent() const { return m_pParentItem; }
-
-    void appendChild(ModelItem *pChild);
-    ModelItem *child(int row) const;
-
-    int row() const;
-
-    int childCount() const;
-    int columnCount() const { return 3; }
-
-    virtual Qt::ItemFlags itemFlags(int /* column */) const { return 0; }
-    virtual bool setData(int /* column */, const QVariant & /* value */, int /* role */) { return false; }
-    virtual QVariant data(int /* column */, int /* role */) const { return QVariant(); }
-    virtual QWidget *createEditor(QWidget * /* pParent */, const QStyleOptionViewItem & /* styleOption */, const QModelIndex & /* idx */) const { return NULL; }
-    virtual bool setEditorData(QWidget * /* pEditor */, const QModelIndex & /* idx */) const { return false; }
-    virtual bool setModelData(QWidget * /* pEditor */, QAbstractItemModel * /* pModel */, const QModelIndex & /* idx */) { return false; }
-
-    virtual void restoreDefaults() {}
-    virtual void putBack(QVector<BOOL>& finalStates, QVector<QString>& finalValues, QVector<QString>& finalExtraValues);
-
-    ModelItem_type type() const { return m_type; }
-
-protected:
-    /* Protected member vars */
-    int                m_number;
-    ModelItem_type     m_type;
-
-    ModelItem         *m_pParentItem;
-    QList<ModelItem*>  m_childItems;
+    ApplianceViewSection_Description = 0,
+    ApplianceViewSection_OriginalValue,
+    ApplianceViewSection_ConfigValue
 };
 
-////////////////////////////////////////////////////////////////////////////////
-// VirtualSystemItem
 
-/* This class represent a Virtual System with an index. */
-class VirtualSystemItem: public ModelItem
+/** Appliance model item types. */
+enum ApplianceModelItemType
 {
-public:
-    VirtualSystemItem(int number, CVirtualSystemDescription aDesc, ModelItem *pParent);
-
-    virtual QVariant data(int column, int role) const;
-
-    virtual void putBack(QVector<BOOL>& finalStates, QVector<QString>& finalValues, QVector<QString>& finalExtraValues);
-
-private:
-    CVirtualSystemDescription m_desc;
+    ApplianceModelItemType_Root,
+    ApplianceModelItemType_VirtualSystem,
+    ApplianceModelItemType_VirtualHardware
 };
 
-////////////////////////////////////////////////////////////////////////////////
-// HardwareItem
 
-/* This class represent an hardware item of a Virtual System. All values of
-   KVirtualSystemDescriptionType are supported & handled differently. */
-class HardwareItem: public ModelItem
-{
-    friend class VirtualSystemSortProxyModel;
-public:
-
-    enum
-    {
-        TypeRole = Qt::UserRole,
-        ModifiedRole
-    };
-
-    HardwareItem(int number,
-                 KVirtualSystemDescriptionType type,
-                 const QString &strRef,
-                 const QString &strOrigValue,
-                 const QString &strConfigValue,
-                 const QString &strExtraConfigValue,
-                 ModelItem *pParent);
-
-    virtual void putBack(QVector<BOOL>& finalStates, QVector<QString>& finalValues, QVector<QString>& finalExtraValues);
-
-    virtual bool setData(int column, const QVariant &value, int role);
-    virtual QVariant data(int column, int role) const;
-
-    virtual Qt::ItemFlags itemFlags(int column) const;
-
-    virtual QWidget *createEditor(QWidget *pParent, const QStyleOptionViewItem &styleOption, const QModelIndex &idx) const;
-    virtual bool setEditorData(QWidget *pEditor, const QModelIndex &idx) const;
-
-    virtual bool setModelData(QWidget *pEditor, QAbstractItemModel *pModel, const QModelIndex &idx);
-
-    virtual void restoreDefaults()
-    {
-        m_strConfigValue = m_strConfigDefaultValue;
-        m_checkState = Qt::Checked;
-    }
-
-private:
-
-    /* Private member vars */
-    KVirtualSystemDescriptionType m_type;
-    QString                       m_strRef;
-    QString                       m_strOrigValue;
-    QString                       m_strConfigValue;
-    QString                       m_strConfigDefaultValue;
-    QString                       m_strExtraConfigValue;
-    Qt::CheckState                m_checkState;
-    bool                          m_fModified;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-// VirtualSystemModel
-
-class VirtualSystemModel: public QAbstractItemModel
-{
-
-public:
-    VirtualSystemModel(QVector<CVirtualSystemDescription>& aVSDs, QObject *pParent = NULL);
-    ~VirtualSystemModel();
-
-    QModelIndex index(int row, int column, const QModelIndex &parentIdx = QModelIndex()) const;
-    QModelIndex parent(const QModelIndex &idx) const;
-    int rowCount(const QModelIndex &parentIdx = QModelIndex()) const;
-    int columnCount(const QModelIndex &parentIdx = QModelIndex()) const;
-    bool setData(const QModelIndex &idx, const QVariant &value, int role);
-    QVariant data(const QModelIndex &idx, int role = Qt::DisplayRole) const;
-    Qt::ItemFlags flags(const QModelIndex &idx) const;
-    QVariant headerData(int section, Qt::Orientation orientation, int role) const;
-
-    QModelIndex buddy(const QModelIndex &idx) const;
-
-    void restoreDefaults(const QModelIndex &parentIdx = QModelIndex());
-    void putBack();
-
-private:
-    /* Private member vars */
-    ModelItem *m_pRootItem;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-// VirtualSystemDelegate
-
-/* The delegate is used for creating/handling the different editors for the
-   various types we support. This class forward the requests to the virtual
-   methods of our different ModelItems. If this is not possible the default
-   methods of QItemDelegate are used to get some standard behavior. Note: We
-   have to handle the proxy model ourself. I really don't understand why Qt is
-   not doing this for us. */
-class VirtualSystemDelegate: public QItemDelegate
-{
-public:
-
-    VirtualSystemDelegate(QAbstractProxyModel *pProxy, QObject *pParent = NULL);
-
-    QWidget *createEditor(QWidget *pParent, const QStyleOptionViewItem &styleOption, const QModelIndex &idx) const;
-    void setEditorData(QWidget *pEditor, const QModelIndex &idx) const;
-    void setModelData(QWidget *pEditor, QAbstractItemModel *pModel, const QModelIndex &idx) const;
-    void updateEditorGeometry(QWidget *pEditor, const QStyleOptionViewItem &styleOption, const QModelIndex &idx) const;
-
-    QSize sizeHint(const QStyleOptionViewItem &styleOption, const QModelIndex &idx) const
-    {
-        QSize size = QItemDelegate::sizeHint(styleOption, idx);
-#ifdef VBOX_WS_MAC
-        int h = 28;
-#else /* VBOX_WS_MAC */
-        int h = 24;
-#endif /* VBOX_WS_MAC */
-        size.setHeight(RT_MAX(h, size.height()));
-        return size;
-    }
-
-protected:
-
-#ifdef VBOX_WS_MAC
-    bool eventFilter(QObject *pObject, QEvent *pEvent);
-#endif /* VBOX_WS_MAC */
-
-private:
-
-    /* Private member vars */
-    QAbstractProxyModel *mProxy;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-// VirtualSystemSortProxyModel
-
-class VirtualSystemSortProxyModel: public QSortFilterProxyModel
-{
-public:
-    VirtualSystemSortProxyModel(QObject *pParent = NULL);
-
-protected:
-    bool filterAcceptsRow(int srcRow, const QModelIndex & srcParenIdx) const;
-    bool lessThan(const QModelIndex &leftIdx, const QModelIndex &rightIdx) const;
-
-    static KVirtualSystemDescriptionType m_sortList[];
-
-    QList<KVirtualSystemDescriptionType> m_filterList;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-// UIApplianceEditorWidget
-
-class UIApplianceEditorWidget: public QIWithRetranslateUI<QWidget>,
-                               public Ui::UIApplianceEditorWidget
+/** QAbstractItemModel subclass used as Appliance model. */
+class UIApplianceModel : public QAbstractItemModel
 {
     Q_OBJECT;
 
 public:
-    UIApplianceEditorWidget(QWidget *pParent = NULL);
 
-    bool isValid() const          { return m_pAppliance != NULL; }
-    CAppliance* appliance() const { return m_pAppliance; }
+    /** Constructs the Appliance model passing @a pParent to the base-class.
+      * @param  aVSDs  Brings the Virtual System descriptions. */
+    UIApplianceModel(QVector<CVirtualSystemDescription>& aVSDs, QITreeView *pParent);
+    /** Destructs the Appliance model. */
+    ~UIApplianceModel();
 
-    static int minGuestRAM()      { return m_minGuestRAM; }
-    static int maxGuestRAM()      { return m_maxGuestRAM; }
+    /** Returns the root index in the model. */
+    virtual QModelIndex root() const;
+    /** Returns the index of the item in the model specified by the given @a iRow, @a iColumn and @a parentIdx. */
+    virtual QModelIndex index(int iRow, int iColumn, const QModelIndex &parentIdx = QModelIndex()) const /* override */;
+    /** Returns the parent of the model item with the given @a idx. */
+    virtual QModelIndex parent(const QModelIndex &idx) const /* override */;
+
+    /** Returns the number of rows for the children of the given @a parentIdx. */
+    virtual int rowCount(const QModelIndex &parentIdx = QModelIndex()) const /* override */;
+    /** Returns the number of columns for the children of the given @a parentIdx. */
+    virtual int columnCount(const QModelIndex &parentIdx = QModelIndex()) const /* override */;
+
+    /** Returns the item flags for the given @a idx. */
+    virtual Qt::ItemFlags flags(const QModelIndex &idx) const /* override */;
+    /** Returns the data for the given @a iRole and @a iSection in the header with the specified @a enmOrientation. */
+    virtual QVariant headerData(int iSection, Qt::Orientation enmOrientation, int iRole) const /* override */;
+
+    /** Defines the @a iRole data for the item at @a idx to @a value. */
+    virtual bool setData(const QModelIndex &idx, const QVariant &value, int iRole) /* override */;
+    /** Returns the data stored under the given @a iRole for the item referred to by the @a idx. */
+    virtual QVariant data(const QModelIndex &idx, int iRole = Qt::DisplayRole) const /* override */;
+
+    /** Returns a model index for the buddy of the item represented by @a idx. */
+    virtual QModelIndex buddy(const QModelIndex &idx) const /* override */;
+
+    /** Restores the default values for the item with the given @a parentIdx. */
+    void restoreDefaults(QModelIndex parentIdx = QModelIndex());
+
+    /** Cache currently stored values. */
+    void putBack();
+
+private:
+
+    /** Holds the root item reference. */
+    UIApplianceModelItem *m_pRootItem;
+};
+
+
+/** QItemDelegate subclass used to create various Appliance model editors. */
+class UIApplianceDelegate : public QItemDelegate
+{
+    Q_OBJECT;
+
+public:
+
+    /** Constructs the Appliance Delegate passing @a pParent to the base-class.
+      * @param  pProxy  Brings the proxy model reference used to redirect requests to. */
+    UIApplianceDelegate(QAbstractProxyModel *pProxy, QObject *pParent = 0);
+
+    /** Returns the widget used to edit the item specified by @a idx for editing.
+      * @param  pParent      Brings the parent to be assigned for newly created editor.
+      * @param  styleOption  Bring the style option set for the newly created editor. */
+    virtual QWidget *createEditor(QWidget *pParent, const QStyleOptionViewItem &styleOption, const QModelIndex &idx) const /* override */;
+
+    /** Defines the contents of the given @a pEditor to the data for the item at the given @a idx. */
+    virtual void setEditorData(QWidget *pEditor, const QModelIndex &idx) const /* override */;
+    /** Defines the data for the item at the given @a idx in the @a pModel to the contents of the given @a pEditor. */
+    virtual void setModelData(QWidget *pEditor, QAbstractItemModel *pModel, const QModelIndex &idx) const /* override */;
+
+    /** Updates the geometry of the @a pEditor for the item with the given @a idx, according to the rectangle specified in the @a styleOption. */
+    virtual void updateEditorGeometry(QWidget *pEditor, const QStyleOptionViewItem &styleOption, const QModelIndex &idx) const /* override */;
+
+    /** Returns the size hint for the item at the given @a idx and specified @a styleOption. */
+    virtual QSize sizeHint(const QStyleOptionViewItem &styleOption, const QModelIndex &idx) const /* override */;
+
+protected:
+
+#ifdef VBOX_WS_MAC
+    /** Filters @a pEvent if this object has been installed as an event filter for the watched @a pObject. */
+    virtual bool eventFilter(QObject *pObject, QEvent *pEvent) /* override */;
+#endif
+
+private:
+
+    /** Holds the proxy model reference used to redirect requests to. */
+    QAbstractProxyModel *m_pProxy;
+};
+
+
+/** QSortFilterProxyModel subclass used as the Appliance Sorting Proxy model. */
+class UIApplianceSortProxyModel : public QSortFilterProxyModel
+{
+    Q_OBJECT;
+
+public:
+
+    /** Constructs the Appliance Sorting Proxy model passing @a pParent to the base-class. */
+    UIApplianceSortProxyModel(QObject *pParent = 0);
+
+protected:
+
+    /** Returns whether item in the row indicated by the given @a iSourceRow and @a srcParenIdx should be included in the model. */
+    virtual bool filterAcceptsRow(int iSourceRow, const QModelIndex &srcParenIdx) const /* override */;
+
+    /** Returns whether value of the item referred to by the given index @a leftIdx is less
+      * than the value of the item referred to by the given index @a rightIdx. */
+    virtual bool lessThan(const QModelIndex &leftIdx, const QModelIndex &rightIdx) const /* override */;
+
+    /** Holds the array of sorted Virtual System Description types. */
+    static KVirtualSystemDescriptionType s_aSortList[];
+
+    /** Holds the filtered list of Virtual System Description types. */
+    QList<KVirtualSystemDescriptionType> m_aFilteredList;
+};
+
+
+/** QWidget subclass used as the Appliance Editor widget. */
+class UIApplianceEditorWidget : public QIWithRetranslateUI<QWidget>
+{
+    Q_OBJECT;
+
+public:
+
+    /** Constructs the Appliance Editor widget passing @a pParent to the base-class. */
+    UIApplianceEditorWidget(QWidget *pParent = 0);
+
+    /** Returns whether the Appliance Editor has valid state. */
+    bool isValid() const { return m_pAppliance != 0; }
+    /** Returns the currently set appliance reference. */
+    CAppliance *appliance() const { return m_pAppliance; }
+
+    /** Returns the minimum guest RAM. */
+    static int minGuestRAM() { return m_minGuestRAM; }
+    /** Returns the maximum guest RAM. */
+    static int maxGuestRAM() { return m_maxGuestRAM; }
+    /** Returns the minimum guest CPU count. */
     static int minGuestCPUCount() { return m_minGuestCPUCount; }
+    /** Returns the maximum guest CPU count. */
     static int maxGuestCPUCount() { return m_maxGuestCPUCount; }
 
 public slots:
+
+    /** Restores the default values. */
     void restoreDefaults();
 
 protected:
-    virtual void retranslateUi();
 
-    /* Protected member vars */
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */;
+
+    /** Holds the currently set appliance reference. */
     CAppliance         *m_pAppliance;
-    VirtualSystemModel *m_pModel;
+    /** Holds the Appliance model reference. */
+    UIApplianceModel *m_pModel;
+
+    /** Holds the information pane instance. */
+    QWidget   *m_pPaneInformation;
+    /** Holds the settings tree-view instance. */
+    QITreeView *m_pTreeViewSettings;
+    /** Holds the 'reinit MACs' check-box instance. */
+    QCheckBox *m_pCheckBoxReinitMACs;
+
+    /** Holds the warning pane instance. */
+    QWidget   *m_pPaneWarning;
+    /** Holds the warning label instance. */
+    QLabel    *m_pLabelWarning;
+    /** Holds the warning browser instance. */
+    QTextEdit *m_pTextEditWarning;
 
 private:
+
+    /** Performs Appliance settings initialization. */
     static void initSystemSettings();
 
-    /* Private member vars */
+    /** Holds the minimum guest RAM. */
     static int m_minGuestRAM;
+    /** Holds the maximum guest RAM. */
     static int m_maxGuestRAM;
+    /** Holds the minimum guest CPU count. */
     static int m_minGuestCPUCount;
+    /** Holds the maximum guest CPU count. */
     static int m_maxGuestCPUCount;
 };
 
-#endif /* __UIApplianceEditorWidget_h__ */
+#endif /* !___UIApplianceEditorWidget_h___ */
 

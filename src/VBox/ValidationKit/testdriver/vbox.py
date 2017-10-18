@@ -8,7 +8,7 @@ VirtualBox Specific base testdriver.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2016 Oracle Corporation
+Copyright (C) 2010-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 108584 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard Python imports.
@@ -49,6 +49,7 @@ if g_ksValidationKitDir not in sys.path:
 # Validation Kit imports.
 from common     import utils;
 from testdriver import base;
+from testdriver import btresolver;
 from testdriver import reporter;
 from testdriver import vboxcon;
 from testdriver import vboxtestvms;
@@ -821,7 +822,7 @@ class TestDriver(base.TestDriver):                                              
         # Make sure all debug logs goes to the scratch area unless
         # specified otherwise (more of this later on).
         if 'VBOX_LOG_DEST' not in os.environ:
-            os.environ['VBOX_LOG_DEST'] = 'dir=%s' % (self.sScratchPath);
+            os.environ['VBOX_LOG_DEST'] = 'nodeny dir=%s' % (self.sScratchPath);
 
     def dump(self):
         """
@@ -1024,9 +1025,9 @@ class TestDriver(base.TestDriver):                                              
         os.environ['VBOX_LOG']       = self.sLogSvcGroups;
         os.environ['VBOX_LOG_FLAGS'] = '%s append' % (self.sLogSvcFlags,);  # Append becuse of VBoxXPCOMIPCD.
         if self.sLogSvcDest:
-            os.environ['VBOX_LOG_DEST'] = self.sLogSvcDest;
+            os.environ['VBOX_LOG_DEST'] = 'nodeny ' + self.sLogSvcDest;
         else:
-            os.environ['VBOX_LOG_DEST'] = 'file=%s' % (self.sVBoxSvcLogFile,);
+            os.environ['VBOX_LOG_DEST'] = 'nodeny file=%s' % (self.sVBoxSvcLogFile,);
         os.environ['VBOXSVC_RELEASE_LOG_FLAGS'] = 'time append';
 
         # Always leave a pid file behind so we can kill it during cleanup-before.
@@ -1244,9 +1245,9 @@ class TestDriver(base.TestDriver):                                              
         os.environ['VBOX_LOG']       = self.sLogSelfGroups;
         os.environ['VBOX_LOG_FLAGS'] = '%s append' % (self.sLogSelfFlags, );
         if self.sLogSelfDest:
-            os.environ['VBOX_LOG_DEST'] = self.sLogSelfDest;
+            os.environ['VBOX_LOG_DEST'] = 'nodeny ' + self.sLogSelfDest;
         else:
-            os.environ['VBOX_LOG_DEST'] = 'file=%s' % (self.sSelfLogFile,);
+            os.environ['VBOX_LOG_DEST'] = 'nodeny file=%s' % (self.sSelfLogFile,);
         os.environ['VBOX_RELEASE_LOG_FLAGS'] = 'time append';
 
         # Hack the sys.path + environment so the vboxapi can be found.
@@ -1281,52 +1282,65 @@ class TestDriver(base.TestDriver):                                              
             self.oVBoxMgr = None;
             reporter.logXcpt('VirtualBoxManager exception');
             return False;
-        reporter.log("oVBoxMgr=%s" % (self.oVBoxMgr,)); # Temporary - debugging hang somewhere after 'sys.path' log line above.
 
         # Figure the API version.
         try:
             oVBox = self.oVBoxMgr.getVirtualBox();
-            reporter.log("oVBox=%s" % (oVBox,));        # Temporary - debugging hang somewhere after 'sys.path' log line above.
+
             try:
                 sVer = oVBox.version;
             except:
                 reporter.logXcpt('Failed to get VirtualBox version, assuming 4.0.0');
                 sVer = "4.0.0";
-            reporter.log("sVer=%s" % (sVer,));          # Temporary - debugging hang somewhere after 'sys.path' log line above.
-            if sVer.startswith("5.1"):
-                self.fpApiVer = 5.1;
-            elif sVer.startswith("5.0") or (sVer.startswith("4.3.5") and len(sVer) == 6):
-                self.fpApiVer = 5.0;
-            elif sVer.startswith("4.3") or (sVer.startswith("4.2.5") and len(sVer) == 6):
-                self.fpApiVer = 4.3;
-            elif sVer.startswith("4.2."):
-                self.fpApiVer = 4.2; ## @todo Fudge: Add (proper) 4.2 API support. Unmount medium etc?
-            elif sVer.startswith("4.1.") or (sVer.startswith("4.0.5") and len(sVer) == 6):
-                self.fpApiVer = 4.1;
-            elif sVer.startswith("4.0."):
-                self.fpApiVer = 4.0;
-            elif sVer.startswith("3.2."):
-                self.fpApiVer = 3.2;
-            elif sVer.startswith("3.1."):
-                self.fpApiVer = 3.1;
-            elif sVer.startswith("3.0."):
-                self.fpApiVer = 3.0;
-            else:
-                raise base.GenError('Unknown version "%s"' % (sVer,));
+            reporter.log("IVirtualBox.version=%s" % (sVer,));
 
+            # Convert the string to three integer values and check ranges.
+            asVerComponents = sVer.split('.');
+            try:
+                sLast = asVerComponents[2].split('_')[0].split('r')[0];
+                aiVerComponents = (int(asVerComponents[0]), int(asVerComponents[1]), int(sLast));
+            except:
+                raise base.GenError('Malformed version "%s"' % (sVer,));
+            if aiVerComponents[0] < 3 or aiVerComponents[0] > 19:
+                raise base.GenError('Malformed version "%s" - 1st component is out of bounds 3..19: %u'
+                                    % (sVer, aiVerComponents[0]));
+            if aiVerComponents[1] < 0 or aiVerComponents[1] > 9:
+                raise base.GenError('Malformed version "%s" - 2nd component is out of bounds 0..9: %u'
+                                    % (sVer, aiVerComponents[1]));
+            if aiVerComponents[2] < 0 or aiVerComponents[2] > 99:
+                raise base.GenError('Malformed version "%s" - 3rd component is out of bounds 0..99: %u'
+                                    % (sVer, aiVerComponents[2]));
+
+            # Convert the three integers into a floating point value.  The API is table witin a
+            # x.y release, so the third component only indicates whether it's a stable or
+            # development build of the next release.
+            self.fpApiVer = aiVerComponents[0] + 0.1 * aiVerComponents[1];
+            if aiVerComponents[2] >= 51:
+                if self.fpApiVer not in [4.3, 3.2,]:
+                    self.fpApiVer += 0.1;
+                else:
+                    self.fpApiVer += 1.1;
+
+            # Patch VBox manage to gloss over portability issues (error constants, etc).
             self._patchVBoxMgr();
 
+            # Wrap oVBox.
             from testdriver.vboxwrappers import VirtualBoxWrapper;
             self.oVBox = VirtualBoxWrapper(oVBox, self.oVBoxMgr, self.fpApiVer, self);
+
+            # Install the constant wrapping hack.
             vboxcon.goHackModuleClass.oVBoxMgr  = self.oVBoxMgr; # VBoxConstantWrappingHack.
-            vboxcon.fpApiVer                    = self.fpApiVer
-            self.fImportedVBoxApi = True;
-            reporter.log('Found version %s (%s)' % (self.fpApiVer, sVer));
+            vboxcon.fpApiVer                    = self.fpApiVer;
+
         except:
             self.oVBoxMgr = None;
             self.oVBox    = None;
-            reporter.logXcpt("getVirtualBox exception");
+            reporter.logXcpt("getVirtualBox / API version exception");
             return False;
+
+        # Done
+        self.fImportedVBoxApi = True;
+        reporter.log('Found version %s (%s)' % (self.fpApiVer, sVer));
         return True;
 
     def _patchVBoxMgr(self):
@@ -1401,10 +1415,26 @@ class TestDriver(base.TestDriver):                                              
         self.aoVMs            = [];
         self.oVBoxMgr         = None;
         self.oVBox            = None;
+        vboxcon.goHackModuleClass.oVBoxMgr = None; # VBoxConstantWrappingHack.
 
         try:
             import gc
             gc.collect();
+            objects = gc.get_objects()
+            try:
+                try:
+                    from types import InstanceType
+                except ImportError:
+                    InstanceType = None # Python 3.x compatibility
+                for o in objects:
+                    objtype = type(o)
+                    if objtype == InstanceType: # Python 2.x codepath
+                        objtype = o.__class__
+                    if objtype.__name__ == 'VirtualBoxManager':
+                        reporter.log('actionCleanupAfter: CAUTION, there is still a VirtualBoxManager object, GC trouble')
+                        break
+            finally:
+                del objects
         except:
             reporter.logXcpt();
         self.fImportedVBoxApi = False;
@@ -1739,8 +1769,14 @@ class TestDriver(base.TestDriver):                                              
         """
         Terminate VBoxSVC if we've got a pid file.
         """
-        self._killVBoxSVCByPidFile('%s/VBoxSVC.pid' % (self.sScratchPath,));
-        return base.TestDriver.actionAbort(self);
+        #
+        # Take default action first, then kill VBoxSVC.  The other way around
+        # is problematic since the testscript would continue running and possibly
+        # trigger a new VBoxSVC to start.
+        #
+        fRc1 = base.TestDriver.actionAbort(self);
+        fRc2 = self._killVBoxSVCByPidFile('%s/VBoxSVC.pid' % (self.sScratchPath,));
+        return fRc1 is True and fRc2 is True;
 
     def onExit(self, iRc):
         """
@@ -1847,6 +1883,10 @@ class TestDriver(base.TestDriver):                                              
         reporter.log("  RAM:                %sMB" % (oVM.memorySize));
         reporter.log("  VRAM:               %sMB" % (oVM.VRAMSize));
         reporter.log("  Monitors:           %s" % (oVM.monitorCount));
+        if   oVM.chipsetType == vboxcon.ChipsetType_PIIX3: sType = "PIIX3";
+        elif oVM.chipsetType == vboxcon.ChipsetType_ICH9:  sType = "ICH9";
+        else: sType = "unknown %s" % (oVM.chipsetType);
+        reporter.log("  Chipset:            %s" % (sType));
         if   oVM.firmwareType == vboxcon.FirmwareType_BIOS:    sType = "BIOS";
         elif oVM.firmwareType == vboxcon.FirmwareType_EFI:     sType = "EFI";
         elif oVM.firmwareType == vboxcon.FirmwareType_EFI32:   sType = "EFI32";
@@ -1907,6 +1947,13 @@ class TestDriver(base.TestDriver):                                              
         else: sType = "unknown %s" % (oAudioAdapter.audioController);
         reporter.log("    AudioController: %s" % (sType));
         reporter.log("    AudioEnabled: %s" % (oAudioAdapter.enabled));
+        if   oAudioAdapter.audioDriver == vboxcon.AudioDriverType_CoreAudio: sType = "CoreAudio";
+        elif oAudioAdapter.audioDriver == vboxcon.AudioDriverType_DirectSound: sType = "DirectSound";
+        elif oAudioAdapter.audioDriver == vboxcon.AudioDriverType_Pulse: sType = "PulseAudio";
+        elif oAudioAdapter.audioDriver == vboxcon.AudioDriverType_OSS: sType = "OSS";
+        elif oAudioAdapter.audioDriver == vboxcon.AudioDriverType_Null: sType = "NULL";
+        else: sType = "unknown %s" % (oAudioAdapter.audioDriver);
+        reporter.log("    Host AudioDriver: %s" % (sType));
 
         self.processPendingEvents();
         aoAttachments = self.oVBoxMgr.getArray(oVM, 'mediumAttachments')
@@ -2067,7 +2114,7 @@ class TestDriver(base.TestDriver):                                              
                      sDvdImage = None, sKind = "Other", fIoApic = None, fPae = None, fFastBootLogo = True, \
                      eNic0Type = None, eNic0AttachType = None, sNic0NetName = 'default', sNic0MacAddr = 'grouped', \
                      sFloppy = None, fNatForwardingForTxs = None, sHddControllerType = 'IDE Controller', \
-                     fVmmDevTestingPart = None, fVmmDevTestingMmio = False, sFirmwareType = 'bios'):
+                     fVmmDevTestingPart = None, fVmmDevTestingMmio = False, sFirmwareType = 'bios', sChipsetType = 'piix3'):
         """
         Creates a test VM with a immutable HD from the test resources.
         """
@@ -2155,6 +2202,10 @@ class TestDriver(base.TestDriver):                                              
                 fRc = oSession.setFirmwareType(vboxcon.FirmwareType_EFI);
             if fRc and self.fEnableDebugger:
                 fRc = oSession.setExtraData('VBoxInternal/DBGC/Enabled', '1');
+            if fRc and sChipsetType == 'piix3':
+                fRc = oSession.setChipsetType(vboxcon.ChipsetType_PIIX3);
+            elif sChipsetType == 'ich9':
+                fRc = oSession.setChipsetType(vboxcon.ChipsetType_ICH9);
 
             if fRc: fRc = oSession.saveSettings();
             if not fRc:   oSession.discardSettings(True);
@@ -2359,6 +2410,27 @@ class TestDriver(base.TestDriver):                                              
                                     sAltName = '%s-%s' % (sVmName, os.path.basename(sLogFile),));
         return fRc;
 
+    def annotateAndUploadProcessReport(self, sProcessReport, sFilename, sKind, sDesc):
+        """
+        Annotates the given VM process report and uploads it if successfull.
+        """
+        fRc = False;
+        if self.oBuild is not None and self.oBuild.sInstallPath is not None:
+            oResolver = btresolver.BacktraceResolver(self.sScratchPath, self.oBuild.sInstallPath,
+                                                     self.getBuildOs(), self.getBuildArch(),
+                                                     fnLog = reporter.log);
+            fRcTmp = oResolver.prepareEnv();
+            if fRcTmp:
+                reporter.log('Successfully prepared environment');
+                sReportDbgSym = oResolver.annotateReport(sProcessReport);
+                if sReportDbgSym is not None:
+                    reporter.addLogString(sReportDbgSym, sFilename, sKind, sDesc);
+                    fRc = True;
+                else:
+                    reporter.log('Annotating report failed');
+                oResolver.cleanupEnv();
+        return fRc;
+
     def startVmEx(self, oVM, fWait = True, sType = None, sName = None, asEnv = None): # pylint: disable=R0914,R0915
         """
         Start the VM, returning the VM session and progress object on success.
@@ -2380,7 +2452,7 @@ class TestDriver(base.TestDriver):                                              
 
         ## @todo Do this elsewhere.
         # Hack alert. Disables all annoying GUI popups.
-        if sType == 'gui' and len(self.aoRemoteSessions) == 0:
+        if sType == 'gui' and not self.aoRemoteSessions:
             try:
                 self.oVBox.setExtraData('GUI/Input/AutoCapture', 'false');
                 if self.fpApiVer >= 3.2:
@@ -2414,11 +2486,13 @@ class TestDriver(base.TestDriver):                                              
             sLogDest = self.sLogSessionDest;
         else:
             sLogDest = 'file=%s' % sLogFile;
-        sEnv = 'VBOX_LOG=%s\nVBOX_LOG_FLAGS=%s\nVBOX_LOG_DEST=%s\nVBOX_RELEASE_LOG_FLAGS=append time' \
+        sEnv = 'VBOX_LOG=%s\nVBOX_LOG_FLAGS=%s\nVBOX_LOG_DEST=nodeny %s\nVBOX_RELEASE_LOG_FLAGS=append time' \
              % (self.sLogSessionGroups, self.sLogSessionFlags, sLogDest,);
+        # Extra audio logging
+        sEnv += '\nVBOX_RELEASE_LOG=drv_audio.e.l.l2+drv_host_audio.e.l.l2'
         if sType == 'gui':
             sEnv += '\nVBOX_GUI_DBG_ENABLED=1'
-        if asEnv is not None and len(asEnv) > 0:
+        if asEnv is not None and asEnv:
             sEnv += '\n' + ('\n'.join(asEnv));
 
         # Shortcuts for local testing.
@@ -2456,8 +2530,11 @@ class TestDriver(base.TestDriver):                                              
                     if   self.fpApiVer < 4.3 \
                       or (self.fpApiVer == 4.3 and not hasattr(self.oVBoxMgr, 'getSessionObject')):
                         oSession = self.oVBoxMgr.mgr.getSessionObject(self.oVBox);  # pylint: disable=E1101
-                    else:
+                    elif self.fpApiVer < 5.2 \
+                      or (self.fpApiVer == 5.2 and hasattr(self.oVBoxMgr, 'vbox')):
                         oSession = self.oVBoxMgr.getSessionObject(self.oVBox);      # pylint: disable=E1101
+                    else:
+                        oSession = self.oVBoxMgr.getSessionObject();                # pylint: disable=E1101
                     if self.fpApiVer < 3.3:
                         oProgress = self.oVBox.openRemoteSession(oSession, sUuid, sType, sEnv);
                     else:
@@ -2475,6 +2552,12 @@ class TestDriver(base.TestDriver):                                              
             rc = self.waitOnProgress(oProgress);
             if rc < 0:
                 self.waitOnDirectSessionClose(oVM, 5000);
+
+                # VM failed to power up, still collect VBox.log, need to wrap the session object
+                # in order to use the helper for adding the log files to the report.
+                from testdriver.vboxwrappers import SessionWrapper;
+                oTmp = SessionWrapper(oSession, oVM, self.oVBox, self.oVBoxMgr, self, True, sName, sLogFile);
+                oTmp.addLogsToReport();
                 try:
                     if oSession is not None:
                         oSession.close();
@@ -2530,12 +2613,12 @@ class TestDriver(base.TestDriver):                                              
         oSession, _ = self.startVmByNameEx(sName, True, sType, asEnv = asEnv);
         return oSession;
 
-    def terminateVmBySession(self, oSession, oProgress = None, fTakeScreenshot = None):
+    def terminateVmBySession(self, oSession, oProgress = None, fTakeScreenshot = None): # pylint: disable=R0915
         """
         Terminates the VM specified by oSession and adds the release logs to
         the test report.
 
-        This will try archive this by using powerOff, but will resort to
+        This will try achieve this by using powerOff, but will resort to
         tougher methods if that fails.
 
         The session will always be removed from the task list.
@@ -2560,11 +2643,18 @@ class TestDriver(base.TestDriver):                                              
         # If the host is out of memory, just skip all the info collection as it
         # requires memory too and seems to wedge.
         #
-        sLastScreenshotPath = None;
-        sOsKernelLog        = None;
-        sVgaText            = None;
-        asMiscInfos         = [];
+        sHostProcessInfo     = None;
+        sHostProcessInfoHung = None;
+        sLastScreenshotPath  = None;
+        sOsKernelLog         = None;
+        sVgaText             = None;
+        asMiscInfos          = [];
+
         if not oSession.fHostMemoryLow:
+            # Try to fetch the VM process info before meddling with its state.
+            if self.fAlwaysUploadLogs or reporter.testErrorCount() > 0:
+                sHostProcessInfo = utils.processGetInfo(oSession.getPid(), fSudo = True);
+
             #
             # Pause the VM if we're going to take any screenshots or dig into the
             # guest.  Failures are quitely ignored.
@@ -2602,7 +2692,7 @@ class TestDriver(base.TestDriver):                                              
                 if cCpus > 0:
                     for iCpu in xrange(0, cCpus):
                         sThis = oSession.queryDbgGuestStack(iCpu);
-                        if sThis is not None and len(sThis) > 0:
+                        if sThis:
                             asMiscInfos += [
                                 '================ start guest stack VCPU %s ================\n' % (iCpu,),
                                 sThis,
@@ -2615,6 +2705,8 @@ class TestDriver(base.TestDriver):                                              
                                      ('cpumguestinstr', 'symbol all'),
                                      ('pic', ''),
                                      ('apic', ''),
+                                     ('apiclvt', ''),
+                                     ('apictimer', ''),
                                      ('ioapic', ''),
                                      ('pit', ''),
                                      ('phys', ''),
@@ -2626,7 +2718,7 @@ class TestDriver(base.TestDriver):                                              
                     if sInfo in ['apic',] and self.fpApiVer < 5.1: # asserts and burns
                         continue;
                     sThis = oSession.queryDbgInfo(sInfo, sArg);
-                    if sThis is not None and len(sThis) > 0:
+                    if sThis:
                         if sThis[-1] != '\n':
                             sThis += '\n';
                         asMiscInfos += [
@@ -2651,7 +2743,7 @@ class TestDriver(base.TestDriver):                                              
                     oProgress.wait();
             self.removeTask(oProgress);
 
-        # Check if the VM has terminated by it self before powering it off.
+        # Check if the VM has terminated by itself before powering it off.
         fClose = True;
         fRc    = True;
         if oSession.needsPoweringOff():
@@ -2662,6 +2754,13 @@ class TestDriver(base.TestDriver):                                              
                 fRc = False;
                 uPid = oSession.getPid();
                 if uPid is not None:
+                    #
+                    # Collect some information about the VM process first to have
+                    # some state information for further investigation why powering off failed.
+                    #
+                    sHostProcessInfoHung = utils.processGetInfo(uPid, fSudo = True);
+
+                    # Exterminate...
                     reporter.error('terminateVmBySession: Terminating PID %u (VM %s)' % (uPid, oSession.sName));
                     fClose = base.processTerminate(uPid);
                     if fClose is True:
@@ -2715,9 +2814,29 @@ class TestDriver(base.TestDriver):                                              
             reporter.addLogString(sVgaText, 'vgatext.txt', 'info/vgatext', 'info vgatext all');
 
         # Add the "info xxxx" items if we've got any.
-        if len(asMiscInfos) > 0:
+        if asMiscInfos:
             reporter.addLogString(u''.join(asMiscInfos), 'info.txt', 'info/collection', 'A bunch of info items.');
 
+        # Add the host process info if we were able to retrieve it.
+        if sHostProcessInfo is not None:
+            reporter.log('Trying to annotate the VM process report, please stand by...');
+            fRcTmp = self.annotateAndUploadProcessReport(sHostProcessInfo, 'vmprocess.log',
+                                                         'process/report/vm', 'Annotated VM process state');
+            # Upload the raw log for manual annotation in case resolving failed.
+            if not fRcTmp:
+                reporter.log('Failed to annotate VM process report, uploading raw report');
+                reporter.addLogString(sHostProcessInfo, 'vmprocess.log', 'process/report/vm', 'VM process state');
+
+        # Add the host process info for failed power off attempts if we were able to retrieve it.
+        if sHostProcessInfoHung is not None:
+            reporter.log('Trying to annotate the hung VM process report, please stand by...');
+            fRcTmp = self.annotateAndUploadProcessReport(sHostProcessInfoHung, 'vmprocess-hung.log',
+                                                         'process/report/vm', 'Annotated hung VM process state');
+            # Upload the raw log for manual annotation in case resolving failed.
+            if not fRcTmp:
+                reporter.log('Failed to annotate hung VM process report, uploading raw report');
+                reporter.addLogString(sHostProcessInfoHung, 'vmprocess-hung.log', 'process/report/vm',
+                                      'Hung VM process state');
 
         return fRc;
 
@@ -2853,6 +2972,18 @@ class TestDriver(base.TestDriver):                                              
         """
         sCpuDesc = self._getHostCpuDesc(fQuiet);
         return sCpuDesc.startswith("VIA") or sCpuDesc == 'CentaurHauls';
+
+    def isHostCpuP4(self, fQuiet = False):
+        """
+        Checks if the host CPU is a Pentium 4 / Pentium D.
+
+        Returns True / False.
+        """
+        if not self.isHostCpuIntel(fQuiet):
+            return False;
+
+        (uFamilyModel, _, _, _) = self.oVBox.host.getProcessorCPUIDLeaf(0, 0x1, 0);
+        return ((uFamilyModel >> 8) & 0xf) == 0xf;
 
     def hasRawModeSupport(self, fQuiet = False):
         """

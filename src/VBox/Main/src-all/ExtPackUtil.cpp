@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -73,6 +73,7 @@ static void vboxExtPackClearDesc(PVBOXEXTPACKDESC a_pExtPackDesc)
     a_pExtPackDesc->strEdition.setNull();
     a_pExtPackDesc->uRevision = 0;
     a_pExtPackDesc->strMainModule.setNull();
+    a_pExtPackDesc->strMainVMModule.setNull();
     a_pExtPackDesc->strVrdeModule.setNull();
     a_pExtPackDesc->cPlugIns = 0;
     a_pExtPackDesc->paPlugIns = NULL;
@@ -163,6 +164,21 @@ static RTCString *vboxExtPackLoadDescFromDoc(xml::Document *a_pDoc, PVBOXEXTPACK
         return &(new RTCString("Invalid main module string: "))->append(pszMainModule);
 
     /*
+     * The main VM module, optional.
+     * Accept both none and empty as tokens of no main VM module.
+     */
+    const char *pszMainVMModule = NULL;
+    const xml::ElementNode *pMainVMModuleElm = pVBoxExtPackElm->findChildElement("MainVMModule");
+    if (pMainVMModuleElm)
+    {
+        pszMainVMModule = pMainVMModuleElm->getValue();
+        if (!pszMainVMModule || *pszMainVMModule == '\0')
+            pszMainVMModule = NULL;
+        else if (!VBoxExtPackIsValidModuleString(pszMainVMModule))
+            return &(new RTCString("Invalid main VM module string: "))->append(pszMainVMModule);
+    }
+
+    /*
      * The VRDE module, optional.
      * Accept both none and empty as tokens of no VRDE module.
      */
@@ -204,6 +220,7 @@ static RTCString *vboxExtPackLoadDescFromDoc(xml::Document *a_pDoc, PVBOXEXTPACK
     a_pExtPackDesc->strEdition      = pszEdition;
     a_pExtPackDesc->uRevision       = uRevision;
     a_pExtPackDesc->strMainModule   = pszMainModule;
+    a_pExtPackDesc->strMainVMModule = pszMainVMModule;
     a_pExtPackDesc->strVrdeModule   = pszVrdeModule;
     a_pExtPackDesc->cPlugIns        = cPlugIns;
     a_pExtPackDesc->paPlugIns       = paPlugIns;
@@ -271,7 +288,7 @@ RTCString *VBoxExtPackLoadDesc(const char *a_pszDir, PVBOXEXTPACKDESC a_pExtPack
  *
  * @returns NULL on success, pointer to an error message on failure (caller
  *          deletes it).
- * @param   a_pszDir        The directory containing the description file.
+ * @param   hVfsFile        The file handle of the description file.
  * @param   a_pExtPackDesc  Where to store the extension pack descriptor.
  * @param   a_pObjInfo      Where to store the object info for the file (unix
  *                          attribs). Optional.
@@ -361,6 +378,7 @@ void VBoxExtPackFreeDesc(PVBOXEXTPACKDESC a_pExtPackDesc)
     a_pExtPackDesc->strEdition.setNull();
     a_pExtPackDesc->uRevision = 0;
     a_pExtPackDesc->strMainModule.setNull();
+    a_pExtPackDesc->strMainVMModule.setNull();
     a_pExtPackDesc->strVrdeModule.setNull();
     a_pExtPackDesc->cPlugIns = 0;
     RTMemFree(a_pExtPackDesc->paPlugIns);
@@ -677,7 +695,7 @@ static void vboxExtPackSetError(char *pszError, size_t cbError, const char *pszF
  * Verifies the manifest and its signature.
  *
  * @returns VBox status code, failures with message.
- * @param   hManifestFile       The xml from the extension pack.
+ * @param   hXmlFile            The xml from the extension pack.
  * @param   pszExtPackName      The expected extension pack name.  This can be
  *                              NULL, in which we don't have any expectations.
  * @param   pszError            Where to store an error message on failure.

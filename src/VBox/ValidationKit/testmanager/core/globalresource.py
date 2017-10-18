@@ -7,7 +7,7 @@ Test Manager - Global Resources.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard python imports.
@@ -119,11 +119,16 @@ class GlobalResourceLogic(ModelLogicBase):
     Global resource logic.
     """
 
-    def fetchForListing(self, iStart, cMaxRows, tsNow):
+    def __init__(self, oDb):
+        ModelLogicBase.__init__(self, oDb)
+        self.dCache = None;
+
+    def fetchForListing(self, iStart, cMaxRows, tsNow, aiSortColumns = None):
         """
         Returns an array (list) of FailureReasonData items, empty list if none.
         Raises exception on error.
         """
+        _ = aiSortColumns;
 
         if tsNow is None:
             self._oDb.execute('SELECT   *\n'
@@ -145,6 +150,43 @@ class GlobalResourceLogic(ModelLogicBase):
         for aoRow in self._oDb.fetchAll():
             aoRows.append(GlobalResourceData().initFromDbRow(aoRow))
         return aoRows
+
+
+    def cachedLookup(self, idGlobalRsrc):
+        """
+        Looks up the most recent GlobalResourceData object for idGlobalRsrc
+        via an object cache.
+
+        Returns a shared GlobalResourceData object.  None if not found.
+        Raises exception on DB error.
+        """
+        if self.dCache is None:
+            self.dCache = self._oDb.getCache('GlobalResourceData');
+        oEntry = self.dCache.get(idGlobalRsrc, None);
+        if oEntry is None:
+            self._oDb.execute('SELECT   *\n'
+                              'FROM     GlobalResources\n'
+                              'WHERE    idGlobalRsrc = %s\n'
+                              '     AND tsExpire     = \'infinity\'::TIMESTAMP\n'
+                              , (idGlobalRsrc, ));
+            if self._oDb.getRowCount() == 0:
+                # Maybe it was deleted, try get the last entry.
+                self._oDb.execute('SELECT   *\n'
+                                  'FROM     GlobalResources\n'
+                                  'WHERE    idGlobalRsrc = %s\n'
+                                  'ORDER BY tsExpire DESC\n'
+                                  'LIMIT 1\n'
+                                  , (idGlobalRsrc, ));
+            elif self._oDb.getRowCount() > 1:
+                raise self._oDb.integrityException('%s infinity rows for %s' % (self._oDb.getRowCount(), idGlobalRsrc));
+
+            if self._oDb.getRowCount() == 1:
+                aaoRow = self._oDb.fetchOne();
+                oEntry = GlobalResourceData();
+                oEntry.initFromDbRow(aaoRow);
+                self.dCache[idGlobalRsrc] = oEntry;
+        return oEntry;
+
 
     def getAll(self, tsEffective = None):
         """
@@ -229,7 +271,7 @@ class GlobalResourceLogic(ModelLogicBase):
         May raise exception on DB error.
         """
         # Quit quickly if there is nothing to alloocate.
-        if len(aoGlobalRsrcs) == 0:
+        if not aoGlobalRsrcs:
             return True;
 
         #

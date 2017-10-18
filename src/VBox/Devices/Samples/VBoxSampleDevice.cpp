@@ -47,8 +47,7 @@ static DECLCALLBACK(int) devSampleDestruct(PPDMDEVINS pDevIns)
     /*
      * Check the versions here as well since the destructor is *always* called.
      */
-    AssertMsgReturn(pDevIns->u32Version            == PDM_DEVINS_VERSION, ("%#x, expected %#x\n", pDevIns->u32Version,            PDM_DEVINS_VERSION), VERR_VERSION_MISMATCH);
-    AssertMsgReturn(pDevIns->pHlpR3->u32Version == PDM_DEVHLPR3_VERSION, ("%#x, expected %#x\n", pDevIns->pHlpR3->u32Version, PDM_DEVHLPR3_VERSION), VERR_VERSION_MISMATCH);
+    PDMDEV_CHECK_VERSIONS_RETURN_QUIET(pDevIns);
 
     return VINF_SUCCESS;
 }
@@ -56,11 +55,12 @@ static DECLCALLBACK(int) devSampleDestruct(PPDMDEVINS pDevIns)
 
 static DECLCALLBACK(int) devSampleConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMNODE pCfg)
 {
+
     /*
      * Check that the device instance and device helper structures are compatible.
      */
-    AssertLogRelMsgReturn(pDevIns->u32Version            == PDM_DEVINS_VERSION, ("%#x, expected %#x\n", pDevIns->u32Version,            PDM_DEVINS_VERSION), VERR_VERSION_MISMATCH);
-    AssertLogRelMsgReturn(pDevIns->pHlpR3->u32Version == PDM_DEVHLPR3_VERSION, ("%#x, expected %#x\n", pDevIns->pHlpR3->u32Version, PDM_DEVHLPR3_VERSION), VERR_VERSION_MISMATCH);
+    PDMDEV_CHECK_VERSIONS_RETURN(pDevIns);
+    NOREF(pCfg);
 
     /*
      * Initialize the instance data so that the destructor won't mess up.
@@ -71,10 +71,7 @@ static DECLCALLBACK(int) devSampleConstruct(PPDMDEVINS pDevIns, int iInstance, P
     /*
      * Validate and read the configuration.
      */
-    if (!CFGMR3AreValuesValid(pCfg,
-                              "Whatever1\0"
-                              "Whatever2\0"))
-        return VERR_PDM_DEVINS_UNKNOWN_CFG_VALUES;
+    PDMDEV_VALIDATE_CONFIG_RETURN(pDevIns, "Whatever1|Whatever2", "");
 
     /*
      * Use the instance number if necessary (not for this device, which in
@@ -160,11 +157,6 @@ extern "C" DECLEXPORT(int) VBoxDevicesRegister(PPDMDEVREGCB pCallbacks, uint32_t
                           ("callback version %#x, expected %#x\n", pCallbacks->u32Version, PDM_DEVREG_CB_VERSION),
                           VERR_VERSION_MISMATCH);
 
-    /* Two devices in this module. */
-    extern const PDMDEVREG g_DevicePlayground;
-    int rc = pCallbacks->pfnRegister(pCallbacks, &g_DeviceSample);
-    if (RT_SUCCESS(rc))
-        rc = pCallbacks->pfnRegister(pCallbacks, &g_DevicePlayground);
-    return rc;
+    return pCallbacks->pfnRegister(pCallbacks, &g_DeviceSample);
 }
 

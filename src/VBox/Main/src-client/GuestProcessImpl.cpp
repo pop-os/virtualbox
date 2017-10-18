@@ -28,6 +28,9 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
+#define LOG_GROUP LOG_GROUP_GUEST_CONTROL //LOG_GROUP_MAIN_GUESTPROCESS
+#include "LoggingNew.h"
+
 #ifndef VBOX_WITH_GUEST_CONTROL
 # error "VBOX_WITH_GUEST_CONTROL must defined in this file"
 #endif
@@ -51,12 +54,6 @@
 #include <VBox/com/listeners.h>
 
 #include <VBox/com/array.h>
-
-#ifdef LOG_GROUP
- #undef LOG_GROUP
-#endif
-#define LOG_GROUP LOG_GROUP_GUEST_CONTROL
-#include <VBox/log.h>
 
 
 class GuestProcessTask : public ThreadTask
@@ -561,11 +558,11 @@ Utf8Str GuestProcess::i_guestErrorToString(int guestRc)
 }
 
 /**
- * Returns @true if the passed in error code indicates an error which came from the guest side,
- * or @false if not.
+ * Returns @c true if the passed in error code indicates an error which came
+ * from the guest side, or @c false if not.
  *
- * @return  bool                @true if the passed in error code indicates an error which came from the guest side,
- *                              or @false if not.
+ * @return  bool                @c true if the passed in error code indicates an error which came
+ *                              from the guest side, or @c false if not.
  * @param   rc                  Error code to check.
  */
 /* static */
@@ -2469,9 +2466,9 @@ int GuestProcessTool::i_exitCodeToRc(const GuestProcessStartupInfo &startupInfo,
 /**
  * Converts a toolbox tool's exit code to an IPRT error code.
  *
- * @return  int             Returned IPRT error for the particular tool.
- * @param   pszTool         Name of toolbox tool to lookup error code for.
- * @param   rcExit          The toolbox tool's exit code to lookup IPRT error for.
+ * @return  Returned IPRT error for the particular tool.
+ * @param   pszTool     Name of toolbox tool to lookup error code for.
+ * @param   lExitCode   The toolbox tool's exit code to lookup IPRT error for.
  */
 /* static */
 int GuestProcessTool::i_exitCodeToRc(const char *pszTool, LONG lExitCode)

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,6 +30,7 @@
 #include <VBox/vmm/pdmcritsect.h>
 #include <VBox/vmm/pdmthread.h>
 #include <VBox/vmm/pdmifs.h>
+#include <VBox/vmm/pdmins.h>
 #include <VBox/vmm/pdmcommon.h>
 #include <VBox/vmm/tm.h>
 #include <VBox/vmm/ssm.h>
@@ -1073,6 +1074,8 @@ VMMR3DECL(int)  PDMR3UsbDriverAttach(PUVM pUVM, const char *pszDevice, unsigned 
 VMMR3DECL(int)  PDMR3UsbDriverDetach(PUVM pUVM, const char *pszDevice, unsigned iDevIns, unsigned iLun,
                                      const char *pszDriver, unsigned iOccurance, uint32_t fFlags);
 VMMR3DECL(int)  PDMR3UsbQueryLun(PUVM pUVM, const char *pszDevice, unsigned iInstance, unsigned iLun, PPDMIBASE *ppBase);
+VMMR3DECL(int)  PDMR3UsbQueryDriverOnLun(PUVM pUVM, const char *pszDevice, unsigned iInstance, unsigned iLun,
+                                         const char *pszDriver, PPPDMIBASE ppBase);
 
 /** @} */
 

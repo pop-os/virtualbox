@@ -1,4 +1,4 @@
-/* $Id$ */
+/* $Id: HDAStreamPeriod.cpp $ */
 /** @file
  * HDAStreamPeriod.cpp - Stream period functions for HD Audio.
  *
@@ -23,17 +23,20 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_HDA
 #include <VBox/log.h>
 
+#include <iprt/asm-math.h> /* For ASMMultU64ByU32DivByU32(). */
+
 #include <VBox/vmm/pdmdev.h>
 #include <VBox/vmm/pdmaudioifs.h>
 
+#include "DrvAudio.h"
 #include "HDAStreamPeriod.h"
-#include "DevHDA.h"
 
 #ifdef IN_RING3
 /**
@@ -82,6 +85,12 @@ void hdaStreamPeriodDestroy(PHDASTREAMPERIOD pPeriod)
 void hdaStreamPeriodInit(PHDASTREAMPERIOD pPeriod,
                          uint8_t u8SD, uint16_t u16LVI, uint32_t u32CBL, PPDMAUDIOSTREAMCFG pStreamCfg)
 {
+
+    /* Sanity. */
+    AssertReturnVoid(u16LVI);
+    AssertReturnVoid(u32CBL);
+    AssertReturnVoid(DrvAudioHlpStreamCfgIsValid(pStreamCfg));
+
     /*
      * Linux guests (at least Ubuntu):
      * 17632 bytes (CBL) / 4 (frame size) = 4408 frames / 4 (LVI) = 1102 frames per period
@@ -98,7 +107,7 @@ void hdaStreamPeriodInit(PHDASTREAMPERIOD pPeriod,
 
     pPeriod->u8SD              = u8SD;
     pPeriod->u64StartWalClk    = 0;
-    pPeriod->u32Hz             = pStreamCfg->uHz;
+    pPeriod->u32Hz             = pStreamCfg->Props.uHz;
     pPeriod->u64DurationWalClk = hdaStreamPeriodFramesToWalClk(pPeriod, framesToTransfer);
     pPeriod->u64ElapsedWalClk  = 0;
     pPeriod->i64DelayWalClk    = 0;
@@ -121,7 +130,7 @@ void hdaStreamPeriodReset(PHDASTREAMPERIOD pPeriod)
     Log3Func(("[SD%RU8]\n", pPeriod->u8SD));
 
     if (pPeriod->cIntPending)
-        LogFunc(("Warning: %RU8 interrupts for stream #%RU8 still pending -- so a period reset might trigger audio hangs\n",
+        LogRelMax(50, ("HDA: Warning: %RU8 interrupts for stream #%RU8 still pending -- so a period reset might trigger audio hangs\n",
                  pPeriod->cIntPending, pPeriod->u8SD));
 
     pPeriod->fStatus          &= ~HDASTREAMPERIOD_FLAG_ACTIVE;
@@ -212,7 +221,7 @@ void hdaStreamPeriodResume(PHDASTREAMPERIOD pPeriod)
 /**
  * Locks a stream period for serializing access.
  *
- * @return  @true if locking was successful, @false if not.
+ * @return  true if locking was successful, false if not.
  * @param   pPeriod             Stream period to lock.
  */
 bool hdaStreamPeriodLock(PHDASTREAMPERIOD pPeriod)
@@ -245,8 +254,8 @@ uint64_t hdaStreamPeriodFramesToWalClk(PHDASTREAMPERIOD pPeriod, uint32_t uFrame
     /* Prevent division by zero. */
     const uint32_t uHz = (pPeriod->u32Hz ? pPeriod->u32Hz : 1);
 
-    /* 24 MHz WallClock (WALCLK): 42ns resolution. */
-    return ((uFrames * 24000 /* 24 MHz */) / uHz) * 1000;
+    /* 24 MHz wall clock (WALCLK): 42ns resolution. */
+    return ASMMultU64ByU32DivByU32(uFrames, 24000000, uHz);
 }
 
 /**
@@ -290,7 +299,7 @@ uint32_t hdaStreamPeriodGetRemainingFrames(PHDASTREAMPERIOD pPeriod)
 /**
  * Tells whether a given stream period has elapsed (time-wise) or not.
  *
- * @return  @true if the stream period has elapsed, @false if not.
+ * @return  true if the stream period has elapsed, false if not.
  * @param   pPeriod             Stream period to get status for.
  */
 bool hdaStreamPeriodHasElapsed(PHDASTREAMPERIOD pPeriod)
@@ -302,7 +311,7 @@ bool hdaStreamPeriodHasElapsed(PHDASTREAMPERIOD pPeriod)
  * Tells whether a given stream period has passed the given absolute wall clock (WALCLK)
  * time or not
  *
- * @return  @true if the stream period has passed the given time, @false if not.
+ * @return  true if the stream period has passed the given time, false if not.
  * @param   pPeriod             Stream period to get status for.
  * @param   u64WalClk           Absolute wall clock (WALCLK) time to check for.
  */
@@ -321,7 +330,7 @@ bool hdaStreamPeriodHasPassedAbsWalClk(PHDASTREAMPERIOD pPeriod, uint64_t u64Wal
 /**
  * Tells whether a given stream period has some required interrupts pending or not.
  *
- * @return  @true if period has interrupts pending, @false if not.
+ * @return  true if period has interrupts pending, false if not.
  * @param   pPeriod             Stream period to get status for.
  */
 bool hdaStreamPeriodNeedsInterrupt(PHDASTREAMPERIOD pPeriod)
@@ -386,7 +395,7 @@ void hdaStreamPeriodInc(PHDASTREAMPERIOD pPeriod, uint32_t framesInc)
 /**
  * Tells whether a given stream period is considered as complete or not.
  *
- * @return  @true if stream period is complete, @false if not.
+ * @return  true if stream period is complete, false if not.
  * @param   pPeriod             Stream period to report status for.
  *
  * @remark  A stream period is considered complete if it has 1) passed (elapsed) its calculated period time

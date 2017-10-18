@@ -32,7 +32,8 @@ enum UIActionIndexST
 {
     /* 'File' menu actions: */
     UIActionIndexST_M_File = UIActionIndex_Max + 1,
-    UIActionIndexST_M_File_S_ShowMediumManager,
+    UIActionIndexST_M_File_S_ShowVirtualMediumManager,
+    UIActionIndexST_M_File_S_ShowHostNetworkManager,
     UIActionIndexST_M_File_S_ImportAppliance,
     UIActionIndexST_M_File_S_ExportAppliance,
 #ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
@@ -89,6 +90,18 @@ enum UIActionIndexST
     UIActionIndexST_M_Machine_S_ShowInFileManager,
     UIActionIndexST_M_Machine_S_CreateShortcut,
     UIActionIndexST_M_Machine_S_SortParent,
+
+    /* Machine Tools actions: */
+    UIActionIndexST_M_Tools_T_Machine,
+    UIActionIndexST_M_Tools_M_Machine,
+    UIActionIndexST_M_Tools_M_Machine_S_Details,
+    UIActionIndexST_M_Tools_M_Machine_S_Snapshots,
+
+    /* Global Tools actions: */
+    UIActionIndexST_M_Tools_T_Global,
+    UIActionIndexST_M_Tools_M_Global,
+    UIActionIndexST_M_Tools_M_Global_S_VirtualMediaManager,
+    UIActionIndexST_M_Tools_M_Global_S_HostNetworkManager,
 
     /* Maximum index: */
     UIActionIndexST_Max

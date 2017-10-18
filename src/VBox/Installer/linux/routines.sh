@@ -122,6 +122,7 @@ systemd_wrap_init_script()
     test -d /lib/systemd/system && unit_path=/lib/systemd/system
     test -n "${unit_path}" || \
         { echo "$self: systemd unit path not found" >&2 && return 1; }
+    conflicts=`sed -n 's/# *X-Conflicts-With: *\(.*\)/\1/p' "${script}" | sed 's/\$[a-z]*//'`
     description=`sed -n 's/# *Short-Description: *\(.*\)/\1/p' "${script}"`
     required=`sed -n 's/# *Required-Start: *\(.*\)/\1/p' "${script}" | sed 's/\$[a-z]*//'`
     startbefore=`sed -n 's/# *X-Start-Before: *\(.*\)/\1/p' "${script}" | sed 's/\$[a-z]*//'`
@@ -137,7 +138,7 @@ SourcePath=${script}
 Description=${description}
 Before=${targets}shutdown.target ${before}
 After=${after}
-Conflicts=shutdown.target
+Conflicts=shutdown.target ${conflicts}
 
 [Service]
 Type=${servicetype}
@@ -224,14 +225,10 @@ do_sysvinit_action()
         { echo "${self}: missing argument" >&2; return 1; }
     if systemd_service_installed "${name}"; then
         systemctl -q ${action} "${name}"
-    elif test -x "`which service 2>/dev/null`"; then
-        service "${name}" ${action}
-    elif test -x "`which invoke-rc.d 2>/dev/null`"; then
-        invoke-rc.d "${name}" ${action}
     elif test -x "/etc/rc.d/init.d/${name}"; then
-        "/etc/rc.d/init.d/${name}" "${action}"
+        "/etc/rc.d/init.d/${name}" "${action}" quiet
     elif test -x "/etc/init.d/${name}"; then
-        "/etc/init.d/${name}" "${action}"
+        "/etc/init.d/${name}" "${action}" quiet
     fi
 }
 
@@ -274,7 +271,7 @@ get_chkconfig_info()
             return 1; }
 }
 
-## Add a service to a runlevel
+## Add a service to its default runlevels (annotated inside the script, see get_chkconfig_info).
 addrunlevel()
 {
     self="addrunlevel"

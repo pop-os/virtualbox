@@ -407,6 +407,7 @@ void UIEncryptionDataTable::prepare()
         delete itemDelegate();
         setItemDelegate(pStyledItemDelegate);
         /* Configure item delegate: */
+        pStyledItemDelegate->setWatchForEditorDataCommits(true);
         pStyledItemDelegate->setWatchForEditorEnterKeyTriggering(true);
         connect(pStyledItemDelegate, SIGNAL(sigEditorEnterKeyTriggered()),
                 this, SIGNAL(sigEditorEnterKeyTriggered()));
@@ -423,13 +424,8 @@ void UIEncryptionDataTable::prepare()
     verticalHeader()->hide();
     verticalHeader()->setDefaultSectionSize((int)(verticalHeader()->minimumSectionSize() * 1.33));
     horizontalHeader()->setStretchLastSection(false);
-#if QT_VERSION >= 0x050000
     horizontalHeader()->setSectionResizeMode(UIEncryptionDataTableSection_Id, QHeaderView::Interactive);
     horizontalHeader()->setSectionResizeMode(UIEncryptionDataTableSection_Password, QHeaderView::Stretch);
-#else /* QT_VERSION < 0x050000 */
-    horizontalHeader()->setResizeMode(UIEncryptionDataTableSection_Id, QHeaderView::Interactive);
-    horizontalHeader()->setResizeMode(UIEncryptionDataTableSection_Password, QHeaderView::Stretch);
-#endif /* QT_VERSION < 0x050000 */
 }
 
 UIAddDiskEncryptionPasswordDialog::UIAddDiskEncryptionPasswordDialog(QWidget *pParent,

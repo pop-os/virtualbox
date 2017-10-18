@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,8 +25,10 @@
 #include <VBox/dis.h>
 #include <VBox/vmm/hm.h>
 #include <VBox/vmm/hm_vmx.h>
+#include <VBox/vmm/hm_svm.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/cpum.h>
+#include <VBox/vmm/trpm.h>
 #include <iprt/memobj.h>
 #include <iprt/cpuset.h>
 #include <iprt/mp.h>
@@ -145,8 +147,12 @@ RT_C_DECLS_BEGIN
 #define MASK_INJECT_IRQ_STAT       0xff
 
 /** @name HM changed flags.
- * These flags are used to keep track of which important registers that
- * have been changed since last they were reset.
+ * These flags are used to keep track of which important registers that have
+ * been changed since last they were reset.
+ *
+ * Flags marked "shared" are used for registers that are common to both the host
+ * and guest (i.e. without dedicated VMCS/VMCB fields for guest bits).
+ *
  * @{
  */
 #define HM_CHANGED_GUEST_CR0                     RT_BIT(0)      /* Shared */
@@ -166,7 +172,7 @@ RT_C_DECLS_BEGIN
 #define HM_CHANGED_GUEST_SYSENTER_EIP_MSR        RT_BIT(14)
 #define HM_CHANGED_GUEST_SYSENTER_ESP_MSR        RT_BIT(15)
 #define HM_CHANGED_GUEST_EFER_MSR                RT_BIT(16)
-#define HM_CHANGED_GUEST_LAZY_MSRS               RT_BIT(17)     /* Shared */
+#define HM_CHANGED_GUEST_LAZY_MSRS               RT_BIT(17)     /* Shared */ /** @todo Move this to VT-x specific? */
 #define HM_CHANGED_GUEST_XCPT_INTERCEPTS         RT_BIT(18)
 /* VT-x specific state. */
 #define HM_CHANGED_VMX_GUEST_AUTO_MSRS           RT_BIT(19)
@@ -179,7 +185,7 @@ RT_C_DECLS_BEGIN
 #define HM_CHANGED_SVM_RESERVED1                 RT_BIT(20)
 #define HM_CHANGED_SVM_RESERVED2                 RT_BIT(21)
 #define HM_CHANGED_SVM_RESERVED3                 RT_BIT(22)
-#define HM_CHANGED_SVM_RESERVED4                 RT_BIT(23)
+#define HM_CHANGED_SVM_NESTED_GUEST              RT_BIT(23)
 
 #define HM_CHANGED_ALL_GUEST                     (  HM_CHANGED_GUEST_CR0                \
                                                   | HM_CHANGED_GUEST_CR3                \
@@ -397,8 +403,6 @@ typedef struct HM
     bool                        fLargePages;
     /** Set if we can support 64-bit guests or not. */
     bool                        fAllow64BitGuests;
-    /** Set if an IO-APIC is configured for this VM. */
-    bool                        fHasIoApic;
     /** Set when TPR patching is allowed. */
     bool                        fTprPatchingAllowed;
     /** Set when we initialize VT-x or AMD-V once for all CPUs. */
@@ -412,6 +416,8 @@ typedef struct HM
     bool                        fVirtApicRegs;
     /** Set if posted interrupt processing is enabled. */
     bool                        fPostedIntrs;
+    /** Alignment. */
+    bool                        fAlignment0;
 
     /** Host kernel flags that HM might need to know (SUPKERNELFEATURES_XXX). */
     uint32_t                    fHostKernelFeatures;
@@ -751,8 +757,8 @@ typedef struct HMCPU
 
         /** Physical address of the virtual APIC page for TPR caching. */
         RTHCPHYS                    HCPhysVirtApic;
-        /** R0 memory object for the virtual APIC page for TPR caching. */
-        RTR0MEMOBJ                  hMemObjVirtApic;
+        /** Padding. */
+        R0PTRTYPE(void *)           pvAlignment0;
         /** Virtual address of the virtual APIC page for TPR caching. */
         R0PTRTYPE(uint8_t *)        pbVirtApic;
 
@@ -861,27 +867,31 @@ typedef struct HMCPU
         RTHCPHYS                    HCPhysVmcbHost;
         /** R0 memory object for the host VMCB which holds additional host-state. */
         RTR0MEMOBJ                  hMemObjVmcbHost;
-        /** Virtual address of the host VMCB which holds additional host-state. */
-        R0PTRTYPE(void *)           pvVmcbHost;
+        /** Padding. */
+        R0PTRTYPE(void *)           pvPadding;
 
         /** Physical address of the guest VMCB. */
         RTHCPHYS                    HCPhysVmcb;
         /** R0 memory object for the guest VMCB. */
         RTR0MEMOBJ                  hMemObjVmcb;
-        /** Virtual address of the guest VMCB. */
-        R0PTRTYPE(void *)           pvVmcb;
+        /** Pointer to the guest VMCB. */
+        R0PTRTYPE(PSVMVMCB)         pVmcb;
 
         /** Physical address of the MSR bitmap (8 KB). */
         RTHCPHYS                    HCPhysMsrBitmap;
         /** R0 memory object for the MSR bitmap (8 KB). */
         RTR0MEMOBJ                  hMemObjMsrBitmap;
-        /** Virtual address of the MSR bitmap. */
+        /** Pointer to the MSR bitmap. */
         R0PTRTYPE(void *)           pvMsrBitmap;
 
         /** Whether VTPR with V_INTR_MASKING set is in effect, indicating
          *  we should check if the VTPR changed on every VM-exit. */
         bool                        fSyncVTpr;
         uint8_t                     u8Alignment0[7];
+
+        /** Cache of the nested-guest's VMCB fields that we modify in order to run the
+         *  nested-guest using AMD-V. This will be restored on \#VMEXIT. */
+        SVMNESTEDVMCBCACHE          NstGstVmcbCache;
     } svm;
 
     /** Event injection state. */
@@ -1096,26 +1106,20 @@ AssertCompileMemberAlignment(HMCPU, vmx, 8);
 AssertCompileMemberAlignment(HMCPU, svm, 8);
 AssertCompileMemberAlignment(HMCPU, Event, 8);
 
-
 #ifdef IN_RING0
-/** @todo r=bird: s/[[:space:]]HM/ hm/ - internal functions starts with a
- *        lower cased prefix.  HMInternal.h is an internal header, so
- *        everything here must be internal. */
-VMMR0DECL(PHMGLOBALCPUINFO) HMR0GetCurrentCpu(void);
-VMMR0DECL(PHMGLOBALCPUINFO) HMR0GetCurrentCpuEx(RTCPUID idCpu);
-
+VMMR0_INT_DECL(PHMGLOBALCPUINFO) hmR0GetCurrentCpu(void);
 
 # ifdef VBOX_STRICT
-VMMR0DECL(void) HMDumpRegs(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
-VMMR0DECL(void) HMR0DumpDescriptor(PCX86DESCHC pDesc, RTSEL Sel, const char *pszMsg);
+VMMR0_INT_DECL(void) hmR0DumpRegs(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx);
+VMMR0_INT_DECL(void) hmR0DumpDescriptor(PCX86DESCHC pDesc, RTSEL Sel, const char *pszMsg);
 # else
-#  define HMDumpRegs(a, b ,c)            do { } while (0)
-#  define HMR0DumpDescriptor(a, b, c)    do { } while (0)
+#  define hmR0DumpRegs(a, b ,c)          do { } while (0)
+#  define hmR0DumpDescriptor(a, b, c)    do { } while (0)
 # endif /* VBOX_STRICT */
 
 # ifdef VBOX_WITH_KERNEL_USING_XMM
-DECLASM(int) HMR0VMXStartVMWrapXMM(RTHCUINT fResume, PCPUMCTX pCtx, PVMCSCACHE pCache, PVM pVM, PVMCPU pVCpu, PFNHMVMXSTARTVM pfnStartVM);
-DECLASM(int) HMR0SVMRunWrapXMM(RTHCPHYS pVmcbHostPhys, RTHCPHYS pVmcbPhys, PCPUMCTX pCtx, PVM pVM, PVMCPU pVCpu, PFNHMSVMVMRUN pfnVMRun);
+DECLASM(int) hmR0VMXStartVMWrapXMM(RTHCUINT fResume, PCPUMCTX pCtx, PVMCSCACHE pCache, PVM pVM, PVMCPU pVCpu, PFNHMVMXSTARTVM pfnStartVM);
+DECLASM(int) hmR0SVMRunWrapXMM(RTHCPHYS pVmcbHostPhys, RTHCPHYS pVmcbPhys, PCPUMCTX pCtx, PVM pVM, PVMCPU pVCpu, PFNHMSVMVMRUN pfnVMRun);
 # endif
 
 #endif /* IN_RING0 */

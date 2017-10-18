@@ -278,7 +278,7 @@ HKEY_CLASSES_ROOT\CLSID\{275D3BCC-22BB-4948-A7F6-3A3054EBA92B}\InprocServer32</s
       as part of the Guest Additions but it is not installed and/or activated
       on the guest OS by default. In order to install it, it has to be copied
       from
-      <computeroutput>/opt/VBoxGuestAdditions-&lt;version&gt;/lib/VBoxGuestAdditions/</computeroutput>
+      <computeroutput>/opt/VBoxGuestAdditions-&lt;version&gt;/other/</computeroutput>
       to the security modules directory, usually
       <computeroutput>/lib/security/</computeroutput> on 32-bit guest Linuxes
       or <computeroutput>/lib64/security/</computeroutput> on 64-bit ones.
@@ -433,7 +433,7 @@ HKEY_CLASSES_ROOT\CLSID\{275D3BCC-22BB-4948-A7F6-3A3054EBA92B}\InprocServer32</s
         <para>For manual or postponed installation, the
         <computeroutput>vbox-greeter.desktop</computeroutput>
         file has to be copied from
-        <computeroutput>/opt/VBoxGuestAdditions-&lt;version&gt;/shared/VBoxGuestAdditions/</computeroutput>
+        <computeroutput>/opt/VBoxGuestAdditions-&lt;version&gt;/other/</computeroutput>
         to the <computeroutput>xgreeters</computeroutput> directory, usually
         <computeroutput>/usr/share/xgreeters/</computeroutput>.
         Please refer to your guest OS documentation for the correct LightDM
@@ -638,7 +638,7 @@ greeter-session=vbox-greeter</screen></para>
         </itemizedlist> By default these drivers can be found in the
       directory</para>
 
-      <para><computeroutput>/opt/VBoxGuestAdditions-&lt;version&gt;/lib/VBoxGuestAdditions</computeroutput></para>
+      <para><computeroutput>/opt/VBoxGuestAdditions-&lt;version&gt;/other/</computeroutput></para>
 
       <para>and the correct versions for the X server are symbolically linked
       into the X.Org driver directories.</para>
@@ -963,7 +963,7 @@ host path or identifier</screen>
   <sect1>
     <title>Advanced display configuration</title>
 
-    <sect2>
+    <sect2 id="customvesa">
       <title>Custom VESA resolutions</title>
 
       <para>Apart from the standard VESA resolutions, the VirtualBox VESA BIOS
@@ -4316,9 +4316,9 @@ VBoxManage setextradata "VM name" VBoxInternal/CPUM/SSE4.2 1</screen>
       <computeroutput>usbip-core.ko</computeroutput> and
       <computeroutput>usbip-host.ko</computeroutput> kernel drivers
       are available, and that the USB/IP tools package is installed.
-      The particular installation method for the necessary tools depends on which 
+      The particular installation method for the necessary tools depends on which
       distribution is used.
-      For example, for Debian based systems - the following command should be used to 
+      For example, for Debian based systems - the following command should be used to
       install the required tools:
       <screen>apt-get install usbip-utils</screen></para>
       <para>To check whether the necessary tools are already installed use
@@ -4343,7 +4343,7 @@ $ usbip list -l
       service when the system boots.</para>
 
       <para>By default, no device on the server is exported - and this must be done manually
-      for each device. To export a device use: 
+      for each device. To export a device use:
       <screen>usbip bind -b "bus identifier"</screen>
       To export the multicard reader from above, for example  - use:
       <screen>usbip bind -b 4-2</screen></para>
@@ -4361,4 +4361,7 @@ $ usbip list -l
     </sect2>
   </sect1>
 
+  <xi:include href="user_isomakercmd-man.xml"    xpointer="element(/1)" xmlns:xi="http://www.w3.org/2001/XInclude" />
+
 </chapter>
+

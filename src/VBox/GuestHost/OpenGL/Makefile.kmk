@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2008-2016 Oracle Corporation
+# Copyright (C) 2008-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -52,9 +52,11 @@ if defined(VBOX_SIGNING_MODE) && defined(VBOX_WITH_WDDM)
 endif
 VBoxOGLcrutil_SDKS.win      = ReorderCompilerIncs $(VBOX_WINPSDK) $(VBOX_WINDDK)
 VBoxOGLcrutil_INTERMEDIATES = $(VBOX_PATH_CROGL_GENFILES)/cr_opcodes.h
+VBoxOGLcrutil_INCS += \
+	$(VBOX_GRAPHICS_INCS)
 if1of ($(KBUILD_TARGET), linux solaris freebsd)
  VBoxOGLcrutil_INCS += \
-	$(VBOX_MESA_INCS)
+	$(VBOX_GL_INCS)
 endif
 VBoxOGLcrutil_SOURCES       = \
 	util/bbox.c \
@@ -107,7 +109,9 @@ VBoxOGLcrutil_DEFS       += CR_NO_GL_SYSTEM_PATH
 endif
 ifdef VBOX_WITH_CRHGSMI
 VBoxOGLcrutil_DEFS.win    += VBOX_WITH_CRHGSMI
-VBoxOGLcrutil_LIBS.win    += $(VBOX_PATH_ADDITIONS_LIB)/VBoxCrHgsmi$(VBOX_SUFF_LIB)
+VBoxOGLcrutil_LIBS.win    += \
+	$(VBOX_PATH_ADDITIONS_LIB)/VBoxWddmUmKmt$(VBOX_SUFF_LIB) \
+	$(VBOX_PATH_ADDITIONS_LIB)/VBoxCrHgsmi$(VBOX_SUFF_LIB)
 endif
 ifdef VBOX_WITH_WDDM
 VBoxOGLcrutil_DEFS.win    += VBOX_WITH_WDDM
@@ -140,7 +144,9 @@ VBoxOGLcrutil-x86_LIBS.win = \
 	$(PATH_SDK_$(VBOX_WINDDK)_LIB.x86)/dxguid.lib
 ifdef VBOX_WITH_CRHGSMI
 # VBOX_WITH_CRHGSMI define is inherited from VBoxOGLcrutil
-VBoxOGLcrutil-x86_LIBS.win    += $(VBOX_PATH_ADDITIONS_LIB)/VBoxCrHgsmi-x86$(VBOX_SUFF_LIB)
+VBoxOGLcrutil-x86_LIBS.win    += \
+	$(VBOX_PATH_ADDITIONS_LIB)/VBoxWddmUmKmt-x86$(VBOX_SUFF_LIB) \
+	$(VBOX_PATH_ADDITIONS_LIB)/VBoxCrHgsmi-x86$(VBOX_SUFF_LIB)
 endif
 VBoxOGLcrutil-x86_DEFS = $(VBoxOGLcrutil_DEFS) VBOX_WDDM_WOW64
 ifdef VBOX_WITH_WDDM
@@ -196,10 +202,11 @@ endif
 #
 VBoxOGLcrpacker_TEMPLATE = VBOXCROGLR3GUESTLIB
 VBoxOGLcrpacker_INCS = \
-	packer
+	packer \
+	$(VBOX_GRAPHICS_INCS)
 if1of ($(KBUILD_TARGET), linux solaris freebsd)
  VBoxOGLcrpacker_INCS += \
-	$(VBOX_MESA_INCS)
+	$(VBOX_GL_INCS)
 endif
 VBoxOGLcrpacker_INTERMEDIATES = \
 	$(VBOX_PATH_CROGL_GENFILES)/cr_packfunctions.h \
@@ -348,9 +355,11 @@ $(VBOX_PATH_CROGL_GENFILES)/%_swap.c: $(PATH_SUB_CURRENT)/packer/%.c $(PATH_SUB_
 VBoxOGLspuload_TEMPLATE = VBOXCROGLR3GUESTLIB
 VBoxOGLspuload_INTERMEDIATES = \
 	$(VBOX_PATH_CROGL_GENFILES)/spu_dispatch_table.h
+VBoxOGLspuload_INCS += \
+	$(VBOX_GRAPHICS_INCS)
 if1of ($(KBUILD_TARGET), linux solaris freebsd)
  VBoxOGLspuload_INCS += \
-	$(VBOX_MESA_INCS)
+	$(VBOX_GL_INCS)
 endif
 VBoxOGLspuload_SOURCES = \
 	spu_loader/spuinit.c \
@@ -420,10 +429,11 @@ $(VBOX_PATH_CROGL_GENFILES)/spu_dispatch_table.h: $(PATH_SUB_CURRENT)/spu_loader
 #
 VBoxOGLcrstate_TEMPLATE = VBOXCROGLR3GUESTLIB
 VBoxOGLcrstate_INCS = \
-	state_tracker
+	state_tracker \
+	$(VBOX_GRAPHICS_INCS)
 if1of ($(KBUILD_TARGET), linux solaris freebsd)
  VBoxOGLcrstate_INCS += \
-	$(VBOX_MESA_INCS)
+	$(VBOX_GL_INCS)
 endif
 VBoxOGLcrstate_INTERMEDIATES = \
 	$(VBOX_PATH_CROGL_GENFILES)/state/cr_statefuncs.h \
@@ -622,9 +632,11 @@ if defined(VBOX_SIGNING_MODE) && defined(VBOX_WITH_WDDM)
 endif
 VBoxOGLerrorspu_INTERMEDIATES = \
 	$(VBOX_PATH_CROGL_GENFILES)/spu_dispatch_table.h
+VBoxOGLerrorspu_INCS += \
+	$(VBOX_GRAPHICS_INCS)
 if1of ($(KBUILD_TARGET), linux solaris freebsd)
  VBoxOGLerrorspu_INCS += \
-	$(VBOX_MESA_INCS)
+	$(VBOX_GL_INCS)
 endif
 VBoxOGLerrorspu_SOURCES = \
 	$(VBOX_PATH_CROGL_GENFILES)/errorspu.c \

@@ -118,6 +118,13 @@ signals:
     void sigCanShowWindow(bool &fVeto, QString &strReason); /* use Qt::DirectConnection */
     /** Notifies about VM window with specified @a winId should be shown. */
     void sigShowWindow(qint64 &winId); /* use Qt::DirectConnection */
+    /** Notifies about audio adapter state change. */
+    void sigAudioAdapterChange();
+
+    /** Notifies about @a iPercent change for progress with @a strProgressId. */
+    void sigProgressPercentageChange(QString strProgressId, int iPercent);
+    /** Notifies about task complete for progress with @a strProgressId. */
+    void sigProgressTaskComplete(QString strProgressId);
 
 public:
 

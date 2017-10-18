@@ -55,9 +55,8 @@
 # include "VBoxGlobal.h"
 # include "UIMessageCenter.h"
 # include "UIPopupCenter.h"
-# include "VBoxTakeSnapshotDlg.h"
-# include "UIVMInfoDialog.h"
 # include "UISettingsDialogSpecific.h"
+# include "UITakeSnapshotDialog.h"
 # include "UIVMLogViewer.h"
 # include "UIConverter.h"
 # include "UIModalWindowManager.h"
@@ -71,6 +70,7 @@
 # endif /* VBOX_WS_MAC */
 
 /* COM includes: */
+# include "CAudioAdapter.h"
 # include "CVirtualBoxErrorInfo.h"
 # include "CMachineDebugger.h"
 # include "CSnapshot.h"
@@ -740,9 +740,9 @@ void UIMachineLogic::sltUSBDeviceStateChange(const CUSBDevice &device, bool fIsA
     if (!error.isNull())
     {
         if (fIsAttached)
-            msgCenter().cannotAttachUSBDevice(error, vboxGlobal().details(device), machineName());
+            popupCenter().cannotAttachUSBDevice(activeMachineWindow(), error, vboxGlobal().details(device), machineName());
         else
-            msgCenter().cannotDetachUSBDevice(error, vboxGlobal().details(device), machineName());
+            popupCenter().cannotDetachUSBDevice(activeMachineWindow(), error, vboxGlobal().details(device), machineName());
     }
 }
 
@@ -1054,6 +1054,9 @@ void UIMachineLogic::prepareActionGroups()
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Devices_M_HardDrives_S_Settings));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Devices_M_OpticalDevices));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Devices_M_FloppyDevices));
+    m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Devices_M_Audio));
+    m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Devices_M_Audio_T_Output));
+    m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Devices_M_Audio_T_Output));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Devices_M_Network));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Devices_M_Network_S_Settings));
     m_pRunningOrPausedActions->addAction(actionPool()->action(UIActionIndexRT_M_Devices_M_USBDevices));
@@ -1143,6 +1146,10 @@ void UIMachineLogic::prepareActionConnections()
     connect(actionPool(), SIGNAL(sigNotifyAboutMenuPrepare(int, QMenu*)), this, SLOT(sltHandleMenuPrepare(int, QMenu*)));
     connect(actionPool()->action(UIActionIndexRT_M_Devices_M_HardDrives_S_Settings), SIGNAL(triggered()),
             this, SLOT(sltOpenStorageSettingsDialog()));
+    connect(actionPool()->action(UIActionIndexRT_M_Devices_M_Audio_T_Output), &UIAction::toggled,
+            this, &UIMachineLogic::sltToggleAudioOutput);
+    connect(actionPool()->action(UIActionIndexRT_M_Devices_M_Audio_T_Input), &UIAction::toggled,
+            this, &UIMachineLogic::sltToggleAudioInput);
     connect(actionPool()->action(UIActionIndexRT_M_Devices_M_Network_S_Settings), SIGNAL(triggered()),
             this, SLOT(sltOpenNetworkSettingsDialog()));
     connect(actionPool()->action(UIActionIndexRT_M_Devices_M_USBDevices_S_Settings), SIGNAL(triggered()),
@@ -1268,17 +1275,14 @@ void UIMachineLogic::prepareDock()
 
     pDockMenu->addMenu(pDockSettingsMenu);
 
-# if QT_VERSION < 0x050000
-    /* Add it to the dock. */
-    ::darwinSetDockIconMenu(pDockMenu);
-# else /* QT_VERSION >= 0x050000 */
     /* Add it to the dock: */
     pDockMenu->setAsDockMenu();
-# endif /* QT_VERSION >= 0x050000 */
 
-    /* Now the dock icon preview */
-    QString osTypeId = guest().GetOSTypeId();
-    m_pDockIconPreview = new UIDockIconPreview(uisession(), vboxGlobal().vmGuestOSTypePixmapHiDPI(osTypeId, QSize(42, 42)));
+    /* Now the dock icon preview: */
+    QPixmap pixmap = vboxGlobal().vmUserPixmap(machine(), QSize(42, 42));
+    if (pixmap.isNull())
+        pixmap = vboxGlobal().vmGuestOSTypePixmap(guest().GetOSTypeId(), QSize(42, 42));
+    m_pDockIconPreview = new UIDockIconPreview(uisession(), pixmap);
 
     /* Should the dock-icon be updated at runtime? */
     bool fEnabled = gEDataManager->realtimeDockIconUpdateEnabled(vboxGlobal().managedVMUuid());
@@ -1550,17 +1554,17 @@ void UIMachineLogic::sltTakeSnapshot()
 
     /* Create take-snapshot dialog: */
     QWidget *pDlgParent = windowManager().realParentWindow(activeMachineWindow());
-    QPointer<VBoxTakeSnapshotDlg> pDlg = new VBoxTakeSnapshotDlg(pDlgParent, machine());
+    QPointer<UITakeSnapshotDialog> pDlg = new UITakeSnapshotDialog(pDlgParent, machine());
     windowManager().registerNewParent(pDlg, pDlgParent);
 
     /* Assign corresponding icon: */
-    QString strTypeId = machine().GetOSTypeId();
-    pDlg->mLbIcon->setPixmap(vboxGlobal().vmGuestOSTypeIcon(strTypeId));
+    if (uisession() && uisession()->machineWindowIcon())
+        pDlg->setPixmap(uisession()->machineWindowIcon()->pixmap(QSize(32, 32)));
 
     /* Search for the max available filter index: */
-    QString strNameTemplate = VBoxTakeSnapshotDlg::tr("Snapshot %1");
+    QString strNameTemplate = UITakeSnapshotDialog::tr("Snapshot %1");
     int iMaxSnapshotIndex = searchMaxSnapshotIndex(machine(), machine().FindSnapshot(QString()), strNameTemplate);
-    pDlg->mLeName->setText(strNameTemplate.arg(++ iMaxSnapshotIndex));
+    pDlg->setName(strNameTemplate.arg(++ iMaxSnapshotIndex));
 
     /* Exec the dialog: */
     bool fDialogAccepted = pDlg->exec() == QDialog::Accepted;
@@ -1570,8 +1574,8 @@ void UIMachineLogic::sltTakeSnapshot()
         return;
 
     /* Acquire variables: */
-    QString strSnapshotName = pDlg->mLeName->text().trimmed();
-    QString strSnapshotDescription = pDlg->mTeDescription->toPlainText();
+    QString strSnapshotName = pDlg->name().trimmed();
+    QString strSnapshotDescription = pDlg->description();
 
     /* Destroy dialog early: */
     delete pDlg;
@@ -1603,11 +1607,7 @@ void UIMachineLogic::sltShowInformationDialog()
         return;
 
     /* Invoke VM information dialog: */
-#ifdef VBOX_WITH_REWORKED_SESSION_INFORMATION
     UIVMInformationDialog::invoke(mainMachineWindow());
-#else /* !VBOX_WITH_REWORKED_SESSION_INFORMATION */
-    UIVMInfoDialog::invoke(mainMachineWindow());
-#endif /* !VBOX_WITH_REWORKED_SESSION_INFORMATION */
 }
 
 void UIMachineLogic::sltReset()
@@ -1868,7 +1868,7 @@ void UIMachineLogic::sltToggleVideoCapture(bool fEnabled)
         /* Make sure action is updated: */
         uisession()->updateStatusVideoCapture();
         /* Notify about the error: */
-        return msgCenter().cannotToggleVideoCapture(machine(), fEnabled);
+        return popupCenter().cannotToggleVideoCapture(activeMachineWindow(), machine(), fEnabled);
     }
 
     /* Save machine-settings: */
@@ -1904,7 +1904,7 @@ void UIMachineLogic::sltToggleVRDE(bool fEnabled)
         /* Make sure action is updated: */
         uisession()->updateStatusVRDE();
         /* Notify about the error: */
-        return msgCenter().cannotToggleVRDEServer(server, machineName(), fEnabled);
+        return popupCenter().cannotToggleVRDEServer(activeMachineWindow(), server, machineName(), fEnabled);
     }
 
     /* Save machine-settings: */
@@ -1953,6 +1953,78 @@ void UIMachineLogic::sltOpenStorageSettingsDialog()
     sltOpenVMSettingsDialog("#storage");
 }
 
+void UIMachineLogic::sltToggleAudioOutput(bool fEnabled)
+{
+    /* Do not process if window(s) missed! */
+    if (!isMachineWindowsCreated())
+        return;
+
+    /* Access audio adapter: */
+    CAudioAdapter comAdapter = machine().GetAudioAdapter();
+    AssertMsgReturnVoid(machine().isOk() && comAdapter.isNotNull(),
+                        ("Audio adapter should NOT be null!\n"));
+
+    /* Make sure something had changed: */
+    if (comAdapter.GetEnabledOut() == static_cast<BOOL>(fEnabled))
+        return;
+
+    /* Update audio output state: */
+    comAdapter.SetEnabledOut(fEnabled);
+    if (!comAdapter.isOk())
+    {
+        /* Make sure action is updated: */
+        uisession()->updateAudioOutput();
+        /* Notify about the error: */
+        return popupCenter().cannotToggleAudioOutput(activeMachineWindow(), comAdapter, machineName(), fEnabled);
+    }
+
+    /* Save machine-settings: */
+    machine().SaveSettings();
+    if (!machine().isOk())
+    {
+        /* Make sure action is updated: */
+        uisession()->updateAudioOutput();
+        /* Notify about the error: */
+        return msgCenter().cannotSaveMachineSettings(machine());
+    }
+}
+
+void UIMachineLogic::sltToggleAudioInput(bool fEnabled)
+{
+    /* Do not process if window(s) missed! */
+    if (!isMachineWindowsCreated())
+        return;
+
+    /* Access audio adapter: */
+    CAudioAdapter comAdapter = machine().GetAudioAdapter();
+    AssertMsgReturnVoid(machine().isOk() && comAdapter.isNotNull(),
+                        ("Audio adapter should NOT be null!\n"));
+
+    /* Make sure something had changed: */
+    if (comAdapter.GetEnabledIn() == static_cast<BOOL>(fEnabled))
+        return;
+
+    /* Update audio input state: */
+    comAdapter.SetEnabledIn(fEnabled);
+    if (!comAdapter.isOk())
+    {
+        /* Make sure action is updated: */
+        uisession()->updateAudioInput();
+        /* Notify about the error: */
+        return popupCenter().cannotToggleAudioInput(activeMachineWindow(), comAdapter, machineName(), fEnabled);
+    }
+
+    /* Save machine-settings: */
+    machine().SaveSettings();
+    if (!machine().isOk())
+    {
+        /* Make sure action is updated: */
+        uisession()->updateAudioInput();
+        /* Notify about the error: */
+        return msgCenter().cannotSaveMachineSettings(machine());
+    }
+}
+
 void UIMachineLogic::sltOpenNetworkSettingsDialog()
 {
     /* Open VM settings : Network page: */
@@ -1969,7 +2041,7 @@ void UIMachineLogic::sltOpenSharedFoldersSettingsDialog()
 {
     /* Do not process if additions are not loaded! */
     if (!uisession()->isGuestAdditionsActive())
-        msgCenter().remindAboutGuestAdditionsAreNotActive();
+        popupCenter().remindAboutGuestAdditionsAreNotActive(activeMachineWindow());
 
     /* Open VM settings : Shared folders page: */
     sltOpenVMSettingsDialog("#sharedFolders");
@@ -2012,7 +2084,7 @@ void UIMachineLogic::sltAttachUSBDevice()
             /* Get USB device from host USB device: */
             CUSBDevice device(hostDevice);
             /* Show a message about procedure failure: */
-            msgCenter().cannotAttachUSBDevice(console(), vboxGlobal().details(device));
+            popupCenter().cannotAttachUSBDevice(activeMachineWindow(), console(), vboxGlobal().details(device));
         }
     }
     /* Detach USB device: */
@@ -2026,7 +2098,7 @@ void UIMachineLogic::sltAttachUSBDevice()
         if (!console().isOk())
         {
             /* Show a message about procedure failure: */
-            msgCenter().cannotDetachUSBDevice(console(), vboxGlobal().details(device));
+            popupCenter().cannotDetachUSBDevice(activeMachineWindow(), console(), vboxGlobal().details(device));
         }
     }
 }
@@ -2050,7 +2122,7 @@ void UIMachineLogic::sltAttachWebCamDevice()
         dispatcher.WebcamAttach(target.path, "");
         /* Check if dispatcher is OK: */
         if (!dispatcher.isOk())
-            msgCenter().cannotAttachWebCam(dispatcher, target.name, machineName());
+            popupCenter().cannotAttachWebCam(activeMachineWindow(), dispatcher, target.name, machineName());
     }
     /* Detach webcam device: */
     else
@@ -2059,7 +2131,7 @@ void UIMachineLogic::sltAttachWebCamDevice()
         dispatcher.WebcamDetach(target.path);
         /* Check if dispatcher is OK: */
         if (!dispatcher.isOk())
-            msgCenter().cannotDetachWebCam(dispatcher, target.name, machineName());
+            popupCenter().cannotDetachWebCam(activeMachineWindow(), dispatcher, target.name, machineName());
     }
 }
 
@@ -2089,7 +2161,7 @@ void UIMachineLogic::sltToggleNetworkAdapterConnection()
     const bool fConnect = !adapter.GetCableConnected();
     adapter.SetCableConnected(fConnect);
     if (!adapter.isOk())
-        return msgCenter().cannotToggleNetworkAdapterCable(adapter, machineName(), fConnect);
+        return popupCenter().cannotToggleNetworkAdapterCable(activeMachineWindow(), adapter, machineName(), fConnect);
 
     /* Save machine-settings: */
     machine().SaveSettings();

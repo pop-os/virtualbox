@@ -20,18 +20,18 @@
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-# include <QPainter>
 # include <QApplication>
-# include <QAbstractTextDocumentLayout>
+# include <QPainter>
 # include <QTextDocument>
 # include <QUrl>
 
 /* GUI includes: */
+# include "VBoxGlobal.h"
 # include "UIIconPool.h"
 # include "UIInformationItem.h"
-# include "VBoxGlobal.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIInformationItem::UIInformationItem(QObject *pParent)
     : QStyledItemDelegate(pParent)
@@ -60,7 +60,7 @@ void UIInformationItem::setName(const QString &strName) const
     updateTextLayout();
 }
 
-const UITextTable& UIInformationItem::text() const
+const UITextTable &UIInformationItem::text() const
 {
     /* Return text: */
     return m_text;
@@ -75,8 +75,8 @@ void UIInformationItem::setText(const UITextTable &text) const
     foreach (const UITextTableLine &line, text)
     {
         /* Lines: */
-        QString strLeftLine = line.first;
-        QString strRightLine = line.second;
+        const QString strLeftLine = line.first;
+        const QString strRightLine = line.second;
 
         /* If 2nd line is NOT empty: */
         if (!strRightLine.isEmpty())
@@ -99,14 +99,32 @@ void UIInformationItem::setText(const UITextTable &text) const
     updateTextLayout();
 }
 
+void UIInformationItem::updateData(const QModelIndex &index) const
+{
+    /* Set name: */
+    setName(index.data().toString());
+    /* Set icon: */
+    setIcon(index.data(Qt::DecorationRole).toString());
+    /* Set text: */
+    setText(index.data(Qt::UserRole + 1).value<UITextTable>());
+    /* Get type of the item: */
+    m_type = index.data(Qt::UserRole + 2).value<InformationElementType>();
+}
+
+QString UIInformationItem::htmlData() const
+{
+    /* Return html-data: */
+    return m_pTextDocument->toHtml();
+}
+
 void UIInformationItem::paint(QPainter *pPainter, const QStyleOptionViewItem &option, const QModelIndex &index) const
 {
     /* Save the painter: */
     pPainter->save();
     /* Update data: */
     updateData(index);
-
-    if (m_text.count() != 0)
+    /* If there is something to paint: */
+    if (!m_text.isEmpty())
     {
         /* Draw item as per application style: */
         QApplication::style()->drawControl(QStyle::CE_ItemViewItem, &option, pPainter);
@@ -120,36 +138,14 @@ void UIInformationItem::paint(QPainter *pPainter, const QStyleOptionViewItem &op
     pPainter->restore();
 }
 
-QSize UIInformationItem::sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const
+QSize UIInformationItem::sizeHint(const QStyleOptionViewItem & /* option */, const QModelIndex &index) const
 {
-    RT_NOREF(option);
-
     /* Update data: */
     updateData(index);
-    if (m_text.count() == 0)
-    {
+    if (m_text.isEmpty())
         return QSize(0, 0);
-    }
     /* Return size: */
     return m_pTextDocument->size().toSize();
-}
-
-void UIInformationItem::updateData(const QModelIndex &index) const
-{
-    /* Set name: */
-    setName(index.data().toString());
-    /* Set icon: */
-    setIcon(index.data(Qt::DecorationRole).toString());
-    /* Set text: */
-    setText(index.data(Qt::UserRole + 1).value<UITextTable>());
-    /* Get type of the item: */
-    m_type = index.data(Qt::UserRole + 2).value<InformationElementType>();
-}
-
-QString UIInformationItem::htmlData()
-{
-    /* Return html-data: */
-    return m_pTextDocument->toHtml();
 }
 
 void UIInformationItem::updateTextLayout() const

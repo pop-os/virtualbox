@@ -1,6 +1,8 @@
 /* $Id: precomp.h $*/
 /** @file
  * VBox Qt GUI - Header used if VBOX_WITH_PRECOMPILED_HEADERS is active.
+ *
+ * This is the remnants of an obsoleted experiment!
  */
 
 /*
@@ -272,9 +274,9 @@
 #include <VBox/VBoxGL2D.h>
 //#include <VBox/VBoxKeyboard.h> - includes X11/X.h which causes trouble.
 //#include <VBox/VBoxOGL.h> - only used once
-//#include <VBox/VBoxVideo.h> - only used twice
+//#include <VBoxVideo.h> - only used twice
 #ifdef VBOX_WITH_VIDEOHWACCEL
-//# include <VBox/VBoxVideo3D.h> - only used once
+//# include <VBoxVideo3D.h> - only used once
 #endif
 #include <VBox/com/Guid.h>
 #include <VBox/com/array.h>
@@ -296,7 +298,6 @@
  * VirtualBox Qt GUI - QI* headers.
  */
 #include "QIAdvancedSlider.h"
-//#include "QIAdvancedToolBar.h" - only used once / not used at all
 #include "QIArrowButtonPress.h"
 #include "QIArrowButtonSwitch.h"
 #include "QIArrowSplitter.h"
@@ -307,7 +308,6 @@
 #include "QILabel.h"
 #include "QILabelSeparator.h"
 #include "QILineEdit.h"
-//#include "QIListView.h" - only used once / not used at all
 #include "QIMainDialog.h"
 #include "QIMenu.h"
 #include "QIMessageBox.h"
@@ -340,7 +340,7 @@
 #include "CBIOSSettings.h"
 //#include "CCanShowWindowEvent.h" - only used once
 #include "CConsole.h"
-//#include "CDHCPServer.h" - only used once
+#include "CDHCPServer.h"
 #include "CDisplay.h"
 #include "CDisplaySourceBitmap.h"
 #include "CDnDSource.h"
@@ -384,7 +384,6 @@
 #include "CNATNetwork.h"
 #include "CNetworkAdapter.h"
 //#include "CNetworkAdapterChangedEvent.h" - only used once
-#include "CParallelPort.h"
 #include "CProgress.h"
 //#include "CRuntimeErrorEvent.h" - only used once
 #include "CSerialPort.h"
@@ -427,7 +426,6 @@
 #include "UIApplianceEditorWidget.h"
 #include "UIApplianceExportEditorWidget.h"
 #include "UIApplianceImportEditorWidget.h"
-#include "UIBar.h"
 #include "UIBootTable.h"
 #ifdef RT_OS_DARWIN
 # include "UICocoaApplication.h"
@@ -483,7 +481,6 @@
 #include "UIGlobalSettingsInput.h"
 #include "UIGlobalSettingsLanguage.h"
 #include "UIGlobalSettingsNetwork.h"
-#include "UIGlobalSettingsNetworkDetailsHost.h"
 #include "UIGlobalSettingsNetworkDetailsNAT.h"
 #include "UIGlobalSettingsPortForwardingDlg.h"
 #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
@@ -518,7 +515,6 @@
 #include "UIMachineSettingsGeneral.h"
 #include "UIMachineSettingsInterface.h"
 #include "UIMachineSettingsNetwork.h"
-#include "UIMachineSettingsParallel.h"
 #include "UIMachineSettingsPortForwardingDlg.h"
 #include "UIMachineSettingsSF.h"
 #include "UIMachineSettingsSFDetails.h"
@@ -578,7 +574,6 @@
 #include "UISettingsPage.h"
 #include "UIShortcutPool.h"
 #include "UISlidingToolBar.h"
-#include "UISpacerWidgets.h"
 #include "UISpecialControls.h"
 #include "UIStatusBarEditorWindow.h"
 #include "UIThreadPool.h"
@@ -588,8 +583,7 @@
 # include "UIUpdateManager.h"
 #endif
 #include "UIVMCloseDialog.h"
-#include "UIVMDesktop.h"
-#include "UIVMInfoDialog.h"
+#include "UIDesktopPane.h"
 #include "UIVMItem.h"
 #include "UIVMLogViewer.h"
 #include "UIVirtualBoxEventHandler.h"
@@ -644,16 +638,15 @@
 #include "VBoxFBOverlayCommon.h"
 #include "UIFilePathSelector.h"
 #include "VBoxGlobal.h"
-#include "VBoxGlobalSettings.h"
 #include "VBoxGuestRAMSlider.h"
 //#include "VBoxIChatTheaterWrapper.h"
 #include "VBoxLicenseViewer.h"
 #include "VBoxMediaComboBox.h"
 #include "VBoxOSTypeSelectorButton.h"
-#include "VBoxSettingsSelector.h"
-#include "VBoxSnapshotDetailsDlg.h"
-#include "VBoxSnapshotsWgt.h"
-#include "VBoxTakeSnapshotDlg.h"
+#include "UISettingsSelector.h"
+#include "UISnapshotDetailsWidget.h"
+#include "UISnapshotPane.h"
+#include "UITakeSnapshotDialog.h"
 #ifdef RT_OS_DARWIN
 # include "VBoxUtils-darwin.h"
 #endif

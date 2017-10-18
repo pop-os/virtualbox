@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,6 +28,8 @@
 extern VSCSILUNDESC g_VScsiLunTypeSbc;
 /** MMC descriptor */
 extern VSCSILUNDESC g_VScsiLunTypeMmc;
+/** SSC descriptor */
+extern VSCSILUNDESC g_VScsiLunTypeSsc;
 
 /**
  * Array of supported SCSI LUN types.
@@ -36,6 +38,9 @@ static PVSCSILUNDESC g_aVScsiLunTypesSupported[] =
 {
     &g_VScsiLunTypeSbc,
     &g_VScsiLunTypeMmc,
+#ifdef VBOX_WITH_VSCSI_SSC
+    &g_VScsiLunTypeSsc,
+#endif
 };
 
 VBOXDDU_DECL(int) VSCSILunCreate(PVSCSILUN phVScsiLun, VSCSILUNTYPE enmLunType,
@@ -71,14 +76,18 @@ VBOXDDU_DECL(int) VSCSILunCreate(PVSCSILUN phVScsiLun, VSCSILUNTYPE enmLunType,
     pVScsiLun->pVScsiLunIoCallbacks = pVScsiLunIoCallbacks;
     pVScsiLun->pVScsiLunDesc        = pVScsiLunDesc;
 
-    int rc = vscsiLunGetFeatureFlags(pVScsiLun, &pVScsiLun->fFeatures);
+    int rc = vscsiIoReqInit(pVScsiLun);
     if (RT_SUCCESS(rc))
     {
-        rc = pVScsiLunDesc->pfnVScsiLunInit(pVScsiLun);
+        rc = vscsiLunGetFeatureFlags(pVScsiLun, &pVScsiLun->fFeatures);
         if (RT_SUCCESS(rc))
         {
-            *phVScsiLun = pVScsiLun;
-            return VINF_SUCCESS;
+            rc = pVScsiLunDesc->pfnVScsiLunInit(pVScsiLun);
+            if (RT_SUCCESS(rc))
+            {
+                *phVScsiLun = pVScsiLun;
+                return VINF_SUCCESS;
+            }
         }
     }
 
@@ -124,6 +133,7 @@ VBOXDDU_DECL(int) VSCSILunDestroy(VSCSILUN hVScsiLun)
  */
 VBOXDDU_DECL(int) VSCSILunMountNotify(VSCSILUN hVScsiLun)
 {
+    int rc = VINF_SUCCESS;
     PVSCSILUNINT pVScsiLun = (PVSCSILUNINT)hVScsiLun;
 
     LogFlowFunc(("hVScsiLun=%p\n", hVScsiLun));
@@ -133,8 +143,10 @@ VBOXDDU_DECL(int) VSCSILunMountNotify(VSCSILUN hVScsiLun)
     /* Mark the LUN as not ready so that LUN specific code can do its job. */
     pVScsiLun->fReady        = false;
     pVScsiLun->fMediaPresent = true;
+    if (pVScsiLun->pVScsiLunDesc->pfnVScsiLunMediumInserted)
+        rc = pVScsiLun->pVScsiLunDesc->pfnVScsiLunMediumInserted(pVScsiLun);
 
-    return VINF_SUCCESS;
+    return rc;
 }
 
 /**
@@ -146,6 +158,7 @@ VBOXDDU_DECL(int) VSCSILunMountNotify(VSCSILUN hVScsiLun)
  */
 VBOXDDU_DECL(int) VSCSILunUnmountNotify(VSCSILUN hVScsiLun)
 {
+    int rc = VINF_SUCCESS;
     PVSCSILUNINT pVScsiLun = (PVSCSILUNINT)hVScsiLun;
 
     LogFlowFunc(("hVScsiLun=%p\n", hVScsiLun));
@@ -154,6 +167,8 @@ VBOXDDU_DECL(int) VSCSILunUnmountNotify(VSCSILUN hVScsiLun)
 
     pVScsiLun->fReady        = false;
     pVScsiLun->fMediaPresent = false;
+    if (pVScsiLun->pVScsiLunDesc->pfnVScsiLunMediumRemoved)
+        rc = pVScsiLun->pVScsiLunDesc->pfnVScsiLunMediumRemoved(pVScsiLun);
 
-    return VINF_SUCCESS;
+    return rc;
 }

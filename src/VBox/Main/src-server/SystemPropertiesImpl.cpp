@@ -99,12 +99,12 @@ HRESULT SystemProperties::init(VirtualBox *aParent)
     m->ulLogHistoryCount = 3;
 
 
-    /* On Windows and OS X, HW virtualization use isn't exclusive by
-     * default so that VT-x or AMD-V can be shared with other
+    /* On Windows, OS X and Solaris, HW virtualization use isn't exclusive
+     * by default so that VT-x or AMD-V can be shared with other
      * hypervisors without requiring user intervention.
      * NB: See also SystemProperties constructor in settings.h
      */
-#if defined(RT_OS_DARWIN) || defined(RT_OS_WINDOWS)
+#if defined(RT_OS_DARWIN) || defined(RT_OS_WINDOWS) || defined(RT_OS_SOLARIS)
     m->fExclusiveHwVirt = false;
 #else
     m->fExclusiveHwVirt = true;
@@ -927,22 +927,7 @@ HRESULT SystemProperties::setAutostartDatabasePath(const com::Utf8Str &aAutostar
 
 HRESULT SystemProperties::getDefaultAdditionsISO(com::Utf8Str &aDefaultAdditionsISO)
 {
-    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-    if (m->strDefaultAdditionsISO.isEmpty())
-    {
-        /* no guest additions, check if it showed up in the mean time */
-        alock.release();
-        {
-            AutoWriteLock wlock(this COMMA_LOCKVAL_SRC_POS);
-            ErrorInfoKeeper eik;
-            (void)setDefaultAdditionsISO("");
-        }
-        alock.acquire();
-    }
-    aDefaultAdditionsISO = m->strDefaultAdditionsISO;
-
-    return S_OK;
+    return i_getDefaultAdditionsISO(aDefaultAdditionsISO);
 }
 
 HRESULT SystemProperties::setDefaultAdditionsISO(const com::Utf8Str &aDefaultAdditionsISO)
@@ -1149,6 +1134,29 @@ int SystemProperties::i_unloadVDPlugin(const char *pszPluginLibrary)
     return VDPluginUnloadFromFilename(pszPluginLibrary);
 }
 
+/**
+ * Internally usable version of getDefaultAdditionsISO.
+ */
+HRESULT SystemProperties::i_getDefaultAdditionsISO(com::Utf8Str &aDefaultAdditionsISO)
+{
+    AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
+    if (m->strDefaultAdditionsISO.isNotEmpty())
+        aDefaultAdditionsISO = m->strDefaultAdditionsISO;
+    else
+    {
+        /* no guest additions, check if it showed up in the mean time */
+        alock.release();
+        AutoWriteLock wlock(this COMMA_LOCKVAL_SRC_POS);
+        if (m->strDefaultAdditionsISO.isEmpty())
+        {
+            ErrorInfoKeeper eik;
+            (void)setDefaultAdditionsISO("");
+        }
+        aDefaultAdditionsISO = m->strDefaultAdditionsISO;
+    }
+    return S_OK;
+}
+
 // private methods
 /////////////////////////////////////////////////////////////////////////////
 
@@ -1174,7 +1182,7 @@ HRESULT SystemProperties::i_getUserHomeDirectory(Utf8Str &strPath)
  * from the public attribute setter as well as loadSettings(). With 4.0,
  * the "default default" machine folder has changed, and we now require
  * a full path always.
- * @param aPath
+ * @param   strPath
  * @return
  */
 HRESULT SystemProperties::i_setDefaultMachineFolder(const Utf8Str &strPath)

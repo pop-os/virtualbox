@@ -1028,10 +1028,7 @@ int VBoxNetLwipNAT::processFrame(void *pvFrame, size_t cbFrame)
 
     struct pbuf *p = pbuf_alloc(PBUF_RAW, (u16_t)cbFrame + ETH_PAD_SIZE, PBUF_POOL);
     if (RT_UNLIKELY(p == NULL))
-    {
-        LogRel2(("pbuf_alloc failed\n"));
         return VERR_NO_MEMORY;
-    }
 
     /*
      * The code below is inlined version of:
@@ -1218,12 +1215,16 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
             int vrc = com::GetVBoxUserHomeDirectory(szHome, sizeof(szHome), false);
             if (RT_SUCCESS(vrc))
             {
+                closesocket(icmpsock4);
+                closesocket(icmpsock6);
                 return RTMsgErrorExit(RTEXITCODE_FAILURE,
                                       "Failed to initialize COM: %s: %Rhrf",
                                       szHome, hrc);
             }
         }
 #endif  // VBOX_WITH_XPCOM
+        closesocket(icmpsock4);
+        closesocket(icmpsock6);
         return RTMsgErrorExit(RTEXITCODE_FAILURE,
                               "Failed to initialize COM: %Rhrf", hrc);
     }

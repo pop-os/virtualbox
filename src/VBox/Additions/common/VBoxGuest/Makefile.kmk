@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2007-2016 Oracle Corporation
+# Copyright (C) 2007-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -17,6 +17,9 @@
 
 SUB_DEPTH = ../../../../..
 include $(KBUILD_PATH)/subheader.kmk
+
+# Include sub-makefile.
+include $(PATH_SUB_CURRENT)/lib/Makefile.kmk
 
 
 if1of ($(KBUILD_TARGET), darwin freebsd haiku netbsd os2 solaris win)
@@ -84,6 +87,9 @@ if1of ($(KBUILD_TARGET), darwin freebsd haiku netbsd os2 solaris win)
   else
    VBoxGuest_SOURCES    = VBoxGuest-$(KBUILD_TARGET).c
    VBoxGuest_$(KBUILD_TARGET).c_DEPS = $(VBOX_SVN_REV_HEADER)
+   ifeq ($(KBUILD_TARGET),freebsd)
+    VBoxGuest-$(KBUILD_TARGET).c_CFLAGS = -Wno-sign-compare # /usr/src/sys/sys/vmmeter.h: In function 'vm_paging_needed'
+   endif
   endif
   VBoxGuest_SOURCES     += \
   	VBoxGuest.cpp
@@ -195,10 +201,10 @@ ifeq ($(KBUILD_TARGET),linux)
  #
  include $(PATH_SUB_CURRENT)/linux/files_vboxguest
  # sources and stuff.
- INSTALLS += vboxguest-src
- vboxguest-src_INST     = $(INST_ADDITIONS)src/vboxguest/
- vboxguest-src_MODE     = a+r,u+w
- vboxguest-src_SOURCES  = $(subst ",,$(FILES_VBOXGUEST_NOBIN))
+ INSTALLS += vboxguest-mod
+ vboxguest-mod_INST     = $(INST_ADDITIONS)src/vboxguest/
+ vboxguest-mod_MODE     = a+r,u+w
+ vboxguest-mod_SOURCES  = $(subst ",,$(FILES_VBOXGUEST_NOBIN))
 
  INSTALLS += vboxguest-scripts
  vboxguest-scripts_INST    = $(INST_ADDITIONS)src/
@@ -219,10 +225,10 @@ ifeq ($(KBUILD_TARGET),freebsd)
  #
  include $(PATH_SUB_CURRENT)/freebsd/files_vboxguest
  # sources and stuff.
- INSTALLS += vboxguest-src
- vboxguest-src_INST     = $(INST_ADDITIONS)src/vboxguest/
- vboxguest-src_MODE     = a+r,u+w
- vboxguest-src_SOURCES  = $(subst ",,$(FILES_VBOXGUEST_NOBIN))
+ INSTALLS += vboxguest-mod
+ vboxguest-mod_INST     = $(INST_ADDITIONS)src/vboxguest/
+ vboxguest-mod_MODE     = a+r,u+w
+ vboxguest-mod_SOURCES  = $(subst ",,$(FILES_VBOXGUEST_NOBIN))
 
 endif # FreeBSD
 
@@ -234,6 +240,15 @@ ifeq ($(KBUILD_TARGET),win)
 VBoxGuestInst_TEMPLATE= VBoxGuestR3Exe
 VBoxGuestInst_SOURCES = win/VBoxGuestInst.cpp
 endif
+
+
+#
+# Helper script.
+#
+INSTALLS.solaris += VBoxGuestLoad
+VBoxGuestLoad_TEMPLATE = VBOXGUESTR0
+VBoxGuestLoad_EXEC_SOURCES = solaris/load.sh
+
 
 include $(FILE_KBUILD_SUB_FOOTER)
 

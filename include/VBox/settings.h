@@ -17,7 +17,7 @@
  */
 
 /*
- * Copyright (C) 2007-2016 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -232,13 +232,17 @@ protected:
     typedef enum {Error, HardDisk, DVDImage, FloppyImage} MediaType;
 
     static const char *stringifyMediaType(MediaType t);
-    SettingsVersion_T parseVersion(const com::Utf8Str &strVersion);
+    SettingsVersion_T parseVersion(const com::Utf8Str &strVersion,
+                                   const xml::ElementNode *pElm);
     void parseUUID(com::Guid &guid,
-                   const com::Utf8Str &strUUID) const;
+                   const com::Utf8Str &strUUID,
+                   const xml::ElementNode *pElm) const;
     void parseTimestamp(RTTIMESPEC &timestamp,
-                        const com::Utf8Str &str) const;
+                        const com::Utf8Str &str,
+                        const xml::ElementNode *pElm) const;
     void parseBase64(IconBlob &binary,
-                     const com::Utf8Str &str) const;
+                     const com::Utf8Str &str,
+                     const xml::ElementNode *pElm) const;
     com::Utf8Str stringifyTimestamp(const RTTIMESPEC &tm) const;
     void toBase64(com::Utf8Str &str,
                   const IconBlob &binary) const;
@@ -254,6 +258,7 @@ protected:
     void readNATLoopbacks(const xml::ElementNode &elmParent, NATLoopbackOffsetList &llLoopBacks);
 
     void setVersionAttribute(xml::ElementNode &elm);
+    void specialBackupIfFirstBump();
     void createStubDocument();
 
     void buildExtraData(xml::ElementNode &elmParent, const StringsMap &me);
@@ -629,6 +634,8 @@ struct AudioAdapter
     bool operator==(const AudioAdapter &a) const;
 
     bool                    fEnabled;
+    bool                    fEnabledIn;
+    bool                    fEnabledOut;
     AudioControllerType_T   controllerType;
     AudioCodecType_T        codecType;
     AudioDriverType_T       driverType;
@@ -686,11 +693,12 @@ struct CpuIdLeaf
 
     bool operator==(const CpuIdLeaf &c) const;
 
-    uint32_t                ulId;
-    uint32_t                ulEax;
-    uint32_t                ulEbx;
-    uint32_t                ulEcx;
-    uint32_t                ulEdx;
+    uint32_t                idx;
+    uint32_t                idxSub;
+    uint32_t                uEax;
+    uint32_t                uEbx;
+    uint32_t                uEcx;
+    uint32_t                uEdx;
 };
 
 typedef std::list<CpuIdLeaf> CpuIdLeafsList;
@@ -927,6 +935,7 @@ struct Hardware
     bool                fVideoCaptureEnabled;   // requires settings version 1.14 (VirtualBox 4.3)
     uint64_t            u64VideoCaptureScreens; // requires settings version 1.14 (VirtualBox 4.3)
     com::Utf8Str        strVideoCaptureFile;    // requires settings version 1.14 (VirtualBox 4.3)
+    com::Utf8Str        strVideoCaptureOptions; // new since VirtualBox 5.2.
 
     FirmwareType_T      firmwareType;           // requires settings version 1.9 (VirtualBox 3.1)
 

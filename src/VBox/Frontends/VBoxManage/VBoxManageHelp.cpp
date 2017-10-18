@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,9 +23,11 @@
 
 #include <iprt/buildconfig.h>
 #include <iprt/ctype.h>
+#include <iprt/env.h>
 #include <iprt/err.h>
 #include <iprt/getopt.h>
 #include <iprt/stream.h>
+#include <iprt/message.h>
 
 #include "VBoxManage.h"
 
@@ -44,9 +46,7 @@
 #ifndef VBOX_ONLY_DOCS
 enum HELP_CMD_VBOXMANAGE    g_enmCurCommand = HELP_CMD_VBOXMANAGE_INVALID;
 /** The scope maskt for the current subcommand. */
-uint64_t                    g_fCurSubcommandScope = REFENTRYSTR_SCOPE_GLOBAL;
-/** String of spaces that can be used for indentation.   */
-static const char           g_szSpaces[] = "                                                ";
+uint64_t                    g_fCurSubcommandScope = RTMSGREFENTRYSTR_SCOPE_GLOBAL;
 
 /**
  * Sets the current command.
@@ -59,7 +59,7 @@ void setCurrentCommand(enum HELP_CMD_VBOXMANAGE enmCommand)
 {
     Assert(g_enmCurCommand == HELP_CMD_VBOXMANAGE_INVALID);
     g_enmCurCommand       = enmCommand;
-    g_fCurSubcommandScope = REFENTRYSTR_SCOPE_GLOBAL;
+    g_fCurSubcommandScope = RTMSGREFENTRYSTR_SCOPE_GLOBAL;
 }
 
 
@@ -76,189 +76,6 @@ void setCurrentSubcommand(uint64_t fSubcommandScope)
 }
 
 
-
-/**
- * Retruns the width for the given handle.
- *
- * @returns Screen width.
- * @param   pStrm           The stream, g_pStdErr or g_pStdOut.
- */
-static uint32_t getScreenWidth(PRTSTREAM pStrm)
-{
-    static uint32_t s_acch[2] = { 0, 0};
-    uint32_t        iWhich    = pStrm == g_pStdErr ? 1 : 0;
-    uint32_t        cch       = s_acch[iWhich];
-    if (cch)
-        return cch;
-
-    cch = 80; /** @todo screen width IPRT API. */
-    s_acch[iWhich] = cch;
-    return cch;
-}
-
-
-/**
- * Prints a string table string (paragraph), performing non-breaking-space
- * replacement and wrapping.
- *
- * @returns Number of lines written.
- * @param   pStrm           The output stream.
- * @param   psz             The string table string to print.
- * @param   cchMaxWidth     The maximum output width.
- * @param   fFlags          String flags that may affect formatting.
- */
-static uint32_t printString(PRTSTREAM pStrm, const char *psz, uint32_t cchMaxWidth, uint64_t fFlags)
-{
-    uint32_t    cLinesWritten;
-    size_t      cch     = strlen(psz);
-    const char *pszNbsp = strchr(psz, REFENTRY_NBSP);
-
-    /*
-     * No-wrap case is simpler, so handle that separately.
-     */
-    if (cch <= cchMaxWidth)
-    {
-        if (!pszNbsp)
-            RTStrmWrite(pStrm, psz, cch);
-        else
-        {
-            do
-            {
-                RTStrmWrite(pStrm, psz, pszNbsp - psz);
-                RTStrmPutCh(pStrm, ' ');
-                psz = pszNbsp + 1;
-                pszNbsp = strchr(psz, REFENTRY_NBSP);
-            } while (pszNbsp);
-            RTStrmWrite(pStrm, psz, strlen(psz));
-        }
-        RTStrmPutCh(pStrm, '\n');
-        cLinesWritten = 1;
-    }
-    /*
-     * We need to wrap stuff, too bad.
-     */
-    else
-    {
-        /* Figure the paragraph indent level first. */
-        uint32_t cchIndent = 0;
-        while (*psz == ' ')
-            cchIndent++, psz++;
-        Assert(cchIndent + 4 + 1 <= RT_ELEMENTS(g_szSpaces));
-
-        if (cchIndent + 8 >= cchMaxWidth)
-            cchMaxWidth += cchIndent + 8;
-
-        /* Work our way thru the string, line by line. */
-        uint32_t cchHangingIndent = 0;
-        cLinesWritten = 0;
-        do
-        {
-            RTStrmWrite(pStrm, g_szSpaces, cchIndent + cchHangingIndent);
-            size_t   offLine       = cchIndent + cchHangingIndent;
-            bool     fPendingSpace = false;
-            do
-            {
-                const char *pszSpace = strchr(psz, ' ');
-                size_t      cchWord  = pszSpace ? pszSpace - psz : strlen(psz);
-                if (   offLine + cchWord + fPendingSpace > cchMaxWidth
-                    && offLine != cchIndent)
-                    break;
-
-                pszNbsp = (const char *)memchr(psz, REFENTRY_NBSP, cchWord);
-                while (pszNbsp)
-                {
-                    size_t cchSubWord = pszNbsp - psz;
-                    if (fPendingSpace)
-                        RTStrmPutCh(pStrm, ' ');
-                    RTStrmWrite(pStrm, psz, cchSubWord);
-                    offLine += cchSubWord + fPendingSpace;
-                    psz     += cchSubWord + 1;
-                    cchWord -= cchSubWord + 1;
-                    pszNbsp = (const char *)memchr(psz, REFENTRY_NBSP, cchWord);
-                    fPendingSpace = true;
-                }
-
-                if (fPendingSpace)
-                    RTStrmPutCh(pStrm, ' ');
-                RTStrmWrite(pStrm, psz, cchWord);
-                offLine += cchWord + fPendingSpace;
-                psz      = pszSpace ? pszSpace + 1 : strchr(psz, '\0');
-                fPendingSpace = true;
-            } while (offLine < cchMaxWidth && *psz != '\0');
-            RTStrmPutCh(pStrm, '\n');
-            cLinesWritten++;
-
-            /* Set up hanging indent if relevant. */
-            if (fFlags & REFENTRYSTR_FLAGS_SYNOPSIS)
-                cchHangingIndent = 4;
-        } while (*psz != '\0');
-    }
-    return cLinesWritten;
-}
-
-
-/**
- * Checks if the given string is empty (only spaces).
- * @returns true if empty, false if not.
- * @param   psz                 The string to examine.
- */
-DECLINLINE(bool) isEmptyString(const char *psz)
-{
-    char ch;
-    while ((ch = *psz) == ' ')
-        psz++;
-    return ch == '\0';
-}
-
-
-/**
- * Prints a string table.
- *
- * @returns Current number of pending blank lines.
- * @param   pStrm               The output stream.
- * @param   pStrTab             The string table.
- * @param   fScope              The selection scope.
- * @param   cPendingBlankLines  Pending blank lines from previous string table.
- * @param   pcLinesWritten      Pointer to variable that should be incremented
- *                              by the number of lines written.  Optional.
- */
-static uint32_t printStringTable(PRTSTREAM pStrm, PCREFENTRYSTRTAB pStrTab, uint64_t fScope, uint32_t cPendingBlankLines,
-                                 uint32_t *pcLinesWritten = NULL)
-{
-    uint32_t cLinesWritten = 0;
-    uint32_t cchWidth      = getScreenWidth(pStrm);
-    uint64_t fPrevScope    = fScope;
-    for (uint32_t i = 0; i < pStrTab->cStrings; i++)
-    {
-        uint64_t fCurScope = pStrTab->paStrings[i].fScope;
-        if ((fCurScope & REFENTRYSTR_SCOPE_MASK) == REFENTRYSTR_SCOPE_SAME)
-        {
-            fCurScope &= ~REFENTRYSTR_SCOPE_MASK;
-            fCurScope |= (fPrevScope & REFENTRYSTR_SCOPE_MASK);
-        }
-        if (fCurScope & REFENTRYSTR_SCOPE_MASK & fScope)
-        {
-            const char *psz = pStrTab->paStrings[i].psz;
-            if (psz && !isEmptyString(psz))
-            {
-                while (cPendingBlankLines > 0)
-                {
-                    cPendingBlankLines--;
-                    RTStrmPutCh(pStrm, '\n');
-                    cLinesWritten++;
-                }
-                cLinesWritten += printString(pStrm, psz, cchWidth, fCurScope & REFENTRYSTR_FLAGS_MASK);
-            }
-            else
-                cPendingBlankLines++;
-        }
-        fPrevScope = fCurScope;
-    }
-
-    if (pcLinesWritten)
-        *pcLinesWritten += cLinesWritten;
-    return cPendingBlankLines;
-}
 
 
 /**
@@ -277,18 +94,18 @@ static uint32_t printBriefCommandOrSubcommandHelp(enum HELP_CMD_VBOXMANAGE enmCo
     uint32_t cFound = 0;
     for (uint32_t i = 0; i < g_cHelpEntries; i++)
     {
-        PCREFENTRY pHelp = g_apHelpEntries[i];
+        PCRTMSGREFENTRY pHelp = g_apHelpEntries[i];
         if (pHelp->idInternal == (int64_t)enmCommand)
         {
             cFound++;
             if (cFound == 1)
             {
-                if (fSubcommandScope == REFENTRYSTR_SCOPE_GLOBAL)
+                if (fSubcommandScope == RTMSGREFENTRYSTR_SCOPE_GLOBAL)
                     RTStrmPrintf(pStrm, "Usage - %c%s:\n", RT_C_TO_UPPER(pHelp->pszBrief[0]), pHelp->pszBrief + 1);
                 else
                     RTStrmPrintf(pStrm, "Usage:\n");
             }
-            cPendingBlankLines = printStringTable(pStrm, &pHelp->Synopsis, fSubcommandScope, cPendingBlankLines, &cLinesWritten);
+            RTMsgRefEntryPrintStringTable(pStrm, &pHelp->Synopsis, fSubcommandScope, &cPendingBlankLines, &cLinesWritten);
             if (!cPendingBlankLines)
                 cPendingBlankLines = 1;
         }
@@ -323,12 +140,12 @@ static void printFullCommandOrSubcommandHelp(enum HELP_CMD_VBOXMANAGE enmCommand
     uint32_t cFound = 0;
     for (uint32_t i = 0; i < g_cHelpEntries; i++)
     {
-        PCREFENTRY pHelp = g_apHelpEntries[i];
+        PCRTMSGREFENTRY pHelp = g_apHelpEntries[i];
         if (   pHelp->idInternal == (int64_t)enmCommand
             || enmCommand == HELP_CMD_VBOXMANAGE_INVALID)
         {
             cFound++;
-            cPendingBlankLines = printStringTable(pStrm, &pHelp->Help, fSubcommandScope, cPendingBlankLines);
+            RTMsgRefEntryPrintStringTable(pStrm, &pHelp->Help, fSubcommandScope, &cPendingBlankLines, NULL /*pcLinesWritten*/);
             if (cPendingBlankLines < 2)
                 cPendingBlankLines = 2;
         }
@@ -356,7 +173,7 @@ void printHelp(PRTSTREAM pStrm)
 RTEXITCODE errorNoSubcommand(void)
 {
     Assert(g_enmCurCommand != HELP_CMD_VBOXMANAGE_INVALID);
-    Assert(g_fCurSubcommandScope == REFENTRYSTR_SCOPE_GLOBAL);
+    Assert(g_fCurSubcommandScope == RTMSGREFENTRYSTR_SCOPE_GLOBAL);
 
     return errorSyntax("No subcommand specified");
 }
@@ -373,7 +190,7 @@ RTEXITCODE errorNoSubcommand(void)
 RTEXITCODE errorUnknownSubcommand(const char *pszSubcommand)
 {
     Assert(g_enmCurCommand != HELP_CMD_VBOXMANAGE_INVALID);
-    Assert(g_fCurSubcommandScope == REFENTRYSTR_SCOPE_GLOBAL);
+    Assert(g_fCurSubcommandScope == RTMSGREFENTRYSTR_SCOPE_GLOBAL);
 
     /* check if help was requested. */
     if (   strcmp(pszSubcommand, "--help") == 0
@@ -400,7 +217,7 @@ RTEXITCODE errorUnknownSubcommand(const char *pszSubcommand)
 RTEXITCODE errorTooManyParameters(char **papszArgs)
 {
     Assert(g_enmCurCommand != HELP_CMD_VBOXMANAGE_INVALID);
-    Assert(g_fCurSubcommandScope != REFENTRYSTR_SCOPE_GLOBAL);
+    Assert(g_fCurSubcommandScope != RTMSGREFENTRYSTR_SCOPE_GLOBAL);
 
     /* check if help was requested. */
     if (papszArgs)
@@ -607,6 +424,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "  [-q|--nologo]             suppress the logo\n"
                      "  [--settingspw <pw>]       provide the settings password\n"
                      "  [--settingspwfile <file>] provide a file containing the settings password\n"
+                     "  [@<response-file>]        load arguments from the given response file (bourne style)\n"
                      " \n \n"
                      "Commands:\n \n");
 
@@ -622,7 +440,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
 
     if (fCategory & USAGE_LIST)
         RTStrmPrintf(pStrm,
-                           "%s list [--long|-l]%s vms|runningvms|ostypes|hostdvds|hostfloppies|\n"
+                           "%s list [--long|-l] [--sorted|-s]%s vms|runningvms|ostypes|hostdvds|hostfloppies|\n"
 #if defined(VBOX_WITH_NETFLT)
                      "                            intnets|bridgedifs|hostonlyifs|natnets|dhcpservers|\n"
 #else
@@ -695,8 +513,8 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--longmode on|off]\n"
                      "                            [--cpu-profile \"host|Intel 80[86|286|386]\"]\n"
                      "                            [--cpuid-portability-level <0..3>\n"
-                     "                            [--cpuidset <leaf> <eax> <ebx> <ecx> <edx>]\n"
-                     "                            [--cpuidremove <leaf>]\n"
+                     "                            [--cpuid-set <leaf[:subleaf]> <eax> <ebx> <ecx> <edx>]\n"
+                     "                            [--cpuid-remove <leaf[:subleaf]>]\n"
                      "                            [--cpuidremoveall]\n"
                      "                            [--hardwareuuid <uuid>]\n"
                      "                            [--cpus <number>]\n"
@@ -833,6 +651,8 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
         }
         RTStrmPrintf(pStrm, "]\n");
         RTStrmPrintf(pStrm,
+                     "                            [--audioin on|off]\n"
+                     "                            [--audioout on|off]\n"
                      "                            [--audiocontroller ac97|hda|sb16]\n"
                      "                            [--audiocodec stac9700|ad1980|stac9221|sb16]\n"
                      "                            [--clipboard disabled|hosttoguest|guesttohost|\n"
@@ -884,7 +704,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--autostop-type disabled|savestate|poweroff|\n"
                      "                                             acpishutdown]\n"
 #endif
-#ifdef VBOX_WITH_VPX
+#ifdef VBOX_WITH_VIDEOREC
                      "                            [--videocap on|off]\n"
                      "                            [--videocapscreens all|<screen ID> [<screen ID> ...]]\n"
                      "                            [--videocapfile <filename>]\n"
@@ -924,8 +744,8 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
 
     if (fCategory & USAGE_EXPORTAPPLIANCE)
         RTStrmPrintf(pStrm,
-                           "%s export %s          <machines> --output|-o <name>.<ovf/ova>\n"
-                     "                            [--legacy09|--ovf09|--ovf10|--ovf20]\n"
+                           "%s export %s          <machines> --output|-o <name>.<ovf/ova/tar.gz>\n"
+                     "                            [--legacy09|--ovf09|--ovf10|--ovf20|--opc10]\n"
                      "                            [--manifest]\n"
                      "                            [--iso]\n"
                      "                            [--options manifest|iso|nomacs|nomacsbutnat]\n"
@@ -949,6 +769,7 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
             RTStrmPrintf(pStrm, "|sdl");
         RTStrmPrintf(pStrm, "|headless|separate]\n");
         RTStrmPrintf(pStrm,
+                     "                            [-E|--putenv <NAME>[=<VALUE>]]\n"
                      "\n");
     }
 
@@ -959,6 +780,8 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            pause|resume|reset|poweroff|savestate|\n"
                      "                            acpipowerbutton|acpisleepbutton|\n"
                      "                            keyboardputscancode <hex> [<hex> ...]|\n"
+                     "                            keyboardputstring <string1> [<string2> ...]|\n"
+                     "                            keyboardputfile <filename>|\n"
                      "                            setlinkstate<1-N> on|off |\n"
 #if defined(VBOX_WITH_NETFLT)
                      "                            nic<1-N> null|nat|bridged|intnet|hostonly|generic|\n"
@@ -978,6 +801,8 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            usbattach <uuid>|<address>\n"
                      "                                      [--capturefile <filename>] |\n"
                      "                            usbdetach <uuid>|<address> |\n"
+                     "                            audioin on|off |\n"
+                     "                            audioout on|off |\n"
                      "                            clipboard disabled|hosttoguest|guesttohost|\n"
                      "                                      bidirectional |\n"
                      "                            draganddrop disabled|hosttoguest |\n"
@@ -1131,7 +956,8 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--property <name=[value]>]\n"
                      "                            [--compact]\n"
                      "                            [--resize <megabytes>|--resizebyte <bytes>]\n"
-                     "                            [--move <path>]"
+                     "                            [--move <path]\n"
+                     "                            [--description <description string>]"
                      "\n", SEP);
 
     if (fCategory & USAGE_CLONEMEDIUM)
@@ -1377,11 +1203,13 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
         uint32_t cPendingBlankLines = 0;
         for (uint32_t i = 0; i < g_cHelpEntries; i++)
         {
-            PCREFENTRY pHelp = g_apHelpEntries[i];
+            PCRTMSGREFENTRY pHelp = g_apHelpEntries[i];
             while (cPendingBlankLines-- > 0)
                 RTStrmPutCh(pStrm, '\n');
             RTStrmPrintf(pStrm, " %c%s:\n", RT_C_TO_UPPER(pHelp->pszBrief[0]), pHelp->pszBrief + 1);
-            cPendingBlankLines = printStringTable(pStrm, &pHelp->Synopsis, REFENTRYSTR_SCOPE_GLOBAL, 0);
+            cPendingBlankLines = 0;
+            RTMsgRefEntryPrintStringTable(pStrm, &pHelp->Synopsis, RTMSGREFENTRYSTR_SCOPE_GLOBAL,
+                                          &cPendingBlankLines, NULL /*pcLinesWritten*/);
             cPendingBlankLines = RT_MAX(cPendingBlankLines, 1);
         }
     }

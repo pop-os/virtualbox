@@ -942,6 +942,7 @@ static const RTGETOPTDEF g_aExportOptions[] =
     { "--ovf09",                'l', RTGETOPT_REQ_NOTHING },
     { "--ovf10",                '1', RTGETOPT_REQ_NOTHING },
     { "--ovf20",                '2', RTGETOPT_REQ_NOTHING },
+    { "--opc10",                'c', RTGETOPT_REQ_NOTHING },
     { "--manifest",             'm', RTGETOPT_REQ_NOTHING },    // obsoleted by --options
     { "--iso",                  'I', RTGETOPT_REQ_NOTHING },    // obsoleted by --options
     { "--vsys",                 's', RTGETOPT_REQ_UINT32 },
@@ -1002,6 +1003,10 @@ RTEXITCODE handleExportAppliance(HandlerArg *a)
 
                 case '2':   // --ovf20
                     strOvfFormat = "ovf-2.0";
+                    break;
+
+                case 'c':   // --opc
+                    strOvfFormat = "opc-1.0";
                     break;
 
                 case 'I':   // --iso

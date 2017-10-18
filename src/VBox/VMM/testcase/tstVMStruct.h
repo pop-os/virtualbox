@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -130,6 +130,24 @@
 #endif
 
     GEN_CHECK_SIZE(CPUMCTX);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.svm.uMsrHSavePa);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.svm.GCPhysVmcb);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.svm.pVmcbR0);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.svm.pVmcbR3);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.svm.HostState);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.svm.fGif);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.svm.cPauseFilter);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.svm.cPauseFilterThreshold);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.svm.fInterceptEvents);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.svm.pvMsrBitmapR0);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.svm.pvMsrBitmapR3);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.svm.pvIoBitmapR0);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.svm.pvIoBitmapR3);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.svm.HCPhysVmcb);
+    GEN_CHECK_OFF(CPUMCTX, hwvirt.fLocalForcedActions);
+    /** @todo add rest of hwvirt fields when code is more
+     *        finalized. */
     GEN_CHECK_OFF(CPUMCTX, pXStateR0);
     GEN_CHECK_OFF(CPUMCTX, pXStateR3);
     GEN_CHECK_OFF(CPUMCTX, pXStateRC);
@@ -182,7 +200,6 @@
     GEN_CHECK_OFF(CPUMCTX, msrCSTAR);
     GEN_CHECK_OFF(CPUMCTX, msrSFMASK);
     GEN_CHECK_OFF(CPUMCTX, msrKERNELGSBASE);
-    GEN_CHECK_OFF(CPUMCTX, msrApicBase);
     GEN_CHECK_OFF(CPUMCTX, ldtr);
     GEN_CHECK_OFF(CPUMCTX, tr);
 #ifndef VBOX_FOR_DTRACE_LIB
@@ -428,7 +445,6 @@
     GEN_CHECK_OFF_DOT(PDM, aPciBuses[0].pfnSetIrqR3);
     GEN_CHECK_OFF_DOT(PDM, aPciBuses[0].pfnRegisterR3);
     GEN_CHECK_OFF_DOT(PDM, aPciBuses[0].pfnIORegionRegisterR3);
-    GEN_CHECK_OFF_DOT(PDM, aPciBuses[0].pfnFakePCIBIOSR3);
     GEN_CHECK_OFF_DOT(PDM, aPciBuses[0].pDevInsR0);
     GEN_CHECK_OFF_DOT(PDM, aPciBuses[0].pfnSetIrqR0);
     GEN_CHECK_OFF_DOT(PDM, aPciBuses[0].pDevInsRC);
@@ -445,32 +461,8 @@
     GEN_CHECK_OFF_DOT(PDM, Pic.pfnGetInterruptRC);
     GEN_CHECK_OFF(PDM, Apic);
     GEN_CHECK_OFF_DOT(PDM, Apic.pDevInsR3);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnGetInterruptR3);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnSetBaseMsrR3);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnGetBaseMsrR3);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnSetTprR3);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnWriteMsrR3);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnReadMsrR3);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnGetTprR3);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnBusDeliverR3);
     GEN_CHECK_OFF_DOT(PDM, Apic.pDevInsR0);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnGetInterruptR0);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnSetBaseMsrR0);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnGetBaseMsrR0);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnSetTprR0);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnGetTprR0);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnWriteMsrR0);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnReadMsrR0);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnBusDeliverR0);
     GEN_CHECK_OFF_DOT(PDM, Apic.pDevInsRC);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnGetInterruptRC);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnSetBaseMsrRC);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnGetBaseMsrRC);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnSetTprRC);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnGetTprRC);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnWriteMsrRC);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnReadMsrRC);
-    GEN_CHECK_OFF_DOT(PDM, Apic.pfnBusDeliverRC);
     GEN_CHECK_OFF(PDM, IoApic);
     GEN_CHECK_OFF_DOT(PDM, IoApic.pDevInsR3);
     GEN_CHECK_OFF_DOT(PDM, IoApic.pfnSetIrqR3);
@@ -677,6 +669,9 @@
     GEN_CHECK_OFF(PGMCPU, pfnRCGstGetPage);
     GEN_CHECK_OFF(PGMCPU, pfnRCGstModifyPage);
     GEN_CHECK_OFF(PGMCPU, pfnRCGstGetPDE);
+    GEN_CHECK_OFF(PGMCPU, pfnR0GstGetPage);
+    GEN_CHECK_OFF(PGMCPU, pfnR0GstModifyPage);
+    GEN_CHECK_OFF(PGMCPU, pfnR0GstGetPDE);
     GEN_CHECK_OFF(PGMCPU, pfnR3BthRelocate);
     GEN_CHECK_OFF(PGMCPU, pfnR3BthSyncCR3);
     GEN_CHECK_OFF(PGMCPU, pfnR3BthInvalidatePage);
@@ -1381,7 +1376,6 @@
     GEN_CHECK_OFF(PATMPATCHPAGE, papPatch);
 #endif
 
-#ifdef VBOX_WITH_NEW_APIC
     GEN_CHECK_SIZE(APIC);
     GEN_CHECK_OFF(APIC, pApicDevR0);
     GEN_CHECK_OFF(APIC, pApicDevR3);
@@ -1404,7 +1398,6 @@
     GEN_CHECK_OFF(APICCPU, pTimerR3);
     GEN_CHECK_OFF(APICCPU, pTimerRC);
     GEN_CHECK_OFF(APICCPU, TimerCritSect);
-#endif
 
     GEN_CHECK_SIZE(VM);
     GEN_CHECK_OFF(VM, enmVMState);
@@ -1473,9 +1466,7 @@
     GEN_CHECK_OFF(VM, gim);
     GEN_CHECK_OFF(VM, vm);
     GEN_CHECK_OFF(VM, cfgm);
-#ifdef VBOX_WITH_NEW_APIC
     GEN_CHECK_OFF(VM, apic);
-#endif
     GEN_CHECK_OFF(VM, aCpus);
 
 
@@ -1503,9 +1494,7 @@
     GEN_CHECK_OFF(VMCPU, iom);
     GEN_CHECK_OFF(VMCPU, dbgf);
     GEN_CHECK_OFF(VMCPU, gim);
-#ifdef VBOX_WITH_NEW_APIC
     GEN_CHECK_OFF(VMCPU, apic);
-#endif
     GEN_CHECK_OFF(VMCPU, pgm);
     GEN_CHECK_OFF(VMCPU, cpum);
 

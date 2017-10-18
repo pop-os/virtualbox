@@ -84,11 +84,11 @@ void UIAnimation::prepare()
     /* Create 'start' state: */
     m_pStateStart = new QState(m_pAnimationMachine);
     m_pStateStart->assignProperty(parent(), "AnimationState", QString("Start"));
-    connect(m_pStateStart, SIGNAL(propertiesAssigned()), this, SIGNAL(sigStateEnteredStart()));
+    connect(m_pStateStart, &QState::propertiesAssigned, this, &UIAnimation::sigStateEnteredStart);
     /* Create 'final' state: */
     m_pStateFinal = new QState(m_pAnimationMachine);
     m_pStateFinal->assignProperty(parent(), "AnimationState", QString("Final"));
-    connect(m_pStateFinal, SIGNAL(propertiesAssigned()), this, SIGNAL(sigStateEnteredFinal()));
+    connect(m_pStateFinal, &QState::propertiesAssigned, this, &UIAnimation::sigStateEnteredFinal);
 
     /* Prepare 'forward' animation: */
     m_pForwardAnimation = new QPropertyAnimation(parent(), m_pszPropertyName, m_pAnimationMachine);
@@ -101,8 +101,10 @@ void UIAnimation::prepare()
 
     /* Prepare state-transitions: */
     QSignalTransition *pStartToFinal = m_pStateStart->addTransition(parent(), m_pszSignalForward, m_pStateFinal);
+    AssertPtrReturnVoid(pStartToFinal);
     pStartToFinal->addAnimation(m_pForwardAnimation);
     QSignalTransition *pFinalToStart = m_pStateFinal->addTransition(parent(), m_pszSignalReverse, m_pStateStart);
+    AssertPtrReturnVoid(pFinalToStart);
     pFinalToStart->addAnimation(m_pReverseAnimation);
 
     /* Fetch animation-borders: */

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2016 Oracle Corporation
+# Copyright (C) 2006-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -31,14 +31,15 @@ include $(KBUILD_PATH)/subheader.kmk
 # Targets
 #
 LIBRARIES += SUPR3 SUPR3Static
-ifdef VBOX_WITH_HARDENING
+if   defined(VBOX_WITH_HARDENING) \
+ && !defined(VBOX_ONLY_VALIDATIONKIT)
  LIBRARIES += SUPR3HardenedStatic
 endif
 DLLS.win += VBoxSupLib
 ifdef VBOX_WITH_32_ON_64_MAIN_API
  LIBRARIES += SUPR3-x86
 endif
-ifndef VBOX_ONLY_DOCS
+if   !defined(VBOX_ONLY_DOCS)
  if1of ($(VBOX_LDR_FMT), pe lx)
   LIBRARIES += SUPR0
  endif

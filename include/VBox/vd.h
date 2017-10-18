@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,6 +36,7 @@
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
 #include <VBox/err.h>
+#include <VBox/vdmedia.h>
 #include <VBox/vd-ifs.h>
 
 RT_C_DECLS_BEGIN
@@ -44,7 +45,7 @@ RT_C_DECLS_BEGIN
 # error "There are no VBox HDD Container APIs available in Ring-0 Host Context!"
 #endif
 
-/** @defgroup grp_vd            VBox HDD Container
+/** @defgroup grp_vd            Virtual Disk Container
  * @{
  */
 
@@ -130,13 +131,13 @@ RT_C_DECLS_BEGIN
  * @{
  */
 /** No special treatment. */
-#define VBOXHDDRAW_NORMAL       0
+#define VDISKRAW_NORMAL       0
 /** Whether this is a raw disk (where the partition information is ignored) or
  * not. Valid only in the raw disk descriptor. */
-#define VBOXHDDRAW_DISK         RT_BIT(0)
+#define VDISKRAW_DISK         RT_BIT(0)
 /** Open the corresponding raw disk or partition for reading only, no matter
  * how the image is created or opened. */
-#define VBOXHDDRAW_READONLY     RT_BIT(1)
+#define VDISKRAW_READONLY     RT_BIT(1)
 /** @} */
 
 /**
@@ -145,7 +146,7 @@ RT_C_DECLS_BEGIN
  * Note that this does not correspond 1:1 to partitions, it is describing the
  * general meaning of contiguous areas on the disk.
  */
-typedef struct VBOXHDDRAWPARTDESC
+typedef struct VDISKRAWPARTDESC
 {
     /** Device to use for this partition/data area. Can be the disk device if
      * the offset field is set appropriately. If this is NULL, then this
@@ -162,29 +163,29 @@ typedef struct VBOXHDDRAWPARTDESC
     uint64_t        uStart;
     /** Size of the data area. */
     uint64_t        cbData;
-    /** Flags for special treatment, see VBOXHDDRAW_FLAGS_*. */
+    /** Flags for special treatment, see VDISKRAW_FLAGS_*. */
     uint32_t        uFlags;
-} VBOXHDDRAWPARTDESC, *PVBOXHDDRAWPARTDESC;
+} VDISKRAWPARTDESC, *PVDISKRAWPARTDESC;
 
 /**
  * Auxiliary data structure for difference between GPT and MBR
  * disks.
  */
-typedef enum VBOXHDDPARTTYPE
+typedef enum VDISKPARTTYPE
 {
     MBR,
     GPT
-} VBOXHDDPARTTYPE;
+} VDISKPARTTYPE;
 
 /**
  * Auxiliary data structure for creating raw disks.
  */
-typedef struct VBOXHDDRAW
+typedef struct VDISKRAW
 {
     /** Signature for structure. Must be 'R', 'A', 'W', '\\0'. Actually a trick
      * to make logging of the comment string produce sensible results. */
     char            szSignature[4];
-    /** Flags for special treatment, see VBOXHDDRAW_FLAGS_*. */
+    /** Flags for special treatment, see VDISKRAW_FLAGS_*. */
     /** Flag whether access to full disk should be given (ignoring the
      * partition information below). */
     uint32_t        uFlags;
@@ -194,10 +195,10 @@ typedef struct VBOXHDDRAW
     /** Number of entries in the partition descriptor array. */
     unsigned        cPartDescs;
     /** Pointer to the partition descriptor array. */
-    PVBOXHDDRAWPARTDESC pPartDescs;
+    PVDISKRAWPARTDESC pPartDescs;
     /** Partitioning type of the disk */
-    VBOXHDDPARTTYPE uPartitioningType;
-} VBOXHDDRAW, *PVBOXHDDRAW;
+    VDISKPARTTYPE uPartitioningType;
+} VDISKRAW, *PVDISKRAW;
 
 
 /** @name VBox HDD container image open mode flags
@@ -284,9 +285,9 @@ typedef struct VBOXHDDRAW
  */
 DECLINLINE(uint32_t) VDOpenFlagsToFileOpenFlags(unsigned fOpenFlags, bool fCreate)
 {
+    uint32_t fOpen;
     AssertMsg(!(fOpenFlags & VD_OPEN_FLAGS_READONLY) || !fCreate, ("Image can't be opened readonly while being created\n"));
 
-    uint32_t fOpen;
     if (fOpenFlags & VD_OPEN_FLAGS_READONLY)
         fOpen = RTFILE_O_READ | RTFILE_O_DENY_NONE;
     else
@@ -340,23 +341,6 @@ DECLINLINE(uint32_t) VDOpenFlagsToFileOpenFlags(unsigned fOpenFlags, bool fCreat
 /** This is a frequently used backend. */
 #define VD_CAP_PREFERRED            RT_BIT(11)
 /** @}*/
-
-/** @name VBox HDD container type.
- * @{
- */
-typedef enum VDTYPE
-{
-    /** Invalid. */
-    VDTYPE_INVALID = 0,
-    /** HardDisk */
-    VDTYPE_HDD,
-    /** CD/DVD */
-    VDTYPE_DVD,
-    /** Floppy. */
-    VDTYPE_FLOPPY
-} VDTYPE;
-/** @}*/
-
 
 /** @name Configuration interface key handling flags.
  * @{
@@ -477,30 +461,12 @@ typedef DECLCALLBACK(void) FNVDASYNCTRANSFERCOMPLETE (void *pvUser1, void *pvUse
 typedef FNVDASYNCTRANSFERCOMPLETE *PFNVDASYNCTRANSFERCOMPLETE;
 
 /**
- * Disk geometry.
+ * VD Container main structure.
  */
-typedef struct VDGEOMETRY
-{
-    /** Number of cylinders. */
-    uint32_t    cCylinders;
-    /** Number of heads. */
-    uint32_t    cHeads;
-    /** Number of sectors. */
-    uint32_t    cSectors;
-} VDGEOMETRY;
-
-/** Pointer to disk geometry. */
-typedef VDGEOMETRY *PVDGEOMETRY;
-/** Pointer to constant disk geometry. */
-typedef const VDGEOMETRY *PCVDGEOMETRY;
-
-/**
- * VBox HDD Container main structure.
- */
-/* Forward declaration, VBOXHDD structure is visible only inside VBox HDD module. */
-struct VBOXHDD;
-typedef struct VBOXHDD VBOXHDD;
-typedef VBOXHDD *PVBOXHDD;
+/* Forward declaration, VDISK structure is visible only inside VD module. */
+struct VDISK;
+typedef struct VDISK VDISK;
+typedef VDISK *PVDISK;
 
 /**
  * Initializes HDD backends.
@@ -599,7 +565,7 @@ VBOXDDU_DECL(int) VDFilterInfoOne(const char *pszFilter, PVDFILTERINFO pEntry);
  * @param   enmType         Type of the image container.
  * @param   ppDisk          Where to store the reference to HDD container.
  */
-VBOXDDU_DECL(int) VDCreate(PVDINTERFACE pVDIfsDisk, VDTYPE enmType, PVBOXHDD *ppDisk);
+VBOXDDU_DECL(int) VDCreate(PVDINTERFACE pVDIfsDisk, VDTYPE enmType, PVDISK *ppDisk);
 
 /**
  * Destroys HDD container.
@@ -608,7 +574,7 @@ VBOXDDU_DECL(int) VDCreate(PVDINTERFACE pVDIfsDisk, VDTYPE enmType, PVBOXHDD *pp
  * @return  VBox status code.
  * @param   pDisk           Pointer to HDD container.
  */
-VBOXDDU_DECL(int) VDDestroy(PVBOXHDD pDisk);
+VBOXDDU_DECL(int) VDDestroy(PVDISK pDisk);
 
 /**
  * Try to get the backend name which can use this image.
@@ -647,7 +613,7 @@ VBOXDDU_DECL(int) VDGetFormat(PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
  * @param   uOpenFlags      Image file open mode, see VD_OPEN_FLAGS_* constants.
  * @param   pVDIfsImage     Pointer to the per-image VD interface list.
  */
-VBOXDDU_DECL(int) VDOpen(PVBOXHDD pDisk, const char *pszBackend,
+VBOXDDU_DECL(int) VDOpen(PVDISK pDisk, const char *pszBackend,
                          const char *pszFilename, unsigned uOpenFlags,
                          PVDINTERFACE pVDIfsImage);
 
@@ -661,7 +627,7 @@ VBOXDDU_DECL(int) VDOpen(PVBOXHDD pDisk, const char *pszBackend,
  * @param   uOpenFlags      Image file open mode, see VD_OPEN_FLAGS_* constants.
  * @param   pVDIfsCache     Pointer to the per-cache VD interface list.
  */
-VBOXDDU_DECL(int) VDCacheOpen(PVBOXHDD pDisk, const char *pszBackend,
+VBOXDDU_DECL(int) VDCacheOpen(PVDISK pDisk, const char *pszBackend,
                               const char *pszFilename, unsigned uOpenFlags,
                               PVDINTERFACE pVDIfsCache);
 
@@ -675,7 +641,7 @@ VBOXDDU_DECL(int) VDCacheOpen(PVBOXHDD pDisk, const char *pszBackend,
  *                          defines.
  * @param   pVDIfsFilter    Pointer to the per-filter VD interface list.
  */
-VBOXDDU_DECL(int) VDFilterAdd(PVBOXHDD pDisk, const char *pszFilter, uint32_t fFlags,
+VBOXDDU_DECL(int) VDFilterAdd(PVDISK pDisk, const char *pszFilter, uint32_t fFlags,
                               PVDINTERFACE pVDIfsFilter);
 
 /**
@@ -695,7 +661,7 @@ VBOXDDU_DECL(int) VDFilterAdd(PVBOXHDD pDisk, const char *pszFilter, uint32_t fF
  * @param   pVDIfsImage     Pointer to the per-image VD interface list.
  * @param   pVDIfsOperation Pointer to the per-operation VD interface list.
  */
-VBOXDDU_DECL(int) VDCreateBase(PVBOXHDD pDisk, const char *pszBackend,
+VBOXDDU_DECL(int) VDCreateBase(PVDISK pDisk, const char *pszBackend,
                                const char *pszFilename, uint64_t cbSize,
                                unsigned uImageFlags, const char *pszComment,
                                PCVDGEOMETRY pPCHSGeometry,
@@ -720,7 +686,7 @@ VBOXDDU_DECL(int) VDCreateBase(PVBOXHDD pDisk, const char *pszBackend,
  * @param   pVDIfsImage     Pointer to the per-image VD interface list.
  * @param   pVDIfsOperation Pointer to the per-operation VD interface list.
  */
-VBOXDDU_DECL(int) VDCreateDiff(PVBOXHDD pDisk, const char *pszBackend,
+VBOXDDU_DECL(int) VDCreateDiff(PVDISK pDisk, const char *pszBackend,
                                const char *pszFilename, unsigned uImageFlags,
                                const char *pszComment, PCRTUUID pUuid,
                                PCRTUUID pParentUuid, unsigned uOpenFlags,
@@ -742,7 +708,7 @@ VBOXDDU_DECL(int) VDCreateDiff(PVBOXHDD pDisk, const char *pszBackend,
  * @param   pVDIfsCache     Pointer to the per-cache VD interface list.
  * @param   pVDIfsOperation Pointer to the per-operation VD interface list.
  */
-VBOXDDU_DECL(int) VDCreateCache(PVBOXHDD pDisk, const char *pszBackend,
+VBOXDDU_DECL(int) VDCreateCache(PVDISK pDisk, const char *pszBackend,
                                 const char *pszFilename, uint64_t cbSize,
                                 unsigned uImageFlags, const char *pszComment,
                                 PCRTUUID pUuid, unsigned uOpenFlags,
@@ -761,7 +727,7 @@ VBOXDDU_DECL(int) VDCreateCache(PVBOXHDD pDisk, const char *pszBackend,
  * @param   nImageTo        Image number to merge to, counts from 0. 0 is always base image of container.
  * @param   pVDIfsOperation Pointer to the per-operation VD interface list.
  */
-VBOXDDU_DECL(int) VDMerge(PVBOXHDD pDisk, unsigned nImageFrom,
+VBOXDDU_DECL(int) VDMerge(PVDISK pDisk, unsigned nImageFrom,
                           unsigned nImageTo, PVDINTERFACE pVDIfsOperation);
 
 /**
@@ -840,7 +806,7 @@ VBOXDDU_DECL(int) VDMerge(PVBOXHDD pDisk, unsigned nImageFrom,
  *          image which is achieved with nImageFromSame and nImageToSame.
  *          Setting both to 0 can suppress a lot of I/O.
  */
-VBOXDDU_DECL(int) VDCopyEx(PVBOXHDD pDiskFrom, unsigned nImage, PVBOXHDD pDiskTo,
+VBOXDDU_DECL(int) VDCopyEx(PVDISK pDiskFrom, unsigned nImage, PVDISK pDiskTo,
                            const char *pszBackend, const char *pszFilename,
                            bool fMoveByRename, uint64_t cbSize,
                            unsigned nImageFromSame, unsigned nImageToSame,
@@ -886,7 +852,7 @@ VBOXDDU_DECL(int) VDCopyEx(PVBOXHDD pDiskFrom, unsigned nImage, PVBOXHDD pDiskTo
  * @param   pDstVDIfsOperation Pointer to the per-operation VD interface list,
  *                          for the destination operation.
  */
-VBOXDDU_DECL(int) VDCopy(PVBOXHDD pDiskFrom, unsigned nImage, PVBOXHDD pDiskTo,
+VBOXDDU_DECL(int) VDCopy(PVDISK pDiskFrom, unsigned nImage, PVDISK pDiskTo,
                          const char *pszBackend, const char *pszFilename,
                          bool fMoveByRename, uint64_t cbSize,
                          unsigned uImageFlags, PCRTUUID pDstUuid,
@@ -915,7 +881,7 @@ VBOXDDU_DECL(int) VDCopy(PVBOXHDD pDiskFrom, unsigned nImage, PVBOXHDD pDiskTo,
  * @param   nImage          Image number, counts from 0. 0 is always base image of container.
  * @param   pVDIfsOperation Pointer to the per-operation VD interface list.
  */
-VBOXDDU_DECL(int) VDCompact(PVBOXHDD pDisk, unsigned nImage, PVDINTERFACE pVDIfsOperation);
+VBOXDDU_DECL(int) VDCompact(PVDISK pDisk, unsigned nImage, PVDINTERFACE pVDIfsOperation);
 
 /**
  * Resizes the given disk image to the given size. It is OK if there are
@@ -932,7 +898,7 @@ VBOXDDU_DECL(int) VDCompact(PVBOXHDD pDisk, unsigned nImage, PVDINTERFACE pVDIfs
  * @param   pLCHSGeometry   Pointer to the new logical disk geometry <= (x,255,63). Not NULL.
  * @param   pVDIfsOperation Pointer to the per-operation VD interface list.
  */
-VBOXDDU_DECL(int) VDResize(PVBOXHDD pDisk, uint64_t cbSize,
+VBOXDDU_DECL(int) VDResize(PVDISK pDisk, uint64_t cbSize,
                            PCVDGEOMETRY pPCHSGeometry,
                            PCVDGEOMETRY pLCHSGeometry,
                            PVDINTERFACE pVDIfsOperation);
@@ -946,7 +912,7 @@ VBOXDDU_DECL(int) VDResize(PVBOXHDD pDisk, uint64_t cbSize,
  * @param   pDisk           Pointer to the HDD container.
  * @param   pVDIfsOperation Pointer to the per-operation VD interface list.
  */
-VBOXDDU_DECL(int) VDPrepareWithFilters(PVBOXHDD pDisk, PVDINTERFACE pVDIfsOperation);
+VBOXDDU_DECL(int) VDPrepareWithFilters(PVDISK pDisk, PVDINTERFACE pVDIfsOperation);
 
 /**
  * Closes the last opened image file in HDD container.
@@ -959,7 +925,7 @@ VBOXDDU_DECL(int) VDPrepareWithFilters(PVBOXHDD pDisk, PVDINTERFACE pVDIfsOperat
  * @param   pDisk           Pointer to HDD container.
  * @param   fDelete         If true, delete the image from the host disk.
  */
-VBOXDDU_DECL(int) VDClose(PVBOXHDD pDisk, bool fDelete);
+VBOXDDU_DECL(int) VDClose(PVDISK pDisk, bool fDelete);
 
 /**
  * Removes the last added filter in the HDD container from the specified chain.
@@ -969,7 +935,7 @@ VBOXDDU_DECL(int) VDClose(PVBOXHDD pDisk, bool fDelete);
  * @param   pDisk           Pointer to HDD container.
  * @param   fFlags          Combination of VD_FILTER_FLAGS_* defines.
  */
-VBOXDDU_DECL(int) VDFilterRemove(PVBOXHDD pDisk, uint32_t fFlags);
+VBOXDDU_DECL(int) VDFilterRemove(PVDISK pDisk, uint32_t fFlags);
 
 /**
  * Closes the currently opened cache image file in HDD container.
@@ -979,7 +945,7 @@ VBOXDDU_DECL(int) VDFilterRemove(PVBOXHDD pDisk, uint32_t fFlags);
  * @param   pDisk           Pointer to HDD container.
  * @param   fDelete         If true, delete the image from the host disk.
  */
-VBOXDDU_DECL(int) VDCacheClose(PVBOXHDD pDisk, bool fDelete);
+VBOXDDU_DECL(int) VDCacheClose(PVDISK pDisk, bool fDelete);
 
 /**
  * Closes all opened image files in HDD container.
@@ -987,7 +953,7 @@ VBOXDDU_DECL(int) VDCacheClose(PVBOXHDD pDisk, bool fDelete);
  * @return  VBox status code.
  * @param   pDisk           Pointer to HDD container.
  */
-VBOXDDU_DECL(int) VDCloseAll(PVBOXHDD pDisk);
+VBOXDDU_DECL(int) VDCloseAll(PVDISK pDisk);
 
 /**
  * Removes all filters of the given HDD container.
@@ -995,44 +961,44 @@ VBOXDDU_DECL(int) VDCloseAll(PVBOXHDD pDisk);
  * @return  VBox status code.
  * @param   pDisk           Pointer to HDD container.
  */
-VBOXDDU_DECL(int) VDFilterRemoveAll(PVBOXHDD pDisk);
+VBOXDDU_DECL(int) VDFilterRemoveAll(PVDISK pDisk);
 
 /**
  * Read data from virtual HDD.
  *
  * @return  VBox status code.
- * @return  VERR_VD_NOT_OPENED if no image is opened in HDD container.
+ * @retval  VERR_VD_NOT_OPENED if no image is opened in HDD container.
  * @param   pDisk           Pointer to HDD container.
- * @param   off             Offset of first reading byte from start of disk.
+ * @param   uOffset         Offset of first reading byte from start of disk.
  *                          Must be aligned to a sector boundary.
- * @param   pvBuffer        Pointer to buffer for reading data.
- * @param   cbBuffer        Number of bytes to read.
+ * @param   pvBuf           Pointer to buffer for reading data.
+ * @param   cbRead          Number of bytes to read.
  *                          Must be aligned to a sector boundary.
  */
-VBOXDDU_DECL(int) VDRead(PVBOXHDD pDisk, uint64_t off, void *pvBuffer, size_t cbBuffer);
+VBOXDDU_DECL(int) VDRead(PVDISK pDisk, uint64_t uOffset, void *pvBuf, size_t cbRead);
 
 /**
  * Write data to virtual HDD.
  *
  * @return  VBox status code.
- * @return  VERR_VD_NOT_OPENED if no image is opened in HDD container.
+ * @retval  VERR_VD_NOT_OPENED if no image is opened in HDD container.
  * @param   pDisk           Pointer to HDD container.
- * @param   off             Offset of first writing byte from start of disk.
+ * @param   uOffset         Offset of first writing byte from start of disk.
  *                          Must be aligned to a sector boundary.
- * @param   pvBuffer        Pointer to buffer for writing data.
- * @param   cbBuffer        Number of bytes to write.
+ * @param   pvBuf           Pointer to buffer for writing data.
+ * @param   cbWrite         Number of bytes to write.
  *                          Must be aligned to a sector boundary.
  */
-VBOXDDU_DECL(int) VDWrite(PVBOXHDD pDisk, uint64_t off, const void *pvBuffer, size_t cbBuffer);
+VBOXDDU_DECL(int) VDWrite(PVDISK pDisk, uint64_t uOffset, const void *pvBuf, size_t cbWrite);
 
 /**
  * Make sure the on disk representation of a virtual HDD is up to date.
  *
  * @return  VBox status code.
- * @return  VERR_VD_NOT_OPENED if no image is opened in HDD container.
+ * @retval  VERR_VD_NOT_OPENED if no image is opened in HDD container.
  * @param   pDisk           Pointer to HDD container.
  */
-VBOXDDU_DECL(int) VDFlush(PVBOXHDD pDisk);
+VBOXDDU_DECL(int) VDFlush(PVDISK pDisk);
 
 /**
  * Get number of opened images in HDD container.
@@ -1040,7 +1006,7 @@ VBOXDDU_DECL(int) VDFlush(PVBOXHDD pDisk);
  * @return  Number of opened images for HDD container. 0 if no images have been opened.
  * @param   pDisk           Pointer to HDD container.
  */
-VBOXDDU_DECL(unsigned) VDGetCount(PVBOXHDD pDisk);
+VBOXDDU_DECL(unsigned) VDGetCount(PVDISK pDisk);
 
 /**
  * Get read/write mode of HDD container.
@@ -1049,7 +1015,7 @@ VBOXDDU_DECL(unsigned) VDGetCount(PVBOXHDD pDisk);
  * @return  true if no image is opened in HDD container.
  * @param   pDisk           Pointer to HDD container.
  */
-VBOXDDU_DECL(bool) VDIsReadOnly(PVBOXHDD pDisk);
+VBOXDDU_DECL(bool) VDIsReadOnly(PVDISK pDisk);
 
 /**
  * Get sector size of an image in HDD container.
@@ -1059,7 +1025,7 @@ VBOXDDU_DECL(bool) VDIsReadOnly(PVBOXHDD pDisk);
  * @param   pDisk           Pointer to HDD container.
  * @param   nImage          Image number, counts from 0. 0 is always base image of container.
  */
-VBOXDDU_DECL(uint32_t) VDGetSectorSize(PVBOXHDD pDisk, unsigned nImage);
+VBOXDDU_DECL(uint32_t) VDGetSectorSize(PVDISK pDisk, unsigned nImage);
 
 /**
  * Get total capacity of an image in HDD container.
@@ -1069,7 +1035,7 @@ VBOXDDU_DECL(uint32_t) VDGetSectorSize(PVBOXHDD pDisk, unsigned nImage);
  * @param   pDisk           Pointer to HDD container.
  * @param   nImage          Image number, counts from 0. 0 is always base image of container.
  */
-VBOXDDU_DECL(uint64_t) VDGetSize(PVBOXHDD pDisk, unsigned nImage);
+VBOXDDU_DECL(uint64_t) VDGetSize(PVDISK pDisk, unsigned nImage);
 
 /**
  * Get total file size of an image in HDD container.
@@ -1079,7 +1045,7 @@ VBOXDDU_DECL(uint64_t) VDGetSize(PVBOXHDD pDisk, unsigned nImage);
  * @param   pDisk           Pointer to HDD container.
  * @param   nImage          Image number, counts from 0. 0 is always base image of container.
  */
-VBOXDDU_DECL(uint64_t) VDGetFileSize(PVBOXHDD pDisk, unsigned nImage);
+VBOXDDU_DECL(uint64_t) VDGetFileSize(PVDISK pDisk, unsigned nImage);
 
 /**
  * Get virtual disk PCHS geometry of an image in HDD container.
@@ -1091,7 +1057,7 @@ VBOXDDU_DECL(uint64_t) VDGetFileSize(PVBOXHDD pDisk, unsigned nImage);
  * @param   nImage          Image number, counts from 0. 0 is always base image of container.
  * @param   pPCHSGeometry   Where to store PCHS geometry. Not NULL.
  */
-VBOXDDU_DECL(int) VDGetPCHSGeometry(PVBOXHDD pDisk, unsigned nImage, PVDGEOMETRY pPCHSGeometry);
+VBOXDDU_DECL(int) VDGetPCHSGeometry(PVDISK pDisk, unsigned nImage, PVDGEOMETRY pPCHSGeometry);
 
 /**
  * Store virtual disk PCHS geometry of an image in HDD container.
@@ -1102,7 +1068,7 @@ VBOXDDU_DECL(int) VDGetPCHSGeometry(PVBOXHDD pDisk, unsigned nImage, PVDGEOMETRY
  * @param   nImage          Image number, counts from 0. 0 is always base image of container.
  * @param   pPCHSGeometry   Where to load PCHS geometry from. Not NULL.
  */
-VBOXDDU_DECL(int) VDSetPCHSGeometry(PVBOXHDD pDisk, unsigned nImage, PCVDGEOMETRY pPCHSGeometry);
+VBOXDDU_DECL(int) VDSetPCHSGeometry(PVDISK pDisk, unsigned nImage, PCVDGEOMETRY pPCHSGeometry);
 
 /**
  * Get virtual disk LCHS geometry of an image in HDD container.
@@ -1114,7 +1080,7 @@ VBOXDDU_DECL(int) VDSetPCHSGeometry(PVBOXHDD pDisk, unsigned nImage, PCVDGEOMETR
  * @param   nImage          Image number, counts from 0. 0 is always base image of container.
  * @param   pLCHSGeometry   Where to store LCHS geometry. Not NULL.
  */
-VBOXDDU_DECL(int) VDGetLCHSGeometry(PVBOXHDD pDisk, unsigned nImage, PVDGEOMETRY pLCHSGeometry);
+VBOXDDU_DECL(int) VDGetLCHSGeometry(PVDISK pDisk, unsigned nImage, PVDGEOMETRY pLCHSGeometry);
 
 /**
  * Store virtual disk LCHS geometry of an image in HDD container.
@@ -1125,7 +1091,30 @@ VBOXDDU_DECL(int) VDGetLCHSGeometry(PVBOXHDD pDisk, unsigned nImage, PVDGEOMETRY
  * @param   nImage          Image number, counts from 0. 0 is always base image of container.
  * @param   pLCHSGeometry   Where to load LCHS geometry from. Not NULL.
  */
-VBOXDDU_DECL(int) VDSetLCHSGeometry(PVBOXHDD pDisk, unsigned nImage, PCVDGEOMETRY pLCHSGeometry);
+VBOXDDU_DECL(int) VDSetLCHSGeometry(PVDISK pDisk, unsigned nImage, PCVDGEOMETRY pLCHSGeometry);
+
+/**
+ * Queries the available regions of an image in the given VD container.
+ *
+ * @return  VBox status code.
+ * @retval  VERR_VD_IMAGE_NOT_FOUND if image with specified number was not opened.
+ * @retval  VERR_NOT_SUPPORTED if the image backend doesn't support region lists.
+ * @param   pDisk           Pointer to HDD container.
+ * @param   nImage          Image number, counts from 0. 0 is always base image of container.
+ * @param   fFlags          Combination of VD_REGION_LIST_F_* flags.
+ * @param   ppRegionList    Where to store the pointer to the region list on success, must be freed
+ *                          with VDRegionListFree().
+ */
+VBOXDDU_DECL(int) VDQueryRegions(PVDISK pDisk, unsigned nImage, uint32_t fFlags,
+                                 PPVDREGIONLIST ppRegionList);
+
+/**
+ * Frees a region list previously queried with VDQueryRegions().
+ *
+ * @return  nothing.
+ * @param   pRegionList     The region list to free.
+ */
+VBOXDDU_DECL(void) VDRegionListFree(PVDREGIONLIST pRegionList);
 
 /**
  * Get version of image in HDD container.
@@ -1136,7 +1125,7 @@ VBOXDDU_DECL(int) VDSetLCHSGeometry(PVBOXHDD pDisk, unsigned nImage, PCVDGEOMETR
  * @param   nImage          Image number, counts from 0. 0 is always base image of container.
  * @param   puVersion       Where to store the image version.
  */
-VBOXDDU_DECL(int) VDGetVersion(PVBOXHDD pDisk, unsigned nImage, unsigned *puVersion);
+VBOXDDU_DECL(int) VDGetVersion(PVDISK pDisk, unsigned nImage, unsigned *puVersion);
 
 /**
  * List the capabilities of image backend in HDD container.
@@ -1147,7 +1136,7 @@ VBOXDDU_DECL(int) VDGetVersion(PVBOXHDD pDisk, unsigned nImage, unsigned *puVers
  * @param   nImage          Image number, counts from 0. 0 is always base image of container.
  * @param   pBackendInfo    Where to store the backend information.
  */
-VBOXDDU_DECL(int) VDBackendInfoSingle(PVBOXHDD pDisk, unsigned nImage, PVDBACKENDINFO pBackendInfo);
+VBOXDDU_DECL(int) VDBackendInfoSingle(PVDISK pDisk, unsigned nImage, PVDBACKENDINFO pBackendInfo);
 
 /**
  * Get flags of image in HDD container.
@@ -1158,7 +1147,7 @@ VBOXDDU_DECL(int) VDBackendInfoSingle(PVBOXHDD pDisk, unsigned nImage, PVDBACKEN
  * @param   nImage          Image number, counts from 0. 0 is always base image of container.
  * @param   puImageFlags    Where to store the image flags.
  */
-VBOXDDU_DECL(int) VDGetImageFlags(PVBOXHDD pDisk, unsigned nImage, unsigned *puImageFlags);
+VBOXDDU_DECL(int) VDGetImageFlags(PVDISK pDisk, unsigned nImage, unsigned *puImageFlags);
 
 /**
  * Get open flags of image in HDD container.
@@ -1169,7 +1158,7 @@ VBOXDDU_DECL(int) VDGetImageFlags(PVBOXHDD pDisk, unsigned nImage, unsigned *puI
  * @param   nImage          Image number, counts from 0. 0 is always base image of container.
  * @param   puOpenFlags     Where to store the image open flags.
  */
-VBOXDDU_DECL(int) VDGetOpenFlags(PVBOXHDD pDisk, unsigned nImage, unsigned *puOpenFlags);
+VBOXDDU_DECL(int) VDGetOpenFlags(PVDISK pDisk, unsigned nImage, unsigned *puOpenFlags);
 
 /**
  * Set open flags of image in HDD container.
@@ -1182,7 +1171,7 @@ VBOXDDU_DECL(int) VDGetOpenFlags(PVBOXHDD pDisk, unsigned nImage, unsigned *puOp
  * @param   nImage          Image number, counts from 0. 0 is always base image of container.
  * @param   uOpenFlags      Image file open mode, see VD_OPEN_FLAGS_* constants.
  */
-VBOXDDU_DECL(int) VDSetOpenFlags(PVBOXHDD pDisk, unsigned nImage, unsigned uOpenFlags);
+VBOXDDU_DECL(int) VDSetOpenFlags(PVDISK pDisk, unsigned nImage, unsigned uOpenFlags);
 
 /**
  * Get base filename of image in HDD container. Some image formats use
@@ -1197,7 +1186,7 @@ VBOXDDU_DECL(int) VDSetOpenFlags(PVBOXHDD pDisk, unsigned nImage, unsigned uOpen
  * @param   pszFilename     Where to store the image file name.
  * @param   cbFilename      Size of buffer pszFilename points to.
  */
-VBOXDDU_DECL(int) VDGetFilename(PVBOXHDD pDisk, unsigned nImage, char *pszFilename, unsigned cbFilename);
+VBOXDDU_DECL(int) VDGetFilename(PVDISK pDisk, unsigned nImage, char *pszFilename, unsigned cbFilename);
 
 /**
  * Get the comment line of image in HDD container.
@@ -1210,7 +1199,7 @@ VBOXDDU_DECL(int) VDGetFilename(PVBOXHDD pDisk, unsigned nImage, char *pszFilena
  * @param   pszComment      Where to store the comment string of image. NULL is ok.
  * @param   cbComment       The size of pszComment buffer. 0 is ok.
  */
-VBOXDDU_DECL(int) VDGetComment(PVBOXHDD pDisk, unsigned nImage, char *pszComment, unsigned cbComment);
+VBOXDDU_DECL(int) VDGetComment(PVDISK pDisk, unsigned nImage, char *pszComment, unsigned cbComment);
 
 /**
  * Changes the comment line of image in HDD container.
@@ -1221,7 +1210,7 @@ VBOXDDU_DECL(int) VDGetComment(PVBOXHDD pDisk, unsigned nImage, char *pszComment
  * @param   nImage          Image number, counts from 0. 0 is always base image of container.
  * @param   pszComment      New comment string (UTF-8). NULL is allowed to reset the comment.
  */
-VBOXDDU_DECL(int) VDSetComment(PVBOXHDD pDisk, unsigned nImage, const char *pszComment);
+VBOXDDU_DECL(int) VDSetComment(PVDISK pDisk, unsigned nImage, const char *pszComment);
 
 /**
  * Get UUID of image in HDD container.
@@ -1232,7 +1221,7 @@ VBOXDDU_DECL(int) VDSetComment(PVBOXHDD pDisk, unsigned nImage, const char *pszC
  * @param   nImage          Image number, counts from 0. 0 is always base image of container.
  * @param   pUuid           Where to store the image UUID.
  */
-VBOXDDU_DECL(int) VDGetUuid(PVBOXHDD pDisk, unsigned nImage, PRTUUID pUuid);
+VBOXDDU_DECL(int) VDGetUuid(PVDISK pDisk, unsigned nImage, PRTUUID pUuid);
 
 /**
  * Set the image's UUID. Should not be used by normal applications.
@@ -1243,7 +1232,7 @@ VBOXDDU_DECL(int) VDGetUuid(PVBOXHDD pDisk, unsigned nImage, PRTUUID pUuid);
  * @param   nImage          Image number, counts from 0. 0 is always base image of container.
  * @param   pUuid           New UUID of the image. If NULL, a new UUID is created.
  */
-VBOXDDU_DECL(int) VDSetUuid(PVBOXHDD pDisk, unsigned nImage, PCRTUUID pUuid);
+VBOXDDU_DECL(int) VDSetUuid(PVDISK pDisk, unsigned nImage, PCRTUUID pUuid);
 
 /**
  * Get last modification UUID of image in HDD container.
@@ -1254,7 +1243,7 @@ VBOXDDU_DECL(int) VDSetUuid(PVBOXHDD pDisk, unsigned nImage, PCRTUUID pUuid);
  * @param   nImage          Image number, counts from 0. 0 is always base image of container.
  * @param   pUuid           Where to store the image modification UUID.
  */
-VBOXDDU_DECL(int) VDGetModificationUuid(PVBOXHDD pDisk, unsigned nImage, PRTUUID pUuid);
+VBOXDDU_DECL(int) VDGetModificationUuid(PVDISK pDisk, unsigned nImage, PRTUUID pUuid);
 
 /**
  * Set the image's last modification UUID. Should not be used by normal applications.
@@ -1265,7 +1254,7 @@ VBOXDDU_DECL(int) VDGetModificationUuid(PVBOXHDD pDisk, unsigned nImage, PRTUUID
  * @param   nImage          Image number, counts from 0. 0 is always base image of container.
  * @param   pUuid           New modification UUID of the image. If NULL, a new UUID is created.
  */
-VBOXDDU_DECL(int) VDSetModificationUuid(PVBOXHDD pDisk, unsigned nImage, PCRTUUID pUuid);
+VBOXDDU_DECL(int) VDSetModificationUuid(PVDISK pDisk, unsigned nImage, PCRTUUID pUuid);
 
 /**
  * Get parent UUID of image in HDD container.
@@ -1276,7 +1265,7 @@ VBOXDDU_DECL(int) VDSetModificationUuid(PVBOXHDD pDisk, unsigned nImage, PCRTUUI
  * @param   nImage          Image number, counts from 0. 0 is always base image of the container.
  * @param   pUuid           Where to store the parent image UUID.
  */
-VBOXDDU_DECL(int) VDGetParentUuid(PVBOXHDD pDisk, unsigned nImage, PRTUUID pUuid);
+VBOXDDU_DECL(int) VDGetParentUuid(PVDISK pDisk, unsigned nImage, PRTUUID pUuid);
 
 /**
  * Set the image's parent UUID. Should not be used by normal applications.
@@ -1286,7 +1275,7 @@ VBOXDDU_DECL(int) VDGetParentUuid(PVBOXHDD pDisk, unsigned nImage, PRTUUID pUuid
  * @param   nImage          Image number, counts from 0. 0 is always base image of container.
  * @param   pUuid           New parent UUID of the image. If NULL, a new UUID is created.
  */
-VBOXDDU_DECL(int) VDSetParentUuid(PVBOXHDD pDisk, unsigned nImage, PCRTUUID pUuid);
+VBOXDDU_DECL(int) VDSetParentUuid(PVDISK pDisk, unsigned nImage, PCRTUUID pUuid);
 
 
 /**
@@ -1294,7 +1283,7 @@ VBOXDDU_DECL(int) VDSetParentUuid(PVBOXHDD pDisk, unsigned nImage, PCRTUUID pUui
  *
  * @param   pDisk           Pointer to HDD container.
  */
-VBOXDDU_DECL(void) VDDumpImages(PVBOXHDD pDisk);
+VBOXDDU_DECL(void) VDDumpImages(PVDISK pDisk);
 
 
 /**
@@ -1308,7 +1297,7 @@ VBOXDDU_DECL(void) VDDumpImages(PVBOXHDD pDisk);
  * @note In contrast to VDCompact() the ranges are always discarded even if they
  *       appear to contain data. This method is mainly used to implement TRIM support.
  */
-VBOXDDU_DECL(int) VDDiscardRanges(PVBOXHDD pDisk, PCRTRANGE paRanges, unsigned cRanges);
+VBOXDDU_DECL(int) VDDiscardRanges(PVDISK pDisk, PCRTRANGE paRanges, unsigned cRanges);
 
 
 /**
@@ -1323,7 +1312,7 @@ VBOXDDU_DECL(int) VDDiscardRanges(PVBOXHDD pDisk, PCRTRANGE paRanges, unsigned c
  * @param   pvUser1         User data which is passed on completion.
  * @param   pvUser2         User data which is passed on completion.
  */
-VBOXDDU_DECL(int) VDAsyncRead(PVBOXHDD pDisk, uint64_t off, size_t cbRead,
+VBOXDDU_DECL(int) VDAsyncRead(PVDISK pDisk, uint64_t off, size_t cbRead,
                               PCRTSGBUF pcSgBuf,
                               PFNVDASYNCTRANSFERCOMPLETE pfnComplete,
                               void *pvUser1, void *pvUser2);
@@ -1341,7 +1330,7 @@ VBOXDDU_DECL(int) VDAsyncRead(PVBOXHDD pDisk, uint64_t off, size_t cbRead,
  * @param   pvUser1         User data which is passed on completion.
  * @param   pvUser2         User data which is passed on completion.
  */
-VBOXDDU_DECL(int) VDAsyncWrite(PVBOXHDD pDisk, uint64_t off, size_t cbWrite,
+VBOXDDU_DECL(int) VDAsyncWrite(PVDISK pDisk, uint64_t off, size_t cbWrite,
                                PCRTSGBUF pcSgBuf,
                                PFNVDASYNCTRANSFERCOMPLETE pfnComplete,
                                void *pvUser1, void *pvUser2);
@@ -1356,7 +1345,7 @@ VBOXDDU_DECL(int) VDAsyncWrite(PVBOXHDD pDisk, uint64_t off, size_t cbWrite,
  * @param   pvUser1         User data which is passed on completion.
  * @param   pvUser2         User data which is passed on completion.
  */
-VBOXDDU_DECL(int) VDAsyncFlush(PVBOXHDD pDisk,
+VBOXDDU_DECL(int) VDAsyncFlush(PVDISK pDisk,
                                PFNVDASYNCTRANSFERCOMPLETE pfnComplete,
                                void *pvUser1, void *pvUser2);
 
@@ -1371,7 +1360,7 @@ VBOXDDU_DECL(int) VDAsyncFlush(PVBOXHDD pDisk,
  * @param   pvUser1         User data which is passed on completion.
  * @param   pvUser2         User data which is passed on completion.
  */
-VBOXDDU_DECL(int) VDAsyncDiscardRanges(PVBOXHDD pDisk, PCRTRANGE paRanges, unsigned cRanges,
+VBOXDDU_DECL(int) VDAsyncDiscardRanges(PVDISK pDisk, PCRTRANGE paRanges, unsigned cRanges,
                                        PFNVDASYNCTRANSFERCOMPLETE pfnComplete,
                                        void *pvUser1, void *pvUser2);
 
@@ -1399,8 +1388,412 @@ VBOXDDU_DECL(int) VDRepair(PVDINTERFACE pVDIfsDisk, PVDINTERFACE pVDIfsImage,
  * @param   phVfsFile       Where to store the handle to the VFS file on
  *                          success.
  */
-VBOXDDU_DECL(int) VDCreateVfsFileFromDisk(PVBOXHDD pDisk, uint32_t fFlags,
+VBOXDDU_DECL(int) VDCreateVfsFileFromDisk(PVDISK pDisk, uint32_t fFlags,
                                           PRTVFSFILE phVfsFile);
+
+/** @defgroup grp_vd_ioiter     I/O iterator
+ * @{
+ */
+
+/** Read metadata coming before each main data block addressed in the segment. */
+#define VD_IOITER_SEG_F_PRE_METADATA  RT_BIT_32(0)
+/** Read the main user data of each addressed block in the segment. */
+#define VD_IOITER_SEG_F_MAIN_DATA     RT_BIT_32(1)
+/** Read metadata coming after each main data block addressed in the segment. */
+#define VD_IOITER_SEG_F_POST_METADATA RT_BIT_32(2)
+/** Read checksum data of each data block addressed in the segment. */
+#define VD_IOITER_SEG_F_CHKSUM        RT_BIT_32(3)
+/** Read all available data for each addressed block in the segment. */
+#define VD_IOITER_SEG_F_AVAILABLE     RT_BIT_32(4)
+
+/** The offset and size members in the segments use byte granularity instead of a
+ * block address and number of blocks respectively. */
+#define VDIOITER_F_BYTE_OFFSET_AND_SIZE RT_BIT_32(0)
+
+/**
+ * VD I/O iterator segment.
+ */
+typedef struct VDIOITERSEG
+{
+    /** Start offset for this segment. */
+    uint64_t            offStartSeg;
+    /** Size of the segment (bytes or blocks). */
+    uint64_t            cSizeSeg;
+    /** Flags for this segment, see VD_IOITER_SEG_F_*. */
+    uint32_t            fFlags;
+} VDIOITERSEG;
+/** Pointer to a I/O iterator segment. */
+typedef VDIOITERSEG *PVDIOITERSEG;
+/** Pointer to a constant I/O iterator segment. */
+typedef VDIOITERSEG *PCVDIOITERSEG;
+
+/** I/O iterator handle. */
+typedef struct VDIOITERINT *VDIOITER;
+/** Pointer to a I/O iterator handle. */
+typedef VDIOITER *PVDIOITER;
+
+/**
+ * Create a new I/O iterator.
+ *
+ * @returns VBox status code.
+ * @param   pDisk           The disk to create the iterator for.
+ * @param   phVdIoIter      Where to store the handle to the I/O iterator on success.
+ * @param   paIoIterSegs    The segments for the iterator, can be destroyed after the call.
+ * @param   cIoIterSegs     Number of segments.
+ * @param   fFlags          Flags for the iterator, see VDIOITER_F_*
+ */
+VBOXDDU_DECL(int) VDIoIterCreate(PVDISK pDisk, PVDIOITER phVdIoIter, PCVDIOITERSEG paIoIterSegs,
+                                 uint32_t cIoIterSegs, uint32_t fFlags);
+
+/**
+ * Retains the reference count of the given I/O iterator.
+ *
+ * @returns New reference count.
+ * @param   hVdIoIter       The I/O iterator handle.
+ */
+VBOXDDU_DECL(uint32_t) VDIoIterRetain(VDIOITER hVdIoIter);
+
+/**
+ * Releases the reference count of the given I/O iterator.
+ *
+ * @returns New reference count, on 0 the iterator is destroyed.
+ * @param   hVdIoIter       The I/O iterator handle.
+ */
+VBOXDDU_DECL(uint32_t) VDIoIterRelease(VDIOITER hVdIoIter);
+
+/**
+ * Returns the number of segments in the given I/O iterator.
+ *
+ * @returns Number of segments.
+ * @param   hVdIoIter       The I/O iterator handle.
+ */
+VBOXDDU_DECL(uint32_t) VDIoIterGetSegmentCount(VDIOITER hVdIoIter);
+
+/**
+ * Returns the flags of the given I/O iterator.
+ *
+ * @returns Flags.
+ * @param   hVdIoIter       The I/O iterator handle.
+ */
+VBOXDDU_DECL(uint32_t) VDIoIterGetFlags(VDIOITER hVdIoIter);
+
+/**
+ * Queries the properties of the given segment for the given I/O iterator.
+ *
+ * @returns VBox status code.
+ * @param   hVdIoIter       The I/O iterator handle.
+ * @param   idx             The segment index to query.
+ * @param   pSegment        Where to store the segment properties on success.
+ */
+VBOXDDU_DECL(int) VDIoIterQuerySegment(VDIOITER hVdIoIter, uint32_t idx, PVDIOITERSEG pSegment);
+
+/** @} */
+
+
+/** @defgroup grp_vd_io_buf     I/O buffer management API.
+ * @{
+ */
+
+/** VD I/O buffer manager handle. */
+typedef struct VDIOBUFMGRINT *VDIOBUFMGR;
+/** Pointer to VD I/O buffer manager handle. */
+typedef VDIOBUFMGR *PVDIOBUFMGR;
+
+/** VD I/O buffer handle. */
+typedef struct VDIOBUFINT *VDIOBUF;
+/** Pointer to a VD I/O buffer handle. */
+typedef VDIOBUF *PVDIOBUF;
+
+/** Default I/O buffer manager flags. */
+#define VD_IOBUFMGR_F_DEFAULT             (0)
+/** I/O buffer memory needs to be non pageable (for example because it contains sensitive data
+ * which shouldn't end up in swap unencrypted). */
+#define VD_IOBUFMGR_F_REQUIRE_NOT_PAGABLE RT_BIT(0)
+
+/** Pointer to VD I/O buffer callbacks. */
+typedef struct VDIOBUFCALLBACKS *PVDIOBUFCALLBACKS;
+/** Pointer to const VD I/O buffer callbacks. */
+typedef const struct VDIOBUFCALLBACKS *PCVDIOBUFCALLBACKS;
+
+/**
+ * VD I/O buffer callbacks.
+ */
+typedef struct VDIOBUFCALLBACKS
+{
+    /**
+     * Copy data from the memory buffer of the caller to the callees memory buffer for the given request.
+     *
+     * @returns VBox status code.
+     * @retval  VERR_PDM_MEDIAEX_IOBUF_OVERFLOW if there is not enough room to store the data.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   hIoBuf          The I/O request handle.
+     * @param   pvIoBufAlloc    The allocator specific memory for this request.
+     * @param   offDst          The destination offset from the start to write the data to.
+     * @param   pSgBuf          The S/G buffer to read the data from.
+     * @param   cbCopy          How many bytes to copy.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIoBufCopyFromBuf, (PVDIOBUFCALLBACKS pInterface, VDIOBUF hIoBuf,
+                                                    void *pvIoBufAlloc, uint32_t offDst, PRTSGBUF pSgBuf,
+                                                    size_t cbCopy));
+
+    /**
+     * Copy data to the memory buffer of the caller from the callees memory buffer for the given request.
+     *
+     * @returns VBox status code.
+     * @retval  VERR_PDM_MEDIAEX_IOBUF_UNDERRUN if there is not enough data to copy from the buffer.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   hIoBuf          The I/O request handle.
+     * @param   pvIoBufAlloc    The allocator specific memory for this request.
+     * @param   offSrc          The offset from the start of the buffer to read the data from.
+     * @param   pSgBuf          The S/G buffer to write the data to.
+     * @param   cbCopy          How many bytes to copy.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIoBufCopyToBuf, (PVDIOBUFCALLBACKS pInterface, VDIOBUF hIoBuf,
+                                                  void *pvIoBufAlloc, uint32_t offSrc, PRTSGBUF pSgBuf,
+                                                  size_t cbCopy));
+
+    /**
+     * Queries a pointer to the memory buffer for the request from the drive/device above.
+     *
+     * @returns VBox status code.
+     * @retval  VERR_NOT_SUPPORTED if this is not supported for this request.
+     * @param   pInterface      Pointer to the interface structure containing the called function pointer.
+     * @param   hIoBuf          The I/O request handle.
+     * @param   pvIoBufAlloc    The allocator specific memory for this request.
+     * @param   offBuf          The offset from the start of the buffer to get the buffer address.
+     * @param   cbBuf           The number of bytes requested.
+     * @param   ppvBuf          Where to store the pointer to the guest buffer on success.
+     * @param   pcbBuf          Where to store the size of the buffer on success.
+     *
+     * @note This is an optional feature of the entity implementing this interface to avoid overhead
+     *       by copying the data between buffers. If NULL it is not supported at all and the caller
+     *       has to resort to VDIOBUFCALLBACKS::pfnIoBufCopyToBuf and VDIOBUFCALLBACKS::pfnIoBufCopyFromBuf.
+     *       The same holds when VERR_NOT_SUPPORTED is returned.
+     *
+     *       On the upside the caller of this interface might not call this method at all and just
+     *       use the before mentioned methods to copy the data between the buffers.
+     */
+    DECLR3CALLBACKMEMBER(int, pfnIoBufQueryBuf, (PVDIOBUFCALLBACKS pInterface, VDIOBUF hIoBuf,
+                                                 void *pvIoBufAlloc, uint32_t offBuf, size_t cbBuf,
+                                                 void **ppvBuf, size_t *pcbBuf));
+
+} VDIOBUFCALLBACKS;
+
+/**
+ * Creates a new I/O buffer manager.
+ *
+ * @returns VBox status code.
+ * @param   phIoBufMgr      Where to store the handle to the I/O buffer manager on success.
+ * @param   cbMax           The maximum amount of I/O memory to allow. Trying to allocate more than
+ *                          this will lead to out of memory errors. 0 for "unlimited" size (only restriction
+ *                          is the available memory on the host).
+ * @param   fFlags          Combination of VD_IOBUFMGR_F_*.
+ * @param   pIoBufClbks     Memory copy callbacks between source and target memory regions, optional.
+ *                          When NULL all I/O buffers must be allocated with a valid S/G buffer laying out the
+ *                          memory.
+ * @param   cbIoBufAlloc    How much to allocate extra in the I/O buffer for private use.
+ */
+VBOXDDU_DECL(int) VDIoBufMgrCreate(PVDIOBUFMGR phIoBufMgr, size_t cbMax, uint32_t fFlags,
+                                   PVDIOBUFCALLBACKS pIoBufClbks, size_t cbIoBufAlloc);
+
+/**
+ * Destroys the given I/O buffer manager.
+ *
+ * @returns VBox status code.
+ * @retval  VERR_INVALID_STATE if there are still buffers allocated by the given manager.
+ * @param   hIoBufMgr       The I/O buffer manager.
+ */
+VBOXDDU_DECL(int) VDIoBufMgrDestroy(VDIOBUFMGR hIoBufMgr);
+
+/**-
+ * Allocate a new I/O buffer.
+ *
+ * @returns VBox status code.
+ * @param   hIoBufMgr       The I/O buffer manager to use.
+ * @param   phIoBuf         Where to store the I/O buffer handle on success.
+ * @param   ppvIoBufAlloc   Where to store the pointe to the private party on success.
+ * @param   pSgBuf          The S/G buffer to use, optional. If NULL the I/O buffer callbacks
+ *                          supplied when creating the owning manager are used to transfer the
+ *                          data.
+ * @param   cbBuf           Size of the buffer in bytes.
+ */
+VBOXDDU_DECL(int) VDIoBufMgrAllocBuf(VDIOBUFMGR hIoBufMgr, PVDIOBUF phIoBuf, void **ppvIoBufAlloc,
+                                     PCRTSGBUF pSgBuf, size_t cbBuf);
+
+/**
+ * Retains the I/O buffer reference count.
+ *
+ * @returns New reference count.
+ * @param   hIoBuf          The I/O buffer handle.
+ */
+VBOXDDU_DECL(uint32_t) VDIoBufRetain(VDIOBUF hIoBuf);
+
+/**
+ * Releases the given I/O buffer reference.
+ *
+ * @returns New reference count, on 0 the I/O buffer is destroyed.
+ * @param   hIoBuf          The I/O buffer handle.
+ */
+VBOXDDU_DECL(uint32_t) VDIoBufRelease(VDIOBUF hIoBuf);
+
+/** @} */
+
+
+/** @defgroup grp_vd_ioqueue    I/O queues
+ * @{
+ */
+
+/** VD I/O queue handle. */
+typedef struct VDIOQUEUEINT *VDIOQUEUE;
+/** Pointer to an VD I/O queue handle. */
+typedef VDIOQUEUE *PVDIOQUEUE;
+
+/** VD I/O queue request handle. */
+typedef struct VDIOREQINT *VDIOREQ;
+/** Pointer to an VD I/O queue request handle. */
+typedef VDIOREQ *PVDIOREQ;
+
+/** A I/O request ID. */
+typedef uint64_t VDIOREQID;
+
+/**
+ * I/O request type.
+ */
+typedef enum VDIOREQTYPE
+{
+    /** Invalid request type. */
+    VDIOREQTYPE_INVALID = 0,
+    /** Read request. */
+    VDIOREQTYPE_READ,
+    /** Write request. */
+    VDIOREQTYPE_WRITE,
+    /** Flush request. */
+    VDIOREQTYPE_FLUSH,
+    /** Discard request. */
+    VDIOREQTYPE_DISCARD,
+    /** 32bit hack. */
+    VDIOREQTYPE_32BIT_HACK = 0x7fffffff
+} VDIOREQTYPE;
+/** Pointer to a request type. */
+typedef VDIOREQTYPE *PVDIOREQTYPE;
+
+/**
+ * I/O queue request completion callback.
+ *
+ * @returns nothing.
+ * @param   hVdIoQueue      The VD I/O queue handle.
+ * @param   pDisk           The disk the queue is attached to.
+ * @param   hVdIoReq        The VD I/O request which completed.
+ * @param   pvVdIoReq       Pointer to the allocator specific memory for this request.
+ * @param   rcReq           The completion status code.
+ */
+typedef DECLCALLBACK(void) FNVDIOQUEUEREQCOMPLETE(VDIOQUEUE hVdIoQueue, PVDISK pDisk,
+                                                  VDIOREQ hVdIoReq, void *pvVdIoReq,
+                                                  int rcReq);
+/** Pointer to a VD I/O queue request completion callback. */
+typedef FNVDIOQUEUEREQCOMPLETE *PFNVDIOQUEUEREQCOMPLETE;
+
+
+/**
+ * Creates a new I/O queue.
+ *
+ * @returns VBox status code.
+ * @param   phVdIoQueue      Where to store the handle to the I/O queue on success.
+ * @param   pfnIoReqComplete The completion handle to call when a request on the specified queue completes.
+ * @param   cbIoReqAlloc     The extra amount of memory to allocate and associate with allocated requests
+ *                           for use by the caller.
+ * @param   iPriority        The priority of the queue from 0..UINT32_MAX. The lower the number the higher
+ *                           the priority of the queue.
+ */
+VBOXDDU_DECL(int) VDIoQueueCreate(PVDIOQUEUE phVdIoQueue, PFNVDIOQUEUEREQCOMPLETE pfnIoReqComplete,
+                                  size_t cbIoReqAlloc, uint32_t iPriority);
+
+/**
+ * Destroys the given I/O queue.
+ *
+ * @returns VBox status code.
+ * @param   hVdIoQueue       The I/O queue handle.
+ */
+VBOXDDU_DECL(int) VDIoQueueDestroy(VDIOQUEUE hVdIoQueue);
+
+/**
+ * Attaches the given I/O queue to the given virtual disk container.
+ *
+ * @returns VBox status code.
+ * @param   pDisk            The disk container handle.
+ * @param   hVdIoQueue       The I/O queue to attach.
+ */
+VBOXDDU_DECL(int) VDIoQueueAttach(PVDISK pDisk, VDIOQUEUE hVdIoQueue);
+
+/**
+ * Detaches the given I/O queue from the currently attached disk container.
+ *
+ * @returns VBox status code.
+ * @param   hVdIoQueue       The I/O queue.
+ * @param   fPurge           Flag whether to cancel all active requests on this queue
+ *                           before detaching.
+ */
+VBOXDDU_DECL(int) VDIoQueueDetach(VDIOQUEUE hVdIoQueue, bool fPurge);
+
+/**
+ * Purges all requests on the given queue.
+ *
+ * @returns VBox status code.
+ * @param   hVdIoQueue       The I/O queue.
+ */
+VBOXDDU_DECL(int) VDIoQueuePurge(VDIOQUEUE hVdIoQueue);
+
+/**
+ * Allocates a new request from the given queue.
+ *
+ * @returns VBox status code.
+ * @param   hVdIoQueue       The I/O queue.
+ * @param   phVdIoReq        Where to store the handle of the request on success.
+ * @param   ppvVdIoReq       Where to store the pointer to the allocator usable memory on success.
+ * @param   uIoReqId         The request ID to assign to the request for canceling.
+ */
+VBOXDDU_DECL(int) VDIoQueueReqAlloc(VDIOQUEUE hVdIoQueue, PVDIOREQ phVdIoReq,
+                                    void **ppvVdIoReq, VDIOREQID uIoReqId);
+
+/**
+ * Frees a given non active request.
+ *
+ * @returns VBox status code.
+ * @param   hVdIoReq         The I/O request to free.
+ */
+VBOXDDU_DECL(int) VDIoQueueReqFree(VDIOREQ hVdIoReq);
+
+/**
+ * Cancels an active request by the given request ID.
+ *
+ * @returns VBox status code.
+ * @param   hVdIoQueue       The I/O queue to cancel the request on.
+ * @param   uIoReqId         The request ID.
+ */
+VBOXDDU_DECL(int) VDIoQueueReqCancelById(VDIOQUEUE hVdIoQueue, VDIOREQID uIoReqId);
+
+/**
+ * Cancels an active request by the given handle.
+ *
+ * @returns VBox status code.
+ * @param   hVdIoReq         The I/O request handle to cancel.
+ */
+VBOXDDU_DECL(int) VDIoQueueReqCancelByHandle(VDIOREQ hVdIoReq);
+
+/**
+ * Submit a new request to the queue the request was allocated from.
+ *
+ * @returns VBox status code.
+ * @param   hVdIoReq        The I/O request handle to submit.
+ * @param   enmType         The type of the request.
+ * @param   hVdIoIter       The iterator to use, NULL for flush requests.
+ * @param   hVdIoBuf        The I/O buffer handle to use, NULL for flush and discard requests.
+ */
+VBOXDDU_DECL(int) VDIoQueueReqSubmit(VDIOREQ hVdIoReq, VDIOREQTYPE enmType,
+                                     VDIOITER hVdIoIter, VDIOBUF hVdIoBuf);
+
+/** @} */
+
 
 RT_C_DECLS_END
 

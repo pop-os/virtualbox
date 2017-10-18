@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2015-2016 Oracle Corporation
+# Copyright (C) 2015-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -49,6 +49,28 @@ ifdef VBOX_WITH_PYTHON
  	sdk/installer/vboxapisetup.py \
  	sdk/installer/vboxapi/__init__.py \
  	sdk/installer/vboxapi/VirtualBox_constants.py
+endif
+
+
+#
+# List of unattended installation script templates (lives in
+# src/VBox/Main/UnattendedTemplates).
+#
+ifdef VBOX_WITH_UNATTENDED
+ VBOX_UNATTENDED_TEMPLATES := \
+ 	debian_preseed.cfg \
+ 	ubuntu_preseed.cfg \
+ 	fedora_ks.cfg \
+ 	ol_ks.cfg \
+ 	redhat67_ks.cfg \
+ 	win_nt5_unattended.sif \
+ 	win_nt6_unattended.xml \
+       \
+ 	debian_postinstall.sh \
+ 	redhat_postinstall.sh \
+ 	win_postinstall.cmd
+else
+ VBOX_UNATTENDED_TEMPLATES :=
 endif
 
 

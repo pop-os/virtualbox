@@ -7,7 +7,7 @@ Test Manager Web-UI - Base Classes.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,12 +26,13 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109040 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard python imports.
 import os;
 import sys;
+import string;
 
 # Validation Kit imports.
 from common                       import webutils, utils;
@@ -81,6 +82,9 @@ class WuiDispatcherBase(object):
     ## The name of the list-action parameter (WuiListContentWithActionBase).
     ksParamListAction    = 'ListAction';
 
+    ## One or more columns to sort by.
+    ksParamSortColumns   = 'SortBy';
+
     ## The name of the change log enabled/disabled parameter.
     ksParamChangeLogEnabled         = 'ChangeLogEnabled';
     ## The name of the parmaeter indicating the change log page number.
@@ -114,7 +118,9 @@ class WuiDispatcherBase(object):
         self._sTemplate         = 'template-default.html';
         self._sPageTitle        = '$$TODO$$';   # The page title.
         self._aaoMenus          = [];           # List of [sName, sLink, [ [sSideName, sLink], .. ] tuples.
+        self._sPageFilter       = '';           # The filter controls (optional).
         self._sPageBody         = '$$TODO$$';   # The body text.
+        self._dSideMenuFormAttrs = {};          # key/value with attributes for the side menu <form> tag.
         self._sRedirectTo       = None;
         self._sDebug            = '';
 
@@ -125,7 +131,7 @@ class WuiDispatcherBase(object):
         for sKey, sValue in oSrvGlue.getParameters().iteritems():
             if sKey in self.kasDbgParams:
                 self._dDbgParams[sKey] = sValue;
-        if len(self._dDbgParams) > 0:
+        if self._dDbgParams:
             from testmanager.webui.wuicontentbase import WuiTmLink;
             WuiTmLink.kdDbgParams = self._dDbgParams;
 
@@ -134,7 +140,7 @@ class WuiDispatcherBase(object):
 
         # Calc a couple of URL base strings for this dispatcher.
         self._sUrlBase          = sScriptName + '?';
-        if len(self._dDbgParams) > 0:
+        if self._dDbgParams:
             self._sUrlBase     += webutils.encodeUrlParams(self._dDbgParams) + '&';
         self._sActionUrlBase    = self._sUrlBase + self.ksParamAction + '=';
 
@@ -143,8 +149,7 @@ class WuiDispatcherBase(object):
         """
         Redirects the page to the URL given in self._sRedirectTo.
         """
-        assert self._sRedirectTo is not None;
-        assert len(self._sRedirectTo) > 0;
+        assert self._sRedirectTo;
         assert self._sPageBody is None;
         assert self._sPageTitle is None;
 
@@ -153,16 +158,18 @@ class WuiDispatcherBase(object):
 
     def _isMenuMatch(self, sMenuUrl, sActionParam):
         """ Overridable menu matcher. """
-        return sMenuUrl.find(sActionParam) > 0;
+        return sMenuUrl is not None and sMenuUrl.find(sActionParam) > 0;
 
     def _isSideMenuMatch(self, sSideMenuUrl, sActionParam):
         """ Overridable side menu matcher. """
-        return sSideMenuUrl.find(sActionParam) > 0;
+        return sSideMenuUrl is not None and sSideMenuUrl.find(sActionParam) > 0;
 
     def _generateMenus(self):
         """
         Generates the two menus, returning them as (sTopMenuItems, sSideMenuItems).
         """
+        fReadOnly = self.isReadOnlyUser();
+
         #
         # We use the action to locate the side menu.
         #
@@ -199,15 +206,17 @@ class WuiDispatcherBase(object):
         sSideMenuItems = '';
         if aasSideMenu is not None:
             for asSubItem in aasSideMenu:
-                if self._isSideMenuMatch(asSubItem[1], sActionParam):
-                    sSideMenuItems += '<li class="current_page_item">';
+                if asSubItem[1] is not None:
+                    if not asSubItem[2] or not fReadOnly:
+                        if self._isSideMenuMatch(asSubItem[1], sActionParam):
+                            sSideMenuItems += '<li class="current_page_item">';
+                        else:
+                            sSideMenuItems += '<li>';
+                        sSideMenuItems += '<a href="' + webutils.escapeAttr(asSubItem[1]) + '">' \
+                                        + webutils.escapeElem(asSubItem[0]) + '</a></li>\n';
                 else:
-                    sSideMenuItems += '<li>';
-                sSideMenuItems += '<a href="' + webutils.escapeAttr(asSubItem[1]) + '">' \
-                                + webutils.escapeElem(asSubItem[0]) + '</a></li>\n';
-
+                    sSideMenuItems += '<li class="subheader_item">' + webutils.escapeElem(asSubItem[0]) + '</li>';
         return (sTopMenuItems, sSideMenuItems);
-
 
     def _generatePage(self):
         """
@@ -215,25 +224,9 @@ class WuiDispatcherBase(object):
         """
         assert self._sRedirectTo is None;
 
-        # Load the template.
-        oFile = open(os.path.join(self._oSrvGlue.pathTmWebUI(), self._sTemplate));
-        sTmpl = oFile.read();
-        oFile.close();
-
-        # Do replacements.
-        sTmpl = sTmpl.replace('@@PAGE_TITLE@@', self._sPageTitle);
-        sTmpl = sTmpl.replace('@@PAGE_BODY@@', self._sPageBody);
-        if self._oCurUser is not None:
-            sTmpl = sTmpl.replace('@@USER_NAME@@', self._oCurUser.sUsername);
-        else:
-            sTmpl = sTmpl.replace('@@USER_NAME@@', 'unauthorized user "' + self._oSrvGlue.getLoginName() + '"');
-        sTmpl = sTmpl.replace('@@TESTMANAGER_VERSION@@', config.g_ksVersion);
-        sTmpl = sTmpl.replace('@@TESTMANAGER_REVISION@@', config.g_ksRevision);
-        sTmpl = sTmpl.replace('@@BASE_URL@@', self._oSrvGlue.getBaseUrl());
-
-        (sTopMenuItems, sSideMenuItems) = self._generateMenus();
-        sTmpl = sTmpl.replace('@@TOP_MENU_ITEMS@@', sTopMenuItems);
-        sTmpl = sTmpl.replace('@@SIDE_MENU_ITEMS@@', sSideMenuItems);
+        #
+        # Build the replacement string dictionary.
+        #
 
         # Provide basic auth log out for browsers that supports it.
         sUserAgent = self._oSrvGlue.getUserAgent();
@@ -264,9 +257,37 @@ class WuiDispatcherBase(object):
             sLogOut = ''
         else:
             sLogOut = ''
-        sTmpl = sTmpl.replace('@@LOG_OUT@@', sLogOut)
 
-        # Debug section.
+        # Prep Menus.
+        (sTopMenuItems, sSideMenuItems) = self._generateMenus();
+
+        # The dictionary (max variable length is 28 chars (see further down)).
+        dReplacements = {
+            '@@PAGE_TITLE@@':           self._sPageTitle,
+            '@@LOG_OUT@@':              sLogOut,
+            '@@TESTMANAGER_VERSION@@':  config.g_ksVersion,
+            '@@TESTMANAGER_REVISION@@': config.g_ksRevision,
+            '@@BASE_URL@@':             self._oSrvGlue.getBaseUrl(),
+            '@@TOP_MENU_ITEMS@@':       sTopMenuItems,
+            '@@SIDE_MENU_ITEMS@@':      sSideMenuItems,
+            '@@SIDE_FILTER_CONTROL@@':  self._sPageFilter,
+            '@@SIDE_MENU_FORM_ATTRS@@': '',
+            '@@PAGE_BODY@@':            self._sPageBody,
+            '@@DEBUG@@':                '',
+        };
+
+        # Side menu form attributes.
+        if self._dSideMenuFormAttrs:
+            dReplacements['@@SIDE_MENU_FORM_ATTRS@@'] = ' '.join(['%s="%s"' % (sKey, webutils.escapeAttr(sValue))
+                                                                  for sKey, sValue in self._dSideMenuFormAttrs.iteritems()]);
+
+        # Special current user handling.
+        if self._oCurUser is not None:
+            dReplacements['@@USER_NAME@@'] = self._oCurUser.sUsername;
+        else:
+            dReplacements['@@USER_NAME@@'] = 'unauthorized user "' + self._oSrvGlue.getLoginName() + '"';
+
+        # Prep debug section.
         if self._sDebug == '':
             if config.g_kfWebUiSqlTrace or self._fDbgSqlTrace or self._fDbgSqlExplain:
                 self._sDebug  = '<h3>Processed in %s ns.</h3>\n%s\n' \
@@ -277,15 +298,52 @@ class WuiDispatcherBase(object):
                               % ( utils.formatNumber(utils.timestampNano() - self._oSrvGlue.tsStart,), );
             if config.g_kfWebUiDebugPanel:
                 self._sDebug += self._debugRenderPanel();
-
         if self._sDebug != '':
-            sTmpl = sTmpl.replace('@@DEBUG@@', '<div id="debug"><br><br><hr/>' + \
-                unicode(self._sDebug, errors='ignore') if isinstance(self._sDebug, str) else self._sDebug + '</div>');
-        else:
-            sTmpl = sTmpl.replace('@@DEBUG@@', '');
+            dReplacements['@@DEBUG@@'] = u'<div id="debug"><br><br><hr/>' \
+                                       + (unicode(self._sDebug, errors='ignore') if isinstance(self._sDebug, str)
+                                          else self._sDebug) \
+                                       + u'</div>\n';
 
-        # Output the result.
-        self._oSrvGlue.write(sTmpl);
+        #
+        # Load the template.
+        #
+        oFile = open(os.path.join(self._oSrvGlue.pathTmWebUI(), self._sTemplate));
+        sTmpl = oFile.read();
+        oFile.close();
+
+        #
+        # Process the template, outputting each part we process.
+        #
+        offStart = 0;
+        offCur   = 0;
+        while offCur < len(sTmpl):
+            # Look for a replacement variable.
+            offAtAt = sTmpl.find('@@', offCur);
+            if offAtAt < 0:
+                break;
+            offCur = offAtAt + 2;
+            if sTmpl[offCur] not in string.ascii_uppercase:
+                continue;
+            offEnd = sTmpl.find('@@', offCur, offCur+28);
+            if offEnd <= 0:
+                continue;
+            offCur = offEnd;
+            sReplacement = sTmpl[offAtAt:offEnd+2];
+            if sReplacement in dReplacements:
+                # Got a match! Write out the previous chunk followed by the replacement text.
+                if offStart < offAtAt:
+                    self._oSrvGlue.write(sTmpl[offStart:offAtAt]);
+                self._oSrvGlue.write(dReplacements[sReplacement]);
+                # Advance past the replacement point in the template.
+                offCur += 2;
+                offStart = offCur;
+            else:
+                assert False, 'Unknown replacement "%s" at offset %s in %s' % (sReplacement, offAtAt, self._sTemplate );
+
+        # The final chunk.
+        if offStart < len(sTmpl):
+            self._oSrvGlue.write(sTmpl[offStart:]);
+
         return True;
 
     #
@@ -672,6 +730,15 @@ class WuiDispatcherBase(object):
         return True;
 
     #
+    # User related stuff.
+    #
+
+    def isReadOnlyUser(self):
+        """ Returns true if the logged in user is read-only or if no user is logged in. """
+        return self._oCurUser is None or self._oCurUser.fReadOnly;
+
+
+    #
     # Debugging
     #
 
@@ -701,13 +768,18 @@ class WuiDispatcherBase(object):
 
         for sKey, oValue in self._dParams.iteritems():
             if sKey not in self.kasDbgParams:
-                sHtml += '  <input type="hidden" name="%s" value="%s"/>\n' \
-                       % (webutils.escapeAttr(sKey), webutils.escapeAttrToStr(oValue),);
+                if hasattr(oValue, 'startswith'):
+                    sHtml += '  <input type="hidden" name="%s" value="%s"/>\n' \
+                           % (webutils.escapeAttr(sKey), webutils.escapeAttrToStr(oValue),);
+                else:
+                    for oSubValue in oValue:
+                        sHtml += '  <input type="hidden" name="%s" value="%s"/>\n' \
+                               % (webutils.escapeAttr(sKey), webutils.escapeAttrToStr(oSubValue),);
 
         for aoCheckBox in (
                 [self.ksParamDbgSqlTrace, self._fDbgSqlTrace, 'SQL trace'],
                 [self.ksParamDbgSqlExplain, self._fDbgSqlExplain, 'SQL explain'], ):
-            sHtml += ' <input type="checkbox" name="%s" value="1"%s>%s</input>\n' \
+            sHtml += ' <input type="checkbox" name="%s" value="1"%s />%s\n' \
                 % (aoCheckBox[0], ' checked' if aoCheckBox[1] else '', aoCheckBox[2]);
 
         sHtml += '  <button type="submit">Apply</button>\n';
@@ -742,11 +814,18 @@ class WuiDispatcherBase(object):
         tsEffective     = self.getEffectiveDateParam();
         cItemsPerPage   = self.getIntParam(self.ksParamItemsPerPage, iMin = 2, iMax =   9999, iDefault = 300);
         iPage           = self.getIntParam(self.ksParamPageNo,       iMin = 0, iMax = 999999, iDefault = 0);
+        aiSortColumnsDup = self.getListOfIntParams(self.ksParamSortColumns,
+                                                   iMin = -getattr(oLogicType, 'kcMaxSortColumns', 0) + 1,
+                                                   iMax = getattr(oLogicType, 'kcMaxSortColumns', 0), aiDefaults = []);
+        aiSortColumns   = [];
+        for iSortColumn in aiSortColumnsDup:
+            if iSortColumn not in aiSortColumns:
+                aiSortColumns.append(iSortColumn);
         self._checkForUnknownParameters();
 
-        aoEntries  = oLogicType(self._oDb).fetchForListing(iPage * cItemsPerPage, cItemsPerPage + 1, tsEffective);
+        aoEntries  = oLogicType(self._oDb).fetchForListing(iPage * cItemsPerPage, cItemsPerPage + 1, tsEffective, aiSortColumns);
         oContent   = oListContentType(aoEntries, iPage, cItemsPerPage, tsEffective,
-                                      fnDPrint = self._oSrvGlue.dprint, oDisp = self);
+                                      fnDPrint = self._oSrvGlue.dprint, oDisp = self, aiSelectedSortColumns = aiSortColumns);
         (self._sPageTitle, self._sPageBody) = oContent.show();
         return True;
 
@@ -841,6 +920,8 @@ class WuiDispatcherBase(object):
         self._checkForUnknownParameters()
 
         try:
+            if self.isReadOnlyUser():
+                raise Exception('"%s" is a read only user!' % (self._oCurUser.sUsername,));
             self._sPageTitle  = None
             self._sPageBody   = None
             self._sRedirectTo = sRedirectTo;
@@ -976,7 +1057,14 @@ class WuiDispatcherBase(object):
         else:
             enmValidateFor = oData.ksValidateFor_Edit;
         dErrors = oData.validateAndConvert(self._oDb, enmValidateFor);
-        if len(dErrors) == 0:
+
+        # Check that the user can do this.
+        sErrorMsg = None;
+        assert self._oCurUser is not None;
+        if self.isReadOnlyUser():
+            sErrorMsg = 'User %s is not allowed to modify anything!' % (self._oCurUser.sUsername,)
+
+        if not dErrors and not sErrorMsg:
             oData.convertFromParamNull();
 
             #
@@ -1000,7 +1088,7 @@ class WuiDispatcherBase(object):
         else:
             oForm = oFormType(oData, sMode, oDisp = self);
             oForm.setRedirectTo(sRedirectTo);
-            (self._sPageTitle, self._sPageBody) = oForm.showForm(dErrors = dErrors);
+            (self._sPageTitle, self._sPageBody) = oForm.showForm(dErrors = dErrors, sErrorMsg = sErrorMsg);
         return True;
 
     def _actionGenericFormAddPost(self, oDataType, oLogicType, oFormType, sRedirAction, fStrict=True):

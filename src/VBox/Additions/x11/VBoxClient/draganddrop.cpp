@@ -2813,7 +2813,7 @@ int DragInstance::toAtomList(const void *pvData, uint32_t cbData, VBoxDnDAtomLis
  * Converts a HGCM-based drag'n drop action to a Atom-based drag'n drop action.
  *
  * @returns Converted Atom-based drag'n drop action.
- * @param   uActions                HGCM drag'n drop actions to convert.
+ * @param   uAction                 HGCM drag'n drop actions to convert.
  */
 /* static */
 Atom DragInstance::toAtomAction(uint32_t uAction)
@@ -2870,7 +2870,7 @@ uint32_t DragInstance::toHGCMAction(Atom atom)
  * Converts an VBoxDnDAtomList list to an HGCM action list.
  *
  * @returns ORed HGCM action list.
- * @param   actionsList             List of Atom-based actions to convert.
+ * @param   lstActions              List of Atom-based actions to convert.
  */
 /* static */
 uint32_t DragInstance::toHGCMActions(const VBoxDnDAtomList &lstActions)
@@ -3109,7 +3109,7 @@ int DragAndDropService::run(bool fDaemonised /* = false */)
                         }
                         /* Not breaking unconditionally is intentional. See comment above. */
                     }
-                    /* fall thru */
+                    RT_FALL_THRU();
                     case DragAndDropSvc::HOST_DND_HG_EVT_MOVE:
                     {
                         rc = m_pCurDnD->hgMove(e.hgcm.u.a.uXpos, e.hgcm.u.a.uYpos, e.hgcm.u.a.uDefAction);

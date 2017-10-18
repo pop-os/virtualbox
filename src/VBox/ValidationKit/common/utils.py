@@ -8,7 +8,7 @@ Common Utility Functions.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 117435 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard Python imports.
@@ -44,10 +44,10 @@ import unittest;
 
 if sys.platform == 'win32':
     import ctypes;
-    import win32api;            # pylint: disable=F0401
-    import win32con;            # pylint: disable=F0401
-    import win32console;        # pylint: disable=F0401
-    import win32process;        # pylint: disable=F0401
+    import win32api;            # pylint: disable=import-error
+    import win32con;            # pylint: disable=import-error
+    import win32console;        # pylint: disable=import-error
+    import win32process;        # pylint: disable=import-error
 else:
     import signal;
 
@@ -186,7 +186,7 @@ def getHostOsVersion():
                     except:
                         continue;
                     sLine = sLine.strip()
-                    if len(sLine) > 0:
+                    if sLine:
                         sVersion += ' / ' + sPrefix + sLine;
                     break;
 
@@ -198,7 +198,7 @@ def getHostOsVersion():
                 sLast = oFile.readlines()[-1];
                 oFile.close();
                 sLast = sLast.strip();
-                if len(sLast) > 0:
+                if sLast:
                     sVersion += ' (' + sLast + ')';
             except:
                 pass;
@@ -217,6 +217,50 @@ def getHostOsVersion():
                      "13": "High Sierra",
                      "14": "Unknown 14", }
         sVersion += ' / OS X ' + sOsxVersion + ' (' + codenames[sOsxVersion.split('.')[1]] + ')'
+
+    elif sOs == 'win':
+        class OSVersionInfoEx(ctypes.Structure):
+            """ OSVERSIONEX """
+            kaFields = [
+                    ('dwOSVersionInfoSize', ctypes.c_ulong),
+                    ('dwMajorVersion',      ctypes.c_ulong),
+                    ('dwMinorVersion',      ctypes.c_ulong),
+                    ('dwBuildNumber',       ctypes.c_ulong),
+                    ('dwPlatformId',        ctypes.c_ulong),
+                    ('szCSDVersion',        ctypes.c_wchar*128),
+                    ('wServicePackMajor',   ctypes.c_ushort),
+                    ('wServicePackMinor',   ctypes.c_ushort),
+                    ('wSuiteMask',          ctypes.c_ushort),
+                    ('wProductType',        ctypes.c_byte),
+                    ('wReserved',           ctypes.c_byte)]
+            _fields_ = kaFields # pylint: disable=invalid-name
+
+            def __init__(self):
+                super(OSVersionInfoEx, self).__init__()
+                self.dwOSVersionInfoSize = ctypes.sizeof(self)
+
+        oOsVersion = OSVersionInfoEx()
+        rc = ctypes.windll.Ntdll.RtlGetVersion(ctypes.byref(oOsVersion))
+        if rc == 0:
+            # Python platform.release() is not reliable for newer server releases
+            if oOsVersion.wProductType != 1:
+                if oOsVersion.dwMajorVersion == 10 and oOsVersion.dwMinorVersion == 0:
+                    sVersion = '2016Server';
+                elif oOsVersion.dwMajorVersion == 6 and oOsVersion.dwMinorVersion == 3:
+                    sVersion = '2012ServerR2';
+                elif oOsVersion.dwMajorVersion == 6 and oOsVersion.dwMinorVersion == 2:
+                    sVersion = '2012Server';
+                elif oOsVersion.dwMajorVersion == 6 and oOsVersion.dwMinorVersion == 1:
+                    sVersion = '2008ServerR2';
+                elif oOsVersion.dwMajorVersion == 6 and oOsVersion.dwMinorVersion == 0:
+                    sVersion = '2008Server';
+                elif oOsVersion.dwMajorVersion == 5 and oOsVersion.dwMinorVersion == 2:
+                    sVersion = '2003Server';
+            sVersion += ' build ' + str(oOsVersion.dwBuildNumber)
+            if oOsVersion.wServicePackMajor:
+                sVersion += ' SP' + str(oOsVersion.wServicePackMajor)
+                if oOsVersion.wServicePackMinor:
+                    sVersion += '.' + str(oOsVersion.wServicePackMinor)
 
     return sVersion;
 
@@ -429,7 +473,7 @@ def _processFixPythonInterpreter(aPositionalArgs, dKeywordArgs):
         asArgs = aPositionalArgs[0];
 
     if asArgs[0].endswith('.py'):
-        if sys.executable is not None  and  len(sys.executable) > 0:
+        if sys.executable:
             asArgs.insert(0, sys.executable);
         else:
             asArgs.insert(0, 'python');
@@ -441,16 +485,25 @@ def _processFixPythonInterpreter(aPositionalArgs, dKeywordArgs):
             aPositionalArgs = (asArgs,) + aPositionalArgs[1:];
     return None;
 
+def processPopenSafe(*aPositionalArgs, **dKeywordArgs):
+    """
+    Wrapper for subprocess.Popen that's Ctrl-C safe on windows.
+    """
+    if getHostOs() == 'win':
+        if dKeywordArgs.get('creationflags', 0) == 0:
+            dKeywordArgs['creationflags'] = subprocess.CREATE_NEW_PROCESS_GROUP;
+    return subprocess.Popen(*aPositionalArgs, **dKeywordArgs);
+
 def processCall(*aPositionalArgs, **dKeywordArgs):
     """
-    Wrapper around subprocess.call to deal with its absense in older
+    Wrapper around subprocess.call to deal with its absence in older
     python versions.
     Returns process exit code (see subprocess.poll).
     """
     assert dKeywordArgs.get('stdout') is None;
     assert dKeywordArgs.get('stderr') is None;
     _processFixPythonInterpreter(aPositionalArgs, dKeywordArgs);
-    oProcess = subprocess.Popen(*aPositionalArgs, **dKeywordArgs);
+    oProcess = processPopenSafe(*aPositionalArgs, **dKeywordArgs);
     return oProcess.wait();
 
 def processOutputChecked(*aPositionalArgs, **dKeywordArgs):
@@ -459,7 +512,7 @@ def processOutputChecked(*aPositionalArgs, **dKeywordArgs):
     python versions.
     """
     _processFixPythonInterpreter(aPositionalArgs, dKeywordArgs);
-    oProcess = subprocess.Popen(stdout=subprocess.PIPE, *aPositionalArgs, **dKeywordArgs);
+    oProcess = processPopenSafe(stdout=subprocess.PIPE, *aPositionalArgs, **dKeywordArgs);
 
     sOutput, _ = oProcess.communicate();
     iExitCode  = oProcess.poll();
@@ -547,11 +600,11 @@ def sudoProcessOutputCheckedNoI(*aPositionalArgs, **dKeywordArgs):
 
 def sudoProcessPopen(*aPositionalArgs, **dKeywordArgs):
     """
-    sudo (or similar) + subprocess.Popen.
+    sudo (or similar) + processPopenSafe.
     """
     _processFixPythonInterpreter(aPositionalArgs, dKeywordArgs);
     _sudoFixArguments(aPositionalArgs, dKeywordArgs);
-    return subprocess.Popen(*aPositionalArgs, **dKeywordArgs);
+    return processPopenSafe(*aPositionalArgs, **dKeywordArgs);
 
 
 #
@@ -732,7 +785,7 @@ def processCheckPidAndName(uPid, sName):
             if sCurName is None:
                 return False;
             sCurName = sCurName.strip();
-            if sCurName is '':
+            if not sCurName:
                 return False;
 
             if os.path.basename(sName) == sName:
@@ -745,6 +798,66 @@ def processCheckPidAndName(uPid, sName):
 
             fRc = True;
     return fRc;
+
+def processGetInfo(uPid, fSudo = False):
+    """
+    Tries to acquire state information of the given process.
+
+    Returns a string with the information on success or None on failure or
+    if the host is not supported.
+
+    Note that the format of the information is host system dependent and will
+    likely differ much between different hosts.
+    """
+    fRc = processExists(uPid);
+    if fRc is not True:
+        return None;
+
+    sHostOs = getHostOs();
+    if sHostOs in [ 'linux',]:
+        sGdb = '/usr/bin/gdb';
+        if not os.path.isfile(sGdb): sGdb = '/usr/local/bin/gdb';
+        if not os.path.isfile(sGdb): sGdb = 'gdb';
+        aasCmd = [
+            [ sGdb, '-batch',
+              '-ex', 'set pagination off',
+              '-ex', 'thread apply all bt',
+              '-ex', 'info proc mapping',
+              '-ex', 'info sharedlibrary',
+              '-p', '%u' % (uPid,), ],
+        ];
+    elif sHostOs == 'darwin':
+        # LLDB doesn't work in batch mode when attaching to a process, at least
+        # with macOS Sierra (10.12). GDB might not be installed. Use the sample
+        # tool instead with a 1 second duration and 1000ms sampling interval to
+        # get one stack trace.  For the process mappings use vmmap.
+        aasCmd = [
+            [ '/usr/bin/sample', '-mayDie', '%u' % (uPid,), '1', '1000', ],
+            [ '/usr/bin/vmmap', '%u' % (uPid,), ],
+        ];
+    elif sHostOs == 'solaris':
+        aasCmd = [
+            [ '/usr/bin/pstack', '%u' % (uPid,), ],
+            [ '/usr/bin/pmap', '%u' % (uPid,), ],
+        ];
+    else:
+        aasCmd = [];
+
+    sInfo = '';
+    for asCmd in aasCmd:
+        try:
+            if fSudo:
+                sThisInfo = sudoProcessOutputChecked(asCmd);
+            else:
+                sThisInfo = processOutputChecked(asCmd);
+            if sThisInfo is not None:
+                sInfo += sThisInfo;
+        except:
+            pass;
+    if not sInfo:
+        sInfo = None;
+
+    return sInfo;
 
 
 class ProcessInfo(object):
@@ -769,10 +882,10 @@ class ProcessInfo(object):
             if self.sImage   is None: self.sImage = noxcptReadLink(sProc + 'exe', None);
             if self.sCwd     is None: self.sCwd   = noxcptReadLink(sProc + 'cwd', None);
             if self.asArgs   is None: self.asArgs = noxcptReadFile(sProc + 'cmdline', '').split('\x00');
-        elif sOs == 'solaris':
-            sProc = '/proc/%s/' % (self.iPid,);
-            if self.sImage   is None: self.sImage = noxcptReadLink(sProc + 'path/a.out', None);
-            if self.sCwd     is None: self.sCwd   = noxcptReadLink(sProc + 'path/cwd', None);
+        #elif sOs == 'solaris': - doesn't work for root processes, suid proces, and other stuff.
+        #    sProc = '/proc/%s/' % (self.iPid,);
+        #    if self.sImage   is None: self.sImage = noxcptReadLink(sProc + 'path/a.out', None);
+        #    if self.sCwd     is None: self.sCwd   = noxcptReadLink(sProc + 'path/cwd', None);
         else:
             pass;
         if self.sName is None and self.sImage is not None:
@@ -784,7 +897,7 @@ class ProcessInfo(object):
         except: pass;
         try:    self.sImage     = oProcess.Properties_("ExecutablePath").Value;
         except: pass;
-        try:    self.asArgs     = oProcess.Properties_("CommandLine").Value; ## @todo split it.
+        try:    self.asArgs     = [oProcess.Properties_("CommandLine").Value]; ## @todo split it.
         except: pass;
         try:    self.iParentPid = oProcess.Properties_("ParentProcessId").Value;
         except: pass;
@@ -803,10 +916,10 @@ class ProcessInfo(object):
             self.loadAll();
             sRet = self.sImage if self.sName is None else self.sName;
             if sRet is None:
-                if self.asArgs is None or len(self.asArgs) == 0:
+                if not self.asArgs:
                     return None;
                 sRet = self.asArgs[0];
-                if len(sRet) == 0:
+                if not sRet:
                     return None;
         return os.path.basename(sRet);
 
@@ -841,8 +954,9 @@ def processListAll(): # pylint: disable=R0914
             oMyInfo = ProcessInfo(iPid);
             oMyInfo.windowsGrabProcessInfo(oProcess);
             asProcesses.append(oMyInfo);
+        return asProcesses;
 
-    elif sOs in [ 'linux', 'solaris' ]:
+    if sOs in [ 'linux', ]:  # Not solaris, ps gets more info than /proc/.
         try:
             asDirs = os.listdir('/proc');
         except:
@@ -850,64 +964,77 @@ def processListAll(): # pylint: disable=R0914
         for sDir in asDirs:
             if sDir.isdigit():
                 asProcesses.append(ProcessInfo(int(sDir),));
+        return asProcesses;
 
-    elif sOs == 'darwin':
-        # Try our best to parse ps output. (Not perfect but does the job most of the time.)
-        try:
-            sRaw = processOutputChecked([ '/bin/ps', '-A',
-                                          '-o', 'pid=',
-                                          '-o', 'ppid=',
-                                          '-o', 'pgid=',
-                                          '-o', 'sess=',
-                                          '-o', 'uid=',
-                                          '-o', 'gid=',
-                                          '-o', 'comm=' ]);
-        except:
-            return asProcesses;
+    #
+    # The other OSes parses the output from the 'ps' utility.
+    #
+    asPsCmd = [
+        '/bin/ps',          # 0
+        '-A',               # 1
+        '-o', 'pid=',       # 2,3
+        '-o', 'ppid=',      # 4,5
+        '-o', 'pgid=',      # 6,7
+        '-o', 'sid=',       # 8,9
+        '-o', 'uid=',       # 10,11
+        '-o', 'gid=',       # 12,13
+        '-o', 'comm='       # 14,15
+    ];
 
-        for sLine in sRaw.split('\n'):
-            sLine = sLine.lstrip();
-            if len(sLine) < 7 or not sLine[0].isdigit():
-                continue;
+    if sOs == 'darwin':
+        assert asPsCmd[9] == 'sid=';
+        asPsCmd[9] = 'sess=';
+    elif sOs == 'solaris':
+        asPsCmd[0] = '/usr/bin/ps';
 
-            iField   = 0;
-            off      = 0;
-            aoFields = [None, None, None, None, None, None, None];
-            while iField < 7:
-                # Eat whitespace.
-                while off < len(sLine) and (sLine[off] == ' ' or sLine[off] == '\t'):
-                    off += 1;
+    try:
+        sRaw = processOutputChecked(asPsCmd);
+    except:
+        return asProcesses;
 
-                # Final field / EOL.
-                if iField == 6:
-                    aoFields[6] = sLine[off:];
-                    break;
-                if off >= len(sLine):
-                    break;
+    for sLine in sRaw.split('\n'):
+        sLine = sLine.lstrip();
+        if len(sLine) < 7 or not sLine[0].isdigit():
+            continue;
 
-                # Generic field parsing.
-                offStart = off;
+        iField   = 0;
+        off      = 0;
+        aoFields = [None, None, None, None, None, None, None];
+        while iField < 7:
+            # Eat whitespace.
+            while off < len(sLine) and (sLine[off] == ' ' or sLine[off] == '\t'):
                 off += 1;
-                while off < len(sLine) and sLine[off] != ' ' and sLine[off] != '\t':
-                    off += 1;
-                try:
-                    if iField != 3:
-                        aoFields[iField] = int(sLine[offStart:off]);
-                    else:
-                        aoFields[iField] = long(sLine[offStart:off], 16); # sess is a hex address.
-                except:
-                    pass;
-                iField += 1;
 
-            if aoFields[0] is not None:
-                oMyInfo = ProcessInfo(aoFields[0]);
-                oMyInfo.iParentPid = aoFields[1];
-                oMyInfo.iProcGroup = aoFields[2];
-                oMyInfo.iSessionId = aoFields[3];
-                oMyInfo.iUid       = aoFields[4];
-                oMyInfo.iGid       = aoFields[5];
-                oMyInfo.sName      = aoFields[6];
-                asProcesses.append(oMyInfo);
+            # Final field / EOL.
+            if iField == 6:
+                aoFields[6] = sLine[off:];
+                break;
+            if off >= len(sLine):
+                break;
+
+            # Generic field parsing.
+            offStart = off;
+            off += 1;
+            while off < len(sLine) and sLine[off] != ' ' and sLine[off] != '\t':
+                off += 1;
+            try:
+                if iField != 3:
+                    aoFields[iField] = int(sLine[offStart:off]);
+                else:
+                    aoFields[iField] = long(sLine[offStart:off], 16); # sess is a hex address.
+            except:
+                pass;
+            iField += 1;
+
+        if aoFields[0] is not None:
+            oMyInfo = ProcessInfo(aoFields[0]);
+            oMyInfo.iParentPid = aoFields[1];
+            oMyInfo.iProcGroup = aoFields[2];
+            oMyInfo.iSessionId = aoFields[3];
+            oMyInfo.iUid       = aoFields[4];
+            oMyInfo.iGid       = aoFields[5];
+            oMyInfo.sName      = aoFields[6];
+            asProcesses.append(oMyInfo);
 
     return asProcesses;
 
@@ -1160,7 +1287,7 @@ def formatIntervalSeconds(cSeconds):
         sRet += '%sm ' % (cMins,);
     if cSecs > 0:
         sRet += '%ss ' % (cSecs,);
-    assert len(sRet) > 0; assert sRet[-1] == ' ';
+    assert sRet; assert sRet[-1] == ' ';
     return sRet[:-1];
 
 def formatIntervalSeconds2(oSeconds):
@@ -1168,7 +1295,7 @@ def formatIntervalSeconds2(oSeconds):
     Flexible input version of formatIntervalSeconds for use in WUI forms where
     data is usually already string form.
     """
-    if isinstance(oSeconds, int) or isinstance(oSeconds, long):
+    if isinstance(oSeconds, (int, long)):
         return formatIntervalSeconds(oSeconds);
     if not isString(oSeconds):
         try:
@@ -1189,14 +1316,14 @@ def parseIntervalSeconds(sString):
 
     # We might given non-strings, just return them without any fuss.
     if not isString(sString):
-        if isinstance(sString, int) or isinstance(sString, long) or  sString is None:
+        if isinstance(sString, (int, long)) or sString is None:
             return (sString, None);
         ## @todo time/date objects?
         return (int(sString), None);
 
     # Strip it and make sure it's not empty.
     sString = sString.strip();
-    if len(sString) == 0:
+    if not sString:
         return (0, 'Empty interval string.');
 
     #
@@ -1209,9 +1336,9 @@ def parseIntervalSeconds(sString):
     asParts    = [];
     for sPart in asRawParts:
         sPart = sPart.strip();
-        if len(sPart) > 0:
+        if sPart:
             asParts.append(sPart);
-    if len(asParts) == 0:
+    if not asParts:
         return (0, 'Empty interval string or something?');
 
     #
@@ -1247,7 +1374,7 @@ def parseIntervalSeconds(sString):
             cSeconds += iNumber;
         else:
             asErrors.append('Bad number "%s".' % (sNumber,));
-    return (cSeconds, None if len(asErrors) == 0 else ' '.join(asErrors));
+    return (cSeconds, None if not asErrors else ' '.join(asErrors));
 
 def formatIntervalHours(cHours):
     """ Format a hours interval into a nice 1w 2d 1h string. """
@@ -1267,7 +1394,7 @@ def formatIntervalHours(cHours):
         sRet = '%sd ' % (cDays,);
     if cHours > 0:
         sRet += '%sh ' % (cHours,);
-    assert len(sRet) > 0; assert sRet[-1] == ' ';
+    assert sRet; assert sRet[-1] == ' ';
     return sRet[:-1];
 
 def parseIntervalHours(sString):
@@ -1279,14 +1406,14 @@ def parseIntervalHours(sString):
 
     # We might given non-strings, just return them without any fuss.
     if not isString(sString):
-        if isinstance(sString, int) or isinstance(sString, long) or  sString is None:
+        if isinstance(sString, (int, long)) or sString is None:
             return (sString, None);
         ## @todo time/date objects?
         return (int(sString), None);
 
     # Strip it and make sure it's not empty.
     sString = sString.strip();
-    if len(sString) == 0:
+    if not sString:
         return (0, 'Empty interval string.');
 
     #
@@ -1299,9 +1426,9 @@ def parseIntervalHours(sString):
     asParts    = [];
     for sPart in asRawParts:
         sPart = sPart.strip();
-        if len(sPart) > 0:
+        if sPart:
             asParts.append(sPart);
-    if len(asParts) == 0:
+    if not asParts:
         return (0, 'Empty interval string or something?');
 
     #
@@ -1333,7 +1460,7 @@ def parseIntervalHours(sString):
             cHours += iNumber;
         else:
             asErrors.append('Bad number "%s".' % (sNumber,));
-    return (cHours, None if len(asErrors) == 0 else ' '.join(asErrors));
+    return (cHours, None if not asErrors else ' '.join(asErrors));
 
 
 #
@@ -1393,7 +1520,7 @@ def getXcptInfo(cFrames = 1):
             except:
                 asRet.append('internal-error: Hit exception #2! %s' % (traceback.format_exc(),));
 
-            if len(asRet) == 0:
+            if not asRet:
                 asRet.append('No exception info...');
         except:
             asRet.append('internal-error: Hit exception! %s' % (traceback.format_exc(),));
@@ -1449,7 +1576,7 @@ def argsGetFirst(sCmdLine):
     Returns None on invalid syntax, otherwise the parsed and unescaped argv[0] string.
     """
     asArgs = argsSplit(sCmdLine);
-    if asArgs is None  or  len(asArgs) == 0:
+    if not asArgs:
         return None;
 
     return asArgs[0];
@@ -1529,10 +1656,10 @@ def isString(oString):
 
 def hasNonAsciiCharacters(sText):
     """
-    Returns True is specified string has non-ASCII characters.
+    Returns True is specified string has non-ASCII characters, False if ASCII only.
     """
-    sTmp = unicode(sText, errors='ignore') if isinstance(sText, str) else sText
-    return not all(ord(cChar) < 128 for cChar in sTmp)
+    sTmp = unicode(sText, errors='ignore') if isinstance(sText, str) else sText;
+    return not all(ord(ch) < 128 for ch in sTmp);
 
 
 def chmodPlusX(sFile):
@@ -1663,7 +1790,7 @@ def unpackTarFile(sArchive, sDstDir, fnLog, fnError = None, fnFilter = None):
                         sParentDir    = os.path.dirname(sLinkFile);
                         try:    os.unlink(sLinkFile);
                         except: pass;
-                        if sParentDir is not ''  and  not os.path.exists(sParentDir):
+                        if sParentDir and not os.path.exists(sParentDir):
                             os.makedirs(sParentDir);
                         try:    os.link(sLinkTarget, sLinkFile);
                         except: shutil.copy2(sLinkTarget, sLinkFile);
@@ -1774,6 +1901,14 @@ class BuildCategoryDataTestCase(unittest.TestCase):
         self.assertEqual(parseIntervalSeconds('1 Z 4'), (5, 'Unknown unit "Z".'));
         self.assertEqual(parseIntervalSeconds('1 hour 2m 5second'), (3725, None));
         self.assertEqual(parseIntervalSeconds('1 hour,2m ; 5second'), (3725, None));
+
+    def testHasNonAsciiChars(self):
+        self.assertEqual(hasNonAsciiCharacters(''), False);
+        self.assertEqual(hasNonAsciiCharacters('asdfgebASDFKJ@#$)(!@#UNASDFKHB*&$%&)@#(!)@(#!(#$&*#$&%*Y@#$IQWN---00;'), False);
+        self.assertEqual(hasNonAsciiCharacters(u'12039889y!@#$%^&*()0-0asjdkfhoiuyweasdfASDFnvV'), False);
+        self.assertEqual(hasNonAsciiCharacters(u'\u0079'), False);
+        self.assertEqual(hasNonAsciiCharacters(u'\u0080'), True);
+        self.assertEqual(hasNonAsciiCharacters(u'\u0081 \u0100'), True);
 
 if __name__ == '__main__':
     unittest.main();

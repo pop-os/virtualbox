@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2016 Oracle Corporation
+# Copyright (C) 2006-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -38,7 +38,7 @@ ifdef VBOX_ONLY_ADDITIONS
   #LIBRARIES.os2 += RuntimeGuestR0OS2Warp3
   LIBRARIES.win.x86 += RuntimeGuestR0NT4
  endif
- if1of ($(KBUILD_TARGET),win)
+ ifndef VBOX_ONLY_ADDITIONS_WITHOUT_RTISOMAKER
   LIBRARIES += RuntimeBldProg
   include $(PATH_SUB_CURRENT)/tools/Makefile.kmk
  endif
@@ -58,6 +58,7 @@ else ifdef VBOX_ONLY_DOCS
  # Build docs only - need just regular R3 runtime.
  #
  LIBRARIES += RuntimeR3 RuntimeBldProg
+ include $(PATH_SUB_CURRENT)/tools/Makefile.kmk
 
 else ifdef VBOX_ONLY_EXTPACKS_USE_IMPLIBS
  #
@@ -128,9 +129,9 @@ OTHER_CLEAN += \
 	$(IPRT_OUT_DIR)/errmsgvboxcomdata.h.ts \
 	$(IPRT_OUT_DIR)/odi2name.h \
 	$(IPRT_OUT_DIR)/odi2name.h.ts \
-	$(IPRT_OUT_DIR)/Doxyfile.iprt \
-	$(IPRT_OUT_DIR)/Doxyfile.iprt.dep \
-	$(IPRT_OUT_DIR)/docs.iprt
+	$(IPRT_DOXYFILE_OUTPUT)/Doxyfile.iprt \
+	$(IPRT_DOXYFILE_OUTPUT)/Doxyfile.iprt.dep \
+	$(IPRT_DOXYFILE_OUTPUT)/docs.iprt
 
 
 #
@@ -337,6 +338,7 @@ RuntimeR3_SOURCES       = \
 	common/checksum/crc32.cpp \
 	common/checksum/crc32c.cpp \
 	common/checksum/crc64.cpp \
+	common/checksum/crc16ccitt.cpp \
 	common/checksum/alt-md2.cpp \
 	common/checksum/alt-md5.cpp \
 	common/checksum/alt-sha1.cpp \
@@ -421,12 +423,18 @@ RuntimeR3_SOURCES       = \
 	common/dvm/dvmmbr.cpp \
 	common/dvm/dvmvfs.cpp \
 	common/err/errinfo.cpp \
+	common/err/errinfolog.cpp \
 	common/err/errinfo-alloc.cpp \
 	common/err/errmsg.cpp \
 	common/err/RTErrConvertFromErrno.cpp \
 	common/err/RTErrConvertToErrno.cpp \
-	common/filesystem/filesystem.cpp \
-	common/filesystem/filesystemext.cpp \
+	common/fs/filesystem.cpp \
+	common/fs/filesystemext.cpp \
+	common/fs/fatvfs.cpp \
+	common/fs/isovfs.cpp \
+	common/fs/isomaker.cpp \
+	common/fs/isomakercmd.cpp \
+	common/fs/isomakerimport.cpp \
 	common/ldr/ldr.cpp \
 	common/ldr/ldrELF.cpp \
 	common/ldr/ldrEx.cpp \
@@ -463,9 +471,11 @@ RuntimeR3_SOURCES       = \
 	common/misc/handletable.cpp \
 	common/misc/handletablectx.cpp \
 	common/misc/handletablesimple.cpp \
+	common/misc/inifile.cpp \
 	common/misc/json.cpp \
 	common/misc/lockvalidator.cpp \
 	common/misc/message.cpp \
+	common/misc/messagerefentry.cpp \
 	common/misc/once.cpp \
 	common/misc/req.cpp \
 	common/misc/reqpool.cpp \
@@ -507,6 +517,7 @@ RuntimeR3_SOURCES       = \
 	common/path/RTPathParseSimple.cpp \
 	common/path/RTPathRealDup.cpp \
 	common/path/RTPathRmCmd.cpp \
+	common/path/RTPathSkipRootSpec.cpp \
 	common/path/RTPathSplit.cpp \
 	common/path/RTPathSplitA.cpp \
 	common/path/RTPathSplitReassemble.cpp \
@@ -559,6 +570,7 @@ RuntimeR3_SOURCES       = \
 	common/string/strhash1.cpp \
 	common/string/stringalloc.cpp \
 	common/string/strprintf.cpp \
+	common/string/strprintf2.cpp \
 	common/string/strcache.cpp \
 	common/string/strspace.cpp \
 	common/string/strstrip.cpp \
@@ -601,11 +613,15 @@ RuntimeR3_SOURCES       = \
 	common/time/time.cpp \
 	common/time/timeprog.cpp \
 	common/time/timesup.cpp \
+	common/time/timezoneinfo.cpp \
 	common/vfs/vfsbase.cpp \
 	common/vfs/vfschain.cpp \
+	common/vfs/vfsfss2dir.cpp \
 	common/vfs/vfsiosmisc.cpp \
 	common/vfs/vfsmemory.cpp \
 	common/vfs/vfsmisc.cpp \
+	common/vfs/vfsmsg.cpp \
+	common/vfs/vfsprogress.cpp \
 	common/vfs/vfsreadahead.cpp \
 	common/vfs/vfsstdfile.cpp \
 	common/vfs/vfsstdpipe.cpp \
@@ -613,6 +629,7 @@ RuntimeR3_SOURCES       = \
 	common/zip/tarcmd.cpp \
 	common/zip/unzipcmd.cpp \
 	common/zip/tarvfs.cpp \
+	common/zip/tarvfswriter.cpp \
 	common/zip/gzipvfs.cpp \
 	common/zip/pkzip.cpp \
 	common/zip/pkzipvfs.cpp \
@@ -798,16 +815,22 @@ RuntimeR3_SOURCES.win = \
 	nt/RTErrConvertFromNtStatus.cpp \
  	nt/RTNtPathExpand8dot3Path.cpp \
  	nt/RTNtPathFindPossible8dot3Name.cpp \
+ 	r3/generic/RTLocaleQueryLocaleName-r3-generic.cpp \
  	r3/nt/fs-nt.cpp \
  	r3/nt/pathint-nt.cpp \
+ 	r3/nt/RTFileQueryFsSizes-nt.cpp \
+ 	r3/nt/RTPathQueryInfo-nt.cpp \
  	r3/nt/RTProcQueryParent-r3-nt.cpp \
 	r3/win/env-win.cpp \
 	r3/win/RTCrStoreCreateSnapshotById-win.cpp \
 	r3/win/RTHandleGetStandard-win.cpp \
+ 	r3/win/RTLocaleQueryNormalizedBaseLocaleName-win.cpp \
+	r3/win/RTLocaleQueryUserCountryCode-win.cpp \
 	r3/win/RTSystemQueryOSInfo-win.cpp \
 	r3/win/RTSystemShutdown-win.cpp \
 	r3/win/RTSystemQueryDmiString-win.cpp \
 	r3/win/RTSystemQueryTotalRam-win.cpp \
+ 	r3/win/RTTimeZoneGetCurrent-win.cpp \
 	r3/win/alloc-win.cpp \
 	r3/win/allocex-win.cpp \
 	r3/win/dir-win.cpp \
@@ -815,6 +838,7 @@ RuntimeR3_SOURCES.win = \
 	r3/win/errvars-win.cpp \
 	r3/win/fileio-win.cpp \
 	r3/win/init-win.cpp \
+	r3/win/krnlmod-win.cpp \
 	r3/win/ldrNative-win.cpp \
 	r3/win/localipc-win.cpp \
 	r3/win/mp-win.cpp \
@@ -868,8 +892,13 @@ RuntimeR3_SOURCES.linux = \
 	generic/mppresent-generic.cpp \
 	generic/utf16locale-generic.cpp \
 	generic/uuid-generic.cpp \
+ 	r3/generic/RTLocaleQueryLocaleName-r3-generic.cpp \
+ 	r3/generic/RTLocaleQueryNormalizedBaseLocaleName-r3-generic.cpp \
+	r3/generic/RTLocaleQueryUserCountryCode-r3-generic.cpp \
+ 	r3/generic/RTTimeZoneGetCurrent-generic.cpp \
 	r3/posix/allocex-r3-posix.cpp \
 	r3/linux/RTThreadGetNativeState-linux.cpp \
+	r3/linux/krnlmod-linux.cpp \
 	r3/linux/mp-linux.cpp \
 	r3/linux/rtProcInitExePath-linux.cpp \
 	r3/linux/sched-linux.cpp \
@@ -975,6 +1004,10 @@ RuntimeR3_SOURCES.os2   = \
 	generic/RTThreadGetNativeState-generic.cpp \
 	os2/RTErrConvertFromOS2.cpp \
 	r3/generic/allocex-r3-generic.cpp \
+ 	r3/generic/RTLocaleQueryLocaleName-r3-generic.cpp \
+ 	r3/generic/RTLocaleQueryNormalizedBaseLocaleName-r3-generic.cpp \
+	r3/generic/RTLocaleQueryUserCountryCode-r3-generic.cpp \
+ 	r3/generic/RTTimeZoneGetCurrent-generic.cpp \
 	r3/os2/filelock-os2.cpp \
 	r3/os2/mp-os2.cpp \
 	r3/os2/pipe-os2.cpp \
@@ -1044,6 +1077,7 @@ RuntimeR3_SOURCES.darwin = \
 	generic/RTThreadGetNativeState-generic.cpp \
 	r3/darwin/RTCrStoreCreateSnapshotById-darwin.cpp \
 	r3/darwin/filelock-darwin.cpp \
+	r3/darwin/krnlmod-darwin.cpp \
 	r3/darwin/mp-darwin.cpp \
 	r3/darwin/pathhost-darwin.cpp \
 	r3/darwin/rtProcInitExePath-darwin.cpp \
@@ -1053,6 +1087,10 @@ RuntimeR3_SOURCES.darwin = \
 	r3/darwin/time-darwin.cpp \
 	r3/darwin/RTPathUserDocuments-darwin.cpp \
 	r3/generic/allocex-r3-generic.cpp \
+ 	r3/generic/RTLocaleQueryLocaleName-r3-generic.cpp \
+ 	r3/generic/RTLocaleQueryNormalizedBaseLocaleName-r3-generic.cpp \
+	r3/generic/RTLocaleQueryUserCountryCode-r3-generic.cpp \
+ 	r3/generic/RTTimeZoneGetCurrent-generic.cpp \
 	r3/posix/RTFileQueryFsSizes-posix.cpp \
 	r3/posix/RTHandleGetStandard-posix.cpp \
 	r3/posix/RTMemProtect-posix.cpp \
@@ -1123,6 +1161,10 @@ RuntimeR3_SOURCES.freebsd = \
 	r3/freebsd/systemmem-freebsd.cpp \
 	r3/freebsd/rtProcInitExePath-freebsd.cpp \
 	r3/generic/allocex-r3-generic.cpp \
+ 	r3/generic/RTLocaleQueryLocaleName-r3-generic.cpp \
+ 	r3/generic/RTLocaleQueryNormalizedBaseLocaleName-r3-generic.cpp \
+	r3/generic/RTLocaleQueryUserCountryCode-r3-generic.cpp \
+ 	r3/generic/RTTimeZoneGetCurrent-generic.cpp \
 	r3/posix/RTFileQueryFsSizes-posix.cpp \
 	r3/posix/RTHandleGetStandard-posix.cpp \
 	r3/posix/RTMemProtect-posix.cpp \
@@ -1192,6 +1234,10 @@ RuntimeR3_SOURCES.netbsd = \
 	generic/RTThreadGetNativeState-generic.cpp \
 	r3/netbsd/rtProcInitExePath-netbsd.cpp \
 	r3/generic/allocex-r3-generic.cpp \
+ 	r3/generic/RTLocaleQueryLocaleName-r3-generic.cpp \
+ 	r3/generic/RTLocaleQueryNormalizedBaseLocaleName-r3-generic.cpp \
+	r3/generic/RTLocaleQueryUserCountryCode-r3-generic.cpp \
+ 	r3/generic/RTTimeZoneGetCurrent-generic.cpp \
 	r3/posix/RTFileQueryFsSizes-posix.cpp \
 	r3/posix/RTHandleGetStandard-posix.cpp \
 	r3/posix/RTMemProtect-posix.cpp \
@@ -1254,6 +1300,10 @@ RuntimeR3_SOURCES.solaris = \
 	generic/uuid-generic.cpp \
 	generic/RTThreadGetNativeState-generic.cpp \
 	r3/generic/allocex-r3-generic.cpp \
+ 	r3/generic/RTLocaleQueryLocaleName-r3-generic.cpp \
+ 	r3/generic/RTLocaleQueryNormalizedBaseLocaleName-r3-generic.cpp \
+	r3/generic/RTLocaleQueryUserCountryCode-r3-generic.cpp \
+ 	r3/generic/RTTimeZoneGetCurrent-generic.cpp \
 	r3/posix/RTFileQueryFsSizes-posix.cpp \
 	r3/posix/RTFileSetAllocationSize-posix.cpp \
 	r3/posix/RTHandleGetStandard-posix.cpp \
@@ -1294,6 +1344,7 @@ RuntimeR3_SOURCES.solaris = \
 	r3/posix/timer-posix.cpp \
 	r3/posix/tls-posix.cpp \
 	r3/posix/utf8-posix.cpp \
+	r3/solaris/krnlmod-solaris.cpp \
 	r3/solaris/systemmem-solaris.cpp \
 	r3/solaris/mp-solaris.cpp \
 	r3/solaris/rtProcInitExePath-solaris.cpp \
@@ -1340,6 +1391,10 @@ RuntimeR3_SOURCES.haiku = \
 	r3/haiku/rtProcInitExePath-haiku.cpp \
 	r3/haiku/time-haiku.cpp \
 	r3/generic/allocex-r3-generic.cpp \
+ 	r3/generic/RTLocaleQueryLocaleName-r3-generic.cpp \
+ 	r3/generic/RTLocaleQueryNormalizedBaseLocaleName-r3-generic.cpp \
+	r3/generic/RTLocaleQueryUserCountryCode-r3-generic.cpp \
+ 	r3/generic/RTTimeZoneGetCurrent-generic.cpp \
 	r3/posix/RTFileQueryFsSizes-posix.cpp \
 	r3/posix/RTHandleGetStandard-posix.cpp \
 	r3/posix/RTMemProtect-posix.cpp \
@@ -1382,6 +1437,38 @@ RuntimeR3_SOURCES.haiku.amd64 += common/string/memrchr.asm
 
 
 #
+# Generate RTIsoMaker / VISO help text from the manpage xml.
+#
+ifn1of ($(KBUILD_TARGET), os2) # breaks validationkit, figure out later.
+
+ IPRT_XML_REFENTRY_FILES = \
+ 	common/fs/isomakercmd-man.xml
+
+ #$(call KB_FN_DO_PASS0_ON_TARGET,RuntimeR3)
+
+ BLDDIRS += $(IPRT_OUT_DIR)/man/
+ OTHER_CLEAN += \
+ 	$(addprefix $(IPRT_OUT_DIR)/man/,$(IPRT_XML_REFENTRY_FILES)) \
+ 	$(addprefix $(IPRT_OUT_DIR)/man/,$(patsubst %.xml,%.h,$(IPRT_XML_REFENTRY_FILES))) \
+ 	$(addprefix $(IPRT_OUT_DIR)/man/,$(patsubst %.xml,%.h.ts,$(IPRT_XML_REFENTRY_FILES)))
+
+
+ include $(PATH_ROOT)/doc/manual/Config.kmk
+
+ # Preprocess the xml files, applying remarks.
+ $(foreach file,$(IPRT_XML_REFENTRY_FILES) \
+ , $(evalcall2 def_vbox_refentry_preprocess_for_manpage,$(IPRT_OUT_DIR)/man,$(notdir $(file)),$(VBOX_PATH_RUNTIME_SRC)/$(file)))
+
+ # generate the header and add it as a dependency to the source using it.
+ $(evalcall2 def_vbox_single_refentry_to_h,$(IPRT_OUT_DIR)/man/isomakercmd-man.h, $(IPRT_OUT_DIR)/man/isomakercmd-man.xml)
+ common/fs/isomakercmd.cpp_DEPS = $(IPRT_OUT_DIR)/man/isomakercmd-man.h
+ common/fs/isomakercmd.cpp_INCS = $(IPRT_OUT_DIR)/man/
+
+endif
+
+
+
+#
 # RuntimeBldProg - Static Runtime for build programs.
 #
 # Note! This is a bit of hacky since kBuild doesn't support building libraries
@@ -1413,19 +1500,21 @@ endif
 RuntimeGuestR3_TEMPLATE                 := VBoxGuestR3Lib
 ## @todo change this to EXTEND the RuntimeR3 target.
 RuntimeGuestR3_SDKS.win                 := $(RuntimeR3_SDKS.win)
-RuntimeGuestR3_DEFS                     := $(filter-out RTCRITSECT_STRICT RT_NO_GIP IPRT_WITH_OPENSSL, $(RuntimeR3_DEFS))
+RuntimeGuestR3_DEFS                     := $(filter-out RTCRITSECT_STRICT RT_NO_GIP IPRT_WITH_OPENSSL LDR_WITH_KLDR, $(RuntimeR3_DEFS))
+RuntimeGuestR3_DEFS                     := $(filter-out IN_SUP_R3, $(RuntimeGuestR3_DEFS)) ## @todo r=andy Needed to make cross-building with RTLdr API work.
 RuntimeGuestR3_DEFS.$(KBUILD_TARGET)    := $(RuntimeR3_DEFS.$(KBUILD_TARGET))
 RuntimeGuestR3_DEFS.$(KBUILD_HOST)      := $(RuntimeR3_DEFS.$(KBUILD_HOST))
 RuntimeGuestR3_INCS                     := $(RuntimeR3_INCS)
 RuntimeGuestR3_INCS.$(KBUILD_TARGET)    := $(RuntimeR3_INCS.$(KBUILD_TARGET))
 RuntimeGuestR3_INCS.$(KBUILD_HOST)      := $(RuntimeR3_INCS.$(KBUILD_HOST))
 RuntimeGuestR3_SOURCES                  := $(filter-out \
+	common/ldr/ldrkStuff.cpp \
 	common/time/timesupref.cpp \
 	common/time/timesupA.asm \
 	common/time/timesup.cpp \
+	common/zip/xarvfs.cpp \
 	generic/RTLogWriteUser-generic.cpp \
 	r3/xml.cpp \
-	common/zip/xarvfs.cpp \
 	, $(RuntimeR3_SOURCES))
 RuntimeGuestR3_SOURCES              += \
 	common/time/timesysalias.cpp \
@@ -1911,7 +2000,7 @@ RuntimeR0_SOURCES      := \
 	\
 	$(RuntimeNoCrt_SOURCES)
 
-if1of ($(KBUILD_TARGET), darwin solaris freebsd)
+if1of ($(KBUILD_TARGET), darwin solaris freebsd os2)
 RuntimeR0_SOURCES += \
 	common/math/gcc/adddi3.c \
 	common/math/gcc/anddi3.c \
@@ -2086,6 +2175,7 @@ RuntimeR0Drv_SOURCES    = \
 	common/string/strformattype.cpp \
 	common/string/strhash1.cpp \
 	common/string/strprintf.cpp \
+	common/string/strprintf2.cpp \
 	common/string/strtonum.cpp \
 	common/string/stringalloc.cpp \
 	common/string/unidata-flags.cpp \
@@ -2098,6 +2188,7 @@ RuntimeR0Drv_SOURCES    = \
 	common/string/utf-16-case.cpp \
 	common/string/utf-16-latin-1.cpp \
 	common/table/avlpv.cpp \
+	common/table/avlu32.cpp \
 	common/time/time.cpp \
 	generic/RTLogWriteStdErr-stub-generic.cpp \
 	generic/RTLogWriteUser-generic.cpp \
@@ -2107,7 +2198,6 @@ RuntimeR0Drv_SOURCES    = \
  	generic/RTSemEventWaitNoResume-2-ex-generic.cpp \
  	generic/RTSemEventMultiWait-2-ex-generic.cpp \
  	generic/RTSemEventMultiWaitNoResume-2-ex-generic.cpp \
-	generic/rtStrFormatKernelAddress-generic.cpp \
 	generic/critsect-generic.cpp \
 	generic/errvars-generic.cpp \
 	generic/uuid-generic.cpp \
@@ -2136,6 +2226,7 @@ RuntimeR0Drv_SOURCES.linux = \
 	generic/RTLogWriteStdOut-stub-generic.cpp \
 	generic/RTMpGetCoreCount-generic.cpp \
 	generic/mppresent-generic.cpp \
+	generic/rtStrFormatKernelAddress-generic.cpp \
 	r0drv/linux/alloc-r0drv-linux.c \
 	r0drv/linux/assert-r0drv-linux.c \
 	r0drv/linux/initterm-r0drv-linux.c \
@@ -2238,6 +2329,7 @@ RuntimeR0Drv_SOURCES.win = \
 	common/checksum/sha512t224str.cpp \
 	common/checksum/sha512t256str.cpp \
 	common/err/errinfo.cpp \
+	common/err/errinfolog.cpp \
 	common/path/RTPathChangeToUnixSlashes.cpp \
 	common/math/bignum.cpp \
 	common/misc/zero.asm \
@@ -2252,7 +2344,6 @@ RuntimeR0Drv_SOURCES.win = \
 	common/string/RTUtf16PrintHexBytes.cpp \
 	common/string/strstrip.cpp \
 	generic/memsafer-generic.cpp \
-       \
 	common/misc/thread.cpp \
 	common/string/memcmp.asm \
 	common/string/memchr.asm \
@@ -2267,6 +2358,7 @@ RuntimeR0Drv_SOURCES.win = \
 	generic/RTTimerCreate-generic.cpp \
 	generic/mppresent-generic-online.cpp \
 	generic/RTMpGetCoreCount-generic.cpp \
+	generic/rtStrFormatKernelAddress-generic.cpp \
 	nt/RTErrConvertFromNtStatus.cpp \
 	nt/RTNtPathExpand8dot3Path.cpp \
 	nt/RTNtPathFindPossible8dot3Name.cpp \
@@ -2323,6 +2415,7 @@ RuntimeR0Drv_SOURCES.darwin = \
 	r0drv/darwin/process-r0drv-darwin.cpp \
 	r0drv/darwin/RTLogWriteDebugger-r0drv-darwin.cpp \
 	r0drv/darwin/RTLogWriteStdOut-r0drv-darwin.cpp \
+	r0drv/darwin/rtStrFormatKernelAddress-r0drv-darwin.cpp \
 	r0drv/darwin/semevent-r0drv-darwin.cpp \
 	r0drv/darwin/semeventmulti-r0drv-darwin.cpp \
 	r0drv/darwin/semfastmutex-r0drv-darwin.cpp \
@@ -2367,6 +2460,7 @@ RuntimeR0Drv_SOURCES.os2 = \
 	generic/RTMpIsCpuOnline-generic.cpp \
 	generic/RTTimerCreate-generic.cpp \
 	generic/mppresent-generic.cpp \
+	generic/rtStrFormatKernelAddress-generic.cpp \
 	os2/RTErrConvertFromOS2.cpp \
 	os2/rtSemWaitOs2ConvertTimeout.cpp \
 	os2/sys0.asm \
@@ -2395,7 +2489,28 @@ RuntimeR0Drv_SOURCES.os2 = \
 	r0drv/os2/thread2-r0drv-os2.cpp \
 	r0drv/os2/time-r0drv-os2.cpp \
 	r0drv/os2/timer-r0drv-os2.cpp \
-	r0drv/os2/timerA-r0drv-os2.asm
+	r0drv/os2/timerA-r0drv-os2.asm \
+       \
+	common/math/gcc/adddi3.c \
+	common/math/gcc/anddi3.c \
+	common/math/gcc/ashldi3.c \
+	common/math/gcc/ashrdi3.c \
+	common/math/gcc/cmpdi2.c \
+	common/math/gcc/divdi3.c \
+	common/math/gcc/iordi3.c \
+	common/math/gcc/lshldi3.c \
+	common/math/gcc/lshrdi3.c \
+	common/math/gcc/moddi3.c \
+	common/math/gcc/muldi3.c \
+	common/math/gcc/negdi2.c \
+	common/math/gcc/notdi2.c \
+	common/math/gcc/qdivrem.c \
+	common/math/gcc/subdi3.c \
+	common/math/gcc/ucmpdi2.c \
+	common/math/gcc/udivdi3.c \
+	common/math/gcc/udivmoddi4.c \
+	common/math/gcc/umoddi3.c \
+	common/math/gcc/xordi3.c
 
 RuntimeR0Drv_SOURCES.freebsd = \
 	common/misc/thread.cpp \
@@ -2410,6 +2525,7 @@ RuntimeR0Drv_SOURCES.freebsd = \
 	generic/RTMpOnPair-generic.cpp \
 	generic/RTTimerCreate-generic.cpp \
 	generic/mppresent-generic.cpp \
+	generic/rtStrFormatKernelAddress-generic.cpp \
 	r0drv/generic/RTMpIsCpuWorkPending-r0drv-generic.cpp \
 	r0drv/generic/mpnotification-r0drv-generic.cpp \
 	r0drv/generic/threadctxhooks-r0drv-generic.cpp \
@@ -2444,6 +2560,7 @@ RuntimeR0Drv_SOURCES.netbsd = \
 	generic/RTLogWriteDebugger-generic.cpp \
 	generic/RTTimerCreate-generic.cpp \
 	generic/mppresent-generic.cpp \
+	generic/rtStrFormatKernelAddress-generic.cpp \
 	r0drv/generic/RTMpIsCpuWorkPending-r0drv-generic.cpp \
 	r0drv/generic/mpnotification-r0drv-generic.cpp \
 	r0drv/generic/threadctxhooks-r0drv-generic.cpp \
@@ -2474,6 +2591,7 @@ RuntimeR0Drv_SOURCES.solaris = \
 	generic/RTMpGetCoreCount-generic.cpp \
 	generic/RTTimerCreate-generic.cpp \
 	generic/mppresent-generic.cpp \
+	generic/rtStrFormatKernelAddress-generic.cpp \
 	r0drv/memobj-r0drv.cpp \
 	r0drv/mpnotification-r0drv.c \
 	r0drv/powernotification-r0drv.c \
@@ -2510,6 +2628,7 @@ RuntimeR0Drv_SOURCES.haiku = \
 	generic/RTMpOnPair-generic.cpp \
 	generic/RTTimerCreate-generic.cpp \
 	generic/mppresent-generic.cpp \
+	generic/rtStrFormatKernelAddress-generic.cpp \
 	r0drv/generic/RTMpIsCpuWorkPending-r0drv-generic.cpp \
 	r0drv/generic/mpnotification-r0drv-generic.cpp \
 	r0drv/generic/threadctxhooks-r0drv-generic.cpp \
@@ -2608,6 +2727,7 @@ ifdef VBOX_WITH_RAW_MODE
  	common/string/strncmp.cpp \
  	common/string/strpbrk.cpp \
  	common/string/strprintf.cpp \
+ 	common/string/strprintf2.cpp \
 	common/string/RTStrCmp.cpp \
  	common/string/RTStrCopy.cpp \
  	common/string/RTStrCopyEx.cpp \
@@ -2644,7 +2764,7 @@ ifdef VBOX_WITH_RAW_MODE
   RuntimeRC_SOURCES += os2/sys0.asm
  endif
 
- if1of ($(KBUILD_TARGET), darwin solaris freebsd)
+ if1of ($(KBUILD_TARGET), darwin solaris freebsd os2)
   RuntimeRC_SOURCES += \
  	common/math/gcc/adddi3.c \
  	common/math/gcc/anddi3.c \
@@ -2926,20 +3046,20 @@ IPRT_DOXYFILE_INPUT := \
 	$(foreach dir, $(IPRT_DOXYFILE_INPUT_DIRS), $(wildcard $(dir)/*.cpp $(dir)/.c $(dir)/.asm))
 IPRT_DOXYFILE_INPUT := \
 	$(IPRT_DOXYFILE_INPUT_FIRST) \
-	$(filter-out $(IPRT_DOXYFILE_INPUT_FIRST), $(IPRT_DOXYFILE_INPUT))
+	$(sort $(filter-out $(IPRT_DOXYFILE_INPUT_FIRST), $(IPRT_DOXYFILE_INPUT)))
 
 
 IPRT_DOXYFILE_OUTPUT = $(PATH_OUT)/docs/iprt
 BLDDIRS += $(IPRT_DOXYFILE_OUTPUT)
 
-includedep $(IPRT_OUT_DIR)/Doxyfile.iprt.dep
+includedep $(IPRT_DOXYFILE_OUTPUT)/Doxyfile.iprt.dep
 
 # Generate the Doxyfile
-$(IPRT_OUT_DIR)/Doxyfile.iprt: \
+$(IPRT_DOXYFILE_OUTPUT)/Doxyfile.iprt: \
 		$(VBOX_PATH_RUNTIME_SRC)/Doxyfile \
 		$(VBOX_PATH_RUNTIME_SRC)/Makefile.kmk \
-		$(comp-vars IPRT_DOXYFILE_INPUT,DOXYGEN_INPUT_PREV,FORCE) \
-		$(comp-vars IPRT_DOXYFILE_OUTPUT,DOXYGEN_OUTPUT_PREV,FORCE) \
+		$(comp-vars IPRT_DOXYFILE_INPUT,DOXYGEN_IPRT_INPUT_PREV,FORCE) \
+		$(comp-vars IPRT_DOXYFILE_OUTPUT,DOXYGEN_IPRT_OUTPUT_PREV,FORCE) \
 		| $$(dir $$@)
 	$(QUIET)$(RM) -f $@ $@.tmp $@.dep
 	$(QUIET)$(CP) -f $(VBOX_PATH_RUNTIME_SRC)/Doxyfile $@.tmp
@@ -2962,31 +3082,34 @@ $(IPRT_OUT_DIR)/Doxyfile.iprt: \
 	$(QUIET)$(APPEND) $@.tmp 'INPUT = $(foreach x,$(IPRT_DOXYFILE_INPUT),\$(NLTAB)$(x))'
 	$(QUIET)$(APPEND) $@.tmp
 	$(QUIET)$(MV) -f $@.tmp $@
-	$(QUIET)$(APPEND) $@.dep "DOXYGEN_OUTPUT_PREV = $(IPRT_DOXYFILE_OUTPUT)"
-	$(QUIET)$(APPEND) $@.dep "DOXYGEN_INPUT_PREV = $(IPRT_DOXYFILE_INPUT)"
+	$(QUIET)$(APPEND) $@.dep "DOXYGEN_IPRT_OUTPUT_PREV = $(IPRT_DOXYFILE_OUTPUT)"
+	$(QUIET)$(APPEND) $@.dep "DOXYGEN_IPRT_INPUT_PREV = $(IPRT_DOXYFILE_INPUT)"
 
 # Do the actual job.
-$(IPRT_OUT_DIR)/docs.iprt: $(IPRT_OUT_DIR)/Doxyfile.iprt $$(IPRT_DOXYFILE_INPUT) | $(IPRT_DOXYFILE_OUTPUT)/
-	$(QUIET)$(RM) -f $(wildcard $(IPRT_DOXYFILE_OUTPUT)/html/*) $(IPRT_OUT_DIR)/docs.iprt
-	doxygen $(DOXYGEN_OPTS) $(IPRT_OUT_DIR)/Doxyfile.iprt
-	$(SED)	-e '/warning. Unexpected tag .dd. found/d' \
-		-e '/warning. Unsupported xml.html tag .globalScope. found/d' \
-               --output $(IPRT_DOXYFILE_OUTPUT)/errors2 \
-		$(IPRT_DOXYFILE_OUTPUT)/errors
+$(IPRT_DOXYFILE_OUTPUT)/docs.iprt: $(IPRT_DOXYFILE_OUTPUT)/Doxyfile.iprt $$(IPRT_DOXYFILE_INPUT) \
+		| $(IPRT_DOXYFILE_OUTPUT)/
+	$(QUIET)$(RM) -f $@
+	$(QUIET)$(RM) -Rf $(IPRT_DOXYFILE_OUTPUT)/html/
+	doxygen $(DOXYGEN_OPTS) $(IPRT_DOXYFILE_OUTPUT)/Doxyfile.iprt
+	$(SED) \
+                -e '/warning. Unexpected tag .dd. found/d' \
+                -e '/warning. Unsupported xml.html tag .globalScope. found/d' \
+                --output $(IPRT_DOXYFILE_OUTPUT)/errors2 \
+                $(IPRT_DOXYFILE_OUTPUT)/errors
 	$(CAT) $(IPRT_DOXYFILE_OUTPUT)/errors2
 	$(SED) -e "/[^ ]/q 1" $(IPRT_DOXYFILE_OUTPUT)/errors2
-	$(APPEND) $(IPRT_OUT_DIR)/docs.iprt
+	$(APPEND) $@
 
 # aliases
-docs.iprt: $(IPRT_OUT_DIR)/docs.iprt
+docs.iprt: $(IPRT_DOXYFILE_OUTPUT)/docs.iprt
 if !defined(VBOX_ONLY_DOCS) && defined(VBOX_WITH_ALL_DOXYGEN_TARGETS)
-docs:      $(IPRT_OUT_DIR)/docs.iprt
+docs: $(IPRT_DOXYFILE_OUTPUT)/docs.iprt
 endif
 
 test-doxygen::
-	@echo test-$(comp-vars IPRT_DOXYFILE_OUTPUT,DOXYGEN_OUTPUT_PREV,FORCE)
+	@echo test-$(comp-vars IPRT_DOXYFILE_OUTPUT,DOXYGEN_IPRT_OUTPUT_PREV,FORCE)
 	@echo $(IPRT_DOXYFILE_OUTPUT)
-	@echo $(DOXYGEN_OUTPUT_PREV)
+	@echo $(DOXYGEN_IPRT_OUTPUT_PREV)
 	@echo $(IPRT_DOXYFILE_INPUT)
 
 
@@ -3035,8 +3158,8 @@ if1of ($(LIBRARIES),RuntimeR3 RuntimeR0 RuntimeR0Drv RuntimeRC)
 			-e 's/^[[:alpha:]]\+ \+//' \
 			-e '/LOCAL/d' \
 			-e 's/^[[:alpha:]]\+ \+//' \
-                       -e '/^HIDDEN [[:xdigit:]]\+ RT/bkeep-hidden' \
-                       -e '/^HIDDEN [[:xdigit:]]\+ g_[a-z0-9]*RT/bkeep-hidden' \
+			-e '/^HIDDEN [[:xdigit:]]\+ RT/bkeep-hidden' \
+			-e '/^HIDDEN [[:xdigit:]]\+ g_[a-z0-9]*RT/bkeep-hidden' \
 			-e '/^HIDDEN/d' \
 			-e ':keep-hidden' \
 			-e 's/^[[:alpha:]]\+ \+//' \
@@ -3064,17 +3187,18 @@ if1of ($(LIBRARIES),RuntimeR3 RuntimeR0 RuntimeR0Drv RuntimeRC)
 			-e '/^_ZnwjPv/d' \
 			-e '/^_ZnwmPv/d' \
 			-e '/^_ZNSt9bad_allocC1Ev/d' \
+			-e '/^_ZNSt9bad_allocC[12]ERKS_/d' \
 			-e '/^_ZNSt9exceptionC2Ev/d' \
 			-e '/^_ZNSt9exceptionC[12]ERKS_/d' \
 			\
 			-e '/^_ZN[a-zA-Z]*St[[:digit:]]*_*[lL]ist/d' \
-                       -e '/^_ZN[a-zA-Z]*[[:digit:]]*__gnu_cxx/d' \
-                       -e '/^_ZNSa.*ElementNode.*/d' \
-                       -e '/^_ZSt.*ElementNode.*/d' \
+			-e '/^_ZN[a-zA-Z]*[[:digit:]]*__gnu_cxx/d' \
+			-e '/^_ZNSa.*ElementNode.*/d' \
+			-e '/^_ZSt.*ElementNode.*/d' \
 			\
 			-e '/^_Z[[:digit:]]\+dbus/d' \
 			-e '/^_Z13RTDBusLoadLibv/d' \
-                       \
+			\
 			-e '/^g_[ac]VTG/d' \
 			-e '/^g_VTGObjHeader/d' \
 			-e '/^g_VTGProbeData/d' \

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -736,10 +736,10 @@ DECLINLINE(void) tstASMAtomicXchgPtrWorker(void * volatile *ppv)
     CHECKOP(ASMAtomicXchgPtr(ppv, (void *)(~(uintptr_t)0)), NULL, "%p", void *);
     CHECKVAL(*ppv, (void *)(~(uintptr_t)0), "%p");
 
-    CHECKOP(ASMAtomicXchgPtr(ppv, (void *)0x87654321), (void *)(~(uintptr_t)0), "%p", void *);
-    CHECKVAL(*ppv, (void *)0x87654321, "%p");
+    CHECKOP(ASMAtomicXchgPtr(ppv, (void *)(uintptr_t)0x87654321), (void *)(~(uintptr_t)0), "%p", void *);
+    CHECKVAL(*ppv, (void *)(uintptr_t)0x87654321, "%p");
 
-    CHECKOP(ASMAtomicXchgPtr(ppv, NULL), (void *)0x87654321, "%p", void *);
+    CHECKOP(ASMAtomicXchgPtr(ppv, NULL), (void *)(uintptr_t)0x87654321, "%p", void *);
     CHECKVAL(*ppv, NULL, "%p");
 }
 

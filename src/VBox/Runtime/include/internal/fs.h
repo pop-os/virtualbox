@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,7 +34,10 @@
 
 RT_C_DECLS_BEGIN
 
-RTFMODE rtFsModeFromDos(RTFMODE fMode, const char *pszName, size_t cbName);
+/** IO_REPARSE_TAG_SYMLINK */
+#define RTFSMODE_SYMLINK_REPARSE_TAG UINT32_C(0xa000000c)
+
+RTFMODE rtFsModeFromDos(RTFMODE fMode, const char *pszName, size_t cbName, uint32_t uReparseTag);
 RTFMODE rtFsModeFromUnix(RTFMODE fMode, const char *pszName, size_t cbName);
 RTFMODE rtFsModeNormalize(RTFMODE fMode, const char *pszName, size_t cbName);
 bool    rtFsModeIsValid(RTFMODE fMode);

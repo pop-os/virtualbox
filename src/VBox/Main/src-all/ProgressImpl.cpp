@@ -41,6 +41,7 @@
 #include <VBox/err.h>
 #include "AutoCaller.h"
 
+#include "VBoxEvents.h"
 
 Progress::Progress()
 #if !defined(VBOX_COM_INPROC)
@@ -138,7 +139,7 @@ void Progress::FinalRelease()
  * @param cOperations   Number of operations within this task (at least 1).
  * @param ulTotalOperationsWeight Total weight of operations; must be the sum of ulFirstOperationWeight and
  *                          what is later passed with each subsequent setNextOperation() call.
- * @param bstrFirstOperationDescription Description of the first operation.
+ * @param aFirstOperationDescription Description of the first operation.
  * @param ulFirstOperationWeight Weight of first sub-operation.
  */
 HRESULT Progress::init(
@@ -167,6 +168,11 @@ HRESULT Progress::init(
     AssertReturn(autoInitSpan.isOk(), E_FAIL);
 
     HRESULT rc = S_OK;
+    rc = unconst(pEventSource).createObject();
+    if (FAILED(rc)) throw rc;
+
+    rc = pEventSource->init();
+    if (FAILED(rc)) throw rc;
 
 //    rc = Progress::init(
 //#if !defined(VBOX_COM_INPROC)
@@ -406,7 +412,7 @@ HRESULT Progress::i_notifyComplete(HRESULT aResultCode,
  *
  * @param aResultCode   Operation result (error) code, must not be S_OK.
  * @param aIID          IID of the interface that defines the error.
- * @param aComponent    Name of the component that generates the error.
+ * @param pcszComponent Name of the component that generates the error.
  * @param aText         Error message (must not be null), an RTStrPrintf-like
  *                      format string in UTF-8 encoding.
  * @param va            List of arguments for the format string.
@@ -474,6 +480,8 @@ HRESULT Progress::i_notifyCompleteEI(HRESULT aResultCode, const ComPtr<IVirtualB
     if (mWaitersCount > 0)
         RTSemEventMultiSignal(mCompletedSem);
 
+    fireProgressTaskCompletedEvent(pEventSource, mId.toUtf16().raw());
+
     return S_OK;
 }
 
@@ -536,6 +544,48 @@ bool Progress::i_setCancelCallback(void (*pfnCallback)(void *), void *pvUser)
     return true;
 }
 
+/**
+ * @callback_method_impl{FNRTPROGRESS,
+ *      Works the progress of the current operation.}
+ */
+/*static*/ DECLCALLBACK(int) Progress::i_iprtProgressCallback(unsigned uPercentage, void *pvUser)
+{
+    Progress *pThis = (Progress *)pvUser;
+
+    /*
+     * Same as setCurrentOperationProgress, except we don't fail on mCompleted.
+     */
+    AutoWriteLock alock(pThis COMMA_LOCKVAL_SRC_POS);
+    int vrc = VINF_SUCCESS;
+    if (!pThis->mCompleted)
+    {
+        pThis->i_checkForAutomaticTimeout();
+        if (!pThis->mCanceled)
+        {
+            if (uPercentage > pThis->m_ulOperationPercent)
+                pThis->m_ulOperationPercent = RT_MIN(uPercentage, 100);
+        }
+        else
+        {
+            Assert(pThis->mCancelable);
+            vrc = VERR_CANCELLED;
+        }
+        ULONG actualPercent = 0;
+        pThis->getPercent(&actualPercent);
+        fireProgressPercentageChangedEvent(pThis->pEventSource, pThis->mId.toUtf16().raw(), actualPercent);
+    }
+    /* else ignored */
+    return vrc;
+}
+
+/**
+ * @callback_method_impl{FNVDPROGRESS,
+ *      Progress::i_iprtProgressCallback with parameters switched around.}
+ */
+/*static*/ DECLCALLBACK(int) Progress::i_vdProgressCallback(void *pvUser, unsigned uPercentage)
+{
+    return i_iprtProgressCallback(uPercentage, pvUser);
+}
 
 // IProgress properties
 /////////////////////////////////////////////////////////////////////////////
@@ -773,6 +823,10 @@ HRESULT Progress::setCurrentOperationProgress(ULONG aPercent)
 
     m_ulOperationPercent = aPercent;
 
+    ULONG actualPercent = 0;
+    getPercent(&actualPercent);
+    fireProgressPercentageChangedEvent(pEventSource, mId.toUtf16().raw(), actualPercent);
+
     return S_OK;
 }
 
@@ -780,7 +834,8 @@ HRESULT Progress::setCurrentOperationProgress(ULONG aPercent)
  * Signals that the current operation is successfully completed and advances to
  * the next operation. The operation percentage is reset to 0.
  *
- * @param aOperationDescription     Description of the next operation.
+ * @param aNextOperationDescription  Description of the next operation.
+ * @param aNextOperationsWeight     Weight of the next operation.
  *
  * @note The current operation must not be the last one.
  */
@@ -806,6 +861,10 @@ HRESULT Progress::setNextOperation(const com::Utf8Str &aNextOperationDescription
     /* wake up all waiting threads */
     if (mWaitersCount > 0)
         RTSemEventMultiSignal(mCompletedSem);
+
+    ULONG actualPercent = 0;
+    getPercent(&actualPercent);
+    fireProgressPercentageChangedEvent(pEventSource, mId.toUtf16().raw(), actualPercent);
 
     return S_OK;
 }
@@ -1034,6 +1093,12 @@ HRESULT Progress::cancel()
     return S_OK;
 }
 
+HRESULT Progress::getEventSource(ComPtr<IEventSource> &aEventSource)
+{
+    /* event source is const, no need to lock */
+    pEventSource.queryInterfaceTo(aEventSource.asOutParam());
+    return S_OK;
+}
 
 // private internal helpers
 /////////////////////////////////////////////////////////////////////////////

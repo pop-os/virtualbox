@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2016 Oracle Corporation
+# Copyright (C) 2006-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -24,7 +24,7 @@ if1of ($(KBUILD_TARGET),os2 win)
  # only required for vbox-img
  LIBRARIES += VBox-liblzf-static
 endif
-VBox-liblzf_TEMPLATE = VBoxR3RuntimeDllNonPedantic
+VBox-liblzf_TEMPLATE = VBoxR3RuntimeDllNonPedanticFast
 VBox-liblzf_BLD_TYPE = release # WARNING! Always optimizing this lib.
 VBox-liblzf_DEFS = ULTRA_FAST=1 HLOG=12
 VBox-liblzf_DEFS.x86 = STRICT_ALIGN=0

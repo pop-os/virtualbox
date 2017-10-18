@@ -16,6 +16,8 @@
  */
 
 #define LOG_GROUP LOG_GROUP_USB_REMOTE
+#include "LoggingNew.h"
+
 #include "ConsoleImpl.h"
 #include "ConsoleVRDPServer.h"
 #include "RemoteUSBBackend.h"
@@ -63,7 +65,7 @@
  * will not affect the timeout, so it is ok.
  *
  *
- * @subsection sub_vrdb_usb_dad  Device attaching/detaching
+ * @section sub_vrdb_usb_dad  Device attaching/detaching
  *
  * Devices are attached when client is connected or when a new device is connected to client.
  * Devices are detached when client is disconnected (all devices) or a device is disconnected

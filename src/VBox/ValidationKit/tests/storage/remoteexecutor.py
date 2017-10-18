@@ -7,7 +7,7 @@ VirtualBox Validation Kit - Storage benchmark, test execution helpers.
 
 __copyright__ = \
 """
-Copyright (C) 2016 Oracle Corporation
+Copyright (C) 2016-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 108698 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard Python imports.
@@ -88,11 +88,11 @@ class RemoteExecutor(object):
     """
 
     def __init__(self, oTxsSession = None, asBinaryPaths = None, sScratchPath = None):
-        self.oTxsSession = oTxsSession;
-        self.asPaths = asBinaryPaths;
+        self.oTxsSession  = oTxsSession;
+        self.asPaths      = asBinaryPaths;
+        self.sScratchPath = sScratchPath;
         if self.asPaths is None:
             self.asPaths = [ ];
-        self.sScratchPath = sScratchPath
 
     def _isFile(self, sFile):
         """
@@ -100,8 +100,7 @@ class RemoteExecutor(object):
         """
         if self.oTxsSession is not None:
             return self.oTxsSession.syncIsFile(sFile);
-        else:
-            return os.path.isfile(sFile);
+        return os.path.isfile(sFile);
 
     def _getBinaryPath(self, sBinary):
         """
@@ -122,23 +121,25 @@ class RemoteExecutor(object):
         """
         reporter.log('Executing [sudo]: %s' % (asArgs, ));
         reporter.flushall();
+        fRc = True;
+        sOutput = '';
+        sError = '';
         try:
             oProcess = utils.sudoProcessPopen(asArgs, stdout=subprocess.PIPE, stdin=subprocess.PIPE,
-                                              shell = False, close_fds = False);
+                                              stderr=subprocess.PIPE, shell = False, close_fds = False);
 
-            sOutput, _ = oProcess.communicate(sInput);
+            sOutput, sError = oProcess.communicate(sInput);
             iExitCode  = oProcess.poll();
 
             if iExitCode is not 0:
-                print(sOutput);
-                raise subprocess.CalledProcessError(iExitCode, asArgs);
+                fRc = False;
         except:
             reporter.errorXcpt();
-            return (False, None);
-        reporter.log('Exit code [sudo]: %s (%s)' % (True, asArgs));
-        return (True, str(sOutput));
+            fRc = False;
+        reporter.log('Exit code [sudo]: %s (%s)' % (fRc, asArgs));
+        return (fRc, str(sOutput), str(sError));
 
-    def _execLocallyOrThroughTxs(self, sExec, asArgs, sInput):
+    def _execLocallyOrThroughTxs(self, sExec, asArgs, sInput, cMsTimeout):
         """
         Executes the given program locally or through TXS based on the
         current config.
@@ -146,20 +147,29 @@ class RemoteExecutor(object):
         fRc = False;
         sOutput = None;
         if self.oTxsSession is not None:
+            reporter.log('Executing [remote]: %s %s %s' % (sExec, asArgs, sInput));
+            reporter.flushall();
             oStdOut = StdInOutBuffer();
+            oStdErr = StdInOutBuffer();
             oStdIn = None;
             if sInput is not None:
                 oStdIn = StdInOutBuffer(sInput);
             else:
                 oStdIn = '/dev/null'; # pylint: disable=R0204
             fRc = self.oTxsSession.syncExecEx(sExec, (sExec,) + asArgs,
-                                              oStdIn = oStdIn, oStdOut = oStdOut);
+                                              oStdIn = oStdIn, oStdOut = oStdOut,
+                                              oStdErr = oStdErr, cMsTimeout = cMsTimeout);
             sOutput = oStdOut.getOutput();
+            sError = oStdErr.getOutput();
+            if fRc is False:
+                reporter.log('Exit code [remote]: %s (stdout: %s stderr: %s)' % (fRc, sOutput, sError));
+            else:
+                reporter.log('Exit code [remote]: %s' % (fRc,));
         else:
-            fRc, sOutput = self._sudoExecuteSync([sExec, ] + list(asArgs), sInput);
-        return (fRc, sOutput);
+            fRc, sOutput, sError = self._sudoExecuteSync([sExec, ] + list(asArgs), sInput);
+        return (fRc, sOutput, sError);
 
-    def execBinary(self, sExec, asArgs, sInput = None):
+    def execBinary(self, sExec, asArgs, sInput = None, cMsTimeout = 3600000):
         """
         Executes the given binary with the given arguments
         providing some optional input through stdin and
@@ -169,12 +179,13 @@ class RemoteExecutor(object):
 
         fRc = True;
         sOutput = None;
+        sError = None;
         sBinary = self._getBinaryPath(sExec);
         if sBinary is not None:
-            fRc, sOutput = self._execLocallyOrThroughTxs(sBinary, asArgs, sInput);
+            fRc, sOutput, sError = self._execLocallyOrThroughTxs(sBinary, asArgs, sInput, cMsTimeout);
         else:
             fRc = False;
-        return (fRc, sOutput);
+        return (fRc, sOutput, sError);
 
     def execBinaryNoStdOut(self, sExec, asArgs, sInput = None):
         """
@@ -182,7 +193,7 @@ class RemoteExecutor(object):
         providing some optional input through stdin and
         returning whether the process exited successfully.
         """
-        fRc, _ = self.execBinary(sExec, asArgs, sInput);
+        fRc, _, _ = self.execBinary(sExec, asArgs, sInput);
         return fRc;
 
     def copyFile(self, sLocalFile, sFilename, cMsTimeout = 30000):

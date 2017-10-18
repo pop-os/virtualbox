@@ -24,13 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#define LOG_GROUP LOG_GROUP_DRV_MOUSE
-
-
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-
+#define LOG_GROUP LOG_GROUP_DRV_MOUSE
+#include <VBox/VMMDev.h>
 #include <VBox/VBoxGuestLib.h>
 #include <VBox/log.h>
 #include <VBox/version.h>
@@ -470,15 +468,15 @@ int vbmsSolOpen(queue_t *pReadQueue, dev_t *pDev, int fFlag, int fMode,
          * Initialize IPRT R0 driver, which internally calls OS-specific r0
          * init, and create a new session.
          */
-        rc = VbglInitClient();
+        rc = VbglR0InitClient();
         if (RT_SUCCESS(rc))
         {
-            rc = VbglGRAlloc((VMMDevRequestHeader **)
+            rc = VbglR0GRAlloc((VMMDevRequestHeader **)
                              &pState->pMouseStatusReq,
                              sizeof(*pState->pMouseStatusReq),
                              VMMDevReq_GetMouseStatus);
             if (RT_FAILURE(rc))
-                VbglTerminate();
+                VbglR0TerminateClient();
             else
             {
                 int rc2;
@@ -489,8 +487,7 @@ int vbmsSolOpen(queue_t *pReadQueue, dev_t *pDev, int fFlag, int fMode,
                 pReadQueue->q_ptr = (char *)pState;
                 qprocson(pReadQueue);
                 /* Enable our IRQ handler. */
-                rc2 = VbglSetMouseNotifyCallback(vbmsSolNotify,
-                                                 (void *)pState);
+                rc2 = VbglR0SetMouseNotifyCallback(vbmsSolNotify, (void *)pState);
                 if (RT_FAILURE(rc2))
                     /* Log the failure.  I may well have not understood what
                      * is going on here, and the logging may help me. */
@@ -526,7 +523,7 @@ void vbmsSolNotify(void *pvState)
     pState->pMouseStatusReq->mouseFeatures = 0;
     pState->pMouseStatusReq->pointerXPos = 0;
     pState->pMouseStatusReq->pointerYPos = 0;
-    rc = VbglGRPerform(&pState->pMouseStatusReq->header);
+    rc = VbglR0GRPerform(&pState->pMouseStatusReq->header);
     if (RT_SUCCESS(rc))
     {
         int cMaxScreenX  = pState->cMaxScreenX;
@@ -591,9 +588,9 @@ int vbmsSolClose(queue_t *pReadQueue, int fFlag, cred_t *pCred)
     --pState->cInits;
     if (!pState->cInits)
     {
-        VbglSetMouseStatus(0);
+        VbglR0SetMouseStatus(0);
         /* Disable our IRQ handler. */
-        VbglSetMouseNotifyCallback(NULL, NULL);
+        VbglR0SetMouseNotifyCallback(NULL, NULL);
         qprocsoff(pReadQueue);
 
         /*
@@ -601,8 +598,8 @@ int vbmsSolClose(queue_t *pReadQueue, int fFlag, cred_t *pCred)
          */
         ASMAtomicWriteNullPtr(&pState->pWriteQueue);
         pReadQueue->q_ptr = NULL;
-        VbglGRFree(&pState->pMouseStatusReq->header);
-        VbglTerminate();
+        VbglR0GRFree(&pState->pMouseStatusReq->header);
+        VbglR0TerminateClient();
     }
     mutex_exit(&pState->InitMtx);
     return 0;
@@ -654,6 +651,7 @@ int vbmsSolWPut(queue_t *pWriteQueue, mblk_t *pMBlk)
                 flushq(RD(pWriteQueue), FLUSHDATA);
 
             /* We have no one below us to pass the message on to. */
+            freemsg(pMBlk);
             return 0;
         /* M_IOCDATA is additional data attached to (at least) transparent
          * IOCtls.  We handle the two together here and separate them further
@@ -1195,10 +1193,7 @@ static int vbmsSolHandleIOCtlData(PVBMSSTATE pState, mblk_t *pMBlk,
                  (int)(uintptr_t)pCopyResp->cp_rval,
                  (void *)pCopyResp->cp_private));
     if (pCopyResp->cp_rval)  /* cp_rval is a pointer used as a boolean. */
-    {
-        freemsg(pMBlk);
         return EAGAIN;
-    }
     if ((pCopyResp->cp_private && enmDirection == BOTH) || enmDirection == IN)
     {
         size_t cbData = 0;
@@ -1207,18 +1202,20 @@ static int vbmsSolHandleIOCtlData(PVBMSSTATE pState, mblk_t *pMBlk,
 
         if (!pMBlk->b_cont)
             return EINVAL;
-        if (enmDirection == BOTH && !pCopyResp->cp_private)
-            return EINVAL;
         pvData = pMBlk->b_cont->b_rptr;
         err = pfnHandler(pState, iCmd, pvData, cbCmd, &cbData, NULL);
         if (!err && enmDirection == BOTH)
             mcopyout(pMBlk, NULL, cbData, pCopyResp->cp_private, NULL);
         else if (!err && enmDirection == IN)
             vbmsSolAcknowledgeIOCtl(pMBlk, 0, 0);
+        if ((err || enmDirection == IN) && pCopyResp->cp_private)
+            freemsg(pCopyResp->cp_private);
         return err;
     }
     else
     {
+        if (pCopyResp->cp_private)
+            freemsg(pCopyResp->cp_private);
         AssertReturn(enmDirection == OUT || enmDirection == BOTH, EINVAL);
         vbmsSolAcknowledgeIOCtl(pMBlk, 0, 0);
         return 0;
@@ -1377,8 +1374,8 @@ static int vbmsSolVUIDIOCtl(PVBMSSTATE pState, int iCmd, void *pvData,
             pState->cMaxScreenX = pResolution->width  - 1;
             pState->cMaxScreenY = pResolution->height - 1;
             /* Note: we don't disable this again until session close. */
-            rc = VbglSetMouseStatus(  VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE
-                                    | VMMDEV_MOUSE_NEW_PROTOCOL);
+            rc = VbglR0SetMouseStatus(  VMMDEV_MOUSE_GUEST_CAN_ABSOLUTE
+                                      | VMMDEV_MOUSE_NEW_PROTOCOL);
             if (RT_SUCCESS(rc))
                 return 0;
             pState->cMaxScreenX = 0;
@@ -1433,3 +1430,4 @@ int main(void)
     return RTTestSummaryAndDestroy(hTest);
 }
 #endif
+

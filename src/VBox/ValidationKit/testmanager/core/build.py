@@ -7,7 +7,7 @@ Test Manager - Builds.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2016 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 109117 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard python imports.
@@ -147,14 +147,18 @@ class BuildCategoryLogic(ModelLogicBase): # pylint: disable=R0903
     Build categories database logic.
     """
 
-    def fetchForListing(self, iStart, cMaxRows, tsNow):
+    def __init__(self, oDb):
+        ModelLogicBase.__init__(self, oDb)
+        self.dCache = None;
+
+    def fetchForListing(self, iStart, cMaxRows, tsNow, aiSortColumns = None):
         """
         Fetches testboxes for listing.
 
         Returns an array (list) of UserAccountData items, empty list if none.
         Raises exception on error.
         """
-        _ = tsNow;
+        _ = tsNow; _ = aiSortColumns;
         self._oDb.execute('SELECT   *\n'
                           'FROM     BuildCategories\n'
                           'ORDER BY sProduct, sRepository, sBranch, sType, idBuildCategory\n'
@@ -235,6 +239,29 @@ class BuildCategoryLogic(ModelLogicBase): # pylint: disable=R0903
         _ = uidAuthor; _ = fCascade;
         return True;
 
+    def cachedLookup(self, idBuildCategory):
+        """
+        Looks up the most recent BuildCategoryData object for idBuildCategory
+        via an object cache.
+
+        Returns a shared BuildCategoryData object.  None if not found.
+        Raises exception on DB error.
+        """
+        if self.dCache is None:
+            self.dCache = self._oDb.getCache('BuildCategoryData');
+        oEntry = self.dCache.get(idBuildCategory, None);
+        if oEntry is None:
+            self._oDb.execute('SELECT   *\n'
+                              'FROM     BuildCategories\n'
+                              'WHERE    idBuildCategory = %s\n'
+                              , (idBuildCategory, ));
+            if self._oDb.getRowCount() == 1:
+                aaoRow = self._oDb.fetchOne();
+                oEntry = BuildCategoryData();
+                oEntry.initFromDbRow(aaoRow);
+                self.dCache[idBuildCategory] = oEntry;
+        return oEntry;
+
     #
     # Other methods.
     #
@@ -250,7 +277,7 @@ class BuildCategoryLogic(ModelLogicBase): # pylint: disable=R0903
                           'WHERE    idBuildCategory = %s\n'
                           , (idBuildCategory,))
         aaoRows = self._oDb.fetchAll()
-        if len(aaoRows) == 0:
+        if not aaoRows:
             return None;
         if len(aaoRows) != 1:
             raise self._oDb.integrityException('Duplicates in BuildCategories: %s' % (aaoRows,));
@@ -279,7 +306,7 @@ class BuildCategoryLogic(ModelLogicBase): # pylint: disable=R0903
                               sorted(oData.asOsArches),
                           ));
         aaoRows = self._oDb.fetchAll();
-        if len(aaoRows) == 0:
+        if not aaoRows:
             return None;
         if len(aaoRows) > 1:
             raise self._oDb.integrityException('Duplicates in BuildCategories: %s' % (aaoRows,));
@@ -295,7 +322,7 @@ class BuildCategoryLogic(ModelLogicBase): # pylint: disable=R0903
 
         # Check BuildCategoryData before do anything
         dDataErrors = oData.validateAndConvert(self._oDb, oData.ksValidateFor_Add);
-        if len(dDataErrors) > 0:
+        if dDataErrors:
             raise TMInvalidData('Invalid data passed to addBuildCategory(): %s' % (dDataErrors,));
 
         # Does it already exist?
@@ -404,7 +431,7 @@ class BuildData(ModelDataBase):
 
         for sBinary in self.sBinaries.split(','):
             sBinary = sBinary.strip();
-            if len(sBinary) == 0:
+            if not sBinary:
                 continue;
             # Same URL tests as in webutils.downloadFile().
             if   sBinary.startswith('http://') \
@@ -479,17 +506,23 @@ class BuildLogic(ModelLogicBase): # pylint: disable=R0903
     Build database logic (covers build categories as well as builds).
     """
 
+    def __init__(self, oDb):
+        ModelLogicBase.__init__(self, oDb)
+        self.dCache = None;
+
     #
     # Standard methods.
     #
 
-    def fetchForListing(self, iStart, cMaxRows, tsNow):
+    def fetchForListing(self, iStart, cMaxRows, tsNow, aiSortColumns = None):
         """
         Fetches builds for listing.
 
         Returns an array (list) of BuildDataEx items, empty list if none.
         Raises exception on error.
         """
+        _ = aiSortColumns;
+
         if tsNow is None:
             self._oDb.execute('SELECT   *\n'
                               'FROM     Builds, BuildCategories\n'
@@ -559,7 +592,7 @@ class BuildLogic(ModelLogicBase): # pylint: disable=R0903
         # Validate input and get current data.
         #
         dErrors = oData.validateAndConvert(self._oDb, oData.ksValidateFor_Edit);
-        if len(dErrors) > 0:
+        if dErrors:
             raise TMInvalidData('editEntry invalid input: %s' % (dErrors,));
         oOldData = BuildData().initFromDbWithId(self._oDb, oData.idBuild);
 
@@ -608,6 +641,43 @@ class BuildLogic(ModelLogicBase): # pylint: disable=R0903
 
         self._oDb.maybeCommit(fCommit);
         return True;
+
+    def cachedLookup(self, idBuild):
+        """
+        Looks up the most recent BuildDataEx object for idBuild
+        via an object cache.
+
+        Returns a shared BuildDataEx object.  None if not found.
+        Raises exception on DB error.
+        """
+        if self.dCache is None:
+            self.dCache = self._oDb.getCache('BuildDataEx');
+        oEntry = self.dCache.get(idBuild, None);
+        if oEntry is None:
+            self._oDb.execute('SELECT   Builds.*, BuildCategories.*\n'
+                              'FROM     Builds, BuildCategories\n'
+                              'WHERE    Builds.idBuild         = %s\n'
+                              '     AND Builds.idBuildCategory = BuildCategories.idBuildCategory\n'
+                              '     AND tsExpire = \'infinity\'::TIMESTAMP\n'
+                              , (idBuild, ));
+            if self._oDb.getRowCount() == 0:
+                # Maybe it was deleted, try get the last entry.
+                self._oDb.execute('SELECT   Builds.*, BuildCategories.*\n'
+                                  'FROM     Builds, BuildCategories\n'
+                                  'WHERE    Builds.idBuild         = %s\n'
+                                  '     AND Builds.idBuildCategory = BuildCategories.idBuildCategory\n'
+                                  'ORDER BY tsExpire DESC\n'
+                                  'LIMIT 1\n'
+                                  , (idBuild, ));
+            elif self._oDb.getRowCount() > 1:
+                raise self._oDb.integrityException('%s infinity rows for %s' % (self._oDb.getRowCount(), idBuild));
+
+            if self._oDb.getRowCount() == 1:
+                aaoRow = self._oDb.fetchOne();
+                oEntry = BuildDataEx();
+                oEntry.initFromDbRow(aaoRow);
+                self.dCache[idBuild] = oEntry;
+        return oEntry;
 
 
     #
@@ -670,7 +740,7 @@ class BuildLogic(ModelLogicBase): # pylint: disable=R0903
         asOsNoArch       = [];
         for i in range(len(oBuildEx.oCat.asOsArches)):
             asParts = oBuildEx.oCat.asOsArches[i].split('.');
-            if len(asParts) != 2 or len(asParts[0]) == 0 or len(asParts[1]) == 0:
+            if len(asParts) != 2 or not asParts[0] or not asParts[1]:
                 raise self._oDb.integrityException('Bad build asOsArches value: %s (idBuild=%s idBuildCategory=%s)'
                                                    % (oBuildEx.asOsArches[i], oBuildEx.idBuild, oBuildEx.idBuildCategory));
             asOsNoArch.append(asParts[0] + '.noarch');

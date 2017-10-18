@@ -40,6 +40,14 @@ UISettingsPage::UISettingsPage(UISettingsPageType pageType)
 {
 }
 
+void UISettingsPage::notifyOperationProgressError(const QString &strErrorInfo)
+{
+    QMetaObject::invokeMethod(this,
+                              "sigOperationProgressError",
+                              Qt::BlockingQueuedConnection,
+                              Q_ARG(QString, strErrorInfo));
+}
+
 void UISettingsPage::setValidator(UIPageValidator *pValidator)
 {
     /* Make sure validator is not yet assigned: */
@@ -79,17 +87,16 @@ QPixmap UISettingsPageGlobal::warningPixmap() const
     return gpConverter->toWarningPixmap(internalID());
 }
 
-/* Fetch data to m_properties & m_settings: */
+/* Fetch data to m_properties: */
 void UISettingsPageGlobal::fetchData(const QVariant &data)
 {
     m_properties = data.value<UISettingsDataGlobal>().m_properties;
-    m_settings = data.value<UISettingsDataGlobal>().m_settings;
 }
 
-/* Upload m_properties & m_settings to data: */
+/* Upload m_properties to data: */
 void UISettingsPageGlobal::uploadData(QVariant &data) const
 {
-    data = QVariant::fromValue(UISettingsDataGlobal(m_properties, m_settings));
+    data = QVariant::fromValue(UISettingsDataGlobal(m_properties));
 }
 
 /* Machine settings page constructor, hidden: */

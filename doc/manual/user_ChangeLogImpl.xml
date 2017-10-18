@@ -2,6 +2,248 @@
 
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
+
+  <sect1>
+    <title>Version 5.2.0 (2017-10-17)</title>
+
+    <para>This is a major update. The following major new features
+      were added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VM export to Oracle Cloud (OPC)</para>
+      </listitem>
+
+      <listitem>
+        <para>Unattended guest installation (bug #5810; see <xref
+         linkend="basic-unattended" />)</para>
+      </listitem>
+
+      <listitem>
+        <para>Overhauled VM selector GUI (improved tools VM / global
+          tools handling, new icons)</para>
+      </listitem>
+
+      <listitem>
+        <para>Added experimental audio support for video recording</para>
+      </listitem>
+
+    </itemizedlist>
+
+    <para>In addition, the following items were fixed and/or added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: fixed reason for recent Linux kernels on also recent CPU
+          models warning about "XSAVE consistency problem"</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Virtual Media Manager rework allowing to manage media
+          attributes, like size, location, type and description</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Host-only Network Manager implemented to simplify managing
+          corresponding networks and their attributes</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Snapshot Pane rework allowing to manage snapshot
+          attributes, like name and description; reworked snapshot details
+          which looks more clear, corresponds to VM Details pane and reflects
+          current VM state difference according to last snapshot taken</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Audio settings extended with possibility to enable/disable
+          audio input/output; corresponding changed were done to Audio
+          and Video Capture settings pages; VM Devices menu and status-bar
+          extended with corresponding actions and indicator as well</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: improvements with accessibility support</para>
+      </listitem>
+
+      <listitem>
+        <para>GUI: Fixed double mouse cursor when using mouse integration
+          without Guest Additions, actually a Qt 5.6 bug fixed with QT 5.6.3
+          (Mac OS X hosts only; bug #15610)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: implemented (optional) device enumeration support for
+          audio backends</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: implemented support for host device callbacks (e.g. when
+          adding or removing an audio device)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: HDA emulation now uses asynchronous data processing in
+          separate threads</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: implemented ability to enable or disable audio
+          input / output on-the-fly</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: implemented support for CUE/BIN images as CD/DVD media
+          including multiple tracks</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: implemented support for the controller memory buffer
+          feature for NVMe</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: first milestone of the I/O stack redesign landed</para>
+      </listitem>
+
+      <listitem>
+        <para>E1000: Fix for Windows XP freeze when booting with unplugged
+          cable</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT network: do not skip some port forwarding setup when
+          multiple VMs are active (Windows hosts only; bug #17041)</para>
+      </listitem>
+
+      <listitem>
+        <para>Serial: fixed extremely rare misbehavior on VM poweroff</para>
+      </listitem>
+
+      <listitem>
+        <para>EFI: better video mode handling, supporting custom video
+          modes and easier configuration (bug #6783)</para>
+      </listitem>
+
+      <listitem>
+        <para>BIOS: properly report floppy logical sectors per track for
+          unusual formats</para>
+      </listitem>
+
+      <listitem>
+        <para>BIOS: update ATA disk parameter table vectors only if there is
+          actually a corresponding ATA disk attached</para>
+      </listitem>
+
+      <listitem>
+        <para>PXE: speed up booting by better handling pending packets when
+          the link is not up yet</para>
+      </listitem>
+
+      <listitem>
+        <para>VBoxManage: handle CPUID sub-leaf overrides better</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows Additions: fix several 3D related crashes</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris hosts: allow increasing MTU size for host-only adapter to
+          9706 bytes to support jumbo frames</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: on systems using systemd, make sure that only
+          the Guest Additions timesync service is active</para>
+      </listitem>
+
+      <listitem>
+        <para>many unlisted fixes and improvements</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
+    <title>Version 5.1.28 (2017-09-13)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: mouse events did not reach host windows behind the transparent
+          VM window (Mac OS X hosts only; bug #16246)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed accidental crashes when using the AC'97 sound
+          emulation (bug #16959)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed crash when default input or output devices have changed
+          (bugs #16968, #16969, #17004)</para>
+      </listitem>
+      <listitem>
+        <para>Audio: fixed recording when using the ALSA backend</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed handle leak when using the OSS backend</para>
+      </listitem>
+
+      <listitem>
+        <para>E1000: fixed a crash related to VLAN traffic over internal
+          network (5.1.26 regression; bug #16960)</para>
+      </listitem>
+
+      <listitem>
+        <para>NAT: apply <emphasis>--natbindip1</emphasis> to TCP connections
+          (bug #16478)</para>
+      </listitem>
+
+      <listitem>
+        <para>OVF: when importing an appliance with XHCI controller, don't
+          add an OHCI controller</para>
+      </listitem>
+
+      <listitem>
+        <para>Mac OS X hosts: fixed a GUI crash if Spotlight is used from
+          file dialogs (5.1.20 regression; bugs #16935, #16953)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: fixed creating fixed sized VDI images
+          (bug #17010)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts / guests: fixes for Linux 4.4 of openSUSE Leap 42.3
+          (bug #16966)</para>
+      </listitem>
+
+      <listitem>
+        <para>Bridged networking: align outgoing packet at word boundary,
+          preventing Windows host crash in MsLbfoProvider</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: kernel drm driver support for custom EL7
+          Linux 3.10 kernel</para>
+      </listitem>
+
+      <listitem>
+        <para>Solaris Additions: hide an informational message on the bootup
+          console</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
   <sect1>
     <title>Version 5.1.30 (2017-10-16)</title>
 
@@ -58,7 +300,6 @@
         <para>Audio: fixed crash when default input or output devices have changed
           (bugs #16968, #16969, #17004)</para>
       </listitem>
-
       <listitem>
         <para>Audio: fixed recording when using the ALSA backend</para>
       </listitem>
@@ -81,7 +322,6 @@
         <para>OVF: when importing an appliance with XHCI controller, don't
           add an OHCI controller</para>
       </listitem>
-
       <listitem>
         <para>Mac OS X hosts: fixed a GUI crash if Spotlight is used from
           file dialogs (5.1.20 regression; bugs #16935, #16953)</para>

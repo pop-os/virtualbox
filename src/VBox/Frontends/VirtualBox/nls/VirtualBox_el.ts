@@ -131,11 +131,11 @@
     <name>QIFileDialog</name>
     <message>
         <source>Select a directory</source>
-        <translation>Επιλογή φακέλου</translation>
+        <translation type="vanished">Επιλογή φακέλου</translation>
     </message>
     <message>
         <source>Select a file</source>
-        <translation>Επιλογή αρχείου</translation>
+        <translation type="vanished">Επιλογή αρχείου</translation>
     </message>
 </context>
 <context>
@@ -213,7 +213,7 @@
     <message>
         <source>%1, %2: %3, %4: %5, %6: %7</source>
         <comment>col.1 text, col.2 name: col.2 text, col.3 name: col.3 text, col.4 name: col.4 text</comment>
-        <translation type="vanished">%1, %2: %3, %4: %5, %6: %7</translation>
+        <translation>%1, %2: %3, %4: %5, %6: %7</translation>
     </message>
 </context>
 <context>
@@ -994,96 +994,96 @@
         <translation>Απενεργοποίηση υπέρθεσης εικονίδιου γραμμής εργασιών</translation>
     </message>
     <message>
-        <source>&amp;Details</source>
-        <translation type="vanished">Λεπτομέρειες</translation>
-    </message>
-    <message>
-        <source>&amp;Snapshots</source>
-        <translation type="vanished">Στιγμιότυπα</translation>
-    </message>
-    <message>
         <source>&amp;Host Network Manager...</source>
-        <translation type="vanished">Διαχειριστής Δικτύων Οικοδεσπότη...</translation>
+        <translation>Διαχειριστής Δικτύων Οικοδεσπότη...</translation>
     </message>
     <message>
         <source>Display the Host Network Manager window</source>
-        <translation type="vanished">Εμφάνιση του παραθύρου του Διαχειριστή Δικτύων Οικοδεσπότη</translation>
+        <translation>Εμφάνιση του παραθύρου του Διαχειριστή Δικτύων Οικοδεσπότη</translation>
     </message>
     <message>
         <source>&amp;Machine Tools</source>
-        <translation type="vanished">Εργαλεία Μηχανής</translation>
+        <translation>Εργαλεία Μηχανής</translation>
     </message>
     <message>
         <source>Switch to machine tools</source>
-        <translation type="vanished">Αλλαγή στα εργαλεία μηχανής</translation>
+        <translation>Αλλαγή στα εργαλεία μηχανής</translation>
     </message>
     <message>
         <source>&amp;Machine Tools Menu</source>
-        <translation type="vanished">Κατάλογος Εργαλείων Μηχανής</translation>
+        <translation>Κατάλογος Εργαλείων Μηχανής</translation>
     </message>
     <message>
         <source>Open the machine tools menu</source>
-        <translation type="vanished">Άνοιγμα του καταλόγου εργαλείων μηχανής</translation>
+        <translation>Άνοιγμα του καταλόγου εργαλείων μηχανής</translation>
+    </message>
+    <message>
+        <source>&amp;Details</source>
+        <translation>Λεπτομέρειες</translation>
     </message>
     <message>
         <source>Open the machine details pane</source>
-        <translation type="vanished">Άνοιγμα της καρτέλας λεπτομερειών μηχανής</translation>
+        <translation>Άνοιγμα της καρτέλας λεπτομερειών μηχανής</translation>
+    </message>
+    <message>
+        <source>&amp;Snapshots</source>
+        <translation>Στιγμιότυπα</translation>
     </message>
     <message>
         <source>Open the machine snapshots pane</source>
-        <translation type="vanished">Άνοιγμα της καρτέλας στιγμιοτύπων μηχανής</translation>
+        <translation>Άνοιγμα της καρτέλας στιγμιοτύπων μηχανής</translation>
     </message>
     <message>
         <source>&amp;Global Tools</source>
-        <translation type="vanished">Εργαλεία Συστήματος</translation>
+        <translation>Εργαλεία Συστήματος</translation>
     </message>
     <message>
         <source>Switch to global tools</source>
-        <translation type="vanished">Αλλαγή στα εργαλεία συστήματος</translation>
+        <translation>Αλλαγή στα εργαλεία συστήματος</translation>
     </message>
     <message>
         <source>&amp;Global Tools Menu</source>
-        <translation type="vanished">Κατάλογος Εργαλείων Συστήματος</translation>
+        <translation>Κατάλογος Εργαλείων Συστήματος</translation>
     </message>
     <message>
         <source>Open the global tools menu</source>
-        <translation type="vanished">Άνοιγμα του καταλόγου εργαλείων συστήματος</translation>
+        <translation>Άνοιγμα του καταλόγου εργαλείων συστήματος</translation>
     </message>
     <message>
         <source>&amp;Virtual Media Manager</source>
-        <translation type="vanished">Διαχειριστής Εικονικών Μέσων</translation>
+        <translation>Διαχειριστής Εικονικών Μέσων</translation>
     </message>
     <message>
         <source>Open the Virtual Media Manager</source>
-        <translation type="vanished">Άνοιγμα του Διαχειριστή Εικονικών Μέσων</translation>
+        <translation>Άνοιγμα του Διαχειριστή Εικονικών Μέσων</translation>
     </message>
     <message>
         <source>&amp;Host Network Manager</source>
-        <translation type="vanished">Διαχειριστής Δικτύων Οικοδεσπότη</translation>
+        <translation>Διαχειριστής Δικτύων Οικοδεσπότη</translation>
     </message>
     <message>
         <source>Open the Host Network Manager</source>
-        <translation type="vanished">Άνοιγμα του Διαχειριστή Δικτύων Οικοδεσπότη</translation>
+        <translation>Άνοιγμα του Διαχειριστή Δικτύων Οικοδεσπότη</translation>
     </message>
     <message>
         <source>&amp;Audio</source>
-        <translation type="vanished">Ήχος</translation>
+        <translation>Ήχος</translation>
     </message>
     <message>
         <source>Audio Output</source>
-        <translation type="vanished">Έξοδος Ήχου</translation>
+        <translation>Έξοδος Ήχου</translation>
     </message>
     <message>
         <source>Enable audio output</source>
-        <translation type="vanished">Ενεργοποίηση εξόδου ήχου</translation>
+        <translation>Ενεργοποίηση εξόδου ήχου</translation>
     </message>
     <message>
         <source>Audio Input</source>
-        <translation type="vanished">Είσοδος Ήχου</translation>
+        <translation>Είσοδος Ήχου</translation>
     </message>
     <message>
         <source>Enable audio input</source>
-        <translation type="vanished">Ενεργοποίηση εισόδου ήχου</translation>
+        <translation>Ενεργοποίηση εισόδου ήχου</translation>
     </message>
 </context>
 <context>
@@ -1235,7 +1235,7 @@
     </message>
     <message>
         <source>Detailed list of all components of all virtual machines of the current appliance</source>
-        <translation type="vanished">Λεπτομερής κατάλογος όλων των συστατικών όλων τον εικονικών μηχανών της επιλεγμένης συσκευής</translation>
+        <translation>Λεπτομερής κατάλογος όλων των συστατικών όλων τον εικονικών μηχανών της επιλεγμένης συσκευής</translation>
     </message>
 </context>
 <context>
@@ -1254,12 +1254,12 @@
     <message>
         <source>%1</source>
         <comment>col.1 text</comment>
-        <translation type="vanished">%1</translation>
+        <translation>%1</translation>
     </message>
     <message>
         <source>%1: %2</source>
         <comment>col.1 text: col.2 text</comment>
-        <translation type="vanished">%1: %2</translation>
+        <translation>%1: %2</translation>
     </message>
 </context>
 <context>
@@ -1413,27 +1413,27 @@
     <message>
         <source>Result&amp;nbsp;Code: </source>
         <comment>error info</comment>
-        <translation type="vanished">Κωδικός&amp;nbsp;Αποτελέσματος: </translation>
+        <translation>Κωδικός&amp;nbsp;Αποτελέσματος: </translation>
     </message>
     <message>
         <source>Component: </source>
         <comment>error info</comment>
-        <translation type="vanished">Συστατικό: </translation>
+        <translation>Συστατικό: </translation>
     </message>
     <message>
         <source>Interface: </source>
         <comment>error info</comment>
-        <translation type="vanished">Περιβάλλον: </translation>
+        <translation>Περιβάλλον: </translation>
     </message>
     <message>
         <source>Callee: </source>
         <comment>error info</comment>
-        <translation type="vanished">Καλέστηκε από: </translation>
+        <translation>Καλέστηκε από: </translation>
     </message>
     <message>
         <source>Callee&amp;nbsp;RC: </source>
         <comment>error info</comment>
-        <translation type="vanished">Καλών&amp;nbsp;RC: </translation>
+        <translation>Καλών&amp;nbsp;RC: </translation>
     </message>
 </context>
 <context>
@@ -1441,12 +1441,12 @@
     <message>
         <source>%1, %2: %3, %4</source>
         <comment>col.2 text, col.3 name: col.3 text, col.1 name</comment>
-        <translation type="vanished">%1, %2: %3, %4</translation>
+        <translation>%1, %2: %3, %4</translation>
     </message>
     <message>
         <source>%1, %2: %3</source>
         <comment>col.2 text, col.3 name: col.3 text</comment>
-        <translation type="vanished">%1, %2: %3</translation>
+        <translation>%1, %2: %3</translation>
     </message>
 </context>
 <context>
@@ -1568,14 +1568,14 @@
     </message>
     <message>
         <source>Virtual Machine group</source>
-        <translation type="vanished">Ομάδα Εικονικών Μηχανών</translation>
+        <translation>Ομάδα Εικονικών Μηχανών</translation>
     </message>
 </context>
 <context>
     <name>UIGChooserItemMachine</name>
     <message>
         <source>Virtual Machine</source>
-        <translation type="vanished">Εικονική Μηχανή</translation>
+        <translation>Εικονική Μηχανή</translation>
     </message>
 </context>
 <context>
@@ -1589,7 +1589,7 @@
     <name>UIGChooserView</name>
     <message>
         <source>Contains a tree of Virtual Machines and their groups</source>
-        <translation type="vanished">Περιέχει ένα δέντρο των Εικονικών Μηχανών και των ομάδων τους</translation>
+        <translation>Περιέχει ένα δέντρο των Εικονικών Μηχανών και των ομάδων τους</translation>
     </message>
 </context>
 <context>
@@ -1687,12 +1687,12 @@
     <message>
         <source>Port %1</source>
         <comment>details (parallel)</comment>
-        <translation>Θύρα %1</translation>
+        <translation type="vanished">Θύρα %1</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (parallel)</comment>
-        <translation>Απενεργοποιημένη</translation>
+        <translation type="vanished">Απενεργοποιημένη</translation>
     </message>
     <message>
         <source>%1 (%2 active)</source>
@@ -1941,57 +1941,57 @@
     <message>
         <source>Chipset Type</source>
         <comment>details (system)</comment>
-        <translation type="vanished">Τύπος Ολοκληρωμένου Κυκλώματος</translation>
+        <translation>Τύπος Ολοκληρωμένου Κυκλώματος</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details (system/EFI)</comment>
-        <translation type="vanished">Ενεργοποιημένο</translation>
+        <translation>Ενεργοποιημένο</translation>
     </message>
     <message>
         <source>EFI</source>
         <comment>details (system)</comment>
-        <translation type="vanished">EFI</translation>
+        <translation>EFI</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (system/EFI)</comment>
-        <translation type="vanished">Απενεργοποιημένο</translation>
+        <translation>Απενεργοποιημένο</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (display/Unscaled HiDPI Video Output)</comment>
-        <translation type="vanished">Απενεργοποιημένη</translation>
+        <translation>Απενεργοποιημένη</translation>
     </message>
     <message>
         <source>Audio Output</source>
         <comment>details (audio)</comment>
-        <translation type="vanished">Έξοδος Ήχου</translation>
+        <translation>Έξοδος Ήχου</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details (audio/output)</comment>
-        <translation type="vanished">Ενεργοποιημένη</translation>
+        <translation>Ενεργοποιημένη</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (audio/output)</comment>
-        <translation type="vanished">Απενεργοποιημένη</translation>
+        <translation>Απενεργοποιημένη</translation>
     </message>
     <message>
         <source>Audio Input</source>
         <comment>details (audio)</comment>
-        <translation type="vanished">Είσοδος Ήχου</translation>
+        <translation>Είσοδος Ήχου</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details (audio/input)</comment>
-        <translation type="vanished">Ενεργοποιημένη</translation>
+        <translation>Ενεργοποιημένη</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details (audio/input)</comment>
-        <translation type="vanished">Απενεργοποιημένη</translation>
+        <translation>Απενεργοποιημένη</translation>
     </message>
 </context>
 <context>
@@ -1999,21 +1999,21 @@
     <message>
         <source>%1 details</source>
         <comment>like &apos;General details&apos; or &apos;Storage details&apos;</comment>
-        <translation type="vanished">Λεπτομέρειες %1</translation>
+        <translation>Λεπτομέρειες %1</translation>
     </message>
 </context>
 <context>
     <name>UIGDetailsSet</name>
     <message>
         <source>Contains the details of virtual machine &apos;%1&apos;</source>
-        <translation type="vanished">Περιέχει τις λεπτομέρειες της εικονικής μηχανής &apos;%1&apos;</translation>
+        <translation>Περιέχει τις λεπτομέρειες της εικονικής μηχανής &apos;%1&apos;</translation>
     </message>
 </context>
 <context>
     <name>UIGDetailsView</name>
     <message>
         <source>Contains a list of Virtual Machine details</source>
-        <translation type="vanished">Περιέχει μία λίστα με λεπτομέρειες της εικονικής μηχανής</translation>
+        <translation>Περιέχει μία λίστα με λεπτομέρειες της εικονικής μηχανής</translation>
     </message>
 </context>
 <context>
@@ -2285,87 +2285,87 @@
     <name>UIGlobalSettingsNetwork</name>
     <message>
         <source>Adapter</source>
-        <translation>Κάρτα δικτύου</translation>
+        <translation type="vanished">Κάρτα δικτύου</translation>
     </message>
     <message>
         <source>Automatically configured</source>
         <comment>interface</comment>
-        <translation>Αυτόματα ρυθμισμένη</translation>
+        <translation type="vanished">Αυτόματα ρυθμισμένη</translation>
     </message>
     <message>
         <source>Manually configured</source>
         <comment>interface</comment>
-        <translation>Χειροκίνητα ρυθμισμένη</translation>
+        <translation type="vanished">Χειροκίνητα ρυθμισμένη</translation>
     </message>
     <message>
         <source>IPv4 Address</source>
-        <translation>Διεύθυνση IPv4</translation>
+        <translation type="vanished">Διεύθυνση IPv4</translation>
     </message>
     <message>
         <source>Not set</source>
         <comment>address</comment>
-        <translation>Μη ορισμένη</translation>
+        <translation type="vanished">Μη ορισμένη</translation>
     </message>
     <message>
         <source>IPv4 Network Mask</source>
-        <translation>Μάσκα Δικτύου IPv4</translation>
+        <translation type="vanished">Μάσκα Δικτύου IPv4</translation>
     </message>
     <message>
         <source>Not set</source>
         <comment>mask</comment>
-        <translation>Μη ορισμένη</translation>
+        <translation type="vanished">Μη ορισμένη</translation>
     </message>
     <message>
         <source>IPv6 Address</source>
-        <translation>Διεύθυνση IPv6</translation>
+        <translation type="vanished">Διεύθυνση IPv6</translation>
     </message>
     <message>
         <source>IPv6 Prefix Length</source>
-        <translation>Μήκος Μάσκας Δικτύου IPv6</translation>
+        <translation type="vanished">Μήκος Μάσκας Δικτύου IPv6</translation>
     </message>
     <message>
         <source>Not set</source>
         <comment>length</comment>
-        <translation>Μη ορισμένο</translation>
+        <translation type="vanished">Μη ορισμένο</translation>
     </message>
     <message>
         <source>DHCP Server</source>
-        <translation>Διακομιστής DHCP</translation>
+        <translation type="vanished">Διακομιστής DHCP</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>server</comment>
-        <translation>Ενεργοποιημένος</translation>
+        <translation type="vanished">Ενεργοποιημένος</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>server</comment>
-        <translation>Απενεργοποιημένος</translation>
+        <translation type="vanished">Απενεργοποιημένος</translation>
     </message>
     <message>
         <source>Address</source>
-        <translation>Διεύθυνση</translation>
+        <translation type="vanished">Διεύθυνση</translation>
     </message>
     <message>
         <source>Network Mask</source>
-        <translation>Μάσκα Δικτύου</translation>
+        <translation type="vanished">Μάσκα Δικτύου</translation>
     </message>
     <message>
         <source>Lower Bound</source>
-        <translation>Κατώτατο όριο</translation>
+        <translation type="vanished">Κατώτατο όριο</translation>
     </message>
     <message>
         <source>Not set</source>
         <comment>bound</comment>
-        <translation>Μη ορισμένο</translation>
+        <translation type="vanished">Μη ορισμένο</translation>
     </message>
     <message>
         <source>Upper Bound</source>
-        <translation>Ανώτατο όριο</translation>
+        <translation type="vanished">Ανώτατο όριο</translation>
     </message>
     <message>
         <source>Lists all available host-only networks.</source>
-        <translation>Δείχνει όλα τα διαθέσιμα μόνο-με-οικοδεσπότη δίκτυα.</translation>
+        <translation type="vanished">Δείχνει όλα τα διαθέσιμα μόνο-με-οικοδεσπότη δίκτυα.</translation>
     </message>
     <message>
         <source>Name</source>
@@ -2373,7 +2373,7 @@
     </message>
     <message>
         <source>Networking</source>
-        <translation>Δίκτυο</translation>
+        <translation type="vanished">Δίκτυο</translation>
     </message>
     <message>
         <source>&amp;NAT Networks</source>
@@ -2385,7 +2385,7 @@
     </message>
     <message>
         <source>&amp;Host-only Networks</source>
-        <translation>Μόνο-με-οικοδεσπότη δίκτυα</translation>
+        <translation type="vanished">Μόνο-με-οικοδεσπότη δίκτυα</translation>
     </message>
     <message>
         <source>No new name specified for the NAT network previously called &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -2453,31 +2453,31 @@
     </message>
     <message>
         <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv4 address.</source>
-        <translation>Η κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt; δεν έχει έγκυρη διεύθυνση IPv4.</translation>
+        <translation type="vanished">Η κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt; δεν έχει έγκυρη διεύθυνση IPv4.</translation>
     </message>
     <message>
         <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv4 network mask.</source>
-        <translation>Η κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt; δεν έχει έγκυρη μάσκα δικτύου IPv4.</translation>
+        <translation type="vanished">Η κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt; δεν έχει έγκυρη μάσκα δικτύου IPv4.</translation>
     </message>
     <message>
         <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 address.</source>
-        <translation>Η κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt; δεν έχει έγκυρη διεύθυνση IPv6.</translation>
+        <translation type="vanished">Η κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt; δεν έχει έγκυρη διεύθυνση IPv6.</translation>
     </message>
     <message>
         <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid DHCP server address.</source>
-        <translation>Η κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt; δεν έχει έγκυρη διεύθυνση διακομιστή DHCP.</translation>
+        <translation type="vanished">Η κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt; δεν έχει έγκυρη διεύθυνση διακομιστή DHCP.</translation>
     </message>
     <message>
         <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid DHCP server mask.</source>
-        <translation>Η κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt; δεν έχει έγκυρη μάσκα δικτύου διακομιστή DHCP.</translation>
+        <translation type="vanished">Η κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt; δεν έχει έγκυρη μάσκα δικτύου διακομιστή DHCP.</translation>
     </message>
     <message>
         <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid DHCP server lower address bound.</source>
-        <translation>Η κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt; δεν έχει έγκυρο κατώτατο όριο διεύθυνσης του διακομιστή DHCP.</translation>
+        <translation type="vanished">Η κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt; δεν έχει έγκυρο κατώτατο όριο διεύθυνσης του διακομιστή DHCP.</translation>
     </message>
     <message>
         <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid DHCP server upper address bound.</source>
-        <translation>Η κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt; δεν έχει έγκυρο ανώτατο όριο διεύθυνσης του διακομιστή DHCP.</translation>
+        <translation type="vanished">Η κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt; δεν έχει έγκυρο ανώτατο όριο διεύθυνσης του διακομιστή DHCP.</translation>
     </message>
     <message>
         <source>The name &lt;b&gt;%1&lt;/b&gt; is being used for several NAT networks.</source>
@@ -2514,126 +2514,126 @@
     </message>
     <message>
         <source>Add Host-only Network</source>
-        <translation>Προσθήκη μόνο-με-οικοδεσπότη δίκτυο</translation>
+        <translation type="vanished">Προσθήκη μόνο-με-οικοδεσπότη δίκτυο</translation>
     </message>
     <message>
         <source>Remove Host-only Network</source>
-        <translation>Αφαίρεση μόνο-με-οικοδεσπότη δίκτυο</translation>
+        <translation type="vanished">Αφαίρεση μόνο-με-οικοδεσπότη δίκτυο</translation>
     </message>
     <message>
         <source>Edit Host-only Network</source>
-        <translation>Επεξεργασία μόνο-με-οικοδεσπότη δίκτυο</translation>
+        <translation type="vanished">Επεξεργασία μόνο-με-οικοδεσπότη δίκτυο</translation>
     </message>
     <message>
         <source>Adds new host-only network.</source>
-        <translation>Προσθήκη νέου μόνο-με-οικοδεσπότη δίκτυο.</translation>
+        <translation type="vanished">Προσθήκη νέου μόνο-με-οικοδεσπότη δίκτυο.</translation>
     </message>
     <message>
         <source>Removes selected host-only network.</source>
-        <translation>Αφαίρεση του επιλεγμένου μόνο-με-οικοδεσπότη δίκτυο.</translation>
+        <translation type="vanished">Αφαίρεση του επιλεγμένου μόνο-με-οικοδεσπότη δίκτυο.</translation>
     </message>
     <message>
         <source>Edits selected host-only network.</source>
-        <translation>Επεξεργασία του επιλεγμένου μόνο-με-οικοδεσπότη δίκτυο.</translation>
+        <translation type="vanished">Επεξεργασία του επιλεγμένου μόνο-με-οικοδεσπότη δίκτυο.</translation>
     </message>
     <message>
         <source>Host interface &lt;b&gt;%1&lt;/b&gt; does not currently have a valid IPv6 prefix length.</source>
-        <translation>Η κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt; δεν έχει έγκυρο μήκος προθέματος της μάσκας δικτύου IPv6.</translation>
+        <translation type="vanished">Η κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt; δεν έχει έγκυρο μήκος προθέματος της μάσκας δικτύου IPv6.</translation>
     </message>
 </context>
 <context>
     <name>UIGlobalSettingsNetworkDetailsHost</name>
     <message>
         <source>Host-only Network Details</source>
-        <translation>Λεπτομέρειες μόνο-με-οικοδεσπότη δικτύου</translation>
+        <translation type="vanished">Λεπτομέρειες μόνο-με-οικοδεσπότη δικτύου</translation>
     </message>
     <message>
         <source>&amp;Adapter</source>
-        <translation>Κάρτα δικτύου</translation>
+        <translation type="vanished">Κάρτα δικτύου</translation>
     </message>
     <message>
         <source>Manual &amp;Configuration</source>
-        <translation>Μη-αυτόματη ρύθμιση</translation>
+        <translation type="vanished">Μη-αυτόματη ρύθμιση</translation>
     </message>
     <message>
         <source>&amp;IPv4 Address:</source>
-        <translation>Διεύθυνση IPv4:</translation>
+        <translation type="vanished">Διεύθυνση IPv4:</translation>
     </message>
     <message>
         <source>Holds the host IPv4 address for this adapter.</source>
-        <translation>Δείχνει τη διεύθυνση IPv4 του οικοδεσπότη για αυτή την κάρτα δικτύου.</translation>
+        <translation type="vanished">Δείχνει τη διεύθυνση IPv4 του οικοδεσπότη για αυτή την κάρτα δικτύου.</translation>
     </message>
     <message>
         <source>IPv4 Network &amp;Mask:</source>
-        <translation>Μάσκα Δικτύου IPv4:</translation>
+        <translation type="vanished">Μάσκα Δικτύου IPv4:</translation>
     </message>
     <message>
         <source>Holds the host IPv4 network mask for this adapter.</source>
-        <translation>Δείχνει τη μάσκα δικτύου IPv4 του οικοδεσπότη για αυτή την κάρτα δικτύου.</translation>
+        <translation type="vanished">Δείχνει τη μάσκα δικτύου IPv4 του οικοδεσπότη για αυτή την κάρτα δικτύου.</translation>
     </message>
     <message>
         <source>I&amp;Pv6 Address:</source>
-        <translation>Διεύθυνση IPv6:</translation>
+        <translation type="vanished">Διεύθυνση IPv6:</translation>
     </message>
     <message>
         <source>Holds the host IPv6 address for this adapter if IPv6 is supported.</source>
-        <translation>Δείχνει τη διεύθυνση IPv6 του οικοδεσπότη για αυτή την κάρτα δικτύου αν το IPv6 υποστηρίζεται.</translation>
+        <translation type="vanished">Δείχνει τη διεύθυνση IPv6 του οικοδεσπότη για αυτή την κάρτα δικτύου αν το IPv6 υποστηρίζεται.</translation>
     </message>
     <message>
         <source>IPv6 Prefix &amp;Length:</source>
-        <translation>Μήκος Μάσκας Δικτύου IPv6:</translation>
+        <translation type="vanished">Μήκος Μάσκας Δικτύου IPv6:</translation>
     </message>
     <message>
         <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
-        <translation>Δείχνει το μήκος προθέματος της μάσκας δικτύου IPv6 του οικοδεσπότη για αυτή την κάρτα δικτύου αν το IPv6 υποστηρίζεται.</translation>
+        <translation type="vanished">Δείχνει το μήκος προθέματος της μάσκας δικτύου IPv6 του οικοδεσπότη για αυτή την κάρτα δικτύου αν το IPv6 υποστηρίζεται.</translation>
     </message>
     <message>
         <source>&amp;DHCP Server</source>
-        <translation>Διακομιστής DHCP</translation>
+        <translation type="vanished">Διακομιστής DHCP</translation>
     </message>
     <message>
         <source>&amp;Enable Server</source>
-        <translation>Ενεργοποίηση Διακομιστή</translation>
+        <translation type="vanished">Ενεργοποίηση Διακομιστή</translation>
     </message>
     <message>
         <source>Server Add&amp;ress:</source>
-        <translation>Διεύθυνση Διακομιστή:</translation>
+        <translation type="vanished">Διεύθυνση Διακομιστή:</translation>
     </message>
     <message>
         <source>Holds the address of the DHCP server servicing the network associated with this host-only adapter.</source>
-        <translation>Δείχνει τη διεύθυνση του διακομιστή DHCP που εξυπηρετεί το δίκτυο σχετιζόμενο με την μόνο-με-οικοδεσπότη κάρτα δικτύου.</translation>
+        <translation type="vanished">Δείχνει τη διεύθυνση του διακομιστή DHCP που εξυπηρετεί το δίκτυο σχετιζόμενο με την μόνο-με-οικοδεσπότη κάρτα δικτύου.</translation>
     </message>
     <message>
         <source>Server &amp;Mask:</source>
-        <translation>Μάσκα Διακομιστή:</translation>
+        <translation type="vanished">Μάσκα Διακομιστή:</translation>
     </message>
     <message>
         <source>Holds the network mask of the DHCP server servicing the network associated with this host-only adapter.</source>
-        <translation>Δείχνει τη μάσκα δικτύου του διακομιστή DHCP που εξυπηρετεί το δίκτυο σχετιζόμενο με την μόνο-με-οικοδεσπότη κάρτα δικτύου.</translation>
+        <translation type="vanished">Δείχνει τη μάσκα δικτύου του διακομιστή DHCP που εξυπηρετεί το δίκτυο σχετιζόμενο με την μόνο-με-οικοδεσπότη κάρτα δικτύου.</translation>
     </message>
     <message>
         <source>&amp;Lower Address Bound:</source>
-        <translation>Κατώτατο Όριο Διευθύνσεων:</translation>
+        <translation type="vanished">Κατώτατο Όριο Διευθύνσεων:</translation>
     </message>
     <message>
         <source>Holds the lower address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
-        <translation>Δείχνει το κατώτατο όριο διεύθυνσης του διακομιστή DHCP που εξυπηρετεί το δίκτυο σχετιζόμενο με την μόνο-με-οικοδεσπότη κάρτα δικτύου.</translation>
+        <translation type="vanished">Δείχνει το κατώτατο όριο διεύθυνσης του διακομιστή DHCP που εξυπηρετεί το δίκτυο σχετιζόμενο με την μόνο-με-οικοδεσπότη κάρτα δικτύου.</translation>
     </message>
     <message>
         <source>&amp;Upper Address Bound:</source>
-        <translation>Ανώτατο Όριο Διευθύνσεων:</translation>
+        <translation type="vanished">Ανώτατο Όριο Διευθύνσεων:</translation>
     </message>
     <message>
         <source>Holds the upper address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
-        <translation>Δείχνει το ανώτατο όριο διεύθυνσης του διακομιστή DHCP που εξυπηρετεί το δίκτυο σχετιζόμενο με την μόνο-με-οικοδεσπότη κάρτα δικτύου.</translation>
+        <translation type="vanished">Δείχνει το ανώτατο όριο διεύθυνσης του διακομιστή DHCP που εξυπηρετεί το δίκτυο σχετιζόμενο με την μόνο-με-οικοδεσπότη κάρτα δικτύου.</translation>
     </message>
     <message>
         <source>When checked, manual configuration will be used for this network adapter.</source>
-        <translation>Όταν επιλεγεί, θα χρησιμοποιηθεί μη-αυτόματη ρύθμιση για αυτή την κάρτα δικτύου.</translation>
+        <translation type="vanished">Όταν επιλεγεί, θα χρησιμοποιηθεί μη-αυτόματη ρύθμιση για αυτή την κάρτα δικτύου.</translation>
     </message>
     <message>
         <source>When checked, the DHCP Server will be enabled for this network on machine start-up.</source>
-        <translation>Όταν επιλεγεί, θα ενεργοποιηθεί ο διακομιστής DHCP για αυτό το δίκτυο κατά την εκκίνηση της μηχανής.</translation>
+        <translation type="vanished">Όταν επιλεγεί, θα ενεργοποιηθεί ο διακομιστής DHCP για αυτό το δίκτυο κατά την εκκίνηση της μηχανής.</translation>
     </message>
 </context>
 <context>
@@ -2825,7 +2825,7 @@
     <message>
         <source>%1: %2</source>
         <comment>&apos;key: value&apos;, like &apos;Name: MyVM&apos;</comment>
-        <translation type="vanished">%1: %2</translation>
+        <translation>%1: %2</translation>
     </message>
 </context>
 <context>
@@ -2843,11 +2843,11 @@
     </message>
     <message>
         <source>Left </source>
-        <translation>Αριστερά</translation>
+        <translation type="vanished">Αριστερά</translation>
     </message>
     <message>
         <source>Right </source>
-        <translation>Δεξιό </translation>
+        <translation type="vanished">Δεξιό </translation>
     </message>
     <message>
         <source>Left Shift</source>
@@ -2907,170 +2907,170 @@
     </message>
     <message>
         <source>Left %1</source>
-        <translation type="vanished">Αριστερό %1</translation>
+        <translation>Αριστερό %1</translation>
     </message>
     <message>
         <source>Right %1</source>
-        <translation type="vanished">Δεξιό %1</translation>
+        <translation>Δεξιό %1</translation>
     </message>
 </context>
 <context>
     <name>UIHostNetworkDetailsWidget</name>
     <message>
         <source>&amp;Adapter</source>
-        <translation type="vanished">Κάρτα δικτύου</translation>
+        <translation>Κάρτα δικτύου</translation>
     </message>
     <message>
         <source>&amp;DHCP Server</source>
-        <translation type="vanished">Διακομιστής DHCP</translation>
-    </message>
-    <message>
-        <source>&amp;IPv4 Address:</source>
-        <translation type="vanished">Διεύθυνση IPv4:</translation>
-    </message>
-    <message>
-        <source>Holds the host IPv4 address for this adapter.</source>
-        <translation type="vanished">Δείχνει τη διεύθυνση IPv4 του οικοδεσπότη για αυτή την κάρτα δικτύου.</translation>
-    </message>
-    <message>
-        <source>IPv4 Network &amp;Mask:</source>
-        <translation type="vanished">Μάσκα Δικτύου IPv4:</translation>
-    </message>
-    <message>
-        <source>Holds the host IPv4 network mask for this adapter.</source>
-        <translation type="vanished">Δείχνει τη μάσκα δικτύου IPv4 του οικοδεσπότη για αυτή την κάρτα δικτύου.</translation>
-    </message>
-    <message>
-        <source>I&amp;Pv6 Address:</source>
-        <translation type="vanished">Διεύθυνση IPv6:</translation>
-    </message>
-    <message>
-        <source>Holds the host IPv6 address for this adapter if IPv6 is supported.</source>
-        <translation type="vanished">Δείχνει τη διεύθυνση IPv6 του οικοδεσπότη για αυτή την κάρτα δικτύου αν το IPv6 υποστηρίζεται.</translation>
-    </message>
-    <message>
-        <source>IPv6 Prefix &amp;Length:</source>
-        <translation type="vanished">Μήκος Προθέματος IPv6:</translation>
-    </message>
-    <message>
-        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
-        <translation type="vanished">Δείχνει το μήκος προθέματος IPv6 του οικοδεσπότη για αυτή την κάρτα δικτύου αν το IPv6 υποστηρίζεται.</translation>
-    </message>
-    <message>
-        <source>Reset</source>
-        <translation type="vanished">Επαναφορά</translation>
-    </message>
-    <message>
-        <source>&amp;Enable Server</source>
-        <translation type="vanished">Ενεργοποίηση Διακομιστή</translation>
-    </message>
-    <message>
-        <source>When checked, the DHCP Server will be enabled for this network on machine start-up.</source>
-        <translation type="vanished">Όταν επιλεγεί, θα ενεργοποιηθεί ο διακομιστής DHCP για αυτό το δίκτυο κατά την εκκίνηση της μηχανής.</translation>
-    </message>
-    <message>
-        <source>Server Add&amp;ress:</source>
-        <translation type="vanished">Διεύθυνση Διακομιστή:</translation>
-    </message>
-    <message>
-        <source>Holds the address of the DHCP server servicing the network associated with this host-only adapter.</source>
-        <translation type="vanished">Δείχνει τη διεύθυνση του διακομιστή DHCP που εξυπηρετεί το δίκτυο σχετιζόμενο με την μόνο-με-οικοδεσπότη κάρτα δικτύου.</translation>
-    </message>
-    <message>
-        <source>Server &amp;Mask:</source>
-        <translation type="vanished">Μάσκα Διακομιστή:</translation>
-    </message>
-    <message>
-        <source>Holds the network mask of the DHCP server servicing the network associated with this host-only adapter.</source>
-        <translation type="vanished">Δείχνει τη μάσκα δικτύου του διακομιστή DHCP που εξυπηρετεί το δίκτυο σχετιζόμενο με την μόνο-με-οικοδεσπότη κάρτα δικτύου.</translation>
-    </message>
-    <message>
-        <source>&amp;Lower Address Bound:</source>
-        <translation type="vanished">Κατώτατο Όριο Διευθύνσεων:</translation>
-    </message>
-    <message>
-        <source>Holds the lower address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
-        <translation type="vanished">Δείχνει το κατώτατο όριο διεύθυνσης του διακομιστή DHCP που εξυπηρετεί το δίκτυο σχετιζόμενο με την μόνο-με-οικοδεσπότη κάρτα δικτύου.</translation>
-    </message>
-    <message>
-        <source>&amp;Upper Address Bound:</source>
-        <translation type="vanished">Ανώτατο Όριο Διευθύνσεων:</translation>
-    </message>
-    <message>
-        <source>Holds the upper address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
-        <translation type="vanished">Δείχνει το ανώτατο όριο διεύθυνσης του διακομιστή DHCP που εξυπηρετεί το δίκτυο σχετιζόμενο με την μόνο-με-οικοδεσπότη κάρτα δικτύου.</translation>
+        <translation>Διακομιστής DHCP</translation>
     </message>
     <message>
         <source>Configure Adapter &amp;Automatically</source>
-        <translation type="vanished">Αυτόματη ρύθμιση κάρτας δικτύου</translation>
+        <translation>Αυτόματη ρύθμιση κάρτας δικτύου</translation>
     </message>
     <message>
         <source>Configure Adapter &amp;Manually</source>
-        <translation type="vanished">Χειροκίνητη ρύθμιση κάρτας δικτύου</translation>
+        <translation>Χειροκίνητη ρύθμιση κάρτας δικτύου</translation>
+    </message>
+    <message>
+        <source>&amp;IPv4 Address:</source>
+        <translation>Διεύθυνση IPv4:</translation>
+    </message>
+    <message>
+        <source>Holds the host IPv4 address for this adapter.</source>
+        <translation>Δείχνει τη διεύθυνση IPv4 του οικοδεσπότη για αυτή την κάρτα δικτύου.</translation>
+    </message>
+    <message>
+        <source>IPv4 Network &amp;Mask:</source>
+        <translation>Μάσκα Δικτύου IPv4:</translation>
+    </message>
+    <message>
+        <source>Holds the host IPv4 network mask for this adapter.</source>
+        <translation>Δείχνει τη μάσκα δικτύου IPv4 του οικοδεσπότη για αυτή την κάρτα δικτύου.</translation>
+    </message>
+    <message>
+        <source>I&amp;Pv6 Address:</source>
+        <translation>Διεύθυνση IPv6:</translation>
+    </message>
+    <message>
+        <source>Holds the host IPv6 address for this adapter if IPv6 is supported.</source>
+        <translation>Δείχνει τη διεύθυνση IPv6 του οικοδεσπότη για αυτή την κάρτα δικτύου αν το IPv6 υποστηρίζεται.</translation>
+    </message>
+    <message>
+        <source>IPv6 Prefix &amp;Length:</source>
+        <translation>Μήκος Προθέματος IPv6:</translation>
+    </message>
+    <message>
+        <source>Holds the host IPv6 prefix length for this adapter if IPv6 is supported.</source>
+        <translation>Δείχνει το μήκος προθέματος IPv6 του οικοδεσπότη για αυτή την κάρτα δικτύου αν το IPv6 υποστηρίζεται.</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>Επαναφορά</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation type="vanished">Εφαρμογή</translation>
+        <translation>Εφαρμογή</translation>
     </message>
     <message>
         <source>Reset changes in current interface details</source>
-        <translation type="vanished">Επαναφορά αλλαγών στις λεπτομέρειες της επιλεγμένης κάρτας</translation>
+        <translation>Επαναφορά αλλαγών στις λεπτομέρειες της επιλεγμένης κάρτας</translation>
     </message>
     <message>
         <source>Apply changes in current interface details</source>
-        <translation type="vanished">Εφαρμογή αλλαγών στις λεπτομέρειες της επιλεγμένης κάρτας</translation>
+        <translation>Εφαρμογή αλλαγών στις λεπτομέρειες της επιλεγμένης κάρτας</translation>
     </message>
     <message>
         <source>Reset Changes (%1)</source>
-        <translation type="vanished">Επαναφορά Αλλαγών (%1)</translation>
+        <translation>Επαναφορά Αλλαγών (%1)</translation>
     </message>
     <message>
         <source>Apply Changes (%1)</source>
-        <translation type="vanished">Εφαρμογή Αλλαγών (%1)</translation>
+        <translation>Εφαρμογή Αλλαγών (%1)</translation>
+    </message>
+    <message>
+        <source>&amp;Enable Server</source>
+        <translation>Ενεργοποίηση Διακομιστή</translation>
+    </message>
+    <message>
+        <source>When checked, the DHCP Server will be enabled for this network on machine start-up.</source>
+        <translation>Όταν επιλεγεί, θα ενεργοποιηθεί ο διακομιστής DHCP για αυτό το δίκτυο κατά την εκκίνηση της μηχανής.</translation>
+    </message>
+    <message>
+        <source>Server Add&amp;ress:</source>
+        <translation>Διεύθυνση Διακομιστή:</translation>
+    </message>
+    <message>
+        <source>Holds the address of the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation>Δείχνει τη διεύθυνση του διακομιστή DHCP που εξυπηρετεί το δίκτυο σχετιζόμενο με την μόνο-με-οικοδεσπότη κάρτα δικτύου.</translation>
+    </message>
+    <message>
+        <source>Server &amp;Mask:</source>
+        <translation>Μάσκα Διακομιστή:</translation>
+    </message>
+    <message>
+        <source>Holds the network mask of the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation>Δείχνει τη μάσκα δικτύου του διακομιστή DHCP που εξυπηρετεί το δίκτυο σχετιζόμενο με την μόνο-με-οικοδεσπότη κάρτα δικτύου.</translation>
+    </message>
+    <message>
+        <source>&amp;Lower Address Bound:</source>
+        <translation>Κατώτατο Όριο Διευθύνσεων:</translation>
+    </message>
+    <message>
+        <source>Holds the lower address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation>Δείχνει το κατώτατο όριο διεύθυνσης του διακομιστή DHCP που εξυπηρετεί το δίκτυο σχετιζόμενο με την μόνο-με-οικοδεσπότη κάρτα δικτύου.</translation>
+    </message>
+    <message>
+        <source>&amp;Upper Address Bound:</source>
+        <translation>Ανώτατο Όριο Διευθύνσεων:</translation>
+    </message>
+    <message>
+        <source>Holds the upper address bound offered by the DHCP server servicing the network associated with this host-only adapter.</source>
+        <translation>Δείχνει το ανώτατο όριο διεύθυνσης του διακομιστή DHCP που εξυπηρετεί το δίκτυο σχετιζόμενο με την μόνο-με-οικοδεσπότη κάρτα δικτύου.</translation>
     </message>
     <message>
         <source>Reset changes in current DHCP server details</source>
-        <translation type="vanished">Επαναφορά αλλαγών στις λεπτομέρειες του επιλεγμένου διακομιστή DHCP</translation>
+        <translation>Επαναφορά αλλαγών στις λεπτομέρειες του επιλεγμένου διακομιστή DHCP</translation>
     </message>
     <message>
         <source>Apply changes in current DHCP server details</source>
-        <translation type="vanished">Εφαρμογή αλλαγών στις λεπτομέρειες του επιλεγμένου διακομιστή DHCP</translation>
+        <translation>Εφαρμογή αλλαγών στις λεπτομέρειες του επιλεγμένου διακομιστή DHCP</translation>
     </message>
     <message>
         <source>Host interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; is set to obtain the address automatically but the corresponding DHCP server is not enabled.</source>
-        <translation type="vanished">Η κάρτα δικτύου &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; έχει ρυθμιστεί να λαμβάνει αυτόματα τη διεύθυνση αλλά ο αντίστοιχος διακομιστής DHCP δεν είναι ενεργοποιημένος.</translation>
+        <translation>Η κάρτα δικτύου &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; έχει ρυθμιστεί να λαμβάνει αυτόματα τη διεύθυνση αλλά ο αντίστοιχος διακομιστής DHCP δεν είναι ενεργοποιημένος.</translation>
     </message>
     <message>
         <source>Host interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid IPv4 address.</source>
-        <translation type="vanished">Η κάρτα δικτύου &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; δεν έχει έγκυρη διεύθυνση IPv4.</translation>
+        <translation>Η κάρτα δικτύου &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; δεν έχει έγκυρη διεύθυνση IPv4.</translation>
     </message>
     <message>
         <source>Host interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid IPv4 network mask.</source>
-        <translation type="vanished">Η κάρτα δικτύου &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; δεν έχει έγκυρη μάσκα δικτύου IPv4.</translation>
+        <translation>Η κάρτα δικτύου &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; δεν έχει έγκυρη μάσκα δικτύου IPv4.</translation>
     </message>
     <message>
         <source>Host interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid IPv6 address.</source>
-        <translation type="vanished">Η κάρτα δικτύου &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; δεν έχει έγκυρη διεύθυνση IPv6.</translation>
+        <translation>Η κάρτα δικτύου &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; δεν έχει έγκυρη διεύθυνση IPv6.</translation>
     </message>
     <message>
         <source>Host interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid IPv6 prefix length.</source>
-        <translation type="vanished">Η κάρτα δικτύου &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; δεν έχει έγκυρο μήκος προθέματος δικτύου IPv6.</translation>
+        <translation>Η κάρτα δικτύου &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; δεν έχει έγκυρο μήκος προθέματος δικτύου IPv6.</translation>
     </message>
     <message>
         <source>Host interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid DHCP server address.</source>
-        <translation type="vanished">Η κάρτα δικτύου &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; δεν έχει έγκυρη διεύθυνση διακομιστή DHCP.</translation>
+        <translation>Η κάρτα δικτύου &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; δεν έχει έγκυρη διεύθυνση διακομιστή DHCP.</translation>
     </message>
     <message>
         <source>Host interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid DHCP server mask.</source>
-        <translation type="vanished">Η κάρτα δικτύου &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; δεν έχει έγκυρη μάσκα διακομιστή DHCP.</translation>
+        <translation>Η κάρτα δικτύου &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; δεν έχει έγκυρη μάσκα διακομιστή DHCP.</translation>
     </message>
     <message>
         <source>Host interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid DHCP server lower address bound.</source>
-        <translation type="vanished">Η κάρτα δικτύου &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; δεν έχει έγκυρο κατώτατο όριο διεύθυνσης του διακομιστή DHCP.</translation>
+        <translation>Η κάρτα δικτύου &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; δεν έχει έγκυρο κατώτατο όριο διεύθυνσης του διακομιστή DHCP.</translation>
     </message>
     <message>
         <source>Host interface &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; does not currently have a valid DHCP server upper address bound.</source>
-        <translation type="vanished">Η κάρτα δικτύου &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; δεν έχει έγκυρο ανώτατο όριο διεύθυνσης του διακομιστή DHCP.</translation>
+        <translation>Η κάρτα δικτύου &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; δεν έχει έγκυρο ανώτατο όριο διεύθυνσης του διακομιστή DHCP.</translation>
     </message>
 </context>
 <context>
@@ -3078,191 +3078,191 @@
     <message>
         <source>Enable</source>
         <comment>DHCP Server</comment>
-        <translation type="vanished">Ενεργοποίηση</translation>
+        <translation>Ενεργοποίηση</translation>
     </message>
     <message>
         <source>Adapter</source>
-        <translation type="vanished">Κάρτα δικτύου</translation>
+        <translation>Κάρτα δικτύου</translation>
     </message>
     <message>
         <source>Automatically configured</source>
         <comment>interface</comment>
-        <translation type="vanished">Αυτόματα ρυθμισμένη</translation>
+        <translation>Αυτόματα ρυθμισμένη</translation>
     </message>
     <message>
         <source>Manually configured</source>
         <comment>interface</comment>
-        <translation type="vanished">Χειροκίνητα ρυθμισμένη</translation>
+        <translation>Χειροκίνητα ρυθμισμένη</translation>
     </message>
     <message>
         <source>IPv4 Address</source>
-        <translation type="vanished">Διεύθυνση IPv4</translation>
-    </message>
-    <message>
-        <source>IPv4 Network Mask</source>
-        <translation type="vanished">Μάσκα Δικτύου IPv4</translation>
-    </message>
-    <message>
-        <source>IPv6 Address</source>
-        <translation type="vanished">Διεύθυνση IPv6</translation>
-    </message>
-    <message>
-        <source>IPv6 Prefix Length</source>
-        <translation type="vanished">Μήκος Πρόθεματος IPv6</translation>
-    </message>
-    <message>
-        <source>DHCP Server</source>
-        <translation type="vanished">Διακομιστής DHCP</translation>
-    </message>
-    <message>
-        <source>Address</source>
-        <translation type="vanished">Διεύθυνση</translation>
-    </message>
-    <message>
-        <source>Network Mask</source>
-        <translation type="vanished">Μάσκα Δικτύου</translation>
-    </message>
-    <message>
-        <source>Lower Bound</source>
-        <translation type="vanished">Κατώτατο όριο</translation>
-    </message>
-    <message>
-        <source>Upper Bound</source>
-        <translation type="vanished">Ανώτατο όριο</translation>
-    </message>
-    <message>
-        <source>&amp;Network</source>
-        <translation type="vanished">Δίκτυο</translation>
-    </message>
-    <message>
-        <source>&amp;Remove...</source>
-        <translation type="vanished">Αφαίρεση...</translation>
-    </message>
-    <message>
-        <source>Name</source>
-        <translation type="vanished">Όνομα</translation>
-    </message>
-    <message>
-        <source>Reset</source>
-        <translation type="vanished">Επαναφορά</translation>
-    </message>
-    <message>
-        <source>Close</source>
-        <translation type="vanished">Κλείσιμο</translation>
+        <translation>Διεύθυνση IPv4</translation>
     </message>
     <message>
         <source>Not set</source>
         <comment>address</comment>
-        <translation type="vanished">Μη ορισμένη</translation>
+        <translation>Μη ορισμένη</translation>
+    </message>
+    <message>
+        <source>IPv4 Network Mask</source>
+        <translation>Μάσκα Δικτύου IPv4</translation>
     </message>
     <message>
         <source>Not set</source>
         <comment>mask</comment>
-        <translation type="vanished">Μη ορισμένη</translation>
+        <translation>Μη ορισμένη</translation>
+    </message>
+    <message>
+        <source>IPv6 Address</source>
+        <translation>Διεύθυνση IPv6</translation>
+    </message>
+    <message>
+        <source>IPv6 Prefix Length</source>
+        <translation>Μήκος Πρόθεματος IPv6</translation>
     </message>
     <message>
         <source>Not set</source>
         <comment>length</comment>
-        <translation type="vanished">Μη ορισμένο</translation>
+        <translation>Μη ορισμένο</translation>
+    </message>
+    <message>
+        <source>DHCP Server</source>
+        <translation>Διακομιστής DHCP</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>server</comment>
-        <translation type="vanished">Ενεργοποιημένος</translation>
+        <translation>Ενεργοποιημένος</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>server</comment>
-        <translation type="vanished">Απενεργοποιημένος</translation>
+        <translation>Απενεργοποιημένος</translation>
+    </message>
+    <message>
+        <source>Address</source>
+        <translation>Διεύθυνση</translation>
+    </message>
+    <message>
+        <source>Network Mask</source>
+        <translation>Μάσκα Δικτύου</translation>
+    </message>
+    <message>
+        <source>Lower Bound</source>
+        <translation>Κατώτατο όριο</translation>
     </message>
     <message>
         <source>Not set</source>
         <comment>bound</comment>
-        <translation type="vanished">Μη ορισμένο</translation>
+        <translation>Μη ορισμένο</translation>
+    </message>
+    <message>
+        <source>Upper Bound</source>
+        <translation>Ανώτατο όριο</translation>
+    </message>
+    <message>
+        <source>&amp;Network</source>
+        <translation>Δίκτυο</translation>
     </message>
     <message>
         <source>&amp;Create</source>
-        <translation type="vanished">Δημιουργία</translation>
+        <translation>Δημιουργία</translation>
     </message>
     <message>
         <source>Create Host-only Network (%1)</source>
-        <translation type="vanished">Δημιουργία Μόνο-με-οικοδεσπότη Δικτύου (%1)</translation>
+        <translation>Δημιουργία Μόνο-με-οικοδεσπότη Δικτύου (%1)</translation>
     </message>
     <message>
         <source>Create new host-only network</source>
-        <translation type="vanished">Δημιουργία νέου μόνο-με-οικοδεσπότη δικτύου</translation>
+        <translation>Δημιουργία νέου μόνο-με-οικοδεσπότη δικτύου</translation>
+    </message>
+    <message>
+        <source>&amp;Remove...</source>
+        <translation>Αφαίρεση...</translation>
     </message>
     <message>
         <source>Remove Host-only Network (%1)</source>
-        <translation type="vanished">Αφαίρεση Μόνο-με-οικοδεσπότη Δικτύου (%1)</translation>
+        <translation>Αφαίρεση Μόνο-με-οικοδεσπότη Δικτύου (%1)</translation>
     </message>
     <message>
         <source>Remove selected host-only network</source>
-        <translation type="vanished">Αφαίρεση του επιλεγμένου μόνο-με-οικοδεσπότη δικτύου</translation>
+        <translation>Αφαίρεση του επιλεγμένου μόνο-με-οικοδεσπότη δικτύου</translation>
     </message>
     <message>
         <source>&amp;Properties...</source>
-        <translation type="vanished">Ιδιότητες...</translation>
+        <translation>Ιδιότητες...</translation>
     </message>
     <message>
         <source>Open Host-only Network Properties (%1)</source>
-        <translation type="vanished">Άνοιγμα Ιδιοτήτων Μόνο-με-οικοδεσπότη Δικτύου (%1)</translation>
+        <translation>Άνοιγμα Ιδιοτήτων Μόνο-με-οικοδεσπότη Δικτύου (%1)</translation>
     </message>
     <message>
         <source>Open pane with selected host-only network properties</source>
-        <translation type="vanished">Άνοιγμα της καρτέλας με τις ιδιότητες του επιλεγμένου μόνο-με-οικοδεσπότη δικτύου</translation>
+        <translation>Άνοιγμα της καρτέλας με τις ιδιότητες του επιλεγμένου μόνο-με-οικοδεσπότη δικτύου</translation>
     </message>
     <message>
         <source>&amp;Refresh...</source>
-        <translation type="vanished">Ανανέωση...</translation>
+        <translation>Ανανέωση...</translation>
     </message>
     <message>
         <source>Refresh Host-only Networks (%1)</source>
-        <translation type="vanished">Ανανέωση Μόνο-με-οικοδεσπότη Δικτύων (%1)</translation>
+        <translation>Ανανέωση Μόνο-με-οικοδεσπότη Δικτύων (%1)</translation>
     </message>
     <message>
         <source>Refresh the list of host-only networks</source>
-        <translation type="vanished">Ανανέωση της καταλόγου μόνο-με-οικοδεσπότη δικτύων</translation>
+        <translation>Ανανέωση της καταλόγου μόνο-με-οικοδεσπότη δικτύων</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>Όνομα</translation>
     </message>
     <message>
         <source>IPv4 Address/Mask</source>
-        <translation type="vanished">Διεύθυνση/Μάσκα IPv4</translation>
+        <translation>Διεύθυνση/Μάσκα IPv4</translation>
     </message>
     <message>
         <source>IPv6 Address/Mask</source>
-        <translation type="vanished">Διεύθυνση/Μάσκα IPv6</translation>
+        <translation>Διεύθυνση/Μάσκα IPv6</translation>
     </message>
     <message>
         <source>Host Network Manager</source>
-        <translation type="vanished">Διαχειριστής Δικτύων Οικοδεσπότη</translation>
+        <translation>Διαχειριστής Δικτύων Οικοδεσπότη</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>Επαναφορά</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation type="vanished">Εφαρμογή</translation>
+        <translation>Εφαρμογή</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Κλείσιμο</translation>
     </message>
     <message>
         <source>Reset changes in current host network details</source>
-        <translation type="vanished">Επαναφορά αλλαγών στις λεπτομέρειες του επιλεγμένου δικτύου οικοδεσπότη</translation>
+        <translation>Επαναφορά αλλαγών στις λεπτομέρειες του επιλεγμένου δικτύου οικοδεσπότη</translation>
     </message>
     <message>
         <source>Apply changes in current host network details</source>
-        <translation type="vanished">Εφαρμογή αλλαγών στις λεπτομέρειες του επιλεγμένου δικτύου οικοδεσπότη</translation>
+        <translation>Εφαρμογή αλλαγών στις λεπτομέρειες του επιλεγμένου δικτύου οικοδεσπότη</translation>
     </message>
     <message>
         <source>Close dialog without saving</source>
-        <translation type="vanished">Κλείσιμο διαλόγου χωρίς σώσιμο</translation>
+        <translation>Κλείσιμο διαλόγου χωρίς σώσιμο</translation>
     </message>
     <message>
         <source>Reset Changes (%1)</source>
-        <translation type="vanished">Επαναφορά Αλλαγών (%1)</translation>
+        <translation>Επαναφορά Αλλαγών (%1)</translation>
     </message>
     <message>
         <source>Apply Changes (%1)</source>
-        <translation type="vanished">Εφαρμογή Αλλαγών (%1)</translation>
+        <translation>Εφαρμογή Αλλαγών (%1)</translation>
     </message>
     <message>
         <source>Close Window (%1)</source>
-        <translation type="vanished">Κλείσιμο Παραθύρου (%1)</translation>
+        <translation>Κλείσιμο Παραθύρου (%1)</translation>
     </message>
 </context>
 <context>
@@ -3273,11 +3273,11 @@
     </message>
     <message>
         <source>Adding network...</source>
-        <translation type="vanished">Προσθήκη δικτύου...</translation>
+        <translation>Προσθήκη δικτύου...</translation>
     </message>
     <message>
         <source>Removing network...</source>
-        <translation type="vanished">Αφαίρεση δικτύου...</translation>
+        <translation>Αφαίρεση δικτύου...</translation>
     </message>
 </context>
 <context>
@@ -3342,106 +3342,96 @@
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the network interfaces:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>Network adapters tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Δείχνει δραστηριότητα των καρτών δικτύου:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Δείχνει δραστηριότητα των καρτών δικτύου:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Adapter %1 (%2)&lt;/b&gt;: %3 cable %4&lt;/nobr&gt;</source>
         <comment>Network adapters tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Κάρτα %1 (%2)&lt;/b&gt;: %3 καλώδιο %4&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Κάρτα %1 (%2)&lt;/b&gt;: %3 καλώδιο %4&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>connected</source>
         <comment>Network adapters tooltip</comment>
-        <translation>συνδεδεμένο</translation>
+        <translation type="vanished">συνδεδεμένο</translation>
     </message>
     <message>
         <source>disconnected</source>
         <comment>Network adapters tooltip</comment>
-        <translation>αποσυνδεδεμένο</translation>
+        <translation type="vanished">αποσυνδεδεμένο</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;All network adapters are disabled&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>Network adapters tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Όλες οι κάρτες δικτύου είναι ανενεργές&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Όλες οι κάρτες δικτύου είναι ανενεργές&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Δείχνει δραστηριότητα των συνδεδεμένων συσκευών USB:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Δείχνει δραστηριότητα των συνδεδεμένων συσκευών USB:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No USB devices attached&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>USB device tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Καμία συνδεδεμένη συσκευή USB&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Καμία συνδεδεμένη συσκευή USB&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the machine&apos;s shared folders:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>Shared folders tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Δείχνει δραστηριότητα των κοινών φακέλων:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Δείχνει δραστηριότητα των κοινών φακέλων:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;No shared folders&lt;/b&gt;&lt;/nobr&gt;</source>
         <comment>Shared folders tooltip</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Δεν υπάρχουν κοινόχρηστοι φάκελοι&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Δεν υπάρχουν κοινόχρηστοι φάκελοι&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</source>
         <comment>Virtualization Stuff LED</comment>
-        <translation>&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Indicates whether the host mouse pointer is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;mouse integration (MI) is On&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;MI is Off, pointer is not captured&lt;/nobr&gt;&lt;br&gt;Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
-        <translation>Δείχνει αν ο δείκτης ποντικιού του οικοδεσπότη είναι δεσμευμένος από τον επισκέπτη:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;ο δείκτης δεν είναι δεσμευμένος&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;ο δείκτης είναι δεσμευμένος&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;η ενσωμάτωση ποντικιού (ΕΠ) είναι Ενεργή&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;ΕΠ είναι Ανενεργή, ο δείκτης είναι δεσμευμένος&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;ΕΠ είναι Ανενεργή, ο δείκτης δεν είναι δεσμευμένος&lt;/nobr&gt;&lt;br&gt;Σημείωση: η ενσωμάτωση ποντικιού απαιτεί τις Προσθήκες Επισκέπτη να είναι εγκατεστημένες στον επισκέπτη.</translation>
+        <translation type="vanished">Δείχνει αν ο δείκτης ποντικιού του οικοδεσπότη είναι δεσμευμένος από τον επισκέπτη:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_disabled_16px.png/&gt;&amp;nbsp;&amp;nbsp;ο δείκτης δεν είναι δεσμευμένος&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_16px.png/&gt;&amp;nbsp;&amp;nbsp;ο δείκτης είναι δεσμευμένος&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;η ενσωμάτωση ποντικιού (ΕΠ) είναι Ενεργή&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_16px.png/&gt;&amp;nbsp;&amp;nbsp;ΕΠ είναι Ανενεργή, ο δείκτης είναι δεσμευμένος&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/mouse_can_seamless_uncaptured_16px.png/&gt;&amp;nbsp;&amp;nbsp;ΕΠ είναι Ανενεργή, ο δείκτης δεν είναι δεσμευμένος&lt;/nobr&gt;&lt;br&gt;Σημείωση: η ενσωμάτωση ποντικιού απαιτεί τις Προσθήκες Επισκέπτη να είναι εγκατεστημένες στον επισκέπτη.</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Indicates video capturing activity:&lt;/nobr&gt;&lt;br&gt;%1</source>
-        <translation>&lt;nobr&gt;Δείχνει δραστηριότητα μαγνητοσκόπησης:&lt;/nobr&gt;&lt;br&gt;%1</translation>
+        <translation type="vanished">&lt;nobr&gt;Δείχνει δραστηριότητα μαγνητοσκόπησης:&lt;/nobr&gt;&lt;br&gt;%1</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;&lt;b&gt;Video capture disabled&lt;/b&gt;&lt;/nobr&gt;</source>
-        <translation>&lt;nobr&gt;&lt;b&gt;Η μαγνητοσκόπηση είναι ανενεργή&lt;/b&gt;&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;&lt;b&gt;Η μαγνητοσκόπηση είναι ανενεργή&lt;/b&gt;&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;&lt;b&gt;Video capture file:&lt;/b&gt; %1&lt;/nobr&gt;</source>
-        <translation>&lt;nobr&gt;&lt;b&gt;Αρχείο μαγνητοσκόπησης:&lt;/b&gt; %1&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;&lt;b&gt;Αρχείο μαγνητοσκόπησης:&lt;/b&gt; %1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Additional feature status:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%7:&lt;/b&gt;&amp;nbsp;%8%&lt;/nobr&gt;</source>
         <comment>Virtualization Stuff LED</comment>
-        <translation>Κατάσταση πρόσθετων χαρακτηριστικών:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%7:&lt;/b&gt;&amp;nbsp;%8%&lt;/nobr&gt;</translation>
+        <translation type="vanished">Κατάσταση πρόσθετων χαρακτηριστικών:&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1:&lt;/b&gt;&amp;nbsp;%2&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%3:&lt;/b&gt;&amp;nbsp;%4&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%5:&lt;/b&gt;&amp;nbsp;%6&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;%7:&lt;/b&gt;&amp;nbsp;%8%&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the display:&lt;/nobr&gt;%1&lt;/p&gt;</source>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Δείχνει δραστηριότητα της οθόνης:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Δείχνει δραστηριότητα της οθόνης:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the optical drives:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>CD tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Δείχνει δραστηριότητα των οπτικών δίσκων:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Δείχνει δραστηριότητα των οπτικών δίσκων:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the floppy drives:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>FD tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Δείχνει δραστηριότητα των δισκετών:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Δείχνει δραστηριότητα των δισκετών:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Indicates the activity of the hard disks:&lt;/nobr&gt;%1&lt;/p&gt;</source>
         <comment>HDD tooltip</comment>
-        <translation>&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Δείχνει δραστηριότητα των σκληρών δίσκων:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p style=&apos;white-space:pre&apos;&gt;&lt;nobr&gt;Δείχνει δραστηριότητα των σκληρών δίσκων:&lt;/nobr&gt;%1&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Indicates whether the host keyboard is captured by the guest OS:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;&amp;nbsp;keyboard is not captured&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_captured_16px.png/&gt;&amp;nbsp;&amp;nbsp;keyboard is captured&lt;/nobr&gt;</source>
-        <translation>Δείχνει αν το πληκτρολόγιο του οικοδεσπότη είναι δεσμευμένο από τον επισκέπτη:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;&amp;nbsp;το πληκτρολόγιο δεν είναι δεσμευμένο&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_captured_16px.png/&gt;&amp;nbsp;&amp;nbsp;το πληκτρολόγιο είναι δεσμευμένο&lt;/nobr&gt;</translation>
-    </message>
-    <message>
-        <source>Disconnected</source>
-        <comment>cable (Network tooltip)</comment>
-        <translation type="vanished">Αποσυνδεδεμένο</translation>
-    </message>
-    <message>
-        <source>Screens</source>
-        <comment>Display tooltip</comment>
-        <translation type="vanished">Οθόνες</translation>
+        <translation type="vanished">Δείχνει αν το πληκτρολόγιο του οικοδεσπότη είναι δεσμευμένο από τον επισκέπτη:&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_16px.png/&gt;&amp;nbsp;&amp;nbsp;το πληκτρολόγιο δεν είναι δεσμευμένο&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;img src=:/hostkey_captured_16px.png/&gt;&amp;nbsp;&amp;nbsp;το πληκτρολόγιο είναι δεσμευμένο&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Indicates the activity of the hard disks:&lt;/nobr&gt;%1</source>
@@ -3466,22 +3456,27 @@
     <message>
         <source>Adapter %1 (%2)</source>
         <comment>Network tooltip</comment>
-        <translation type="vanished">Κάρτα δικτύου %1 (%2)</translation>
+        <translation>Κάρτα δικτύου %1 (%2)</translation>
     </message>
     <message>
         <source>IP</source>
         <comment>Network tooltip</comment>
-        <translation type="vanished">IP</translation>
+        <translation>IP</translation>
     </message>
     <message>
         <source>Cable</source>
         <comment>Network tooltip</comment>
-        <translation type="vanished">Καλώδιο</translation>
+        <translation>Καλώδιο</translation>
     </message>
     <message>
         <source>Connected</source>
         <comment>cable (Network tooltip)</comment>
-        <translation type="vanished">Συνδεδεμένο</translation>
+        <translation>Συνδεδεμένο</translation>
+    </message>
+    <message>
+        <source>Disconnected</source>
+        <comment>cable (Network tooltip)</comment>
+        <translation>Αποσυνδεδεμένο</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Indicates the activity of the attached USB devices:&lt;/nobr&gt;%1</source>
@@ -3491,7 +3486,7 @@
     <message>
         <source>No USB devices attached</source>
         <comment>USB tooltip</comment>
-        <translation type="vanished">Καμία συνδεδεμένη συσκευή USB</translation>
+        <translation>Καμία συνδεδεμένη συσκευή USB</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Indicates the activity of the machine&apos;s shared folders:&lt;/nobr&gt;%1</source>
@@ -3501,7 +3496,7 @@
     <message>
         <source>No shared folders</source>
         <comment>Shared folders tooltip</comment>
-        <translation type="vanished">Κανένας Κοινόχρηστος Φάκελος</translation>
+        <translation>Κανένας Κοινόχρηστος Φάκελος</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Indicates the activity of the display:&lt;/nobr&gt;%1</source>
@@ -3511,12 +3506,17 @@
     <message>
         <source>Video memory</source>
         <comment>Display tooltip</comment>
-        <translation type="vanished">Μνήμη Γραφικών</translation>
+        <translation>Μνήμη Γραφικών</translation>
+    </message>
+    <message>
+        <source>Screens</source>
+        <comment>Display tooltip</comment>
+        <translation>Οθόνες</translation>
     </message>
     <message>
         <source>3D acceleration</source>
         <comment>Display tooltip</comment>
-        <translation type="vanished">3Δ Επιτάχυνση</translation>
+        <translation>3Δ Επιτάχυνση</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Indicates video capturing activity:&lt;/nobr&gt;%1</source>
@@ -3526,12 +3526,12 @@
     <message>
         <source>Video capture disabled</source>
         <comment>Video capture tooltip</comment>
-        <translation type="vanished">Μαγνητοσκόπηση απενεργοποιημένη</translation>
+        <translation>Μαγνητοσκόπηση απενεργοποιημένη</translation>
     </message>
     <message>
         <source>Video capture file</source>
         <comment>Video capture tooltip</comment>
-        <translation type="vanished">Αρχείο μαγνητοσκόπησης</translation>
+        <translation>Αρχείο μαγνητοσκόπησης</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Indicates the activity of the additional features:&lt;/nobr&gt;%1</source>
@@ -3541,52 +3541,52 @@
     <message>
         <source>Indicates whether the host mouse pointer is captured by the guest OS:%1</source>
         <comment>Mouse tooltip</comment>
-        <translation type="vanished">Δείχνει αν ο δείκτης ποντικιού του οικοδεσπότη είναι δεσμευμένος από τον επισκέπτη:%1</translation>
+        <translation>Δείχνει αν ο δείκτης ποντικιού του οικοδεσπότη είναι δεσμευμένος από τον επισκέπτη:%1</translation>
     </message>
     <message>
         <source>pointer is not captured</source>
         <comment>Mouse tooltip</comment>
-        <translation type="vanished">ο δείκτης δεν είναι δεσμευμένος</translation>
+        <translation>ο δείκτης δεν είναι δεσμευμένος</translation>
     </message>
     <message>
         <source>pointer is captured</source>
         <comment>Mouse tooltip</comment>
-        <translation type="vanished">ο δείκτης είναι δεσμευμένος</translation>
+        <translation>ο δείκτης είναι δεσμευμένος</translation>
     </message>
     <message>
         <source>mouse integration (MI) is On</source>
         <comment>Mouse tooltip</comment>
-        <translation type="vanished">η ενσωμάτωση ποντικιού (ΕΠ) είναι Ενεργή</translation>
+        <translation>η ενσωμάτωση ποντικιού (ΕΠ) είναι Ενεργή</translation>
     </message>
     <message>
         <source>MI is Off, pointer is captured</source>
         <comment>Mouse tooltip</comment>
-        <translation type="vanished">ΕΠ είναι Ανενεργή, ο δείκτης είναι δεσμευμένος</translation>
+        <translation>ΕΠ είναι Ανενεργή, ο δείκτης είναι δεσμευμένος</translation>
     </message>
     <message>
         <source>MI is Off, pointer is not captured</source>
         <comment>Mouse tooltip</comment>
-        <translation type="vanished">ΕΠ είναι Ανενεργή, ο δείκτης δεν είναι δεσμευμένος</translation>
+        <translation>ΕΠ είναι Ανενεργή, ο δείκτης δεν είναι δεσμευμένος</translation>
     </message>
     <message>
         <source>Note that the mouse integration feature requires Guest Additions to be installed in the guest OS.</source>
         <comment>Mouse tooltip</comment>
-        <translation type="vanished">Σημείωση: η ενσωμάτωση ποντικιού απαιτεί τις Προσθήκες Επισκέπτη να είναι εγκατεστημένες στον επισκέπτη.</translation>
+        <translation>Σημείωση: η ενσωμάτωση ποντικιού απαιτεί τις Προσθήκες Επισκέπτη να είναι εγκατεστημένες στον επισκέπτη.</translation>
     </message>
     <message>
         <source>Indicates whether the host keyboard is captured by the guest OS:%1</source>
         <comment>Keyboard tooltip</comment>
-        <translation type="vanished">Δείχνει αν το πληκτρολόγιο του οικοδεσπότη είναι δεσμευμένο από τον επισκέπτη:%1</translation>
+        <translation>Δείχνει αν το πληκτρολόγιο του οικοδεσπότη είναι δεσμευμένο από τον επισκέπτη:%1</translation>
     </message>
     <message>
         <source>keyboard is not captured</source>
         <comment>Keyboard tooltip</comment>
-        <translation type="vanished">το πληκτρολόγιο δεν είναι δεσμευμένο</translation>
+        <translation>το πληκτρολόγιο δεν είναι δεσμευμένο</translation>
     </message>
     <message>
         <source>keyboard is captured</source>
         <comment>Keyboard tooltip</comment>
-        <translation type="vanished">το πληκτρολόγιο είναι δεσμευμένο</translation>
+        <translation>το πληκτρολόγιο είναι δεσμευμένο</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Indicates the activity of the audio device:&lt;/nobr&gt;%1</source>
@@ -3755,12 +3755,12 @@
     <message>
         <source>Port %1</source>
         <comment>details report (parallel ports)</comment>
-        <translation>Θύρα %1</translation>
+        <translation type="vanished">Θύρα %1</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details report (parallel ports)</comment>
-        <translation>Απενεργοποιημένες</translation>
+        <translation type="vanished">Απενεργοποιημένες</translation>
     </message>
 </context>
 <context>
@@ -3897,7 +3897,7 @@
     </message>
     <message>
         <source>Requests</source>
-        <translation type="vanished">Αιτήματα</translation>
+        <translation>Αιτήματα</translation>
     </message>
 </context>
 <context>
@@ -4036,12 +4036,12 @@
     <message>
         <source>%1, %2</source>
         <comment>col.2 text, col.1 name</comment>
-        <translation type="vanished">%1, %2</translation>
+        <translation>%1, %2</translation>
     </message>
     <message>
         <source>%1</source>
         <comment>col.2 text</comment>
-        <translation type="vanished">%1</translation>
+        <translation>%1</translation>
     </message>
 </context>
 <context>
@@ -4086,23 +4086,23 @@
     </message>
     <message>
         <source>Extended Features:</source>
-        <translation type="vanished">Εκτεταμένα Χαρακτηριστικά:</translation>
+        <translation>Εκτεταμένα Χαρακτηριστικά:</translation>
     </message>
     <message>
         <source>When checked, output to the virtual audio device will reach the host. Otherwise the guest is muted.</source>
-        <translation type="vanished">Όταν επιλεγεί, η έξοδος της εικονικής συσκευής ήχου θα φτάσει στον οικοδεσπότη. Αλλιώς ο επισκέπτης είναι βουβός.</translation>
+        <translation>Όταν επιλεγεί, η έξοδος της εικονικής συσκευής ήχου θα φτάσει στον οικοδεσπότη. Αλλιώς ο επισκέπτης είναι βουβός.</translation>
     </message>
     <message>
         <source>Enable Audio &amp;Output</source>
-        <translation type="vanished">Ενεργοποίηση Εξόδου Ήχου</translation>
+        <translation>Ενεργοποίηση Εξόδου Ήχου</translation>
     </message>
     <message>
         <source>When checked, the guest will be able to capture audio input from the host. Otherwise the guest will capture only silence.</source>
-        <translation type="vanished">Όταν επιλεγεί, ο επισκέπτης θα μπορεί να καταγράψει την είσοδο ήχου από τον οικοδεσπότη. Αλλιώς ο επισκέπτης θα καταγράφει μόνο σιωπή.</translation>
+        <translation>Όταν επιλεγεί, ο επισκέπτης θα μπορεί να καταγράψει την είσοδο ήχου από τον οικοδεσπότη. Αλλιώς ο επισκέπτης θα καταγράφει μόνο σιωπή.</translation>
     </message>
     <message>
         <source>Enable Audio &amp;Input</source>
-        <translation type="vanished">Ενεργοποίηση Εισόδου Ήχου</translation>
+        <translation>Ενεργοποίηση Εισόδου Ήχου</translation>
     </message>
 </context>
 <context>
@@ -4368,11 +4368,11 @@
     </message>
     <message>
         <source>When checked, VirtualBox will record the audio stream to video file as well.</source>
-        <translation type="vanished">Όταν επιλεγεί, το VirtualBox θα καταγράφει και τον ήχο στο αρχείο βίντεο.</translation>
+        <translation>Όταν επιλεγεί, το VirtualBox θα καταγράφει και τον ήχο στο αρχείο βίντεο.</translation>
     </message>
     <message>
         <source>&amp;Record Audio</source>
-        <translation type="vanished">Καταγραφή Ήχου</translation>
+        <translation>Καταγραφή Ήχου</translation>
     </message>
 </context>
 <context>
@@ -4655,67 +4655,67 @@
     <message>
         <source>Port %1</source>
         <comment>parallel ports</comment>
-        <translation>Θύρα %1</translation>
+        <translation type="vanished">Θύρα %1</translation>
     </message>
     <message>
         <source>When checked, enables the given parallel port of the virtual machine.</source>
-        <translation>Όταν επιλεγεί, ενεργοποιεί την παράλληλη θύρα της εικονικής μηχανής.</translation>
+        <translation type="vanished">Όταν επιλεγεί, ενεργοποιεί την παράλληλη θύρα της εικονικής μηχανής.</translation>
     </message>
     <message>
         <source>&amp;Enable Parallel Port</source>
-        <translation>Ενεργοποίηση Παράλληλης Θύρας</translation>
+        <translation type="vanished">Ενεργοποίηση Παράλληλης Θύρας</translation>
     </message>
     <message>
         <source>Port &amp;Number:</source>
-        <translation>Αριθμός Θύρας:</translation>
+        <translation type="vanished">Αριθμός Θύρας:</translation>
     </message>
     <message>
         <source>Holds the parallel port number. You can choose one of the standard parallel ports or select &lt;b&gt;User-defined&lt;/b&gt; and specify port parameters manually.</source>
-        <translation>Δείχνει τον αριθμό της παράλληλης θύρας. Μπορείτε να επιλέξετε μία από τις τυπικές παράλληλες πόρτες ή να επιλέξετε &lt;b&gt;Καθορισμένη από τον χρήστη&lt;/b&gt; και να προσδιορίσετε εσείς τις παραμέτρους της θύρας.</translation>
+        <translation type="vanished">Δείχνει τον αριθμό της παράλληλης θύρας. Μπορείτε να επιλέξετε μία από τις τυπικές παράλληλες πόρτες ή να επιλέξετε &lt;b&gt;Καθορισμένη από τον χρήστη&lt;/b&gt; και να προσδιορίσετε εσείς τις παραμέτρους της θύρας.</translation>
     </message>
     <message>
         <source>&amp;IRQ:</source>
-        <translation>IRQ:</translation>
+        <translation type="vanished">IRQ:</translation>
     </message>
     <message>
         <source>I/O Po&amp;rt:</source>
-        <translation>Θύρα Ε/Ε:</translation>
+        <translation type="vanished">Θύρα Ε/Ε:</translation>
     </message>
     <message>
         <source>Port &amp;Path:</source>
-        <translation>Διαδρομή θύρας:</translation>
+        <translation type="vanished">Διαδρομή θύρας:</translation>
     </message>
     <message>
         <source>Holds the host parallel device name.</source>
-        <translation>Δείχνει το όνομα της παράλληλης συσκευής του οικοδεσπότη.</translation>
+        <translation type="vanished">Δείχνει το όνομα της παράλληλης συσκευής του οικοδεσπότη.</translation>
     </message>
     <message>
         <source>Holds the IRQ number of this parallel port. This should be a whole number between &lt;tt&gt;0&lt;/tt&gt; and &lt;tt&gt;255&lt;/tt&gt;. Values greater than &lt;tt&gt;15&lt;/tt&gt; may only be used if the &lt;b&gt;I/O APIC&lt;/b&gt; setting is enabled for this virtual machine.</source>
-        <translation>Δείχνει το IRQ για αυτή την παράλληλη θύρα. Πρέπει να είναι ακέραιος αριθμός ανάμεσα στο &lt;tt&gt;0&lt;/tt&gt; και το &lt;tt&gt;255&lt;/tt&gt;. Τιμές μεγαλύτερες από &lt;tt&gt;15&lt;/tt&gt; μπορούν να χρησιμοποιηθούν μόνο αν έχει ενεργοποιηθεί η ρύθμιση &lt;b&gt;I/O APIC&lt;/b&gt; γι αυτή την εικονική μηχανή.</translation>
+        <translation type="vanished">Δείχνει το IRQ για αυτή την παράλληλη θύρα. Πρέπει να είναι ακέραιος αριθμός ανάμεσα στο &lt;tt&gt;0&lt;/tt&gt; και το &lt;tt&gt;255&lt;/tt&gt;. Τιμές μεγαλύτερες από &lt;tt&gt;15&lt;/tt&gt; μπορούν να χρησιμοποιηθούν μόνο αν έχει ενεργοποιηθεί η ρύθμιση &lt;b&gt;I/O APIC&lt;/b&gt; γι αυτή την εικονική μηχανή.</translation>
     </message>
     <message>
         <source>Holds the base I/O port address of this parallel port. Valid values are integer numbers in range from &lt;tt&gt;0&lt;/tt&gt; to &lt;tt&gt;0xFFFF&lt;/tt&gt;.</source>
-        <translation>Δείχνει το διεύθυνση θύρας Ε/Ε για αυτή την παράλληλη θύρα. Πρέπει να είναι ακέραιος αριθμός ανάμεσα στο &lt;tt&gt;0&lt;/tt&gt; και το &lt;tt&gt;0xFFFF&lt;/tt&gt;.</translation>
+        <translation type="vanished">Δείχνει το διεύθυνση θύρας Ε/Ε για αυτή την παράλληλη θύρα. Πρέπει να είναι ακέραιος αριθμός ανάμεσα στο &lt;tt&gt;0&lt;/tt&gt; και το &lt;tt&gt;0xFFFF&lt;/tt&gt;.</translation>
     </message>
     <message>
         <source>No IRQ is currently specified.</source>
-        <translation>Δεν καθορίστηκε το IRQ.</translation>
+        <translation type="vanished">Δεν καθορίστηκε το IRQ.</translation>
     </message>
     <message>
         <source>No I/O port is currently specified.</source>
-        <translation>Δεν καθορίστηκε θύρα Ε/Ε.</translation>
+        <translation type="vanished">Δεν καθορίστηκε θύρα Ε/Ε.</translation>
     </message>
     <message>
         <source>Two or more ports have the same settings.</source>
-        <translation>Δύο ή περισότερες θύρες έχουν τις ίδιες ρυθμίσεις.</translation>
+        <translation type="vanished">Δύο ή περισότερες θύρες έχουν τις ίδιες ρυθμίσεις.</translation>
     </message>
     <message>
         <source>No port path is currently specified.</source>
-        <translation>Δεν καθορίστηκε η διαδρομή της θύρας.</translation>
+        <translation type="vanished">Δεν καθορίστηκε η διαδρομή της θύρας.</translation>
     </message>
     <message>
         <source>There are currently duplicate port paths specified.</source>
-        <translation>Υπάρχουν διπλοκαθορισμένες διαδρομές θύρας.</translation>
+        <translation type="vanished">Υπάρχουν διπλοκαθορισμένες διαδρομές θύρας.</translation>
     </message>
 </context>
 <context>
@@ -4761,7 +4761,7 @@
     </message>
     <message>
         <source>&amp;Folders List</source>
-        <translation>Κατάλογος Φακέλων</translation>
+        <translation type="vanished">Κατάλογος Φακέλων</translation>
     </message>
     <message>
         <source>Auto-mount</source>
@@ -4797,7 +4797,7 @@
     </message>
     <message>
         <source>Shared &amp;Folders</source>
-        <translation type="vanished">Κοινόχρηστοι Φάκελοι</translation>
+        <translation>Κοινόχρηστοι Φάκελοι</translation>
     </message>
 </context>
 <context>
@@ -4979,7 +4979,7 @@
     </message>
     <message>
         <source>&amp;Storage Tree</source>
-        <translation>Δέντρο Αποθήκευσης</translation>
+        <translation type="vanished">Δέντρο Αποθήκευσης</translation>
     </message>
     <message>
         <source>Information</source>
@@ -5247,7 +5247,7 @@
     </message>
     <message>
         <source>&amp;Storage Devices</source>
-        <translation type="vanished">Συσκευές Αποθήκευσης</translation>
+        <translation>Συσκευές Αποθήκευσης</translation>
     </message>
 </context>
 <context>
@@ -5406,19 +5406,19 @@
     </message>
     <message>
         <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support a chip set of type ICH9 you have enabled for this VM. It will be done automatically if you confirm your changes.</source>
-        <translation>Το πρωτόκολλο Εισόδου/Εξόδου APIC (I/O APIC) δεν είναι ενεργοποιημένο στην κατηγορία Μητρική της σελίδας Συστήματος. Αυτό είναι απαραίτητο για να υποστηρίξει το κύκλωμα ICH9 που έχετε ενεργοποιήσει γι αυτή την ΕΜ. Θα ενεργοποιηθεί αυτόματα αν επιβεβαιώσετε τις αλλαγές σας.</translation>
+        <translation type="vanished">Το πρωτόκολλο Εισόδου/Εξόδου APIC (I/O APIC) δεν είναι ενεργοποιημένο στην κατηγορία Μητρική της σελίδας Συστήματος. Αυτό είναι απαραίτητο για να υποστηρίξει το κύκλωμα ICH9 που έχετε ενεργοποιήσει γι αυτή την ΕΜ. Θα ενεργοποιηθεί αυτόματα αν επιβεβαιώσετε τις αλλαγές σας.</translation>
     </message>
     <message>
         <source>USB controller emulation is not currently enabled on the USB page. This is needed to support an emulated USB input device you have enabled for this VM. It will be done automatically if you confirm your changes.</source>
-        <translation>Ο ελεγκτής USB δεν είναι ενεργοποιημένος στην σελίδα USB. Αυτό είναι απαραίτητο για να υποστηρίξει την εξομοιωμένη συσκευή USB που έχετε ενεργοποιήσει γι αυτή την ΕΜ. Θα ενεργοποιηθεί αυτόματα αν επιβεβαιώσετε τις αλλαγές σας.</translation>
+        <translation type="vanished">Ο ελεγκτής USB δεν είναι ενεργοποιημένος στην σελίδα USB. Αυτό είναι απαραίτητο για να υποστηρίξει την εξομοιωμένη συσκευή USB που έχετε ενεργοποιήσει γι αυτή την ΕΜ. Θα ενεργοποιηθεί αυτόματα αν επιβεβαιώσετε τις αλλαγές σας.</translation>
     </message>
     <message>
         <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed in order to support more than one virtual processor you have chosen for this VM. It will be done automatically if you confirm your changes.</source>
-        <translation>Το πρωτόκολλο Εισόδου/Εξόδου APIC (I/O APIC) δεν είναι ενεργοποιημένο στην κατηγορία Μητρική της σελίδας Συστήματος. Αυτό είναι απαραίτητο για να υποστηρίξει πάνω από έναν επεξεργαστή που έχετε ενεργοποιήσει γι αυτή την ΕΜ. Θα ενεργοποιηθεί αυτόματα αν επιβεβαιώσετε τις αλλαγές σας.</translation>
+        <translation type="vanished">Το πρωτόκολλο Εισόδου/Εξόδου APIC (I/O APIC) δεν είναι ενεργοποιημένο στην κατηγορία Μητρική της σελίδας Συστήματος. Αυτό είναι απαραίτητο για να υποστηρίξει πάνω από έναν επεξεργαστή που έχετε ενεργοποιήσει γι αυτή την ΕΜ. Θα ενεργοποιηθεί αυτόματα αν επιβεβαιώσετε τις αλλαγές σας.</translation>
     </message>
     <message>
         <source>Hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed in order to support more than one virtual processor you have chosen for this VM. It will be done automatically if you confirm your changes.</source>
-        <translation>Η εικονοποίηση του εξοπλισμού δεν είναι ενεργοποιημένη στην κατηγορία Επιτάχυνση της σελίδας Συστήματος. Αυτό είναι απαραίτητο για να υποστηρίξει πάνω από έναν επεξεργαστή που έχετε ενεργοποιήσει γι αυτή την ΕΜ. Θα ενεργοποιηθεί αυτόματα αν επιβεβαιώσετε τις αλλαγές σας.</translation>
+        <translation type="vanished">Η εικονοποίηση του εξοπλισμού δεν είναι ενεργοποιημένη στην κατηγορία Επιτάχυνση της σελίδας Συστήματος. Αυτό είναι απαραίτητο για να υποστηρίξει πάνω από έναν επεξεργαστή που έχετε ενεργοποιήσει γι αυτή την ΕΜ. Θα ενεργοποιηθεί αυτόματα αν επιβεβαιώσετε τις αλλαγές σας.</translation>
     </message>
     <message>
         <source>When checked, the RTC device will report the time in UTC, otherwise in local (host) time. Unix usually expects the hardware clock to be set to UTC.</source>
@@ -5448,19 +5448,19 @@
     </message>
     <message>
         <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed to support a chipset of type ICH9. It will be enabled automatically if you confirm your changes.</source>
-        <translation type="vanished">Το πρωτόκολλο Εισόδου/Εξόδου APIC (I/O APIC) δεν είναι ενεργοποιημένο στην κατηγορία Μητρική της σελίδας Συστήματος. Αυτό είναι απαραίτητο για να υποστηρίξει το κύκλωμα ICH9. Θα ενεργοποιηθεί αυτόματα αν επιβεβαιώσετε τις αλλαγές σας.</translation>
+        <translation>Το πρωτόκολλο Εισόδου/Εξόδου APIC (I/O APIC) δεν είναι ενεργοποιημένο στην κατηγορία Μητρική της σελίδας Συστήματος. Αυτό είναι απαραίτητο για να υποστηρίξει το κύκλωμα ICH9. Θα ενεργοποιηθεί αυτόματα αν επιβεβαιώσετε τις αλλαγές σας.</translation>
     </message>
     <message>
         <source>The USB controller emulation is not currently enabled on the USB page. This is needed to support an emulated USB pointing device. It will be enabled automatically if you confirm your changes.</source>
-        <translation type="vanished">Ο ελεγκτής USB δεν είναι ενεργοποιημένος στην σελίδα USB. Αυτό είναι απαραίτητο για να υποστηρίξει την εξομοιωμένη συσκευή USB. Θα ενεργοποιηθεί αυτόματα αν επιβεβαιώσετε τις αλλαγές σας.</translation>
+        <translation>Ο ελεγκτής USB δεν είναι ενεργοποιημένος στην σελίδα USB. Αυτό είναι απαραίτητο για να υποστηρίξει την εξομοιωμένη συσκευή USB. Θα ενεργοποιηθεί αυτόματα αν επιβεβαιώσετε τις αλλαγές σας.</translation>
     </message>
     <message>
         <source>The I/O APIC feature is not currently enabled in the Motherboard section of the System page. This is needed to support more than one virtual processor. It will be enabled automatically if you confirm your changes.</source>
-        <translation type="vanished">Το πρωτόκολλο Εισόδου/Εξόδου APIC (I/O APIC) δεν είναι ενεργοποιημένο στην κατηγορία Μητρική της σελίδας Συστήματος. Αυτό είναι απαραίτητο για να υποστηρίξει πάνω από έναν επεξεργαστή. Θα ενεργοποιηθεί αυτόματα αν επιβεβαιώσετε τις αλλαγές σας.</translation>
+        <translation>Το πρωτόκολλο Εισόδου/Εξόδου APIC (I/O APIC) δεν είναι ενεργοποιημένο στην κατηγορία Μητρική της σελίδας Συστήματος. Αυτό είναι απαραίτητο για να υποστηρίξει πάνω από έναν επεξεργαστή. Θα ενεργοποιηθεί αυτόματα αν επιβεβαιώσετε τις αλλαγές σας.</translation>
     </message>
     <message>
         <source>The hardware virtualization is not currently enabled in the Acceleration section of the System page. This is needed to support more than one virtual processor. It will be enabled automatically if you confirm your changes.</source>
-        <translation type="vanished">Η εικονοποίηση του εξοπλισμού δεν είναι ενεργοποιημένη στην κατηγορία Επιτάχυνση της σελίδας Συστήματος. Αυτό είναι απαραίτητο για να υποστηρίξει πάνω από έναν επεξεργαστή. Θα ενεργοποιηθεί αυτόματα αν επιβεβαιώσετε τις αλλαγές σας.</translation>
+        <translation>Η εικονοποίηση του εξοπλισμού δεν είναι ενεργοποιημένη στην κατηγορία Επιτάχυνση της σελίδας Συστήματος. Αυτό είναι απαραίτητο για να υποστηρίξει πάνω από έναν επεξεργαστή. Θα ενεργοποιηθεί αυτόματα αν επιβεβαιώσετε τις αλλαγές σας.</translation>
     </message>
 </context>
 <context>
@@ -5718,72 +5718,72 @@
 <context>
     <name>UIMediumDetailsWidget</name>
     <message>
-        <source>&amp;Type:</source>
-        <translation type="vanished">Τύπος:</translation>
-    </message>
-    <message>
-        <source>&amp;Description:</source>
-        <translation type="vanished">Περιγραφή:</translation>
-    </message>
-    <message>
-        <source>Reset</source>
-        <translation type="vanished">Επαναφορά</translation>
-    </message>
-    <message>
         <source>&amp;Attributes</source>
-        <translation type="vanished">Ιδιότητες</translation>
+        <translation>Ιδιότητες</translation>
     </message>
     <message>
         <source>&amp;Information</source>
-        <translation type="vanished">Πληροφορίες</translation>
+        <translation>Πληροφορίες</translation>
+    </message>
+    <message>
+        <source>&amp;Type:</source>
+        <translation>Τύπος:</translation>
     </message>
     <message>
         <source>&amp;Location:</source>
-        <translation type="vanished">Τοποθεσία:</translation>
+        <translation>Τοποθεσία:</translation>
+    </message>
+    <message>
+        <source>&amp;Description:</source>
+        <translation>Περιγραφή:</translation>
     </message>
     <message>
         <source>&amp;Size:</source>
-        <translation type="vanished">Μέγεθος:</translation>
+        <translation>Μέγεθος:</translation>
     </message>
     <message>
         <source>Holds the type of this medium.</source>
-        <translation type="vanished">Δείχνει τον τύπο του μέσου.</translation>
+        <translation>Δείχνει τον τύπο του μέσου.</translation>
     </message>
     <message>
         <source>Holds the location of this medium.</source>
-        <translation type="vanished">Δείχνει την τοποθεσία του μέσου.</translation>
+        <translation>Δείχνει την τοποθεσία του μέσου.</translation>
     </message>
     <message>
         <source>Holds the description of this medium.</source>
-        <translation type="vanished">Δείχνει την περιγραφή του μέσου.</translation>
+        <translation>Δείχνει την περιγραφή του μέσου.</translation>
     </message>
     <message>
         <source>Holds the size of this medium.</source>
-        <translation type="vanished">Δείχνει το μέγεθος του μέσου.</translation>
+        <translation>Δείχνει το μέγεθος του μέσου.</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>Επαναφορά</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation type="vanished">Εφαρμογή</translation>
+        <translation>Εφαρμογή</translation>
     </message>
     <message>
         <source>Reset changes in current medium details</source>
-        <translation type="vanished">Επαναφορά αλλαγών στις λεπτομέρειες του επιλεγμένου μέσου</translation>
+        <translation>Επαναφορά αλλαγών στις λεπτομέρειες του επιλεγμένου μέσου</translation>
     </message>
     <message>
         <source>Apply changes in current medium details</source>
-        <translation type="vanished">Εφαρμογή αλλαγών στις λεπτομέρειες του επιλεγμένου μέσου</translation>
+        <translation>Εφαρμογή αλλαγών στις λεπτομέρειες του επιλεγμένου μέσου</translation>
     </message>
     <message>
         <source>Reset Changes (%1)</source>
-        <translation type="vanished">Επαναφορά Αλλαγών (%1)</translation>
+        <translation>Επαναφορά Αλλαγών (%1)</translation>
     </message>
     <message>
         <source>Apply Changes (%1)</source>
-        <translation type="vanished">Εφαρμογή Αλλαγών (%1)</translation>
+        <translation>Εφαρμογή Αλλαγών (%1)</translation>
     </message>
     <message>
         <source>Cannot change medium size from &lt;b&gt;%1&lt;/b&gt; to &lt;b&gt;%2&lt;/b&gt; as storage shrinking is currently not implemented.</source>
-        <translation type="vanished">Δεν μπορεί να αλλάξει το μέγεθος του μέσου από &lt;b&gt;%1&lt;/b&gt; σε &lt;b&gt;%2&lt;/b&gt; μιας και η συρρίκνωση αποθήκευσης δεν είναι διαθέσιμη.</translation>
+        <translation>Δεν μπορεί να αλλάξει το μέγεθος του μέσου από &lt;b&gt;%1&lt;/b&gt; σε &lt;b&gt;%2&lt;/b&gt; μιας και η συρρίκνωση αποθήκευσης δεν είναι διαθέσιμη.</translation>
     </message>
 </context>
 <context>
@@ -5805,170 +5805,170 @@
         <translation>Σκληροί δίσκοι</translation>
     </message>
     <message>
+        <source>%1, %2: %3, %4: %5</source>
+        <comment>col.1 text, col.2 name: col.2 text, col.3 name: col.3 text</comment>
+        <translation>%1, %2: %3, %4: %5</translation>
+    </message>
+    <message>
         <source>Format:</source>
-        <translation type="vanished">Διαμόρφωση:</translation>
+        <translation>Διαμόρφωση:</translation>
     </message>
     <message>
         <source>Storage details:</source>
-        <translation type="vanished">Λεπτομέρειες αποθήκευσης:</translation>
+        <translation>Λεπτομέρειες αποθήκευσης:</translation>
     </message>
     <message>
         <source>Attached to:</source>
-        <translation type="vanished">Συνδεδεμένο σε:</translation>
+        <translation>Συνδεδεμένο σε:</translation>
     </message>
     <message>
         <source>Encrypted with key:</source>
-        <translation type="vanished">Κρυπτογραφημένο με κλειδί:</translation>
+        <translation>Κρυπτογραφημένο με κλειδί:</translation>
     </message>
     <message>
         <source>UUID:</source>
-        <translation type="vanished">UUID:</translation>
+        <translation>UUID:</translation>
     </message>
     <message>
         <source>&lt;i&gt;Not&amp;nbsp;Attached&lt;/i&gt;</source>
-        <translation type="vanished">&lt;i&gt;Μη&amp;nbsp;Συνδεδεμένο&lt;/i&gt;</translation>
+        <translation>&lt;i&gt;Μη&amp;nbsp;Συνδεδεμένο&lt;/i&gt;</translation>
     </message>
     <message>
         <source>&lt;i&gt;Not&amp;nbsp;Encrypted&lt;/i&gt;</source>
-        <translation type="vanished">&lt;i&gt;Μη&amp;nbsp;Κρυπτογραφημένο&lt;/i&gt;</translation>
+        <translation>&lt;i&gt;Μη&amp;nbsp;Κρυπτογραφημένο&lt;/i&gt;</translation>
     </message>
     <message>
         <source>--</source>
         <comment>no info</comment>
-        <translation type="vanished">--</translation>
-    </message>
-    <message>
-        <source>&amp;Copy...</source>
-        <translation type="vanished">Αντιγραφή...</translation>
-    </message>
-    <message>
-        <source>&amp;Remove...</source>
-        <translation type="vanished">Αφαίρεση...</translation>
-    </message>
-    <message>
-        <source>Re&amp;fresh</source>
-        <translation type="vanished">Ανανέωση</translation>
-    </message>
-    <message>
-        <source>Refresh the list of disk image files</source>
-        <translation type="vanished">Ανανέωση της λίστας επιλεγμένων αρχείων εικόνας δίσκου</translation>
-    </message>
-    <message>
-        <source>Name</source>
-        <translation type="vanished">Όνομα</translation>
-    </message>
-    <message>
-        <source>Virtual Size</source>
-        <translation type="vanished">Εικονικό Μέγεθος</translation>
-    </message>
-    <message>
-        <source>Actual Size</source>
-        <translation type="vanished">Πραγματικό Μέγεθος</translation>
-    </message>
-    <message>
-        <source>Size</source>
-        <translation type="vanished">Μέγεθος</translation>
-    </message>
-    <message>
-        <source>Checking accessibility</source>
-        <translation type="vanished">Έλεγχος προσβασιμότητας</translation>
-    </message>
-    <message>
-        <source>Virtual Media Manager</source>
-        <translation type="vanished">Διαχειριστής Εικονικών Μέσων</translation>
-    </message>
-    <message>
-        <source>Reset</source>
-        <translation type="vanished">Επαναφορά</translation>
-    </message>
-    <message>
-        <source>Close</source>
-        <translation type="vanished">Κλείσιμο</translation>
-    </message>
-    <message>
-        <source>%1, %2: %3, %4: %5</source>
-        <comment>col.1 text, col.2 name: col.2 text, col.3 name: col.3 text</comment>
-        <translation type="vanished">%1, %2: %3, %4: %5</translation>
+        <translation>--</translation>
     </message>
     <message>
         <source>&amp;Medium</source>
-        <translation type="vanished">Μέσο</translation>
+        <translation>Μέσο</translation>
+    </message>
+    <message>
+        <source>&amp;Copy...</source>
+        <translation>Αντιγραφή...</translation>
     </message>
     <message>
         <source>Copy selected disk image file</source>
-        <translation type="vanished">Αντιγραφή επιλεγμένου αρχείου σκληρού δίσκου</translation>
+        <translation>Αντιγραφή επιλεγμένου αρχείου σκληρού δίσκου</translation>
+    </message>
+    <message>
+        <source>&amp;Remove...</source>
+        <translation>Αφαίρεση...</translation>
     </message>
     <message>
         <source>Remove selected disk image file</source>
-        <translation type="vanished">Αφαίρεση επιλεγμένων αρχείων εικόνας δίσκου</translation>
+        <translation>Αφαίρεση επιλεγμένων αρχείων εικόνας δίσκου</translation>
     </message>
     <message>
         <source>Re&amp;lease...</source>
-        <translation type="vanished">Απελευθέρωση...</translation>
+        <translation>Απελευθέρωση...</translation>
     </message>
     <message>
         <source>Release selected disk image file by detaching it from machines</source>
-        <translation type="vanished">Απελευθέρωση επιλεγμένου σκληρού δίσκου με απόσπαση από τις μηχανές</translation>
+        <translation>Απελευθέρωση επιλεγμένου σκληρού δίσκου με απόσπαση από τις μηχανές</translation>
     </message>
     <message>
         <source>&amp;Properties...</source>
-        <translation type="vanished">Ιδιότητες...</translation>
+        <translation>Ιδιότητες...</translation>
     </message>
     <message>
         <source>Open pane with selected disk image file properties</source>
-        <translation type="vanished">Άνοιγμα της καρτέλας με τις ιδιότητες της επιλεγμένης εικόνας δίσκου</translation>
+        <translation>Άνοιγμα της καρτέλας με τις ιδιότητες της επιλεγμένης εικόνας δίσκου</translation>
+    </message>
+    <message>
+        <source>Re&amp;fresh</source>
+        <translation>Ανανέωση</translation>
+    </message>
+    <message>
+        <source>Refresh the list of disk image files</source>
+        <translation>Ανανέωση της λίστας επιλεγμένων αρχείων εικόνας δίσκου</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>Όνομα</translation>
+    </message>
+    <message>
+        <source>Virtual Size</source>
+        <translation>Εικονικό Μέγεθος</translation>
+    </message>
+    <message>
+        <source>Actual Size</source>
+        <translation>Πραγματικό Μέγεθος</translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <translation>Μέγεθος</translation>
+    </message>
+    <message>
+        <source>Checking accessibility</source>
+        <translation>Έλεγχος προσβασιμότητας</translation>
     </message>
     <message>
         <source>Moving medium...</source>
-        <translation type="vanished">Μετακίνηση μέσου...</translation>
+        <translation>Μετακίνηση μέσου...</translation>
+    </message>
+    <message>
+        <source>Virtual Media Manager</source>
+        <translation>Διαχειριστής Εικονικών Μέσων</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>Επαναφορά</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation type="vanished">Εφαρμογή</translation>
+        <translation>Εφαρμογή</translation>
+    </message>
+    <message>
+        <source>Close</source>
+        <translation>Κλείσιμο</translation>
     </message>
     <message>
         <source>Reset changes in current medium details</source>
-        <translation type="vanished">Επαναφορά αλλαγών στις λεπτομέρειες του επιλεγμένου μέσου</translation>
+        <translation>Επαναφορά αλλαγών στις λεπτομέρειες του επιλεγμένου μέσου</translation>
     </message>
     <message>
         <source>Apply changes in current medium details</source>
-        <translation type="vanished">Εφαρμογή αλλαγών στις λεπτομέρειες του επιλεγμένου μέσου</translation>
+        <translation>Εφαρμογή αλλαγών στις λεπτομέρειες του επιλεγμένου μέσου</translation>
     </message>
     <message>
         <source>Close dialog without saving</source>
-        <translation type="vanished">Κλείσιμο διαλόγου χωρίς σώσιμο</translation>
+        <translation>Κλείσιμο διαλόγου χωρίς σώσιμο</translation>
     </message>
     <message>
         <source>Reset Changes (%1)</source>
-        <translation type="vanished">Επαναφορά Αλλαγών (%1)</translation>
+        <translation>Επαναφορά Αλλαγών (%1)</translation>
     </message>
     <message>
         <source>Apply Changes (%1)</source>
-        <translation type="vanished">Εφαρμογή Αλλαγών (%1)</translation>
+        <translation>Εφαρμογή Αλλαγών (%1)</translation>
     </message>
     <message>
         <source>Close Window (%1)</source>
-        <translation type="vanished">Κλείσιμο Παραθύρου (%1)</translation>
+        <translation>Κλείσιμο Παραθύρου (%1)</translation>
     </message>
     <message>
         <source>Copy Disk Image File (%1)</source>
-        <translation type="vanished">Αντιγραφή Αρχείου Σκληρού Δίσκου (%1)</translation>
+        <translation>Αντιγραφή Αρχείου Σκληρού Δίσκου (%1)</translation>
     </message>
     <message>
         <source>Remove Disk Image File (%1)</source>
-        <translation type="vanished">Αφαίρεση Αρχείου Σκληρού Δίσκου (%1)</translation>
+        <translation>Αφαίρεση Αρχείου Σκληρού Δίσκου (%1)</translation>
     </message>
     <message>
         <source>Release Disk Image File (%1)</source>
-        <translation type="vanished">Απελευθέρωση Αρχείου Σκληρού Δίσκου (%1)</translation>
+        <translation>Απελευθέρωση Αρχείου Σκληρού Δίσκου (%1)</translation>
     </message>
     <message>
         <source>Open Disk Image File Properties (%1)</source>
-        <translation type="vanished">Άνοιγμα Ιδιοτήτω Αρχείου Σκληρού Δίσκου (%1)</translation>
+        <translation>Άνοιγμα Ιδιοτήτω Αρχείου Σκληρού Δίσκου (%1)</translation>
     </message>
     <message>
         <source>Refresh Disk Image Files (%1)</source>
-        <translation type="vanished">Ανανέωση Αρχείου Σκληρού Δίσκου (%1)</translation>
+        <translation>Ανανέωση Αρχείου Σκληρού Δίσκου (%1)</translation>
     </message>
 </context>
 <context>
@@ -5997,12 +5997,12 @@
 <context>
     <name>UIMediumSizeEditor</name>
     <message>
-        <source>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</source>
-        <translation type="vanished">&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</translation>
+        <source>Holds the size of this medium.</source>
+        <translation>Δείχνει το μέγεθος του μέσου.</translation>
     </message>
     <message>
-        <source>Holds the size of this medium.</source>
-        <translation type="vanished">Δείχνει το μέγεθος του μέσου.</translation>
+        <source>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</source>
+        <translation>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</translation>
     </message>
 </context>
 <context>
@@ -6068,11 +6068,11 @@
     </message>
     <message>
         <source>Toggle menu %1</source>
-        <translation type="vanished">Εναλλαγή καταλόγου %1</translation>
+        <translation>Εναλλαγή καταλόγου %1</translation>
     </message>
     <message>
         <source>Popup menu %1</source>
-        <translation type="vanished">Ανάδυση καταλόγου %1</translation>
+        <translation>Ανάδυση καταλόγου %1</translation>
     </message>
 </context>
 <context>
@@ -6185,7 +6185,7 @@
     </message>
     <message>
         <source>Failed to create the shared folder &lt;b&gt;%1&lt;/b&gt; (pointing to &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) for the virtual machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>Αποτυχία δημιουργίας του κοινόχρηστου φακέλου &lt;b&gt;%1&lt;/b&gt; (δείχνει στο &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) για την εικονική μηχανή &lt;b&gt;%3&lt;/b&gt;.</translation>
+        <translation type="vanished">Αποτυχία δημιουργίας του κοινόχρηστου φακέλου &lt;b&gt;%1&lt;/b&gt; (δείχνει στο &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) για την εικονική μηχανή &lt;b&gt;%3&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>&lt;p&gt;The Virtual Machine reports that the guest OS does not support &lt;b&gt;mouse pointer integration&lt;/b&gt; in the current video mode. You need to capture the mouse (by clicking over the VM display or pressing the host key) in order to use the mouse inside the guest OS.&lt;/p&gt;</source>
@@ -6235,31 +6235,31 @@
     <message>
         <source>Result&amp;nbsp;Code: </source>
         <comment>error info</comment>
-        <translation>Κωδικός&amp;nbsp;Αποτελέσματος: </translation>
+        <translation type="vanished">Κωδικός&amp;nbsp;Αποτελέσματος: </translation>
     </message>
     <message>
         <source>Component: </source>
         <comment>error info</comment>
-        <translation>Συστατικό:</translation>
+        <translation type="vanished">Συστατικό:</translation>
     </message>
     <message>
         <source>Interface: </source>
         <comment>error info</comment>
-        <translation>Περιβάλλον:</translation>
+        <translation type="vanished">Περιβάλλον:</translation>
     </message>
     <message>
         <source>Callee: </source>
         <comment>error info</comment>
-        <translation>Καλέστηκε από:</translation>
+        <translation type="vanished">Καλέστηκε από:</translation>
     </message>
     <message>
         <source>Callee&amp;nbsp;RC: </source>
         <comment>error info</comment>
-        <translation>Καλών&amp;nbsp;RC: </translation>
+        <translation type="vanished">Καλών&amp;nbsp;RC: </translation>
     </message>
     <message>
         <source>&lt;p&gt;Failed to remove the shared folder &lt;b&gt;%1&lt;/b&gt; (pointing to &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) from the virtual machine &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please close all programs in the guest OS that may be using this shared folder and try again.&lt;/p&gt;</source>
-        <translation>Αποτυχία αφαίρεσης του κοινόχρηστου φακέλου &lt;b&gt;%1&lt;/b&gt; (δείχνει το &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) από την εικονική μηχανή &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Παρακαλούμε κλείστε όλα τα προγράμματα στον επισκέπτη που μπορεί να χρησιμοποιούνε τον κοινό φάκελο και ξαναπροσπαθήστε.&lt;/p&gt;</translation>
+        <translation type="vanished">Αποτυχία αφαίρεσης του κοινόχρηστου φακέλου &lt;b&gt;%1&lt;/b&gt; (δείχνει το &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt;) από την εικονική μηχανή &lt;b&gt;%3&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Παρακαλούμε κλείστε όλα τα προγράμματα στον επισκέπτη που μπορεί να χρησιμοποιούνε τον κοινό φάκελο και ξαναπροσπαθήστε.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to open the license file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;. Check file permissions.</source>
@@ -6271,11 +6271,11 @@
     </message>
     <message>
         <source>&lt;p&gt;Failed to load the global GUI configuration from &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Αποτυχία μεταφόρτωσης των ρυθμίσεων από &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Η εφαρμογή θα τερματιστεί.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Αποτυχία μεταφόρτωσης των ρυθμίσεων από &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Η εφαρμογή θα τερματιστεί.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Failed to save the global GUI configuration to &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;The application will now terminate.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Αποτυχία σωσίματος των ρυθμίσεων στο &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Η εφαρμογή θα τερματιστεί.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Αποτυχία σωσίματος των ρυθμίσεων στο &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Η εφαρμογή θα τερματιστεί.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to save the settings of the virtual machine &lt;b&gt;%1&lt;/b&gt; to &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt;.</source>
@@ -6563,7 +6563,7 @@
     </message>
     <message>
         <source>&lt;p&gt;You are about to install a VirtualBox extension pack. Extension packs complement the functionality of VirtualBox and can contain system level software that could be potentially harmful to your system. Please review the description below and only proceed if you have obtained the extension pack from a trusted source.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Πρόκειται να εγκαταστήσετε ένα Πακέτο Επέκτασης του VirtualBox. Τα Πακέτα Επέκτασης συμπληρώνουν τη λειτουργικότητα του VirtualBox και μπορεί να περιέχουν λογισμικό επιπέδου συστήματος, που μπορεί να είναι πιθανόν επικίνδυνο για το σύστημά σας. Παρακαλώ κοιτάξτε ξανά την περιγραφή και προχωρείστε μόνο αν έχετε πάρει το πακέτο από πηγή που εμπιστεύεστε.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Όνομα:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Περιγραφή:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Πρόκειται να εγκαταστήσετε ένα Πακέτο Επέκτασης του VirtualBox. Τα Πακέτα Επέκτασης συμπληρώνουν τη λειτουργικότητα του VirtualBox και μπορεί να περιέχουν λογισμικό επιπέδου συστήματος, που μπορεί να είναι πιθανόν επικίνδυνο για το σύστημά σας. Παρακαλώ κοιτάξτε ξανά την περιγραφή και προχωρείστε μόνο αν έχετε πάρει το πακέτο από πηγή που εμπιστεύεστε.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Όνομα:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Περιγραφή:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Extension packs complement the functionality of VirtualBox and can contain system level software that could be potentially harmful to your system. Please review the description below and only proceed if you have obtained the extension pack from a trusted source.</source>
@@ -6571,7 +6571,7 @@
     </message>
     <message>
         <source>&lt;p&gt;An older version of the extension pack is already installed, would you like to upgrade? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;New Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Current Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Μία παλιότερη έκδοση του πακέτου επέκτασης είναι ήδη εγκατεστημένη, θέλετε να την αναβαθμίσετε? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Όνομα:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Νέα Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Τρέχουσα Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Περιγραφή:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Μία παλιότερη έκδοση του πακέτου επέκτασης είναι ήδη εγκατεστημένη, θέλετε να την αναβαθμίσετε? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Όνομα:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Νέα Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Τρέχουσα Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Περιγραφή:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Upgrade</source>
@@ -6579,7 +6579,7 @@
     </message>
     <message>
         <source>&lt;p&gt;An newer version of the extension pack is already installed, would you like to downgrade? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;New Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Current Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Μία νεώτερη έκδοση του πακέτου επέκτασης είναι ήδη εγκατεστημένη, θέλετε να την υποβαθμίσετε? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Όνομα:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Νέα Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Τρέχουσα Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Περιγραφή:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Μία νεώτερη έκδοση του πακέτου επέκτασης είναι ήδη εγκατεστημένη, θέλετε να την υποβαθμίσετε? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Όνομα:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Νέα Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Τρέχουσα Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Περιγραφή:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Downgrade</source>
@@ -6587,7 +6587,7 @@
     </message>
     <message>
         <source>&lt;p&gt;The extension pack is already installed with the same version, would you like reinstall it? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Το πακέτου επέκτασης είναι ήδη εγκατεστημένο με την ίδια έκδοση, θέλετε να την ξαναεγκαταστήσετε? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Όνομα:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Περιγραφή:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Το πακέτου επέκτασης είναι ήδη εγκατεστημένο με την ίδια έκδοση, θέλετε να την ξαναεγκαταστήσετε? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Όνομα:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Περιγραφή:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Reinstall</source>
@@ -6798,23 +6798,23 @@
     </message>
     <message>
         <source>Failed to create NAT network.</source>
-        <translation>Αποτυχία δημιουργίας δικτύου NAT.</translation>
+        <translation type="vanished">Αποτυχία δημιουργίας δικτύου NAT.</translation>
     </message>
     <message>
         <source>Failed to remove NAT network &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>Αποτυχία αφαίρεσης του δικτύου NAT &lt;b&gt;%1&lt;/b&gt;.</translation>
+        <translation type="vanished">Αποτυχία αφαίρεσης του δικτύου NAT &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Failed to create DHCP server.</source>
-        <translation>Αποτυχία δημιουργίας διακομιστή DHCP.</translation>
+        <translation type="vanished">Αποτυχία δημιουργίας διακομιστή DHCP.</translation>
     </message>
     <message>
         <source>Failed to remove DHCP server for network interface &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>Αποτυχία αφαίρεσης του διακομιστή DHCP για την κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt;.</translation>
+        <translation type="vanished">Αποτυχία αφαίρεσης του διακομιστή DHCP για την κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Failed to create the host network interface.</source>
-        <translation>Αποτυχία δημιουργίας της κάρτας δικτύου του οικοδεσπότη.</translation>
+        <translation type="vanished">Αποτυχία δημιουργίας της κάρτας δικτύου του οικοδεσπότη.</translation>
     </message>
     <message>
         <source>Create &amp;new disk</source>
@@ -7021,7 +7021,7 @@
     </message>
     <message>
         <source>&lt;p&gt;Could not insert the &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file into the virtual machine &lt;b&gt;%1&lt;/b&gt;, as the machine has no optical drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Αδυναμία εισαγωγής του αρχείο εικόνας δίσκου &lt;b&gt;Προσθήκες Επισκέπτη του VirtualBox&lt;/b&gt; στην εικονική μηχανή &lt;b&gt;%1&lt;/b&gt;, γιατί η εικονική μηχανή δεν έχει οπτικούς οδηγούς. Παρακαλώ προσθέστε έναν οδηγό χρησιμοποιώντας τη σελίδα αποθήκευσης στο παράθυρο ρυθμίσεων της εικονικής μηχανής.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Αδυναμία εισαγωγής του αρχείο εικόνας δίσκου &lt;b&gt;Προσθήκες Επισκέπτη του VirtualBox&lt;/b&gt; στην εικονική μηχανή &lt;b&gt;%1&lt;/b&gt;, γιατί η εικονική μηχανή δεν έχει οπτικούς οδηγούς. Παρακαλώ προσθέστε έναν οδηγό χρησιμοποιώντας τη σελίδα αποθήκευσης στο παράθυρο ρυθμίσεων της εικονικής μηχανής.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to register this disk image file and insert it into the virtual optical drive?&lt;/p&gt;</source>
@@ -7149,104 +7149,104 @@
         <translation>&lt;p&gt;Το &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; κατέβηκε επιτυχώς από &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; και αποθηκεύτηκε τοπικά ως &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;, &lt;/nobr&gt;αλλά ο έλεγχος για την επιβεβαίωση του SHA-256 απέτυχε.&lt;/p&gt;&lt;p&gt;Παρακαλούμε κατεβάστε, εγκαταστήστε και επιβεβαιώστε μη αυτόματα.&lt;/p&gt;</translation>
     </message>
     <message>
-        <source>&lt;p&gt;You are about to install a VirtualBox extension pack. Extension packs complement the functionality of VirtualBox and can contain system level software that could be potentially harmful to your system. Please review the description below and only proceed if you have obtained the extension pack from a trusted source.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
-        <translation type="vanished">&lt;p&gt;Πρόκειται να εγκαταστήσετε ένα Πακέτο Επέκτασης του VirtualBox. Τα Πακέτα Επέκτασης συμπληρώνουν τη λειτουργικότητα του VirtualBox και μπορεί να περιέχουν λογισμικό επιπέδου συστήματος, που μπορεί να είναι πιθανόν επικίνδυνο για το σύστημά σας. Παρακαλώ κοιτάξτε ξανά την περιγραφή και προχωρείστε μόνο αν έχετε πάρει το πακέτο από πηγή που εμπιστεύεστε.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Όνομα:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Περιγραφή:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;An older version of the extension pack is already installed, would you like to upgrade? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;New Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Current Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
-        <translation type="vanished">&lt;p&gt;Μία παλιότερη έκδοση του πακέτου επέκτασης είναι ήδη εγκατεστημένη, θέλετε να την αναβαθμίσετε;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Όνομα:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Νέα Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Τρέχουσα Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Περιγραφή:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;An newer version of the extension pack is already installed, would you like to downgrade? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;New Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Current Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
-        <translation type="vanished">&lt;p&gt;Μία νεώτερη έκδοση του πακέτου επέκτασης είναι ήδη εγκατεστημένη, θέλετε να την υποβαθμίσετε;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Όνομα:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Νέα Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Τρέχουσα Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Περιγραφή:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
-        <source>&lt;p&gt;The extension pack is already installed with the same version, would you like reinstall it? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
-        <translation type="vanished">&lt;p&gt;Το πακέτου επέκτασης είναι ήδη εγκατεστημένο με την ίδια έκδοση, θέλετε να την ξαναεγκαταστήσετε;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Όνομα:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Περιγραφή:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;You are about to start all of the following virtual machines:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;This could take some time and consume a lot of host system resources. Do you wish to proceed?&lt;/p&gt;</source>
-        <translation type="vanished">&lt;p&gt;Πρόκειται να ξεκινήσουν όλες οι κάτωθι εικονικές μηχανές:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Αυτό μπορεί να πάρει κάποια ώρα και να καταναλώσει αρκετούς πόρους του οικοδεσπότη. Θέλετε να συνεχίσετε;&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Πρόκειται να ξεκινήσουν όλες οι κάτωθι εικονικές μηχανές:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Αυτό μπορεί να πάρει κάποια ώρα και να καταναλώσει αρκετούς πόρους του οικοδεσπότη. Θέλετε να συνεχίσετε;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Can&apos;t find snapshot with ID=&lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="vanished">Δεν μπορεί να βρεθεί το στιγμιότυπο με ID=&lt;b&gt;%1&lt;/b&gt;.</translation>
+        <translation>Δεν μπορεί να βρεθεί το στιγμιότυπο με ID=&lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Can&apos;t acquire snapshot attributes.</source>
-        <translation type="vanished">Δεν αποκτήθηκαν οι ιδιότητες του στιγμιότυπου.</translation>
+        <translation>Δεν αποκτήθηκαν οι ιδιότητες του στιγμιότυπου.</translation>
     </message>
     <message>
         <source>Failed to move the storage unit of the disk image &lt;b&gt;%1&lt;/b&gt; to &lt;b&gt;%2&lt;/b&gt;.</source>
-        <translation type="vanished">Αποτυχία μετακίνησης της μονάδας αποθήκευσης της μονάδας δίσκου &lt;b&gt;%1&lt;/b&gt; στο &lt;b&gt;%2&lt;/b&gt;.</translation>
+        <translation>Αποτυχία μετακίνησης της μονάδας αποθήκευσης της μονάδας δίσκου &lt;b&gt;%1&lt;/b&gt; στο &lt;b&gt;%2&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Error changing the description of the disk image &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation type="vanished">&lt;p&gt;Λάθος κατά την αλλαγή της περιγραφής της μονάδας δίσκου &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Λάθος κατά την αλλαγή της περιγραφής της μονάδας δίσκου &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to resize the storage unit of the hard disk &lt;b&gt;%1&lt;/b&gt; from &lt;b&gt;%2&lt;/b&gt; to &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation type="vanished">Αποτυχία αλλαγής μεγέθους της μονάδας αποθήκευσης του σκληρού δίσκου &lt;b&gt;%1&lt;/b&gt; από &lt;b&gt;%2&lt;/b&gt; σε &lt;b&gt;%3&lt;/b&gt;.</translation>
+        <translation>Αποτυχία αλλαγής μεγέθους της μονάδας αποθήκευσης του σκληρού δίσκου &lt;b&gt;%1&lt;/b&gt; από &lt;b&gt;%2&lt;/b&gt; σε &lt;b&gt;%3&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Failed to acquire host network interfaces.</source>
-        <translation type="vanished">Αποτυχία απόκτησης των καρτών δικτύου του οικοδεσπότη.</translation>
+        <translation>Αποτυχία απόκτησης των καρτών δικτύου του οικοδεσπότη.</translation>
     </message>
     <message>
         <source>Unable to find the host network interface &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="vanished">Αδυναμία εύρεσηςτης κάρτας δικτύου του οικοδεσπότη &lt;b&gt;%1&lt;/b&gt;.</translation>
+        <translation>Αδυναμία εύρεσηςτης κάρτας δικτύου του οικοδεσπότη &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Failed to create a host network interface.</source>
-        <translation type="vanished">Αποτυχία δημιουργίας της κάρτας δικτύου του οικοδεσπότη.</translation>
+        <translation>Αποτυχία δημιουργίας της κάρτας δικτύου του οικοδεσπότη.</translation>
     </message>
     <message>
         <source>Failed to acquire host network interface parameter.</source>
-        <translation type="vanished">Αποτυχία απόκτησης παραμέτρου της κάρτας δικτύου του οικοδεσπότη.</translation>
+        <translation>Αποτυχία απόκτησης παραμέτρου της κάρτας δικτύου του οικοδεσπότη.</translation>
     </message>
     <message>
         <source>Failed to save host network interface parameter.</source>
-        <translation type="vanished">Αποτυχία σωσίματος παραμέτρου της κάρτας δικτύου του οικοδεσπότη.</translation>
+        <translation>Αποτυχία σωσίματος παραμέτρου της κάρτας δικτύου του οικοδεσπότη.</translation>
     </message>
     <message>
         <source>Failed to create a DHCP server for the network interface &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="vanished">Αποτυχία δημιουργίας διακομιστή DHCP για την κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt;.</translation>
+        <translation>Αποτυχία δημιουργίας διακομιστή DHCP για την κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Failed to remove the DHCP server for the network interface &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="vanished">Αποτυχία αφαίρεσης του διακομιστή DHCP για την κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt;.</translation>
+        <translation>Αποτυχία αφαίρεσης του διακομιστή DHCP για την κάρτα δικτύου &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Failed to acquire DHCP server parameter.</source>
-        <translation type="vanished">Αποτυχία απόκτησης παραμέτρου του διακομιστή DHCP.</translation>
+        <translation>Αποτυχία απόκτησης παραμέτρου του διακομιστή DHCP.</translation>
     </message>
     <message>
         <source>Failed to save DHCP server parameter.</source>
-        <translation type="vanished">Αποτυχία σωσίματος παραμέτρου του διακομιστή DHCP.</translation>
+        <translation>Αποτυχία σωσίματος παραμέτρου του διακομιστή DHCP.</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;You are about to install a VirtualBox extension pack. Extension packs complement the functionality of VirtualBox and can contain system level software that could be potentially harmful to your system. Please review the description below and only proceed if you have obtained the extension pack from a trusted source.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Πρόκειται να εγκαταστήσετε ένα Πακέτο Επέκτασης του VirtualBox. Τα Πακέτα Επέκτασης συμπληρώνουν τη λειτουργικότητα του VirtualBox και μπορεί να περιέχουν λογισμικό επιπέδου συστήματος, που μπορεί να είναι πιθανόν επικίνδυνο για το σύστημά σας. Παρακαλώ κοιτάξτε ξανά την περιγραφή και προχωρείστε μόνο αν έχετε πάρει το πακέτο από πηγή που εμπιστεύεστε.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Όνομα:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Περιγραφή:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;An older version of the extension pack is already installed, would you like to upgrade? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;New Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Current Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Μία παλιότερη έκδοση του πακέτου επέκτασης είναι ήδη εγκατεστημένη, θέλετε να την αναβαθμίσετε;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Όνομα:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Νέα Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Τρέχουσα Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Περιγραφή:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;An newer version of the extension pack is already installed, would you like to downgrade? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;New Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Current Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Μία νεώτερη έκδοση του πακέτου επέκτασης είναι ήδη εγκατεστημένη, θέλετε να την υποβαθμίσετε;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Όνομα:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Νέα Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Τρέχουσα Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Περιγραφή:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
+    </message>
+    <message>
+        <source>&lt;p&gt;The extension pack is already installed with the same version, would you like reinstall it? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
+        <translation>&lt;p&gt;Το πακέτου επέκτασης είναι ήδη εγκατεστημένο με την ίδια έκδοση, θέλετε να την ξαναεγκαταστήσετε;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Όνομα:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Περιγραφή:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to enable the audio adapter output for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="vanished">Αποτυχία ενεργοποίησης της εξόδου της κάρτας ήχου για την εικονική μηχανή &lt;b&gt;%1&lt;/b&gt;.</translation>
+        <translation>Αποτυχία ενεργοποίησης της εξόδου της κάρτας ήχου για την εικονική μηχανή &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Failed to disable the audio adapter output for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="vanished">Αποτυχία απενεργοποίησης της εξόδου της κάρτας ήχου για την εικονική μηχανή &lt;b&gt;%1&lt;/b&gt;.</translation>
+        <translation>Αποτυχία απενεργοποίησης της εξόδου της κάρτας ήχου για την εικονική μηχανή &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Failed to enable the audio adapter input for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="vanished">Αποτυχία ενεργοποίησης της εισόδου της κάρτας ήχου για την εικονική μηχανή &lt;b&gt;%1&lt;/b&gt;.</translation>
+        <translation>Αποτυχία ενεργοποίησης της εισόδου της κάρτας ήχου για την εικονική μηχανή &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Failed to disable the audio adapter input for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation type="vanished">Αποτυχία απενεργοποίησης της εισόδου της κάρτας ήχου για την εικονική μηχανή &lt;b&gt;%1&lt;/b&gt;.</translation>
+        <translation>Αποτυχία απενεργοποίησης της εισόδου της κάρτας ήχου για την εικονική μηχανή &lt;b&gt;%1&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>&lt;p&gt;Could not insert the &lt;b&gt;%1&lt;/b&gt; disk image file into the virtual machine &lt;b&gt;%2&lt;/b&gt;, as the machine has no optical drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
-        <translation type="vanished">&lt;p&gt;Αδυναμία εισαγωγής του αρχείο εικόνας δίσκου &lt;b&gt;%1&lt;/b&gt; στην εικονική μηχανή &lt;b&gt;%2&lt;/b&gt;, γιατί η εικονική μηχανή δεν έχει οπτικούς οδηγούς. Παρακαλώ προσθέστε έναν οδηγό χρησιμοποιώντας τη σελίδα αποθήκευσης στο παράθυρο ρυθμίσεων της εικονικής μηχανής.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Αδυναμία εισαγωγής του αρχείο εικόνας δίσκου &lt;b&gt;%1&lt;/b&gt; στην εικονική μηχανή &lt;b&gt;%2&lt;/b&gt;, γιατί η εικονική μηχανή δεν έχει οπτικούς οδηγούς. Παρακαλώ προσθέστε έναν οδηγό χρησιμοποιώντας τη σελίδα αποθήκευσης στο παράθυρο ρυθμίσεων της εικονικής μηχανής.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to change the snapshot &lt;b&gt;%1&lt;/b&gt; of the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
-        <translation type="vanished">Αποτυχία αλλαγής του στιγμιότυπου &lt;b&gt;%1&lt;/b&gt; της εικονικής μηχανής &lt;b&gt;%2&lt;/b&gt;.</translation>
+        <translation>Αποτυχία αλλαγής του στιγμιότυπου &lt;b&gt;%1&lt;/b&gt; της εικονικής μηχανής &lt;b&gt;%2&lt;/b&gt;.</translation>
     </message>
 </context>
 <context>
@@ -7443,11 +7443,11 @@
     <name>UIPopupPane</name>
     <message>
         <source>&lt;p&gt;&lt;b&gt;Details:&lt;/b&gt;</source>
-        <translation type="vanished">&lt;p&gt;&lt;b&gt;Λεπτομέρειες:&lt;/b&gt;</translation>
+        <translation>&lt;p&gt;&lt;b&gt;Λεπτομέρειες:&lt;/b&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;&lt;b&gt;Details:&lt;/b&gt; (%1 of %2)</source>
-        <translation type="vanished">&lt;p&gt;&lt;b&gt;Λεπτομέρειες:&lt;/b&gt; (%1 of %2)</translation>
+        <translation>&lt;p&gt;&lt;b&gt;Λεπτομέρειες:&lt;/b&gt; (%1 of %2)</translation>
     </message>
 </context>
 <context>
@@ -7538,15 +7538,15 @@
     <name>UIScreenshotViewer</name>
     <message>
         <source>Screenshot of %1 (%2)</source>
-        <translation type="vanished">Στιγμιότυπο οθόνης του %1 (%2)</translation>
+        <translation>Στιγμιότυπο οθόνης του %1 (%2)</translation>
     </message>
     <message>
         <source>Click to view non-scaled screenshot.</source>
-        <translation type="vanished">Κλικ για μη-κλιμακώμενο στιγμιότυπο οθόνης.</translation>
+        <translation>Κλικ για μη-κλιμακώμενο στιγμιότυπο οθόνης.</translation>
     </message>
     <message>
         <source>Click to view scaled screenshot.</source>
-        <translation type="vanished">Κλικ για κλιμακώμενο στιγμιότυπο οθόνης.</translation>
+        <translation>Κλικ για κλιμακώμενο στιγμιότυπο οθόνης.</translation>
     </message>
 </context>
 <context>
@@ -7574,11 +7574,11 @@
     </message>
     <message>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window is  a list of all virtual machines on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for the latest information and news.&lt;/p&gt;</source>
-        <translation>&lt;h3&gt;Καλώς ήρθατε στο VirtualBox!&lt;/h3&gt;&lt;p&gt;Το αριστερό τμήμα του παραθύρου περιέχει ένα κατάλογο με όλες τις εικονικές μηχανές στον υπολογιστή σας. Ο κατάλογος είναι άδειος τώρα γιατί δεν έχετε δημιουργήσει ακόμα καμία εικονική μηχανή.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Για να δημιουργήσετε μία καινούρια εικονική μηχανή, πατήστε το κουμπί &lt;b&gt;Νέα&lt;/b&gt; στον γραμμή εργαλείων που βρίσκεται στο πάνω μέρος του παραθύρου.&lt;/p&gt;&lt;p&gt;Μπορείτε να πατήσετε το πλήκτρο &lt;b&gt;%1&lt;/b&gt; για άμεση βοήθεια, ή επισκεφτείτε το &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; για τις τελευταίες πληροφορίες και νέα.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;h3&gt;Καλώς ήρθατε στο VirtualBox!&lt;/h3&gt;&lt;p&gt;Το αριστερό τμήμα του παραθύρου περιέχει ένα κατάλογο με όλες τις εικονικές μηχανές στον υπολογιστή σας. Ο κατάλογος είναι άδειος τώρα γιατί δεν έχετε δημιουργήσει ακόμα καμία εικονική μηχανή.&lt;img src=:/welcome.png align=right/&gt;&lt;/p&gt;&lt;p&gt;Για να δημιουργήσετε μία καινούρια εικονική μηχανή, πατήστε το κουμπί &lt;b&gt;Νέα&lt;/b&gt; στον γραμμή εργαλείων που βρίσκεται στο πάνω μέρος του παραθύρου.&lt;/p&gt;&lt;p&gt;Μπορείτε να πατήσετε το πλήκτρο &lt;b&gt;%1&lt;/b&gt; για άμεση βοήθεια, ή επισκεφτείτε το &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; για τις τελευταίες πληροφορίες και νέα.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Show Toolbar Text</source>
-        <translation type="vanished">Εμφάνιση Κειμένου Γραμμής Εργαλείων</translation>
+        <translation>Εμφάνιση Κειμένου Γραμμής Εργαλείων</translation>
     </message>
 </context>
 <context>
@@ -7593,7 +7593,7 @@
     <message>
         <source>%1 status-bar indicator</source>
         <comment>like &apos;hard-disk status-bar indicator&apos;</comment>
-        <translation type="vanished">Ένδειξη γραμμής κατάστασης %1</translation>
+        <translation>Ένδειξη γραμμής κατάστασης %1</translation>
     </message>
 </context>
 <context>
@@ -7659,7 +7659,7 @@
     </message>
     <message>
         <source>Allows to navigate through Global Property categories</source>
-        <translation type="vanished">Επιτρέπει την πλοήγηση στις κατηγορίες Ιδιότητες Συστήματος</translation>
+        <translation>Επιτρέπει την πλοήγηση στις κατηγορίες Ιδιότητες Συστήματος</translation>
     </message>
 </context>
 <context>
@@ -7698,7 +7698,7 @@
     </message>
     <message>
         <source>Parallel Ports</source>
-        <translation>Παράλληλες Θύρες</translation>
+        <translation type="vanished">Παράλληλες Θύρες</translation>
     </message>
     <message>
         <source>USB</source>
@@ -7722,7 +7722,7 @@
     </message>
     <message>
         <source>Allows to navigate through VM Settings categories</source>
-        <translation type="vanished">Επιτρέπει την πλοήγηση στις κατηγορίες Ιδιότητες ΕΜ</translation>
+        <translation>Επιτρέπει την πλοήγηση στις κατηγορίες Ιδιότητες ΕΜ</translation>
     </message>
 </context>
 <context>
@@ -7739,84 +7739,84 @@
 <context>
     <name>UISnapshotDetailsWidget</name>
     <message>
-        <source>&amp;Name:</source>
-        <translation type="vanished">Όνομα:</translation>
-    </message>
-    <message>
-        <source>&amp;Description:</source>
-        <translation type="vanished">Περιγραφή:</translation>
-    </message>
-    <message>
-        <source>Reset</source>
-        <translation type="vanished">Επαναφορά</translation>
-    </message>
-    <message>
-        <source>Click to enlarge the screenshot.</source>
-        <translation type="vanished">Κλικ για μεγέθυνση του στιγμιότυπου οθόνης.</translation>
-    </message>
-    <message>
         <source>&lt;p&gt;You have the &lt;b&gt;Current State&lt;/b&gt; item selected.&lt;br&gt;Press the &lt;b&gt;Take&lt;/b&gt; button if you wish to take a new snapshot.&lt;/p&gt;</source>
         <translation type="vanished">&lt;p&gt;Είναι επιλεγμένη η &lt;b&gt;Τρέχουσα κατάσταση&lt;/b&gt;.&lt;br&gt;Πατήστε το κουμπί &lt;b&gt;Λήψη&lt;/b&gt; αν θέλετε να πάρετε ένα νέο στιγμιότυπο.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Attributes</source>
-        <translation type="vanished">Ιδιότητες</translation>
+        <translation>Ιδιότητες</translation>
     </message>
     <message>
         <source>&amp;Information</source>
-        <translation type="vanished">Πληροφορίες</translation>
+        <translation>Πληροφορίες</translation>
+    </message>
+    <message>
+        <source>&amp;Name:</source>
+        <translation>Όνομα:</translation>
+    </message>
+    <message>
+        <source>&amp;Description:</source>
+        <translation>Περιγραφή:</translation>
     </message>
     <message>
         <source>Holds the snapshot name.</source>
-        <translation type="vanished">Δείχνει το όνομα του στιγμιότυπου.</translation>
+        <translation>Δείχνει το όνομα του στιγμιότυπου.</translation>
     </message>
     <message>
         <source>Holds the snapshot description.</source>
-        <translation type="vanished">Δείχνει την περιγραφή του στιγμιότυπου.</translation>
+        <translation>Δείχνει την περιγραφή του στιγμιότυπου.</translation>
     </message>
     <message>
         <source>Apply</source>
-        <translation type="vanished">Εφαρμογή</translation>
+        <translation>Εφαρμογή</translation>
+    </message>
+    <message>
+        <source>Reset</source>
+        <translation>Επαναφορά</translation>
     </message>
     <message>
         <source>Apply changes in current snapshot details</source>
-        <translation type="vanished">Εφαρμογή αλλαγών στις λεπτομέρειες του επιλεγμένου στιγμιότυπου</translation>
+        <translation>Εφαρμογή αλλαγών στις λεπτομέρειες του επιλεγμένου στιγμιότυπου</translation>
     </message>
     <message>
         <source>Reset changes in current snapshot details</source>
-        <translation type="vanished">Επαναφορά αλλαγών στις λεπτομέρειες του επιλεγμένου στιγμιότυπου</translation>
+        <translation>Επαναφορά αλλαγών στις λεπτομέρειες του επιλεγμένου στιγμιότυπου</translation>
     </message>
     <message>
         <source>Apply Changes (%1)</source>
-        <translation type="vanished">Εφαρμογή Αλλαγών (%1)</translation>
+        <translation>Εφαρμογή Αλλαγών (%1)</translation>
     </message>
     <message>
         <source>Reset Changes (%1)</source>
-        <translation type="vanished">Επαναφορά Αλλαγών (%1)</translation>
+        <translation>Επαναφορά Αλλαγών (%1)</translation>
+    </message>
+    <message>
+        <source>Click to enlarge the screenshot.</source>
+        <translation>Κλικ για μεγέθυνση του στιγμιότυπου οθόνης.</translation>
     </message>
     <message>
         <source>Snapshot name is empty</source>
-        <translation type="vanished">Το όνομα του στιγμιότυπου είναι άδειο</translation>
-    </message>
-    <message>
-        <source>Take Snapshot (%1)</source>
-        <translation type="vanished">Νέο Στιγμιότυπο (%1)</translation>
+        <translation>Το όνομα του στιγμιότυπου είναι άδειο</translation>
     </message>
     <message>
         <source>Enter a name for the new snapshot...</source>
-        <translation type="vanished">Εισαγωγή ονόματος για το νέο στιγμιότυπο....</translation>
+        <translation>Εισαγωγή ονόματος για το νέο στιγμιότυπο....</translation>
     </message>
     <message>
         <source>Enter a name for this snapshot...</source>
-        <translation type="vanished">Εισαγωγή ονόματος για αυτό το στιγμιότυπο....</translation>
+        <translation>Εισαγωγή ονόματος για αυτό το στιγμιότυπο....</translation>
     </message>
     <message>
         <source>Take</source>
-        <translation type="vanished">Λήψη</translation>
+        <translation>Λήψη</translation>
     </message>
     <message>
         <source>Take snapshot on the basis of current machine state</source>
-        <translation type="vanished">Λήψη ενός στιγμιοτύπου της τρέχουσας κατάστασης της εικονικής μηχανής</translation>
+        <translation>Λήψη ενός στιγμιοτύπου της τρέχουσας κατάστασης της εικονικής μηχανής</translation>
+    </message>
+    <message>
+        <source>Take Snapshot (%1)</source>
+        <translation>Νέο Στιγμιότυπο (%1)</translation>
     </message>
 </context>
 <context>
@@ -7824,133 +7824,133 @@
     <message>
         <source>Current State (changed)</source>
         <comment>Current State (Modified)</comment>
-        <translation type="vanished">Τρέχουσα κατάσταση (αλλαγμένη)</translation>
+        <translation>Τρέχουσα κατάσταση (αλλαγμένη)</translation>
     </message>
     <message>
         <source>Current State</source>
         <comment>Current State (Unmodified)</comment>
-        <translation type="vanished">Τρέχουσα κατάσταση</translation>
+        <translation>Τρέχουσα κατάσταση</translation>
     </message>
     <message>
         <source>The current state differs from the state stored in the current snapshot</source>
-        <translation type="vanished">Η τρέχουσα κατάσταση διαφέρει από την κατάσταση που είναι αποθηκευμένη στο τρέχον στιγμιότυπο</translation>
+        <translation>Η τρέχουσα κατάσταση διαφέρει από την κατάσταση που είναι αποθηκευμένη στο τρέχον στιγμιότυπο</translation>
     </message>
     <message>
         <source>The current state is identical to the state stored in the current snapshot</source>
-        <translation type="vanished">Η τρέχουσα κατάσταση είναι ίδια με την κατάσταση που είναι αποθηκευμένη στο τρέχον στιγμιότυπο</translation>
-    </message>
-    <message>
-        <source>%1 since %2</source>
-        <comment>Current State (time or date + time)</comment>
-        <translation type="vanished">%1 από %2</translation>
-    </message>
-    <message>
-        <source>Taken at %1</source>
-        <comment>Snapshot (time)</comment>
-        <translation type="vanished">Λήψη στις %1</translation>
-    </message>
-    <message>
-        <source>Taken on %1</source>
-        <comment>Snapshot (date + time)</comment>
-        <translation type="vanished">Λήψη την %1</translation>
-    </message>
-    <message>
-        <source>&amp;Clone...</source>
-        <translation type="vanished">Κλωνοποίηση...</translation>
-    </message>
-    <message>
-        <source>Take a snapshot of the current virtual machine state</source>
-        <translation type="vanished">Λήψη ενός στιγμιοτύπου της τρέχουσας κατάστασης της εικονικής μηχανής</translation>
-    </message>
-    <message>
-        <source>Delete selected snapshot of the virtual machine</source>
-        <translation type="vanished">Διαγραφή του επιλεγμένου στιγμιότυπου της εικονικής μηχανής</translation>
-    </message>
-    <message>
-        <source>Restore selected snapshot of the virtual machine</source>
-        <translation type="vanished">Επαναφορά του επιλεγμένου στιγμιότυπου της εικονικής μηχανής</translation>
-    </message>
-    <message>
-        <source>Name</source>
-        <comment>snapshot</comment>
-        <translation type="vanished">Όνομα</translation>
-    </message>
-    <message>
-        <source>Snapshot %1</source>
-        <translation type="vanished">Στιγμιότυπο %1</translation>
+        <translation>Η τρέχουσα κατάσταση είναι ίδια με την κατάσταση που είναι αποθηκευμένη στο τρέχον στιγμιότυπο</translation>
     </message>
     <message>
         <source>%1 (%2 ago)</source>
         <comment>date time (how long ago)</comment>
-        <translation type="vanished">%1 (%2 πριν)</translation>
+        <translation>%1 (%2 πριν)</translation>
+    </message>
+    <message>
+        <source>%1 since %2</source>
+        <comment>Current State (time or date + time)</comment>
+        <translation>%1 από %2</translation>
     </message>
     <message>
         <source>current</source>
         <comment>snapshot</comment>
-        <translation type="vanished">τρέχον</translation>
+        <translation>τρέχον</translation>
     </message>
     <message>
         <source>online</source>
         <comment>snapshot</comment>
-        <translation type="vanished">συνδεδεμένο</translation>
+        <translation>συνδεδεμένο</translation>
     </message>
     <message>
         <source>offline</source>
         <comment>snapshot</comment>
-        <translation type="vanished">αποσυνδεδεμένο</translation>
+        <translation>αποσυνδεδεμένο</translation>
+    </message>
+    <message>
+        <source>Taken at %1</source>
+        <comment>Snapshot (time)</comment>
+        <translation>Λήψη στις %1</translation>
+    </message>
+    <message>
+        <source>Taken on %1</source>
+        <comment>Snapshot (date + time)</comment>
+        <translation>Λήψη την %1</translation>
     </message>
     <message>
         <source>Contains the snapshot tree of the current virtual machine</source>
-        <translation type="vanished">Περιέχει το δέντρο στιγμιότυπων της τρέχουσας εικονικής μηχανής</translation>
+        <translation>Περιέχει το δέντρο στιγμιότυπων της τρέχουσας εικονικής μηχανής</translation>
     </message>
     <message>
         <source>&amp;Take...</source>
-        <translation type="vanished">Λήψη...</translation>
+        <translation>Λήψη...</translation>
     </message>
     <message>
         <source>&amp;Delete</source>
-        <translation type="vanished">Διαγραφή</translation>
+        <translation>Διαγραφή</translation>
     </message>
     <message>
         <source>&amp;Restore</source>
-        <translation type="vanished">Επαναφορά</translation>
+        <translation>Επαναφορά</translation>
     </message>
     <message>
         <source>&amp;Properties...</source>
-        <translation type="vanished">Ιδιότητες...</translation>
+        <translation>Ιδιότητες...</translation>
+    </message>
+    <message>
+        <source>&amp;Clone...</source>
+        <translation>Κλωνοποίηση...</translation>
     </message>
     <message>
         <source>Take Snapshot (%1)</source>
-        <translation type="vanished">Νέο Στιγμιότυπο (%1)</translation>
+        <translation>Νέο Στιγμιότυπο (%1)</translation>
     </message>
     <message>
         <source>Delete Snapshot (%1)</source>
-        <translation type="vanished">Διαγραφή Στιγμιότυπου (%1)</translation>
+        <translation>Διαγραφή Στιγμιότυπου (%1)</translation>
     </message>
     <message>
         <source>Restore Snapshot (%1)</source>
-        <translation type="vanished">Επαναφορά Στιγμιότυπου (%1)</translation>
+        <translation>Επαναφορά Στιγμιότυπου (%1)</translation>
     </message>
     <message>
         <source>Open Snapshot Properties (%1)</source>
-        <translation type="vanished">Άνοιγμα Ιδιοτήτων Στιγμιοτύπων (%1)</translation>
+        <translation>Άνοιγμα Ιδιοτήτων Στιγμιοτύπων (%1)</translation>
     </message>
     <message>
         <source>Clone Virtual Machine (%1)</source>
-        <translation type="vanished">Κλωνοποιήση Εικονικής Μηχανής (%1)</translation>
+        <translation>Κλωνοποιήση Εικονικής Μηχανής (%1)</translation>
+    </message>
+    <message>
+        <source>Take a snapshot of the current virtual machine state</source>
+        <translation>Λήψη ενός στιγμιοτύπου της τρέχουσας κατάστασης της εικονικής μηχανής</translation>
+    </message>
+    <message>
+        <source>Delete selected snapshot of the virtual machine</source>
+        <translation>Διαγραφή του επιλεγμένου στιγμιότυπου της εικονικής μηχανής</translation>
+    </message>
+    <message>
+        <source>Restore selected snapshot of the virtual machine</source>
+        <translation>Επαναφορά του επιλεγμένου στιγμιότυπου της εικονικής μηχανής</translation>
     </message>
     <message>
         <source>Open pane with the selected snapshot properties</source>
-        <translation type="vanished">Άνοιγμα της καρτέλας με τις ιδιότητες του επιλεγμένου στιγμιότυπου</translation>
+        <translation>Άνοιγμα της καρτέλας με τις ιδιότητες του επιλεγμένου στιγμιότυπου</translation>
     </message>
     <message>
         <source>Clone selected virtual machine</source>
-        <translation type="vanished">Κλωνοποίηση της επιλεγμένης εικονικής μηχανής</translation>
+        <translation>Κλωνοποίηση της επιλεγμένης εικονικής μηχανής</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <comment>snapshot</comment>
+        <translation>Όνομα</translation>
     </message>
     <message>
         <source>Taken</source>
         <comment>snapshot</comment>
-        <translation type="vanished">Λήψη</translation>
+        <translation>Λήψη</translation>
+    </message>
+    <message>
+        <source>Snapshot %1</source>
+        <translation>Στιγμιότυπο %1</translation>
     </message>
 </context>
 <context>
@@ -7972,26 +7972,26 @@
     <name>UITakeSnapshotDialog</name>
     <message>
         <source>Take Snapshot of Virtual Machine</source>
-        <translation type="vanished">Λήψη Στιγμιοτύπου Εικονικής Μηχανής</translation>
+        <translation>Λήψη Στιγμιοτύπου Εικονικής Μηχανής</translation>
     </message>
     <message>
         <source>Snapshot &amp;Name</source>
-        <translation type="vanished">Όνομα Στιγμιότυπου</translation>
+        <translation>Όνομα Στιγμιότυπου</translation>
     </message>
     <message>
         <source>Snapshot &amp;Description</source>
-        <translation type="vanished">Περιγραφή Στιγμιότυπου</translation>
+        <translation>Περιγραφή Στιγμιότυπου</translation>
     </message>
     <message numerus="yes">
         <source>Warning: You are taking a snapshot of a running machine which has %n immutable image(s) attached to it. As long as you are working from this snapshot the immutable image(s) will not be reset to avoid loss of data.</source>
-        <translation type="vanished">
+        <translation>
             <numerusform>Προειδοποίηση: Παίρνετε ένα στιγμιότυπο μίας εικονικής μηχανής σε λειτουργία που έχει %n αμετάβλητη εικόνα προσαρτημένη σε αυτό. Όσο δουλεύετε με αυτό το στιγμιότυπο η αμετάβλητη εικόνα δεν θα επαναφερθεί για να αποφευχθεί η απώλεια δεδομένων.</numerusform>
             <numerusform>Προειδοποίηση: Παίρνετε ένα στιγμιότυπο μίας εικονικής μηχανής σε λειτουργία που έχει %n αμετάβλητες εικόνες προσαρτημένες σε αυτό. Όσο δουλεύετε με αυτό το στιγμιότυπο οι αμετάβλητες εικόνες δεν θα επαναφερθούν για να αποφευχθεί η απώλεια δεδομένων.</numerusform>
         </translation>
     </message>
     <message>
         <source>Snapshot %1</source>
-        <translation type="vanished">Στιγμιότυπο %1</translation>
+        <translation>Στιγμιότυπο %1</translation>
     </message>
 </context>
 <context>
@@ -8021,47 +8021,47 @@
     <name>UIToolsPaneGlobal</name>
     <message>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;This window represents a set of global tools which are currently opened (or can be opened). They are not related to any particular machine but to the complete VM collection. For a list of currently available tools check the corresponding menu at the right side of the main tool bar located at the top of the window. This list will be extended with new tools in future releases.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for more information and latest news.&lt;/p&gt;</source>
-        <translation type="vanished">&lt;h3&gt;Καλώς ήρθατε στο VirtualBox!&lt;/h3&gt;&lt;p&gt;Αυτό το παράθυρο περιέχει μία ομάδα από εργαλεία συστήματος τα οποία είναι ανοιχτά [ή μπορούν να ανοιχτούν]. Δεν είναι συνδεδεμένα με κάποια ιδιαίτερη μηχανή αλλά με όλη τη συλλογή των ΕΜ. Για τη λίστα των διαθέσιμων εργαλείων κοιτάξτε το αντίστοιχο μενού στη δεξιά μεριά της γραμμής κατάλογου επιλογών που βρίσκετει στο πάνω μέρος του παραθύρου. Η λίστα αυτή θα επεκτείνεται με νέα εργαλεία σε μελλοντικές εκδόσεις.&lt;/p&gt;&lt;p&gt;Μπορείτε να πατήσετε το πλήκτρο &lt;b&gt;%1&lt;/b&gt; για άμεση βοήθεια, ή επισκεφτείτε το &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; για τις τελευταίες πληροφορίες και νέα.&lt;/p&gt;</translation>
+        <translation>&lt;h3&gt;Καλώς ήρθατε στο VirtualBox!&lt;/h3&gt;&lt;p&gt;Αυτό το παράθυρο περιέχει μία ομάδα από εργαλεία συστήματος τα οποία είναι ανοιχτά [ή μπορούν να ανοιχτούν]. Δεν είναι συνδεδεμένα με κάποια ιδιαίτερη μηχανή αλλά με όλη τη συλλογή των ΕΜ. Για τη λίστα των διαθέσιμων εργαλείων κοιτάξτε το αντίστοιχο μενού στη δεξιά μεριά της γραμμής κατάλογου επιλογών που βρίσκετει στο πάνω μέρος του παραθύρου. Η λίστα αυτή θα επεκτείνεται με νέα εργαλεία σε μελλοντικές εκδόσεις.&lt;/p&gt;&lt;p&gt;Μπορείτε να πατήσετε το πλήκτρο &lt;b&gt;%1&lt;/b&gt; για άμεση βοήθεια, ή επισκεφτείτε το &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; για τις τελευταίες πληροφορίες και νέα.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Tool to observe virtual storage media. Reflects all the chains of &lt;u&gt;virtual disks&lt;/u&gt; you have registered (per each storage type) within your virtual machines and allows for media operations like &lt;u&gt;copy&lt;/u&gt;, &lt;u&gt;remove&lt;/u&gt;, &lt;u&gt;release&lt;/u&gt; (detach it from VMs where it is currently attached to) and observe their properties. Allows to &lt;u&gt;edit&lt;/u&gt; medium attributes like &lt;u&gt;type&lt;/u&gt;, &lt;u&gt;location/name&lt;/u&gt;, &lt;u&gt;description&lt;/u&gt; and &lt;u&gt;size&lt;/u&gt; (for dynamical storages only).</source>
-        <translation type="vanished">Εργαλείο που δείχνει τις λεπτομέρειες των εικονικών μέσων αποθήκευσης. Αντικατοπτρίζει όλες τις αλληλουχίες των &lt;u&gt;σκληρών δίσκων&lt;/u&gt; που είναι καταχωρημένες (για κάθε είδος αποθήκευσης) στις εικονικές μηχανές και επιτρέπει βασικές λειτουργίες στα μέσα όπως &lt;u&gt;αντιγραφή&lt;/u&gt;, &lt;u&gt;αφαίρεση&lt;/u&gt;, &lt;u&gt;απελευθέρωση&lt;/u&gt; (αποσύνδεση από ΕΜ όπου είναι τρέχων συνδεδεμένα) και εμφάνιση των ιδιοτήτων τους. Επιτρέπει την &lt;u&gt;επεξεργασία&lt;/u&gt; ιδιοτήτων των μέσων όπως &lt;u&gt;είδος&lt;/u&gt;, &lt;u&gt;τοποθεσία/όνομα&lt;/u&gt;, &lt;u&gt;περιγραφή&lt;/u&gt; και &lt;u&gt;μέγεθος&lt;/u&gt; (για δυναμικές αποθηκεύσεις μόνο).</translation>
+        <translation>Εργαλείο που δείχνει τις λεπτομέρειες των εικονικών μέσων αποθήκευσης. Αντικατοπτρίζει όλες τις αλληλουχίες των &lt;u&gt;σκληρών δίσκων&lt;/u&gt; που είναι καταχωρημένες (για κάθε είδος αποθήκευσης) στις εικονικές μηχανές και επιτρέπει βασικές λειτουργίες στα μέσα όπως &lt;u&gt;αντιγραφή&lt;/u&gt;, &lt;u&gt;αφαίρεση&lt;/u&gt;, &lt;u&gt;απελευθέρωση&lt;/u&gt; (αποσύνδεση από ΕΜ όπου είναι τρέχων συνδεδεμένα) και εμφάνιση των ιδιοτήτων τους. Επιτρέπει την &lt;u&gt;επεξεργασία&lt;/u&gt; ιδιοτήτων των μέσων όπως &lt;u&gt;είδος&lt;/u&gt;, &lt;u&gt;τοποθεσία/όνομα&lt;/u&gt;, &lt;u&gt;περιγραφή&lt;/u&gt; και &lt;u&gt;μέγεθος&lt;/u&gt; (για δυναμικές αποθηκεύσεις μόνο).</translation>
     </message>
     <message>
         <source>Tool to control host-only network interfaces. Reflects &lt;u&gt;host-only networks&lt;/u&gt;, their DHCP servers and allows for operations on the networks like possibility to &lt;u&gt;create&lt;/u&gt;, &lt;u&gt;remove&lt;/u&gt; and observe their properties. Allows to &lt;u&gt;edit&lt;/u&gt; various &lt;u&gt;attributes&lt;/u&gt; for host-only interface and corresponding DHCP server.</source>
-        <translation type="vanished">Εργαλείο που ελέγχει τα μόνο-με-οικοδεσπότη δίκτυα. Αντικατοπτρίζει τα &lt;u&gt;μόνο-με-οικοδεσπότη δίκτυα&lt;/u&gt;, τους διακομιστές DHCP και επιτρέπει λειτουργίες δικτύων όπως την δυνατότητα για &lt;u&gt;δημιουργία&lt;/u&gt;, &lt;u&gt;αφαίρεση&lt;/u&gt; και εμφάνιση των ιδιοτήτων τους. Επιτρέπει την &lt;u&gt;επεξεργασία&lt;/u&gt; διαφόρων &lt;u&gt;ιδιοτήτων&lt;/u&gt; για τα μόνο-με-οικοδεσπότη δίκτυα και τους αντίστοιχους διακομιστές DHCP.</translation>
+        <translation>Εργαλείο που ελέγχει τα μόνο-με-οικοδεσπότη δίκτυα. Αντικατοπτρίζει τα &lt;u&gt;μόνο-με-οικοδεσπότη δίκτυα&lt;/u&gt;, τους διακομιστές DHCP και επιτρέπει λειτουργίες δικτύων όπως την δυνατότητα για &lt;u&gt;δημιουργία&lt;/u&gt;, &lt;u&gt;αφαίρεση&lt;/u&gt; και εμφάνιση των ιδιοτήτων τους. Επιτρέπει την &lt;u&gt;επεξεργασία&lt;/u&gt; διαφόρων &lt;u&gt;ιδιοτήτων&lt;/u&gt; για τα μόνο-με-οικοδεσπότη δίκτυα και τους αντίστοιχους διακομιστές DHCP.</translation>
     </message>
 </context>
 <context>
     <name>UIToolsPaneMachine</name>
     <message>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window lists all virtual machines and virtual machine groups on your computer. The list is empty now because you haven&apos;t created any virtual machines yet.&lt;/p&gt;&lt;p&gt;In order to create a new virtual machine, press the &lt;b&gt;New&lt;/b&gt; button in the main tool bar located at the top of the window.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for more information and latest news.&lt;/p&gt;</source>
-        <translation type="vanished">&lt;h3&gt;Καλώς ήρθατε στο VirtualBox!&lt;/h3&gt;&lt;p&gt;Το αριστερό τμήμα αυτού του παραθύρου περιέχει ένα κατάλογο με όλες τις εικονικές μηχανές και τις ομάδες εικονικών μηχανών στον υπολογιστή σας. Ο κατάλογος είναι άδειος τώρα γιατί δεν έχετε δημιουργήσει ακόμα καμία εικονική μηχανή.&lt;/p&gt;&lt;p&gt;Για να δημιουργήσετε μία καινούρια εικονική μηχανή, πατήστε το κουμπί &lt;b&gt;Νέα&lt;/b&gt; στον γραμμή εργαλείων που βρίσκεται στο πάνω μέρος του παραθύρου.&lt;/p&gt;&lt;p&gt;Μπορείτε να πατήσετε το πλήκτρο &lt;b&gt;%1&lt;/b&gt; για άμεση βοήθεια, ή επισκεφτείτε το &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; για τις τελευταίες πληροφορίες και νέα.&lt;/p&gt;</translation>
+        <translation>&lt;h3&gt;Καλώς ήρθατε στο VirtualBox!&lt;/h3&gt;&lt;p&gt;Το αριστερό τμήμα αυτού του παραθύρου περιέχει ένα κατάλογο με όλες τις εικονικές μηχανές και τις ομάδες εικονικών μηχανών στον υπολογιστή σας. Ο κατάλογος είναι άδειος τώρα γιατί δεν έχετε δημιουργήσει ακόμα καμία εικονική μηχανή.&lt;/p&gt;&lt;p&gt;Για να δημιουργήσετε μία καινούρια εικονική μηχανή, πατήστε το κουμπί &lt;b&gt;Νέα&lt;/b&gt; στον γραμμή εργαλείων που βρίσκεται στο πάνω μέρος του παραθύρου.&lt;/p&gt;&lt;p&gt;Μπορείτε να πατήσετε το πλήκτρο &lt;b&gt;%1&lt;/b&gt; για άμεση βοήθεια, ή επισκεφτείτε το &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; για τις τελευταίες πληροφορίες και νέα.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of this window lists all virtual machines and virtual machine groups on your computer.&lt;/p&gt;&lt;p&gt;The right part of this window represents a set of tools which are currently opened (or can be opened) for the currently chosen machine. For a list of currently available tools check the corresponding menu at the right side of the main tool bar located at the top of the window. This list will be extended with new tools in future releases.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for more information and latest news.&lt;/p&gt;</source>
-        <translation type="vanished">&lt;h3&gt;Καλώς ήρθατε στο VirtualBox!&lt;/h3&gt;&lt;p&gt;Το αριστερό τμήμα αυτού του παραθύρου περιέχει ένα κατάλογο με όλες τις εικονικές μηχανές και τις ομάδες εικονικών μηχανών στον υπολογιστή σας.&lt;/p&gt;&lt;p&gt;Το δεξιό τμήμα αυτού του παραθύρου παρουσιάζει μια σειρά από εργαλεία τα οποία είναι ανοιχτά (ή μπορεί να ανοιχτούν) για την επιλεγμένη μηχανή. Για τη λίστα των διαθέσιμων εργαλείων κοιτάξτε το αντίστοιχο μενού στη δεξιά μεριά της γραμμής κατάλογου επιλογών που βρίσκετει στο πάνω μέρος του παραθύρου. Η λίστα αυτή θα επεκτείνεται με νέα εργαλεία σε μελλοντικές εκδόσεις.&lt;/p&gt;&lt;p&gt;Μπορείτε να πατήσετε το πλήκτρο &lt;b&gt;%1&lt;/b&gt; για άμεση βοήθεια, ή επισκεφτείτε το &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; για τις τελευταίες πληροφορίες και νέα.&lt;/p&gt;</translation>
+        <translation>&lt;h3&gt;Καλώς ήρθατε στο VirtualBox!&lt;/h3&gt;&lt;p&gt;Το αριστερό τμήμα αυτού του παραθύρου περιέχει ένα κατάλογο με όλες τις εικονικές μηχανές και τις ομάδες εικονικών μηχανών στον υπολογιστή σας.&lt;/p&gt;&lt;p&gt;Το δεξιό τμήμα αυτού του παραθύρου παρουσιάζει μια σειρά από εργαλεία τα οποία είναι ανοιχτά (ή μπορεί να ανοιχτούν) για την επιλεγμένη μηχανή. Για τη λίστα των διαθέσιμων εργαλείων κοιτάξτε το αντίστοιχο μενού στη δεξιά μεριά της γραμμής κατάλογου επιλογών που βρίσκετει στο πάνω μέρος του παραθύρου. Η λίστα αυτή θα επεκτείνεται με νέα εργαλεία σε μελλοντικές εκδόσεις.&lt;/p&gt;&lt;p&gt;Μπορείτε να πατήσετε το πλήκτρο &lt;b&gt;%1&lt;/b&gt; για άμεση βοήθεια, ή επισκεφτείτε το &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; για τις τελευταίες πληροφορίες και νέα.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Tool to observe virtual machine (VM) details. Reflects groups of &lt;u&gt;properties&lt;/u&gt; for the currently chosen VM and allows basic operations on certain properties (like the machine storage devices).</source>
-        <translation type="vanished">Εργαλείο που δείχνει τις λεπτομέρειες της εικονικής μηχανής (ΕΜ). Αντικατοπτρίζει ομάδες &lt;u&gt;ιδιοτήτων&lt;/u&gt; για την επιλεγμένη ΕΜ και επιτρέπει βασικές λειτουργίες για ορισμένες ιδιότητες (όπως τις συσκευές αποθήκευσης της μηχανής).</translation>
+        <translation>Εργαλείο που δείχνει τις λεπτομέρειες της εικονικής μηχανής (ΕΜ). Αντικατοπτρίζει ομάδες &lt;u&gt;ιδιοτήτων&lt;/u&gt; για την επιλεγμένη ΕΜ και επιτρέπει βασικές λειτουργίες για ορισμένες ιδιότητες (όπως τις συσκευές αποθήκευσης της μηχανής).</translation>
     </message>
     <message>
         <source>Tool to control virtual machine (VM) snapshots. Reflects &lt;u&gt;snapshots&lt;/u&gt; created for the currently selected VM and allows snapshot operations like &lt;u&gt;create&lt;/u&gt;, &lt;u&gt;remove&lt;/u&gt;, &lt;u&gt;restore&lt;/u&gt; (make current) and observe their properties. Allows to &lt;u&gt;edit&lt;/u&gt; snapshot attributes like &lt;u&gt;name&lt;/u&gt; and &lt;u&gt;description&lt;/u&gt;.</source>
-        <translation type="vanished">Εργαλείο που ελέγχει τα στιγμιότυπα της εικονικής μηχανής (ΕΜ). Αντικατοπτρίζει &lt;u&gt;στιγμιότυπα&lt;/u&gt; που έχουν δημιουργηθεί για την επιλεγμένη ΕΜ και επιτρέπει λειτουργίες στιγμιοτύπων όπως &lt;u&gt;δημιουργία&lt;/u&gt;, &lt;u&gt;αφαίρεση&lt;/u&gt;, &lt;u&gt;επαναφορά&lt;/u&gt; (τρέχουσα κατάσταση) και εμφάνιση των ιδιοτήτων τους. Επιτρέπει την &lt;u&gt;επεξεργασία&lt;/u&gt; ιδιοτήτων των στιγμιοτύπων όπως &lt;u&gt;όνομα&lt;/u&gt; και &lt;u&gt;περιγραφή&lt;/u&gt;.</translation>
+        <translation>Εργαλείο που ελέγχει τα στιγμιότυπα της εικονικής μηχανής (ΕΜ). Αντικατοπτρίζει &lt;u&gt;στιγμιότυπα&lt;/u&gt; που έχουν δημιουργηθεί για την επιλεγμένη ΕΜ και επιτρέπει λειτουργίες στιγμιοτύπων όπως &lt;u&gt;δημιουργία&lt;/u&gt;, &lt;u&gt;αφαίρεση&lt;/u&gt;, &lt;u&gt;επαναφορά&lt;/u&gt; (τρέχουσα κατάσταση) και εμφάνιση των ιδιοτήτων τους. Επιτρέπει την &lt;u&gt;επεξεργασία&lt;/u&gt; ιδιοτήτων των στιγμιοτύπων όπως &lt;u&gt;όνομα&lt;/u&gt; και &lt;u&gt;περιγραφή&lt;/u&gt;.</translation>
     </message>
 </context>
 <context>
     <name>UIUSBFilterItem</name>
     <message>
-        <source>%1</source>
-        <comment>col.1 text</comment>
-        <translation type="vanished">%1%</translation>
-    </message>
-    <message>
         <source>%1, Active</source>
         <comment>col.1 text, col.1 state</comment>
-        <translation type="vanished">%1, Ενεργό</translation>
+        <translation>%1, Ενεργό</translation>
+    </message>
+    <message>
+        <source>%1</source>
+        <comment>col.1 text</comment>
+        <translation>%1%</translation>
     </message>
 </context>
 <context>
@@ -8177,109 +8177,109 @@
     <name>UIVMDesktop</name>
     <message>
         <source>&amp;Details</source>
-        <translation>Λεπτομέρειες</translation>
+        <translation type="vanished">Λεπτομέρειες</translation>
     </message>
     <message>
         <source>&amp;Snapshots</source>
-        <translation>Στιγμιότυπα</translation>
+        <translation type="vanished">Στιγμιότυπα</translation>
     </message>
 </context>
 <context>
     <name>UIVMInfoDialog</name>
     <message>
         <source>%1 - Session Information</source>
-        <translation>%1 - Πληροφορίες συνεδρίας</translation>
+        <translation type="vanished">%1 - Πληροφορίες συνεδρίας</translation>
     </message>
     <message>
         <source>DMA Transfers</source>
-        <translation>Μεταφορές DMA</translation>
+        <translation type="vanished">Μεταφορές DMA</translation>
     </message>
     <message>
         <source>PIO Transfers</source>
-        <translation>Μεταφορές PIO</translation>
+        <translation type="vanished">Μεταφορές PIO</translation>
     </message>
     <message>
         <source>Data Read</source>
-        <translation>Δεδομένα που διαβάστηκαν</translation>
+        <translation type="vanished">Δεδομένα που διαβάστηκαν</translation>
     </message>
     <message>
         <source>Data Written</source>
-        <translation>Δεδομένα που γράφηκαν</translation>
+        <translation type="vanished">Δεδομένα που γράφηκαν</translation>
     </message>
     <message>
         <source>Data Transmitted</source>
-        <translation>Δεδομένα που στάλθηκαν</translation>
+        <translation type="vanished">Δεδομένα που στάλθηκαν</translation>
     </message>
     <message>
         <source>Data Received</source>
-        <translation>Δεδομένα που λήφθηκαν</translation>
+        <translation type="vanished">Δεδομένα που λήφθηκαν</translation>
     </message>
     <message>
         <source>Runtime Attributes</source>
-        <translation>Ιδιότητες Εκτέλεσης</translation>
+        <translation type="vanished">Ιδιότητες Εκτέλεσης</translation>
     </message>
     <message>
         <source>Screen Resolution</source>
-        <translation>Ανάλυση οθόνης</translation>
+        <translation type="vanished">Ανάλυση οθόνης</translation>
     </message>
     <message>
         <source>Not Detected</source>
         <comment>guest additions</comment>
-        <translation>Δεν εντοπίστηκαν</translation>
+        <translation type="vanished">Δεν εντοπίστηκαν</translation>
     </message>
     <message>
         <source>Not Detected</source>
         <comment>guest os type</comment>
-        <translation>Δεν εντοπίστηκε</translation>
+        <translation type="vanished">Δεν εντοπίστηκε</translation>
     </message>
     <message>
         <source>Guest Additions</source>
-        <translation>Προσθήκες Επισκέπτη</translation>
+        <translation type="vanished">Προσθήκες Επισκέπτη</translation>
     </message>
     <message>
         <source>Guest OS Type</source>
-        <translation>Τύπος ΛΣ Επισκέπτη</translation>
+        <translation type="vanished">Τύπος ΛΣ Επισκέπτη</translation>
     </message>
     <message>
         <source>No Network Adapters</source>
-        <translation>Όχι Κάρτες Δικτύου</translation>
+        <translation type="vanished">Όχι Κάρτες Δικτύου</translation>
     </message>
     <message>
         <source>Storage Statistics</source>
-        <translation>Στατιστικά αποθήκευσης</translation>
+        <translation type="vanished">Στατιστικά αποθήκευσης</translation>
     </message>
     <message>
         <source>No Storage Devices</source>
-        <translation>Όχι Συσκευές Αποθήκευσης</translation>
+        <translation type="vanished">Όχι Συσκευές Αποθήκευσης</translation>
     </message>
     <message>
         <source>Network Statistics</source>
-        <translation>Στατιστικά δικτύου</translation>
+        <translation type="vanished">Στατιστικά δικτύου</translation>
     </message>
     <message>
         <source>Not Available</source>
         <comment>details report (VRDE server port)</comment>
-        <translation>Μη διαθέσιμη</translation>
+        <translation type="vanished">Μη διαθέσιμη</translation>
     </message>
     <message>
         <source>Clipboard Mode</source>
-        <translation>Λειτουργία Κοινών Πρόχειρων</translation>
+        <translation type="vanished">Λειτουργία Κοινών Πρόχειρων</translation>
     </message>
     <message>
         <source>Configuration &amp;Details</source>
-        <translation>Λεπτομέρειες Ρυθμίσεων</translation>
+        <translation type="vanished">Λεπτομέρειες Ρυθμίσεων</translation>
     </message>
     <message>
         <source>&amp;Runtime Information</source>
-        <translation>Πληροφορίες Εκτέλεσης</translation>
+        <translation type="vanished">Πληροφορίες Εκτέλεσης</translation>
     </message>
     <message>
         <source>VM Uptime</source>
-        <translation>Χρόνος λειτουργίας ΕΜ</translation>
+        <translation type="vanished">Χρόνος λειτουργίας ΕΜ</translation>
     </message>
     <message>
         <source>Drag and Drop Mode</source>
-        <translation>Λειτουργία Μεταφοράς και Απόθεσης</translation>
+        <translation type="vanished">Λειτουργία Μεταφοράς και Απόθεσης</translation>
     </message>
 </context>
 <context>
@@ -8747,15 +8747,15 @@
     </message>
     <message>
         <source>OVF 0.9</source>
-        <translation>OVF 0.9</translation>
+        <translation type="vanished">OVF 0.9</translation>
     </message>
     <message>
         <source>OVF 1.0</source>
-        <translation>OVF 1.0</translation>
+        <translation type="vanished">OVF 1.0</translation>
     </message>
     <message>
         <source>OVF 2.0</source>
-        <translation>OVF 2.0</translation>
+        <translation type="vanished">OVF 2.0</translation>
     </message>
     <message>
         <source>Write in standard OVF 1.0 format.</source>
@@ -8763,7 +8763,7 @@
     </message>
     <message>
         <source>Write in new experimental OVF 2.0 format.</source>
-        <translation>Εγγραφή σε πειραματική μορφή  OVF 2.0.</translation>
+        <translation type="vanished">Εγγραφή σε πειραματική μορφή  OVF 2.0.</translation>
     </message>
     <message>
         <source>&amp;Storage settings</source>
@@ -8771,38 +8771,38 @@
     </message>
     <message>
         <source>Oracle Public Cloud Format Archive (%1)</source>
-        <translation type="vanished">Oracle Public Cloud Format Archive (%1)</translation>
+        <translation>Oracle Public Cloud Format Archive (%1)</translation>
     </message>
     <message>
         <source>Open Virtualization Format 0.9</source>
-        <translation type="vanished">Open Virtualization Format 0.9</translation>
+        <translation>Open Virtualization Format 0.9</translation>
     </message>
     <message>
         <source>Open Virtualization Format 1.0</source>
-        <translation type="vanished">Open Virtualization Format 1.0</translation>
+        <translation>Open Virtualization Format 1.0</translation>
     </message>
     <message>
         <source>Open Virtualization Format 2.0</source>
-        <translation type="vanished">Open Virtualization Format 2.0</translation>
+        <translation>Open Virtualization Format 2.0</translation>
     </message>
     <message>
         <source>Oracle Public Cloud Format 1.0</source>
-        <translation type="vanished">Oracle Public Cloud Format 1.0</translation>
+        <translation>Oracle Public Cloud Format 1.0</translation>
     </message>
     <message>
         <source>Write in new OVF 2.0 format.</source>
-        <translation type="vanished">Εγγραφή στη νέα μορφή OVF 2.0.</translation>
+        <translation>Εγγραφή στη νέα μορφή OVF 2.0.</translation>
     </message>
     <message>
         <source>Write in Oracle Public Cloud 1.0 format.</source>
-        <translation type="vanished">Εγγραφή σε μορφή Oracle Public Cloud 1.0.</translation>
+        <translation>Εγγραφή σε μορφή Oracle Public Cloud 1.0.</translation>
     </message>
 </context>
 <context>
     <name>UIWizardExportAppPageBasic3</name>
     <message>
         <source>&lt;p&gt;Please choose a filename to export the OVF/OVA to.&lt;/p&gt;&lt;p&gt;If you use an &lt;i&gt;ova&lt;/i&gt; extension, then all the files will be combined into one Open Virtualization Format Archive.&lt;/p&gt;&lt;p&gt;If you use an &lt;i&gt;ovf&lt;/i&gt; extension, several files will be written separately.&lt;/p&gt;&lt;p&gt;Other extensions are not allowed.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Επιλέξτε το όνομα αρχείου στο οποίο θα εξάγετε την μηχανή OVF/OVA.&lt;/p&gt;&lt;p&gt;Αν χρησιμοποιήσετε την επέκταση &lt;i&gt;ova&lt;/i&gt;, τότε όλα τα αρχεία θα συνδυαστούν σε ένα συμπιεσμένο αρχείο Open Virtualization Format.&lt;/p&gt;&lt;p&gt;Αν χρησιμοποιήσετε την επέκταση &lt;i&gt;ovf&lt;/i&gt;, μερικά αρχεία θα εγγραφούν ξεχωριστά.&lt;/p&gt;&lt;p&gt;Άλλες επεκτάσεις δεν επιτρέπονται.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;Επιλέξτε το όνομα αρχείου στο οποίο θα εξάγετε την μηχανή OVF/OVA.&lt;/p&gt;&lt;p&gt;Αν χρησιμοποιήσετε την επέκταση &lt;i&gt;ova&lt;/i&gt;, τότε όλα τα αρχεία θα συνδυαστούν σε ένα συμπιεσμένο αρχείο Open Virtualization Format.&lt;/p&gt;&lt;p&gt;Αν χρησιμοποιήσετε την επέκταση &lt;i&gt;ovf&lt;/i&gt;, μερικά αρχεία θα εγγραφούν ξεχωριστά.&lt;/p&gt;&lt;p&gt;Άλλες επεκτάσεις δεν επιτρέπονται.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Please complete the additional fields like the username, password and the bucket, and provide a filename for the OVF target.</source>
@@ -8818,7 +8818,7 @@
     </message>
     <message>
         <source>&lt;p&gt;Please choose a filename to export the virtual appliance to.&lt;/p&gt;&lt;p&gt;The &lt;b&gt;Open Virtualization Format&lt;/b&gt; supports only &lt;b&gt;ovf&lt;/b&gt; or &lt;b&gt;ova&lt;/b&gt; extensions. &lt;br&gt;If you use the &lt;b&gt;ovf&lt;/b&gt; extension, several files will be written separately.&lt;br&gt;If you use the &lt;b&gt;ova&lt;/b&gt; extension, all the files will be combined into one Open Virtualization Format archive.&lt;/p&gt;&lt;p&gt;The &lt;b&gt;Oracle Public Cloud Format&lt;/b&gt; supports only the &lt;b&gt;tar.gz&lt;/b&gt; extension.&lt;br&gt;Each virtual disk file will be written separately.&lt;/p&gt;</source>
-        <translation type="vanished">&lt;p&gt;PΕπιλέξτε το όνομα αρχείου στο οποίο θα εξάγετε την μηχανή.&lt;/p&gt;&lt;p&gt;Το &lt;b&gt;Αρχείο Μορφής Ανοιχτής Εικονοποίησης (OVF)&lt;/b&gt; υποστηρίζει μόνο τις επεκτάσεις &lt;b&gt;ovf&lt;/b&gt; ή &lt;b&gt;ova&lt;/b&gt;. &lt;br&gt;Αν χρησιμοποιήσετε την επέκταση &lt;b&gt;ovf&lt;/b&gt;, μερικά αρχεία θα εγγραφούν ξεχωριστά.&lt;br&gt;Αν χρησιμοποιήσετε την επέκταση &lt;b&gt;ova&lt;/b&gt;, όλα τα αρχεία θα συνδυαστούν σε ένα Αρχείο Μορφής Ανοιχτής Εικονοποίησης.&lt;/p&gt;&lt;p&gt;Η μορφή &lt;b&gt;Oracle Public Cloud Format&lt;/b&gt; υποστηρίζει μόνο την επέκταση &lt;b&gt;tar.gz&lt;/b&gt;.&lt;br&gt;Κάθε αρχείο εικονικού δίσκου θα εγγραφεί ξεχωριστά.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;PΕπιλέξτε το όνομα αρχείου στο οποίο θα εξάγετε την μηχανή.&lt;/p&gt;&lt;p&gt;Το &lt;b&gt;Αρχείο Μορφής Ανοιχτής Εικονοποίησης (OVF)&lt;/b&gt; υποστηρίζει μόνο τις επεκτάσεις &lt;b&gt;ovf&lt;/b&gt; ή &lt;b&gt;ova&lt;/b&gt;. &lt;br&gt;Αν χρησιμοποιήσετε την επέκταση &lt;b&gt;ovf&lt;/b&gt;, μερικά αρχεία θα εγγραφούν ξεχωριστά.&lt;br&gt;Αν χρησιμοποιήσετε την επέκταση &lt;b&gt;ova&lt;/b&gt;, όλα τα αρχεία θα συνδυαστούν σε ένα Αρχείο Μορφής Ανοιχτής Εικονοποίησης.&lt;/p&gt;&lt;p&gt;Η μορφή &lt;b&gt;Oracle Public Cloud Format&lt;/b&gt; υποστηρίζει μόνο την επέκταση &lt;b&gt;tar.gz&lt;/b&gt;.&lt;br&gt;Κάθε αρχείο εικονικού δίσκου θα εγγραφεί ξεχωριστά.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -8942,7 +8942,7 @@
     </message>
     <message>
         <source>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</source>
-        <translation>&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;%1 (%2 B)&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>File location and size</source>
@@ -9174,72 +9174,72 @@
     <message>
         <source>Name</source>
         <comment>details report</comment>
-        <translation>Όνομα</translation>
+        <translation type="vanished">Όνομα</translation>
     </message>
     <message>
         <source>OS Type</source>
         <comment>details report</comment>
-        <translation>Τύπος ΛΣ</translation>
+        <translation type="vanished">Τύπος ΛΣ</translation>
     </message>
     <message>
         <source>Base Memory</source>
         <comment>details report</comment>
-        <translation>Βασική Μνήμη</translation>
+        <translation type="vanished">Βασική Μνήμη</translation>
     </message>
     <message>
         <source>General</source>
         <comment>details report</comment>
-        <translation>Γενικά</translation>
+        <translation type="vanished">Γενικά</translation>
     </message>
     <message>
         <source>Video Memory</source>
         <comment>details report</comment>
-        <translation>Μνήμη Γραφικών</translation>
+        <translation type="vanished">Μνήμη Γραφικών</translation>
     </message>
     <message>
         <source>Boot Order</source>
         <comment>details report</comment>
-        <translation>Σειρά εκκίνησης</translation>
+        <translation type="vanished">Σειρά εκκίνησης</translation>
     </message>
     <message>
         <source>ACPI</source>
         <comment>details report</comment>
-        <translation>ACPI</translation>
+        <translation type="vanished">ACPI</translation>
     </message>
     <message>
         <source>I/O APIC</source>
         <comment>details report</comment>
-        <translation>I/O APIC</translation>
+        <translation type="vanished">I/O APIC</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details report (ACPI)</comment>
-        <translation>Ενεργοποιημένο</translation>
+        <translation type="vanished">Ενεργοποιημένο</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details report (ACPI)</comment>
-        <translation>Απενεργοποιημένο</translation>
+        <translation type="vanished">Απενεργοποιημένο</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details report (I/O APIC)</comment>
-        <translation>Ενεργοποιημένο</translation>
+        <translation type="vanished">Ενεργοποιημένο</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details report (I/O APIC)</comment>
-        <translation>Απενεργοποιημένο</translation>
+        <translation type="vanished">Απενεργοποιημένο</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details report (audio)</comment>
-        <translation>Απενεργοποιημένο</translation>
+        <translation type="vanished">Απενεργοποιημένο</translation>
     </message>
     <message>
         <source>Audio</source>
         <comment>details report</comment>
-        <translation>Ήχος</translation>
+        <translation type="vanished">Ήχος</translation>
     </message>
     <message>
         <source>Adapter %1</source>
@@ -9249,27 +9249,27 @@
     <message>
         <source>Disabled</source>
         <comment>details report (network)</comment>
-        <translation>Απενεργοποιημένο</translation>
+        <translation type="vanished">Απενεργοποιημένο</translation>
     </message>
     <message>
         <source>Network</source>
         <comment>details report</comment>
-        <translation>Δίκτυο</translation>
+        <translation type="vanished">Δίκτυο</translation>
     </message>
     <message>
         <source>Device Filters</source>
         <comment>details report (USB)</comment>
-        <translation>Φίλτρα Συσκευών</translation>
+        <translation type="vanished">Φίλτρα Συσκευών</translation>
     </message>
     <message>
         <source>%1 (%2 active)</source>
         <comment>details report (USB)</comment>
-        <translation>%1 (%2 ενεργά)</translation>
+        <translation type="vanished">%1 (%2 ενεργά)</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details report (USB)</comment>
-        <translation>Απενεργοποιημένο</translation>
+        <translation type="vanished">Απενεργοποιημένο</translation>
     </message>
     <message>
         <source>Powered Off</source>
@@ -9439,37 +9439,37 @@
     <message>
         <source>Port %1</source>
         <comment>details report (serial ports)</comment>
-        <translation>Θύρα %1</translation>
+        <translation type="vanished">Θύρα %1</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details report (serial ports)</comment>
-        <translation>Απενεργοποιημένη</translation>
+        <translation type="vanished">Απενεργοποιημένη</translation>
     </message>
     <message>
         <source>Serial Ports</source>
         <comment>details report</comment>
-        <translation>Σειριακές Θύρες</translation>
+        <translation type="vanished">Σειριακές Θύρες</translation>
     </message>
     <message>
         <source>USB</source>
         <comment>details report</comment>
-        <translation>USB</translation>
+        <translation type="vanished">USB</translation>
     </message>
     <message>
         <source>Shared Folders</source>
         <comment>details report (shared folders)</comment>
-        <translation>Κοινόχρηστοι Φάκελοι</translation>
+        <translation type="vanished">Κοινόχρηστοι Φάκελοι</translation>
     </message>
     <message>
         <source>None</source>
         <comment>details report (shared folders)</comment>
-        <translation>Κανένας</translation>
+        <translation type="vanished">Κανένας</translation>
     </message>
     <message>
         <source>Shared Folders</source>
         <comment>details report</comment>
-        <translation>Κοινόχρηστοι Φάκελοι</translation>
+        <translation type="vanished">Κοινόχρηστοι Φάκελοι</translation>
     </message>
     <message>
         <source>Disconnected</source>
@@ -9499,52 +9499,52 @@
     <message>
         <source>PAE/NX</source>
         <comment>details report</comment>
-        <translation>PAE/NX</translation>
+        <translation type="vanished">PAE/NX</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details report (VT-x/AMD-V)</comment>
-        <translation>Ενεργοποιημένο</translation>
+        <translation type="vanished">Ενεργοποιημένο</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details report (VT-x/AMD-V)</comment>
-        <translation>Απενεργοποιημένο</translation>
+        <translation type="vanished">Απενεργοποιημένο</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details report (PAE/NX)</comment>
-        <translation>Ενεργοποιημένο</translation>
+        <translation type="vanished">Ενεργοποιημένο</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details report (PAE/NX)</comment>
-        <translation>Απενεργοποιημένο</translation>
+        <translation type="vanished">Απενεργοποιημένο</translation>
     </message>
     <message>
         <source>Host Driver</source>
         <comment>details report (audio)</comment>
-        <translation>Οδηγός Οικοδεσπότη</translation>
+        <translation type="vanished">Οδηγός Οικοδεσπότη</translation>
     </message>
     <message>
         <source>Controller</source>
         <comment>details report (audio)</comment>
-        <translation>Ελεγκτής</translation>
+        <translation type="vanished">Ελεγκτής</translation>
     </message>
     <message>
         <source>Port %1</source>
         <comment>details report (parallel ports)</comment>
-        <translation>Θύρα %1</translation>
+        <translation type="vanished">Θύρα %1</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details report (parallel ports)</comment>
-        <translation>Απενεργοποιημένη</translation>
+        <translation type="vanished">Απενεργοποιημένη</translation>
     </message>
     <message>
         <source>Parallel Ports</source>
         <comment>details report</comment>
-        <translation>Παράλληλες Θύρες</translation>
+        <translation type="vanished">Παράλληλες Θύρες</translation>
     </message>
     <message>
         <source>USB</source>
@@ -9659,7 +9659,7 @@
     <message>
         <source>3D Acceleration</source>
         <comment>details report</comment>
-        <translation>3Δ Επιτάχυνση</translation>
+        <translation type="vanished">3Δ Επιτάχυνση</translation>
     </message>
     <message>
         <source>Enabled</source>
@@ -9679,27 +9679,27 @@
     <message>
         <source>Differencing</source>
         <comment>DiskType</comment>
-        <translation>Διαφορικός</translation>
+        <translation type="vanished">Διαφορικός</translation>
     </message>
     <message>
         <source>Nested Paging</source>
         <comment>details report</comment>
-        <translation>Ένθετη σελιδοποίηση</translation>
+        <translation type="vanished">Ένθετη σελιδοποίηση</translation>
     </message>
     <message>
         <source>Enabled</source>
         <comment>details report (Nested Paging)</comment>
-        <translation>Ενεργοποιημένη</translation>
+        <translation type="vanished">Ενεργοποιημένη</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details report (Nested Paging)</comment>
-        <translation>Απενεργοποιημένη</translation>
+        <translation type="vanished">Απενεργοποιημένη</translation>
     </message>
     <message>
         <source>Internal network, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
-        <translation>Εσωτερικό δίκτυο, &apos;%1&apos;</translation>
+        <translation type="vanished">Εσωτερικό δίκτυο, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>SCSI</source>
@@ -9739,12 +9739,12 @@
     <message>
         <source>Bridged adapter, %1</source>
         <comment>details report (network)</comment>
-        <translation>Γεφυρωμένη κάρτα, %1</translation>
+        <translation type="vanished">Γεφυρωμένη κάρτα, %1</translation>
     </message>
     <message>
         <source>Host-only adapter, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
-        <translation>Μόνο-με-οικοδεσπότη κάρτα, &apos;%1&apos;</translation>
+        <translation type="vanished">Μόνο-με-οικοδεσπότη κάρτα, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Intel PRO/1000 MT Server (82545EM)</source>
@@ -9774,17 +9774,17 @@
     <message>
         <source>&lt;nobr&gt;%1&lt;/nobr&gt;</source>
         <comment>details report</comment>
-        <translation>&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>System</source>
         <comment>details report</comment>
-        <translation>Σύστημα</translation>
+        <translation type="vanished">Σύστημα</translation>
     </message>
     <message>
         <source>Display</source>
         <comment>details report</comment>
-        <translation>Οθόνη</translation>
+        <translation type="vanished">Οθόνη</translation>
     </message>
     <message>
         <source>Raw File</source>
@@ -9794,27 +9794,27 @@
     <message>
         <source>Enabled</source>
         <comment>details report (2D Video Acceleration)</comment>
-        <translation>Ενεργοποιημένη</translation>
+        <translation type="vanished">Ενεργοποιημένη</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details report (2D Video Acceleration)</comment>
-        <translation>Απενεργοποιημένη</translation>
+        <translation type="vanished">Απενεργοποιημένη</translation>
     </message>
     <message>
         <source>2D Video Acceleration</source>
         <comment>details report</comment>
-        <translation>Επιτάχυνση 2Δ</translation>
+        <translation type="vanished">Επιτάχυνση 2Δ</translation>
     </message>
     <message>
         <source>Not Attached</source>
         <comment>details report (Storage)</comment>
-        <translation>Μη συνδεδεμένο</translation>
+        <translation type="vanished">Μη συνδεδεμένο</translation>
     </message>
     <message>
         <source>Storage</source>
         <comment>details report</comment>
-        <translation>Αποθήκευση</translation>
+        <translation type="vanished">Αποθήκευση</translation>
     </message>
     <message>
         <source>Teleported</source>
@@ -9965,7 +9965,7 @@
     <message>
         <source>Screens</source>
         <comment>details report</comment>
-        <translation>Οθόνες</translation>
+        <translation type="vanished">Οθόνες</translation>
     </message>
     <message>
         <source>SAS</source>
@@ -10019,17 +10019,17 @@
     <message>
         <source>Remote Desktop Server Port</source>
         <comment>details report (VRDE Server)</comment>
-        <translation>Θύρα διακομιστή απομακρυσμένης επιφάνειας</translation>
+        <translation type="vanished">Θύρα διακομιστή απομακρυσμένης επιφάνειας</translation>
     </message>
     <message>
         <source>Remote Desktop Server</source>
         <comment>details report (VRDE Server)</comment>
-        <translation>Διακομιστής απομακρυσμένης επιφάνειας</translation>
+        <translation type="vanished">Διακομιστής απομακρυσμένης επιφάνειας</translation>
     </message>
     <message>
         <source>Disabled</source>
         <comment>details report (VRDE Server)</comment>
-        <translation>Απενεργοποιημένος</translation>
+        <translation type="vanished">Απενεργοποιημένος</translation>
     </message>
     <message>
         <source>All files (*)</source>
@@ -10093,12 +10093,12 @@
     <message>
         <source>&lt;nobr&gt;%1%&lt;/nobr&gt;</source>
         <comment>details report</comment>
-        <translation>&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
+        <translation type="vanished">&lt;nobr&gt;%1&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>Generic, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
-        <translation>Γενικό, &apos;%1&apos;</translation>
+        <translation type="vanished">Γενικό, &apos;%1&apos;</translation>
     </message>
     <message>
         <source>Generic Driver</source>
@@ -10327,7 +10327,7 @@
     <message>
         <source>Parallel ports</source>
         <comment>DetailsElementType</comment>
-        <translation>Παράλληλες Θύρες</translation>
+        <translation type="vanished">Παράλληλες Θύρες</translation>
     </message>
     <message>
         <source>USB</source>
@@ -10387,7 +10387,7 @@
     <message>
         <source>Unrestricted Execution</source>
         <comment>details report</comment>
-        <translation>Μη-περιορισμένη εκτέλεση</translation>
+        <translation type="vanished">Μη-περιορισμένη εκτέλεση</translation>
     </message>
     <message>
         <source>PS/2 Mouse</source>
@@ -10426,7 +10426,7 @@
     <message>
         <source>NAT network, &apos;%1&apos;</source>
         <comment>details report (network)</comment>
-        <translation>Δίκτυο NAT, %1</translation>
+        <translation type="vanished">Δίκτυο NAT, %1</translation>
     </message>
     <message>
         <source>You can create or add disk image files in the virtual machine settings.</source>
@@ -10559,7 +10559,7 @@
     </message>
     <message>
         <source>(Optical Drive)</source>
-        <translation>(Οπτική συσκευή)</translation>
+        <translation type="vanished">(Οπτική συσκευή)</translation>
     </message>
     <message>
         <source>Encrypted</source>
@@ -10661,7 +10661,7 @@
     <message>
         <source>Parallel ports</source>
         <comment>InformationElementType</comment>
-        <translation>Παράλληλες Θύρες</translation>
+        <translation type="vanished">Παράλληλες Θύρες</translation>
     </message>
     <message>
         <source>USB</source>
@@ -10699,84 +10699,84 @@
         <translation>Στατιστικά δικτύου</translation>
     </message>
     <message>
-        <source>Network</source>
-        <comment>IndicatorType</comment>
-        <translation type="vanished">Δίκτυο</translation>
-    </message>
-    <message>
-        <source>USB</source>
-        <comment>IndicatorType</comment>
-        <translation type="vanished">USB</translation>
-    </message>
-    <message>
-        <source>Shared Folders</source>
-        <comment>IndicatorType</comment>
-        <translation type="vanished">Κοινόχρηστοι Φάκελοι</translation>
-    </message>
-    <message>
-        <source>Display</source>
-        <comment>IndicatorType</comment>
-        <translation type="vanished">Οθόνη</translation>
-    </message>
-    <message>
-        <source>Video Capture</source>
-        <comment>IndicatorType</comment>
-        <translation type="vanished">Μαγνητοσκόπηση</translation>
-    </message>
-    <message>
-        <source>Differencing</source>
-        <comment>MediumType</comment>
-        <translation type="vanished">Διαφορικός</translation>
-    </message>
-    <message>
-        <source>Audio</source>
-        <comment>IndicatorType</comment>
-        <translation type="vanished">Ήχος</translation>
-    </message>
-    <message>
         <source>Hard Disks</source>
         <comment>IndicatorType</comment>
-        <translation type="vanished">Σκληροί δίσκοι</translation>
+        <translation>Σκληροί δίσκοι</translation>
     </message>
     <message>
         <source>Optical Disks</source>
         <comment>IndicatorType</comment>
-        <translation type="vanished">Οπτικοί δίσκοι</translation>
+        <translation>Οπτικοί δίσκοι</translation>
     </message>
     <message>
         <source>Floppy Disks</source>
         <comment>IndicatorType</comment>
-        <translation type="vanished">Συσκευές δισκέτας</translation>
+        <translation>Συσκευές δισκέτας</translation>
+    </message>
+    <message>
+        <source>Network</source>
+        <comment>IndicatorType</comment>
+        <translation>Δίκτυο</translation>
+    </message>
+    <message>
+        <source>USB</source>
+        <comment>IndicatorType</comment>
+        <translation>USB</translation>
+    </message>
+    <message>
+        <source>Shared Folders</source>
+        <comment>IndicatorType</comment>
+        <translation>Κοινόχρηστοι Φάκελοι</translation>
+    </message>
+    <message>
+        <source>Display</source>
+        <comment>IndicatorType</comment>
+        <translation>Οθόνη</translation>
+    </message>
+    <message>
+        <source>Video Capture</source>
+        <comment>IndicatorType</comment>
+        <translation>Μαγνητοσκόπηση</translation>
     </message>
     <message>
         <source>Features</source>
         <comment>IndicatorType</comment>
-        <translation type="vanished">Χαρακτηριστικά</translation>
+        <translation>Χαρακτηριστικά</translation>
     </message>
     <message>
         <source>Mouse</source>
         <comment>IndicatorType</comment>
-        <translation type="vanished">Ποντίκι</translation>
+        <translation>Ποντίκι</translation>
     </message>
     <message>
         <source>Keyboard</source>
         <comment>IndicatorType</comment>
-        <translation type="vanished">Πληκτρολόγιο</translation>
+        <translation>Πληκτρολόγιο</translation>
+    </message>
+    <message>
+        <source>Differencing</source>
+        <comment>MediumType</comment>
+        <translation>Διαφορικός</translation>
+    </message>
+    <message>
+        <source>Audio</source>
+        <comment>IndicatorType</comment>
+        <translation>Ήχος</translation>
     </message>
 </context>
 <context>
     <name>VBoxGlobalSettings</name>
     <message>
         <source>The value &apos;%1&apos; of the key &apos;%2&apos; doesn&apos;t match the regexp constraint &apos;%3&apos;.</source>
-        <translation>Η τιμή &apos;%1&apos; του κλειδιού &apos;%2&apos; δεν ταιριάζει με τον περιορισμό της κανονικής έκφρασης &apos;%3&apos;.</translation>
+        <translation type="vanished">Η τιμή &apos;%1&apos; του κλειδιού &apos;%2&apos; δεν ταιριάζει με τον περιορισμό της κανονικής έκφρασης &apos;%3&apos;.</translation>
     </message>
     <message>
         <source>Cannot delete the key &apos;%1&apos;.</source>
-        <translation>Δεν μπορεί να διαγραφεί το κλειδί &apos;%1&apos;.</translation>
+        <translation type="vanished">Δεν μπορεί να διαγραφεί το κλειδί &apos;%1&apos;.</translation>
     </message>
     <message>
         <source>&apos;%1&apos; is an invalid host-combination code-sequence.</source>
-        <translation>&apos;%1&apos; είναι μη-έγκυρος συνδυασμός-οικοδεσπότη κωδικός-ακολουθίας.</translation>
+        <translation type="vanished">&apos;%1&apos; είναι μη-έγκυρος συνδυασμός-οικοδεσπότη κωδικός-ακολουθίας.</translation>
     </message>
 </context>
 <context>
@@ -10798,287 +10798,287 @@
     <name>VBoxMediaManagerDlg</name>
     <message>
         <source>&amp;Actions</source>
-        <translation>Ενέργειες</translation>
+        <translation type="vanished">Ενέργειες</translation>
     </message>
     <message>
         <source>R&amp;emove</source>
-        <translation>Αφαίρεση</translation>
+        <translation type="vanished">Αφαίρεση</translation>
     </message>
     <message>
         <source>Re&amp;lease</source>
-        <translation>Απελευθέρωση</translation>
+        <translation type="vanished">Απελευθέρωση</translation>
     </message>
     <message>
         <source>Re&amp;fresh</source>
-        <translation>Ανανέωση</translation>
+        <translation type="vanished">Ανανέωση</translation>
     </message>
     <message>
         <source>Remove the selected disk image file</source>
-        <translation>Αφαιρέστε τα επιλεγμένα αρχεία εικόνας δίσκου</translation>
+        <translation type="vanished">Αφαιρέστε τα επιλεγμένα αρχεία εικόνας δίσκου</translation>
     </message>
     <message>
         <source>Release the selected disk image file by detaching it from the machines</source>
-        <translation>Απελευθερώστε τον επιλεγμένο σκληρό δίσκο αποσπώντας τον από τις μηχανές</translation>
+        <translation type="vanished">Απελευθερώστε τον επιλεγμένο σκληρό δίσκο αποσπώντας τον από τις μηχανές</translation>
     </message>
     <message>
         <source>Refresh the list of disk image files</source>
-        <translation>Ανανέωση της λίστας επιλεγμένων αρχείων εικόνας δίσκου</translation>
+        <translation type="vanished">Ανανέωση της λίστας επιλεγμένων αρχείων εικόνας δίσκου</translation>
     </message>
     <message>
         <source>Checking accessibility</source>
-        <translation>Έλεγχος προσβασιμότητας</translation>
+        <translation type="vanished">Έλεγχος προσβασιμότητας</translation>
     </message>
     <message>
         <source>&lt;i&gt;Not&amp;nbsp;Attached&lt;/i&gt;</source>
-        <translation>&lt;i&gt;Μη&amp;nbsp;Συνδεδεμένο&lt;/i&gt;</translation>
+        <translation type="vanished">&lt;i&gt;Μη&amp;nbsp;Συνδεδεμένο&lt;/i&gt;</translation>
     </message>
     <message>
         <source>--</source>
         <comment>no info</comment>
-        <translation>--</translation>
+        <translation type="vanished">--</translation>
     </message>
     <message>
         <source>Virtual Media Manager</source>
-        <translation>Διαχειριστής Εικονικών Μέσων</translation>
+        <translation type="vanished">Διαχειριστής Εικονικών Μέσων</translation>
     </message>
     <message>
         <source>Name</source>
-        <translation>Όνομα</translation>
+        <translation type="vanished">Όνομα</translation>
     </message>
     <message>
         <source>Virtual Size</source>
-        <translation>Εικονικό Μέγεθος</translation>
+        <translation type="vanished">Εικονικό Μέγεθος</translation>
     </message>
     <message>
         <source>Actual Size</source>
-        <translation>Πραγματικό μέγεθος</translation>
+        <translation type="vanished">Πραγματικό μέγεθος</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation>Μέγεθος</translation>
+        <translation type="vanished">Μέγεθος</translation>
     </message>
     <message>
         <source>Type:</source>
-        <translation>Τύπος:</translation>
+        <translation type="vanished">Τύπος:</translation>
     </message>
     <message>
         <source>Location:</source>
-        <translation>Τοποθεσία:</translation>
+        <translation type="vanished">Τοποθεσία:</translation>
     </message>
     <message>
         <source>Format:</source>
-        <translation>Διαμόρφωση:</translation>
+        <translation type="vanished">Διαμόρφωση:</translation>
     </message>
     <message>
         <source>Storage details:</source>
-        <translation>Λεπτομέρειες αποθήκευσης:</translation>
+        <translation type="vanished">Λεπτομέρειες αποθήκευσης:</translation>
     </message>
     <message>
         <source>Attached to:</source>
-        <translation>Συνδεδεμένο σε:</translation>
+        <translation type="vanished">Συνδεδεμένο σε:</translation>
     </message>
     <message>
         <source>&amp;Copy...</source>
-        <translation>Αντιγραφή...</translation>
+        <translation type="vanished">Αντιγραφή...</translation>
     </message>
     <message>
         <source>&amp;Modify...</source>
-        <translation>Τροποποίηση...</translation>
+        <translation type="vanished">Τροποποίηση...</translation>
     </message>
     <message>
         <source>Copy an existing disk image file</source>
-        <translation>Αντιγραφή υπάρχοντος αρχείου σκληρού δίσκου</translation>
+        <translation type="vanished">Αντιγραφή υπάρχοντος αρχείου σκληρού δίσκου</translation>
     </message>
     <message>
         <source>Modify the attributes of the selected disk image file</source>
-        <translation>Τροποποιήστε τις ιδιότητες του επιλεγμένου αρχείου σκληρού δίσκου</translation>
+        <translation type="vanished">Τροποποιήστε τις ιδιότητες του επιλεγμένου αρχείου σκληρού δίσκου</translation>
     </message>
     <message>
         <source>UUID:</source>
-        <translation>UUID:</translation>
+        <translation type="vanished">UUID:</translation>
     </message>
     <message>
         <source>&lt;i&gt;Not&amp;nbsp;Encrypted&lt;/i&gt;</source>
-        <translation>&lt;i&gt;Μη&amp;nbsp;Κρυπτογραφημένο&lt;/i&gt;</translation>
+        <translation type="vanished">&lt;i&gt;Μη&amp;nbsp;Κρυπτογραφημένο&lt;/i&gt;</translation>
     </message>
     <message>
         <source>Encrypted with key:</source>
-        <translation>Κρυπτογραφημένο με κλειδί:</translation>
+        <translation type="vanished">Κρυπτογραφημένο με κλειδί:</translation>
     </message>
 </context>
 <context>
     <name>VBoxScreenshotViewer</name>
     <message>
         <source>Screenshot of %1 (%2)</source>
-        <translation>Στιγμιότυπο οθόνης του %1 (%2)</translation>
+        <translation type="vanished">Στιγμιότυπο οθόνης του %1 (%2)</translation>
     </message>
     <message>
         <source>Click to view non-scaled screenshot.</source>
-        <translation>Κλικ για μη-κλιμακώμενο στιγμιότυπο οθόνης.</translation>
+        <translation type="vanished">Κλικ για μη-κλιμακώμενο στιγμιότυπο οθόνης.</translation>
     </message>
     <message>
         <source>Click to view scaled screenshot.</source>
-        <translation>Κλικ για κλιμακώμενο στιγμιότυπο οθόνης.</translation>
+        <translation type="vanished">Κλικ για κλιμακώμενο στιγμιότυπο οθόνης.</translation>
     </message>
 </context>
 <context>
     <name>VBoxSnapshotDetailsDlg</name>
     <message>
         <source>Details of %1 (%2)</source>
-        <translation>Λεπτομέρειες του %1 (%2)</translation>
+        <translation type="vanished">Λεπτομέρειες του %1 (%2)</translation>
     </message>
     <message>
         <source>Click to enlarge the screenshot.</source>
-        <translation>Κλικ για μεγέθυνση του στιγμιότυπου οθόνης.</translation>
+        <translation type="vanished">Κλικ για μεγέθυνση του στιγμιότυπου οθόνης.</translation>
     </message>
     <message>
         <source>&amp;Name:</source>
-        <translation>Όνομα:</translation>
+        <translation type="vanished">Όνομα:</translation>
     </message>
     <message>
         <source>Taken:</source>
-        <translation>Λήψη:</translation>
+        <translation type="vanished">Λήψη:</translation>
     </message>
     <message>
         <source>&amp;Description:</source>
-        <translation>Περιγραφή:</translation>
+        <translation type="vanished">Περιγραφή:</translation>
     </message>
     <message>
         <source>D&amp;etails:</source>
-        <translation>Λεπτομέρειες:</translation>
+        <translation type="vanished">Λεπτομέρειες:</translation>
     </message>
 </context>
 <context>
     <name>VBoxSnapshotsWgt</name>
     <message>
         <source>VBoxSnapshotsWgt</source>
-        <translation>VBoxSnapshotsWgt</translation>
+        <translation type="vanished">VBoxSnapshotsWgt</translation>
     </message>
     <message>
         <source>Current State (changed)</source>
         <comment>Current State (Modified)</comment>
-        <translation>Τρέχουσα κατάσταση (αλλαγμένη)</translation>
+        <translation type="vanished">Τρέχουσα κατάσταση (αλλαγμένη)</translation>
     </message>
     <message>
         <source>Current State</source>
         <comment>Current State (Unmodified)</comment>
-        <translation>Τρέχουσα κατάσταση</translation>
+        <translation type="vanished">Τρέχουσα κατάσταση</translation>
     </message>
     <message>
         <source>The current state differs from the state stored in the current snapshot</source>
-        <translation>Η τρέχουσα κατάσταση διαφέρει από την κατάσταση που είναι αποθηκευμένη στο τρέχον στιγμιότυπο</translation>
+        <translation type="vanished">Η τρέχουσα κατάσταση διαφέρει από την κατάσταση που είναι αποθηκευμένη στο τρέχον στιγμιότυπο</translation>
     </message>
     <message>
         <source>The current state is identical to the state stored in the current snapshot</source>
-        <translation>Η τρέχουσα κατάσταση είναι ίδια με την κατάσταση που είναι αποθηκευμένη στο τρέχον στιγμιότυπο</translation>
+        <translation type="vanished">Η τρέχουσα κατάσταση είναι ίδια με την κατάσταση που είναι αποθηκευμένη στο τρέχον στιγμιότυπο</translation>
     </message>
     <message>
         <source> (current, </source>
         <comment>Snapshot details</comment>
-        <translation> (τρέχον, </translation>
+        <translation type="vanished"> (τρέχον, </translation>
     </message>
     <message>
         <source>online)</source>
         <comment>Snapshot details</comment>
-        <translation>συνδεδεμένο)</translation>
+        <translation type="vanished">συνδεδεμένο)</translation>
     </message>
     <message>
         <source>offline)</source>
         <comment>Snapshot details</comment>
-        <translation>αποσυνδεδεμένο)</translation>
+        <translation type="vanished">αποσυνδεδεμένο)</translation>
     </message>
     <message>
         <source>Taken at %1</source>
         <comment>Snapshot (time)</comment>
-        <translation>Λήψη στις %1</translation>
+        <translation type="vanished">Λήψη στις %1</translation>
     </message>
     <message>
         <source>Taken on %1</source>
         <comment>Snapshot (date + time)</comment>
-        <translation>Λήψη την %1</translation>
+        <translation type="vanished">Λήψη την %1</translation>
     </message>
     <message>
         <source>%1 since %2</source>
         <comment>Current State (time or date + time)</comment>
-        <translation>%1 από %2</translation>
+        <translation type="vanished">%1 από %2</translation>
     </message>
     <message>
         <source>Snapshot %1</source>
-        <translation>Στιγμιότυπο %1</translation>
+        <translation type="vanished">Στιγμιότυπο %1</translation>
     </message>
     <message>
         <source>Take &amp;Snapshot</source>
-        <translation>Λήψη Στιγμιότυπου</translation>
+        <translation type="vanished">Λήψη Στιγμιότυπου</translation>
     </message>
     <message>
         <source>S&amp;how Details</source>
-        <translation>Εμφάνιση Λεπτομερειών</translation>
+        <translation type="vanished">Εμφάνιση Λεπτομερειών</translation>
     </message>
     <message>
         <source>Take a snapshot of the current virtual machine state</source>
-        <translation>Λήψη ενός στιγμιοτύπου της τρέχουσας κατάστασης της εικονικής μηχανής</translation>
+        <translation type="vanished">Λήψη ενός στιγμιοτύπου της τρέχουσας κατάστασης της εικονικής μηχανής</translation>
     </message>
     <message>
         <source> (%1)</source>
-        <translation> (%1)</translation>
+        <translation type="vanished"> (%1)</translation>
     </message>
     <message>
         <source>&amp;Restore Snapshot</source>
-        <translation>Επαναφορά Στιγμιότυπου</translation>
+        <translation type="vanished">Επαναφορά Στιγμιότυπου</translation>
     </message>
     <message>
         <source>&amp;Delete Snapshot</source>
-        <translation>Διαγραφή Στιγμιότυπου</translation>
+        <translation type="vanished">Διαγραφή Στιγμιότυπου</translation>
     </message>
     <message>
         <source> (%1 ago)</source>
-        <translation> (%1 πριν)</translation>
+        <translation type="vanished"> (%1 πριν)</translation>
     </message>
     <message>
         <source>&amp;Clone...</source>
-        <translation>Κλωνοποίηση...</translation>
+        <translation type="vanished">Κλωνοποίηση...</translation>
     </message>
     <message>
         <source>Restore selected snapshot of the virtual machine</source>
-        <translation>Επαναφορά του επιλεγμένου στιγμιότυπου της εικονικής μηχανής</translation>
+        <translation type="vanished">Επαναφορά του επιλεγμένου στιγμιότυπου της εικονικής μηχανής</translation>
     </message>
     <message>
         <source>Delete selected snapshot of the virtual machine</source>
-        <translation>Διαγραφή του επιλεγμένου στιγμιότυπου της εικονικής μηχανής</translation>
+        <translation type="vanished">Διαγραφή του επιλεγμένου στιγμιότυπου της εικονικής μηχανής</translation>
     </message>
     <message>
         <source>Display a window with selected snapshot details</source>
-        <translation>Εμφάνιση παραθύρου με τις λεπτομέρειες του επιλεγμένου στιγμιότυπου</translation>
+        <translation type="vanished">Εμφάνιση παραθύρου με τις λεπτομέρειες του επιλεγμένου στιγμιότυπου</translation>
     </message>
     <message>
         <source>Clone selected virtual machine</source>
-        <translation>Κλωνοποίηση της επιλεγμένης εικονικής μηχανής</translation>
+        <translation type="vanished">Κλωνοποίηση της επιλεγμένης εικονικής μηχανής</translation>
     </message>
 </context>
 <context>
     <name>VBoxTakeSnapshotDlg</name>
     <message>
         <source>Take Snapshot of Virtual Machine</source>
-        <translation>Λήψη Στιγμιοτύπου Εικονικής Μηχανής</translation>
+        <translation type="vanished">Λήψη Στιγμιοτύπου Εικονικής Μηχανής</translation>
     </message>
     <message>
         <source>Snapshot &amp;Name</source>
-        <translation>Όνομα Στιγμιότυπου</translation>
+        <translation type="vanished">Όνομα Στιγμιότυπου</translation>
     </message>
     <message>
         <source>Snapshot &amp;Description</source>
-        <translation>Περιγραφή Στιγμιότυπου</translation>
+        <translation type="vanished">Περιγραφή Στιγμιότυπου</translation>
     </message>
     <message numerus="yes">
         <source>Warning: You are taking a snapshot of a running machine which has %n immutable image(s) attached to it. As long as you are working from this snapshot the immutable image(s) will not be reset to avoid loss of data.</source>
-        <translation>
+        <translation type="vanished">
             <numerusform>Προειδοποίηση: Παίρνετε ένα στιγμιότυπο μίας εικονικής μηχανής σε λειτουργία που έχει %n αμετάβλητη εικόνα προσαρτημένη σε αυτό. Όσο δουλεύετε με αυτό το στιγμιότυπο η αμετάβλητη εικόνα δεν θα επαναφερθεί για να αποφευχθεί η απώλεια δεδομένων.</numerusform>
             <numerusform>Προειδοποίηση: Παίρνετε ένα στιγμιότυπο μίας εικονικής μηχανής σε λειτουργία που έχει %n αμετάβλητες εικόνες προσαρτημένες σε αυτό. Όσο δουλεύετε με αυτό το στιγμιότυπο οι αμετάβλητες εικόνες δεν θα επαναφερθούν για να αποφευχθεί η απώλεια δεδομένων.</numerusform>
         </translation>
     </message>
     <message>
         <source>Snapshot %1</source>
-        <translation>Στιγμιότυπο %1</translation>
+        <translation type="vanished">Στιγμιότυπο %1</translation>
     </message>
 </context>
 <context>

@@ -8528,10 +8528,6 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
         <translation type="vanished">Akatsa bihurketan, itxarondakoa %1, jasotakoa %2.</translation>
     </message>
     <message>
-        <source>When casting to %1 or types derived from it, the source value must be of the same type, or it must be a string literal. Type %2 is not allowed.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>No casting is possible with %1 as the target type.</source>
         <translation type="vanished">Ezin da bihurketarik egin %1 xede mota bezala hartuta.</translation>
     </message>
@@ -8574,14 +8570,6 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <message>
         <source>A library module cannot be evaluated directly. It must be imported from a main module.</source>
         <translation type="vanished">Liburutegi modulo bat ezin da zuzenean aztertu. Modulo nagusi batetik inportatu behar da.</translation>
-    </message>
-    <message>
-        <source>A value of type %1 cannot be a predicate. A predicate must have either a numeric type or an Effective Boolean Value type.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
-        <source>A positional predicate must evaluate to a single numeric value.</source>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The target name in a processing instruction cannot be %1 in any combination of upper and lower case. Therefore, is %2 invalid.</source>
@@ -8722,10 +8710,6 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
         <translation type="vanished">%1 ez da minutu zenbateko oso bat.</translation>
     </message>
     <message>
-        <source>Required cardinality is %1; got cardinality %2.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>The item %1 did not match the required type %2.</source>
         <translation type="vanished">%1 gaia ez dator bat beharrezko %2 motarekin.</translation>
     </message>
@@ -8834,16 +8818,8 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
         <translation type="vanished">Jadanik adierazi da %1 izena duen argumento bat. Argumento bakoitza bakarra izan behar da.</translation>
     </message>
     <message>
-        <source>The name of a variable bound in a for-expression must be different from the positional variable. Hence, the two variables named %1 collide.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>The Schema Validation Feature is not supported. Hence, %1-expressions may not be used.</source>
         <translation type="vanished">Eskema Balioztapen Ezaugarria ez dago sostengatuta. Hortaz, %1-adierazpena badaiteke ez erabiltzea.</translation>
-    </message>
-    <message>
-        <source>None of the pragma expressions are supported. Therefore, a fallback expression must be present</source>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The %1-axis is unsupported in XQuery</source>
@@ -8898,20 +8874,12 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
         <translation type="vanished">%1 izenak ez du eskema motarik adierazten.</translation>
     </message>
     <message>
-        <source>%1 is an complex type. Casting to complex types is not possible. However, casting to atomic types such as %2 works.</source>
-        <translation type="unfinished"></translation>
-    </message>
-    <message>
         <source>%1 is not an atomic type. Casting is only possible to atomic types.</source>
         <translation type="vanished">%1 ez da mota atomiko bat. Bihurketa ez da ahalezkoa mota atomikoentzat.</translation>
     </message>
     <message>
         <source>%1 is not a valid name for a processing-instruction. Therefore this name test will never match.</source>
         <translation type="vanished">%1 ez da prozesapen-jarraipide batentzako baliozko izena. Hortaz izen azterketa ez da inoiz berdinduko.</translation>
-    </message>
-    <message>
-        <source>%1 is not in the in-scope attribute declarations. Note that the schema import feature is not supported.</source>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The name of an extension expression must be in a namespace.</source>
@@ -8940,10 +8908,6 @@ The minimum Direct2D version required is %1.%2.%3.%4. The Direct2D version on th
     <message>
         <source>Required type is %1, but %2 was found.</source>
         <translation type="vanished">Beharrezko mota da %1, baina %2 aurkitu da.</translation>
-    </message>
-    <message>
-        <source>Promoting %1 to %2 may cause loss of precision.</source>
-        <translation type="unfinished"></translation>
     </message>
     <message>
         <source>The focus is undefined.</source>

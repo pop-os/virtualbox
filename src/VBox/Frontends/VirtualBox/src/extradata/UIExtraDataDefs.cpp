@@ -26,7 +26,6 @@
 
 
 /* General: */
-const char* UIExtraDataDefs::GUI_LanguageId = "GUI/LanguageID";
 const char* UIExtraDataDefs::GUI_EventHandlingType = "GUI/EventHandlingType";
 
 /* Messaging: */
@@ -43,16 +42,33 @@ const char* UIExtraDataDefs::GUI_UpdateDate = "GUI/UpdateDate";
 const char* UIExtraDataDefs::GUI_UpdateCheckCount = "GUI/UpdateCheckCount";
 #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
 
+/* Progress: */
+const char* UIExtraDataDefs::GUI_Progress_LegacyMode = "GUI/Progress/LegacyMode";
+
 /* Settings: */
+const char* UIExtraDataDefs::GUI_Customizations = "GUI/Customizations";
 const char* UIExtraDataDefs::GUI_RestrictedGlobalSettingsPages = "GUI/RestrictedGlobalSettingsPages";
 const char* UIExtraDataDefs::GUI_RestrictedMachineSettingsPages = "GUI/RestrictedMachineSettingsPages";
 
+/* Settings: General: */
+const char* UIExtraDataDefs::GUI_HostScreenSaverDisabled = "GUI/HostScreenSaverDisabled";
+
+/* Settings: Language: */
+const char* UIExtraDataDefs::GUI_LanguageID = "GUI/LanguageID";
+
 /* Settings: Display: */
+const char* UIExtraDataDefs::GUI_MaxGuestResolution = "GUI/MaxGuestResolution";
 const char* UIExtraDataDefs::GUI_ActivateHoveredMachineWindow = "GUI/ActivateHoveredMachineWindow";
 
 /* Settings: Keyboard: */
 const char* UIExtraDataDefs::GUI_Input_SelectorShortcuts = "GUI/Input/SelectorShortcuts";
 const char* UIExtraDataDefs::GUI_Input_MachineShortcuts = "GUI/Input/MachineShortcuts";
+const char* UIExtraDataDefs::GUI_Input_HostKeyCombination = "GUI/Input/HostKeyCombination";
+const char* UIExtraDataDefs::GUI_Input_AutoCapture = "GUI/Input/AutoCapture";
+const char* UIExtraDataDefs::GUI_RemapScancodes = "GUI/RemapScancodes";
+
+/* Settings: Proxy: */
+const char* UIExtraDataDefs::GUI_ProxySettings = "GUI/ProxySettings";
 
 /* Settings: Storage: */
 const char* UIExtraDataDefs::GUI_RecentFolderHD = "GUI/RecentFolderHD";
@@ -66,11 +82,23 @@ const char* UIExtraDataDefs::GUI_RecentListFD = "GUI/RecentListFD";
 const char* UIExtraDataDefs::GUI_LastSelectorWindowPosition = "GUI/LastWindowPosition";
 const char* UIExtraDataDefs::GUI_SplitterSizes = "GUI/SplitterSizes";
 const char* UIExtraDataDefs::GUI_Toolbar = "GUI/Toolbar";
+const char* UIExtraDataDefs::GUI_Toolbar_Text = "GUI/Toolbar/Text";
+const char* UIExtraDataDefs::GUI_Toolbar_MachineTools_Order = "GUI/Toolbar/MachineTools/Order";
+const char* UIExtraDataDefs::GUI_Toolbar_GlobalTools_Order = "GUI/Toolbar/GlobalTools/Order";
 const char* UIExtraDataDefs::GUI_Statusbar = "GUI/Statusbar";
 const char* UIExtraDataDefs::GUI_GroupDefinitions = "GUI/GroupDefinitions";
 const char* UIExtraDataDefs::GUI_LastItemSelected = "GUI/LastItemSelected";
 const char* UIExtraDataDefs::GUI_DetailsPageBoxes = "GUI/DetailsPageBoxes";
 const char* UIExtraDataDefs::GUI_PreviewUpdate = "GUI/PreviewUpdate";
+
+/* Snapshot Manager: */
+const char* UIExtraDataDefs::GUI_SnapshotManager_Details_Expanded = "GUI/SnapshotManager/Details/Expanded";
+
+/* Virtual Media Manager: */
+const char* UIExtraDataDefs::GUI_VirtualMediaManager_Details_Expanded = "GUI/VirtualMediaManager/Details/Expanded";
+
+/* Host Network Manager: */
+const char* UIExtraDataDefs::GUI_HostNetworkManager_Details_Expanded = "GUI/HostNetworkManager/Details/Expanded";
 
 /* Wizards: */
 const char* UIExtraDataDefs::GUI_HideDescriptionForWizards = "GUI/HideDescriptionForWizards";
@@ -81,8 +109,8 @@ const char* UIExtraDataDefs::GUI_HideDetails = "GUI/HideDetails";
 const char* UIExtraDataDefs::GUI_PreventReconfiguration = "GUI/PreventReconfiguration";
 const char* UIExtraDataDefs::GUI_PreventSnapshotOperations = "GUI/PreventSnapshotOperations";
 const char* UIExtraDataDefs::GUI_FirstRun = "GUI/FirstRun";
-#ifndef VBOX_WS_MAC
 const char* UIExtraDataDefs::GUI_MachineWindowIcons = "GUI/MachineWindowIcons";
+#ifndef VBOX_WS_MAC
 const char* UIExtraDataDefs::GUI_MachineWindowNamePostfix = "GUI/MachineWindowNamePostfix";
 #endif /* !VBOX_WS_MAC */
 const char* UIExtraDataDefs::GUI_LastNormalWindowPosition = "GUI/LastNormalWindowPosition";

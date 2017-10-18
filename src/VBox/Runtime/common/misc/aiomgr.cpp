@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2016 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -676,10 +676,10 @@ static int rtAioMgrQueueWaitingReqs(PRTAIOMGRINT pThis, PRTAIOMGRFILEINT pFile)
     RTFILEAIOREQ  apReqs[20];
     unsigned      cRequests = 0;
     int           rc        = VINF_SUCCESS;
-    PRTAIOMGRREQ  pReqIt;
-    PRTAIOMGRREQ  pReqItNext;
 
     /* Go through the list and queue the requests. */
+    PRTAIOMGRREQ  pReqIt;
+    PRTAIOMGRREQ  pReqItNext;
     RTListForEachSafe(&pFile->AioMgr.ListWaitingReqs, pReqIt, pReqItNext, RTAIOMGRREQ, NodeWaitingList)
     {
         RTListNodeRemove(&pReqIt->NodeWaitingList);
@@ -763,8 +763,8 @@ static int rtAioMgrQueueReqs(PRTAIOMGRINT pThis, PRTAIOMGRFILEINT pFile)
 static int rtAioMgrCheckFiles(PRTAIOMGRINT pThis)
 {
     int rc = VINF_SUCCESS;
-    PRTAIOMGRFILEINT pIt;
 
+    PRTAIOMGRFILEINT pIt;
     RTListForEach(&pThis->ListFiles, pIt, RTAIOMGRFILEINT, AioMgr.NodeAioMgrFiles)
     {
         rc = rtAioMgrQueueReqs(pThis, pIt);

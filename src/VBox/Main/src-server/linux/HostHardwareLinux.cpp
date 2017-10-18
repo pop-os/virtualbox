@@ -64,6 +64,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
+#include <sys/sysmacros.h>
 
 
 /*********************************************************************************************************************************
@@ -326,9 +327,9 @@ static int cdromDoInquiry(const char *pcszNode, uint8_t *pu8Type,
  * @param pcszVendor  the vendor ID string
  * @param pcszModel   the product ID string
  * @param pszDesc    where to store the description string (optional)
- * @param cchDesc    the size of the buffer in @pszDesc
+ * @param cchDesc    the size of the buffer in @a pszDesc
  * @param pszUdi     where to store the UDI string (optional)
- * @param cchUdi     the size of the buffer in @pszUdi
+ * @param cchUdi     the size of the buffer in @a pszUdi
  */
 /* static */
 void dvdCreateDeviceStrings(const char *pcszVendor, const char *pcszModel,
@@ -892,8 +893,9 @@ public:
     hotplugNullImpl(const char *) {}
     virtual ~hotplugNullImpl (void) {}
     /** @copydoc VBoxMainHotplugWaiter::Wait */
-    virtual int Wait (RTMSINTERVAL)
+    virtual int Wait (RTMSINTERVAL cMillies)
     {
+        NOREF(cMillies);
         return VERR_NOT_SUPPORTED;
     }
     /** @copydoc VBoxMainHotplugWaiter::Interrupt */
