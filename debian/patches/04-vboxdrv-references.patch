@@ -5,7 +5,7 @@ Index: virtualbox/src/VBox/VMM/VMMR3/VM.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/VMM/VMMR3/VM.cpp	2015-04-02 14:37:11.989792459 +0200
 +++ virtualbox/src/VBox/VMM/VMMR3/VM.cpp	2015-04-02 14:37:11.989792459 +0200
-@@ -308,10 +308,8 @@
+@@ -306,10 +306,8 @@
  
  #ifdef RT_OS_LINUX
                  case VERR_SUPDRV_COMPONENT_NOT_FOUND:
@@ -18,7 +18,7 @@ Index: virtualbox/src/VBox/VMM/VMMR3/VM.cpp
                      break;
  #endif
  
-@@ -374,10 +372,8 @@
+@@ -372,10 +370,8 @@
              {
                  case VERR_VM_DRIVER_LOAD_ERROR:
  #ifdef RT_OS_LINUX
@@ -31,7 +31,7 @@ Index: virtualbox/src/VBox/VMM/VMMR3/VM.cpp
  #else
                      pszError = N_("VirtualBox kernel driver not loaded");
  #endif
-@@ -416,10 +412,8 @@
+@@ -414,10 +410,8 @@
                  case VERR_INVALID_HANDLE: /** @todo track down and fix this error. */
                  case VERR_VM_DRIVER_NOT_INSTALLED:
  #ifdef RT_OS_LINUX
@@ -48,7 +48,7 @@ diff --git a/src/VBox/Frontends/VirtualBox/src/main.cpp b/src/VBox/Frontends/Vir
 index b4c8f19..4d1e83d 100644
 --- a/src/VBox/Frontends/VirtualBox/src/main.cpp
 +++ b/src/VBox/Frontends/VirtualBox/src/main.cpp
-@@ -102,9 +102,9 @@ QString g_QStrHintLinuxNoMemory = QApplication::tr(
+@@ -97,9 +97,9 @@ QString g_QStrHintLinuxNoMemory = QApplication::tr(
  
  QString g_QStrHintLinuxNoDriver = QApplication::tr(
      "The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or "
@@ -61,7 +61,7 @@ index b4c8f19..4d1e83d 100644
      "as root."
      );
  
-@@ -119,7 +119,7 @@ QString g_QStrHintLinuxWrongDriverVersion = QApplication::tr(
+@@ -114,7 +114,7 @@ QString g_QStrHintLinuxWrongDriverVersion = QApplication::tr(
      "The VirtualBox kernel modules do not match this version of "
      "VirtualBox. The installation of VirtualBox was apparently not "
      "successful. Executing<br/><br/>"

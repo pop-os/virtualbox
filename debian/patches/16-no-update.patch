@@ -7,7 +7,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp
 +++ virtualbox/src/VBox/Frontends/VirtualBox/src/net/UIUpdateManager.cpp
-@@ -481,6 +481,8 @@
+@@ -471,6 +471,8 @@
  
  void UIUpdateManager::sltForceCheck()
  {
@@ -20,7 +20,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
 +++ virtualbox/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
-@@ -1115,7 +1115,6 @@
+@@ -1116,7 +1116,6 @@
      m_pool[UIActionIndex_M_Application_S_Preferences] = new UIActionSimplePreferences(this);
  #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
      m_pool[UIActionIndex_M_Application_S_NetworkAccessManager] = new UIActionSimpleNetworkAccessManager(this);
@@ -28,16 +28,16 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
  #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
      m_pool[UIActionIndex_M_Application_S_ResetWarnings] = new UIActionSimpleResetWarnings(this);
      m_pool[UIActionIndex_M_Application_S_Close] = new UIActionSimplePerformClose(this);
-@@ -1161,8 +1160,6 @@
+@@ -1162,8 +1161,6 @@
  #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-     connect(action(UIActionIndex_M_Application_S_NetworkAccessManager), SIGNAL(triggered()),
-             gNetworkManager, SLOT(show()), Qt::UniqueConnection);
--    connect(action(UIActionIndex_M_Application_S_CheckForUpdates), SIGNAL(triggered()),
--            gUpdateManager, SLOT(sltForceCheck()), Qt::UniqueConnection);
+     connect(action(UIActionIndex_M_Application_S_NetworkAccessManager), &UIAction::triggered,
+             gNetworkManager, &UINetworkManager::show, Qt::UniqueConnection);
+-    connect(action(UIActionIndex_M_Application_S_CheckForUpdates), &UIAction::triggered,
+-            gUpdateManager, &UIUpdateManager::sltForceCheck, Qt::UniqueConnection);
  #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-     connect(action(UIActionIndex_M_Application_S_ResetWarnings), SIGNAL(triggered()),
-             &msgCenter(), SLOT(sltResetSuppressedMessages()), Qt::UniqueConnection);
-@@ -1243,7 +1240,7 @@
+     connect(action(UIActionIndex_M_Application_S_ResetWarnings), &UIAction::triggered,
+             &msgCenter(), &UIMessageCenter::sltResetSuppressedMessages, Qt::UniqueConnection);
+@@ -1244,7 +1241,7 @@
      if (!fUpdateAllowed)
      {
          m_restrictedActionsMenuApplication[UIActionRestrictionLevel_Base] = (UIExtraDataMetaDefs::MenuApplicationActionType)
@@ -62,7 +62,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpe
 ===================================================================
 --- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
 +++ virtualbox/src/VBox/Frontends/VirtualBox/src/settings/UISettingsDialogSpecific.cpp
-@@ -308,6 +308,10 @@
+@@ -304,6 +304,10 @@
  #endif /* !VBOX_WITH_NETFLT */
              break;
          }
@@ -77,7 +77,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cp
 ===================================================================
 --- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cpp
 +++ virtualbox/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cpp
-@@ -1312,8 +1312,6 @@
+@@ -1436,8 +1436,6 @@
      /* 'About' action goes to Application menu: */
      pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_About));
  # ifdef VBOX_GUI_WITH_NETWORK_MANAGER
@@ -86,8 +86,8 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cp
      /* 'Network Access Manager' action goes to Application menu: */
      pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_NetworkAccessManager));
  # endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-@@ -1353,7 +1351,7 @@ void UISelectorWindow::prepareMenuFile(QMenu *pMenu)
-     addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowMediumManager));
+@@ -1480,7 +1478,7 @@
+     addAction(actionPool()->action(UIActionIndexST_M_File_S_ShowHostNetworkManager));
  #  ifdef VBOX_GUI_WITH_NETWORK_MANAGER
      addAction(actionPool()->action(UIActionIndex_M_Application_S_NetworkAccessManager));
 -    addAction(actionPool()->action(UIActionIndex_M_Application_S_CheckForUpdates));
@@ -95,7 +95,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/selector/UISelectorWindow.cp
  #  endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
      addAction(actionPool()->action(UIActionIndex_M_Application_S_ResetWarnings));
      addAction(actionPool()->action(UIActionIndexST_M_File_S_Close));
-@@ -1378,9 +1376,6 @@
+@@ -1507,9 +1505,6 @@
  # ifdef VBOX_GUI_WITH_NETWORK_MANAGER
      /* 'Network Access Manager' action goes to 'File' menu: */
      pMenu->addAction(actionPool()->action(UIActionIndex_M_Application_S_NetworkAccessManager));
@@ -109,7 +109,7 @@ Index: virtualbox/doc/manual/en_US/user_Introduction.xml
 ===================================================================
 --- virtualbox.orig/doc/manual/en_US/user_Introduction.xml
 +++ virtualbox/doc/manual/en_US/user_Introduction.xml
-@@ -1762,10 +1762,12 @@
+@@ -1764,10 +1764,12 @@
           used to trigger certain VM actions (see <xref
           linkend="specialcharacters"/>)</para>
        </listitem>

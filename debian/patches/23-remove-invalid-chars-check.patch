@@ -6,7 +6,7 @@ Index: virtualbox/configure
 ===================================================================
 --- virtualbox.orig/configure	2013-11-19 04:36:42.817631012 -0500
 +++ virtualbox/configure	2013-11-19 04:36:42.813631012 -0500
-@@ -181,11 +181,6 @@
+@@ -180,11 +180,6 @@
  # the restricting tool is ar (mri mode).
  INVALID_CHARS="[^A-Za-z0-9/\\$:._-]"
  
@@ -15,6 +15,6 @@ Index: virtualbox/configure
 -  exit 1
 -fi
 -
- # darwin /bin/sh has a builtin echo that doesn't grok -n. gotta love it.
- if [ "$OS" = "darwin" ]; then
-   ECHO_N="/bin/echo -n"
+ # Posix /bin/sh isn't supporting echo -n. Use printf instead.
+ ECHO_N="printf"
+ 

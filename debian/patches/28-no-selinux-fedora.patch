@@ -3,7 +3,7 @@ Author: Felix Geyer <fgeyer@debian.org>
 
 --- a/src/VBox/Additions/linux/Makefile.kmk
 +++ b/src/VBox/Additions/linux/Makefile.kmk
-@@ -346,9 +346,7 @@ lnx_add_inst-noexec_INST     = $(VBOX_LN
+@@ -297,9 +297,7 @@ lnx_add_inst-noexec_INST     = $(VBOX_LN
  lnx_add_inst-noexec_SOURCES  = \
  	$(VBOX_REL_X11_ADD_INST)vboxclient.desktop \
  	$(VBOX_REL_X11_ADD_INST)vboxvideo.ids \
