@@ -6,6 +6,7 @@
 12-make-module.patch
 13-module-mismatch.patch
 16-no-update.patch
+18-system-xorg.patch
 23-remove-invalid-chars-check.patch
 27-hide-host-cache-warning.patch
 28-no-selinux-fedora.patch
