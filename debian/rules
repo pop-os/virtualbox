@@ -62,6 +62,7 @@ override_dh_auto_build:
 	    PATH_OUT=$(abspath out) \
 	    TOOL_YASM_AS=yasm \
 	    VBOX_USE_SYSTEM_XORG_HEADERS=1 \
+	    VBOX_USE_SYSTEM_GL_HEADERS=1 \
 	    VBOX_NO_LEGACY_XORG_X11=1 \
 	    VBOX_BUILD_PUBLISHER=_$(DIST_NAME) \
 	    VBOX_WITH_REGISTRATION_REQUEST= \
