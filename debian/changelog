@@ -1,3 +1,9 @@
+virtualbox (5.2.0-dfsg-1~exp4) experimental; urgency=medium
+
+  * Enforce kbuild minimum version
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 19 Oct 2017 19:11:24 +0200
+
 virtualbox (5.2.0-dfsg-1~exp3) experimental; urgency=medium
 
   * define VBOX_USE_SYSTEM_GL_HEADERS from Sérgio Basto.
