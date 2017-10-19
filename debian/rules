@@ -87,7 +87,6 @@ override_dh_auto_install:
 	    cd out/bin/sdk/installer && \
 	    python3 ./vboxapisetup.py install --root $(CURDIR)/debian/$(sname)
 
-	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(gdkms).links.in > debian/$(gdkms).links
 	sed -e 's/CVERSION/$(upstreamversion)/g' < debian/$(pdkms).links.in > debian/$(pdkms).links
 
 	# Build install files for the dkms'ified sources
