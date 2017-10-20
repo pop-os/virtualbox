@@ -1,5 +1,6 @@
-virtualbox (5.2.0-dfsg-1~exp6) UNRELEASED; urgency=medium
+virtualbox (5.2.0-dfsg-1) unstable; urgency=low
 
+  * Upload to unstable
   * Cherry-pick fixes for new kernel 4.14
     - 69143.patch
 
