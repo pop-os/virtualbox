@@ -1,0 +1,66 @@
+Origin: https://www.virtualbox.org/log/vbox/trunk/src?rev=69146
+Index: src/VBox/Additions/linux/drm/vbox_fb.c
+===================================================================
+--- a/src/VBox/Additions/linux/drm/vbox_fb.c
++++ b/src/VBox/Additions/linux/drm/vbox_fb.c
+@@ -338,22 +338,7 @@ static int vboxfb_create(struct drm_fb_helper *helper,
+ 	return 0;
+ }
+ 
+-static void vbox_fb_gamma_set(struct drm_crtc *crtc, u16 red, u16 green,
+-			      u16 blue, int regno)
+-{
+-}
+-
+-static void vbox_fb_gamma_get(struct drm_crtc *crtc, u16 *red, u16 *green,
+-			      u16 *blue, int regno)
+-{
+-	*red = regno;
+-	*green = regno;
+-	*blue = regno;
+-}
+-
+ static struct drm_fb_helper_funcs vbox_fb_helper_funcs = {
+-	.gamma_set = vbox_fb_gamma_set,
+-	.gamma_get = vbox_fb_gamma_get,
+ 	.fb_probe = vboxfb_create,
+ };
+ 
+Index: src/VBox/Additions/linux/drm/vbox_drv.c
+===================================================================
+--- a/src/VBox/Additions/linux/drm/vbox_drv.c
++++ b/src/VBox/Additions/linux/drm/vbox_drv.c
+@@ -272,7 +272,9 @@ static struct drm_driver driver = {
+ 	.master_set = vbox_master_set,
+ 	.master_drop = vbox_master_drop,
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0) || defined(RHEL_73)
++# if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+ 	.set_busid = drm_pci_set_busid,
++# endif
+ #endif
+ 
+ 	.fops = &vbox_fops,
+@@ -307,7 +309,7 @@ static struct drm_driver driver = {
+ 
+ static int __init vbox_init(void)
+ {
+-#ifdef CONFIG_VGA_CONSOLE
++#ifdef CONFIG_VGA_CONSOLE || LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0)
+ 	if (vgacon_text_force() && vbox_modeset == -1)
+ 		return -EINVAL;
+ #endif
+@@ -315,12 +317,12 @@ static int __init vbox_init(void)
+ 	if (vbox_modeset == 0)
+ 		return -EINVAL;
+ 
+-	return drm_pci_init(&driver, &vbox_pci_driver);
++	return pci_register_driver(&vbox_pci_driver);
+ }
+ 
+ static void __exit vbox_exit(void)
+ {
+-	drm_pci_exit(&driver, &vbox_pci_driver);
++	pci_unregister_driver(&vbox_pci_driver);
+ }
+ 
+ module_init(vbox_init);

@@ -1,3 +1,10 @@
+virtualbox (5.2.0-dfsg-1~exp6) UNRELEASED; urgency=medium
+
+  * Cherry-pick fixes for new kernel 4.14
+    - 69143.patch
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 20 Oct 2017 16:50:34 +0200
+
 virtualbox (5.2.0-dfsg-1~exp5) experimental; urgency=medium
 
   * Fixup guest-* generation
