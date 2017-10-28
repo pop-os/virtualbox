@@ -1,3 +1,10 @@
+virtualbox (5.2.0-dfsg-2) unstable; urgency=low
+
+  * Tentatively fix virtualbox-dkms (Closes: #879940)
+  * Try to build guest when drm_rect.h is available (Closes: #79895)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 27 Oct 2017 19:43:50 +0200
+
 virtualbox (5.2.0-dfsg-1) unstable; urgency=low
 
   * Upload to unstable

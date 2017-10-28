@@ -16,3 +16,5 @@
 36-fix-vnc-version-string.patch
 37-python-3.6-support.patch
 69143.patch
+fix-build.patch
+try-to-build-vboxvideo.patch

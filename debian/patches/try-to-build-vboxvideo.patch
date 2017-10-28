@@ -1,0 +1,15 @@
+Author: Gianfranco Costamagna <locutusofborg@debian.org>
+Bug-Debian: https://bugs.debian.org/879940
+Last-Update: 2017-10-27
+
+--- virtualbox-5.2.0-dfsg.orig/src/VBox/Additions/linux/drm/Makefile.module.kms
++++ virtualbox-5.2.0-dfsg/src/VBox/Additions/linux/drm/Makefile.module.kms
+@@ -26,7 +26,7 @@ BUILD = 1
+ # We want to build on Linux 3.11 and later, plus the 3.10 EL 7.3 and later
+ # kernels.  This file was added in 3.11 and back-ported to the EL 7.3 kernel.
+ ifeq ($(wildcard $(KERN_INCL)/drm/drm_rect.h),)
+- BUILD =
++ #BUILD =
+ endif
+ 
+ # And we do not want to build on EL6, regardless of what may have been
