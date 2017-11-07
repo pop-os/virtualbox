@@ -1,3 +1,9 @@
+virtualbox (5.2.0-dfsg-4) unstable; urgency=medium
+
+  * 69524.patch: fixup the kernel 4.14 fix 
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 07 Nov 2017 10:53:52 +0100
+
 virtualbox (5.2.0-dfsg-3) unstable; urgency=medium
 
   * Switch to lynx (Closes: #880935)
