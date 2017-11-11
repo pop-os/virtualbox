@@ -18,7 +18,7 @@
 # description: VirtualBox Linux kernel module
 #
 ### BEGIN INIT INFO
-# Provides:       vboxdrv virtualbox
+# Provides:       virtualbox
 # Required-Start: $remote_fs $network
 # Required-Stop:  $remote_fs
 # Default-Start:  2 3 4 5

@@ -1,3 +1,10 @@
+virtualbox (5.2.0-dfsg-5) unstable; urgency=low
+
+  * Stop providing vboxdrv in virtualbox.init script, this makes
+    it clash with the upstream one. See: LP: #1523075
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sat, 11 Nov 2017 11:44:17 +0100
+
 virtualbox (5.2.0-dfsg-4) unstable; urgency=medium
 
   * 69524.patch: fixup the kernel 4.14 fix 
