@@ -1,3 +1,9 @@
+virtualbox (5.2.0-dfsg-6) UNRELEASED; urgency=medium
+
+  * New upstream release (Closes: #880068)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 14 Nov 2017 12:48:20 +0100
+
 virtualbox (5.2.0-dfsg-5) unstable; urgency=low
 
   * Stop providing vboxdrv in virtualbox.init script, this makes
