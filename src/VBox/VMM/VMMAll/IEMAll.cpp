@@ -3219,9 +3219,9 @@ DECLINLINE(uint64_t) iemOpcodeGetNextU64Jmp(PVMCPU pVCpu)
 
 /**
  * Gets the exception class for the specified exception vector.
- *  
+ *
  * @returns The class of the specified exception.
- * @param   uVector       The exception vector. 
+ * @param   uVector       The exception vector.
  */
 IEM_STATIC IEMXCPTCLASS iemGetXcptClass(uint8_t uVector)
 {
@@ -3250,8 +3250,8 @@ IEM_STATIC IEMXCPTCLASS iemGetXcptClass(uint8_t uVector)
 /**
  * Evaluates how to handle an exception caused during delivery of another event
  * (exception / interrupt).
- *  
- * @returns How to handle the recursive exception. 
+ *
+ * @returns How to handle the recursive exception.
  * @param   pVCpu               The cross context virtual CPU structure of the
  *                              calling thread.
  * @param   fPrevFlags          The flags of the previous event.
@@ -3338,7 +3338,7 @@ VMM_INT_DECL(IEMXCPTRAISE) IEMEvaluateRecursiveXcpt(PVMCPU pVCpu, uint32_t fPrev
 
     if (pfXcptRaiseInfo)
         *pfXcptRaiseInfo = fRaiseInfo;
-    return enmRaise; 
+    return enmRaise;
 }
 
 
@@ -6553,17 +6553,14 @@ IEM_STATIC void iemRegAddToRipAndClearRF(PVMCPU pVCpu, uint8_t cbInstr)
 
     AssertCompile(IEMMODE_16BIT == 0 && IEMMODE_32BIT == 1 && IEMMODE_64BIT == 2);
 #if ARCH_BITS >= 64
-    static uint64_t const s_aRipMasks[] = { UINT64_C(0xffff), UINT64_C(0xffffffff), UINT64_MAX };
+    static uint64_t const s_aRipMasks[] = { UINT64_C(0xffffffff), UINT64_C(0xffffffff), UINT64_MAX };
     Assert(pCtx->rip <= s_aRipMasks[(unsigned)pVCpu->iem.s.enmCpuMode]);
     pCtx->rip = (pCtx->rip + cbInstr) & s_aRipMasks[(unsigned)pVCpu->iem.s.enmCpuMode];
 #else
     if (pVCpu->iem.s.enmCpuMode == IEMMODE_64BIT)
         pCtx->rip += cbInstr;
     else
-    {
-        static uint32_t const s_aEipMasks[] = { UINT32_C(0xffff), UINT32_MAX };
-        pCtx->eip = (pCtx->eip + cbInstr) & s_aEipMasks[(unsigned)pVCpu->iem.s.enmCpuMode];
-    }
+        pCtx->eip += cbInstr;
 #endif
 }
 
@@ -16170,7 +16167,8 @@ VMM_INT_DECL(VBOXSTRICTRC) IEMExecDecodedVmrun(PVMCPU pVCpu, uint8_t cbInstr)
  */
 VMM_INT_DECL(VBOXSTRICTRC) IEMExecSvmVmexit(PVMCPU pVCpu, uint64_t uExitCode, uint64_t uExitInfo1, uint64_t uExitInfo2)
 {
-    return iemSvmVmexit(pVCpu, IEM_GET_CTX(pVCpu), uExitCode, uExitInfo1, uExitInfo2);
+    VBOXSTRICTRC rcStrict = iemSvmVmexit(pVCpu, IEM_GET_CTX(pVCpu), uExitCode, uExitInfo1, uExitInfo2);
+    return iemExecStatusCodeFiddling(pVCpu, rcStrict);
 }
 #endif /* VBOX_WITH_NESTED_HWVIRT */
 

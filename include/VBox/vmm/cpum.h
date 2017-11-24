@@ -1205,11 +1205,11 @@ VMM_INT_DECL(bool)  CPUMIsGuestInRawMode(PVMCPU pVCpu);
 VMM_INT_DECL(bool)      CPUMCanSvmNstGstTakePhysIntr(PCCPUMCTX pCtx);
 VMM_INT_DECL(bool)      CPUMCanSvmNstGstTakeVirtIntr(PCCPUMCTX pCtx);
 VMM_INT_DECL(uint8_t)   CPUMGetSvmNstGstInterrupt(PCCPUMCTX pCtx);
-VMM_INT_DECL(void)      CPUMSvmVmExitRestoreHostState(PCPUMCTX pCtx);
+VMM_INT_DECL(void)      CPUMSvmVmExitRestoreHostState(PVMCPU pVCpu, PCPUMCTX pCtx);
 VMM_INT_DECL(void)      CPUMSvmVmRunSaveHostState(PCPUMCTX pCtx, uint8_t cbInstr);
 /** @} */
 
-#ifndef VBOX_WITHOUT_UNNAMED_UNIONS
+#ifndef IPRT_WITHOUT_NAMED_UNIONS_AND_STRUCTS
 
 /**
  * Tests if the guest is running in real mode or not.
@@ -1332,6 +1332,7 @@ DECLINLINE(bool) CPUMIsGuestSvmEnabled(PCCPUMCTX pCtx)
  */
 DECLINLINE(bool) CPUMIsGuestSvmCtrlInterceptSet(PCCPUMCTX pCtx, uint64_t fIntercept)
 {
+    Assert(!pCtx->hwvirt.svm.fHMCachedVmcb);
     PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
     return pVmcb && (pVmcb->ctrl.u64InterceptCtrl & fIntercept);
 }
@@ -1346,6 +1347,7 @@ DECLINLINE(bool) CPUMIsGuestSvmCtrlInterceptSet(PCCPUMCTX pCtx, uint64_t fInterc
  */
 DECLINLINE(bool) CPUMIsGuestSvmReadCRxInterceptSet(PCCPUMCTX pCtx, uint8_t uCr)
 {
+    Assert(!pCtx->hwvirt.svm.fHMCachedVmcb);
     PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
     return pVmcb && (pVmcb->ctrl.u16InterceptRdCRx & (1 << uCr));
 }
@@ -1360,6 +1362,7 @@ DECLINLINE(bool) CPUMIsGuestSvmReadCRxInterceptSet(PCCPUMCTX pCtx, uint8_t uCr)
  */
 DECLINLINE(bool) CPUMIsGuestSvmWriteCRxInterceptSet(PCCPUMCTX pCtx, uint8_t uCr)
 {
+    Assert(!pCtx->hwvirt.svm.fHMCachedVmcb);
     PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
     return pVmcb && (pVmcb->ctrl.u16InterceptWrCRx & (1 << uCr));
 }
@@ -1374,6 +1377,7 @@ DECLINLINE(bool) CPUMIsGuestSvmWriteCRxInterceptSet(PCCPUMCTX pCtx, uint8_t uCr)
  */
 DECLINLINE(bool) CPUMIsGuestSvmReadDRxInterceptSet(PCCPUMCTX pCtx, uint8_t uDr)
 {
+    Assert(!pCtx->hwvirt.svm.fHMCachedVmcb);
     PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
     return pVmcb && (pVmcb->ctrl.u16InterceptRdDRx & (1 << uDr));
 }
@@ -1388,6 +1392,7 @@ DECLINLINE(bool) CPUMIsGuestSvmReadDRxInterceptSet(PCCPUMCTX pCtx, uint8_t uDr)
  */
 DECLINLINE(bool) CPUMIsGuestSvmWriteDRxInterceptSet(PCCPUMCTX pCtx, uint8_t uDr)
 {
+    Assert(!pCtx->hwvirt.svm.fHMCachedVmcb);
     PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
     return pVmcb && (pVmcb->ctrl.u16InterceptWrDRx & (1 << uDr));
 }
@@ -1402,6 +1407,7 @@ DECLINLINE(bool) CPUMIsGuestSvmWriteDRxInterceptSet(PCCPUMCTX pCtx, uint8_t uDr)
  */
 DECLINLINE(bool) CPUMIsGuestSvmXcptInterceptSet(PCCPUMCTX pCtx, uint8_t uVector)
 {
+    Assert(!pCtx->hwvirt.svm.fHMCachedVmcb);
     Assert(uVector < 32);
     PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
     return pVmcb && (pVmcb->ctrl.u32InterceptXcpt & (UINT32_C(1) << uVector));
@@ -1452,7 +1458,7 @@ DECLINLINE(bool) CPUMIsGuestInNestedHwVirtMode(PCCPUMCTX pCtx)
 {
     return CPUMIsGuestInSvmNestedHwVirtMode(pCtx) || CPUMIsGuestInVmxNestedHwVirtMode(pCtx);
 }
-#endif /* VBOX_WITHOUT_UNNAMED_UNIONS */
+#endif /* IPRT_WITHOUT_NAMED_UNIONS_AND_STRUCTS */
 
 /** @} */
 
@@ -1590,6 +1596,8 @@ VMMDECL(uint32_t)       CPUMGetGuestMxCsrMask(PVM pVM);
 VMMDECL(uint64_t)       CPUMGetGuestScalableBusFrequency(PVM pVM);
 VMMDECL(int)            CPUMQueryValidatedGuestEfer(PVM pVM, uint64_t uCr0, uint64_t uOldEfer, uint64_t uNewEfer,
                                                     uint64_t *puValidEfer);
+VMMDECL(void)           CPUMSetGuestMsrEferNoCheck(PVMCPU pVCpu, uint64_t uOldEfer, uint64_t uValidEfer);
+
 
 /** @name Typical scalable bus frequency values.
  * @{ */

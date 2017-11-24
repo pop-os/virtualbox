@@ -1801,12 +1801,10 @@ VMMR3_INT_DECL(void) HMR3PagingModeChanged(PVM pVM, PVMCPU pVCpu, PGMMODE enmSha
      * extra careful if/when the guest switches back to protected mode.
      */
     if (enmGuestMode == PGMMODE_REAL)
-    {
-        Log(("HMR3PagingModeChanged indicates real mode execution\n"));
         pVCpu->hm.s.vmx.fWasInRealMode = true;
-    }
-    else
-        Log(("HMR3PagingModeChanged indicates %d mode execution\n", enmGuestMode));
+
+    Log4(("HMR3PagingModeChanged: Guest paging mode '%s', shadow paging mode '%s'\n", PGMGetModeName(enmGuestMode),
+          PGMGetModeName(enmShadowMode)));
 }
 
 
@@ -2691,7 +2689,7 @@ VMMR3DECL(bool) HMR3CanExecuteGuest(PVM pVM, PCPUMCTX pCtx)
 
     Assert(HMIsEnabled(pVM));
 
-#if defined(VBOX_WITH_NESTED_HWVIRT) && defined(VBOX_WITH_NESTED_HWVIRT_ONLY_IN_IEM)
+#ifdef VBOX_WITH_NESTED_HWVIRT_ONLY_IN_IEM
     if (CPUMIsGuestInNestedHwVirtMode(pCtx))
     {
         Log(("HMR3CanExecuteGuest: In nested-guest mode - returning false"));

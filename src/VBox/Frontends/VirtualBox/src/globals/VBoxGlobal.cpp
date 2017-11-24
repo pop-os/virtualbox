@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -168,6 +168,7 @@
 # include <X11/Xmd.h>
 # include <X11/Xlib.h>
 # include <X11/Xatom.h>
+# include <X11/Xutil.h>
 # include <X11/extensions/Xinerama.h>
 # define BOOL PRBool
 #endif /* VBOX_WS_X11 */
@@ -3321,6 +3322,32 @@ void VBoxGlobal::setTopLevelGeometry(QWidget *pWidget, const QRect &rect)
     VBoxGlobal::setTopLevelGeometry(pWidget, rect.x(), rect.y(), rect.width(), rect.height());
 }
 
+#ifdef VBOX_WS_X11
+void VBoxGlobal::setWMClass(QWidget *pWidget, const QString &strNameString, const QString &strClassString)
+{
+    /* Make sure all arguments set: */
+    AssertReturnVoid(pWidget && !strNameString.isNull() && !strClassString.isNull());
+
+    /* Define QByteArray objects to make sure data is alive within the scope: */
+    QByteArray nameByteArray;
+    /* Check the existence of RESOURCE_NAME env. variable and override name string if necessary: */
+    const char resourceName[] = "RESOURCE_NAME";
+    if (qEnvironmentVariableIsSet(resourceName))
+        nameByteArray = qgetenv(resourceName);
+    else
+        nameByteArray = strNameString.toLatin1();
+    QByteArray classByteArray = strClassString.toLatin1();
+
+    AssertReturnVoid(nameByteArray.data() && classByteArray.data());
+
+    XClassHint windowClass;
+    windowClass.res_name = nameByteArray.data();
+    windowClass.res_class = classByteArray.data();
+    /* Set WM_CLASS of the window to passed name and class strings: */
+    XSetClassHint(QX11Info::display(), pWidget->window()->winId(), &windowClass);
+}
+#endif /* VBOX_WS_X11 */
+
 // Public slots
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3563,7 +3590,7 @@ void VBoxGlobal::prepare()
             msgCenter().cannotInitCOM(rc);
         return;
     }
-    
+
 #ifdef VBOX_WITH_SDS
     // setup Client COM Security to enable impersonation required by VBOX_SDS
     HRESULT hrGUICoInitializeSecurity = CoInitializeSecurity(NULL,
@@ -3837,7 +3864,6 @@ void VBoxGlobal::prepare()
         RTPathAppend(szLogFile, sizeof(szLogFile), "selectorwindow.log");
         pszLogFile = szLogFile;
         /* Create release logger, to file: */
-        char szError[RTPATH_MAX + 128];
         com::VBoxLogRelCreate("GUI VM Selector Window",
                               pszLogFile,
                               RTLOGFLAGS_PREFIX_TIME_PROG,
@@ -3848,8 +3874,7 @@ void VBoxGlobal::prepare()
                               1,
                               60 * 60,
                               _1M,
-                              szError,
-                              sizeof(szError));
+                              NULL /*pErrInfo*/);
 
         LogRel(("Qt version: %s\n", qtRTVersionString().toUtf8().constData()));
     }

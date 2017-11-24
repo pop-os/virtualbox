@@ -1,10 +1,11 @@
 #! /bin/sh
-#
-# Linux Additions kernel module init script ($Revision: 118374 $)
+# $Id: vboxadd.sh $
+## @file
+# Linux Additions kernel module init script ($Revision: 118913 $)
 #
 
 #
-# Copyright (C) 2006-2012 Oracle Corporation
+# Copyright (C) 2006-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -291,14 +292,8 @@ stop()
     if ! umount -a -t vboxsf 2>/dev/null; then
         fail "Cannot unmount vboxsf folders"
     fi
-    test -n "${INSTALL_NO_MODULE_BUILDS}" && return 0
-    modprobe -q -r -a vboxvideo vboxsf vboxguest
-    if egrep -q 'vboxguest|vboxsf|vboxvideo' /proc/modules; then
+    test -n "${INSTALL_NO_MODULE_BUILDS}" ||
         info "You may need to restart your guest system to finish removing the guest drivers."
-    else
-        rm -f $userdev || fail "Cannot unlink $userdev"
-        rm -f $dev || fail "Cannot unlink $dev"
-    fi
     return 0
 }
 

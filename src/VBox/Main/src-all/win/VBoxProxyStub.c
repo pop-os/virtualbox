@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -169,6 +169,7 @@ BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID lpReserved)
 
             /* Init IPRT. */
             RTR3InitDll(RTR3INIT_FLAGS_UNOBTRUSIVE);
+            Log12(("VBoxProxyStub[%u]/DllMain: DLL_PROCESS_ATTACH\n", GetCurrentProcessId()));
 
 #ifdef VBOX_STRICT
             {
@@ -194,6 +195,7 @@ BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID lpReserved)
             break;
 
         case DLL_PROCESS_DETACH:
+            Log12(("VBoxProxyStub[%u]/DllMain: DLL_PROCESS_DETACH\n", GetCurrentProcessId()));
             break;
     }
 
@@ -209,6 +211,7 @@ void RPC_ENTRY GetProxyDllInfo(const ProxyFileInfo ***ppapInfo, const CLSID **pp
 {
     *ppapInfo = &g_apProxyFiles[0];
     *ppClsid  = &g_ProxyClsId;
+    Log12(("VBoxProxyStub[%u]/GetProxyDllInfo:\n", GetCurrentProcessId()));
 }
 
 
@@ -236,6 +239,8 @@ HRESULT STDAPICALLTYPE DllGetClassObject(REFCLSID rclsid, REFIID riid, void **pp
      * /target being set to NT51.
      */
     AssertLogRelMsg(hrc == S_OK, ("%Rhrc\n",  hrc));
+    Log12(("VBoxProxyStub[%u]/DllGetClassObject(%RTuuid, %RTuuid, %p): %#x + *ppv=%p\n",
+           GetCurrentProcessId(), rclsid, riid, ppv, hrc, ppv ? *ppv : NULL));
     return hrc;
 }
 
@@ -247,7 +252,9 @@ HRESULT STDAPICALLTYPE DllGetClassObject(REFCLSID rclsid, REFIID riid, void **pp
  */
 HRESULT STDAPICALLTYPE DllCanUnloadNow(void)
 {
-    return NdrDllCanUnloadNow(&g_ProxyStubFactory);                                        /* see DLLCANUNLOADNOW in RpcProxy.h */
+    HRESULT hrc = NdrDllCanUnloadNow(&g_ProxyStubFactory);                                 /* see DLLCANUNLOADNOW in RpcProxy.h */
+    Log12(("VBoxProxyStub[%u]/DllCanUnloadNow: %Rhrc\n", GetCurrentProcessId(), hrc));
+    return hrc;
 }
 
 
@@ -261,7 +268,9 @@ HRESULT STDAPICALLTYPE DllCanUnloadNow(void)
  */
 ULONG STDMETHODCALLTYPE CStdStubBuffer_Release(IRpcStubBuffer *pThis)                /* see CSTDSTUBBUFFERRELEASE in RpcProxy.h */
 {
-    return NdrCStdStubBuffer_Release(pThis, (IPSFactoryBuffer *)&g_ProxyStubFactory);
+    ULONG cRefs =  NdrCStdStubBuffer_Release(pThis, (IPSFactoryBuffer *)&g_ProxyStubFactory);
+    Log12(("VBoxProxyStub[%u]/CStdStubBuffer_Release: %p -> %#x\n", GetCurrentProcessId(), pThis, cRefs));
+    return cRefs;
 }
 
 
@@ -274,7 +283,9 @@ ULONG STDMETHODCALLTYPE CStdStubBuffer_Release(IRpcStubBuffer *pThis)           
  */
 ULONG WINAPI CStdStubBuffer2_Release(IRpcStubBuffer *pThis)                         /* see CSTDSTUBBUFFER2RELEASE in RpcProxy.h */
 {
-    return NdrCStdStubBuffer2_Release(pThis, (IPSFactoryBuffer *)&g_ProxyStubFactory);
+    ULONG cRefs = NdrCStdStubBuffer2_Release(pThis, (IPSFactoryBuffer *)&g_ProxyStubFactory);
+    Log12(("VBoxProxyStub[%u]/CStdStubBuffer2_Release: %p -> %#x\n", GetCurrentProcessId(), pThis, cRefs));
+    return cRefs;
 }
 
 
@@ -2285,183 +2296,167 @@ HRESULT STDAPICALLTYPE DllUnregisterServer(void)
 }
 
 
-BOOL IsInstalledWindowsService(const WCHAR* wszServiceName)
-{
-    BOOL bResult = FALSE;
-    SC_HANDLE hSCM;
-    SC_HANDLE hService;
+#ifdef VBOX_WITH_SDS
 
-    hSCM = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
+static BOOL vbpsIsInstalledWindowsService(const WCHAR *pwszServiceName)
+{
+    BOOL fRet = FALSE;
+    SC_HANDLE hSCM = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
     if (hSCM != NULL)
     {
-        hService = OpenService(hSCM, wszServiceName, SERVICE_QUERY_CONFIG);
+        SC_HANDLE hService = OpenService(hSCM, pwszServiceName, SERVICE_QUERY_CONFIG);
         if (hService != NULL)
         {
-            bResult = TRUE;
             CloseServiceHandle(hService);
+            fRet = TRUE;
         }
         CloseServiceHandle(hSCM);
     }
-    return bResult;
+    return fRet;
 }
 
 
-BOOL InstallWindowsService(const WCHAR* wszVBoxDir,
-    const WCHAR* wszServiceModule,
-    const WCHAR* wszServiceName,
-    const WCHAR* wszServiceDisplayName,
-    const WCHAR* wszServiceDescription
-)
+/**
+ * Worker for installing a SCM service.
+ *
+ * @returns Success indicator.
+ * @param   pwszVBoxDir         The VirtualBox install directory (unicode),
+ *                              trailing slash.
+ * @param   pwszModule          The service module.
+ * @param   pwszServiceName     The service name.
+ * @param   pwszDisplayName     The service display name.
+ * @param   pwszDescription     The service description.
+ */
+static BOOL vbpsInstallWindowsService(const WCHAR *pwszVBoxDir, const WCHAR *pwszModule, const WCHAR *pwszServiceName,
+                                      const WCHAR *pwszDisplayName, const WCHAR *pwszDescription)
 {
-    #define QUOTES_SPACE 2
-
-    WCHAR szFilePath[MAX_PATH + QUOTES_SPACE];
-    size_t dirLen;
-    size_t moduleLen;
-    SC_HANDLE hSCM;
-    SC_HANDLE hService;
-    SERVICE_DESCRIPTION sd;
-
-    if (IsInstalledWindowsService(wszServiceName))
-        return TRUE;
-
-    // Make the executable file path
-    dirLen = RTUtf16Len(wszVBoxDir);
-    moduleLen = RTUtf16Len(wszServiceModule);
-
-    if (   dirLen + moduleLen + 2 >= MAX_PATH + QUOTES_SPACE
-        || !RT_SUCCESS(RTUtf16Copy(szFilePath + 1, MAX_PATH + QUOTES_SPACE - 1, wszVBoxDir))
-        || !RT_SUCCESS(RTUtf16Copy(szFilePath + dirLen + 1, MAX_PATH + QUOTES_SPACE - dirLen - 1, wszServiceModule)))
+    BOOL fRet = vbpsIsInstalledWindowsService(pwszServiceName);
+    if (!fRet)
     {
-        LogWarnFunc(("Error: The path to a windows service module is too long\n"));
-        return FALSE;
-    }
-
-    // Quote the FilePath before calling CreateService
-    szFilePath[0] = L'\"';
-    szFilePath[dirLen + moduleLen + 1] = L'\"';
-    szFilePath[dirLen + moduleLen + 2] = 0;
-
-    hSCM = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
-    if (hSCM == NULL)
-    {
-        LogWarnFunc(("Error: Could not open Service Manager\n"));
-        Assert(0);
-        return FALSE;
-    }
-
-    hService = CreateService(hSCM, wszServiceName, wszServiceDisplayName,
-                             SERVICE_ALL_ACCESS, SERVICE_WIN32_OWN_PROCESS,
-                             SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL,
-                             szFilePath, NULL, NULL, L"RPCSS\0", NULL, NULL);
-    if (hService == NULL)
-    {
-        CloseServiceHandle(hSCM);
-        LogWarnFunc(("Error: Could not start service\n"));
-        Assert(0);
-        return FALSE;
-    }
-
-    sd.lpDescription = (LPWSTR)wszServiceDescription;
-    if (!ChangeServiceConfig2(hService, SERVICE_CONFIG_DESCRIPTION, &sd))
-    {
-        LogWarnFunc(("Error: could not set service description. code: %x\n",
-                    GetLastError()));
-        Assert(0);
-    }
-
-    CloseServiceHandle(hService);
-    CloseServiceHandle(hSCM);
-    return TRUE;
-}
-
-BOOL UninstallWindowsService(const WCHAR* wszServiceName)
-{
-    SC_HANDLE hSCM;
-    SC_HANDLE hService;
-    SERVICE_STATUS status;
-    BOOL bRet;
-    BOOL bDelete;
-
-    if (!IsInstalledWindowsService(wszServiceName))
-        return TRUE;
-
-    hSCM = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
-    if (hSCM == NULL)
-    {
-        LogWarnFunc(("Error: Could not open Service Manager\n"));
-        Assert(0);
-        return FALSE;
-    }
-
-    hService = OpenService(hSCM, wszServiceName, SERVICE_STOP | DELETE);
-    if (hService == NULL)
-    {
-        CloseServiceHandle(hSCM);
-        hSCM = NULL;
-        LogWarnFunc(("Error: Could not open service\n"));
-        Assert(0);
-        return FALSE;
-    }
-
-    bRet = ControlService(hService, SERVICE_CONTROL_STOP, &status);
-    if (!bRet)
-    {
-        DWORD dwError = GetLastError();
-        if (!(   dwError == ERROR_SERVICE_NOT_ACTIVE
-              || (   dwError == ERROR_SERVICE_CANNOT_ACCEPT_CTRL
-                  && status.dwCurrentState == SERVICE_STOP_PENDING)))
+        /* Make double quoted executable file path. ASSUMES pwszVBoxDir ends with a slash! */
+        WCHAR wszFilePath[MAX_PATH + 2];
+        int rc = RTUtf16CopyAscii(wszFilePath, RT_ELEMENTS(wszFilePath), "\"");
+        if (RT_SUCCESS(rc))
+            rc = RTUtf16Cat(wszFilePath, RT_ELEMENTS(wszFilePath), pwszVBoxDir);
+        if (RT_SUCCESS(rc))
+            rc = RTUtf16Cat(wszFilePath, RT_ELEMENTS(wszFilePath), pwszModule);
+        if (RT_SUCCESS(rc))
+            rc = RTUtf16CatAscii(wszFilePath, RT_ELEMENTS(wszFilePath), "\"");
+        if (RT_SUCCESS(rc))
         {
-            CloseServiceHandle(hSCM);
-            hSCM = NULL;
-            LogWarnFunc(("Could not stop service\n"));
-            Assert(0);
+            SC_HANDLE hSCM = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
+            if (hSCM != NULL)
+            {
+                SC_HANDLE hService = CreateService(hSCM, pwszServiceName, pwszDisplayName,
+                                                   SERVICE_ALL_ACCESS, SERVICE_WIN32_OWN_PROCESS,
+                                                   SERVICE_DEMAND_START, SERVICE_ERROR_NORMAL,
+                                                   wszFilePath, NULL, NULL, L"RPCSS\0", NULL, NULL);
+                if (hService != NULL)
+                {
+                    SERVICE_DESCRIPTION sd;
+                    sd.lpDescription = (WCHAR *)pwszDescription;
+                    if (ChangeServiceConfig2(hService, SERVICE_CONFIG_DESCRIPTION, &sd))
+                        fRet = TRUE;
+                    else
+                        AssertMsgFailed(("Could not set service description for %ls: %u\n", pwszServiceName, GetLastError()));
+                    CloseServiceHandle(hService);
+                }
+                else
+                    AssertMsgFailed(("Could not create service %ls: %u\n", pwszServiceName, GetLastError()));
+                CloseServiceHandle(hSCM);
+            }
+            else
+                AssertMsg(GetLastError() == ERROR_ACCESS_DENIED,
+                          ("Could not open service %ls: %u\n", pwszServiceName, GetLastError()));
         }
+        else
+            AssertMsgFailed(("Could not open Service Manager: %u\n", GetLastError()));
     }
-
-    bDelete = DeleteService(hService);
-    CloseServiceHandle(hService);
-    CloseServiceHandle(hSCM);
-
-    if (!bDelete)
-    {
-        LogWarnFunc(("Error: Could not delete service\n"));
-        Assert(0);
-        return FALSE;
-    }
-
-    return TRUE;
+    return fRet;
 }
 
 
-static void vbpsUpdateVBoxSDSWindowsService(VBPSREGSTATE* pState, const WCHAR* wszVBoxDir)
+/**
+ * Worker for uninstalling a SCM service.
+ *
+ * @returns Success indicator.
+ * @param   pwszServiceName The name of the SCM service.
+ */
+static BOOL vbpsUninstallWindowsService(const WCHAR *pwszServiceName)
 {
-    const WCHAR* wszModuleName =            L"VBoxSDS.exe";
-    const WCHAR* wszServiceName =           L"VBoxSDS";
-    const WCHAR* wszServiceDisplayName =    L"VirtualBox system service";
-    const WCHAR* wszServiceDescription =    L"Used as a COM server for VirtualBox API.";
+    BOOL fRet = !vbpsIsInstalledWindowsService(pwszServiceName);
+    if (!fRet)
+    {
+        SC_HANDLE hSCM = OpenSCManager(NULL, NULL, SC_MANAGER_ALL_ACCESS);
+        if (hSCM != NULL)
+        {
+            SC_HANDLE hService = OpenService(hSCM, pwszServiceName, SERVICE_STOP | DELETE);
+            if (hService)
+            {
+                DWORD          dwErr;
+                SERVICE_STATUS Status;
+                RT_ZERO(Status);
+                fRet = ControlService(hService, SERVICE_CONTROL_STOP, &Status);
+                dwErr = GetLastError();
+                if (   fRet
+                    || dwErr == ERROR_SERVICE_NOT_ACTIVE
+                    || (   dwErr == ERROR_SERVICE_CANNOT_ACCEPT_CTRL
+                        && Status.dwCurrentState == SERVICE_STOP_PENDING) )
+                {
+                    fRet = DeleteService(hService);
+                    AssertMsg(fRet, ("Could not delete service %ls: %u\n", pwszServiceName, GetLastError()));
+                }
+                else
+                    AssertMsg(dwErr == ERROR_ACCESS_DENIED,
+                              ("Could not stop service %ls: %u (state=%u)\n", pwszServiceName, dwErr, Status.dwCurrentState));
+                CloseServiceHandle(hService);
+            }
+            else
+                AssertMsg(GetLastError() == ERROR_ACCESS_DENIED,
+                          ("Could not open service %ls: %u\n", pwszServiceName, GetLastError()));
+            CloseServiceHandle(hSCM);
+        }
+        else
+            AssertMsgFailed(("Could not open Service Manager: %u\n", GetLastError()));
+    }
+    return fRet;
+}
+
+
+/**
+ * Updates the VBoxSDS service with SCM.
+ *
+ * @param   pState              The registry modifier state.
+ * @param   pwszVBoxDir         The VirtualBox install directory (unicode),
+ *                              trailing slash.
+ */
+static void vbpsUpdateVBoxSDSWindowsService(VBPSREGSTATE *pState, const WCHAR *pwszVBoxDir)
+{
+    const WCHAR s_wszModuleName[]         = L"VBoxSDS.exe";
+    const WCHAR s_wszServiceName[]        = L"VBoxSDS";
+    const WCHAR s_wszServiceDisplayName[] = L"VirtualBox system service";
+    const WCHAR s_wszServiceDescription[] = L"Used as a COM server for VirtualBox API.";
 
     if (pState->fUpdate)
     {
-        if (!InstallWindowsService(wszVBoxDir,
-            wszModuleName,
-            wszServiceName,
-            wszServiceDisplayName,
-            wszServiceDescription))
+        if (!vbpsInstallWindowsService(pwszVBoxDir, s_wszModuleName, s_wszServiceName,
+                                       s_wszServiceDisplayName, s_wszServiceDescription))
         {
-            LogWarnFunc(("Error: Windows service '%ls' cannot be registered\n", wszServiceName));
+            LogWarnFunc(("Error: Windows service '%ls' cannot be registered\n", s_wszServiceName));
             pState->rc = E_FAIL;
         }
     }
-    else if(pState->fDelete)
+    else if (pState->fDelete)
     {
-        if (!UninstallWindowsService(wszServiceName))
+        if (!vbpsUninstallWindowsService(s_wszServiceName))
         {
-            LogWarnFunc(("Error: Windows service '%ls' cannot be unregistered\n", wszServiceName));
+            LogWarnFunc(("Error: Windows service '%ls' cannot be unregistered\n", s_wszServiceName));
             pState->rc = E_FAIL;
         }
     }
 }
+
+#endif /* VBOX_WITH_SDS */
 
 
 

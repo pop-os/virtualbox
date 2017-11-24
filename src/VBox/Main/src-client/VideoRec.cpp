@@ -15,6 +15,9 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef LOG_GROUP
+# undef LOG_GROUP
+#endif
 #define LOG_GROUP LOG_GROUP_MAIN_DISPLAY
 #include "LoggingNew.h"
 
@@ -31,7 +34,7 @@
 
 #include <VBox/com/VirtualBox.h>
 
-#include "EbmlWriter.h"
+#include "WebMWriter.h"
 #include "VideoRec.h"
 
 #ifdef VBOX_WITH_LIBVPX
@@ -203,6 +206,8 @@ typedef struct VIDEORECSTREAM
         VIDEORECVIDEOFRAME  Frame;
         bool                fHasVideoData;
 #endif
+        /** Number of failed attempts to encode the current video frame in a row. */
+        uint16_t            cFailedEncodingFrames;
     } Video;
 } VIDEORECSTREAM, *PVIDEORECSTREAM;
 
@@ -1040,9 +1045,11 @@ int VideoRecStreamInit(PVIDEORECCONTEXT pCtx, uint32_t uScreen)
     PVIDEORECCFG pCfg = &pCtx->Cfg;
 
     pStream->pCtx          = pCtx;
+
     /** @todo Make the following parameters configurable on a per-stream basis? */
-    pStream->Video.uWidth  = pCfg->Video.uWidth;
-    pStream->Video.uHeight = pCfg->Video.uHeight;
+    pStream->Video.uWidth                = pCfg->Video.uWidth;
+    pStream->Video.uHeight               = pCfg->Video.uHeight;
+    pStream->Video.cFailedEncodingFrames = 0;
 
 #ifndef VBOX_VIDEOREC_WITH_QUEUE
     /* When not using a queue, we only use one frame per stream at once.
@@ -1076,13 +1083,13 @@ int VideoRecStreamInit(PVIDEORECCONTEXT pCtx, uint32_t uScreen)
     {
         case VIDEORECDEST_FILE:
         {
-            rc = pStream->File.pWEBM->CreateEx(pStream->File.pszFile, &pStream->File.hFile,
+            rc = pStream->File.pWEBM->OpenEx(pStream->File.pszFile, &pStream->File.hFile,
 #ifdef VBOX_WITH_AUDIO_VIDEOREC
-                                               pCfg->Audio.fEnabled ? WebMWriter::AudioCodec_Opus : WebMWriter::AudioCodec_None,
+                                             pCfg->Audio.fEnabled ? WebMWriter::AudioCodec_Opus : WebMWriter::AudioCodec_None,
 #else
-                                               WebMWriter::AudioCodec_None,
+                                             WebMWriter::AudioCodec_None,
 #endif
-                                               pCfg->Video.fEnabled ? WebMWriter::VideoCodec_VP8 : WebMWriter::VideoCodec_None);
+                                             pCfg->Video.fEnabled ? WebMWriter::VideoCodec_VP8 : WebMWriter::VideoCodec_None);
             if (RT_FAILURE(rc))
             {
                 LogRel(("VideoRec: Failed to create the capture output file '%s' (%Rrc)\n", pStream->File.pszFile, rc));
@@ -1170,13 +1177,13 @@ int VideoRecStreamInit(PVIDEORECCONTEXT pCtx, uint32_t uScreen)
     rcv = vpx_codec_enc_init(&pVC->VPX.Ctx, DEFAULTCODEC, &pVC->VPX.Cfg, 0);
     if (rcv != VPX_CODEC_OK)
     {
-        LogFlow(("Failed to initialize VP8 encoder: %s\n", vpx_codec_err_to_string(rcv)));
+        LogRel(("VideoRec: Failed to initialize VP8 encoder: %s\n", vpx_codec_err_to_string(rcv)));
         return VERR_INVALID_PARAMETER;
     }
 
     if (!vpx_img_alloc(&pVC->VPX.RawImage, VPX_IMG_FMT_I420, pCfg->Video.uWidth, pCfg->Video.uHeight, 1))
     {
-        LogFlow(("Failed to allocate image %RU32x%RU32\n", pCfg->Video.uWidth, pCfg->Video.uHeight));
+        LogRel(("VideoRec: Failed to allocate image %RU32x%RU32\n", pCfg->Video.uWidth, pCfg->Video.uHeight));
         return VERR_NO_MEMORY;
     }
 
@@ -1296,7 +1303,7 @@ bool VideoRecIsLimitReached(PVIDEORECCONTEXT pCtx, uint32_t uScreen, uint64_t ts
 
         /* Check for available free disk space */
         if (   pStream->File.pWEBM
-            && pStream->File.pWEBM->GetAvailableSpace() < 0x100000) /**@todo r=andy WTF? Fix this. */
+            && pStream->File.pWEBM->GetAvailableSpace() < 0x100000) /** @todo r=andy WTF? Fix this. */
         {
             LogRel(("VideoRec: Not enough free storage space available, stopping video capture\n"));
             return true;
@@ -1334,9 +1341,14 @@ static int videoRecEncodeAndWrite(PVIDEORECSTREAM pStream, PVIDEORECVIDEOFRAME p
                                            pCfg->Video.Codec.VPX.uEncoderDeadline /* Quality setting */);
     if (rcv != VPX_CODEC_OK)
     {
-        LogFunc(("Failed to encode video frame: %s\n", vpx_codec_err_to_string(rcv)));
-        return VERR_GENERAL_FAILURE;
+        if (pStream->Video.cFailedEncodingFrames++ < 64)
+        {
+            LogRel(("VideoRec: Failed to encode video frame: %s\n", vpx_codec_err_to_string(rcv)));
+            return VERR_GENERAL_FAILURE;
+        }
     }
+
+    pStream->Video.cFailedEncodingFrames = 0;
 
     vpx_codec_iter_t iter = NULL;
     rc = VERR_NO_DATA;

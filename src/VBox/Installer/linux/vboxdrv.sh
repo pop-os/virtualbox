@@ -3,7 +3,7 @@
 # Linux kernel module init script
 
 #
-# Copyright (C) 2006-2015 Oracle Corporation
+# Copyright (C) 2006-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -383,13 +383,13 @@ cleanup()
            || test -e "${i}/misc/vboxpci.ko"; then
             rm -f "${i}/misc/vboxdrv.ko" "${i}/misc/vboxnetadp.ko" \
                   "${i}/misc/vboxnetflt.ko" "${i}/misc/vboxpci.ko"
-            # Remove the kernel version folder if it was empty except for us.
-            test   "`echo ${i}/misc/* ${i}/misc/.?* ${i}/* ${i}/.?*`" \
-                 = "${i}/misc/* ${i}/misc/.. ${i}/misc ${i}/.." &&
-                rmdir "${i}/misc" "${i}"  # We used to leave empty folders.
             version=`expr "${i}" : "/lib/modules/\(.*\)"`
             depmod -a "${version}"
         fi
+        # Remove the kernel version folder if it was empty except for us.
+        test   "`echo ${i}/misc/* ${i}/misc/.?* ${i}/* ${i}/.?*`" \
+             = "${i}/misc/* ${i}/misc/.. ${i}/misc ${i}/.." &&
+            rmdir "${i}/misc" "${i}"  # We used to leave empty folders.
     done
 }
 

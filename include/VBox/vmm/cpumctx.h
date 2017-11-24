@@ -134,7 +134,7 @@ typedef struct CPUMSYSENTER
 #ifdef VBOX_FOR_DTRACE_LIB
 # define CPUM_UNION_NM(a_Nm)  a_Nm
 # define CPUM_STRUCT_NM(a_Nm) a_Nm
-#elif defined(VBOX_WITHOUT_UNNAMED_UNIONS)
+#elif defined(IPRT_WITHOUT_NAMED_UNIONS_AND_STRUCTS)
 # define CPUM_UNION_NM(a_Nm)  a_Nm
 # define CPUM_STRUCT_NM(a_Nm) a_Nm
 #else
@@ -498,8 +498,8 @@ typedef struct CPUMCTX
                 uint16_t            cPauseFilterThreshold;
                 /** 950 - Whether the injected event is subject to event intercepts. */
                 bool                fInterceptEvents;
-                /** 951 - Padding. */
-                uint8_t             u8Padding1;
+                /** 951 - Whether parts of the VMCB are cached (and potentially modified) by HM. */
+                bool                fHMCachedVmcb;
                 /** 952 - MSR permission bitmap - R0 ptr. */
                 R0PTRTYPE(void *)   pvMsrBitmapR0;
                 /** 960 / 956 - MSR permission bitmap - R3 ptr. */

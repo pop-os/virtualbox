@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2016 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,12 @@
 /** Arbitrary limit */
 #define SVGA3D_MAX_SHADER_IDS                   0x800
 /** D3D allows up to 8 texture stages. */
-#define SVGA3D_MAX_TEXTURE_STAGE                8
+#define SVGA3D_MAX_TEXTURE_STAGES               8
+/** Samplers: 16 Pixel Shader + 1 Displacement Map + 4 Vertex Shader */
+#define SVGA3D_MAX_SAMPLERS_PS         16
+#define SVGA3D_MAX_SAMPLERS_DMAP       1
+#define SVGA3D_MAX_SAMPLERS_VS         4
+#define SVGA3D_MAX_SAMPLERS            (SVGA3D_MAX_SAMPLERS_PS + SVGA3D_MAX_SAMPLERS_DMAP + SVGA3D_MAX_SAMPLERS_VS)
 /** Arbitrary upper limit; seen 8 so far. */
 #define SVGA3D_MAX_LIGHTS                       32
 /** Arbitrary upper limit; 2GB enough for 32768x16384*4. */
@@ -207,7 +212,9 @@ char *vmsvga3dFormatRenderState(char *pszBuffer, size_t cbBuffer, SVGA3dRenderSt
 char *vmsvga3dFormatTextureState(char *pszBuffer, size_t cbBuffer, SVGA3dTextureState const *pTextureState);
 void vmsvga3dInfoHostWindow(PCDBGFINFOHLP pHlp, uint64_t idHostWindow);
 
-uint32_t vmsvga3dSurfaceFormatSize(SVGA3dSurfaceFormat format);
+uint32_t vmsvga3dSurfaceFormatSize(SVGA3dSurfaceFormat format,
+                                   uint32_t *pu32BlockWidth,
+                                   uint32_t *pu32BlockHeight);
 
 #ifdef LOG_ENABLED
 const char *vmsvga3dGetCapString(uint32_t idxCap);

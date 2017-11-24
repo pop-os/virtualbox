@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -348,7 +348,7 @@ static DECLCALLBACK(uint32_t) drvHostBaseGetRegionCount(PPDMIMEDIA pInterface)
     uint32_t cRegions = pThis->fMediaPresent ? 1 : 0;
 
     /* For now just return one region for all devices. */
-    /** @todo: Handle CD/DVD passthrough properly. */
+    /** @todo Handle CD/DVD passthrough properly. */
 
     LogFlowFunc(("returns %u\n", cRegions));
     return cRegions;

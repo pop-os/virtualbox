@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -72,7 +72,7 @@ int vboxClipboardSync (VBOXCLIPBOARDCLIENTDATA * /* pClient */)
 
 /**
  * Shut down the shared clipboard subsystem and "disconnect" the guest.
- * 
+ *
  * @param   pClient    Structure containing context information about the guest system
  */
 void vboxClipboardDisconnect (VBOXCLIPBOARDCLIENTDATA *pClient)

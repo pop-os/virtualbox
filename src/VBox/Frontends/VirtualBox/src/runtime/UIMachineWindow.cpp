@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -95,6 +95,17 @@ void UIMachineWindow::destroy(UIMachineWindow *pWhichWindow)
 
 void UIMachineWindow::prepare()
 {
+#ifdef VBOX_WS_X11
+    /* Prepare default class/name values: */
+    const QString strWindowClass = QString("VirtualBox Machine");
+    QString strWindowName = strWindowClass;
+    /* Check if we want Window Manager to distinguish Virtual Machine windows: */
+    if (gEDataManager->distinguishMachineWindowGroups(vboxGlobal().managedVMUuid()))
+        strWindowName = QString("VirtualBox Machine UUID: %1").arg(vboxGlobal().managedVMUuid());
+    /* Assign WM_CLASS property: */
+    vboxGlobal().setWMClass(this, strWindowName, strWindowClass);
+#endif
+
     /* Prepare session-connections: */
     prepareSessionConnections();
 
@@ -307,7 +318,10 @@ void UIMachineWindow::closeEvent(QCloseEvent *pCloseEvent)
                                                                   restrictedCloseActions);
         /* Configure close-dialog: */
         if (uisession() && uisession()->machineWindowIcon())
-            pCloseDlg->setPixmap(uisession()->machineWindowIcon()->pixmap(QSize(32, 32)));
+        {
+            const int iIconMetric = QApplication::style()->pixelMetric(QStyle::PM_LargeIconSize);
+            pCloseDlg->setPixmap(uisession()->machineWindowIcon()->pixmap(QSize(iIconMetric, iIconMetric)));
+        }
 
         /* Make sure close-dialog is valid: */
         if (pCloseDlg->isValid())
