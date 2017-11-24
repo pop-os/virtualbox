@@ -3,7 +3,7 @@ Author: Michael Meskes <meskes@debian.org>, Gianfranco Costamagna <locutusofborg
 
 --- a/src/VBox/Installer/linux/Makefile.include.header
 +++ b/src/VBox/Installer/linux/Makefile.include.header
-@@ -43,7 +43,7 @@
+@@ -46,7 +46,7 @@
  # (We have to support basic cross building (ARCH=i386|x86_64).)
  # While at it, warn about BUILD_* vars found to help with user problems.
  #
