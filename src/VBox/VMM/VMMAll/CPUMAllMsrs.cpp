@@ -412,9 +412,10 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32MtrrPhysBaseN(PVMCPU pVCpu, uint
     Assert(pRange->uValue == (idMsr - 0x200) / 2);
     RT_NOREF_PV(pVCpu); RT_NOREF_PV(idMsr); RT_NOREF_PV(uRawValue); RT_NOREF_PV(pRange);
 
-    if ((uValue & 0xff) >= 7)
+    uint8_t uType = uValue & 0xff;
+    if ((uType >= 7) || (uType == 2) || (uType == 3))
     {
-        Log(("CPUM: Invalid type set writing MTRR PhysBase MSR %#x: %#llx (%#llx)\n", idMsr, uValue, uValue & 0xff));
+        Log(("CPUM: Invalid type set writing MTRR PhysBase MSR %#x: %#llx (%#llx)\n", idMsr, uValue, uType));
         return VERR_CPUM_RAISE_GP_0;
     }
 
@@ -489,7 +490,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32MtrrFixed(PVMCPU pVCpu, uint32_t
     for (uint32_t cShift = 0; cShift < 63; cShift += 8)
     {
         uint8_t uType = (uint8_t)(uValue >> cShift);
-        if (uType >= 7)
+        if ((uType >= 7) || (uType == 2) || (uType == 3))
         {
             Log(("CPUM: Invalid MTRR type at %u:%u in fixed range (%#x/%s): %#llx (%#llx)\n",
                  cShift + 7, cShift, idMsr, pRange->szName, uValue, uType));
@@ -515,9 +516,10 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32MtrrDefType(PVMCPU pVCpu, uint32
 {
     RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange); RT_NOREF_PV(uRawValue);
 
-    if ((uValue & 0xff) >= 7)
+    uint8_t uType = uValue & 0xff;
+    if ((uType >= 7) || (uType == 2) || (uType == 3))
     {
-        Log(("CPUM: Invalid MTRR default type value on %s: %#llx (%#llx)\n", pRange->szName, uValue, uValue & 0xff));
+        Log(("CPUM: Invalid MTRR default type value on %s: %#llx (%#llx)\n", pRange->szName, uValue, uType));
         return VERR_CPUM_RAISE_GP_0;
     }
 
@@ -539,6 +541,19 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrRd_Ia32Pat(PVMCPU pVCpu, uint32_t idMsr
 static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Ia32Pat(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uValue, uint64_t uRawValue)
 {
     RT_NOREF_PV(idMsr); RT_NOREF_PV(pRange); RT_NOREF_PV(uRawValue);
+
+    for (uint32_t cShift = 0; cShift < 63; cShift += 8)
+    {
+        /* Check all eight bits because the top 5 bits of each byte are reserved. */
+        uint8_t uType = (uint8_t)(uValue >> cShift);
+        if ((uType >= 8) || (uType == 2) || (uType == 3))
+        {
+            Log(("CPUM: Invalid PAT type at %u:%u in IA32_PAT: %#llx (%#llx)\n",
+                 cShift + 7, cShift, uValue, uType));
+            return VERR_CPUM_RAISE_GP_0;
+        }
+    }
+
     pVCpu->cpum.s.Guest.msrPAT = uValue;
     return VINF_SUCCESS;
 }
@@ -1441,21 +1456,7 @@ static DECLCALLBACK(VBOXSTRICTRC) cpumMsrWr_Amd64Efer(PVMCPU pVCpu, uint32_t idM
     if (RT_FAILURE(rc))
         return VERR_CPUM_RAISE_GP_0;
 
-    pVCpu->cpum.s.Guest.msrEFER = uValidatedEfer;
-
-    /* AMD64 Architecture Programmer's Manual: 15.15 TLB Control; flush the TLB
-       if MSR_K6_EFER_NXE, MSR_K6_EFER_LME or MSR_K6_EFER_LMA are changed. */
-    if (   (uOldEfer                    & (MSR_K6_EFER_NXE | MSR_K6_EFER_LME | MSR_K6_EFER_LMA))
-        != (pVCpu->cpum.s.Guest.msrEFER & (MSR_K6_EFER_NXE | MSR_K6_EFER_LME | MSR_K6_EFER_LMA)))
-    {
-        /// @todo PGMFlushTLB(pVCpu, cr3, true /*fGlobal*/);
-        HMFlushTLB(pVCpu);
-
-        /* Notify PGM about NXE changes. */
-        if (   (uOldEfer                    & MSR_K6_EFER_NXE)
-            != (pVCpu->cpum.s.Guest.msrEFER & MSR_K6_EFER_NXE))
-            PGMNotifyNxeChanged(pVCpu, !(uOldEfer & MSR_K6_EFER_NXE));
-    }
+    CPUMSetGuestMsrEferNoCheck(pVCpu, uOldEfer, uValidatedEfer);
     return VINF_SUCCESS;
 }
 
@@ -6099,6 +6100,36 @@ VMMDECL(uint64_t) CPUMGetGuestScalableBusFrequency(PVM pVM)
     if (uFreq == CPUM_SBUSFREQ_UNKNOWN)
         uFreq = CPUM_SBUSFREQ_100MHZ;
     return uFreq;
+}
+
+
+/**
+ * Sets the guest EFER MSR without performing any additional checks.
+ *
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
+ * @param   uOldEfer    The previous EFER MSR value.
+ * @param   uValidEfer  The new, validated EFER MSR value.
+ *
+ * @remarks One would normally call CPUMQueryValidatedGuestEfer before calling this
+ *          function to change the EFER in order to perform an EFER transition.
+ */
+VMMDECL(void) CPUMSetGuestMsrEferNoCheck(PVMCPU pVCpu, uint64_t uOldEfer, uint64_t uValidEfer)
+{
+    pVCpu->cpum.s.Guest.msrEFER = uValidEfer;
+
+    /* AMD64 Architecture Programmer's Manual: 15.15 TLB Control; flush the TLB
+       if MSR_K6_EFER_NXE, MSR_K6_EFER_LME or MSR_K6_EFER_LMA are changed. */
+    if (   (uOldEfer                    & (MSR_K6_EFER_NXE | MSR_K6_EFER_LME | MSR_K6_EFER_LMA))
+        != (pVCpu->cpum.s.Guest.msrEFER & (MSR_K6_EFER_NXE | MSR_K6_EFER_LME | MSR_K6_EFER_LMA)))
+    {
+        /// @todo PGMFlushTLB(pVCpu, cr3, true /*fGlobal*/);
+        HMFlushTLB(pVCpu);
+
+        /* Notify PGM about NXE changes. */
+        if (   (uOldEfer                    & MSR_K6_EFER_NXE)
+            != (pVCpu->cpum.s.Guest.msrEFER & MSR_K6_EFER_NXE))
+            PGMNotifyNxeChanged(pVCpu, !(uOldEfer & MSR_K6_EFER_NXE));
+    }
 }
 
 

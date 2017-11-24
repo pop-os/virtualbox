@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2016 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -161,8 +161,8 @@ void UINetworkRequest::sltCancel()
 void UINetworkRequest::prepare()
 {
     /* Prepare listeners for network-manager: */
-    connect(manager(), SIGNAL(sigCancelNetworkRequests()),
-            this, SLOT(sltCancel()), Qt::QueuedConnection);
+    connect(manager(), &UINetworkManager::sigCancelNetworkRequests,
+            this, &UINetworkRequest::sltCancel, Qt::QueuedConnection);
 
     /* Choose first url as current: */
     m_iUrlIndex = 0;
@@ -182,9 +182,10 @@ void UINetworkRequest::prepareNetworkReply()
     AssertPtrReturnVoid(m_pReply.data());
     {
         /* Prepare network-reply: */
-        connect(m_pReply, SIGNAL(downloadProgress(qint64, qint64)),
-                this, SLOT(sltHandleNetworkReplyProgress(qint64, qint64)));
-        connect(m_pReply, SIGNAL(finished()), this, SLOT(sltHandleNetworkReplyFinish()));
+        connect(m_pReply.data(), &UINetworkReply::downloadProgress,
+                this, &UINetworkRequest::sltHandleNetworkReplyProgress);
+        connect(m_pReply.data(), &UINetworkReply::finished,
+                this, &UINetworkRequest::sltHandleNetworkReplyFinish);
 
         /* Mark network-reply as running: */
         m_fRunning = true;

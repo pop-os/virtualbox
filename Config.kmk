@@ -19,7 +19,8 @@
 #
 
 # Marker.
-VBOX_ROOT_CONFIG_KMK_INCLUDED = 1
+VBOX_ROOT_CONFIG_KMK_INCLUDED  = 1
+
 
 #
 # kBuild stuff
@@ -156,6 +157,7 @@ VBOX_PATH_ADDITIONS_ISO = $(patsubst %/,%,$(PATH_STAGE)/$(INST_ADDITIONS_ISO))
 VBOX_PATH_ADDITIONS_LIB = $(patsubst %/,%,$(PATH_STAGE)/$(INST_ADDITIONS_LIB))
 VBOX_PATH_EXTPACK_PUEL= $(patsubst %/,%,$(PATH_STAGE)/$(INST_EXTPACK_PUEL))
 VBOX_PATH_PACKAGES    = $(patsubst %/,%,$(PATH_STAGE)/$(INST_PACKAGES))
+VBOX_PATH_TOOLS       = $(patsubst %/,%,$(PATH_STAGE)/$(VBOX_INST_TOOLS))
 
 
 # Delete targets on failure.
@@ -166,10 +168,16 @@ if  $(KBUILD_VERSION_MAJOR) == 0 \
  && (   $(KBUILD_VERSION_MINOR) >= 2 \
      || (   $(KBUILD_VERSION_MINOR) == 1 \
          && $(KBUILD_VERSION_PATCH) >= 999))
- if $(KMK_REVISION) >= 2689
-  # OK.
+ VBOX_MIN_KMK_REVISION        := 3093
+ VBOX_MIN_KBUILD_KMK_REVISION := $(if-expr "$(KBUILD_HOST)" == "win",3097,3074)
+ if $(KMK_REVISION) >= $(VBOX_MIN_KMK_REVISION)
+  if $(KBUILD_KMK_REVISION) >= $(VBOX_MIN_KBUILD_KMK_REVISION)
+   # OK.
+  else
+   $(error You must update kBuild! Requires kBuild binaries $(VBOX_MIN_KBUILD_KMK_REVISION) or later, kmk says $(KBUILD_KMK_REVISION) ($(KBUILD_VERSION)))
+  endif
  else
-  $(error You must update kBuild! Requires kBuild revision 2577 or later, found $(KMK_REVISION) ($(KBUILD_VERSION)))
+  $(error You must update kBuild! Requires kBuild revision $(VBOX_MIN_KMK_REVISION) or later, found $(KMK_REVISION) ($(KBUILD_VERSION)))
  endif
 else
  $(error You must update kBuild! Requires 0.1.999 or later, found $(KBUILD_VERSION))
@@ -210,9 +218,20 @@ VBOX_VERSION_STRING_RAW = $(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VER
 #       prerelease from different publishers correctly.
 VBOX_VERSION_STRING = $(VBOX_VERSION_STRING_RAW)$(addprefix _,$(VBOX_VERSION_PRERELEASE))$(VBOX_BUILD_PUBLISHER)
 
+
+## Make a numeric value from the major, minor and build numbers (params)
+VBOX_FULL_VERSION_MAKE = $(expr ($1 << 24) | ($2 << 16) | $3)
+
+## Checks if the current VBox version is higher or equal to the major, minor and
+# build numbers given as parameters.
+# @returns 1 if true, 0 if false.  For use with 'if'.
+VBOX_VERSION_PREREQ = $(expr $(call VBOX_FULL_VERSION_MAKE,$(VBOX_VERSION_MAJOR),$(VBOX_VERSION_MINOR),$(VBOX_VERSION_BUILD)) \
+			     >= $(call VBOX_FULL_VERSION_MAKE,$1,$2,$3))
+
+
 # Force the additions.sh script to get an exact additions build when we're doing the release.
 ifeq ($(int-mod $(VBOX_VERSION_BUILD),2),0)
-  ifeq ($VBOX_VERSION_PRERELEASE),)
+  ifeq ($(VBOX_VERSION_PRERELEASE),)
     VBOX_RELEASE_EXACT_MATCH=1
   endif
 endif
@@ -2687,6 +2706,7 @@ endif
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-return-type-c-linkage ?= $(call VBOX_GCC_CHECK_CXX,-Wno-return-type-c-linkage,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-string-plus-int ?= $(call VBOX_GCC_CHECK_CC,-Wno-string-plus-int,)'
 	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-nested-anon-types ?= $(call VBOX_GCC_CHECK_CC,-Wno-nested-anon-types,)'
+	$(QUIET)$(APPEND) '$@' 'VBOX_GCC_Wno-gnu-anonymous-struct ?= $(call VBOX_GCC_CHECK_CXX,-Wno-gnu-anonymous-struct,)'
 # C++ Std settings
 	$(QUIET)$(APPEND) '$@' 'ifneq ($$(VBOX_GCC_VERSION_CXX),)'
 	$(QUIET)$(APPEND) '$@' ' ifneq ($$(int-ge $$(VBOX_GCC_VERSION_CXX),40800),)'
@@ -2790,8 +2810,8 @@ endif # !VBOX_NOINC_DYNAMIC_CONFIG_KMK
 #
 VBOX_GCC_WARN     ?= -Wall $(VBOX_GCC_Wextra) $(VBOX_GCC_Wno-missing-field-initializers) -Wno-unused -Wno-trigraphs \
 	$(VBOX_GCC_fdiagnostics-show-option) $(VBOX_GCC_Wno-unused-parameter) $(VBOX_GCC_Wno-language-extension-token) \
-	$(VBOX_GCC_Wno-extended-offsetof) $(VBOX_GCC_Wno-gnu-folding-constant) $(VBOX_GCC_Wlogical-op) \
-	$(VBOX_GCC_Wno-string-plus-int) $(VBOX_GCC_Wno-nested-anon-types) $(VBOX_GCC_Wno-variadic-macros)
+	$(VBOX_GCC_Wno-extended-offsetof) $(VBOX_GCC_Wno-gnu-folding-constant) $(VBOX_GCC_Wno-gnu-anonymous-struct) \
+       $(VBOX_GCC_Wlogical-op) $(VBOX_GCC_Wno-string-plus-int) $(VBOX_GCC_Wno-nested-anon-types) $(VBOX_GCC_Wno-variadic-macros)
 VBOX_GCC_WARN_PEDANTIC = -Wshadow $(VBOX_GCC_WARN) -Wno-long-long
 if $(VBOX_GCC_VERSION_CXX) >= 40200 || defined(VBOX_WITH_MASOCHISTIC_WARNINGS) # gcc 4.2.x+ (4.1.2 is causing trouble with the extpack & add builds)
  VBOX_GCC_WARN_MASOCHISTIC ?= -Wunused-variable -Wunused-function -Wunused-label -Wunused-parameter
@@ -4196,7 +4216,38 @@ ifeq ($(KBUILD_TARGET),win)
 endif
 
 ifeq ($(KBUILD_TARGET),linux)
-TEMPLATE_VBOXR0DRV_TOOL                = $(NO_SUCH_VARIABLE)
+ TEMPLATE_VBOXR0DRV_TOOL                = $(NO_SUCH_VARIABLE)
+
+ ifndef KERN_DIR
+  ifndef KERN_VER
+   KERN_VER=$(patsubst /lib/modules/%/build/.config,%,$(firstword $(shell LC_ALL=C ls -t /lib/modules/*/build/.config 2>/dev/null)))
+  endif
+  ifeq ($(KERN_VER),)
+   KERN_VER=`uname -r`
+  endif
+  KERN_DIR=/lib/modules/$(KERN_VER)/build
+ endif
+
+##
+# Using the extra expansion to replace $(module) before eval, thus everything
+# else needs escaped dollars.
+ define VBOX_LINUX_GENERATE_KMOD_TEST
+  VBOX_TARGET_$(module) = $$(PATH_TARGET)/tst$(module)$(subst /,_,$(KERN_DIR))_mod.run
+  TESTING      += $$(VBOX_TARGET_$(module))
+  OTHERS       += $$(VBOX_TARGET_$(module))
+  OTHERS_CLEAN += $$(VBOX_TARGET_$(module))
+  $$(VBOX_TARGET_$(module)): $$$$($(module)_2_STAGE_TARGETS)
+	$(QUIET)$$(call MSG_L1,Doing a test build of the $(module) kernel module)
+	$(QUIET)$$(RM) -f -- "$$@"
+	$(QUIET)$$(RM) -Rf -- "$$(PATH_TARGET)/tst$(module)_mod"
+	$(QUIET)$$(MKDIR) -p -- "$$(PATH_TARGET)/tst$(module)_mod"
+	$(QUIET)$$(CP) -R -- "$$(PATH_STAGE_BIN)/../$$($(module)_INST)" "$$(PATH_TARGET)/tst$(module)_mod/"
+	+ $(QUIET)make KBUILD_VERBOSE=$(KBUILD_VERBOSE) KERN_DIR=$(KERN_DIR) -C $$(PATH_TARGET)/tst$(module)_mod clean
+	+ $(QUIET)make KBUILD_VERBOSE=$(KBUILD_VERBOSE) KERN_DIR=$(KERN_DIR) $(if-expr $(KMK_OPTS_JOBS) != 1,JOBS=$(KMK_OPTS_JOBS),) -C $$(PATH_TARGET)/tst$(module)_mod
+	$(QUIET)$$(RM) -Rf -- $$(PATH_TARGET)/tst$(module)_mod
+	$(QUIET)$$(APPEND) -t "$$@" "done"
+ endef
+
 endif
 
 ifeq ($(KBUILD_TARGET),os2)
@@ -7046,7 +7097,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 118415 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 119230 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=
@@ -7229,7 +7280,4 @@ up2 update2::
 
 st stat status:
 	$(SVN) status
-
-
-
 

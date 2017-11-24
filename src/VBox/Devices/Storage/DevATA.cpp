@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2016 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -137,6 +137,7 @@
 /** @} */
 
 /** @} */
+
 
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
@@ -2486,7 +2487,7 @@ static bool atapiR3ReadTrackInformationSS(ATADevState *s)
                                                             &cBlocks, &cbBlock, &enmDataForm);
             }
             else
-                rc = VERR_NOT_FOUND; /** @todo: Return lead-in information. */
+                rc = VERR_NOT_FOUND; /** @todo Return lead-in information. */
             break;
         }
         case 0x02:

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2016 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,6 +31,7 @@
 # include <QSpinBox>
 
 /* GUI includes: */
+# include "UIDesktopWidgetWatchdog.h"
 # include "UIPortForwardingTable.h"
 # include "UIMessageCenter.h"
 # include "UIConverter.h"
@@ -937,8 +938,8 @@ UIPortForwardingTable::UIPortForwardingTable(const UIPortForwardingDataList &rul
     /* Retranslate dialog: */
     retranslateUi();
 
-    /* Minimum Size: */
-    setMinimumSize(600, 250);
+    /* Limit the minimum size to 33% of screen size: */
+    setMinimumSize(gpDesktop->screenGeometry(this).size() / 3);
 }
 
 const UIPortForwardingDataList UIPortForwardingTable::rules() const

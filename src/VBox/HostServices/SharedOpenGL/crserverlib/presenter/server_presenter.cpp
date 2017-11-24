@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2012-2016 Oracle Corporation
+ * Copyright (C) 2012-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1241,7 +1241,7 @@ int CrFbEntryCreateForTexId(CR_FRAMEBUFFER *pFb, GLuint idTexture, uint32_t fFla
     int rc = CrFbEntryCreateForTexData(pFb, pTex, fFlags, phEntry);
     if (!RT_SUCCESS(rc))
     {
-    	WARN(("CrFbEntryCreateForTexData failed rc %d", rc));
+        WARN(("CrFbEntryCreateForTexData failed rc %d", rc));
     }
 
     /*always release the tex, the CrFbEntryCreateForTexData will do incref as necessary */

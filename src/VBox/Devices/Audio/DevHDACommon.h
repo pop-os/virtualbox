@@ -230,7 +230,11 @@ extern const HDAREGDESC g_aHdaRegMap[HDA_NUM_REGS];
 
 #define HDA_REG_CORBSIZE            21          /* 0x4E */
 #define HDA_RMX_CORBSIZE            19
-/** NB: Up to and including ICH 10, sizes of CORB and RIRB are fixed at 256 entries. */
+
+/** Number of CORB buffer entries. */
+#define HDA_CORB_SIZE               256
+/** Number of RIRB buffer entries. */
+#define HDA_RIRB_SIZE               256
 
 #define HDA_REG_RIRBLBASE           22          /* 0x50 */
 #define HDA_RMX_RIRBLBASE           20
@@ -244,7 +248,9 @@ extern const HDAREGDESC g_aHdaRegMap[HDA_NUM_REGS];
 
 #define HDA_REG_RINTCNT             25          /* 0x5A */
 #define HDA_RMX_RINTCNT             23
-#define RINTCNT_N(pThis)            (HDA_REG(pThis, RINTCNT) & 0xff)
+
+/** Maximum number of Response Interrupts. */
+#define HDA_MAX_RINTCNT             256
 
 #define HDA_REG_RIRBCTL             26          /* 0x5C */
 #define HDA_RMX_RIRBCTL             24

@@ -1320,6 +1320,11 @@ bool UISelectorWindow::eventFilter(QObject *pObject, QEvent *pEvent)
 
 void UISelectorWindow::prepare()
 {
+#ifdef VBOX_WS_X11
+    /* Assign same name to both WM_CLASS name & class for now: */
+    vboxGlobal().setWMClass(this, "VirtualBox Manager", "VirtualBox Manager");
+#endif
+
 #ifdef VBOX_WS_MAC
     /* We have to make sure that we are getting the front most process: */
     ::darwinSetFrontMostProcess();
@@ -1806,7 +1811,7 @@ void UISelectorWindow::prepareToolbar()
         m_pToolBar->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
         m_pToolBar->setContextMenuPolicy(Qt::CustomContextMenu);
         m_pToolBar->setToolButtonStyle(Qt::ToolButtonTextUnderIcon);
-        // TODO: Get rid of hard-coded stuff:
+        /// @todo Get rid of hard-coded stuff:
         const QSize toolBarIconSize = m_pToolBar->iconSize();
         if (toolBarIconSize.width() < 32 || toolBarIconSize.height() < 32)
             m_pToolBar->setIconSize(QSize(32, 32));
@@ -1835,7 +1840,9 @@ void UISelectorWindow::prepareToolbar()
         AssertPtrReturnVoid(m_pTabBarMachine);
         {
             /* Configure tab-bar: */
-            m_pTabBarMachine->setContentsMargins(10, 0, 10, 0);
+            const int iL = qApp->style()->pixelMetric(QStyle::PM_LayoutLeftMargin) / 2;
+            const int iR = qApp->style()->pixelMetric(QStyle::PM_LayoutRightMargin) / 2;
+            m_pTabBarMachine->setContentsMargins(iL, 0, iR, 0);
 
             /* Add into toolbar: */
             m_pActionTabBarMachine = m_pToolBar->addWidget(m_pTabBarMachine);
@@ -1846,7 +1853,9 @@ void UISelectorWindow::prepareToolbar()
         AssertPtrReturnVoid(m_pTabBarGlobal);
         {
             /* Configure tab-bar: */
-            m_pTabBarGlobal->setContentsMargins(10, 0, 10, 0);
+            const int iL = qApp->style()->pixelMetric(QStyle::PM_LayoutLeftMargin) / 2;
+            const int iR = qApp->style()->pixelMetric(QStyle::PM_LayoutRightMargin) / 2;
+            m_pTabBarGlobal->setContentsMargins(iL, 0, iR, 0);
 
             /* Add into toolbar: */
             m_pActionTabBarGlobal = m_pToolBar->addWidget(m_pTabBarGlobal);
