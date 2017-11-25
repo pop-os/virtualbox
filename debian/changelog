@@ -1,3 +1,10 @@
+virtualbox (5.2.2-dfsg-2) unstable; urgency=medium
+
+  * The new release didn't fix the build failure
+    reapply the fix-build patch (Closes: #882647)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sat, 25 Nov 2017 09:59:58 +0100
+
 virtualbox (5.2.2-dfsg-1) unstable; urgency=medium
 
   * New upstream release (Closes: #880068)
