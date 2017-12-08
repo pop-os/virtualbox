@@ -1,3 +1,11 @@
+virtualbox (5.2.2-dfsg-3) unstable; urgency=high
+
+  * debian/patches/69989.patch:
+    - cherry-pick fix for GL stuff, breaking login screen
+      on ubuntu 17.10+ releases (virtualbox-guest-x11 package)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 08 Dec 2017 20:06:25 +0100
+
 virtualbox (5.2.2-dfsg-2) unstable; urgency=medium
 
   * The new release didn't fix the build failure
