@@ -333,6 +333,36 @@ int VGSvcLogCreate(const char *pszLogFile)
 }
 
 
+/**
+ * Logs a verbose message.
+ *
+ * @param   pszFormat   The message text.
+ * @param   va          Format arguments.
+ */
+void VGSvcLogV(const char *pszFormat, va_list va)
+{
+#ifdef DEBUG
+    int rc = RTCritSectEnter(&g_csLog);
+    if (RT_SUCCESS(rc))
+    {
+#endif
+        char *psz = NULL;
+        RTStrAPrintfV(&psz, pszFormat, va);
+
+        AssertPtr(psz);
+        LogRel(("%s", psz));
+
+        RTStrFree(psz);
+#ifdef DEBUG
+        RTCritSectLeave(&g_csLog);
+    }
+#endif
+}
+
+
+/**
+ * Destroys the currently active logging instance.
+ */
 void VGSvcLogDestroy(void)
 {
     RTLogDestroy(RTLogRelSetDefaultInstance(NULL));
@@ -414,7 +444,8 @@ RTEXITCODE VGSvcError(const char *pszFormat, ...)
 
 
 /**
- * Displays a verbose message.
+ * Displays a verbose message based on the currently
+ * set global verbosity level.
  *
  * @param   iLevel      Minimum log level required to display this message.
  * @param   pszFormat   The message text.
@@ -424,25 +455,10 @@ void VGSvcVerbose(unsigned iLevel, const char *pszFormat, ...)
 {
     if (iLevel <= g_cVerbosity)
     {
-#ifdef DEBUG
-        int rc = RTCritSectEnter(&g_csLog);
-        if (RT_SUCCESS(rc))
-        {
-#endif
-            va_list args;
-            va_start(args, pszFormat);
-            char *psz = NULL;
-            RTStrAPrintfV(&psz, pszFormat, args);
-            va_end(args);
-
-            AssertPtr(psz);
-            LogRel(("%s", psz));
-
-            RTStrFree(psz);
-#ifdef DEBUG
-            RTCritSectLeave(&g_csLog);
-        }
-#endif
+        va_list va;
+        va_start(va, pszFormat);
+        VGSvcLogV(pszFormat, va);
+        va_end(va);
     }
 }
 

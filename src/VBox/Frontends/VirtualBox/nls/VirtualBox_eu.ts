@@ -171,7 +171,7 @@
 <context>
     <name>QIMessageBox</name>
     <message>
-        <location filename="../src/extensions/QIMessageBox.cpp" line="+302"/>
+        <location filename="../src/extensions/QIMessageBox.cpp" line="+299"/>
         <location filename="../src/globals/UIMessageCenter.cpp" line="+1887"/>
         <location filename="../src/widgets/UIPopupPaneButtonPane.cpp" line="+180"/>
         <source>OK</source>
@@ -1680,7 +1680,7 @@
         <translation>Aurreikuspen Monitorea %1</translation>
     </message>
     <message>
-        <location line="+1605"/>
+        <location line="+1608"/>
         <source>&amp;Connect Network Adapter</source>
         <translation>&amp;Elkarketatu Sare Egokitzailea</translation>
     </message>
@@ -3242,7 +3242,7 @@
 <context>
     <name>UIGMachinePreview</name>
     <message>
-        <location filename="../src/selector/graphics/details/UIGMachinePreview.cpp" line="+356"/>
+        <location filename="../src/selector/graphics/details/UIGMachinePreview.cpp" line="+365"/>
         <source>Every 0.5 s</source>
         <translation>0.5 seg-tik behin</translation>
     </message>
@@ -7074,7 +7074,7 @@
         <translation type="obsolete">Hautaturiko agiritegi elkarbanatu adiera kentzen du.</translation>
     </message>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsSF.cpp" line="+623"/>
+        <location filename="../src/settings/machine/UIMachineSettingsSF.cpp" line="+625"/>
         <source> Machine Folders</source>
         <translation> Makina Agiritegiak</translation>
     </message>
@@ -7084,12 +7084,12 @@
         <translation> Aldaketa agiritegiak</translation>
     </message>
     <message>
-        <location line="-643"/>
+        <location line="-645"/>
         <source>Full</source>
         <translation>Osoa</translation>
     </message>
     <message>
-        <location line="+247"/>
+        <location line="+249"/>
         <source>Add Shared Folder</source>
         <translation>Gehitu Elkarbanatutako Agiritegia</translation>
     </message>
@@ -7119,7 +7119,7 @@
         <translation>Elkarbanatutako agiritegi berria kentzen du.</translation>
     </message>
     <message>
-        <location line="-253"/>
+        <location line="-255"/>
         <source>Read-only</source>
         <translation>Irakurri-bakarrik</translation>
     </message>
@@ -8654,7 +8654,7 @@
 <context>
     <name>UIMachineWindow</name>
     <message>
-        <location filename="../src/runtime/UIMachineWindow.cpp" line="+245"/>
+        <location filename="../src/runtime/UIMachineWindow.cpp" line="+250"/>
         <source> EXPERIMENTAL build %1r%2 - %3</source>
         <translation> ESPERIMENTALA eraiketa %1r%2 - %3</translation>
     </message>
@@ -8755,7 +8755,7 @@
         <translation type="unfinished"></translation>
     </message>
     <message>
-        <location line="+637"/>
+        <location line="+636"/>
         <source>Location can not be empty.</source>
         <translation type="unfinished"></translation>
     </message>
@@ -9060,7 +9060,7 @@
         <translation type="obsolete">It&amp;xi</translation>
     </message>
     <message>
-        <location filename="../src/medium/UIMediumDetailsWidget.cpp" line="-666"/>
+        <location filename="../src/medium/UIMediumDetailsWidget.cpp" line="-665"/>
         <location filename="../src/medium/UIMediumManager.cpp" line="-2128"/>
         <source>Current extension (*.%1)</source>
         <translation type="unfinished"></translation>
@@ -10953,7 +10953,7 @@
 <context>
     <name>UINetworkManagerDialog</name>
     <message>
-        <location filename="../src/net/UINetworkManagerDialog.cpp" line="+160"/>
+        <location filename="../src/net/UINetworkManagerDialog.cpp" line="+159"/>
         <source>Network Operations Manager</source>
         <translation>Sare Eragiketa Kudeatzailea</translation>
     </message>
@@ -10977,7 +10977,7 @@
         <translation type="obsolete">Akatsa: %1.</translation>
     </message>
     <message>
-        <location filename="../src/net/UINetworkRequestWidget.cpp" line="+230"/>
+        <location filename="../src/net/UINetworkRequestWidget.cpp" line="+235"/>
         <source>The network operation failed with the following error: %1.</source>
         <translation>Sare eragiketak huts egin du hurrengo akatsarekin: %1.</translation>
     </message>
@@ -11983,7 +11983,7 @@
 <context>
     <name>UIVMCloseDialog</name>
     <message>
-        <location filename="../src/runtime/UIVMCloseDialog.cpp" line="+401"/>
+        <location filename="../src/runtime/UIVMCloseDialog.cpp" line="+410"/>
         <source>Close Virtual Machine</source>
         <translation>Itxi Makina Birtuala</translation>
     </message>
@@ -12200,19 +12200,19 @@
 <context>
     <name>UIVMLogViewer</name>
     <message>
-        <location filename="../src/UIVMLogViewer.cpp" line="+274"/>
-        <location line="+393"/>
+        <location filename="../src/UIVMLogViewer.cpp" line="+272"/>
+        <location line="+391"/>
         <source>Close the search panel</source>
         <translation>Itxi bilaketa panela</translation>
     </message>
     <message>
-        <location line="-391"/>
-        <location line="+808"/>
+        <location line="-389"/>
+        <location line="+806"/>
         <source>&amp;Find</source>
         <translation>&amp;Bilatu</translation>
     </message>
     <message>
-        <location line="-807"/>
+        <location line="-805"/>
         <source>Enter a search string here</source>
         <translation>Sartu bilaketa kate bat hemen</translation>
     </message>
@@ -12252,7 +12252,7 @@
         <translation>Katea ez da aurkitu</translation>
     </message>
     <message>
-        <location line="+381"/>
+        <location line="+379"/>
         <source>Filter</source>
         <translation type="unfinished"></translation>
     </message>
@@ -12339,7 +12339,7 @@
         <translation type="obsolete">Erakutsi Azalpena</translation>
     </message>
     <message>
-        <location filename="../src/wizards/UIWizard.cpp" line="+109"/>
+        <location filename="../src/wizards/UIWizard.cpp" line="+110"/>
         <source>&amp;Expert Mode</source>
         <translation>&amp;Aditu Modua</translation>
     </message>
@@ -12421,7 +12421,7 @@
     </message>
     <message>
         <location filename="../src/wizards/clonevd/UIWizardCloneVDPageBasic3.cpp" line="+133"/>
-        <location filename="../src/wizards/clonevd/UIWizardCloneVDPageExpert.cpp" line="+264"/>
+        <location filename="../src/wizards/clonevd/UIWizardCloneVDPageExpert.cpp" line="+262"/>
         <source>Storage on physical hard disk</source>
         <translation>Biltegiratu diska gogor fisikoan</translation>
     </message>
@@ -12649,7 +12649,7 @@
     </message>
     <message>
         <location filename="../src/wizards/clonevm/UIWizardCloneVMPageBasic1.cpp" line="+64"/>
-        <location filename="../src/wizards/clonevm/UIWizardCloneVMPageExpert.cpp" line="+53"/>
+        <location filename="../src/wizards/clonevm/UIWizardCloneVMPageExpert.cpp" line="+51"/>
         <source>%1 Clone</source>
         <translation>%1 Klona</translation>
     </message>
@@ -12826,7 +12826,7 @@
     </message>
     <message>
         <location line="+1"/>
-        <location filename="../src/wizards/exportappliance/UIWizardExportAppPageExpert.cpp" line="+237"/>
+        <location filename="../src/wizards/exportappliance/UIWizardExportAppPageExpert.cpp" line="+235"/>
         <source>Sun &amp;Cloud</source>
         <translation>Sun &amp;Cloud</translation>
     </message>
@@ -13067,7 +13067,7 @@
         <translation>Hasi</translation>
     </message>
     <message>
-        <location filename="../src/wizards/firstrun/UIWizardFirstRunPageBasic.cpp" line="+113"/>
+        <location filename="../src/wizards/firstrun/UIWizardFirstRunPageBasic.cpp" line="+111"/>
         <source>&lt;p&gt;Please select a virtual optical disk file or a physical optical drive containing a disk to start your new virtual machine from.&lt;/p&gt;&lt;p&gt;The disk should be suitable for starting a computer from and should contain the operating system you wish to install on the virtual machine if you want to do that now. The disk will be ejected from the virtual drive automatically next time you switch the virtual machine off, but you can also do this yourself if needed using the Devices menu.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Mesedez hautatu zure makina birtual berria bertatik abiarazteko diska optiko birtual agiri bat edo diska duen gidagailu optiko fisiko bat.&lt;/p&gt;&lt;p&gt;Diska bertatik ordenagailu bat abiarazteko bezala egon behar da eta makina birtualean ezartzea nahi duzun sistema eragilea eduki behar du orain egitea nahi baduzu. Diska gidagailu birtualetik berezgaitasunez aterako da makina birtuala itzaltzen duzun hurrengoan, baina hau zeuk ere egin dezakezu beharrezkoa bada Gailuak menua erabiliz.&lt;/p&gt;</translation>
     </message>
@@ -13096,7 +13096,7 @@
     </message>
     <message>
         <location filename="../src/wizards/importappliance/UIWizardImportAppPageBasic1.cpp" line="+66"/>
-        <location filename="../src/wizards/importappliance/UIWizardImportAppPageExpert.cpp" line="+101"/>
+        <location filename="../src/wizards/importappliance/UIWizardImportAppPageExpert.cpp" line="+99"/>
         <source>Appliance to import</source>
         <translation>Inportatzeko gailua</translation>
     </message>
@@ -13229,7 +13229,7 @@
     </message>
     <message>
         <location filename="../src/wizards/newvd/UIWizardNewVDPageBasic2.cpp" line="+126"/>
-        <location filename="../src/wizards/newvd/UIWizardNewVDPageExpert.cpp" line="+229"/>
+        <location filename="../src/wizards/newvd/UIWizardNewVDPageExpert.cpp" line="+227"/>
         <source>Storage on physical hard disk</source>
         <translation>Biltegiratu diska gogor fisikoan</translation>
     </message>
@@ -13352,7 +13352,7 @@
     </message>
     <message>
         <location filename="../src/wizards/newvm/UIWizardNewVMPageBasic1.cpp" line="+311"/>
-        <location filename="../src/wizards/newvm/UIWizardNewVMPageExpert.cpp" line="+227"/>
+        <location filename="../src/wizards/newvm/UIWizardNewVMPageExpert.cpp" line="+225"/>
         <source>Name and operating system</source>
         <translation>Izena eta sistema eragilea</translation>
     </message>
@@ -15614,7 +15614,7 @@
 <context>
     <name>VBoxLicenseViewer</name>
     <message>
-        <location filename="../src/VBoxLicenseViewer.cpp" line="+96"/>
+        <location filename="../src/VBoxLicenseViewer.cpp" line="+94"/>
         <source>VirtualBox License</source>
         <translation>VirtualBox Baimena</translation>
     </message>

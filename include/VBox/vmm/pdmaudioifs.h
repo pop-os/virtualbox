@@ -136,6 +136,7 @@
 
 #include <iprt/circbuf.h>
 #include <iprt/list.h>
+#include <iprt/path.h>
 
 #include <VBox/types.h>
 #ifdef VBOX_WITH_STATISTICS
@@ -146,6 +147,14 @@
  * @ingroup grp_pdm_interfaces
  * @{
  */
+
+#ifndef VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH
+# ifdef RT_OS_WINDOWS
+#  define VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "c:\\temp\\"
+# else
+#  define VBOX_AUDIO_DEBUG_DUMP_PCM_DATA_PATH "/tmp/"
+# endif
+#endif
 
 /** PDM audio driver instance flags. */
 typedef uint32_t PDMAUDIODRVFLAGS;
@@ -732,7 +741,7 @@ typedef struct PDMAUDIOMIXBUF
     /** Number of children mix buffers kept in lstChildren. */
     uint32_t                  cChildren;
     /** Intermediate structure for buffer conversion tasks. */
-    PPDMAUDIOSTREAMRATE         pRate;
+    PPDMAUDIOSTREAMRATE       pRate;
     /** Internal representation of current volume used for mixing. */
     PDMAUDMIXBUFVOL           Volume;
     /** This buffer's audio format. */
@@ -758,8 +767,15 @@ typedef struct PDMAUDIOMIXBUF
 
 typedef uint32_t PDMAUDIOFILEFLAGS;
 
-/* No flags defined. */
-#define PDMAUDIOFILEFLAG_NONE            0
+/** No flags defined. */
+#define PDMAUDIOFILE_FLAG_NONE          0
+/** Keep the audio file even if it contains no audio data. */
+#define PDMAUDIOFILE_FLAG_KEEP_IF_EMPTY RT_BIT(0)
+/** Audio file flag validation mask. */
+#define PDMAUDIOFILE_FLAG_VALID_MASK    0x1
+
+/** Audio file default open flags. */
+#define PDMAUDIOFILE_DEFAULT_OPEN_FLAGS (RTFILE_O_OPEN_CREATE | RTFILE_O_APPEND | RTFILE_O_WRITE | RTFILE_O_DENY_WRITE)
 
 /**
  * Audio file types.
@@ -768,11 +784,20 @@ typedef enum PDMAUDIOFILETYPE
 {
     /** Unknown type, do not use. */
     PDMAUDIOFILETYPE_UNKNOWN = 0,
+    /** Raw (PCM) file. */
+    PDMAUDIOFILETYPE_RAW,
     /** Wave (.WAV) file. */
     PDMAUDIOFILETYPE_WAV,
     /** Hack to blow the type up to 32-bit. */
     PDMAUDIOFILETYPE_32BIT_HACK = 0x7fffffff
 } PDMAUDIOFILETYPE;
+
+typedef uint32_t PDMAUDIOFILENAMEFLAGS;
+
+/** No flags defined. */
+#define PDMAUDIOFILENAME_FLAG_NONE          0
+/** Adds an ISO timestamp to the file name. */
+#define PDMAUDIOFILENAME_FLAG_TS            RT_BIT(0)
 
 /**
  * Structure for an audio file handle.
@@ -780,16 +805,18 @@ typedef enum PDMAUDIOFILETYPE
 typedef struct PDMAUDIOFILE
 {
     /** Type of the audio file. */
-    PDMAUDIOFILETYPE enmType;
-    /** File name. */
-    char             szName[255];
+    PDMAUDIOFILETYPE    enmType;
+    /** Audio file flags. */
+    PDMAUDIOFILEFLAGS   fFlags;
+    /** File name and path. */
+    char                szName[RTPATH_MAX + 1];
     /** Actual file handle. */
-    RTFILE           hFile;
+    RTFILE              hFile;
     /** Data needed for the specific audio file type implemented.
      *  Optional, can be NULL. */
-    void            *pvData;
+    void               *pvData;
     /** Data size (in bytes). */
-    size_t           cbData;
+    size_t              cbData;
 } PDMAUDIOFILE, *PPDMAUDIOFILE;
 
 /** Stream status flag. To be used with PDMAUDIOSTRMSTS_FLAG_ flags. */
@@ -866,6 +893,13 @@ typedef struct PDMAUDIOSTREAMIN
     STAMCOUNTER StatBytesTotalRead;
     STAMCOUNTER StatFramesCaptured;
 #endif
+    struct
+    {
+        /** File for writing stream reads. */
+        PPDMAUDIOFILE           pFileStreamRead;
+        /** File for writing non-interleaved captures. */
+        PPDMAUDIOFILE           pFileCaptureNonInterleaved;
+    } Dbg;
 } PDMAUDIOSTREAMIN, *PPDMAUDIOSTREAMIN;
 
 /**
@@ -881,6 +915,13 @@ typedef struct PDMAUDIOSTREAMOUT
     STAMCOUNTER StatBytesTotalWritten;
     STAMCOUNTER StatFramesPlayed;
 #endif
+    struct
+    {
+        /** File for writing stream writes. */
+        PPDMAUDIOFILE           pFileStreamWrite;
+        /** File for writing stream playback. */
+        PPDMAUDIOFILE           pFilePlayNonInterleaved;
+    } Dbg;
 } PDMAUDIOSTREAMOUT, *PPDMAUDIOSTREAMOUT;
 
 typedef struct PDMAUDIOSTREAM *PPDMAUDIOSTREAM;
