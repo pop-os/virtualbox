@@ -15,7 +15,7 @@
             hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
     -->
 
-    <String Id="LANG">1024</String>
+    <String Id="LANG">1028</String>
     <String Id="LangName">正體中文</String>
 
     <String Id="ButtonText_No">否(&amp;N)</String>

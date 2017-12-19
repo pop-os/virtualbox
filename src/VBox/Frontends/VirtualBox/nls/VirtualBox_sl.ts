@@ -167,7 +167,7 @@
 <context>
     <name>QIMessageBox</name>
     <message>
-        <location filename="../src/extensions/QIMessageBox.cpp" line="+302"/>
+        <location filename="../src/extensions/QIMessageBox.cpp" line="+299"/>
         <location filename="../src/globals/UIMessageCenter.cpp" line="+1887"/>
         <location filename="../src/widgets/UIPopupPaneButtonPane.cpp" line="+180"/>
         <source>OK</source>
@@ -1022,7 +1022,7 @@
         <translation>Predogled zaslona %1</translation>
     </message>
     <message>
-        <location line="+1605"/>
+        <location line="+1608"/>
         <source>&amp;Connect Network Adapter</source>
         <translation>&amp;Poveži omrežni vmesnik</translation>
     </message>
@@ -2575,7 +2575,7 @@
 <context>
     <name>UIGMachinePreview</name>
     <message>
-        <location filename="../src/selector/graphics/details/UIGMachinePreview.cpp" line="+356"/>
+        <location filename="../src/selector/graphics/details/UIGMachinePreview.cpp" line="+365"/>
         <source>Every 0.5 s</source>
         <translation>Vsakih 0,5 s</translation>
     </message>
@@ -5759,7 +5759,7 @@
 <context>
     <name>UIMachineSettingsSF</name>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsSF.cpp" line="+623"/>
+        <location filename="../src/settings/machine/UIMachineSettingsSF.cpp" line="+625"/>
         <source> Machine Folders</source>
         <translation>Mape računalnika</translation>
     </message>
@@ -5769,7 +5769,7 @@
         <translation>Prehodne mape</translation>
     </message>
     <message>
-        <location line="-643"/>
+        <location line="-645"/>
         <source>Full</source>
         <translation>Poln</translation>
     </message>
@@ -5818,7 +5818,7 @@
         <translation>Da</translation>
     </message>
     <message>
-        <location line="+248"/>
+        <location line="+250"/>
         <source>Add Shared Folder</source>
         <translation>Dodaj deljeno mapo</translation>
     </message>
@@ -6976,7 +6976,7 @@
 <context>
     <name>UIMachineWindow</name>
     <message>
-        <location filename="../src/runtime/UIMachineWindow.cpp" line="+245"/>
+        <location filename="../src/runtime/UIMachineWindow.cpp" line="+250"/>
         <source> EXPERIMENTAL build %1r%2 - %3</source>
         <translation>PREIZKUSNA izgradnja %1r%2 - %3</translation>
     </message>
@@ -7077,7 +7077,7 @@
         <translation>Uveljavi spremembe (%1)</translation>
     </message>
     <message>
-        <location line="+637"/>
+        <location line="+636"/>
         <source>Location can not be empty.</source>
         <translation>Mesto ne sme biti prazno.</translation>
     </message>
@@ -7370,7 +7370,7 @@
         <translation>Zapri okno (%1)</translation>
     </message>
     <message>
-        <location filename="../src/medium/UIMediumDetailsWidget.cpp" line="-666"/>
+        <location filename="../src/medium/UIMediumDetailsWidget.cpp" line="-665"/>
         <location filename="../src/medium/UIMediumManager.cpp" line="-2128"/>
         <source>Current extension (*.%1)</source>
         <translation>Trenutna pripona (*.%1)</translation>
@@ -9064,7 +9064,7 @@
 <context>
     <name>UINetworkManagerDialog</name>
     <message>
-        <location filename="../src/net/UINetworkManagerDialog.cpp" line="+160"/>
+        <location filename="../src/net/UINetworkManagerDialog.cpp" line="+159"/>
         <source>Network Operations Manager</source>
         <translation>Upravljalnik omrežnih opravil</translation>
     </message>
@@ -9084,7 +9084,7 @@
         <translation>Prekliči vsa dejavna omrežna opravila</translation>
     </message>
     <message>
-        <location filename="../src/net/UINetworkRequestWidget.cpp" line="+191"/>
+        <location filename="../src/net/UINetworkRequestWidget.cpp" line="+196"/>
         <source>Network Operation</source>
         <translation>Omrežno opravilo</translation>
     </message>
@@ -10049,7 +10049,7 @@
 <context>
     <name>UIVMCloseDialog</name>
     <message>
-        <location filename="../src/runtime/UIVMCloseDialog.cpp" line="+401"/>
+        <location filename="../src/runtime/UIVMCloseDialog.cpp" line="+410"/>
         <source>Close Virtual Machine</source>
         <translation>Zapri navidezni računalnik</translation>
     </message>
@@ -10266,19 +10266,19 @@
 <context>
     <name>UIVMLogViewer</name>
     <message>
-        <location filename="../src/UIVMLogViewer.cpp" line="+274"/>
-        <location line="+393"/>
+        <location filename="../src/UIVMLogViewer.cpp" line="+272"/>
+        <location line="+391"/>
         <source>Close the search panel</source>
         <translation>Zapri iskalno ploščo</translation>
     </message>
     <message>
-        <location line="-391"/>
-        <location line="+808"/>
+        <location line="-389"/>
+        <location line="+806"/>
         <source>&amp;Find</source>
         <translation>&amp;Poišči</translation>
     </message>
     <message>
-        <location line="-807"/>
+        <location line="-805"/>
         <source>Enter a search string here</source>
         <translation>Sem vnesite iskalni niz</translation>
     </message>
@@ -10318,7 +10318,7 @@
         <translation>Niz ni bil najden</translation>
     </message>
     <message>
-        <location line="+572"/>
+        <location line="+570"/>
         <source>&lt;p&gt;No log files found. Press the &lt;b&gt;Refresh&lt;/b&gt; button to rescan the log folder &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Nobene datoteke dnevnika ni bilo mogoče najti. Pritisnite gumb &lt;b&gt;Osveži&lt;/b&gt;, da ponovno preiščete mapo z dnevniki &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;</translation>
     </message>
@@ -10366,7 +10366,7 @@
 <context>
     <name>UIWizard</name>
     <message>
-        <location filename="../src/wizards/UIWizard.cpp" line="+109"/>
+        <location filename="../src/wizards/UIWizard.cpp" line="+110"/>
         <source>&amp;Expert Mode</source>
         <translation>&amp;Napredni način</translation>
     </message>
@@ -10420,7 +10420,7 @@
     </message>
     <message>
         <location line="+4"/>
-        <location filename="../src/wizards/clonevd/UIWizardCloneVDPageExpert.cpp" line="+265"/>
+        <location filename="../src/wizards/clonevd/UIWizardCloneVDPageExpert.cpp" line="+263"/>
         <source>&amp;Dynamically allocated</source>
         <translation>&amp;Dinamično dodeljeno</translation>
     </message>
@@ -10604,7 +10604,7 @@
     </message>
     <message>
         <location filename="../src/wizards/clonevm/UIWizardCloneVMPageBasic1.cpp" line="+64"/>
-        <location filename="../src/wizards/clonevm/UIWizardCloneVMPageExpert.cpp" line="+53"/>
+        <location filename="../src/wizards/clonevm/UIWizardCloneVMPageExpert.cpp" line="+51"/>
         <source>%1 Clone</source>
         <translation>Klon %1</translation>
     </message>
@@ -10781,7 +10781,7 @@
     </message>
     <message>
         <location line="+1"/>
-        <location filename="../src/wizards/exportappliance/UIWizardExportAppPageExpert.cpp" line="+237"/>
+        <location filename="../src/wizards/exportappliance/UIWizardExportAppPageExpert.cpp" line="+235"/>
         <source>Sun &amp;Cloud</source>
         <translation>storitvi &amp;Sun Cloud</translation>
     </message>
@@ -11014,7 +11014,7 @@
         <translation>Zaženi</translation>
     </message>
     <message>
-        <location filename="../src/wizards/firstrun/UIWizardFirstRunPageBasic.cpp" line="+113"/>
+        <location filename="../src/wizards/firstrun/UIWizardFirstRunPageBasic.cpp" line="+111"/>
         <source>&lt;p&gt;Please select a virtual optical disk file or a physical optical drive containing a disk to start your new virtual machine from.&lt;/p&gt;&lt;p&gt;The disk should be suitable for starting a computer from and should contain the operating system you wish to install on the virtual machine if you want to do that now. The disk will be ejected from the virtual drive automatically next time you switch the virtual machine off, but you can also do this yourself if needed using the Devices menu.&lt;/p&gt;</source>
         <translation>&lt;p&gt;Izberite navidezni optični disk ali fizični pogon z diskom, iz katerega boste zagnali nov navidezni računalnik.&lt;/p&gt;&lt;p&gt;Disk mora biti primeren za zagon računalnika in mora vsebovati operacijski sistem, ki ga želite namestiti na navidezni računalnik, če želite to storiti zdaj. Disk bo samodejno izvržen on naslednjem izklopu navideznega računalnika, vendar to lahko po potrebi storite tudi sami z uporabo menija Naprave.&lt;/p&gt;</translation>
     </message>
@@ -11043,7 +11043,7 @@
     </message>
     <message>
         <location filename="../src/wizards/importappliance/UIWizardImportAppPageBasic1.cpp" line="+66"/>
-        <location filename="../src/wizards/importappliance/UIWizardImportAppPageExpert.cpp" line="+101"/>
+        <location filename="../src/wizards/importappliance/UIWizardImportAppPageExpert.cpp" line="+99"/>
         <source>Appliance to import</source>
         <translation>Namenska naprava za uvoz</translation>
     </message>
@@ -11131,7 +11131,7 @@
     </message>
     <message>
         <location filename="../src/wizards/newvd/UIWizardNewVDPageBasic2.cpp" line="+140"/>
-        <location filename="../src/wizards/newvd/UIWizardNewVDPageExpert.cpp" line="+230"/>
+        <location filename="../src/wizards/newvd/UIWizardNewVDPageExpert.cpp" line="+228"/>
         <source>&amp;Dynamically allocated</source>
         <translation>&amp;Dinamično dodeljeno</translation>
     </message>
@@ -11243,7 +11243,7 @@
     </message>
     <message>
         <location filename="../src/wizards/newvm/UIWizardNewVMPageBasic1.cpp" line="+311"/>
-        <location filename="../src/wizards/newvm/UIWizardNewVMPageExpert.cpp" line="+227"/>
+        <location filename="../src/wizards/newvm/UIWizardNewVMPageExpert.cpp" line="+225"/>
         <source>Name and operating system</source>
         <translation>Ime in operacijski sistem</translation>
     </message>
@@ -13394,7 +13394,7 @@
 <context>
     <name>VBoxLicenseViewer</name>
     <message>
-        <location filename="../src/VBoxLicenseViewer.cpp" line="+96"/>
+        <location filename="../src/VBoxLicenseViewer.cpp" line="+94"/>
         <source>VirtualBox License</source>
         <translation>Dovoljenje za VirtualBox</translation>
     </message>
