@@ -1,3 +1,11 @@
+virtualbox (5.2.4-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 5.2.4-dfsg
+  * Bump std-version to 4.1.2, no changes required
+  * Patch refresh Drop 69989.patch: upstream
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 19 Dec 2017 23:34:39 +0100
+
 virtualbox (5.2.2-dfsg-3) unstable; urgency=high
 
   * debian/patches/69989.patch:
