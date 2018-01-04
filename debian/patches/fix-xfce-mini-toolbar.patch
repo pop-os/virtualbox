@@ -1,0 +1,18 @@
+Description: Fix mini toolbar on xfce
+Author: Dusan Gallo <dusky@mail.hq.sk>
+
+Bug: https://www.virtualbox.org/ticket/17280 
+Forwarded: (vbox-dev mail list)
+Reviewed-By: Gianfranco Costamagna <locutusofborg@debian.org>
+Last-Update: 2018-01-04
+
+--- virtualbox-5.2.4-dfsg.orig/src/VBox/Frontends/VirtualBox/src/widgets/UIMiniToolBar.cpp
++++ virtualbox-5.2.4-dfsg/src/VBox/Frontends/VirtualBox/src/widgets/UIMiniToolBar.cpp
+@@ -413,6 +413,7 @@ Qt::WindowFlags UIMiniToolBar::defaultWi
+         case X11WMType_KWin:
+         case X11WMType_Metacity:
+         case X11WMType_Mutter:
++        case X11WMType_Xfwm4:
+             return geometryType == GeometryType_Full ?
+                    Qt::Tool | Qt::FramelessWindowHint :
+                    Qt::Window | Qt::FramelessWindowHint;
