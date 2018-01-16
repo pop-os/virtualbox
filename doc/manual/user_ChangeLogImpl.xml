@@ -3,6 +3,50 @@
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
+   <sect1>
+    <title>Version 5.2.6 (2018-01-15)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>GUI: fixed occasional screen corruption when host screen resolution
+          is changed</para>
+      </listitem>
+
+      <listitem>
+        <para>User interface: increase proposed disk size when creating new VMs
+          for Windows 7 and newer</para>
+      </listitem>
+
+      <listitem>
+        <para>User interface: various improvements for high resolution
+           screens</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: Fixed problems using 256MB VRAM in raw-mode VMs</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: implemented support for audio playback and recording for
+          macOS guests</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: further timing improvements for Windows 10 guests</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: fixed problem accessing mini-toolbar under
+           XFCE (bug #17280, contributed by Dusan Gallo)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
   <sect1>
     <title>Version 5.2.4 (2017-12-19)</title>
 
@@ -10,6 +54,11 @@
       added:</para>
 
     <itemizedlist>
+
+      <listitem>
+        <para>User interface: Adjusting desktop file for X11 window managers
+          (bug #17312)</para>
+      </listitem>
 
       <listitem>
         <para>User interface: various high resolution display adjustments</para>
@@ -295,117 +344,6 @@
     </itemizedlist>
   </sect1>
 
-  <sect1>
-    <title>Version 5.1.30 (2017-10-16)</title>
-
-    <para>This is a maintenance release. The following items were fixed and/or
-      added:</para>
-
-    <itemizedlist>
-
-      <listitem>
-        <para>GUI: translation updates</para>
-      </listitem>
-
-      <listitem>
-        <para>GUI: Fixed double mouse cursor when using mouse integration
-          without Guest Additions, actually a Qt 5.6 bug fixed with QT 5.6.3
-          (Mac OS X hosts only; bug #15610)</para>
-      </listitem>
-
-      <listitem>
-        <para>Solaris hosts: allow increasing MTU size for host-only adapter to
-          9706 bytes to support jumbo frames</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux hosts: glibc 2.26 compile fix</para>
-      </listitem>
-
-      <listitem>
-        <para>Windows Additions: 3D related crash fix (bugs #17082, #17092)</para>
-      </listitem>
-
-    </itemizedlist>
-  </sect1>
-
-  <sect1>
-    <title>Version 5.1.28 (2017-09-13)</title>
-
-    <para>This is a maintenance release. The following items were fixed and/or
-      added:</para>
-
-    <itemizedlist>
-
-      <listitem>
-        <para>GUI: mouse events did not reach host windows behind the transparent
-          VM window (Mac OS X hosts only; bug #16246)</para>
-      </listitem>
-
-      <listitem>
-        <para>Audio: fixed accidental crashes when using the AC'97 sound
-          emulation (bug #16959)</para>
-      </listitem>
-
-      <listitem>
-        <para>Audio: fixed crash when default input or output devices have changed
-          (bugs #16968, #16969, #17004)</para>
-      </listitem>
-      <listitem>
-        <para>Audio: fixed recording when using the ALSA backend</para>
-      </listitem>
-
-      <listitem>
-        <para>Audio: fixed handle leak when using the OSS backend</para>
-      </listitem>
-
-      <listitem>
-        <para>E1000: fixed a crash related to VLAN traffic over internal
-          network (5.1.26 regression; bug #16960)</para>
-      </listitem>
-
-      <listitem>
-        <para>NAT: apply <emphasis>--natbindip1</emphasis> to TCP connections
-          (bug #16478)</para>
-      </listitem>
-
-      <listitem>
-        <para>OVF: when importing an appliance with XHCI controller, don't
-          add an OHCI controller</para>
-      </listitem>
-
-      <listitem>
-        <para>Mac OS X hosts: fixed a GUI crash if Spotlight is used from
-          file dialogs (5.1.20 regression; bugs #16935, #16953)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux hosts: fixed creating fixed sized VDI images
-          (bug #17010)</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux hosts / guests: fixes for Linux 4.4 of openSUSE Leap 42.3
-          (bug #16966)</para>
-      </listitem>
-
-      <listitem>
-        <para>Bridged networking: align outgoing packet at word boundary,
-          preventing Windows host crash in MsLbfoProvider</para>
-      </listitem>
-
-      <listitem>
-        <para>Linux Additions: kernel drm driver support for custom EL7
-          Linux 3.10 kernel</para>
-      </listitem>
-
-      <listitem>
-        <para>Solaris Additions: hide an informational message on the bootup
-          console</para>
-      </listitem>
-
-    </itemizedlist>
-  </sect1>
   <sect1>
     <title>Version 5.1.30 (2017-10-16)</title>
 

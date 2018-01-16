@@ -37,7 +37,7 @@
 <context>
     <name>QApplication</name>
     <message>
-        <location filename="../src/main.cpp" line="+450"/>
+        <location filename="../src/main.cpp" line="+446"/>
         <source>Executable &lt;b&gt;%1&lt;/b&gt; requires Qt %2.x, found Qt %3.</source>
         <translation>Izvedljiva datoteka &lt;b&gt;%1&lt;/b&gt; zahteva Qt %2.x, najden Qt %3.</translation>
     </message>
@@ -57,7 +57,7 @@
         <translation>&lt;html&gt;&lt;b&gt;%1 (rc=%2)&lt;/b&gt;&lt;br/&gt;&lt;br/&gt;</translation>
     </message>
     <message>
-        <location line="-540"/>
+        <location line="-536"/>
         <source>Please try reinstalling VirtualBox.</source>
         <translation>Poizkusite ponovno namestiti VirtualBox.</translation>
     </message>
@@ -67,7 +67,7 @@
         <translation>Prepričajte se, da je bil modul jedra uspešno naložen.</translation>
     </message>
     <message>
-        <location line="+436"/>
+        <location line="+432"/>
         <source>VirtualBox - Runtime Error</source>
         <translation>VirtualBox - napaka izvajanja</translation>
     </message>
@@ -87,7 +87,7 @@
         <translation>Gonilnik jedra ni dostopen</translation>
     </message>
     <message>
-        <location line="-471"/>
+        <location line="-467"/>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Please try completely uninstalling and reinstalling VirtualBox.</source>
         <translation>Moduli jedra VirtualBox se ne ujemajo s to različico VirtualBoxa.Namestitev VirtualBoxa očitno ni bila uspešna. Poizkusite ga popolnoma odstraniti in ponovno namestiti.</translation>
     </message>
@@ -135,7 +135,7 @@
         <translation type="vanished">&amp;Naprej</translation>
     </message>
     <message>
-        <location filename="../src/extensions/QIArrowSplitter.cpp" line="+337"/>
+        <location filename="../src/extensions/QIArrowSplitter.cpp" line="+341"/>
         <source>&amp;Details</source>
         <translation>&amp;Podrobnosti</translation>
     </message>
@@ -167,7 +167,7 @@
 <context>
     <name>QIMessageBox</name>
     <message>
-        <location filename="../src/extensions/QIMessageBox.cpp" line="+299"/>
+        <location filename="../src/extensions/QIMessageBox.cpp" line="+300"/>
         <location filename="../src/globals/UIMessageCenter.cpp" line="+1887"/>
         <location filename="../src/widgets/UIPopupPaneButtonPane.cpp" line="+180"/>
         <source>OK</source>
@@ -3632,7 +3632,7 @@
     </message>
     <message>
         <location line="+15"/>
-        <location line="+486"/>
+        <location line="+490"/>
         <source>None</source>
         <translation>Brez</translation>
     </message>
@@ -4101,7 +4101,7 @@
 <context>
     <name>UIHotKeyEditor</name>
     <message>
-        <location filename="../src/widgets/UIHotKeyEditor.cpp" line="+177"/>
+        <location filename="../src/widgets/UIHotKeyEditor.cpp" line="+182"/>
         <source>Reset shortcut to default</source>
         <translation>Ponastavi bližnjico na privzeto</translation>
     </message>
@@ -5198,7 +5198,7 @@
         <translation>kb/s</translation>
     </message>
     <message>
-        <location filename="../src/widgets/UIFilmContainer.cpp" line="+147"/>
+        <location filename="../src/widgets/UIFilmContainer.cpp" line="+152"/>
         <source>Screen %1</source>
         <translation>Zaslon %1</translation>
     </message>
@@ -9266,7 +9266,7 @@
         <translation>Vrata gosta</translation>
     </message>
     <message>
-        <location line="+421"/>
+        <location line="+423"/>
         <source>Contains a list of port forwarding rules.</source>
         <translation>Vsebuje seznam pravil posredovanja vrat.</translation>
     </message>
@@ -9372,7 +9372,7 @@
         <translation>Prikaži vrstico stanja</translation>
     </message>
     <message>
-        <location line="+379"/>
+        <location line="+373"/>
         <source>Select a virtual machine file</source>
         <translation>Izberite datoteko navideznega računalnika</translation>
     </message>
@@ -9417,7 +9417,7 @@
         <translation>&lt;i&gt;Izberite kategorijo nastavitev s seznama na levi in premaknite miško nad predmet nastavitev, da dobite več podatkov.&lt;/i&gt;</translation>
     </message>
     <message>
-        <location filename="../src/settings/UISettingsDialog.cpp" line="+340"/>
+        <location filename="../src/settings/UISettingsDialog.cpp" line="+339"/>
         <source>Invalid settings detected</source>
         <translation>Zaznane neveljavne nastavitve</translation>
     </message>
@@ -9848,7 +9848,7 @@
 <context>
     <name>UIStatusBarEditorWidget</name>
     <message>
-        <location filename="../src/runtime/UIStatusBarEditorWindow.cpp" line="+607"/>
+        <location filename="../src/runtime/UIStatusBarEditorWindow.cpp" line="+611"/>
         <source>Close</source>
         <translation>Zapri</translation>
     </message>
@@ -9858,7 +9858,7 @@
         <translation>Omogoči vrstico stanja</translation>
     </message>
     <message>
-        <location line="-373"/>
+        <location line="-377"/>
         <source>&lt;nobr&gt;&lt;b&gt;Click&lt;/b&gt; to toggle indicator presence.&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Drag&amp;Drop&lt;/b&gt; to change indicator position.&lt;/nobr&gt;</source>
         <translation>&lt;nobr&gt;&lt;b&gt;&amp;Kliknite&lt;/b&gt;, da preklopite prisotnost kazalnika.&lt;/nobr&gt;&lt;br&gt;&lt;nobr&gt;&lt;b&gt;Povlecite in spustite&lt;/b&gt;, da spremenite položaj kazalnika.&lt;/nobr&gt;</translation>
     </message>
@@ -9866,7 +9866,7 @@
 <context>
     <name>UITakeSnapshotDialog</name>
     <message>
-        <location filename="../src/UITakeSnapshotDialog.cpp" line="+82"/>
+        <location filename="../src/UITakeSnapshotDialog.cpp" line="+83"/>
         <source>Take Snapshot of Virtual Machine</source>
         <translation>Zajemi ponetek stanja navideznega računalnika</translation>
     </message>
@@ -10049,7 +10049,7 @@
 <context>
     <name>UIVMCloseDialog</name>
     <message>
-        <location filename="../src/runtime/UIVMCloseDialog.cpp" line="+410"/>
+        <location filename="../src/runtime/UIVMCloseDialog.cpp" line="+425"/>
         <source>Close Virtual Machine</source>
         <translation>Zapri navidezni računalnik</translation>
     </message>

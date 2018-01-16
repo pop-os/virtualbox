@@ -2168,7 +2168,7 @@ static int vboxVDMACrCtlHgsmiSetup(struct VBOXVDMAHOST *pVdma)
     return rc;
 }
 
-static int vboxVDMACmdExecBpbTransfer(PVBOXVDMAHOST pVdma, const PVBOXVDMACMD_DMA_BPB_TRANSFER pTransfer, uint32_t cbBuffer);
+static int vboxVDMACmdExecBpbTransfer(PVBOXVDMAHOST pVdma, VBOXVDMACMD_DMA_BPB_TRANSFER const *pTransfer, uint32_t cbBuffer);
 
 /* check if this is external cmd to be passed to chromium backend */
 static int vboxVDMACmdCheckCrCmd(struct VBOXVDMAHOST *pVdma, PVBOXVDMACBUF_DR pCmdDr, uint32_t cbCmdDr)
@@ -2293,27 +2293,40 @@ int vboxVDMACrHgsmiControlCompleteAsync(PPDMIDISPLAYVBVACALLBACKS pInterface, PV
     return VINF_SUCCESS;
 }
 
-static int vboxVDMACmdExecBltPerform(PVBOXVDMAHOST pVdma, uint8_t *pvDstSurf, const uint8_t *pvSrcSurf,
+static int vboxVDMACmdExecBltPerform(PVBOXVDMAHOST pVdma, const VBOXVIDEOOFFSET offDst, const VBOXVIDEOOFFSET offSrc,
                                      const PVBOXVDMA_SURF_DESC pDstDesc, const PVBOXVDMA_SURF_DESC pSrcDesc,
                                      const VBOXVDMA_RECTL * pDstRectl, const VBOXVDMA_RECTL * pSrcRectl)
 {
-    RT_NOREF(pVdma);
     /* we do not support color conversion */
     Assert(pDstDesc->format == pSrcDesc->format);
     /* we do not support stretching */
     Assert(pDstRectl->height == pSrcRectl->height);
     Assert(pDstRectl->width == pSrcRectl->width);
+
     if (pDstDesc->format != pSrcDesc->format)
         return VERR_INVALID_FUNCTION;
+
+    uint8_t *pvRam = pVdma->pVGAState->vram_ptrR3;
+    uint32_t cbVRamSize = pVdma->pVGAState->vram_size;
+    uint8_t *pvDstSurf = pvRam + offDst;
+    uint8_t *pvSrcSurf = pvRam + offSrc;
+
     if (pDstDesc->width == pDstRectl->width
             && pSrcDesc->width == pSrcRectl->width
-            && pSrcDesc->width == pDstDesc->width)
+            && pSrcDesc->width == pDstDesc->width
+            && pSrcDesc->pitch == pDstDesc->pitch)
     {
         Assert(!pDstRectl->left);
         Assert(!pSrcRectl->left);
         uint32_t cbOff = pDstDesc->pitch * pDstRectl->top;
         uint32_t cbSize = pDstDesc->pitch * pDstRectl->height;
-        memcpy(pvDstSurf + cbOff, pvSrcSurf + cbOff, cbSize);
+
+        if (   cbSize <= cbVRamSize
+            && (uintptr_t)(pvDstSurf + cbOff) - (uintptr_t)pvRam <= cbVRamSize - cbSize
+            && (uintptr_t)(pvSrcSurf + cbOff) - (uintptr_t)pvRam <= cbVRamSize - cbSize)
+            memcpy(pvDstSurf + cbOff, pvSrcSurf + cbOff, cbSize);
+        else
+            return VERR_INVALID_PARAMETER;
     }
     else
     {
@@ -2339,7 +2352,12 @@ static int vboxVDMACmdExecBltPerform(PVBOXVDMAHOST pVdma, uint8_t *pvDstSurf, co
 
         for (uint32_t i = 0; ; ++i)
         {
-            memcpy (pvDstStart, pvSrcStart, cbDstLine);
+            if (   cbDstLine <= cbVRamSize
+                && (uintptr_t)pvDstStart - (uintptr_t)pvRam <= cbVRamSize - cbDstLine
+                && (uintptr_t)pvSrcStart - (uintptr_t)pvRam <= cbVRamSize - cbDstLine)
+                memcpy(pvDstStart, pvSrcStart, cbDstLine);
+            else
+                return VERR_INVALID_PARAMETER;
             if (i == pDstRectl->height)
                 break;
             pvDstStart += cbDstSkip;
@@ -2396,7 +2414,6 @@ static int vboxVDMACmdExecBlt(PVBOXVDMAHOST pVdma, const PVBOXVDMACMD_DMA_PRESEN
         return VERR_INVALID_FUNCTION;
     Assert(pBlt->cDstSubRects);
 
-    uint8_t * pvRam = pVdma->pVGAState->vram_ptrR3;
     VBOXVDMA_RECTL updateRectl = {0, 0, 0, 0};
 
     if (pBlt->cDstSubRects)
@@ -2425,7 +2442,7 @@ static int vboxVDMACmdExecBlt(PVBOXVDMAHOST pVdma, const PVBOXVDMACMD_DMA_PRESEN
                 pSrcRectl = &srcRectl;
             }
 
-            int rc = vboxVDMACmdExecBltPerform(pVdma, pvRam + pBlt->offDst, pvRam + pBlt->offSrc,
+            int rc = vboxVDMACmdExecBltPerform(pVdma, pBlt->offDst, pBlt->offSrc,
                     &pBlt->dstDesc, &pBlt->srcDesc,
                     pDstRectl,
                     pSrcRectl);
@@ -2438,7 +2455,7 @@ static int vboxVDMACmdExecBlt(PVBOXVDMAHOST pVdma, const PVBOXVDMACMD_DMA_PRESEN
     }
     else
     {
-        int rc = vboxVDMACmdExecBltPerform(pVdma, pvRam + pBlt->offDst, pvRam + pBlt->offSrc,
+        int rc = vboxVDMACmdExecBltPerform(pVdma, pBlt->offDst, pBlt->offSrc,
                 &pBlt->dstDesc, &pBlt->srcDesc,
                 &pBlt->dstRectl,
                 &pBlt->srcRectl);
@@ -2452,10 +2469,12 @@ static int vboxVDMACmdExecBlt(PVBOXVDMAHOST pVdma, const PVBOXVDMACMD_DMA_PRESEN
     return cbBlt;
 }
 
-static int vboxVDMACmdExecBpbTransfer(PVBOXVDMAHOST pVdma, const PVBOXVDMACMD_DMA_BPB_TRANSFER pTransfer, uint32_t cbBuffer)
+static int vboxVDMACmdExecBpbTransfer(PVBOXVDMAHOST pVdma, VBOXVDMACMD_DMA_BPB_TRANSFER const *pTransfer, uint32_t cbBuffer)
 {
-    if (cbBuffer < sizeof (*pTransfer))
+    if (cbBuffer < sizeof(*pTransfer))
         return VERR_INVALID_PARAMETER;
+    VBOXVDMACMD_DMA_BPB_TRANSFER const TransferSafeCopy = *pTransfer;
+    pTransfer = &TransferSafeCopy;
 
     PVGASTATE pVGAState = pVdma->pVGAState;
     uint8_t * pvRam = pVGAState->vram_ptrR3;
@@ -2469,6 +2488,25 @@ static int vboxVDMACmdExecBpbTransfer(PVBOXVDMAHOST pVdma, const PVBOXVDMACMD_DM
     uint32_t cbTransfered = 0;
     bool bSrcLocked = false;
     bool bDstLocked = false;
+
+    if (pTransfer->fFlags & VBOXVDMACMD_DMA_BPB_TRANSFER_F_SRC_VRAMOFFSET)
+    {
+        if (RT_LIKELY(   pTransfer->cbTransferSize <= pVGAState->vram_size
+                      && pTransfer->Src.offVramBuf <= pVGAState->vram_size - pTransfer->cbTransferSize))
+        { /* likely */ }
+        else
+            return VERR_INVALID_PARAMETER;
+    }
+
+    if (pTransfer->fFlags & VBOXVDMACMD_DMA_BPB_TRANSFER_F_DST_VRAMOFFSET)
+    {
+        if (RT_LIKELY(   pTransfer->cbTransferSize <= pVGAState->vram_size
+                      && pTransfer->Dst.offVramBuf <= pVGAState->vram_size - pTransfer->cbTransferSize))
+        { /* likely */ }
+        else
+            return VERR_INVALID_PARAMETER;
+    }
+
     do
     {
         uint32_t cbSubTransfer = cbTransfer;

@@ -18,6 +18,7 @@
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 #
 
+
 # Marker.
 VBOX_ROOT_CONFIG_KMK_INCLUDED = 1
 
@@ -439,6 +440,8 @@ VBOX_WITH_NAT_SERVICE = 1
 VBOX_WITH_E1000 = 1
 # Enable the Virtio feature.
 VBOX_WITH_VIRTIO = 1
+# HDA emulation is Intel HDA by default.
+VBOX_WITH_INTEL_HDA = 1
 ifn1of ($(KBUILD_TARGET), win darwin)
  # Enable OSS audio support.
  VBOX_WITH_AUDIO_OSS = 1
@@ -670,12 +673,14 @@ if1of ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH), darwin.x86 darwin.amd64 linux.x86
  VBOX_WITH_VIDEOREC = 1
  # Enable VPX (VP8 / VP9 codec), used for video capturing.
  VBOX_WITH_LIBVPX = 1
- # Enables audio support for VM video capturing.
- VBOX_WITH_AUDIO_VIDEOREC = 1
- # Enables libopus (Opus), used for encoding audio into VM video capturing files.
- VBOX_WITH_LIBOPUS = 1
- # Enable SEE (+ AVX) optimizations for Opus.
- VBOX_WITH_OPUS_SSE = 1
+ if !defined(VBOX_OSE)
+  # Enables audio support for VM video capturing.
+  VBOX_WITH_AUDIO_VIDEOREC = 1
+  # Enables libopus (Opus), used for encoding audio into VM video capturing files.
+  VBOX_WITH_LIBOPUS = 1
+  # Enable SEE (+ AVX) optimizations for Opus.
+  VBOX_WITH_OPUS_SSE = 1
+ endif
 endif
 # Enable shared folders
 VBOX_WITH_SHARED_FOLDERS = 1
@@ -7092,7 +7097,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 119758 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 120293 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=

@@ -5984,7 +5984,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Remove selected host-only network</source>
-        <translation>Remover rede exclusiva de hospedeiro selecionada.</translation>
+        <translation>Remover rede exclusiva de hospedeiro selecionada</translation>
     </message>
     <message>
         <source>&amp;Properties...</source>
@@ -18900,43 +18900,43 @@ Versão %1</translation>
     <message numerus="yes">
         <source>%n year(s)</source>
         <translation>
-            <numerusform>%n ano(s)</numerusform>
-            <numerusform></numerusform>
+            <numerusform>%n ano</numerusform>
+            <numerusform>%n anos</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n month(s)</source>
         <translation>
-            <numerusform>%n mes(es)</numerusform>
-            <numerusform></numerusform>
+            <numerusform>%n mês</numerusform>
+            <numerusform>%n meses</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n day(s)</source>
         <translation>
-            <numerusform>%n dia(s)</numerusform>
-            <numerusform></numerusform>
+            <numerusform>%n dia</numerusform>
+            <numerusform>%n dias</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n hour(s)</source>
         <translation>
-            <numerusform>%n hora(s)</numerusform>
-            <numerusform></numerusform>
+            <numerusform>%n hora</numerusform>
+            <numerusform>%n horas</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n minute(s)</source>
         <translation>
-            <numerusform>%n minuto(s)</numerusform>
-            <numerusform></numerusform>
+            <numerusform>%n minuto</numerusform>
+            <numerusform>%n minutos</numerusform>
         </translation>
     </message>
     <message numerus="yes">
         <source>%n second(s)</source>
         <translation>
-            <numerusform>%n segundo(s)</numerusform>
-            <numerusform></numerusform>
+            <numerusform>%n segundo</numerusform>
+            <numerusform>%n segundos</numerusform>
         </translation>
     </message>
     <message>

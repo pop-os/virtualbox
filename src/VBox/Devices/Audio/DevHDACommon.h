@@ -577,6 +577,7 @@ typedef struct HDABDLE
 /** @name Object lookup functions.
  * @{
  */
+PHDAMIXERSINK hdaGetDefaultSink(PHDASTATE pThis, uint8_t uSD);
 PDMAUDIODIR   hdaGetDirFromSD(uint8_t uSD);
 PHDASTREAM    hdaGetStreamFromSD(PHDASTATE pThis, uint8_t uSD);
 PHDASTREAM    hdaGetStreamFromSink(PHDASTATE pThis, PHDAMIXERSINK pSink);
@@ -621,6 +622,9 @@ int           hdaSDFMTToPCMProps(uint32_t u32SDFMT, PPDMAUDIOPCMPROPS pProps);
  * @{
  */
 #ifdef IN_RING3
+# ifdef LOG_ENABLED
+void          hdaBDLEDumpAll(PHDASTATE pThis, uint64_t u64BDLBase, uint16_t cBDLE);
+# endif
 int           hdaBDLEFetch(PHDASTATE pThis, PHDABDLE pBDLE, uint64_t u64BaseDMA, uint16_t u16Entry);
 bool          hdaBDLEIsComplete(PHDABDLE pBDLE);
 bool          hdaBDLENeedsInterrupt(PHDABDLE pBDLE);
