@@ -16,4 +16,3 @@
 36-fix-vnc-version-string.patch
 37-python-3.6-support.patch
 fix-build.patch
-fix-xfce-mini-toolbar.patch
