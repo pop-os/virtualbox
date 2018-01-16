@@ -140,26 +140,83 @@ static const CPUMMICROARCH g_aenmIntelFamily06[] =
     /* [82(0x52)] = */ kCpumMicroarch_Intel_Unknown,
     /* [83(0x53)] = */ kCpumMicroarch_Intel_Unknown,
     /* [84(0x54)] = */ kCpumMicroarch_Intel_Unknown,
-    /* [85(0x55)] = */ kCpumMicroarch_Intel_Core7_Skylake,      /* unconfirmed server cpu */
+    /* [85(0x55)] = */ kCpumMicroarch_Intel_Core7_Skylake,      /* server cpu */
     /* [86(0x56)] = */ kCpumMicroarch_Intel_Core7_Broadwell,    /* Xeon D-1540, Broadwell-DE */
-    /* [87(0x57)] = */ kCpumMicroarch_Intel_Unknown,
+    /* [87(0x57)] = */ kCpumMicroarch_Intel_Phi_KnightsLanding,
     /* [88(0x58)] = */ kCpumMicroarch_Intel_Unknown,
     /* [89(0x59)] = */ kCpumMicroarch_Intel_Unknown,
     /* [90(0x5a)] = */ kCpumMicroarch_Intel_Atom_Silvermont,    /* Moorefield */
     /* [91(0x5b)] = */ kCpumMicroarch_Intel_Unknown,
-    /* [92(0x5c)] = */ kCpumMicroarch_Intel_Atom_Goldmont,      /* unconfirmed */
+    /* [92(0x5c)] = */ kCpumMicroarch_Intel_Atom_Goldmont,      /* Apollo Lake */
     /* [93(0x5d)] = */ kCpumMicroarch_Intel_Atom_Silvermont,    /* x3-C3230 */
     /* [94(0x5e)] = */ kCpumMicroarch_Intel_Core7_Skylake,      /* i7-6700K */
-    /* [95(0x5f)] = */ kCpumMicroarch_Intel_Unknown,
+    /* [95(0x5f)] = */ kCpumMicroarch_Intel_Atom_Goldmont,      /* Denverton */
     /* [96(0x60)] = */ kCpumMicroarch_Intel_Unknown,
     /* [97(0x61)] = */ kCpumMicroarch_Intel_Unknown,
     /* [98(0x62)] = */ kCpumMicroarch_Intel_Unknown,
     /* [99(0x63)] = */ kCpumMicroarch_Intel_Unknown,
-    /* [99(0x64)] = */ kCpumMicroarch_Intel_Unknown,
-    /* [99(0x65)] = */ kCpumMicroarch_Intel_Unknown,
-    /* [99(0x66)] = */ kCpumMicroarch_Intel_Core7_Cannonlake, /* unconfirmed */
+    /*[100(0x64)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[101(0x65)] = */ kCpumMicroarch_Intel_Atom_Silvermont,    /* SoFIA */
+    /*[102(0x66)] = */ kCpumMicroarch_Intel_Core7_CannonLake, /* unconfirmed */
+    /*[103(0x67)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[104(0x68)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[105(0x69)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[106(0x6a)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[107(0x6b)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[108(0x6c)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[109(0x6d)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[110(0x6e)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[111(0x6f)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[112(0x70)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[113(0x71)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[114(0x72)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[115(0x73)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[116(0x74)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[117(0x75)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[118(0x76)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[119(0x77)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[120(0x78)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[121(0x79)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[122(0x7a)] = */ kCpumMicroarch_Intel_Atom_GoldmontPlus,
+    /*[123(0x7b)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[124(0x7c)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[125(0x7d)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[126(0x7e)] = */ kCpumMicroarch_Intel_Core7_IceLake, /* unconfirmed */
+    /*[127(0x7f)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[128(0x80)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[129(0x81)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[130(0x82)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[131(0x83)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[132(0x84)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[133(0x85)] = */ kCpumMicroarch_Intel_Phi_KnightsMill,
+    /*[134(0x86)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[135(0x87)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[136(0x88)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[137(0x89)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[138(0x8a)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[139(0x8b)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[140(0x8c)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[141(0x8d)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[142(0x8e)] = */ kCpumMicroarch_Intel_Core7_KabyLake, /* Stepping 0xA is CoffeeLake, 9 is KabyLake. */
+    /*[143(0x8f)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[144(0x90)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[145(0x91)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[146(0x92)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[147(0x93)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[148(0x94)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[149(0x95)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[150(0x96)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[151(0x97)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[152(0x98)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[153(0x99)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[154(0x9a)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[155(0x9b)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[156(0x9c)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[157(0x9d)] = */ kCpumMicroarch_Intel_Unknown,
+    /*[158(0x9e)] = */ kCpumMicroarch_Intel_Core7_KabyLake, /* Stepping 0xA is CoffeeLake, 9 is KabyLake. */
+    /*[159(0x9f)] = */ kCpumMicroarch_Intel_Unknown,
 };
-
+AssertCompile(RT_ELEMENTS(g_aenmIntelFamily06) == 0x9f+1);
 
 
 /**
@@ -309,7 +366,13 @@ VMMR3DECL(CPUMMICROARCH) CPUMR3CpuIdDetermineMicroarchEx(CPUMCPUVENDOR enmVendor
                 return kCpumMicroarch_Intel_P5;
             case 6:
                 if (bModel < RT_ELEMENTS(g_aenmIntelFamily06))
-                    return g_aenmIntelFamily06[bModel];
+                {
+                    CPUMMICROARCH enmMicroArch = g_aenmIntelFamily06[bModel];
+                    if (   enmMicroArch == kCpumMicroarch_Intel_Core7_KabyLake
+                        && bStepping >= 0xa)
+                        enmMicroArch = kCpumMicroarch_Intel_Core7_CoffeeLake;
+                    return enmMicroArch;
+                }
                 return kCpumMicroarch_Intel_Atom_Unknown;
             case 15:
                 switch (bModel)
@@ -440,7 +503,11 @@ VMMR3DECL(const char *) CPUMR3MicroarchName(CPUMMICROARCH enmMicroarch)
         CASE_RET_STR(kCpumMicroarch_Intel_Core7_Haswell);
         CASE_RET_STR(kCpumMicroarch_Intel_Core7_Broadwell);
         CASE_RET_STR(kCpumMicroarch_Intel_Core7_Skylake);
-        CASE_RET_STR(kCpumMicroarch_Intel_Core7_Cannonlake);
+        CASE_RET_STR(kCpumMicroarch_Intel_Core7_KabyLake);
+        CASE_RET_STR(kCpumMicroarch_Intel_Core7_CoffeeLake);
+        CASE_RET_STR(kCpumMicroarch_Intel_Core7_CannonLake);
+        CASE_RET_STR(kCpumMicroarch_Intel_Core7_IceLake);
+        CASE_RET_STR(kCpumMicroarch_Intel_Core7_TigerLake);
 
         CASE_RET_STR(kCpumMicroarch_Intel_Atom_Bonnell);
         CASE_RET_STR(kCpumMicroarch_Intel_Atom_Lincroft);
@@ -448,7 +515,14 @@ VMMR3DECL(const char *) CPUMR3MicroarchName(CPUMMICROARCH enmMicroarch)
         CASE_RET_STR(kCpumMicroarch_Intel_Atom_Silvermont);
         CASE_RET_STR(kCpumMicroarch_Intel_Atom_Airmount);
         CASE_RET_STR(kCpumMicroarch_Intel_Atom_Goldmont);
+        CASE_RET_STR(kCpumMicroarch_Intel_Atom_GoldmontPlus);
         CASE_RET_STR(kCpumMicroarch_Intel_Atom_Unknown);
+
+        CASE_RET_STR(kCpumMicroarch_Intel_Phi_KnightsFerry);
+        CASE_RET_STR(kCpumMicroarch_Intel_Phi_KnightsCorner);
+        CASE_RET_STR(kCpumMicroarch_Intel_Phi_KnightsLanding);
+        CASE_RET_STR(kCpumMicroarch_Intel_Phi_KnightsHill);
+        CASE_RET_STR(kCpumMicroarch_Intel_Phi_KnightsMill);
 
         CASE_RET_STR(kCpumMicroarch_Intel_NB_Willamette);
         CASE_RET_STR(kCpumMicroarch_Intel_NB_Northwood);
@@ -532,6 +606,7 @@ VMMR3DECL(const char *) CPUMR3MicroarchName(CPUMMICROARCH enmMicroarch)
         case kCpumMicroarch_Intel_Core7_End:
         case kCpumMicroarch_Intel_Atom_End:
         case kCpumMicroarch_Intel_P6_Core_Atom_End:
+        case kCpumMicroarch_Intel_Phi_End:
         case kCpumMicroarch_Intel_NB_End:
         case kCpumMicroarch_AMD_K7_End:
         case kCpumMicroarch_AMD_K8_End:
@@ -1626,9 +1701,9 @@ int cpumR3CpuIdExplodeFeatures(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCPUM
                                                                   pFeatures->uModel,
                                                                   pFeatures->uStepping);
 
-        PCCPUMCPUIDLEAF pLeaf = cpumR3CpuIdFindLeaf(paLeaves, cLeaves, 0x80000008);
-        if (pLeaf)
-            pFeatures->cMaxPhysAddrWidth = pLeaf->uEax & 0xff;
+        PCCPUMCPUIDLEAF const pExtLeaf8 = cpumR3CpuIdFindLeaf(paLeaves, cLeaves, 0x80000008);
+        if (pExtLeaf8)
+            pFeatures->cMaxPhysAddrWidth = pExtLeaf8->uEax & 0xff;
         else if (pStd1Leaf->uEdx & X86_CPUID_FEATURE_EDX_PSE36)
             pFeatures->cMaxPhysAddrWidth = 36;
         else
@@ -1667,6 +1742,11 @@ int cpumR3CpuIdExplodeFeatures(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCPUM
             pFeatures->fAvx2                = RT_BOOL(pSxfLeaf0->uEbx & X86_CPUID_STEXT_FEATURE_EBX_AVX2);
             pFeatures->fAvx512Foundation    = RT_BOOL(pSxfLeaf0->uEbx & X86_CPUID_STEXT_FEATURE_EBX_AVX512F);
             pFeatures->fClFlushOpt          = RT_BOOL(pSxfLeaf0->uEbx & X86_CPUID_STEXT_FEATURE_EBX_CLFLUSHOPT);
+
+            pFeatures->fIbpb                = RT_BOOL(pSxfLeaf0->uEdx & X86_CPUID_STEXT_FEATURE_EDX_IBRS_IBPB);
+            pFeatures->fIbrs                = pFeatures->fIbpb;
+            pFeatures->fStibp               = RT_BOOL(pSxfLeaf0->uEdx & X86_CPUID_STEXT_FEATURE_EDX_STIBP);
+            pFeatures->fArchCap             = RT_BOOL(pSxfLeaf0->uEdx & X86_CPUID_STEXT_FEATURE_EDX_ARCHCAP);
         }
 
         /* MWAIT/MONITOR leaf. */
@@ -1706,6 +1786,7 @@ int cpumR3CpuIdExplodeFeatures(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCPUM
             pFeatures->fFxSaveRstor    |= RT_BOOL(pExtLeaf->uEdx & X86_CPUID_AMD_FEATURE_EDX_FXSR);
             pFeatures->fMmx            |= RT_BOOL(pExtLeaf->uEdx & X86_CPUID_AMD_FEATURE_EDX_MMX);
             pFeatures->fTsc            |= RT_BOOL(pExtLeaf->uEdx & X86_CPUID_AMD_FEATURE_EDX_TSC);
+            pFeatures->fIbpb           |= pExtLeaf8 && (pExtLeaf8->uEbx & X86_CPUID_AMD_EFEID_EBX_IBPB);
             pFeatures->fAmdMmxExts      = RT_BOOL(pExtLeaf->uEdx & X86_CPUID_AMD_FEATURE_EDX_AXMMX);
             pFeatures->fXop             = RT_BOOL(pExtLeaf->uEcx & X86_CPUID_AMD_FEATURE_ECX_XOP);
             pFeatures->fSvm             = RT_BOOL(pExtLeaf->uEcx & X86_CPUID_AMD_FEATURE_ECX_SVM);
@@ -2177,7 +2258,7 @@ static int cpumR3CpuIdInstallAndExplodeLeaves(PVM pVM, PCPUM pCpum, PCPUMCPUIDLE
     }
 
     /*
-     * Configure XSAVE offsets according to the CPUID info.
+     * Configure XSAVE offsets according to the CPUID info and set the feature flags.
      */
     memset(&pVM->aCpus[0].cpum.s.Guest.aoffXState[0], 0xff, sizeof(pVM->aCpus[0].cpum.s.Guest.aoffXState));
     pVM->aCpus[0].cpum.s.Guest.aoffXState[XSAVE_C_X87_BIT] = 0;
@@ -3036,7 +3117,7 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
                 pCurLeaf->uEcx &= 0
                                //| X86_CPUID_STEXT_FEATURE_ECX_PREFETCHWT1 - we do not do vector functions yet.
                                ;
-                pCurLeaf->uEdx &= 0;
+                pCurLeaf->uEdx &= 0; /** @todo X86_CPUID_STEXT_FEATURE_EDX_IBRS_IBPB, X86_CPUID_STEXT_FEATURE_EDX_STIBP and X86_CPUID_STEXT_FEATURE_EDX_ARCHCAP */
 
                 if (pCpum->u8PortableCpuIdLevel > 0)
                 {
@@ -3419,7 +3500,7 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
     while ((pCurLeaf = cpumR3CpuIdGetExactLeaf(pCpum, UINT32_C(0x80000008), uSubLeaf)) != NULL)
     {
         pCurLeaf->uEax &= UINT32_C(0x0000ffff); /* Virtual & physical address sizes only. */
-        pCurLeaf->uEbx  = 0;  /* reserved */
+        pCurLeaf->uEbx  = 0;  /* reserved - [12] == IBPB */
         pCurLeaf->uEdx  = 0;  /* reserved */
 
         /* Set APICIdCoreIdSize to zero (use legacy method to determine the number of cores per cpu).
@@ -5894,8 +5975,21 @@ static DBGFREGSUBFIELD const g_aLeaf7Sub0EbxSubFields[] =
 static DBGFREGSUBFIELD const g_aLeaf7Sub0EcxSubFields[] =
 {
     DBGFREGSUBFIELD_RO("PREFETCHWT1\0" "PREFETCHWT1 instruction",                        0, 1, 0),
+    DBGFREGSUBFIELD_RO("UMIP\0"         "User mode insturction prevention",              2, 1, 0),
     DBGFREGSUBFIELD_RO("PKU\0"          "Protection Key for Usermode pages",             3, 1, 0),
-    DBGFREGSUBFIELD_RO("OSPKU\0"        "CR4.PKU mirror",                                4, 1, 0),
+    DBGFREGSUBFIELD_RO("OSPKE\0"        "CR4.PKU mirror",                                4, 1, 0),
+    DBGFREGSUBFIELD_RO("MAWAU\0"        "Value used by BNDLDX & BNDSTX",                17, 5, 0),
+    DBGFREGSUBFIELD_RO("RDPID\0"        "Read processor ID support",                    22, 1, 0),
+    DBGFREGSUBFIELD_RO("SGX_LC\0"       "Supports SGX Launch Configuration",            30, 1, 0),
+    DBGFREGSUBFIELD_TERMINATOR()
+};
+
+/** CPUID(7,0).EDX field descriptions.   */
+static DBGFREGSUBFIELD const g_aLeaf7Sub0EdxSubFields[] =
+{
+    DBGFREGSUBFIELD_RO("IBRS_IBPB\0"    "IA32_SPEC_CTRL.IBRS and IA32_PRED_CMD.IBPB",   26, 1, 0),
+    DBGFREGSUBFIELD_RO("STIBP\0"        "Supports IA32_SPEC_CTRL.STIBP",                27, 1, 0),
+    DBGFREGSUBFIELD_RO("ARCHCAP\0"      "Supports IA32_ARCH_CAP",                       29, 1, 0),
     DBGFREGSUBFIELD_TERMINATOR()
 };
 
@@ -5981,6 +6075,16 @@ static DBGFREGSUBFIELD const g_aExtLeaf1EcxSubFields[] =
     DBGFREGSUBFIELD_RO("NodeId\0"       "NodeId in MSR C001_100C",                      19, 1, 0),
     DBGFREGSUBFIELD_RO("TBM\0"          "Trailing Bit Manipulation instructions",       21, 1, 0),
     DBGFREGSUBFIELD_RO("TOPOEXT\0"      "Topology Extensions",                          22, 1, 0),
+    DBGFREGSUBFIELD_TERMINATOR()
+};
+
+/** CPUID(0x80000008,0).EBX field descriptions.   */
+static DBGFREGSUBFIELD const g_aExtLeaf8EbxSubFields[] =
+{
+    DBGFREGSUBFIELD_RO("CLZERO\0"       "Clear zero instruction (cacheline)",            0, 1, 0),
+    DBGFREGSUBFIELD_RO("IRPerf\0"       "Instructions retired count support",            1, 1, 0),
+    DBGFREGSUBFIELD_RO("XSaveErPtr\0"   "Save/restore error pointers (FXSAVE/RSTOR*)",   2, 1, 0),
+    DBGFREGSUBFIELD_RO("IBPB\0"         "Supports the IBPB command in IA32_PRED_CMD",   12, 1, 0),
     DBGFREGSUBFIELD_TERMINATOR()
 };
 
@@ -6186,14 +6290,14 @@ static void cpumR3CpuIdInfoStdLeaf7Details(PCDBGFINFOHLP pHlp, PCCPUMCPUIDLEAF p
                     cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEbx, Host.uEbx, g_aLeaf7Sub0EbxSubFields, 56);
                     cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEcx, Host.uEcx, g_aLeaf7Sub0EcxSubFields, 56);
                     if (pCurLeaf->uEdx || Host.uEdx)
-                        pHlp->pfnPrintf(pHlp, "%36 %#x (%#x)\n", "Ext Features EDX:", pCurLeaf->uEdx, Host.uEdx);
+                        cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEdx, Host.uEdx, g_aLeaf7Sub0EdxSubFields, 56);
                 }
                 else
                 {
                     cpumR3CpuIdInfoMnemonicListU32(pHlp, pCurLeaf->uEbx, g_aLeaf7Sub0EbxSubFields, "Ext Features EBX:", 36);
                     cpumR3CpuIdInfoMnemonicListU32(pHlp, pCurLeaf->uEcx, g_aLeaf7Sub0EcxSubFields, "Ext Features ECX:", 36);
                     if (pCurLeaf->uEdx)
-                        pHlp->pfnPrintf(pHlp, "%36 %#x\n", "Ext Features EDX:", pCurLeaf->uEdx);
+                        cpumR3CpuIdInfoMnemonicListU32(pHlp, pCurLeaf->uEdx, g_aLeaf7Sub0EdxSubFields, "Ext Features EDX:", 36);
                 }
                 break;
 
@@ -6681,21 +6785,33 @@ DECLCALLBACK(void) cpumR3CpuIdInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszA
 
         }
 
-        if (iVerbosity && (pCurLeaf = cpumR3CpuIdGetLeaf(paLeaves, cLeaves, UINT32_C(0x80000008), 0)) != NULL)
+        pCurLeaf = cpumR3CpuIdGetLeaf(paLeaves, cLeaves, UINT32_C(0x80000008), 0);
+        if (pCurLeaf != NULL)
         {
-            uint32_t uEAX = pCurLeaf->uEax;
-            uint32_t uECX = pCurLeaf->uEcx;
+            if (pCurLeaf->uEbx || (Host.uEbx && iVerbosity))
+            {
+                if (iVerbosity < 1)
+                    cpumR3CpuIdInfoMnemonicListU32(pHlp, pCurLeaf->uEbx, g_aExtLeaf8EbxSubFields, "Ext Features ext IDs EBX:", 34);
+                else
+                    cpumR3CpuIdInfoVerboseCompareListU32(pHlp, pCurLeaf->uEbx, Host.uEbx, g_aExtLeaf8EbxSubFields, 56);
+            }
 
-            pHlp->pfnPrintf(pHlp,
-                            "Physical Address Width:          %d bits\n"
-                            "Virtual Address Width:           %d bits\n"
-                            "Guest Physical Address Width:    %d bits\n",
-                            (uEAX >> 0) & 0xff,
-                            (uEAX >> 8) & 0xff,
-                            (uEAX >> 16) & 0xff);
-            pHlp->pfnPrintf(pHlp,
-                            "Physical Core Count:             %d\n",
-                            ((uECX >> 0) & 0xff) + 1);
+            if (iVerbosity)
+            {
+                uint32_t uEAX = pCurLeaf->uEax;
+                uint32_t uECX = pCurLeaf->uEcx;
+
+                pHlp->pfnPrintf(pHlp,
+                                "Physical Address Width:          %d bits\n"
+                                "Virtual Address Width:           %d bits\n"
+                                "Guest Physical Address Width:    %d bits\n",
+                                (uEAX >> 0) & 0xff,
+                                (uEAX >> 8) & 0xff,
+                                (uEAX >> 16) & 0xff);
+                pHlp->pfnPrintf(pHlp,
+                                "Physical Core Count:             %d\n",
+                                ((uECX >> 0) & 0xff) + 1);
+            }
         }
 
         pCurLeaf = pNextLeaf;

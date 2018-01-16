@@ -6239,7 +6239,7 @@
     </message>
     <message>
         <source>The current port forwarding rules are not valid. Rule names should be unique.</source>
-        <translation>目前連接埠轉送規則無效。規則名稱應該唯一。</translation>
+        <translation>目前連接埠轉送規則無效。 規則名稱應該唯一。</translation>
     </message>
     <message>
         <source>The current port forwarding rules are not valid. Few rules have same host ports and conflicting IP addresses.</source>
@@ -6436,7 +6436,7 @@
     </message>
     <message>
         <source>Unable to find the host network interface &lt;b&gt;%1&lt;/b&gt;.</source>
-        <translation>找不到主機網路介面 &lt;b&gt;%1&lt;/b&gt;.</translation>
+        <translation>找不到主機網路介面 &lt;b&gt;%1&lt;/b&gt;。</translation>
     </message>
     <message>
         <source>Failed to create a host network interface.</source>
@@ -6512,7 +6512,7 @@
     </message>
     <message>
         <source>&lt;p&gt;The changes you requested require this disk to be released from the machines it is attached to.&lt;/p&gt;&lt;p&gt;Are you sure you want to release the disk image file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;您請求的變更需要從其附加的電腦中釋放這個磁碟。&lt;/p&gt;&lt;p&gt;您確定要釋放磁碟映像檔 &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; 嗎?&lt;/p&gt;&lt;p&gt;這將從以下虛擬電腦中取消連接: &lt;b&gt;%2&lt;/b&gt;。&lt;/p&gt;</translation>
     </message>
 </context>
 <context>

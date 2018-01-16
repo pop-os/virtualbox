@@ -136,7 +136,11 @@ typedef enum CPUMMICROARCH
     kCpumMicroarch_Intel_Core7_Haswell,
     kCpumMicroarch_Intel_Core7_Broadwell,
     kCpumMicroarch_Intel_Core7_Skylake,
-    kCpumMicroarch_Intel_Core7_Cannonlake,
+    kCpumMicroarch_Intel_Core7_KabyLake,
+    kCpumMicroarch_Intel_Core7_CoffeeLake,
+    kCpumMicroarch_Intel_Core7_CannonLake,
+    kCpumMicroarch_Intel_Core7_IceLake,
+    kCpumMicroarch_Intel_Core7_TigerLake,
     kCpumMicroarch_Intel_Core7_End,
 
     kCpumMicroarch_Intel_Atom_First,
@@ -146,8 +150,18 @@ typedef enum CPUMMICROARCH
     kCpumMicroarch_Intel_Atom_Silvermont,   /**< 22nm */
     kCpumMicroarch_Intel_Atom_Airmount,     /**< 14nm */
     kCpumMicroarch_Intel_Atom_Goldmont,     /**< 14nm */
+    kCpumMicroarch_Intel_Atom_GoldmontPlus, /**< 14nm */
     kCpumMicroarch_Intel_Atom_Unknown,
     kCpumMicroarch_Intel_Atom_End,
+
+
+    kCpumMicroarch_Intel_Phi_First,
+    kCpumMicroarch_Intel_Phi_KnightsFerry = kCpumMicroarch_Intel_Phi_First,
+    kCpumMicroarch_Intel_Phi_KnightsCorner,
+    kCpumMicroarch_Intel_Phi_KnightsLanding,
+    kCpumMicroarch_Intel_Phi_KnightsHill,
+    kCpumMicroarch_Intel_Phi_KnightsMill,
+    kCpumMicroarch_Intel_Phi_End,
 
     kCpumMicroarch_Intel_P6_Core_Atom_End,
 
@@ -1011,6 +1025,14 @@ typedef struct CPUMFEATURES
     uint32_t        fClFlush : 1;
     /** Supports CLFLUSHOPT. */
     uint32_t        fClFlushOpt : 1;
+    /** Supports IA32_PRED_CMD.IBPB. */
+    uint32_t        fIbpb : 1;
+    /** Supports IA32_SPEC_CTRL.IBRS. */
+    uint32_t        fIbrs : 1;
+    /** Supports IA32_SPEC_CTRL.STIBP. */
+    uint32_t        fStibp : 1;
+    /** Supports IA32_ARCH_CAP. */
+    uint32_t        fArchCap : 1;
 
     /** Supports AMD 3DNow instructions. */
     uint32_t        f3DNow : 1;
@@ -1044,7 +1066,7 @@ typedef struct CPUMFEATURES
     uint32_t        fVmx : 1;
 
     /** Alignment padding / reserved for future use. */
-    uint32_t        fPadding : 23;
+    uint32_t        fPadding : 19;
 
     /** SVM: Supports Nested-paging. */
     uint32_t        fSvmNestedPaging : 1;

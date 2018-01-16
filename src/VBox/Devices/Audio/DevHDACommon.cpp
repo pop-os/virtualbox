@@ -186,6 +186,48 @@ bool hdaWalClkSet(PHDASTATE pThis, uint64_t u64WalClk, bool fForce)
 }
 
 /**
+ * Returns the default (mixer) sink from a given SD#.
+ * Returns NULL if no sink is found.
+ *
+ * @return  PHDAMIXERSINK
+ * @param   pThis               HDA state.
+ * @param   uSD                 SD# to return mixer sink for.
+ *                              NULL if not found / handled.
+ */
+PHDAMIXERSINK hdaGetDefaultSink(PHDASTATE pThis, uint8_t uSD)
+{
+    if (hdaGetDirFromSD(uSD) == PDMAUDIODIR_IN)
+    {
+        const uint8_t uFirstSDI = 0;
+
+        if (uSD == uFirstSDI) /* First SDI. */
+            return &pThis->SinkLineIn;
+#ifdef VBOX_WITH_AUDIO_HDA_MIC_IN
+        else if (uSD == uFirstSDI + 1)
+            return &pThis->SinkMicIn;
+#else
+        else /* If we don't have a dedicated Mic-In sink, use the always present Line-In sink. */
+            return &pThis->SinkLineIn;
+#endif
+    }
+    else
+    {
+        const uint8_t uFirstSDO = HDA_MAX_SDI;
+
+        if (uSD == uFirstSDO)
+            return &pThis->SinkFront;
+#ifdef VBOX_WITH_AUDIO_HDA_51_SURROUND
+        else if (uSD == uFirstSDO + 1)
+            return &pThis->SinkCenterLFE;
+        else if (uSD == uFirstSDO + 2)
+            return &pThis->SinkRear;
+#endif
+    }
+
+    return NULL;
+}
+
+/**
  * Returns the audio direction of a specified stream descriptor.
  *
  * The register layout specifies that input streams (SDI) come first,
@@ -237,7 +279,7 @@ PHDASTREAM hdaGetStreamFromSink(PHDASTATE pThis, PHDAMIXERSINK pSink)
     AssertPtrReturn(pSink, NULL);
 
     /** @todo Do something with the channel mapping here? */
-    return hdaGetStreamFromSD(pThis, pSink->uSD);
+    return pSink->pStream;
 }
 
 /**
@@ -361,7 +403,7 @@ int hdaDMAWrite(PHDASTATE pThis, PHDASTREAM pStream, const void *pvBuf, uint32_t
 
         /* Sanity checks. */
         Assert(cbChunk <= pBDLE->Desc.u32BufSize - pBDLE->State.u32BufOff);
-        Assert(cbChunk % HDA_FRAME_SIZE == 0);
+        Assert(cbChunk % pStream->State.cbFrameSize == 0);
         Assert((cbChunk >> 1) >= 1);
 
         if (pStream->Dbg.Runtime.fEnabled)
@@ -522,6 +564,43 @@ int hdaSDFMTToPCMProps(uint32_t u32SDFMT, PPDMAUDIOPCMPROPS pProps)
 }
 
 #ifdef IN_RING3
+# ifdef LOG_ENABLED
+void hdaBDLEDumpAll(PHDASTATE pThis, uint64_t u64BDLBase, uint16_t cBDLE)
+{
+    LogFlowFunc(("BDLEs @ 0x%x (%RU16):\n", u64BDLBase, cBDLE));
+    if (!u64BDLBase)
+        return;
+
+    uint32_t cbBDLE = 0;
+    for (uint16_t i = 0; i < cBDLE; i++)
+    {
+        HDABDLEDESC bd;
+        PDMDevHlpPhysRead(pThis->CTX_SUFF(pDevIns), u64BDLBase + i * sizeof(HDABDLEDESC), &bd, sizeof(bd));
+
+        LogFunc(("\t#%03d BDLE(adr:0x%llx, size:%RU32, ioc:%RTbool)\n",
+                 i, bd.u64BufAdr, bd.u32BufSize, bd.fFlags & HDA_BDLE_FLAG_IOC));
+
+        cbBDLE += bd.u32BufSize;
+    }
+
+    LogFlowFunc(("Total: %RU32 bytes\n", cbBDLE));
+
+    if (!pThis->u64DPBase) /* No DMA base given? Bail out. */
+        return;
+
+    LogFlowFunc(("DMA counters:\n"));
+
+    for (int i = 0; i < cBDLE; i++)
+    {
+        uint32_t uDMACnt;
+        PDMDevHlpPhysRead(pThis->CTX_SUFF(pDevIns), (pThis->u64DPBase & DPBASE_ADDR_MASK) + (i * 2 * sizeof(uint32_t)),
+                          &uDMACnt, sizeof(uDMACnt));
+
+        LogFlowFunc(("\t#%03d DMA @ 0x%x\n", i , uDMACnt));
+    }
+}
+# endif /* LOG_ENABLED */
+
 /**
  * Fetches a Bundle Descriptor List Entry (BDLE) from the DMA engine.
  *
@@ -620,9 +699,6 @@ bool hdaTimerSet(PHDASTATE pThis, uint64_t tsExpire, bool fForce)
         for (uint8_t i = 0; i < HDA_MAX_STREAMS; i++)
         {
             PHDASTREAM pStream = &pThis->aStreams[i];
-
-            if (!(HDA_STREAM_REG(pThis, CTL, pStream->u8SD) & HDA_SDCTL_RUN))
-                continue;
 
             if (hdaStreamTransferIsScheduled(pStream))
                 tsExpireMin = RT_MIN(tsExpireMin, hdaStreamTransferGetNext(pStream));
