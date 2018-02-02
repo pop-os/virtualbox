@@ -1,3 +1,12 @@
+virtualbox (5.2.6-dfsg-3) unstable; urgency=medium
+
+  * Patch for 3D runtime flickering with NVIDIA cards
+    (this needs a new environment variable) Closes: #889030
+    CR_RENDER_FORCE_PRESENT_MAIN_THREAD=0 VirtualBox
+    Thanks Marius Mikucionis <mmikucionis@gmail.com> for the report!
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 01 Feb 2018 13:37:11 +0100
+
 virtualbox (5.2.6-dfsg-2) unstable; urgency=high
 
   * Add kernel 4.15 patch, from mail list (LP: #1737759

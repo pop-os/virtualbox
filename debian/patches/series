@@ -17,3 +17,4 @@
 37-python-3.6-support.patch
 fix-build.patch
 kernel-4.15.patch
+nvidia-3d-fix.patch
