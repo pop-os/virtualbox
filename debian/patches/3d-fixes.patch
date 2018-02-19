@@ -1,0 +1,225 @@
+Description: fix wrong device permissions leading to run issues with 3d enabled
+Author: Upstream
+Origin: Upstream
+Last-Update: 2018-02-19
+
+--- virtualbox-5.2.6-dfsg.orig/src/VBox/Additions/linux/installer/vboxadd.sh
++++ virtualbox-5.2.6-dfsg/src/VBox/Additions/linux/installer/vboxadd.sh
+@@ -128,12 +128,11 @@ log()
+     echo "${1}" >> "${LOG}"
+ }
+ 
+-dev=vboxguest
+-userdev=vboxuser
++dev=/dev/vboxguest
++userdev=/dev/vboxuser
+ config=/var/lib/VBoxGuestAdditions/config
+ owner=vboxadd
+ group=1
+-usergroup=vboxadd
+ 
+ if test -r $config; then
+   . $config
+@@ -165,7 +164,7 @@ running_vboxvideo()
+ 
+ do_vboxguest_non_udev()
+ {
+-    if [ ! -c /dev/$dev ]; then
++    if [ ! -c $dev ]; then
+         maj=`sed -n 's;\([0-9]\+\) vboxguest;\1;p' /proc/devices`
+         if [ ! -z "$maj" ]; then
+             min=0
+@@ -180,32 +179,32 @@ do_vboxguest_non_udev()
+             fail "Cannot locate the VirtualBox device"
+         }
+ 
+-        mknod -m 0660 /dev/$dev c $maj $min || {
++        mknod -m 0664 $dev c $maj $min || {
+             rmmod vboxguest 2>/dev/null
+-            fail "Cannot create device /dev/$dev with major $maj and minor $min"
++            fail "Cannot create device $dev with major $maj and minor $min"
+         }
+     fi
+-    chown $owner:$group /dev/$dev 2>/dev/null || {
+-        rm -f /dev/$dev 2>/dev/null
+-        rm -f /dev/$userdev 2>/dev/null
++    chown $owner:$group $dev 2>/dev/null || {
++        rm -f $dev 2>/dev/null
++        rm -f $userdev 2>/dev/null
+         rmmod vboxguest 2>/dev/null
+-        fail "Cannot change owner $owner:$group for device /dev/$dev"
++        fail "Cannot change owner $owner:$group for device $dev"
+     }
+ 
+-    if [ ! -c /dev/$userdev ]; then
++    if [ ! -c $userdev ]; then
+         maj=10
+         min=`sed -n 's;\([0-9]\+\) vboxuser;\1;p' /proc/misc`
+         if [ ! -z "$min" ]; then
+-            mknod -m 0660 /dev/$userdev c $maj $min || {
+-                rm -f /dev/$dev 2>/dev/null
++            mknod -m 0666 $userdev c $maj $min || {
++                rm -f $dev 2>/dev/null
+                 rmmod vboxguest 2>/dev/null
+-                fail "Cannot create device /dev/$userdev with major $maj and minor $min"
++                fail "Cannot create device $userdev with major $maj and minor $min"
+             }
+-            chown $owner:$usergroup /dev/$userdev 2>/dev/null || {
+-                rm -f /dev/$dev 2>/dev/null
+-                rm -f /dev/$userdev 2>/dev/null
++            chown $owner:$group $userdev 2>/dev/null || {
++                rm -f $dev 2>/dev/null
++                rm -f $userdev 2>/dev/null
+                 rmmod vboxguest 2>/dev/null
+-                fail "Cannot change owner $owner:$usergroup for device /dev/$userdev"
++                fail "Cannot change owner $owner:$group for device $userdev"
+             }
+         fi
+     fi
+@@ -221,12 +220,12 @@ start()
+             ps -A -o comm | grep -q '/*udevd$' 2>/dev/null ||
+             no_udev=1
+         running_vboxguest || {
+-            rm -f /dev/$dev || {
+-                fail "Cannot remove /dev/$dev"
++            rm -f $dev || {
++                fail "Cannot remove $dev"
+             }
+ 
+-            rm -f /dev/$userdev || {
+-                fail "Cannot remove /dev/$userdev"
++            rm -f $userdev || {
++                fail "Cannot remove $userdev"
+             }
+ 
+             $MODPROBE vboxguest >/dev/null 2>&1 || {
+@@ -370,14 +369,10 @@ create_vbox_user()
+     log "Creating user for the Guest Additions."
+     # This is the LSB version of useradd and should work on recent
+     # distributions
+-    useradd -d /var/run/"${owner}" -g 1 -r -s /bin/false "${owner}" >/dev/null 2>&1
++    useradd -d /var/run/vboxadd -g 1 -r -s /bin/false vboxadd >/dev/null 2>&1
+     # And for the others, we choose a UID ourselves
+-    useradd -d /var/run/"${owner}" -g 1 -u 501 -o -s /bin/false "${owner}" >/dev/null 2>&1
+-    # And create the group for the user device:
+-    groupadd "${usergroup}"
+-    # VBoxClient needs to be setgid.
+-    chown :"${usergroup}" "${INSTALL_DIR}/bin/VBoxClient"
+-    chmod g+s "${INSTALL_DIR}/bin/VBoxClient"
++    useradd -d /var/run/vboxadd -g 1 -u 501 -o -s /bin/false vboxadd >/dev/null 2>&1
++
+ }
+ 
+ create_udev_rule()
+--- virtualbox-5.2.6-dfsg.orig/src/VBox/Additions/linux/sharedfolders/utils.c
++++ virtualbox-5.2.6-dfsg/src/VBox/Additions/linux/sharedfolders/utils.c
+@@ -79,10 +79,7 @@ void sf_init_inode(struct sf_glob_info *
+     attr = &info->Attr;
+ 
+ #define mode_set(r) attr->fMode & (RTFS_UNIX_##r) ? (S_##r) : 0;
+-    mode  = mode_set(ISUID);
+-    mode |= mode_set(ISGID);
+-
+-    mode |= mode_set(IRUSR);
++    mode  = mode_set(IRUSR);
+     mode |= mode_set(IWUSR);
+     mode |= mode_set(IXUSR);
+ 
+@@ -360,9 +357,7 @@ int sf_setattr(struct dentry *dentry, st
+         RT_ZERO(info);
+         if (iattr->ia_valid & ATTR_MODE)
+         {
+-            info.Attr.fMode  = mode_set(ISUID);
+-            info.Attr.fMode |= mode_set(ISGID);
+-            info.Attr.fMode |= mode_set(IRUSR);
++            info.Attr.fMode  = mode_set(IRUSR);
+             info.Attr.fMode |= mode_set(IWUSR);
+             info.Attr.fMode |= mode_set(IXUSR);
+             info.Attr.fMode |= mode_set(IRGRP);
+--- virtualbox-5.2.6-dfsg.orig/src/VBox/HostServices/GuestProperties/service.cpp
++++ virtualbox-5.2.6-dfsg/src/VBox/HostServices/GuestProperties/service.cpp
+@@ -267,6 +267,28 @@ private:
+     }
+ 
+     /**
++     * Check whether the property name is reserved for host changes only.
++     *
++     * @returns Boolean true (host reserved) or false (available to guest).
++     *
++     * @param   pszName  The property name to check.
++     */
++    bool checkHostReserved(const char *pszName)
++    {
++        if (RTStrStartsWith(pszName, "/VirtualBox/GuestAdd/VBoxService/"))
++            return true;
++        if (RTStrStartsWith(pszName, "/VirtualBox/GuestAdd/PAM/"))
++            return true;
++        if (RTStrStartsWith(pszName, "/VirtualBox/GuestAdd/Greeter/"))
++            return true;
++        if (RTStrStartsWith(pszName, "/VirtualBox/GuestAdd/SharedFolders/"))
++            return true;
++        if (RTStrStartsWith(pszName, "/VirtualBox/HostInfo/"))
++            return true;
++        return false;
++    }
++
++    /**
+      * Gets a property.
+      *
+      * @returns Pointer to the property if found, NULL if not.
+@@ -538,6 +560,11 @@ int Service::setPropertyBlock(uint32_t c
+                 uint32_t fFlags;
+                 rc = validateFlags(papszFlags[i], &fFlags);
+                 AssertRCBreak(rc);
++                /*
++                 * Handle names which are read-only for the guest.
++                 */
++                if (checkHostReserved(papszNames[i]))
++                    fFlags |= GUEST_PROP_F_RDONLYGUEST;
+ 
+                 Property *pProp = getPropertyInternal(papszNames[i]);
+                 if (pProp)
+--- virtualbox-5.2.6-dfsg.orig/src/VBox/HostServices/GuestProperties/testcase/tstGuestPropSvc.cpp
++++ virtualbox-5.2.6-dfsg/src/VBox/HostServices/GuestProperties/testcase/tstGuestPropSvc.cpp
+@@ -460,6 +460,11 @@ static void testSetProp(VBOXHGCMSVCFNTAB
+         { "TEST NAME", "test", "", true, true, false },
+         { "Green", "gone out...", "", false, false, false },
+         { "Green", "gone out...", "", true, false, false },
++        { "/VirtualBox/GuestAdd/SharedFolders/MountDir", "test", "", false, true, false },
++        { "/VirtualBox/GuestAdd/SomethingElse", "test", "", false, true, true },
++        { "/VirtualBox/HostInfo/VRDP/Client/1/Name", "test", "", false, false, false },
++        { "/VirtualBox/GuestAdd/SharedFolders/MountDir", "test", "", true, true, true },
++        { "/VirtualBox/HostInfo/VRDP/Client/1/Name", "test", "TRANSRESET", true, true, true },
+     };
+ 
+     for (unsigned i = 0; i < RT_ELEMENTS(s_aSetProperties); ++i)
+@@ -658,6 +663,12 @@ g_aGetNotifications[] =
+     { "Amber\0Caution!\0", sizeof("Amber\0Caution!\0") },
+     { "Green\0Go!\0READONLY", sizeof("Green\0Go!\0READONLY") },
+     { "Blue\0What on earth...?\0", sizeof("Blue\0What on earth...?\0") },
++    { "/VirtualBox/GuestAdd/SomethingElse\0test\0",
++      sizeof("/VirtualBox/GuestAdd/SomethingElse\0test\0") },
++    { "/VirtualBox/GuestAdd/SharedFolders/MountDir\0test\0RDONLYGUEST",
++      sizeof("/VirtualBox/GuestAdd/SharedFolders/MountDir\0test\0RDONLYGUEST") },
++    { "/VirtualBox/HostInfo/VRDP/Client/1/Name\0test\0TRANSIENT, RDONLYGUEST, TRANSRESET",
++      sizeof("/VirtualBox/HostInfo/VRDP/Client/1/Name\0test\0TRANSIENT, RDONLYGUEST, TRANSRESET") },
+     { "Red\0\0", sizeof("Red\0\0") },
+     { "Amber\0\0", sizeof("Amber\0\0") },
+ };
+--- virtualbox-5.2.6-dfsg.orig/src/VBox/HostServices/SharedFolders/vbsf.cpp
++++ virtualbox-5.2.6-dfsg/src/VBox/HostServices/SharedFolders/vbsf.cpp
+@@ -1525,9 +1525,13 @@ static int vbsfSetFileInfo(SHFLCLIENTDAT
+ 
+ #ifndef RT_OS_WINDOWS
+                 /* Don't allow the guest to clear the own bit, otherwise the guest wouldn't be
+-                 * able to access this file anymore. Only for guests, which set the UNIX mode. */
++                 * able to access this file anymore. Only for guests, which set the UNIX mode.
++                 * Also, clear bits which we don't pass through for security reasons. */
+                 if (fMode & RTFS_UNIX_MASK)
++                {
+                     fMode |= RTFS_UNIX_IRUSR;
++                    fMode &= ~(RTFS_UNIX_ISUID | RTFS_UNIX_ISGID | RTFS_UNIX_ISTXT);
++                }
+ #endif
+ 
+                 rc = RTFileSetMode(pHandle->file.Handle, fMode);

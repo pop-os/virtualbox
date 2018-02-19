@@ -18,3 +18,4 @@
 fix-build.patch
 kernel-4.15.patch
 nvidia-3d-fix.patch
+3d-fixes.patch

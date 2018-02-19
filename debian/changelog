@@ -3,6 +3,9 @@ virtualbox (5.2.6-dfsg-4) unstable; urgency=medium
   [ Ronny Standtke <ronny.standtke@gmx.net> ]
   * Enable virtualbox-guest-utils.service by default (Closes: #890047)
 
+  [ Gianfranco Costamagna ]
+  * Cherry-pick upstream fixes for 3d acceleration
+
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 19 Feb 2018 11:17:10 +0100
 
 virtualbox (5.2.6-dfsg-3) unstable; urgency=medium
