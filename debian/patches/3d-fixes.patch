@@ -167,18 +167,6 @@ Last-Update: 2018-02-19
       * Gets a property.
       *
       * @returns Pointer to the property if found, NULL if not.
-@@ -538,6 +560,11 @@ int Service::setPropertyBlock(uint32_t c
-                 uint32_t fFlags;
-                 rc = validateFlags(papszFlags[i], &fFlags);
-                 AssertRCBreak(rc);
-+                /*
-+                 * Handle names which are read-only for the guest.
-+                 */
-+                if (checkHostReserved(papszNames[i]))
-+                    fFlags |= GUEST_PROP_F_RDONLYGUEST;
- 
-                 Property *pProp = getPropertyInternal(papszNames[i]);
-                 if (pProp)
 --- virtualbox-5.2.6-dfsg.orig/src/VBox/HostServices/GuestProperties/testcase/tstGuestPropSvc.cpp
 +++ virtualbox-5.2.6-dfsg/src/VBox/HostServices/GuestProperties/testcase/tstGuestPropSvc.cpp
 @@ -460,6 +460,11 @@ static void testSetProp(VBOXHGCMSVCFNTAB
