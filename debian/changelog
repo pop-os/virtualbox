@@ -1,6 +1,7 @@
 virtualbox (5.2.8-dfsg-1) unstable; urgency=medium
 
   * New upstream release, drop the patches upstreamed.
+  * Update copyright year to 2018
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 27 Feb 2018 23:32:31 +0100
 
