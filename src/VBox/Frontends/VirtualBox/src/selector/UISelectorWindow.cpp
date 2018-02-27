@@ -1316,7 +1316,7 @@ void UISelectorWindow::prepare()
 {
 #ifdef VBOX_WS_X11
     /* Assign same name to both WM_CLASS name & class for now: */
-    vboxGlobal().setWMClass(this, "VirtualBox Manager", "VirtualBox Manager");
+    VBoxGlobal::setWMClass(this, "VirtualBox Manager", "VirtualBox Manager");
 #endif
 
 #ifdef VBOX_WS_MAC

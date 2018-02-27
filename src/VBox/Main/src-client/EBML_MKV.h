@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017 Oracle Corporation
+ * Copyright (C) 2017-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -69,6 +69,7 @@ enum MkvElem
     MkvElem_Video                   = 0xE0,
     MkvElem_PixelWidth              = 0xB0,
     MkvElem_PixelHeight             = 0xBA,
+    MkvElem_FrameRate               = 0x2383E3,
 
     MkvElem_Audio                   = 0xE1,
     MkvElem_SamplingFrequency       = 0xB5,

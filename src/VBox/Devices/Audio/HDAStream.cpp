@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017 Oracle Corporation
+ * Copyright (C) 2017-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,6 +52,8 @@ int hdaStreamCreate(PHDASTREAM pStream, PHDASTATE pThis, uint8_t u8SD)
     pStream->u8SD           = u8SD;
     pStream->pMixSink       = NULL;
     pStream->pHDAState      = pThis;
+    pStream->pTimer         = pThis->pTimer[u8SD];
+    AssertPtr(pStream->pTimer);
 
     pStream->State.fInReset = false;
     pStream->State.fRunning = false;
@@ -59,19 +61,18 @@ int hdaStreamCreate(PHDASTREAM pStream, PHDASTATE pThis, uint8_t u8SD)
     RTListInit(&pStream->State.lstDMAHandlers);
 #endif
 
-    int rc = RTCircBufCreate(&pStream->State.pCircBuf, _64K); /** @todo Make this configurable. */
-    if (RT_SUCCESS(rc))
-    {
-        rc = hdaStreamPeriodCreate(&pStream->State.Period);
-        if (RT_SUCCESS(rc))
-            rc = RTCritSectInit(&pStream->State.CritSect);
-    }
+    int rc = RTCritSectInit(&pStream->CritSect);
+    AssertRCReturn(rc, rc);
 
-    int rc2;
+    rc = RTCircBufCreate(&pStream->State.pCircBuf, _64K); /** @todo Make this configurable. */
+    AssertRCReturn(rc, rc);
+
+    rc = hdaStreamPeriodCreate(&pStream->State.Period);
+    AssertRCReturn(rc, rc);
 
 #ifdef DEBUG
-    rc2 = RTCritSectInit(&pStream->Dbg.CritSect);
-    AssertRC(rc2);
+    rc = RTCritSectInit(&pStream->Dbg.CritSect);
+    AssertRCReturn(rc, rc);
 #endif
 
     pStream->Dbg.Runtime.fEnabled = pThis->Dbg.fEnabled;
@@ -86,8 +87,8 @@ int hdaStreamCreate(PHDASTREAM pStream, PHDASTATE pThis, uint8_t u8SD)
             RTStrPrintf(szFile, sizeof(szFile), "hdaStreamReadSD%RU8", pStream->u8SD);
 
         char szPath[RTPATH_MAX + 1];
-        rc2 = DrvAudioHlpGetFileName(szPath, sizeof(szPath), pThis->Dbg.szOutPath, szFile,
-                                     0 /* uInst */, PDMAUDIOFILETYPE_WAV, PDMAUDIOFILENAME_FLAG_NONE);
+        int rc2 = DrvAudioHlpGetFileName(szPath, sizeof(szPath), pThis->Dbg.szOutPath, szFile,
+                                         0 /* uInst */, PDMAUDIOFILETYPE_WAV, PDMAUDIOFILENAME_FLAG_NONE);
         AssertRC(rc2);
         rc2 = DrvAudioHlpFileCreate(PDMAUDIOFILETYPE_WAV, szPath, PDMAUDIOFILE_FLAG_NONE, &pStream->Dbg.Runtime.pFileStream);
         AssertRC(rc2);
@@ -132,8 +133,11 @@ void hdaStreamDestroy(PHDASTREAM pStream)
     AssertRC(rc2);
 #endif
 
-    rc2 = RTCritSectDelete(&pStream->State.CritSect);
-    AssertRC(rc2);
+    if (RTCritSectIsInitialized(&pStream->CritSect))
+    {
+        rc2 = RTCritSectDelete(&pStream->CritSect);
+        AssertRC(rc2);
+    }
 
     if (pStream->State.pCircBuf)
     {
@@ -144,8 +148,11 @@ void hdaStreamDestroy(PHDASTREAM pStream)
     hdaStreamPeriodDestroy(&pStream->State.Period);
 
 #ifdef DEBUG
-    rc2 = RTCritSectDelete(&pStream->Dbg.CritSect);
-    AssertRC(rc2);
+    if (RTCritSectIsInitialized(&pStream->Dbg.CritSect))
+    {
+        rc2 = RTCritSectDelete(&pStream->Dbg.CritSect);
+        AssertRC(rc2);
+    }
 #endif
 
     if (pStream->Dbg.Runtime.fEnabled)
@@ -216,8 +223,19 @@ int hdaStreamInit(PHDASTREAM pStream, uint8_t uSD)
             break;
     }
 
+    if (   !pStream->u32CBL
+        || !pStream->u16LVI
+        || !pStream->u64BDLBase
+        || !pStream->u16FIFOS)
+    {
+        return VINF_SUCCESS;
+    }
+
     /* Set the stream's frame size. */
     pStream->State.cbFrameSize = pCfg->Props.cChannels * (pCfg->Props.cBits / 8 /* To bytes */);
+    LogFunc(("[SD%RU8] cChannels=%RU8, cBits=%RU8 -> cbFrameSize=%RU32\n",
+             pStream->u8SD, pCfg->Props.cChannels, pCfg->Props.cBits, pStream->State.cbFrameSize));
+    Assert(pStream->State.cbFrameSize); /* Frame size must not be 0. */
 
     /*
      * Initialize the stream mapping in any case, regardless if
@@ -234,8 +252,11 @@ int hdaStreamInit(PHDASTREAM pStream, uint8_t uSD)
              pStream->u8SD, pStream->u64BDLBase, pStream->u32CBL, pStream->u16LVI, pStream->u16FIFOS,
              pStream->State.Cfg.Props.uHz, rc));
 
-    if (   pStream->u32CBL
-        && pStream->u16LVI)
+    /* Make sure that mandatory parameters are set up correctly. */
+    AssertStmt(pStream->u32CBL %  pStream->State.cbFrameSize == 0, rc = VERR_INVALID_PARAMETER);
+    AssertStmt(pStream->u16LVI >= 1,                               rc = VERR_INVALID_PARAMETER);
+
+    if (RT_SUCCESS(rc))
     {
         /* Make sure that the chosen Hz rate dividable by the stream's rate. */
         if (pStream->State.Cfg.Props.uHz % pThis->u16TimerHz != 0)
@@ -262,12 +283,16 @@ int hdaStreamInit(PHDASTREAM pStream, uint8_t uSD)
             HDABDLE BDLE;
             RT_ZERO(BDLE);
 
-            Assert(pStream->u64BDLBase);
-
             int rc2 = hdaBDLEFetch(pThis, &BDLE, pStream->u64BDLBase, 0 /* Entry */);
             AssertRC(rc2);
 
-            Assert(BDLE.Desc.u32BufSize % pStream->State.cbFrameSize == 0);
+            /* Note: Do *not* check if this BDLE aligns to the stream's frame size.
+             *       It can happen that this isn't the case on some guests, e.g.
+             *       on Windows with a 5.1 speaker setup.
+             *
+             *       The only thing which counts is that the stream's CBL value
+             *       properly aligns to the stream's frame size.
+             */
 
             /* If no custom set position adjustment is set, apply some
              * simple heuristics to detect the appropriate position adjustment. */
@@ -339,8 +364,9 @@ int hdaStreamInit(PHDASTREAM pStream, uint8_t uSD)
 
         pStream->State.cbTransferProcessed        = 0;
         pStream->State.cTransferPendingInterrupts = 0;
+        pStream->State.cbDMALeft                  = 0;
 
-        const uint64_t cTicksPerHz = TMTimerGetFreq(pThis->pTimer) / pThis->u16TimerHz;
+        const uint64_t cTicksPerHz = TMTimerGetFreq(pStream->pTimer) / pThis->u16TimerHz;
 
         /* Calculate the timer ticks per byte for this stream. */
         pStream->State.cTicksPerByte = cTicksPerHz / pStream->State.cbTransferChunk;
@@ -348,6 +374,7 @@ int hdaStreamInit(PHDASTREAM pStream, uint8_t uSD)
 
         /* Calculate timer ticks per transfer. */
         pStream->State.cTransferTicks     = pStream->State.cbTransferChunk * pStream->State.cTicksPerByte;
+        Assert(pStream->State.cTransferTicks);
 
         /* Initialize the transfer timestamps. */
         pStream->State.tsTransferLast     = 0;
@@ -365,6 +392,9 @@ int hdaStreamInit(PHDASTREAM pStream, uint8_t uSD)
         hdaBDLEDumpAll(pThis, pStream->u64BDLBase, pStream->u16LVI + 1);
 #endif
     }
+
+    if (RT_FAILURE(rc))
+        LogRel(("HDA: Initializing stream #%RU8 failed with %Rrc\n", pStream->u8SD, rc));
 
     return rc;
 }
@@ -473,41 +503,35 @@ int hdaStreamEnable(PHDASTREAM pStream, bool fEnable)
 
     int rc = VINF_SUCCESS;
 
-    if (!pStream->pMixSink) /* Stream attached to a sink? */
-    {
-        AssertMsgFailed(("Stream #%RU8 not has no mixer sink attached\n", pStream->u8SD));
-        return VERR_WRONG_ORDER;
-    }
-
     AUDMIXSINKCMD enmCmd = fEnable
                          ? AUDMIXSINKCMD_ENABLE : AUDMIXSINKCMD_DISABLE;
 
     /* First, enable or disable the stream and the stream's sink, if any. */
-    if (pStream->pMixSink->pMixSink)
+    if (   pStream->pMixSink
+        && pStream->pMixSink->pMixSink)
         rc = AudioMixerSinkCtl(pStream->pMixSink->pMixSink, enmCmd);
 
     if (   RT_SUCCESS(rc)
+        && fEnable
         && pStream->Dbg.Runtime.fEnabled)
     {
         Assert(DrvAudioHlpPCMPropsAreValid(&pStream->State.Cfg.Props));
 
         if (fEnable)
         {
+            if (!DrvAudioHlpFileIsOpen(pStream->Dbg.Runtime.pFileStream))
+            {
                 int rc2 = DrvAudioHlpFileOpen(pStream->Dbg.Runtime.pFileStream, PDMAUDIOFILE_DEFAULT_OPEN_FLAGS,
                                               &pStream->State.Cfg.Props);
                 AssertRC(rc2);
+            }
 
-                rc2 = DrvAudioHlpFileOpen(pStream->Dbg.Runtime.pFileDMA, PDMAUDIOFILE_DEFAULT_OPEN_FLAGS,
-                                          &pStream->State.Cfg.Props);
+            if (!DrvAudioHlpFileIsOpen(pStream->Dbg.Runtime.pFileDMA))
+            {
+                int rc2 = DrvAudioHlpFileOpen(pStream->Dbg.Runtime.pFileDMA, PDMAUDIOFILE_DEFAULT_OPEN_FLAGS,
+                                              &pStream->State.Cfg.Props);
                 AssertRC(rc2);
-        }
-        else
-        {
-                int rc2 = DrvAudioHlpFileClose(pStream->Dbg.Runtime.pFileStream);
-                AssertRC(rc2);
-
-                rc2 = DrvAudioHlpFileClose(pStream->Dbg.Runtime.pFileDMA);
-                AssertRC(rc2);
+            }
         }
     }
 
@@ -535,8 +559,6 @@ uint32_t hdaStreamGetPosition(PHDASTATE pThis, PHDASTREAM pStream)
 void hdaStreamSetPosition(PHDASTREAM pStream, uint32_t u32LPIB)
 {
     AssertPtrReturnVoid(pStream);
-
-    Assert(u32LPIB % pStream->State.cbFrameSize == 0);
 
     Log3Func(("[SD%RU8] LPIB=%RU32 (DMA Position Buffer Enabled: %RTbool)\n",
               pStream->u8SD, u32LPIB, pStream->pHDAState->fDMAPosition));
@@ -601,12 +623,23 @@ bool hdaStreamTransferIsScheduled(PHDASTREAM pStream)
 
     AssertPtrReturn(pStream->pHDAState, false);
 
+    const uint64_t tsNow = TMTimerGet(pStream->pTimer);
+
     const bool fScheduled =    pStream->State.fRunning
                             && (   pStream->State.cTransferPendingInterrupts
-                                || pStream->State.tsTransferNext > TMTimerGet(pStream->pHDAState->pTimer));
+                                || pStream->State.tsTransferNext > tsNow);
 
-    Log3Func(("[SD%RU8] tsTransferNext=%RU64, cTransferPendingInterrupts=%RU8 -> %RTbool\n",
-              pStream->u8SD, pStream->State.tsTransferNext, pStream->State.cTransferPendingInterrupts, fScheduled));
+#ifdef LOG_ENABLED
+    if (fScheduled)
+    {
+        if (pStream->State.cTransferPendingInterrupts)
+            Log3Func(("[SD%RU8] Scheduled (%RU8 IRQs pending)\n",
+                      pStream->u8SD, pStream->State.cTransferPendingInterrupts));
+        else
+            Log3Func(("[SD%RU8] Scheduled in %RU64\n",
+                      pStream->u8SD, pStream->State.tsTransferNext - tsNow));
+    }
+#endif
 
     return fScheduled;
 }
@@ -682,6 +715,8 @@ int hdaStreamWrite(PHDASTREAM pStream, const void *pvBuf, uint32_t cbBuf, uint32
 
         cbWrittenTotal += (uint32_t)cbDst;
     }
+
+    Log3Func(("cbWrittenTotal=%RU32\n", cbWrittenTotal));
 
     if (pcbWritten)
         *pcbWritten = cbWrittenTotal;
@@ -807,7 +842,7 @@ int hdaStreamTransfer(PHDASTREAM pStream, uint32_t cbToProcessMax)
         return VINF_SUCCESS;
     }
 
-    const uint64_t tsNow = TMTimerGet(pThis->pTimer);
+    const uint64_t tsNow = TMTimerGet(pStream->pTimer);
 
     if (!pStream->State.tsTransferLast)
         pStream->State.tsTransferLast = tsNow;
@@ -936,45 +971,76 @@ int hdaStreamTransfer(PHDASTREAM pStream, uint32_t cbToProcessMax)
             rc = hdaDMARead(pThis, pStream, abChunk, cbChunk, &cbDMA /* pcbRead */);
             if (RT_SUCCESS(rc))
             {
-                uint32_t cbDMAWritten = 0;
-                uint32_t cbDMALeft    = cbDMA;
-
-                if (cbDMALeft > RTCircBufFree(pCircBuf))
-                {
-                    LogRel2(("HDA: FIFO overflow for stream #%RU8 (%RU32 bytes outstanding)\n",
-                             pStream->u8SD, cbDMALeft - RTCircBufFree(pCircBuf)));
-
-                    /* Try to read as much as possible. */
-                    cbDMALeft = (uint32_t)RTCircBufFree(pCircBuf);
-
-                    rc = VERR_BUFFER_OVERFLOW;
-                }
-
 #ifndef VBOX_WITH_HDA_AUDIO_INTERLEAVING_STREAMS_SUPPORT
-                /**
-                 * The following code extracts the required audio stream (channel) data
-                 * of non-interleaved  *and* interleaved audio streams.
+                /*
+                 * Most guests don't use different stream frame sizes than
+                 * the default one, so save a bit of CPU time and don't go into
+                 * the frame extraction code below.
                  *
-                 * We by default only support 2 channels with 16-bit samples (HDA_FRAME_SIZE),
-                 * but an HDA audio stream can have interleaved audio data of multiple audio
-                 * channels in such a single stream ("AA,AA,AA vs. AA,BB,AA,BB").
-                 *
-                 * So take this into account by just handling the first channel in such a stream ("A")
-                 * and just discard the other channel's data.
+                 * Only macOS guests need the frame extraction branch below at the moment AFAIK.
                  */
-                while (cbDMALeft)
+                if (pStream->State.cbFrameSize == HDA_FRAME_SIZE)
                 {
-                    void *pvBuf; size_t cbBuf;
-                    RTCircBufAcquireWriteBlock(pCircBuf, HDA_FRAME_SIZE, &pvBuf, &cbBuf);
+                    uint32_t cbDMARead = 0;
+                    uint32_t cbDMALeft = RT_MIN(cbDMA, (uint32_t)RTCircBufFree(pCircBuf));
 
-                    if (cbBuf)
-                        memcpy(pvBuf, abChunk + cbDMAWritten, cbBuf);
+                    while (cbDMALeft)
+                    {
+                        void *pvBuf; size_t cbBuf;
+                        RTCircBufAcquireWriteBlock(pCircBuf, cbDMALeft, &pvBuf, &cbBuf);
 
-                    RTCircBufReleaseWriteBlock(pCircBuf, cbBuf);
+                        if (cbBuf)
+                        {
+                            memcpy(pvBuf, abChunk + cbDMARead, cbBuf);
+                            cbDMARead += (uint32_t)cbBuf;
+                            cbDMALeft -= (uint32_t)cbBuf;
+                        }
 
-                    cbDMALeft    -= (uint32_t)pStream->State.cbFrameSize;
-                    cbDMAWritten += (uint32_t)pStream->State.cbFrameSize;
+                        RTCircBufReleaseWriteBlock(pCircBuf, cbBuf);
+                    }
                 }
+                else
+                {
+                    /**
+                     * The following code extracts the required audio stream (channel) data
+                     * of non-interleaved *and* interleaved audio streams.
+                     *
+                     * We by default only support 2 channels with 16-bit samples (HDA_FRAME_SIZE),
+                     * but an HDA audio stream can have interleaved audio data of multiple audio
+                     * channels in such a single stream ("AA,AA,AA vs. AA,BB,AA,BB").
+                     *
+                     * So take this into account by just handling the first channel in such a stream ("A")
+                     * and just discard the other channel's data.
+                     *
+                     * @todo Optimize this stuff -- copying only one frame a time is expensive.
+                     */
+                    uint32_t cbDMARead = pStream->State.cbDMALeft ? pStream->State.cbFrameSize - pStream->State.cbDMALeft : 0;
+                    uint32_t cbDMALeft = RT_MIN(cbDMA, (uint32_t)RTCircBufFree(pCircBuf));
+
+                    while (cbDMALeft >= pStream->State.cbFrameSize)
+                    {
+                        void *pvBuf; size_t cbBuf;
+                        RTCircBufAcquireWriteBlock(pCircBuf, HDA_FRAME_SIZE, &pvBuf, &cbBuf);
+
+                        AssertBreak(cbDMARead <= sizeof(abChunk));
+
+                        if (cbBuf)
+                            memcpy(pvBuf, abChunk + cbDMARead, cbBuf);
+
+                        RTCircBufReleaseWriteBlock(pCircBuf, cbBuf);
+
+                        Assert(cbDMALeft >= pStream->State.cbFrameSize);
+                        cbDMALeft -= pStream->State.cbFrameSize;
+                        cbDMARead += pStream->State.cbFrameSize;
+                    }
+
+                    pStream->State.cbDMALeft = cbDMALeft;
+                    Assert(pStream->State.cbDMALeft < pStream->State.cbFrameSize);
+                }
+
+                const size_t cbFree = RTCircBufFree(pCircBuf);
+                if (!cbFree)
+                    LogRel2(("HDA: FIFO of stream #%RU8 full, discarding audio data\n", pStream->u8SD));
 #else
                 /** @todo This needs making use of HDAStreamMap + HDAStreamChannel. */
 # error "Implement reading interleaving streams support here."
@@ -991,8 +1057,6 @@ int hdaStreamTransfer(PHDASTREAM pStream, uint32_t cbToProcessMax)
 
         if (cbDMA)
         {
-            Assert(cbDMA % pStream->State.cbFrameSize == 0);
-
             /* We always increment the position of DMA buffer counter because we're always reading
              * into an intermediate buffer. */
             pBDLE->State.u32BufOff += (uint32_t)cbDMA;
@@ -1068,7 +1132,6 @@ int hdaStreamTransfer(PHDASTREAM pStream, uint32_t cbToProcessMax)
               pStream->u8SD, cbToProcess, cbProcessed, cbLeft, pBDLE, rc));
 
     /* Sanity. */
-    Assert(cbProcessed % pStream->State.cbFrameSize == 0);
     Assert(cbProcessed == cbToProcess);
     Assert(cbLeft      == 0);
 
@@ -1166,11 +1229,12 @@ int hdaStreamTransfer(PHDASTREAM pStream, uint32_t cbToProcessMax)
     {
         Log3Func(("[SD%RU8] Scheduling timer\n", pStream->u8SD));
 
-        TMTimerUnlock(pThis->pTimer);
+        TMTimerUnlock(pStream->pTimer);
 
-        hdaTimerSet(pThis, tsTransferNext, false /* fForce */);
+        LogFunc(("Timer set SD%RU8\n", pStream->u8SD));
+        hdaTimerSet(pStream->pHDAState, pStream, tsTransferNext, false /* fForce */);
 
-        TMTimerLock(pThis->pTimer, VINF_SUCCESS);
+        TMTimerLock(pStream->pTimer, VINF_SUCCESS);
 
         pStream->State.tsTransferNext = tsTransferNext;
     }
@@ -1271,7 +1335,7 @@ void hdaStreamUpdate(PHDASTREAM pStream, bool fInTimer)
     else /* Input (SDI). */
     {
 #ifdef VBOX_WITH_AUDIO_HDA_ASYNC_IO
-        if (fInTimer)
+        if (!fInTimer)
         {
 #endif
             rc2 = AudioMixerSinkUpdate(pSink);
@@ -1335,6 +1399,23 @@ void hdaStreamUpdate(PHDASTREAM pStream, bool fInTimer)
                 }
             }
         #endif
+#ifdef VBOX_WITH_AUDIO_HDA_ASYNC_IO
+        }
+        else /* fInTimer */
+        {
+#endif
+            const uint64_t tsNow = RTTimeMilliTS();
+            static uint64_t s_lasti = 0;
+            if (s_lasti == 0)
+                s_lasti = tsNow;
+
+            if (tsNow - s_lasti >= 10) /** @todo Fix this properly. */
+            {
+                rc2 = hdaStreamAsyncIONotify(pStream);
+                AssertRC(rc2);
+
+                s_lasti = tsNow;
+            }
 
             const uint32_t cbToTransfer = hdaStreamGetUsed(pStream);
             if (cbToTransfer)
@@ -1343,7 +1424,7 @@ void hdaStreamUpdate(PHDASTREAM pStream, bool fInTimer)
                 AssertRC(rc2);
             }
 #ifdef VBOX_WITH_AUDIO_HDA_ASYNC_IO
-        } /* fInTimer */
+        }
 #endif
     }
 }
@@ -1357,7 +1438,7 @@ void hdaStreamUpdate(PHDASTREAM pStream, bool fInTimer)
 void hdaStreamLock(PHDASTREAM pStream)
 {
     AssertPtrReturnVoid(pStream);
-    int rc2 = RTCritSectEnter(&pStream->State.CritSect);
+    int rc2 = RTCritSectEnter(&pStream->CritSect);
     AssertRC(rc2);
 }
 
@@ -1370,7 +1451,7 @@ void hdaStreamLock(PHDASTREAM pStream)
 void hdaStreamUnlock(PHDASTREAM pStream)
 {
     AssertPtrReturnVoid(pStream);
-    int rc2 = RTCritSectLeave(&pStream->State.CritSect);
+    int rc2 = RTCritSectLeave(&pStream->CritSect);
     AssertRC(rc2);
 }
 

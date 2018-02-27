@@ -73,6 +73,8 @@ typedef enum CPUMCPUIDFEATURE
     CPUMCPUIDFEATURE_HVP,
     /** The MWait Extensions bits (Std) */
     CPUMCPUIDFEATURE_MWAIT_EXTS,
+    /** The speculation control feature bits. (StExt) */
+    CPUMCPUIDFEATURE_SPEC_CTRL,
     /** 32bit hackishness. */
     CPUMCPUIDFEATURE_32BIT_HACK = 0x7fffffff
 } CPUMCPUIDFEATURE;
@@ -469,6 +471,8 @@ typedef enum CPUMMSRRDFN
     kCpumMsrRdFn_Ia32VmxTrueExitCtls,       /**< Takes real value as reference. */
     kCpumMsrRdFn_Ia32VmxTrueEntryCtls,      /**< Takes real value as reference. */
     kCpumMsrRdFn_Ia32VmxVmFunc,             /**< Takes real value as reference. */
+    kCpumMsrRdFn_Ia32SpecCtrl,
+    kCpumMsrRdFn_Ia32ArchCapabilities,
 
     kCpumMsrRdFn_Amd64Efer,
     kCpumMsrRdFn_Amd64SyscallTarget,
@@ -721,6 +725,8 @@ typedef enum CPUMMSRWRFN
     kCpumMsrWrFn_Ia32TscDeadline,
     kCpumMsrWrFn_Ia32X2ApicN,
     kCpumMsrWrFn_Ia32DebugInterface,
+    kCpumMsrWrFn_Ia32SpecCtrl,
+    kCpumMsrWrFn_Ia32PredCmd,
 
     kCpumMsrWrFn_Amd64Efer,
     kCpumMsrWrFn_Amd64SyscallTarget,
@@ -1033,6 +1039,12 @@ typedef struct CPUMFEATURES
     uint32_t        fStibp : 1;
     /** Supports IA32_ARCH_CAP. */
     uint32_t        fArchCap : 1;
+    /** Supports PCID. */
+    uint32_t        fPcid : 1;
+    /** Supports INVPCID. */
+    uint32_t        fInvpcid : 1;
+    /** Supports read/write FSGSBASE instructions. */
+    uint32_t        fFsGsBase : 1;
 
     /** Supports AMD 3DNow instructions. */
     uint32_t        f3DNow : 1;
@@ -1065,8 +1077,13 @@ typedef struct CPUMFEATURES
     /** Support for Intel VMX. */
     uint32_t        fVmx : 1;
 
+    /** Indicates that speculative execution control CPUID bits and
+     *  MSRs are exposed. The details are different for Intel and
+     * AMD but both have similar functionality. */
+    uint32_t        fSpeculationControl : 1;
+
     /** Alignment padding / reserved for future use. */
-    uint32_t        fPadding : 19;
+    uint32_t        fPadding : 15;
 
     /** SVM: Supports Nested-paging. */
     uint32_t        fSvmNestedPaging : 1;
@@ -1201,6 +1218,8 @@ VMM_INT_DECL(void)  CPUMGuestLazyLoadHiddenCsAndSs(PVMCPU pVCpu);
 VMM_INT_DECL(void)  CPUMGuestLazyLoadHiddenSelectorReg(PVMCPU pVCpu, PCPUMSELREG pSReg);
 VMMR0_INT_DECL(void)        CPUMR0SetGuestTscAux(PVMCPU pVCpu, uint64_t uValue);
 VMMR0_INT_DECL(uint64_t)    CPUMR0GetGuestTscAux(PVMCPU pVCpu);
+VMMR0_INT_DECL(void)        CPUMR0SetGuestSpecCtrl(PVMCPU pVCpu, uint64_t uValue);
+VMMR0_INT_DECL(uint64_t)    CPUMR0GetGuestSpecCtrl(PVMCPU pVCpu);
 /** @} */
 
 

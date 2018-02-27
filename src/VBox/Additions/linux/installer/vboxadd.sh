@@ -1,7 +1,7 @@
 #! /bin/sh
 # $Id: vboxadd.sh $
 ## @file
-# Linux Additions kernel module init script ($Revision: 120119 $)
+# Linux Additions kernel module init script ($Revision: 120325 $)
 #
 
 #
@@ -128,12 +128,11 @@ log()
     echo "${1}" >> "${LOG}"
 }
 
-dev=vboxguest
-userdev=vboxuser
+dev=/dev/vboxguest
+userdev=/dev/vboxuser
 config=/var/lib/VBoxGuestAdditions/config
 owner=vboxadd
 group=1
-usergroup=vboxadd
 
 if test -r $config; then
   . $config
@@ -165,7 +164,7 @@ running_vboxvideo()
 
 do_vboxguest_non_udev()
 {
-    if [ ! -c /dev/$dev ]; then
+    if [ ! -c $dev ]; then
         maj=`sed -n 's;\([0-9]\+\) vboxguest;\1;p' /proc/devices`
         if [ ! -z "$maj" ]; then
             min=0
@@ -180,32 +179,32 @@ do_vboxguest_non_udev()
             fail "Cannot locate the VirtualBox device"
         }
 
-        mknod -m 0660 /dev/$dev c $maj $min || {
+        mknod -m 0664 $dev c $maj $min || {
             rmmod vboxguest 2>/dev/null
-            fail "Cannot create device /dev/$dev with major $maj and minor $min"
+            fail "Cannot create device $dev with major $maj and minor $min"
         }
     fi
-    chown $owner:$group /dev/$dev 2>/dev/null || {
-        rm -f /dev/$dev 2>/dev/null
-        rm -f /dev/$userdev 2>/dev/null
+    chown $owner:$group $dev 2>/dev/null || {
+        rm -f $dev 2>/dev/null
+        rm -f $userdev 2>/dev/null
         rmmod vboxguest 2>/dev/null
-        fail "Cannot change owner $owner:$group for device /dev/$dev"
+        fail "Cannot change owner $owner:$group for device $dev"
     }
 
-    if [ ! -c /dev/$userdev ]; then
+    if [ ! -c $userdev ]; then
         maj=10
         min=`sed -n 's;\([0-9]\+\) vboxuser;\1;p' /proc/misc`
         if [ ! -z "$min" ]; then
-            mknod -m 0660 /dev/$userdev c $maj $min || {
-                rm -f /dev/$dev 2>/dev/null
+            mknod -m 0666 $userdev c $maj $min || {
+                rm -f $dev 2>/dev/null
                 rmmod vboxguest 2>/dev/null
-                fail "Cannot create device /dev/$userdev with major $maj and minor $min"
+                fail "Cannot create device $userdev with major $maj and minor $min"
             }
-            chown $owner:$usergroup /dev/$userdev 2>/dev/null || {
-                rm -f /dev/$dev 2>/dev/null
-                rm -f /dev/$userdev 2>/dev/null
+            chown $owner:$group $userdev 2>/dev/null || {
+                rm -f $dev 2>/dev/null
+                rm -f $userdev 2>/dev/null
                 rmmod vboxguest 2>/dev/null
-                fail "Cannot change owner $owner:$usergroup for device /dev/$userdev"
+                fail "Cannot change owner $owner:$group for device $userdev"
             }
         fi
     fi
@@ -221,12 +220,12 @@ start()
             ps -A -o comm | grep -q '/*udevd$' 2>/dev/null ||
             no_udev=1
         running_vboxguest || {
-            rm -f /dev/$dev || {
-                fail "Cannot remove /dev/$dev"
+            rm -f $dev || {
+                fail "Cannot remove $dev"
             }
 
-            rm -f /dev/$userdev || {
-                fail "Cannot remove /dev/$userdev"
+            rm -f $userdev || {
+                fail "Cannot remove $userdev"
             }
 
             $MODPROBE vboxguest >/dev/null 2>&1 || {
@@ -370,14 +369,10 @@ create_vbox_user()
     log "Creating user for the Guest Additions."
     # This is the LSB version of useradd and should work on recent
     # distributions
-    useradd -d /var/run/"${owner}" -g 1 -r -s /bin/false "${owner}" >/dev/null 2>&1
+    useradd -d /var/run/vboxadd -g 1 -r -s /bin/false vboxadd >/dev/null 2>&1
     # And for the others, we choose a UID ourselves
-    useradd -d /var/run/"${owner}" -g 1 -u 501 -o -s /bin/false "${owner}" >/dev/null 2>&1
-    # And create the group for the user device:
-    groupadd "${usergroup}"
-    # VBoxClient needs to be setgid.
-    chown :"${usergroup}" "${INSTALL_DIR}/bin/VBoxClient"
-    chmod g+s "${INSTALL_DIR}/bin/VBoxClient"
+    useradd -d /var/run/vboxadd -g 1 -u 501 -o -s /bin/false vboxadd >/dev/null 2>&1
+
 }
 
 create_udev_rule()
@@ -404,8 +399,8 @@ create_udev_rule()
             fi
         fi
         ## @todo 60-vboxadd.rules -> 60-vboxguest.rules ?
-        echo "KERNEL=${udev_fix}\"vboxguest\", NAME=\"${dev}\", OWNER=\"${owner}\", MODE=\"0660\"" > /etc/udev/rules.d/60-vboxadd.rules
-        echo "KERNEL=${udev_fix}\"vboxuser\", NAME=\"${userdev}\", OWNER=\"${owner}\", GROUP=\"${usergroup}\", MODE=\"0660\"" >> /etc/udev/rules.d/60-vboxadd.rules
+        echo "KERNEL=${udev_fix}\"vboxguest\", NAME=\"vboxguest\", OWNER=\"vboxadd\", MODE=\"0660\"" > /etc/udev/rules.d/60-vboxadd.rules
+        echo "KERNEL=${udev_fix}\"vboxuser\", NAME=\"vboxuser\", OWNER=\"vboxadd\", MODE=\"0666\"" >> /etc/udev/rules.d/60-vboxadd.rules
     fi
 }
 

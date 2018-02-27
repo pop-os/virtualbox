@@ -133,6 +133,7 @@ static const char * const g_apszVTxExitReasons[MAX_EXITREASON_STAT] =
     EXIT_REASON(VMX_EXIT_INVVPID                ,  53, "INVVPID instruction."),
     EXIT_REASON(VMX_EXIT_WBINVD                 ,  54, "WBINVD instruction."),
     EXIT_REASON(VMX_EXIT_XSETBV                 ,  55, "XSETBV instruction."),
+    EXIT_REASON(VMX_EXIT_APIC_WRITE             ,  56, "APIC write completed to virtual-APIC page."),
     EXIT_REASON(VMX_EXIT_RDRAND                 ,  57, "RDRAND instruction."),
     EXIT_REASON(VMX_EXIT_INVPCID                ,  58, "INVPCID instruction."),
     EXIT_REASON(VMX_EXIT_VMFUNC                 ,  59, "VMFUNC instruction."),
@@ -453,6 +454,7 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
                               "|EnableVPID"
                               "|IBPBOnVMExit"
                               "|IBPBOnVMEntry"
+                              "|SpecCtrlByHost"
                               "|TPRPatchingEnabled"
                               "|64bitEnabled"
                               "|VmxPleGap"
@@ -607,6 +609,11 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
     /** @cfgm{/HM/IBPBOnVMEntry, bool}
      * Costly paranoia setting. */
     rc = CFGMR3QueryBoolDef(pCfgHm, "IBPBOnVMEntry", &pVM->hm.s.fIbpbOnVmEntry, false);
+    AssertLogRelRCReturn(rc, rc);
+
+    /** @cfgm{/HM/SpecCtrlByHost, bool}
+     * Another expensive paranoia setting. */
+    rc = CFGMR3QueryBoolDef(pCfgHm, "SpecCtrlByHost", &pVM->hm.s.fSpecCtrlByHost, false);
     AssertLogRelRCReturn(rc, rc);
 
     /*

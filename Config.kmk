@@ -18,7 +18,6 @@
 # hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
 #
 
-
 # Marker.
 VBOX_ROOT_CONFIG_KMK_INCLUDED = 1
 
@@ -4674,6 +4673,15 @@ TEMPLATE_VBOXR3EXE_CXXFLAGS            = -g $(VBOX_GCC_pipe) $(VBOX_GCC_PEDANTIC
  ifdef VBOX_WITH_NO_GCC_WARNING_POLICY
   TEMPLATE_VBOXR3EXE_CXXFLAGS         += $(VBOX_GCC_WERR)
  endif
+ ifdef VBOX_WITH_OLD_GLIBC_SUPPORT
+  # Use older versions of APIs which were improved in versions of glibc later
+  # than what we are targetting, and do not use the stack protector, which
+  # needs glibc 2.4 or later.
+  TEMPLATE_VBOXR3EXE_CXXFLAGS.linux    = \
+	-include $(PATH_ROOT)/include/iprt/linux/symvers.h \
+	$(VBOX_GCC_fno-stack-protector)
+  TEMPLATE_VBOXR3EXE_CFLAGS.linux      = $(TEMPLATE_VBOXR3EXE_CXXFLAGS.linux)
+ endif
 TEMPLATE_VBOXR3EXE_CXXFLAGS.x86        = -m32
 TEMPLATE_VBOXR3EXE_CXXFLAGS.amd64      = -m64
 TEMPLATE_VBOXR3EXE_CXXFLAGS.sparc32    = -m32
@@ -4705,6 +4713,10 @@ TEMPLATE_VBOXR3EXE_LDFLAGS.amd64       = -m64
 TEMPLATE_VBOXR3EXE_LDFLAGS.sparc32     = -m32
 TEMPLATE_VBOXR3EXE_LDFLAGS.sparc64     = -m64
 TEMPLATE_VBOXR3EXE_LDFLAGS.linux       = -Wl,-z,noexecstack,-z,relro $(VBOX_LD_as_needed)
+ ifdef VBOX_WITH_OLD_GLIBC_SUPPORT
+  # The GNU_HASH ELF tag is not supported by older systems.
+TEMPLATE_VBOXR3EXE_LDFLAGS.linux      += -Wl,--hash-style=sysv
+ endif
 TEMPLATE_VBOXR3EXE_LDFLAGS.solaris     = -Wl,-z,ignore # same as VBOX_LD_as_needed
 TEMPLATE_VBOXR3EXE_LDFLAGS.debug       = $(VBOX_GCC_SANITIZER_FLAGS)
 
@@ -6450,11 +6462,6 @@ ifeq ($(KBUILD_TARGET),win)
   TEMPLATE_VBOXGUESTR3EXE_LIBS.win.x86 = $(NO_SUCH_VARIABLE)# Ditch RuntimeR3VccTricks2
  endif
 else # the gcc guys
- ifdef VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE
-  ifneq ($(KBUILD_TARGET),linux)
-   override VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE :=
-  endif
- endif
  TEMPLATE_VBOXGUESTR3EXE_EXTENDS  = VBOXR3EXE
  TEMPLATE_VBOXGUESTR3EXE_TOOL    := $(subst GXX,GCC,$(TEMPLATE_VBOXR3EXE_TOOL))
  TEMPLATE_VBOXGUESTR3EXE_CXXFLAGS = $(TEMPLATE_VBOXR3EXE_CXXFLAGS) -fno-exceptions
@@ -6463,23 +6470,6 @@ else # the gcc guys
  TEMPLATE_VBOXGUESTR3EXE_CFLAGS.debug = $(NO_SUCH_VARIABLE)
  TEMPLATE_VBOXGUESTR3EXE_LDFLAGS.linux = $(filter-out $(VBOX_GCC_ORIGIN_OPT),$(TEMPLATE_VBOXR3EXE_LDFLAGS.linux))
  TEMPLATE_VBOXGUESTR3EXE_LDFLAGS.debug = $(NO_SUCH_VARIABLE)
- ifdef VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE
-  ifeq ($(KBUILD_TARGET_ARCH),x86)
-   TEMPLATE_VBOXGUESTR3EXE_TOOL         := VBoxXGccX86RedHatLinux
-  else ifeq ($(KBUILD_TARGET_ARCH),amd64)
-   TEMPLATE_VBOXGUESTR3EXE_TOOL         := VBoxXGccAmd64LinuxGnu
-   TEMPLATE_VBOXGUESTR3EXE_TOOL.x86     := VBoxXGccX86RedHatLinux
-  endif
-  TEMPLATE_VBOXGUESTR3EXE_CXXFLAGS      := $(filter-out $(VBOX_GCC_Wextra) $(VBOX_GCC_WERR) \
-  	$(VBOX_GCC_Wno-missing-field-initializers) $(VBOX_GCC_fdiagnostics-show-option) $(VBOX_GCC_Wno-variadic-macros) \
-	$(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_fvisibility-inlines-hidden) $(VBOX_GCC_mtune-generic) $(VBOX_GCC_Wlogical-op)\
-	,$(TEMPLATE_VBOXGUESTR3EXE_CXXFLAGS)) -pipe
-  TEMPLATE_VBOXGUESTR3EXE_CFLAGS      := $(filter-out $(VBOX_GCC_Wextra) $(VBOX_GCC_WERR) \
-  	$(VBOX_GCC_Wno-missing-field-initializers) $(VBOX_GCC_fdiagnostics-show-option) $(VBOX_GCC_Wno-variadic-macros) \
-	$(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_fvisibility-inlines-hidden) $(VBOX_GCC_mtune-generic) $(VBOX_GCC_Wlogical-op)\
-	,$(TEMPLATE_VBOXGUESTR3EXE_CFLAGS)) -pipe
-  TEMPLATE_VBOXGUESTR3EXE_LDFLAGS.linux := $(filter-out $(VBOX_GCC_ORIGIN_OPT) $(VBOX_LD_as_needed),$(TEMPLATE_VBOXGUESTR3EXE_LDFLAGS.linux))
- endif
  TEMPLATE_VBOXGUESTR3EXE_LDFLAGS  = $(filter-out '$(VBOX_GCC_RPATH_OPT)%,$(TEMPLATE_VBOXR3EXE_LDFLAGS))
 endif
 TEMPLATE_VBOXGUESTR3EXE_INST      = $(INST_ADDITIONS)
@@ -6518,7 +6508,7 @@ ifeq ($(KBUILD_TARGET),win)
   TEMPLATE_VBoxGuestR3Exe_CXXFLAGS   += -wd4313
  endif
  TEMPLATE_VBoxGuestR3Exe_LDFLAGS     += $(VBOX_VCC_LD_WERR)
-else ifndef VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE
+else
  TEMPLATE_VBoxGuestR3Exe_CFLAGS      += $(VBOX_GCC_WERR)
  TEMPLATE_VBoxGuestR3Exe_CXXFLAGS    += $(VBOX_GCC_WERR)
 endif
@@ -6558,7 +6548,7 @@ ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBoxGuestR3Dll_CFLAGS      += $(VBOX_VCC_WERR)
  TEMPLATE_VBoxGuestR3Dll_CXXFLAGS    += $(VBOX_VCC_WERR)
  TEMPLATE_VBoxGuestR3Dll_LDFLAGS     += $(VBOX_VCC_LD_WERR)
-else ifndef VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE
+else
  TEMPLATE_VBoxGuestR3Dll_CFLAGS      += $(VBOX_GCC_WERR)
  TEMPLATE_VBoxGuestR3Dll_CXXFLAGS    += $(VBOX_GCC_WERR)
 endif
@@ -6599,7 +6589,7 @@ ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBoxGuestR3Lib_CFLAGS      += $(VBOX_VCC_WERR)
  TEMPLATE_VBoxGuestR3Lib_CXXFLAGS    += $(VBOX_VCC_WERR)
  TEMPLATE_VBoxGuestR3Lib_LDFLAGS     += $(VBOX_VCC_LD_WERR)
-else ifndef VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE
+else
  TEMPLATE_VBoxGuestR3Lib_CFLAGS      += $(VBOX_GCC_WERR)
  TEMPLATE_VBoxGuestR3Lib_CXXFLAGS    += $(VBOX_GCC_WERR)
 endif
@@ -6646,6 +6636,10 @@ TEMPLATE_VBOXGUESTR3XF86MOD_EXTENDS = VBOXGUESTR3EXE
 TEMPLATE_VBOXGUESTR3XF86MOD_LIBS.$(KBUILD_TYPE)      = $(NO_SUCH_VARIABLE)
 TEMPLATE_VBOXGUESTR3XF86MOD_LIBS.$(KBUILD_TARGET)    = $(NO_SUCH_VARIABLE)
 TEMPLATE_VBOXGUESTR3XF86MOD_LDFLAGS.$(KBUILD_TARGET) = $(NO_SUCH_VARIABLE)
+ifdef VBOX_WITH_OLD_GLIBC_SUPPORT
+# The GNU_HASH ELF tag is not supported by older systems.
+TEMPLATE_VBOXGUESTR3XF86MOD_LDFLAGS.linux = --hash-style=sysv
+endif
 TEMPLATE_VBOXGUESTR3XF86MOD_LDFLAGS.$(KBUILD_TYPE)   = $(NO_SUCH_VARIABLE)
 TEMPLATE_VBOXGUESTR3XF86MOD_LDFLAGS          = -r
 if1of ($(KBUILD_TARGET), dragonfly freebsd linux netbsd openbsd) # the gnu ld guys.
@@ -6655,10 +6649,6 @@ if1of ($(KBUILD_TARGET), dragonfly freebsd linux netbsd openbsd) # the gnu ld gu
 endif
 TEMPLATE_VBOXGUESTR3XF86MOD_CFLAGS  = $(TEMPLATE_VBOXGUESTR3EXE_CFLAGS) -fno-pie -fno-merge-constants -std=c99 -ffreestanding
 TEMPLATE_VBOXGUESTR3XF86MOD_CXXFLAGS= $(TEMPLATE_VBOXGUESTR3EXE_CXXFLAGS) -fno-pie -fno-merge-constants -ffreestanding
-ifndef VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE
- TEMPLATE_VBOXGUESTR3XF86MOD_CFLAGS   += $(VBOX_GCC_fno-stack-protector)
- TEMPLATE_VBOXGUESTR3XF86MOD_CXXFLAGS += $(VBOX_GCC_fno-stack-protector)
-endif
 TEMPLATE_VBOXGUESTR3XF86MOD_SYSSUFF = .o
 TEMPLATE_VBOXGUESTR3XF86MOD_LIBS  = \
 	$(VBOX_LIB_VBGL_R3_XFREE86)
@@ -6684,9 +6674,6 @@ TEMPLATE_VBOXGUESTR3XORGMOD_LIBS.$(KBUILD_TARGET)   = $(NO_SUCH_VARIABLE)
 TEMPLATE_VBOXGUESTR3XORGMOD_CFLAGS                  = $(TEMPLATE_VBOXGUESTR3DLL_CFLAGS) -std=c99
 if1of ($(KBUILD_TARGET), linux)
  TEMPLATE_VBOXGUESTR3XORGMOD_CFLAGS                += -Wno-conversion -Wno-unused-parameter
- ifndef VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE
-  TEMPLATE_VBOXGUESTR3XORGMOD_CFLAGS               += $(VBOX_GCC_Wno-variadic-macros)
- endif
 endif
 TEMPLATE_VBOXGUESTR3XORGMOD_DEFS = $(TEMPLATE_VBOXGUESTR3DLL_DEFS) VBOX_GUESTR3XORGMOD RTMEM_NO_WRAP_TO_EF_APIS
 ifeq ($(KBUILD_TARGET_ARCH),amd64)
@@ -6826,7 +6813,7 @@ ifeq ($(KBUILD_TARGET),win)
  	-wd4255 -wd4296 -wd4245 -wd4668 -wd4005 -wd4057 -wd4311 -wd4312 -wd4305 -wd4306 -wd4054 -wd4189 -wd4100
 else
  TEMPLATE_VBOXCROGLR3GUESTDLL_CFLAGS          = $(filter-out -pedantic, $(TEMPLATE_$(TEMPLATE_VBOXCROGLR3GUESTDLL_EXTENDS)_CFLAGS)) \
- 	$(if-expr !defined(VBOX_WITH_COMPATIBLE_LINUX_GUEST_PACKAGE),$(VBOX_GCC_Wno-overlength-strings),)
+ 	$(VBOX_GCC_Wno-overlength-strings)
  TEMPLATE_VBOXCROGLR3GUESTDLL_CXXFLAGS        = $(filter-out -pedantic, $(TEMPLATE_$(TEMPLATE_VBOXCROGLR3GUESTDLL_EXTENDS)_CXXFLAGS))
 endif
 TEMPLATE_VBOXCROGLR3GUESTDLL_LDFLAGS.darwin   = $(TEMPLATE_$(TEMPLATE_VBOXCROGLR3GUESTDLL_EXTENDS)_LDFLAGS.darwin)\
@@ -7097,7 +7084,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 120293 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 120774 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=
