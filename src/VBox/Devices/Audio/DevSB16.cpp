@@ -1304,9 +1304,6 @@ static void sb16ResetLegacy(PSB16STATE pThis)
     RTStrPrintf(pCfg->szName, sizeof(pCfg->szName), "Output");
 
     sb16CloseOut(pThis);
-
-    int rc2 = sb16OpenOut(pThis, pCfg);
-    AssertRC(rc2);
 }
 
 static void sb16Reset(PSB16STATE pThis)
@@ -1978,29 +1975,30 @@ static DECLCALLBACK(void) sb16TimerIO(PPDMDEVINS pDevIns, PTMTIMER pTimer, void 
         if (!pStream)
             continue;
 
-#ifdef DEBUG
+#ifdef VBOX_STRICT
+        /*
+         * Sanity. Make sure that all streams have the same configuration
+         * to get SB16's DMA transfers right.
+         *
+         * SB16 only allows one output configuration per serial data out,
+         * so check if all streams have the same configuration.
+         */
         PSB16DRIVER pDrvPrev = RTListNodeGetPrev(&pDrv->Node, SB16DRIVER, Node);
         if (   pDrvPrev
             && !RTListNodeIsDummy(&pThis->lstDrv, pDrvPrev, SB16DRIVER, Node))
         {
             PPDMAUDIOSTREAM pStreamPrev = pDrvPrev->Out.pStream;
-            AssertPtr(pStreamPrev);
-
-            /*
-             * Sanity. Make sure that all streams have the same configuration
-             * to get SB16's DMA transfers right.
-             *
-             * SB16 only allows one output configuration per serial data out,
-             * so check if all streams have the same configuration.
-             */
-            AssertMsg(pStream->Cfg.Props.uHz       == pStreamPrev->Cfg.Props.uHz,
-                      ("%RU32Hz vs. %RU32Hz\n", pStream->Cfg.Props.uHz, pStreamPrev->Cfg.Props.uHz));
-            AssertMsg(pStream->Cfg.Props.cChannels == pStreamPrev->Cfg.Props.cChannels,
-                      ("%RU8 vs. %RU8 channels\n", pStream->Cfg.Props.cChannels, pStreamPrev->Cfg.Props.cChannels));
-            AssertMsg(pStream->Cfg.Props.cBits     == pStreamPrev->Cfg.Props.cBits,
-                      ("%d vs. %d bits\n", pStream->Cfg.Props.cBits, pStreamPrev->Cfg.Props.cBits));
-            AssertMsg(pStream->Cfg.Props.fSigned   == pStreamPrev->Cfg.Props.fSigned,
-                      ("%RTbool vs. %RTbool signed\n", pStream->Cfg.Props.fSigned, pStreamPrev->Cfg.Props.fSigned));
+            if (pStreamPrev)
+            {
+                AssertMsg(pStream->Cfg.Props.uHz       == pStreamPrev->Cfg.Props.uHz,
+                          ("%RU32Hz vs. %RU32Hz\n", pStream->Cfg.Props.uHz, pStreamPrev->Cfg.Props.uHz));
+                AssertMsg(pStream->Cfg.Props.cChannels == pStreamPrev->Cfg.Props.cChannels,
+                          ("%RU8 vs. %RU8 channels\n", pStream->Cfg.Props.cChannels, pStreamPrev->Cfg.Props.cChannels));
+                AssertMsg(pStream->Cfg.Props.cBits     == pStreamPrev->Cfg.Props.cBits,
+                          ("%d vs. %d bits\n", pStream->Cfg.Props.cBits, pStreamPrev->Cfg.Props.cBits));
+                AssertMsg(pStream->Cfg.Props.fSigned   == pStreamPrev->Cfg.Props.fSigned,
+                          ("%RTbool vs. %RTbool signed\n", pStream->Cfg.Props.fSigned, pStreamPrev->Cfg.Props.fSigned));
+            }
         }
 #endif
         PPDMIAUDIOCONNECTOR pConn = pDrv->pConnector;
@@ -2345,9 +2343,13 @@ static void sb16DestroyDrvStream(PSB16STATE pThis, PSB16DRIVER pDrv)
     {
         pDrv->pConnector->pfnStreamRelease(pDrv->pConnector, pDrv->Out.pStream);
 
-        int rc2 = pDrv->pConnector->pfnStreamDestroy(pDrv->pConnector, pDrv->Out.pStream);
-        if (RT_SUCCESS(rc2))
-            pDrv->Out.pStream = NULL;
+        int rc2 = pDrv->pConnector->pfnStreamControl(pDrv->pConnector, pDrv->Out.pStream, PDMAUDIOSTREAMCMD_DISABLE);
+        AssertRC(rc2);
+
+        rc2 = pDrv->pConnector->pfnStreamDestroy(pDrv->pConnector, pDrv->Out.pStream);
+        AssertRC(rc2);
+
+        pDrv->Out.pStream = NULL;
     }
 }
 
@@ -2448,16 +2450,7 @@ static DECLCALLBACK(void) sb16PowerOff(PPDMDEVINS pDevIns)
 
     PSB16DRIVER pDrv;
     RTListForEach(&pThis->lstDrv, pDrv, SB16DRIVER, Node)
-    {
-        if (pDrv->Out.pStream)
-        {
-            pDrv->pConnector->pfnStreamRelease(pDrv->pConnector, pDrv->Out.pStream);
-
-            int rc2 = pDrv->pConnector->pfnStreamDestroy(pDrv->pConnector, pDrv->Out.pStream);
-            if (RT_SUCCESS(rc2))
-                pDrv->Out.pStream = NULL;
-        }
-    }
+        sb16DestroyDrvStream(pThis, pDrv);
 }
 
 /**

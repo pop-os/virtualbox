@@ -2375,7 +2375,7 @@
 <context>
     <name>UIDownloaderAdditions</name>
     <message>
-        <location filename="../src/net/UIDownloaderAdditions.cpp" line="+200"/>
+        <location filename="../src/net/UIDownloaderAdditions.cpp" line="+182"/>
         <source>Select folder to save Guest Additions image to</source>
         <translation>Hautatu Gonbidatu Gehigarri irudia gordetzeko agiritegia</translation>
     </message>
@@ -2388,7 +2388,7 @@
 <context>
     <name>UIDownloaderExtensionPack</name>
     <message>
-        <location filename="../src/net/UIDownloaderExtensionPack.cpp" line="+184"/>
+        <location filename="../src/net/UIDownloaderExtensionPack.cpp" line="+183"/>
         <source>Select folder to save %1 to</source>
         <translation>Hautatu %1 gordetzeko agiritegia</translation>
     </message>
@@ -2401,7 +2401,7 @@
 <context>
     <name>UIDownloaderUserManual</name>
     <message>
-        <location filename="../src/net/UIDownloaderUserManual.cpp" line="+119"/>
+        <location filename="../src/net/UIDownloaderUserManual.cpp" line="+125"/>
         <source>Select folder to save User Manual to</source>
         <translation>Hautatu Erabiltzaile Eskuliburua gordetzeko agiritegia</translation>
     </message>
@@ -11024,7 +11024,7 @@
 <context>
     <name>UINetworkReplyPrivate</name>
     <message>
-        <location filename="../src/net/UINetworkReply.cpp" line="+957"/>
+        <location filename="../src/net/UINetworkReply.cpp" line="+965"/>
         <source>Host not found</source>
         <translation>Hostalaria ez da aurkitu</translation>
     </message>
@@ -11088,7 +11088,7 @@
 <context>
     <name>UINetworkReplyPrivateThread</name>
     <message>
-        <location line="-579"/>
+        <location line="-590"/>
         <source>During proxy configuration</source>
         <translation>Proxy itxurapenean zehar</translation>
     </message>

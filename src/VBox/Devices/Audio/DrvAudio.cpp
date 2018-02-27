@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -143,7 +143,7 @@ static const char *drvAudioGetConfStr(PCFGMNODE pCfgHandle, const char *pszKey,
  *
  * @returns Stringified stream status flags. Must be free'd with RTStrFree().
  *          "NONE" if no flags set.
- * @param   fFlags              Stream status flags to convert.
+ * @param   fStatus             Stream status flags to convert.
  */
 static char *dbgAudioStreamStatusToStr(PDMAUDIOSTREAMSTS fStatus)
 {
@@ -188,7 +188,7 @@ static char *dbgAudioStreamStatusToStr(PDMAUDIOSTREAMSTS fStatus)
 
     return pszFlags;
 }
-#endif /* LOG_ENABLED */
+#endif /* defined(VBOX_STRICT) || defined(LOG_ENABLED) */
 
 /**
  * Returns the host stream part of an audio stream pair, or NULL
@@ -516,7 +516,7 @@ static int drvAudioStreamControlInternalBackend(PDRVAUDIO pThis, PPDMAUDIOSTREAM
                                                             PDMAUDIOSTREAMCMD_DISABLE);
                 if (RT_SUCCESS(rc))
                 {
-                    pHstStream->fStatus &= ~(PDMAUDIOSTREAMSTS_FLAG_ENABLED | PDMAUDIOSTREAMSTS_FLAG_PENDING_DISABLE);
+                    pHstStream->fStatus = PDMAUDIOSTREAMSTS_FLAG_INITIALIZED; /* Reset to initialized state. */
                     AudioMixBufReset(&pHstStream->MixBuf);
                 }
             }
@@ -1301,7 +1301,7 @@ static int drvAudioStreamPlayNonInterleaved(PDRVAUDIO pThis,
 
         if (cfToPlay)
         {
-            uint8_t auBuf[_4K]; /** @todo Get rid of this here. */
+            uint8_t auBuf[256]; /** @todo Get rid of this here. */
 
             uint32_t cbLeft  = AUDIOMIXBUF_F2B(&pHstStream->MixBuf, cfToPlay);
             uint32_t cbChunk = sizeof(auBuf);
@@ -1309,37 +1309,38 @@ static int drvAudioStreamPlayNonInterleaved(PDRVAUDIO pThis,
             while (cbLeft)
             {
                 uint32_t cfRead = 0;
-                rc = AudioMixBufReadCirc(&pHstStream->MixBuf, auBuf, RT_MIN(cbChunk, cbLeft), &cfRead);
-                if (   !cfRead
-                    || RT_FAILURE(rc))
-                {
+                rc = AudioMixBufAcquireReadBlock(&pHstStream->MixBuf, auBuf, RT_MIN(cbChunk, cbLeft), &cfRead);
+                if (RT_FAILURE(rc))
                     break;
-                }
 
                 uint32_t cbRead = AUDIOMIXBUF_F2B(&pHstStream->MixBuf, cfRead);
                 Assert(cbRead <= cbChunk);
 
+                uint32_t cfPlayed = 0;
                 uint32_t cbPlayed = 0;
                 rc = pThis->pHostDrvAudio->pfnStreamPlay(pThis->pHostDrvAudio, pHstStream->pvBackend,
                                                          auBuf, cbRead, &cbPlayed);
-                if (   RT_FAILURE(rc)
-                    || !cbPlayed)
+                if (   RT_SUCCESS(rc)
+                    && cbPlayed)
                 {
-                    break;
+                    if (pThis->Dbg.fEnabled)
+                        DrvAudioHlpFileWrite(pHstStream->Out.Dbg.pFilePlayNonInterleaved, auBuf, cbPlayed, 0 /* fFlags */);
+
+                    if (cbRead != cbPlayed)
+                        LogRel2(("Audio: Host stream '%s' played wrong amount (%RU32 bytes read but played %RU32 (%RI32), writable was %RU32)\n",
+                                 pHstStream->szName, cbRead, cbPlayed, cbRead - cbPlayed, cbWritable));
+
+                    cfPlayed       = AUDIOMIXBUF_B2F(&pHstStream->MixBuf, cbPlayed);
+                    cfPlayedTotal += cfPlayed;
+
+                    Assert(cbLeft >= cbPlayed);
+                    cbLeft        -= cbPlayed;
                 }
 
-                if (pThis->Dbg.fEnabled)
-                    DrvAudioHlpFileWrite(pHstStream->Out.Dbg.pFilePlayNonInterleaved, auBuf, cbPlayed, 0 /* fFlags */);
+                AudioMixBufReleaseReadBlock(&pHstStream->MixBuf, cfPlayed);
 
-                AssertMsg(cbPlayed <= cbRead, ("Played more than available (%RU32 available but got %RU32)\n", cbRead, cbPlayed));
-#if 0 /** @todo Also handle mono channels. Needs fixing */
-                AssertMsg(cbPlayed % 2 == 0,
-                          ("Backend for stream '%s' returned uneven played bytes count (cfRead=%RU32, cbPlayed=%RU32)\n",
-                           pHstStream->szName, cfRead, cbPlayed));*/
-#endif
-                cfPlayedTotal += AUDIOMIXBUF_B2F(&pHstStream->MixBuf, cbPlayed);
-                Assert(cbLeft >= cbPlayed);
-                cbLeft        -= cbPlayed;
+                if (RT_FAILURE(rc))
+                    break;
             }
         }
     }
@@ -2175,12 +2176,12 @@ static void drvAudioStateHandler(PPDMDRVINS pDrvIns, PDMAUDIOSTREAMCMD enmCmd)
     int rc2 = RTCritSectEnter(&pThis->CritSect);
     AssertRC(rc2);
 
-    if (!pThis->pHostDrvAudio)
-        return;
-
-    PPDMAUDIOSTREAM pHstStream;
-    RTListForEach(&pThis->lstHstStreams, pHstStream, PDMAUDIOSTREAM, Node)
-        drvAudioStreamControlInternalBackend(pThis, pHstStream, enmCmd);
+    if (pThis->pHostDrvAudio)
+    {
+        PPDMAUDIOSTREAM pHstStream;
+        RTListForEach(&pThis->lstHstStreams, pHstStream, PDMAUDIOSTREAM, Node)
+            drvAudioStreamControlInternalBackend(pThis, pHstStream, enmCmd);
+    }
 
     rc2 = RTCritSectLeave(&pThis->CritSect);
     AssertRC(rc2);
@@ -2304,8 +2305,8 @@ static DECLCALLBACK(int) drvAudioStreamRead(PPDMIAUDIOCONNECTOR pInterface, PPDM
         while (cToRead)
         {
             uint32_t cRead;
-            rc = AudioMixBufReadCirc(&pGstStream->MixBuf, (uint8_t *)pvBuf + AUDIOMIXBUF_F2B(&pGstStream->MixBuf, cReadTotal),
-                                     AUDIOMIXBUF_F2B(&pGstStream->MixBuf, cToRead), &cRead);
+            rc = AudioMixBufAcquireReadBlock(&pGstStream->MixBuf, (uint8_t *)pvBuf + AUDIOMIXBUF_F2B(&pGstStream->MixBuf, cReadTotal),
+                                             AUDIOMIXBUF_F2B(&pGstStream->MixBuf, cToRead), &cRead);
             if (RT_FAILURE(rc))
                 break;
 
@@ -2321,6 +2322,8 @@ static DECLCALLBACK(int) drvAudioStreamRead(PPDMIAUDIOCONNECTOR pInterface, PPDM
             cToRead -= cRead;
 
             cReadTotal += cRead;
+
+            AudioMixBufReleaseReadBlock(&pGstStream->MixBuf, cRead);
         }
 
         if (cReadTotal)
@@ -3122,7 +3125,7 @@ static int drvAudioStreamDestroyInternalBackend(PDRVAUDIO pThis, PPDMAUDIOSTREAM
     char *pszHstSts = dbgAudioStreamStatusToStr(pHstStream->fStatus);
     LogFunc(("[%s] fStatus=%s\n", pHstStream->szName, pszHstSts));
     RTStrFree(pszHstSts);
-#endif /* LOG_ENABLED */
+#endif
 
     if (pHstStream->fStatus & PDMAUDIOSTREAMSTS_FLAG_INITIALIZED)
     {
@@ -3133,8 +3136,12 @@ static int drvAudioStreamDestroyInternalBackend(PDRVAUDIO pThis, PPDMAUDIOSTREAM
         if (RT_SUCCESS(rc))
         {
             pHstStream->fStatus &= ~PDMAUDIOSTREAMSTS_FLAG_INITIALIZED;
-#if 0 /** @todo r=andy Disabled for now -- need to test this on Windows hosts. */
-            Assert(pHstStream->fStatus == PDMAUDIOSTRMSTS_FLAG_NONE);
+
+#ifdef LOG_ENABLED
+            /* This is not fatal, but log it anyway. */
+            if (pHstStream->fStatus != PDMAUDIOSTREAMSTS_FLAG_NONE)
+                LogFunc(("[%s] Warning: Stream still has %s set when destroying, must properly drain first\n",
+                         pHstStream->szName, pszHstSts));
 #endif
         }
     }
@@ -3232,7 +3239,10 @@ static DECLCALLBACK(void) drvAudioPowerOff(PPDMDRVINS pDrvIns)
      * in drvAudioDestruct(). */
     PPDMAUDIOSTREAM pStream;
     RTListForEach(&pThis->lstHstStreams, pStream, PDMAUDIOSTREAM, Node)
+    {
+        drvAudioStreamControlInternalBackend(pThis, pStream, PDMAUDIOSTREAMCMD_DISABLE);
         drvAudioStreamDestroyInternalBackend(pThis, pStream);
+    }
 
     /*
      * Last call for the driver below us.
@@ -3369,8 +3379,13 @@ static DECLCALLBACK(void) drvAudioDestruct(PPDMDRVINS pDrvIns)
 
     LogFlowFuncEnter();
 
-    int rc2 = RTCritSectEnter(&pThis->CritSect);
-    AssertRC(rc2);
+    int rc2;
+
+    if (RTCritSectIsInitialized(&pThis->CritSect))
+    {
+        rc2 = RTCritSectEnter(&pThis->CritSect);
+        AssertRC(rc2);
+    }
 
     /*
      * Note: No calls here to the driver below us anymore,
@@ -3426,11 +3441,14 @@ static DECLCALLBACK(void) drvAudioDestruct(PPDMDRVINS pDrvIns)
         drvAudioCallbackDestroy(pCB);
 #endif
 
-    rc2 = RTCritSectLeave(&pThis->CritSect);
-    AssertRC(rc2);
+    if (RTCritSectIsInitialized(&pThis->CritSect))
+    {
+        rc2 = RTCritSectLeave(&pThis->CritSect);
+        AssertRC(rc2);
 
-    rc2 = RTCritSectDelete(&pThis->CritSect);
-    AssertRC(rc2);
+        rc2 = RTCritSectDelete(&pThis->CritSect);
+        AssertRC(rc2);
+    }
 
 #ifdef VBOX_WITH_STATISTICS
     PDMDrvHlpSTAMDeregister(pThis->pDrvIns, &pThis->Stats.TotalStreamsActive);

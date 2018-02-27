@@ -2550,27 +2550,27 @@
     <message>
         <source>Result&amp;nbsp;Code: </source>
         <comment>error info</comment>
-        <translation type="unfinished">Kode&amp;nbsp;Hasil: </translation>
+        <translation>Kode&amp;nbsp;Hasil: </translation>
     </message>
     <message>
         <source>Component: </source>
         <comment>error info</comment>
-        <translation type="unfinished">Komponen: </translation>
+        <translation>Komponen: </translation>
     </message>
     <message>
         <source>Interface: </source>
         <comment>error info</comment>
-        <translation type="unfinished">Antar Muka: </translation>
+        <translation>Antar Muka: </translation>
     </message>
     <message>
         <source>Callee: </source>
         <comment>error info</comment>
-        <translation type="unfinished"></translation>
+        <translation>Yang Dipanggil: </translation>
     </message>
     <message>
         <source>Callee&amp;nbsp;RC: </source>
         <comment>error info</comment>
-        <translation type="unfinished"></translation>
+        <translation>RC&amp;nbsp;Yang Dipanggil: </translation>
     </message>
 </context>
 <context>
@@ -5277,11 +5277,11 @@
     </message>
     <message>
         <source>Adding network...</source>
-        <translation type="unfinished"></translation>
+        <translation>Menambah jaringan...</translation>
     </message>
     <message>
         <source>Removing network...</source>
-        <translation type="unfinished"></translation>
+        <translation>Menghapus jaringan...</translation>
     </message>
 </context>
 <context>
@@ -6772,11 +6772,11 @@
     </message>
     <message>
         <source>When checked, VirtualBox will record the audio stream to video file as well.</source>
-        <translation type="unfinished"></translation>
+        <translation>Saat dicentang, VirtualBox juga akan merekam stream audio ke berkas video.</translation>
     </message>
     <message>
         <source>&amp;Record Audio</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Rekam Audio</translation>
     </message>
 </context>
 <context>
@@ -8981,35 +8981,35 @@
     </message>
     <message>
         <source>Choose Medium Location</source>
-        <translation type="unfinished"></translation>
+        <translation>Pilih Lokasi Medium</translation>
     </message>
     <message>
         <source>Location can not be empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>Lokasi tidak boleh kosong.</translation>
     </message>
     <message>
         <source>This type of medium is attached directly or indirectly, preserved when taking snapshots.</source>
-        <translation type="unfinished">Tipe medium ini dicantol secara langsung atau tak langsung, dilestarikan ketika mengambil snapshot.</translation>
+        <translation>Tipe medium ini dicantol secara langsung atau tak langsung, dilestarikan ketika mengambil snapshot.</translation>
     </message>
     <message>
         <source>This type of medium is attached indirectly, changes are wiped out the next time the virtual machine is started.</source>
-        <translation type="unfinished">Tipe medium ini dicantol secara tak langsung, perubahan disapu habis saat mesin virtual dijalankan berikutnya.</translation>
+        <translation>Tipe medium ini dicantol secara tak langsung, perubahan disapu habis saat mesin virtual dijalankan berikutnya.</translation>
     </message>
     <message>
         <source>This type of medium is attached directly, ignored when taking snapshots.</source>
-        <translation type="unfinished">Tipe medium ini dicantol secara langsung, diabaikan ketika mengambil snapshot.</translation>
+        <translation>Tipe medium ini dicantol secara langsung, diabaikan ketika mengambil snapshot.</translation>
     </message>
     <message>
         <source>This type of medium is attached directly, allowed to be used concurrently by several machines.</source>
-        <translation type="unfinished">Tipe medium ini dicantol secara langsung, diijinkan untuk dipakai bersamaan oleh beberapa mesin.</translation>
+        <translation>Tipe medium ini dicantol secara langsung, diizinkan untuk dipakai bersamaan oleh beberapa mesin.</translation>
     </message>
     <message>
         <source>This type of medium is attached directly, and can be used by several machines.</source>
-        <translation type="unfinished">Tipe medium ini dicantol secara langsung, dan dapat dipakai oleh beberapa mesin.</translation>
+        <translation>Tipe medium ini dicantol secara langsung, dan dapat dipakai oleh beberapa mesin.</translation>
     </message>
     <message>
         <source>This type of medium is attached indirectly, so that one base medium can be used for several VMs which have their own differencing medium to store their modifications.</source>
-        <translation type="unfinished">Tipe medium ini dicantol secara tak langsung, sehingga satu medium basis dapat dipakai bagi beberapa VM yang memiliki medium pembeda masing-masing untuk menyimpan perubahan mereka.</translation>
+        <translation>Tipe medium ini dicantol secara tak langsung, sehingga satu medium basis dapat dipakai bagi beberapa VM yang memiliki medium pembeda masing-masing untuk menyimpan perubahan mereka.</translation>
     </message>
 </context>
 <context>
@@ -9190,43 +9190,43 @@
     </message>
     <message>
         <source>Copy Disk Image File (%1)</source>
-        <translation type="unfinished">Salin Berkas Image Disk (%1)</translation>
+        <translation>Salin Berkas Image Disk (%1)</translation>
     </message>
     <message>
         <source>Remove Disk Image File (%1)</source>
-        <translation type="unfinished">Hapus Berkas Image Disk (%1)</translation>
+        <translation>Hapus Berkas Image Disk (%1)</translation>
     </message>
     <message>
         <source>Release Disk Image File (%1)</source>
-        <translation type="unfinished">Lepas Berkas Image Disk (%1)</translation>
+        <translation>Lepas Berkas Image Disk (%1)</translation>
     </message>
     <message>
         <source>Open Disk Image File Properties (%1)</source>
-        <translation type="unfinished">Buka Properti Berkas Image Disk (%1)</translation>
+        <translation>Buka Properti Berkas Image Disk (%1)</translation>
     </message>
     <message>
         <source>Refresh Disk Image Files (%1)</source>
-        <translation type="unfinished">Segarkan Berkas Image Disk (%1)</translation>
+        <translation>Segarkan Berkas Image Disk (%1)</translation>
     </message>
     <message>
         <source>Current extension (*.%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>Ekstensi saat ini (*.%1)</translation>
     </message>
     <message>
         <source>Choose the location of this medium</source>
-        <translation type="unfinished"></translation>
+        <translation>Pilih lokasi medium ini</translation>
     </message>
     <message>
         <source>&amp;Move...</source>
-        <translation type="unfinished"></translation>
+        <translation>Pi&amp;ndah...</translation>
     </message>
     <message>
         <source>Move Disk Image File (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>Pindahkan Berkas Image Disk (%1)</translation>
     </message>
     <message>
         <source>Move selected disk image file</source>
-        <translation type="unfinished"></translation>
+        <translation>Pindahkan berkas image disk yang dipilih</translation>
     </message>
 </context>
 <context>
@@ -11251,19 +11251,19 @@
     </message>
     <message>
         <source>&lt;p&gt;Could not insert the &lt;b&gt;%1&lt;/b&gt; disk image file into the virtual machine &lt;b&gt;%2&lt;/b&gt;, as the machine has no optical drives. Please add a drive using the storage page of the virtual machine settings window.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;b&gt;Tak bisa menyisipkan berkas image disk &lt;b&gt;%1&lt;/b&gt; ke dalam mesin virtual &lt;b&gt;%2&lt;/b&gt;, karena mesin tak memiliki drive optik. Silakan tambahkan sebuah drive memakai halaman penyimpanan dari jendela pengaturan mesin virtual.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to change the snapshot &lt;b&gt;%1&lt;/b&gt; of the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal mengubah snapshot &lt;b&gt;%1&lt;/b&gt; dari mesin virtual &lt;b&gt;%2&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Failed to create the virtual disk image storage &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>Gagal menciptakan penyimpanan image hard disk virtual  &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The changes you requested require this disk to be released from the machines it is attached to.&lt;/p&gt;&lt;p&gt;Are you sure you want to release the disk image file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Perubahan yang Anda minta memerlukan disk ini dilepas dari mesin-mesin tempat itu dicantolkan.&lt;/p&gt;&lt;p&gt;Anda yakin hendak melepas berkas image disk &lt;nobr&gt;&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;Ini akan melepasnya dari mesin-mesin virtual berikut: &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -12215,11 +12215,11 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     <name>UIPopupPane</name>
     <message>
         <source>&lt;p&gt;&lt;b&gt;Details:&lt;/b&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;&lt;b&gt;Rincian:&lt;/b&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;&lt;b&gt;Details:&lt;/b&gt; (%1 of %2)</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;&lt;b&gt;Rincian:&lt;/b&gt; (%1 dari %2)</translation>
     </message>
 </context>
 <context>
@@ -12619,23 +12619,23 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Enter a name for the new snapshot...</source>
-        <translation type="unfinished"></translation>
+        <translation>Masukkan suatu nama bagi snapshot baru...</translation>
     </message>
     <message>
         <source>Enter a name for this snapshot...</source>
-        <translation type="unfinished"></translation>
+        <translation>Masukkan suatu nama untuk snapshot ini...</translation>
     </message>
     <message>
         <source>Take</source>
-        <translation type="unfinished"></translation>
+        <translation>Ambil</translation>
     </message>
     <message>
         <source>Take snapshot on the basis of current machine state</source>
-        <translation type="unfinished"></translation>
+        <translation>Ambil snapshot pada basis dari keadaan mesin saat ini</translation>
     </message>
     <message>
         <source>Take Snapshot (%1)</source>
-        <translation type="unfinished">Ambil Snapshot (%1)</translation>
+        <translation>Ambil Snapshot (%1)</translation>
     </message>
 </context>
 <context>
@@ -13486,76 +13486,76 @@ langkah ini dan memasang hard disk pada waktu lain menggunakan dialog Setting Me
     </message>
     <message>
         <source>Copy Virtual Disk Image</source>
-        <translation type="unfinished"></translation>
+        <translation>Salin Image Disk Virtual</translation>
     </message>
     <message>
         <source>Disk image to copy</source>
-        <translation type="unfinished"></translation>
+        <translation>Image disk yang akan disalin</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please select the virtual disk image file that you would like to copy if it is not already selected. You can either choose one from the list or use the folder icon beside the list to select one.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Silakan pilih berkas image disk virtual yang ingin Anda salin bila belum dipilih. Anda dapat memilih dari daftar atau memakai ikon folder di samping daftar untuk memilih salah satu.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Choose a virtual disk image file to copy...</source>
-        <translation type="unfinished"></translation>
+        <translation>Pilih berkas image disk virtual yang akan disalin...</translation>
     </message>
     <message>
         <source>Disk image file type</source>
-        <translation type="unfinished"></translation>
+        <translation>Tipe berkas image disk</translation>
     </message>
     <message>
         <source>Please choose the type of file that you would like to use for the new virtual disk image. If you do not need to use it with other virtualization software you can leave this setting unchanged.</source>
-        <translation type="unfinished"></translation>
+        <translation>Silakan pilih tipe berkas yang ingin Anda pakai untuk image disk virtual baru. Bila Anda tak perlu memakainya dengan perangkat lunak virtualisasi lain Anda dapat membiarkan pengaturan ini tak diubah.</translation>
     </message>
     <message>
         <source>Please choose whether the new virtual disk image file should grow as it is used (dynamically allocated) or if it should be created at its maximum size (fixed size).</source>
-        <translation type="unfinished"></translation>
+        <translation>Silakan pilih apakah berkas image disk virtual baru mesti tumbuh ketika dipakai (dialokasikan secara dinamik) atau mesti diciptakan pada ukuran maksimumnya (ukuran tetap).</translation>
     </message>
     <message>
         <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; disk image file will only use space on your physical hard disk as it fills up (up to a maximum &lt;b&gt;fixed size&lt;/b&gt;), although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Berkas image disk &lt;b&gt;yang dialokasikan secara dinamik&lt;/b&gt; hanya akan memakai ruang pada hard disk fisik Anda ketika terisi (sampai dengan suatu &lt;b&gt;ukuran tetap&lt;/b&gt; maksimum), walaupun mereka tak akan mengecil lagi secara otomatis ketika ruang di dalamnya dibebaskan.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;A &lt;b&gt;fixed size&lt;/b&gt; disk image file may take longer to create on some systems but is often faster to use.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Berkas image disk virtual &lt;b&gt;ukuran tetap&lt;/b&gt; mungkin makan waktu lebih lama untuk diciptakan pada beberapa sistem tapi seringkali lebih cepat dipakainya.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You can also choose to &lt;b&gt;split&lt;/b&gt; the disk image file into several files of up to two gigabytes each. This is mainly useful if you wish to store the virtual machine on removable USB devices or old systems, some of which cannot handle very large files.</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Anda juga dapat memilih untuk &lt;b&gt;memecah&lt;/b&gt; berkas image disk ke dalam beberapa berkas yang masing-masing berukuran sampai dengan dua giga byte. Ini terutama berguna bila Anda hendak menyimpan mesin virtual pada peranti USB lepas pasang atau sistem lama, yang mungkin tak bisa menangani berkas sangat besar.</translation>
     </message>
     <message>
         <source>Please choose a location for new virtual disk image file</source>
-        <translation type="unfinished"></translation>
+        <translation>Harap pilih lokasi untuk berkas image disk virtual baru</translation>
     </message>
     <message>
         <source>New disk image to create</source>
-        <translation type="unfinished"></translation>
+        <translation>Image disk baru yang akan dibuat</translation>
     </message>
     <message>
         <source>Please type the name of the new virtual disk image file into the box below or click on the folder icon to select a different folder to create the file in.</source>
-        <translation type="unfinished"></translation>
+        <translation>Silakan ketik nama berkas image disk virtual baru ke kotak di bawah atau klik pada ikon folder untuk memilih folder lain tempat mencipta berkas.</translation>
     </message>
     <message>
         <source>Choose a location for new virtual disk image file...</source>
-        <translation type="unfinished"></translation>
+        <translation>Pilih lokasi untuk berkas image disk virtual baru...</translation>
     </message>
     <message>
         <source>%1_copy</source>
         <comment>copied virtual disk image name</comment>
-        <translation type="unfinished">salinan_%1</translation>
+        <translation>salinan_%1</translation>
     </message>
     <message>
         <source>Disk image to &amp;copy</source>
-        <translation type="unfinished"></translation>
+        <translation>Image disk yang akan di&amp;salin</translation>
     </message>
     <message>
         <source>&amp;New disk image to create</source>
-        <translation type="unfinished"></translation>
+        <translation>Image disk baru ya&amp;ng akan dibuat</translation>
     </message>
     <message>
         <source>Disk image file &amp;type</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Tipe berkas image disk</translation>
     </message>
 </context>
 <context>

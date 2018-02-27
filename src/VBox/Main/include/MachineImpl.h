@@ -289,6 +289,8 @@ public:
         BOOL                mX2APIC;
         BOOL                mIBPBOnVMExit;
         BOOL                mIBPBOnVMEntry;
+        BOOL                mSpecCtrl;
+        BOOL                mSpecCtrlByHost;
         ULONG               mCPUCount;
         BOOL                mCPUHotPlugEnabled;
         ULONG               mCpuExecutionCap;

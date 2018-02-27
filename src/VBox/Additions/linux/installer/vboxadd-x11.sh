@@ -1,7 +1,7 @@
 #! /bin/sh
 # $Id: vboxadd-x11.sh $
 ## @file
-# Linux Additions X11 setup init script ($Revision: 118839 $)
+# Linux Additions X11 setup init script ($Revision: 120778 $)
 #
 
 #
@@ -332,7 +332,7 @@ setup()
             autokeyboard=""
             case $x_version in
                 6.8.* )
-                    autokeyboard="true"
+                    autokeyboard="--autoKeyboard"
                     ;;
                 4.2.* | 4.3.* )
                     main_cfg="/etc/X11/XF86Config"
@@ -550,6 +550,7 @@ EOF
 
     # Remove other files
     rm /usr/share/xserver-xorg/pci/vboxvideo.ids 2>/dev/null
+    return 0
 }
 
 dmnstatus()

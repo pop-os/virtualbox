@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -621,6 +621,28 @@ char *DrvAudioHlpAudDevFlagsToStrA(PDMAUDIODEVFLAG fFlags)
 }
 
 /**
+ * Converts a playback destination enumeration to a string.
+ *
+ * @returns Stringified playback destination, or "Unknown", if not found.
+ * @param   enmPlaybackDst      Playback destination to convert.
+ */
+const char *DrvAudioHlpPlaybackDstToStr(const PDMAUDIOPLAYBACKDEST enmPlaybackDst)
+{
+    switch (enmPlaybackDst)
+    {
+        case PDMAUDIOPLAYBACKDEST_UNKNOWN:    return "Unknown";
+        case PDMAUDIOPLAYBACKDEST_FRONT:      return "Front";
+        case PDMAUDIOPLAYBACKDEST_CENTER_LFE: return "Center / LFE";
+        case PDMAUDIOPLAYBACKDEST_REAR:       return "Rear";
+        default:
+            break;
+    }
+
+    AssertMsgFailed(("Invalid playback destination %ld\n", enmPlaybackDst));
+    return "Unknown";
+}
+
+/**
  * Converts a recording source enumeration to a string.
  *
  * @returns Stringified recording source, or "Unknown", if not found.
@@ -1030,6 +1052,23 @@ uint32_t DrvAudioHlpCalcBitrate(const PPDMAUDIOPCMPROPS pProps)
 }
 
 /**
+ * Returns the amount of bytes for a given time (in ms) and PCM properties.
+ *
+ * @return  uint32_t            Calculated amount of bytes.
+ * @param   pProps              PCM properties to calculate amount of bytes for.
+ * @param   uMs                 Time (in ms) to calculate amount of bytes for.
+ */
+uint32_t DrvAudioHlpMsToBytes(const PPDMAUDIOPCMPROPS pProps, uint32_t uMs)
+{
+    AssertPtrReturn(pProps, 0);
+
+    if (!uMs)
+        return 0;
+
+    return float(((pProps->cBits / 8) * pProps->cChannels * pProps->uHz) / 1000) * uMs;
+}
+
+/**
  * Sanitizes the file name component so that unsupported characters
  * will be replaced by an underscore ("_").
  *
@@ -1102,51 +1141,49 @@ int DrvAudioHlpGetFileName(char *pszFile, size_t cchFile, const char *pszPath, c
                 break;
         }
 
+        char szFileName[RTPATH_MAX + 1];
+        szFileName[0] = '\0';
+
         if (fFlags & PDMAUDIOFILENAME_FLAG_TS)
         {
-            char szTime[64];
             RTTIMESPEC time;
-            if (!RTTimeSpecToString(RTTimeNow(&time), szTime, sizeof(szTime)))
+            if (!RTTimeSpecToString(RTTimeNow(&time), szFileName, sizeof(szFileName)))
             {
                 rc = VERR_BUFFER_OVERFLOW;
                 break;
             }
 
-            rc = DrvAudioHlpSanitizeFileName(szTime, sizeof(szTime));
+            rc = DrvAudioHlpSanitizeFileName(szFileName, sizeof(szFileName));
             if (RT_FAILURE(rc))
                 break;
 
-            rc = RTStrCat(szFilePath, sizeof(szFilePath), szTime);
-            if (RT_FAILURE(rc))
-                break;
-
-            rc = RTStrCat(szFilePath, sizeof(szFilePath), "-");
+            rc = RTStrCat(szFileName, sizeof(szFileName), "-");
             if (RT_FAILURE(rc))
                 break;
         }
 
-        rc = RTStrCat(szFilePath, sizeof(szFilePath), pszName);
+        rc = RTStrCat(szFileName, sizeof(szFileName), pszName);
         if (RT_FAILURE(rc))
             break;
 
-        rc = RTStrCat(szFilePath, sizeof(szFilePath), "-");
+        rc = RTStrCat(szFileName, sizeof(szFileName), "-");
         if (RT_FAILURE(rc))
             break;
 
         char szInst[16];
         RTStrPrintf2(szInst, sizeof(szInst), "%RU32", uInstance);
-        rc = RTStrCat(szFilePath, sizeof(szFilePath), szInst);
+        rc = RTStrCat(szFileName, sizeof(szFileName), szInst);
         if (RT_FAILURE(rc))
             break;
 
         switch (enmType)
         {
             case PDMAUDIOFILETYPE_RAW:
-                rc = RTStrCat(szFilePath, sizeof(szFilePath), ".pcm");
+                rc = RTStrCat(szFileName, sizeof(szFileName), ".pcm");
                 break;
 
             case PDMAUDIOFILETYPE_WAV:
-                rc = RTStrCat(szFilePath, sizeof(szFilePath), ".wav");
+                rc = RTStrCat(szFileName, sizeof(szFileName), ".wav");
                 break;
 
             default:
@@ -1154,6 +1191,10 @@ int DrvAudioHlpGetFileName(char *pszFile, size_t cchFile, const char *pszPath, c
                 break;
         }
 
+        if (RT_FAILURE(rc))
+            break;
+
+        rc = RTPathAppend(szFilePath, sizeof(szFilePath), szFileName);
         if (RT_FAILURE(rc))
             break;
 
@@ -1393,8 +1434,11 @@ int DrvAudioHlpFileDelete(PPDMAUDIOFILE pFile)
     AssertPtrReturn(pFile, VERR_INVALID_POINTER);
 
     int rc = RTFileDelete(pFile->szName);
-
-    if (rc == VERR_FILE_NOT_FOUND) /* Don't bitch if the file is not around (anymore). */
+    if (RT_SUCCESS(rc))
+    {
+        LogRel2(("Audio: Deleted file '%s'\n", pFile->szName));
+    }
+    else if (rc == VERR_FILE_NOT_FOUND) /* Don't bitch if the file is not around (anymore). */
         rc = VINF_SUCCESS;
 
     if (RT_FAILURE(rc))
@@ -1430,6 +1474,20 @@ size_t DrvAudioHlpFileGetDataSize(PPDMAUDIOFILE pFile)
     }
 
     return cbSize;
+}
+
+/**
+ * Returns whether the given audio file is open and in use or not.
+ *
+ * @return  bool                True if open, false if not.
+ * @param   pFile               Audio file handle to check open status for.
+ */
+bool DrvAudioHlpFileIsOpen(PPDMAUDIOFILE pFile)
+{
+    if (!pFile)
+        return false;
+
+    return RTFileIsValid(pFile->hFile);
 }
 
 /**

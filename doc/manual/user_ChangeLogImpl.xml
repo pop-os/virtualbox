@@ -4,6 +4,114 @@
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
    <sect1>
+    <title>Version 5.2.8 (2018-02-27)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: added support for FSGSBASE, PCID, INVPCID CPU features for guests</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: fixed EMM386 issue with detecting suitable page frame base (bug #10022)</para>
+      </listitem>
+
+      <listitem>
+        <para>Front end: Linux: prevent VM window from jumping and auto-resizing to tiny size after resizing it on HiDPI screen</para>
+      </listitem>
+
+      <listitem>
+        <para>Front end: Linux: fixed seamless regression caused by wm_class functionality (bugs #12534, #17304)</para>
+      </listitem>
+
+      <listitem>
+        <para>Front end: switched to https downloads</para>
+      </listitem>
+
+      <listitem>
+        <para>Front end: fixed crash while opening New machine wizard (s.a. forums topic 86592)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: added support for distinguishing recording sources in the PulseAudio 
+          mixer on the host when multiple VMs are running</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: various fixes for the DirectSound backend</para>
+      </listitem>
+
+      <listitem>
+        <para>Video recording: added better file seeking support and fixed playback
+          of recorded files with certain players (e.g. Firefox)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: various fixes for Windows guest surround setups</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: various fixes for HDA emulation</para>
+      </listitem>
+
+      <listitem>
+        <para>Serial: fixed an issue where the serial port parameters in the emulation
+          and host serial port got out of sync (bug #17116)</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed overwriting certain INQUIRY data for the DVD/CD drive
+          attached to a AHCI controller</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed handling VMDK images created by Amazon EC2 VM export</para>
+      </listitem>
+
+      <listitem>
+        <para>Network: fixed PXE boot regression in e1000</para>
+      </listitem>
+
+      <listitem>
+        <para>Network: Added a workaround for older guests which do not enable
+        bus mastering for the virtio PCI device</para>
+      </listitem>
+
+      <listitem>
+        <para>3D: add environment variable to configure presenting 3D content on
+           main thread (see bug #13653)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed indiscriminate binding of NDIS5 bridged driver,
+          that caused PPPOE malfunction (bugs #16407, #17489)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows guests: fixed incorrect function error when using
+          shared folders in certain applications (bug #14118)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: Linux 4.15 support (bugs #17311, #17320, #17282)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: fixed black screen when 3D enabled in guests
+           (bug #17463, 5.2.6 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: suppress setuid and setgid in shared folders</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.2.6 (2018-01-15)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or

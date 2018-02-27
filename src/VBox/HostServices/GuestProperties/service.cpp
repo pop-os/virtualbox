@@ -267,6 +267,28 @@ private:
     }
 
     /**
+     * Check whether the property name is reserved for host changes only.
+     *
+     * @returns Boolean true (host reserved) or false (available to guest).
+     *
+     * @param   pszName  The property name to check.
+     */
+    bool checkHostReserved(const char *pszName)
+    {
+        if (RTStrStartsWith(pszName, "/VirtualBox/GuestAdd/VBoxService/"))
+            return true;
+        if (RTStrStartsWith(pszName, "/VirtualBox/GuestAdd/PAM/"))
+            return true;
+        if (RTStrStartsWith(pszName, "/VirtualBox/GuestAdd/Greeter/"))
+            return true;
+        if (RTStrStartsWith(pszName, "/VirtualBox/GuestAdd/SharedFolders/"))
+            return true;
+        if (RTStrStartsWith(pszName, "/VirtualBox/HostInfo/"))
+            return true;
+        return false;
+    }
+
+    /**
      * Gets a property.
      *
      * @returns Pointer to the property if found, NULL if not.
@@ -538,6 +560,11 @@ int Service::setPropertyBlock(uint32_t cParms, VBOXHGCMSVCPARM paParms[])
                 uint32_t fFlags;
                 rc = validateFlags(papszFlags[i], &fFlags);
                 AssertRCBreak(rc);
+                /*
+                 * Handle names which are read-only for the guest.
+                 */
+                if (checkHostReserved(papszNames[i]))
+                    fFlags |= RDONLYGUEST;
 
                 Property *pProp = getPropertyInternal(papszNames[i]);
                 if (pProp)
@@ -714,6 +741,16 @@ int Service::setProperty(uint32_t cParms, VBOXHGCMSVCPARM paParms[], bool isGues
      */
     Property *pProp = getPropertyInternal(pcszName);
     rc = checkPermission(pProp ? (ePropFlags)pProp->mFlags : NILFLAG, isGuest);
+    /*
+     * Handle names which are read-only for the guest.
+     */
+    if (rc == VINF_SUCCESS && checkHostReserved(pcszName))
+    {
+        if (isGuest)
+            rc = VERR_PERMISSION_DENIED;
+        else
+            fFlags |= RDONLYGUEST;
+    }
     if (rc == VINF_SUCCESS)
     {
         /*
