@@ -185,7 +185,7 @@ override_dh_installinit:
 
 override_dh_systemd_enable:
 	dh_systemd_enable -p$(sname) --name vboxweb --no-enable debian/vboxweb.service
-	dh_systemd_enable -p$(uname) debian/virtualbox-guest-utils.service
+	dh_systemd_enable -p$(uname) debian/$(uname).service
 
 override_dh_dkms:
 	dh_dkms -V $(upstreamversion)
