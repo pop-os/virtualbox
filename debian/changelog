@@ -1,3 +1,10 @@
+virtualbox (5.2.8-dfsg-3) unstable; urgency=medium
+
+  * Do not delay startup because of notify-send not being ready
+    (Closes: #880594, LP: #1722745)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 16 Mar 2018 13:56:41 +0100
+
 virtualbox (5.2.8-dfsg-2) unstable; urgency=medium
 
   * Update dh_systemd_enable to run only with guest-utils package
