@@ -1,3 +1,10 @@
+virtualbox (5.2.8-dfsg-4) unstable; urgency=medium
+
+  * Force java8 to build, java9 makes the program FTBFS because
+    of missing javax module (and --add-module can't find it)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 16 Mar 2018 15:02:17 +0100
+
 virtualbox (5.2.8-dfsg-3) unstable; urgency=medium
 
   * Do not delay startup because of notify-send not being ready
