@@ -103,7 +103,9 @@ ifeq ($(DIST_NAME),Ubuntu)
 endif
 
 override_dh_install:
+ifneq (,$(filter $(sname), $(shell dh_listpackages)))
 	dh_install -p$(sname) -X out/bin/VBoxDbg.so
+endif
 	dh_install --remaining-packages
 #ifneq (,$(filter $(uxname), $(shell dh_listpackages)))
 #	install -m 644 -p -D out/bin/additions/vboxvideo_drv_system.so \
