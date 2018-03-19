@@ -1,3 +1,9 @@
+virtualbox (5.2.8-dfsg-5) unstable; urgency=medium
+
+  * Fixup build on i386, by finding the correct java path here too.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 19 Mar 2018 08:19:14 +0100
+
 virtualbox (5.2.8-dfsg-4) unstable; urgency=medium
 
   * Force java8 to build, java9 makes the program FTBFS because
