@@ -212,8 +212,10 @@ endif
 endif
 
 override_dh_shlibdeps:
+ifneq (,$(filter $(sname), $(shell dh_listpackages)))
 	dh_shlibdeps -p$(sname) -X debian/$(sname)$(INSTALL_PATH)/VBoxTestOGL -- \
 	    -dRecommends debian/$(sname)$(INSTALL_PATH)/VBoxTestOGL -dDepends
+endif
 	dh_shlibdeps --remaining-packages
 
 override_dh_compress:
