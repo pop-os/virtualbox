@@ -188,7 +188,9 @@ override_dh_installinit:
 	dh_installinit --remaining-packages --no-start
 
 override_dh_systemd_enable:
+ifneq (,$(filter $(sname), $(shell dh_listpackages)))
 	dh_systemd_enable -p$(sname) --name vboxweb --no-enable debian/vboxweb.service
+endif
 	dh_systemd_enable -p$(uname) debian/$(uname).service
 
 override_dh_dkms:
