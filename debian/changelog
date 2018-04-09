@@ -1,3 +1,10 @@
+virtualbox (5.2.8-dfsg-6) unstable; urgency=medium
+
+  * Build with java9 (Closes: #894365)
+    - thanks Emmanuel Bourg for all the great help!
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 29 Mar 2018 19:05:29 +0200
+
 virtualbox (5.2.8-dfsg-5) unstable; urgency=medium
 
   * Fixup build on i386, by finding the correct java path here too.
