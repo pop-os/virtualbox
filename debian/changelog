@@ -1,3 +1,15 @@
+virtualbox (5.2.8-dfsg-7) unstable; urgency=low
+
+  [ Whoopie ]
+  * Move dkms rules out to dkms package, but to utils, because
+    they can be used with modules builtin in the kernel itself
+    or the guest-source package
+
+  [ Gianfranco Costamagna ]
+  * Make the guest-utils depends on dkms not vice-versa
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 12 Apr 2018 13:21:54 +0200
+
 virtualbox (5.2.8-dfsg-6) unstable; urgency=medium
 
   * Build with java9 (Closes: #894365)

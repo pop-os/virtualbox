@@ -161,7 +161,7 @@ Description: x86 virtualization solution - kernel module source
 Package: virtualbox-guest-dkms
 Section: contrib/kernel
 Architecture: all
-Depends: virtualbox-guest-utils (>= ${source:Version}), ${misc:Depends}
+Depends: ${misc:Depends}
 XB-Modaliases: ${modaliases}
 Provides: virtualbox-guest-modules
 Description: x86 virtualization solution - guest addition module source for dkms
@@ -218,11 +218,14 @@ Description: x86 virtualization solution - X11 guest utilities
 
 Package: virtualbox-guest-utils
 Architecture: amd64 i386
-Depends: adduser, pciutils, ${misc:Depends}, ${shlibs:Depends}
+Depends: adduser,
+         pciutils,
+         virtualbox-guest-dkms (= ${source:Version}) | virtualbox-guest-source (= ${source:Version}) | virtualbox-guest-modules,
+         ${misc:Depends},
+         ${shlibs:Depends}
 #Conflicts: time-daemon, ntp
 #Provides: time-daemon
 #Replaces: time-daemon
-Recommends: virtualbox-guest-dkms (= ${source:Version}) | virtualbox-guest-source (= ${source:Version}) | virtualbox-guest-modules
 Suggests: virtualbox-guest-x11 (= ${binary:Version})
 Description: x86 virtualization solution - non-X11 guest utilities
  VirtualBox is a free x86 virtualization solution allowing a wide range
