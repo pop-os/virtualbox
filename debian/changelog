@@ -1,3 +1,11 @@
+virtualbox (5.2.8-dfsg-8) unstable; urgency=medium
+
+  [ Daniel Rocher ]
+  * Add again vboxvideo_drv.so for systems without 3d enabled.
+    LP: #1759452
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 13 Apr 2018 18:39:41 +0200
+
 virtualbox (5.2.8-dfsg-7) unstable; urgency=low
 
   [ Whoopie ]

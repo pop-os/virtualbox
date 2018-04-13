@@ -105,10 +105,10 @@ ifneq (,$(filter $(sname), $(shell dh_listpackages)))
 	dh_install -p$(sname) -X out/bin/VBoxDbg.so
 endif
 	dh_install --remaining-packages
-#ifneq (,$(filter $(uxname), $(shell dh_listpackages)))
-#	install -m 644 -p -D out/bin/additions/vboxvideo_drv_system.so \
-#	    debian/$(uxname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
-#endif
+ifneq (,$(filter $(uxname), $(shell dh_listpackages)))
+	install -m 644 -p -D out/bin/additions/vboxvideo_drv_system.so \
+	    debian/$(uxname)/usr/lib/xorg/modules/drivers/vboxvideo_drv.so
+endif
 # check if arch-any packages are being built
 ifneq (,$(filter $(sxname), $(shell dh_listpackages)))
 	convert debian/$(sxname)/usr/share/icons/hicolor/32x32/apps/virtualbox.png \
