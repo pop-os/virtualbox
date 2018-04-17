@@ -142,19 +142,6 @@
        || (   RT_HIWORD(additionsVersion) == RT_HIWORD(VMMDEV_VERSION) \
            && RT_LOWORD(additionsVersion) >  RT_LOWORD(VMMDEV_VERSION) ) )
 
-/** The saved state version. */
-#define VMMDEV_SAVED_STATE_VERSION                              VMMDEV_SAVED_STATE_VERSION_HEARTBEAT
-/** The saved state version with heartbeat state. */
-#define VMMDEV_SAVED_STATE_VERSION_HEARTBEAT                    16
-/** The saved state version without heartbeat state. */
-#define VMMDEV_SAVED_STATE_VERSION_NO_HEARTBEAT                 15
-/** The saved state version which is missing the guest facility statuses. */
-#define VMMDEV_SAVED_STATE_VERSION_MISSING_FACILITY_STATUSES    14
-/** The saved state version which is missing the guestInfo2 bits. */
-#define VMMDEV_SAVED_STATE_VERSION_MISSING_GUEST_INFO_2         13
-/** The saved state version used by VirtualBox 3.0.
- *  This doesn't have the config part. */
-#define VMMDEV_SAVED_STATE_VERSION_VBOX_30                      11
 /** Default interval in nanoseconds between guest heartbeats.
  *  Used when no HeartbeatInterval is set in CFGM and for setting
  *  HB check timer if the guest's heartbeat frequency is less than 1Hz. */
@@ -1718,13 +1705,7 @@ static int vmmdevReqHandler_HGCMCall(PVMMDEV pThis, VMMDevRequestHeader *pReqHdr
         Log2(("VMMDevReq_HGCMCall: sizeof(VMMDevHGCMRequest) = %04X\n", sizeof(VMMDevHGCMCall)));
         Log2(("%.*Rhxd\n", pReq->header.header.size, pReq));
 
-#ifdef VBOX_WITH_64_BITS_GUESTS
-        bool f64Bits = (pReq->header.header.requestType == VMMDevReq_HGCMCall64);
-#else
-        bool f64Bits = false;
-#endif /* VBOX_WITH_64_BITS_GUESTS */
-
-        return vmmdevHGCMCall(pThis, pReq, pReq->header.header.size, GCPhysReqHdr, f64Bits);
+        return vmmdevHGCMCall(pThis, pReq, pReq->header.header.size, GCPhysReqHdr, pReq->header.header.requestType);
     }
 
     Log(("VMMDevReq_HGCMCall: HGCM Connector is NULL!\n"));
@@ -4270,7 +4251,7 @@ static DECLCALLBACK(int) vmmdevConstruct(PPDMDEVINS pDevIns, int iInstance, PCFG
     AssertRCReturn(rc, rc);
 
 #ifdef VBOX_WITH_HGCM
-    pThis->pHGCMCmdList = NULL;
+    RTListInit(&pThis->listHGCMCmd);
     rc = RTCritSectInit(&pThis->critsectHGCMCmdList);
     AssertRCReturn(rc, rc);
     pThis->u32HGCMEnabled = 0;

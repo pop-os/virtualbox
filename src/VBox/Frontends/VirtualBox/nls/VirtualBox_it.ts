@@ -8092,19 +8092,19 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Enc&amp;ryption</source>
-        <translation>Cif&amp;ratura</translation>
+        <translation type="vanished">Cif&amp;ratura</translation>
     </message>
     <message>
         <source>When checked, enables encryption for this virtual machine.</source>
-        <translation>Se marcata, abilita la cifratura per questa macchina virtuale.</translation>
+        <translation type="vanished">Se marcata, abilita la cifratura per questa macchina virtuale.</translation>
     </message>
     <message>
         <source>En&amp;able Encryption</source>
-        <translation>&amp;Abilita cifratura</translation>
+        <translation type="vanished">&amp;Abilita cifratura</translation>
     </message>
     <message>
         <source>Encryption C&amp;ipher:</source>
-        <translation>C&amp;ifrario:</translation>
+        <translation type="vanished">C&amp;ifrario:</translation>
     </message>
     <message>
         <source>Holds the cipher to be used for encrypting the virtual machine disks.</source>
@@ -8116,7 +8116,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Holds the password to be assigned to the virtual machine.</source>
-        <translation>Contiene la password che deve essere assegnata alla macchina virtuale.</translation>
+        <translation type="vanished">Contiene la password che deve essere assegnata alla macchina virtuale.</translation>
     </message>
     <message>
         <source>C&amp;onfirm New Password:</source>
@@ -8124,23 +8124,23 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Confirms the password to be assigned to the virtual machine.</source>
-        <translation>Conferma la password che devono essere assegnate alla macchina virtuale.</translation>
+        <translation type="vanished">Conferma la password che devono essere assegnate alla macchina virtuale.</translation>
     </message>
     <message>
         <source>You are trying to encrypt this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site.</source>
-        <translation>Stai tentando di cifrare questa macchina virtuale. Tuttavia, ciò richiede che &lt;b&gt;%1&lt;/b&gt; sia installato. Installa l&apos;Extension Pack scaricabile dal sito di VirtualBox.</translation>
+        <translation type="vanished">Stai tentando di cifrare questa macchina virtuale. Tuttavia, ciò richiede che &lt;b&gt;%1&lt;/b&gt; sia installato. Installa l&apos;Extension Pack scaricabile dal sito di VirtualBox.</translation>
     </message>
     <message>
         <source>Encryption cipher type not specified.</source>
-        <translation>Tipo di cifrario non specificato.</translation>
+        <translation type="vanished">Tipo di cifrario non specificato.</translation>
     </message>
     <message>
         <source>Encryption password empty.</source>
-        <translation>La password di cifratura è vuota.</translation>
+        <translation type="vanished">La password di cifratura è vuota.</translation>
     </message>
     <message>
         <source>Encryption passwords do not match.</source>
-        <translation>Le password di cifratura non coincidono.</translation>
+        <translation type="vanished">Le password di cifratura non coincidono.</translation>
     </message>
     <message>
         <source>Leave Unchanged</source>
@@ -8154,6 +8154,46 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Holds the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of storage space.</source>
         <translation>Mostra il percorso dove saranno archiviate le istantanee di questa macchina virtuale. Nota che le istantanee possono occupare molto spazio.</translation>
+    </message>
+    <message>
+        <source>Disk Enc&amp;ryption</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, disks attached to this virtual machine will be encrypted.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>En&amp;able Disk Encryption</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk Encryption C&amp;ipher:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Holds the encryption password for disks attached to this virtual machine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Confirms the disk encryption password.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>You are trying to enable disk encryption for this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk encryption cipher type not specified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk encryption password empty.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk encryption passwords do not match.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

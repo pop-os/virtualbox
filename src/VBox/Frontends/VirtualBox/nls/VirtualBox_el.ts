@@ -4423,19 +4423,19 @@
     </message>
     <message>
         <source>Enc&amp;ryption</source>
-        <translation>Κρυπτογράφηση</translation>
+        <translation type="vanished">Κρυπτογράφηση</translation>
     </message>
     <message>
         <source>When checked, enables encryption for this virtual machine.</source>
-        <translation>Όταν επιλεγεί, ενεργοποιεί την κρυπτογράφηση για αυτή την εικονική μηχανή.</translation>
+        <translation type="vanished">Όταν επιλεγεί, ενεργοποιεί την κρυπτογράφηση για αυτή την εικονική μηχανή.</translation>
     </message>
     <message>
         <source>En&amp;able Encryption</source>
-        <translation>Ενεργοποίηση Κρυπτογράφησης</translation>
+        <translation type="vanished">Ενεργοποίηση Κρυπτογράφησης</translation>
     </message>
     <message>
         <source>Encryption C&amp;ipher:</source>
-        <translation>Κωδικοποίηση κρυπτογράφησης:</translation>
+        <translation type="vanished">Κωδικοποίηση κρυπτογράφησης:</translation>
     </message>
     <message>
         <source>E&amp;nter New Password:</source>
@@ -4443,7 +4443,7 @@
     </message>
     <message>
         <source>Holds the password to be assigned to the virtual machine.</source>
-        <translation>Δείχνει τον κωδικό που θα χρησιμοποιηθεί στην εικονική μηχανή.</translation>
+        <translation type="vanished">Δείχνει τον κωδικό που θα χρησιμοποιηθεί στην εικονική μηχανή.</translation>
     </message>
     <message>
         <source>C&amp;onfirm New Password:</source>
@@ -4451,23 +4451,23 @@
     </message>
     <message>
         <source>Confirms the password to be assigned to the virtual machine.</source>
-        <translation>Επιβεβαιώνει τον κωδικό που θα χρησιμοποιηθεί στην εικονική μηχανή.</translation>
+        <translation type="vanished">Επιβεβαιώνει τον κωδικό που θα χρησιμοποιηθεί στην εικονική μηχανή.</translation>
     </message>
     <message>
         <source>You are trying to encrypt this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site.</source>
-        <translation>Προσπαθείτε να κρυπτογραφήσετε την εικονική μηχανή. Ωστόσο, αυτό απαιτεί να έχει εγκατασταθεί το &lt;i&gt;%1&lt;/i&gt;. Παρακαλούμε εγκαταστήστε το Πακέτο Επέκτασης από τον ιστότοπο του VirtualBox.</translation>
+        <translation type="vanished">Προσπαθείτε να κρυπτογραφήσετε την εικονική μηχανή. Ωστόσο, αυτό απαιτεί να έχει εγκατασταθεί το &lt;i&gt;%1&lt;/i&gt;. Παρακαλούμε εγκαταστήστε το Πακέτο Επέκτασης από τον ιστότοπο του VirtualBox.</translation>
     </message>
     <message>
         <source>Encryption cipher type not specified.</source>
-        <translation>Ο τύπος της κρυπτογράφησης δεν έχει καθοριστεί.</translation>
+        <translation type="vanished">Ο τύπος της κρυπτογράφησης δεν έχει καθοριστεί.</translation>
     </message>
     <message>
         <source>Encryption password empty.</source>
-        <translation>Κενός κωδικός κρυπτογράφησης.</translation>
+        <translation type="vanished">Κενός κωδικός κρυπτογράφησης.</translation>
     </message>
     <message>
         <source>Encryption passwords do not match.</source>
-        <translation>Οι κωδικοί κρυπτογράφησης δεν ταιριάζουν.</translation>
+        <translation type="vanished">Οι κωδικοί κρυπτογράφησης δεν ταιριάζουν.</translation>
     </message>
     <message>
         <source>Leave Unchanged</source>
@@ -4481,6 +4481,46 @@
     <message>
         <source>Holds the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of storage space.</source>
         <translation>Δείχνει τη διαδρομή που θα αποθηκεύονται τα στιγμιότυπα αυτής της εικονικής μηχανής. Υπ&apos; όψιν οτι τα στιγμιότυπα μπορεί να καταλάβουν αρκετά μεγάλο χώρο αποθήκευσης.</translation>
+    </message>
+    <message>
+        <source>Disk Enc&amp;ryption</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, disks attached to this virtual machine will be encrypted.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>En&amp;able Disk Encryption</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk Encryption C&amp;ipher:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Holds the encryption password for disks attached to this virtual machine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Confirms the disk encryption password.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>You are trying to enable disk encryption for this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk encryption cipher type not specified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk encryption password empty.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk encryption passwords do not match.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>
@@ -7262,7 +7302,7 @@
     </message>
     <message>
         <source>&lt;p&gt;You are about to install a VirtualBox extension pack. Extension packs complement the functionality of VirtualBox and can contain system level software that could be potentially harmful to your system. Please review the description below and only proceed if you have obtained the extension pack from a trusted source.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Πρόκειται να εγκαταστήσετε ένα Πακέτο Επέκτασης του VirtualBox. Τα Πακέτα Επέκτασης συμπληρώνουν τη λειτουργικότητα του VirtualBox και μπορεί να περιέχουν λογισμικό επιπέδου συστήματος, που μπορεί να είναι πιθανόν επικίνδυνο για το σύστημά σας. Παρακαλώ κοιτάξτε ξανά την περιγραφή και προχωρείστε μόνο αν έχετε πάρει το πακέτο από πηγή που εμπιστεύεστε.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=0&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Όνομα:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Περιγραφή:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Πρόκειται να εγκαταστήσετε ένα Πακέτο Επέκτασης του VirtualBox. Τα Πακέτα Επέκτασης συμπληρώνουν τη λειτουργικότητα του VirtualBox και μπορεί να περιέχουν λογισμικό επιπέδου συστήματος, που μπορεί να είναι πιθανόν επικίνδυνο για το σύστημά σας. Παρακαλώ κοιτάξτε ξανά την περιγραφή και προχωρείστε μόνο αν έχετε πάρει το πακέτο από πηγή που εμπιστεύεστε.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Όνομα:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Έκδοση:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Περιγραφή:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;An older version of the extension pack is already installed, would you like to upgrade? &lt;p&gt;%1&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;New Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Current Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%4&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%5&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>

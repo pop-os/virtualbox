@@ -7629,19 +7629,19 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Enc&amp;ryption</source>
-        <translation>암호화(&amp;R)</translation>
+        <translation type="vanished">암호화(&amp;R)</translation>
     </message>
     <message>
         <source>When checked, enables encryption for this virtual machine.</source>
-        <translation>선택하면 이 가상 머신을 암호화합니다.</translation>
+        <translation type="vanished">선택하면 이 가상 머신을 암호화합니다.</translation>
     </message>
     <message>
         <source>En&amp;able Encryption</source>
-        <translation>암호화 사용(&amp;A)</translation>
+        <translation type="vanished">암호화 사용(&amp;A)</translation>
     </message>
     <message>
         <source>Encryption C&amp;ipher:</source>
-        <translation>암호화 방식(&amp;I):</translation>
+        <translation type="vanished">암호화 방식(&amp;I):</translation>
     </message>
     <message>
         <source>Holds the cipher to be used for encrypting the virtual machine disks.</source>
@@ -7653,7 +7653,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Holds the password to be assigned to the virtual machine.</source>
-        <translation>가상 머신에 사용할 암호를 지정합니다.</translation>
+        <translation type="vanished">가상 머신에 사용할 암호를 지정합니다.</translation>
     </message>
     <message>
         <source>C&amp;onfirm New Password:</source>
@@ -7661,23 +7661,23 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Confirms the password to be assigned to the virtual machine.</source>
-        <translation>가상 머신에 사용할 암호를 확인합니다.</translation>
+        <translation type="vanished">가상 머신에 사용할 암호를 확인합니다.</translation>
     </message>
     <message>
         <source>You are trying to encrypt this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site.</source>
-        <translation>이 가상 머신을 암호화하려면 &lt;i&gt;%1&lt;/i&gt;을(를) 설치해야 합니다. VirtualBox 다운로드 사이트에서 게스트 확장을 설치하십시오.</translation>
+        <translation type="vanished">이 가상 머신을 암호화하려면 &lt;i&gt;%1&lt;/i&gt;을(를) 설치해야 합니다. VirtualBox 다운로드 사이트에서 게스트 확장을 설치하십시오.</translation>
     </message>
     <message>
         <source>Encryption cipher type not specified.</source>
-        <translation>암호화 방식을 지정하지 않았습니다.</translation>
+        <translation type="vanished">암호화 방식을 지정하지 않았습니다.</translation>
     </message>
     <message>
         <source>Encryption password empty.</source>
-        <translation>암호가 비어 있습니다.</translation>
+        <translation type="vanished">암호가 비어 있습니다.</translation>
     </message>
     <message>
         <source>Encryption passwords do not match.</source>
-        <translation>암호가 일치하지 않습니다.</translation>
+        <translation type="vanished">암호가 일치하지 않습니다.</translation>
     </message>
     <message>
         <source>Leave Unchanged</source>
@@ -7691,6 +7691,46 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Holds the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of storage space.</source>
         <translation>이 가상 머신의 스냅샷을 저장할 경로를 표시합니다. 스냅샷은 많은 디스크 공간을 차지할 수도 있습니다.</translation>
+    </message>
+    <message>
+        <source>Disk Enc&amp;ryption</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, disks attached to this virtual machine will be encrypted.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>En&amp;able Disk Encryption</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk Encryption C&amp;ipher:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Holds the encryption password for disks attached to this virtual machine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Confirms the disk encryption password.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>You are trying to enable disk encryption for this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk encryption cipher type not specified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk encryption password empty.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk encryption passwords do not match.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

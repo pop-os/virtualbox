@@ -18,9 +18,6 @@
 #ifndef DEV_HDA_H
 #define DEV_HDA_H
 
-/*********************************************************************************************************************************
-*   Header Files                                                                                                                 *
-*********************************************************************************************************************************/
 #include <iprt/path.h>
 
 #include <VBox/vmm/pdmdev.h>
@@ -33,14 +30,6 @@
 #include "HDAStreamPeriod.h"
 
 
-/*********************************************************************************************************************************
-*   Defines                                                                                                                      *
-*********************************************************************************************************************************/
-
-
-/*********************************************************************************************************************************
-*   Structures and Typedefs                                                                                                      *
-*********************************************************************************************************************************/
 
 /**
  * Structure defining an HDA mixer sink.
@@ -150,10 +139,10 @@ typedef struct HDASTATE
     uint32_t                           cbRirbBuf;
     /** DMA position buffer enable bit. */
     bool                               fDMAPosition;
-    /** Flag whether the R0 part is enabled. */
-    bool                               fR0Enabled;
-    /** Flag whether the RC part is enabled. */
-    bool                               fRCEnabled;
+    /** Flag whether the R0 and RC parts are enabled. */
+    bool                               fRZEnabled;
+    /** Reserved. */
+    bool                               fPadding1b;
     /** Number of active (running) SDn streams. */
     uint8_t                            cStreamsActive;
     /** The stream timers for pumping data thru the attached LUN drivers. */
@@ -217,6 +206,13 @@ typedef struct HDASTATE
     /** Padding for alignment. */
     uint8_t                            au8Padding3[3];
     HDASTATEDBGINFO                    Dbg;
+    /** This is for checking that the build was correctly configured in all contexts.
+     * This is set to HDASTATE_ALIGNMENT_CHECK_MAGIC.  */
+    uint64_t                            uAlignmentCheckMagic;
 } HDASTATE, *PHDASTATE;
+
+/** Value for HDASTATE:uAlignmentCheckMagic. */
+#define HDASTATE_ALIGNMENT_CHECK_MAGIC  UINT64_C(0x1298afb75893e059)
+
 #endif /* !DEV_HDA_H */
 

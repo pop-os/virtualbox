@@ -4,6 +4,63 @@
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
    <sect1>
+    <title>Version 5.2.10 (2018-04-17)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>VMM: Fixed missing NULL pointer check in MMIO code</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: fixed having multiple NVMe controllers with ICH9 enabled
+           (5.2.0 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>Network: fixed wireless detection regression when bridging to
+          adapters with unbound IP protocols (bug #17543)</para>
+      </listitem>
+
+      <listitem>
+        <para>Network: fixed VERR_INTNET_FLT_IF_NOT_FOUND when bridging to some
+          adapters on Windows hosts (possibly related bugs #15294, #15060, #13481)</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: Fixed interrupt storm in FreeBSD guests with HDA (bug #17219)</para>
+      </listitem>
+
+      <listitem>
+        <para>Keyboard: Introduced a small delay to fix old software which expects
+          to be able to read an incoming scan code more than once (bug #17592)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows installer: Removed the "Ignore" action in the case the current
+          VBox installation is still running, as the (successful) update will not work
+          until a host reboot is performed</para>
+      </listitem>
+
+      <listitem>
+      	<para>NAT: Handle <computeroutput>nameserver 0.0.0.0</computeroutput>
+	        which is a valid setting (bug #17584)</para>
+      </listitem>
+
+      <listitem>
+        <para>BIOS: INT 15h/87h service must disable A20 gate when done</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Guest Additions: fix a hang starting KDE Plasma</para>
+      </listitem>
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.2.8 (2018-02-27)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -36,7 +93,7 @@
       </listitem>
 
       <listitem>
-        <para>Audio: added support for distinguishing recording sources in the PulseAudio 
+        <para>Audio: added support for distinguishing recording sources in the PulseAudio
           mixer on the host when multiple VMs are running</para>
       </listitem>
 
