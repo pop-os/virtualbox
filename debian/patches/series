@@ -18,3 +18,4 @@
 fix-build.patch
 notify-send.patch
 java9.patch
+GL-fixes.patch
