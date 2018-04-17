@@ -16,6 +16,5 @@
 36-fix-vnc-version-string.patch
 37-python-3.6-support.patch
 fix-build.patch
-notify-send.patch
 java9.patch
 GL-fixes.patch

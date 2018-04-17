@@ -109,7 +109,7 @@ Index: virtualbox/doc/manual/en_US/user_Introduction.xml
 ===================================================================
 --- virtualbox.orig/doc/manual/en_US/user_Introduction.xml
 +++ virtualbox/doc/manual/en_US/user_Introduction.xml
-@@ -1764,10 +1764,12 @@
+@@ -1771,10 +1771,12 @@
           used to trigger certain VM actions (see <xref
           linkend="specialcharacters"/>)</para>
        </listitem>
