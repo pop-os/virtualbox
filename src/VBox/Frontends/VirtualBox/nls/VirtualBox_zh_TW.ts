@@ -3871,19 +3871,19 @@
     </message>
     <message>
         <source>Enc&amp;ryption</source>
-        <translation>加密(&amp;R)</translation>
+        <translation type="vanished">加密(&amp;R)</translation>
     </message>
     <message>
         <source>When checked, enables encryption for this virtual machine.</source>
-        <translation>如果勾選，對此虛擬機器啟用加密。</translation>
+        <translation type="vanished">如果勾選，對此虛擬機器啟用加密。</translation>
     </message>
     <message>
         <source>En&amp;able Encryption</source>
-        <translation>啟用加密(&amp;A)</translation>
+        <translation type="vanished">啟用加密(&amp;A)</translation>
     </message>
     <message>
         <source>Encryption C&amp;ipher:</source>
-        <translation>加密 Cipher(&amp;I) :</translation>
+        <translation type="vanished">加密 Cipher(&amp;I) :</translation>
     </message>
     <message>
         <source>E&amp;nter New Password:</source>
@@ -3891,7 +3891,7 @@
     </message>
     <message>
         <source>Holds the password to be assigned to the virtual machine.</source>
-        <translation>保留指派給虛擬機器的密碼。</translation>
+        <translation type="vanished">保留指派給虛擬機器的密碼。</translation>
     </message>
     <message>
         <source>C&amp;onfirm New Password:</source>
@@ -3899,23 +3899,23 @@
     </message>
     <message>
         <source>Confirms the password to be assigned to the virtual machine.</source>
-        <translation>確認要指派給虛擬機器的密碼。</translation>
+        <translation type="vanished">確認要指派給虛擬機器的密碼。</translation>
     </message>
     <message>
         <source>You are trying to encrypt this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site.</source>
-        <translation>您正嘗試加密此虛擬機器。 然而這需要安裝 &lt;i&gt;%1&lt;/i&gt;。 從 VirtualBox 網站下載並安裝 Extension Pack。</translation>
+        <translation type="vanished">您正嘗試加密此虛擬機器。 然而這需要安裝 &lt;i&gt;%1&lt;/i&gt;。 從 VirtualBox 網站下載並安裝 Extension Pack。</translation>
     </message>
     <message>
         <source>Encryption cipher type not specified.</source>
-        <translation>加密 Cipher 類型未指定。</translation>
+        <translation type="vanished">加密 Cipher 類型未指定。</translation>
     </message>
     <message>
         <source>Encryption password empty.</source>
-        <translation>加密密碼為空。</translation>
+        <translation type="vanished">加密密碼為空。</translation>
     </message>
     <message>
         <source>Encryption passwords do not match.</source>
-        <translation>加密密碼不相符。</translation>
+        <translation type="vanished">加密密碼不相符。</translation>
     </message>
     <message>
         <source>Leave Unchanged</source>
@@ -3929,6 +3929,46 @@
     <message>
         <source>Holds the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of storage space.</source>
         <translation>保留將儲存這部虛擬機器快照的路徑。 注意，快照可能需要相當多的存放裝置空間。</translation>
+    </message>
+    <message>
+        <source>Disk Enc&amp;ryption</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, disks attached to this virtual machine will be encrypted.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>En&amp;able Disk Encryption</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk Encryption C&amp;ipher:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Holds the encryption password for disks attached to this virtual machine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Confirms the disk encryption password.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>You are trying to enable disk encryption for this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk encryption cipher type not specified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk encryption password empty.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk encryption passwords do not match.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

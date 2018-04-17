@@ -6963,19 +6963,19 @@
     </message>
     <message>
         <source>Enc&amp;ryption</source>
-        <translation>Enk&amp;ripsi</translation>
+        <translation type="vanished">Enk&amp;ripsi</translation>
     </message>
     <message>
         <source>When checked, enables encryption for this virtual machine.</source>
-        <translation>Ketika dicentang, memfungsikan enkripsi bagi mesin virtual ini.</translation>
+        <translation type="vanished">Ketika dicentang, memfungsikan enkripsi bagi mesin virtual ini.</translation>
     </message>
     <message>
         <source>En&amp;able Encryption</source>
-        <translation>Fungsik&amp;an Enkripsi</translation>
+        <translation type="vanished">Fungsik&amp;an Enkripsi</translation>
     </message>
     <message>
         <source>Encryption C&amp;ipher:</source>
-        <translation>C&amp;ipher Enkripsi:</translation>
+        <translation type="vanished">C&amp;ipher Enkripsi:</translation>
     </message>
     <message>
         <source>Selects the cipher to be used for encrypting the virtual machine disks.</source>
@@ -6987,7 +6987,7 @@
     </message>
     <message>
         <source>Holds the password to be assigned to the virtual machine.</source>
-        <translation>Menyimpan password yang akan dipakai ke mesin virtual.</translation>
+        <translation type="vanished">Menyimpan password yang akan dipakai ke mesin virtual.</translation>
     </message>
     <message>
         <source>C&amp;onfirm New Password:</source>
@@ -6995,23 +6995,23 @@
     </message>
     <message>
         <source>Confirms the password to be assigned to the virtual machine.</source>
-        <translation>Konfirmasikan password yang akan dipakai pada mesin virtual.</translation>
+        <translation type="vanished">Konfirmasikan password yang akan dipakai pada mesin virtual.</translation>
     </message>
     <message>
         <source>You are trying to encrypt this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site.</source>
-        <translation>Anda mencoba mengenkripsi mesin virtual ini. Namun ini memerlukan terpasangnya &lt;i&gt;%1&lt;/i&gt;. Harap pasang Extension Pack dari situs unduh VirtualBox.</translation>
+        <translation type="vanished">Anda mencoba mengenkripsi mesin virtual ini. Namun ini memerlukan terpasangnya &lt;i&gt;%1&lt;/i&gt;. Harap pasang Extension Pack dari situs unduh VirtualBox.</translation>
     </message>
     <message>
         <source>Encryption cipher type not specified.</source>
-        <translation>Tipe cipher enkripsi tidak dinyatakan.</translation>
+        <translation type="vanished">Tipe cipher enkripsi tidak dinyatakan.</translation>
     </message>
     <message>
         <source>Encryption password empty.</source>
-        <translation>Password enkripsi kosong.</translation>
+        <translation type="vanished">Password enkripsi kosong.</translation>
     </message>
     <message>
         <source>Encryption passwords do not match.</source>
-        <translation>Password enkripsi tidak cocok.</translation>
+        <translation type="vanished">Password enkripsi tidak cocok.</translation>
     </message>
     <message>
         <source>Holds the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of storage space.</source>
@@ -7021,6 +7021,46 @@
         <source>Leave Unchanged</source>
         <comment>cipher type</comment>
         <translation>Biarkan Tak Berubah</translation>
+    </message>
+    <message>
+        <source>Disk Enc&amp;ryption</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, disks attached to this virtual machine will be encrypted.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>En&amp;able Disk Encryption</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk Encryption C&amp;ipher:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Holds the encryption password for disks attached to this virtual machine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Confirms the disk encryption password.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>You are trying to enable disk encryption for this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk encryption cipher type not specified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk encryption password empty.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk encryption passwords do not match.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

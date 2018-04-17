@@ -1580,7 +1580,7 @@
 <context>
     <name>UIApplianceUnverifiedCertificateViewer</name>
     <message>
-        <location filename="../src/wizards/importappliance/UIWizardImportAppPageBasic2.cpp" line="+262"/>
+        <location filename="../src/wizards/importappliance/UIWizardImportAppPageBasic2.cpp" line="+270"/>
         <source>Unverifiable Certificate! Continue?</source>
         <translation>Potrdila ni mogoče preveriti! Nadaljuj?</translation>
     </message>
@@ -5361,7 +5361,37 @@
         <translation>Izbere, kateri podatki odložišča bodo kopirani med gostom in gostiteljem. Ta značilnost zahteva namestitev programa Guest Additions na gostujočem OS-u.</translation>
     </message>
     <message>
-        <location line="-42"/>
+        <location line="+96"/>
+        <source>Disk Enc&amp;ryption</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+6"/>
+        <source>When checked, disks attached to this virtual machine will be encrypted.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+3"/>
+        <source>En&amp;able Disk Encryption</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+44"/>
+        <source>Disk Encryption C&amp;ipher:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+33"/>
+        <source>Holds the encryption password for disks attached to this virtual machine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+20"/>
+        <source>Confirms the disk encryption password.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="-244"/>
         <source>S&amp;napshot Folder:</source>
         <translation>&amp;Mapa posnetkov stanja:</translation>
     </message>
@@ -5396,73 +5426,83 @@
         <translation>Namig operacijskega sistema navideznega računalnika je nastavljen na 64-bitni. 64-bitni gostujoči sistemi zahtevajo strojno navideznost, tako da bo to samodejno omogočeno, če potrdite spremembe.</translation>
     </message>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsGeneral.ui" line="+57"/>
+        <location line="+22"/>
+        <source>You are trying to enable disk encryption for this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+14"/>
+        <source>Disk encryption cipher type not specified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+11"/>
+        <source>Disk encryption password empty.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location line="+4"/>
+        <source>Disk encryption passwords do not match.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
         <source>Enc&amp;ryption</source>
-        <translation>&amp;Šifriranje</translation>
+        <translation type="vanished">&amp;Šifriranje</translation>
     </message>
     <message>
-        <location line="+6"/>
         <source>When checked, enables encryption for this virtual machine.</source>
-        <translation>Ko je označeno, omogoči šifriranje za ta navidezni računalnik.</translation>
+        <translation type="vanished">Ko je označeno, omogoči šifriranje za ta navidezni računalnik.</translation>
     </message>
     <message>
-        <location line="+3"/>
         <source>En&amp;able Encryption</source>
-        <translation>&amp;Omogoči šifriranje</translation>
+        <translation type="vanished">&amp;Omogoči šifriranje</translation>
     </message>
     <message>
-        <location line="+44"/>
         <source>Encryption C&amp;ipher:</source>
-        <translation>&amp;Šifra:</translation>
+        <translation type="vanished">&amp;Šifra:</translation>
     </message>
     <message>
-        <location line="+20"/>
+        <location filename="../src/settings/machine/UIMachineSettingsGeneral.ui" line="+130"/>
         <source>E&amp;nter New Password:</source>
         <translation>&amp;Vnesite novo geslo:</translation>
     </message>
     <message>
-        <location line="+13"/>
         <source>Holds the password to be assigned to the virtual machine.</source>
-        <translation>Vsebuje geslo za dodelitev navideznemu računalniku.</translation>
+        <translation type="vanished">Vsebuje geslo za dodelitev navideznemu računalniku.</translation>
     </message>
     <message>
-        <location line="+7"/>
+        <location line="+20"/>
         <source>C&amp;onfirm New Password:</source>
         <translation>&amp;Potrdite novo geslo:</translation>
     </message>
     <message>
-        <location line="+13"/>
         <source>Confirms the password to be assigned to the virtual machine.</source>
-        <translation>Potrdi geslo za dodelitev navideznemu računalniku.</translation>
+        <translation type="vanished">Potrdi geslo za dodelitev navideznemu računalniku.</translation>
     </message>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsGeneral.cpp" line="+22"/>
         <source>You are trying to encrypt this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site.</source>
-        <translation>Poizkušate šifrirati ta navidezni računalnik. Vendar to zahteva namestitev &lt;i&gt;%1&lt;/i&gt;. Namestite paket razširitev iz mesta za prejem VirtualBox.</translation>
+        <translation type="vanished">Poizkušate šifrirati ta navidezni računalnik. Vendar to zahteva namestitev &lt;i&gt;%1&lt;/i&gt;. Namestite paket razširitev iz mesta za prejem VirtualBox.</translation>
     </message>
     <message>
-        <location line="+14"/>
         <source>Encryption cipher type not specified.</source>
-        <translation>Vrsta šifre ni navedena.</translation>
+        <translation type="vanished">Vrsta šifre ni navedena.</translation>
     </message>
     <message>
-        <location line="+11"/>
         <source>Encryption password empty.</source>
-        <translation>Geslo šifriranja je prazno.</translation>
+        <translation type="vanished">Geslo šifriranja je prazno.</translation>
     </message>
     <message>
-        <location line="+4"/>
         <source>Encryption passwords do not match.</source>
-        <translation>Gesli šifriranja se ne ujemata.</translation>
+        <translation type="vanished">Gesli šifriranja se ne ujemata.</translation>
     </message>
     <message>
-        <location line="+61"/>
+        <location filename="../src/settings/machine/UIMachineSettingsGeneral.cpp" line="+61"/>
         <source>Leave Unchanged</source>
         <comment>cipher type</comment>
         <translation>Pusti nespremenjeno</translation>
     </message>
     <message>
-        <location filename="../src/settings/machine/UIMachineSettingsGeneral.ui" line="-40"/>
+        <location filename="../src/settings/machine/UIMachineSettingsGeneral.ui" line="-27"/>
         <source>Selects the cipher to be used for encrypting the virtual machine disks.</source>
         <translation>Izbere šifro, ki naj se uporabi za šifriranje diskov navideznega računalnika.</translation>
     </message>
@@ -11059,7 +11099,7 @@
         <translation>Odprta oblika navideznosti (%1)</translation>
     </message>
     <message>
-        <location filename="../src/wizards/importappliance/UIWizardImportAppPageBasic2.cpp" line="-205"/>
+        <location filename="../src/wizards/importappliance/UIWizardImportAppPageBasic2.cpp" line="-213"/>
         <location filename="../src/wizards/importappliance/UIWizardImportAppPageExpert.cpp" line="+1"/>
         <source>Appliance settings</source>
         <translation>Nastavitve namenske naprave</translation>

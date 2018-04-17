@@ -23,9 +23,6 @@
 #include "HDAStreamMap.h"
 #include "HDAStreamPeriod.h"
 
-/*********************************************************************************************************************************
-*   Prototypes                                                                                                                   *
-*********************************************************************************************************************************/
 
 typedef struct HDAMIXERSINK *PHDAMIXERSINK;
 
@@ -120,7 +117,7 @@ typedef struct HDASTREAMSTATE
     /** Flag indicating if the stream is in running state or not. */
     volatile bool           fRunning;
     /** Unused, padding. */
-    uint8_t                 Padding0[3];
+    uint8_t                 Padding0[4];
 #ifdef VBOX_WITH_AUDIO_HDA_ASYNC_IO
     /** Asynchronous I/O state members. */
     HDASTREAMSTATEAIO       AIO;
@@ -131,6 +128,9 @@ typedef struct HDASTREAMSTATE
     HDABDLE                 BDLE;
     /** Circular buffer (FIFO) for holding DMA'ed data. */
     R3PTRTYPE(PRTCIRCBUF)   pCircBuf;
+#if HC_ARCH_BITS == 32
+    RTR3PTR                 Padding1;
+#endif
     /** Timestamp of the last DMA data transfer. */
     uint64_t                tsTransferLast;
     /** Timestamp of the next DMA data transfer.
@@ -174,8 +174,10 @@ typedef struct HDASTREAMSTATE
      *  stuff like interleaved surround streams. */
     uint16_t                cbDMALeft;
     /** Unused, padding. */
-    uint8_t                 Padding3;
-} HDASTREAMSTATE, *PHDASTREAMSTATE;
+    uint8_t                 abPadding3[2+4];
+} HDASTREAMSTATE;
+AssertCompileSizeAlignment(HDASTREAMSTATE, 8);
+typedef HDASTREAMSTATE *PHDASTREAMSTATE;
 
 /**
  * Structure for keeping a HDA stream (SDI / SDO).
@@ -245,33 +247,33 @@ typedef struct HDASTREAMTHREADCTX
 /** @name Stream functions.
  * @{
  */
-int               hdaStreamCreate(PHDASTREAM pStream, PHDASTATE pThis, uint8_t u8SD);
-void              hdaStreamDestroy(PHDASTREAM pStream);
-int               hdaStreamInit(PHDASTREAM pStream, uint8_t uSD);
-void              hdaStreamReset(PHDASTATE pThis, PHDASTREAM pStream, uint8_t uSD);
-int               hdaStreamEnable(PHDASTREAM pStream, bool fEnable);
-uint32_t          hdaStreamGetPosition(PHDASTATE pThis, PHDASTREAM pStream);
-void              hdaStreamSetPosition(PHDASTREAM pStream, uint32_t u32LPIB);
-uint32_t          hdaStreamGetFree(PHDASTREAM pStream);
-uint32_t          hdaStreamGetUsed(PHDASTREAM pStream);
-bool              hdaStreamTransferIsScheduled(PHDASTREAM pStream);
-uint64_t          hdaStreamTransferGetNext(PHDASTREAM pStream);
-int               hdaStreamTransfer(PHDASTREAM pStream, uint32_t cbToProcessMax);
-void              hdaStreamLock(PHDASTREAM pStream);
-void              hdaStreamUnlock(PHDASTREAM pStream);
-int               hdaStreamRead(PHDASTREAM pStream, uint32_t cbToRead, uint32_t *pcbRead);
-int               hdaStreamWrite(PHDASTREAM pStream, const void *pvBuf, uint32_t cbBuf, uint32_t *pcbWritten);
-void              hdaStreamUpdate(PHDASTREAM pStream, bool fAsync);
+int               hdaR3StreamCreate(PHDASTREAM pStream, PHDASTATE pThis, uint8_t u8SD);
+void              hdaR3StreamDestroy(PHDASTREAM pStream);
+int               hdaR3StreamInit(PHDASTREAM pStream, uint8_t uSD);
+void              hdaR3StreamReset(PHDASTATE pThis, PHDASTREAM pStream, uint8_t uSD);
+int               hdaR3StreamEnable(PHDASTREAM pStream, bool fEnable);
+uint32_t          hdaR3StreamGetPosition(PHDASTATE pThis, PHDASTREAM pStream);
+void              hdaR3StreamSetPosition(PHDASTREAM pStream, uint32_t u32LPIB);
+uint32_t          hdaR3StreamGetFree(PHDASTREAM pStream);
+uint32_t          hdaR3StreamGetUsed(PHDASTREAM pStream);
+bool              hdaR3StreamTransferIsScheduled(PHDASTREAM pStream);
+uint64_t          hdaR3StreamTransferGetNext(PHDASTREAM pStream);
+int               hdaR3StreamTransfer(PHDASTREAM pStream, uint32_t cbToProcessMax);
+void              hdaR3StreamLock(PHDASTREAM pStream);
+void              hdaR3StreamUnlock(PHDASTREAM pStream);
+int               hdaR3StreamRead(PHDASTREAM pStream, uint32_t cbToRead, uint32_t *pcbRead);
+int               hdaR3StreamWrite(PHDASTREAM pStream, const void *pvBuf, uint32_t cbBuf, uint32_t *pcbWritten);
+void              hdaR3StreamUpdate(PHDASTREAM pStream, bool fAsync);
 # ifdef HDA_USE_DMA_ACCESS_HANDLER
-bool              hdaStreamRegisterDMAHandlers(PHDASTREAM pStream);
-void              hdaStreamUnregisterDMAHandlers(PHDASTREAM pStream);
+bool              hdaR3StreamRegisterDMAHandlers(PHDASTREAM pStream);
+void              hdaR3StreamUnregisterDMAHandlers(PHDASTREAM pStream);
 # endif /* HDA_USE_DMA_ACCESS_HANDLER */
 /** @} */
 
 /** @name Timer functions.
  * @{
  */
-DECLCALLBACK(void) hdaStreamTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser);
+DECLCALLBACK(void) hdaR3StreamTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvUser);
 /** @} */
 
 
@@ -279,13 +281,13 @@ DECLCALLBACK(void) hdaStreamTimer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *pvU
  * @{
  */
 # ifdef VBOX_WITH_AUDIO_HDA_ASYNC_IO
-DECLCALLBACK(int) hdaStreamAsyncIOThread(RTTHREAD hThreadSelf, void *pvUser);
-int               hdaStreamAsyncIOCreate(PHDASTREAM pStream);
-int               hdaStreamAsyncIODestroy(PHDASTREAM pStream);
-int               hdaStreamAsyncIONotify(PHDASTREAM pStream);
-void              hdaStreamAsyncIOLock(PHDASTREAM pStream);
-void              hdaStreamAsyncIOUnlock(PHDASTREAM pStream);
-void              hdaStreamAsyncIOEnable(PHDASTREAM pStream, bool fEnable);
+DECLCALLBACK(int) hdaR3StreamAsyncIOThread(RTTHREAD hThreadSelf, void *pvUser);
+int               hdaR3StreamAsyncIOCreate(PHDASTREAM pStream);
+int               hdaR3StreamAsyncIODestroy(PHDASTREAM pStream);
+int               hdaR3StreamAsyncIONotify(PHDASTREAM pStream);
+void              hdaR3StreamAsyncIOLock(PHDASTREAM pStream);
+void              hdaR3StreamAsyncIOUnlock(PHDASTREAM pStream);
+void              hdaR3StreamAsyncIOEnable(PHDASTREAM pStream, bool fEnable);
 # endif /* VBOX_WITH_AUDIO_HDA_ASYNC_IO */
 /** @} */
 

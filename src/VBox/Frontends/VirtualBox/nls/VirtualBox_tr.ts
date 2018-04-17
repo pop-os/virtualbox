@@ -6867,19 +6867,19 @@
     </message>
     <message>
         <source>Enc&amp;ryption</source>
-        <translation>Şif&amp;releme</translation>
+        <translation type="vanished">Şif&amp;releme</translation>
     </message>
     <message>
         <source>When checked, enables encryption for this virtual machine.</source>
-        <translation>İşaretlendiğinde, bu sanal makine için şifrelemeyi etkinleştirir.</translation>
+        <translation type="vanished">İşaretlendiğinde, bu sanal makine için şifrelemeyi etkinleştirir.</translation>
     </message>
     <message>
         <source>En&amp;able Encryption</source>
-        <translation>Şifrelemeyi &amp;etkinleştir</translation>
+        <translation type="vanished">Şifrelemeyi &amp;etkinleştir</translation>
     </message>
     <message>
         <source>Encryption C&amp;ipher:</source>
-        <translation>Şifreleme Ş&amp;ifreleyici:</translation>
+        <translation type="vanished">Şifreleme Ş&amp;ifreleyici:</translation>
     </message>
     <message>
         <source>Holds the cipher to be used for encrypting the virtual machine disks.</source>
@@ -6891,7 +6891,7 @@
     </message>
     <message>
         <source>Holds the password to be assigned to the virtual machine.</source>
-        <translation>Sanal makineye atanacak olan parolayı tutar.</translation>
+        <translation type="vanished">Sanal makineye atanacak olan parolayı tutar.</translation>
     </message>
     <message>
         <source>C&amp;onfirm New Password:</source>
@@ -6899,23 +6899,23 @@
     </message>
     <message>
         <source>Confirms the password to be assigned to the virtual machine.</source>
-        <translation>Sanal makineye atanacak olan parolayı onaylar.</translation>
+        <translation type="vanished">Sanal makineye atanacak olan parolayı onaylar.</translation>
     </message>
     <message>
         <source>You are trying to encrypt this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site.</source>
-        <translation>Bu sanal makineyi şifrelemeye çalışıyorsunuz. Ancak bu, &lt;i&gt;%1&lt;/i&gt; yüklenmesini gerektirir. Lütfen VirtualBox indirme sitesinden Genişletme Paketini yükleyin.</translation>
+        <translation type="vanished">Bu sanal makineyi şifrelemeye çalışıyorsunuz. Ancak bu, &lt;i&gt;%1&lt;/i&gt; yüklenmesini gerektirir. Lütfen VirtualBox indirme sitesinden Genişletme Paketini yükleyin.</translation>
     </message>
     <message>
         <source>Encryption cipher type not specified.</source>
-        <translation>Şifreleme şifreleyicisi türü belirlenmemiş.</translation>
+        <translation type="vanished">Şifreleme şifreleyicisi türü belirlenmemiş.</translation>
     </message>
     <message>
         <source>Encryption password empty.</source>
-        <translation>Şifreleme parolası boş.</translation>
+        <translation type="vanished">Şifreleme parolası boş.</translation>
     </message>
     <message>
         <source>Encryption passwords do not match.</source>
-        <translation>Şifreleme parolaları eşleşmiyor.</translation>
+        <translation type="vanished">Şifreleme parolaları eşleşmiyor.</translation>
     </message>
     <message>
         <source>Leave Unchanged</source>
@@ -6929,6 +6929,46 @@
     <message>
         <source>Holds the path where snapshots of this virtual machine will be stored. Be aware that snapshots can take quite a lot of storage space.</source>
         <translation>Bu sanal makinenin anlık görüntülerinin saklanacağı yerin yolunu tutar. Anlık görüntülerin oldukça depolama alanı kaplayabileceğinden haberiniz olsun.</translation>
+    </message>
+    <message>
+        <source>Disk Enc&amp;ryption</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>When checked, disks attached to this virtual machine will be encrypted.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>En&amp;able Disk Encryption</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk Encryption C&amp;ipher:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Holds the encryption password for disks attached to this virtual machine.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Confirms the disk encryption password.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>You are trying to enable disk encryption for this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk encryption cipher type not specified.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk encryption password empty.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Disk encryption passwords do not match.</source>
+        <translation type="unfinished"></translation>
     </message>
 </context>
 <context>

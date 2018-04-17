@@ -794,11 +794,11 @@ int Display::i_registerSSM(PUVM pUVM)
     return VINF_SUCCESS;
 }
 
-DECLCALLBACK(void) Display::i_displayCrCmdFree(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd, int rc, void *pvCompletion)
+DECLCALLBACK(void) Display::i_displayCrCmdFree(struct VBOXCRCMDCTL *pCmd, uint32_t cbCmd, int rc, void *pvCompletion)
 {
     RT_NOREF(pCmd, cbCmd, rc);
     Assert(pvCompletion);
-    RTMemFree(pvCompletion);
+    RTMemFree((void *)pvCompletion);
 }
 
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
@@ -3131,7 +3131,7 @@ HRESULT Display::invalidateAndUpdateScreen(ULONG aScreenId)
 HRESULT Display::completeVHWACommand(BYTE *aCommand)
 {
 #ifdef VBOX_WITH_VIDEOHWACCEL
-    mpDrv->pVBVACallbacks->pfnVHWACommandCompleteAsync(mpDrv->pVBVACallbacks, (PVBOXVHWACMD)aCommand);
+    mpDrv->pVBVACallbacks->pfnVHWACommandCompleteAsync(mpDrv->pVBVACallbacks, (VBOXVHWACMD RT_UNTRUSTED_VOLATILE_GUEST *)aCommand);
     return S_OK;
 #else
     return E_NOTIMPL;
@@ -3681,7 +3681,7 @@ DECLCALLBACK(void) Display::i_displayProcessDisplayDataCallback(PPDMIDISPLAYCONN
 # define S_FALSE ((HRESULT)1L)
 #endif
 
-int Display::i_handleVHWACommandProcess(PVBOXVHWACMD pCommand)
+int Display::i_handleVHWACommandProcess(int enmCmd, bool fGuestCmd, VBOXVHWACMD RT_UNTRUSTED_VOLATILE_GUEST *pCommand)
 {
     unsigned id = (unsigned)pCommand->iDisplay;
     if (id >= mcMonitors)
@@ -3696,7 +3696,7 @@ int Display::i_handleVHWACommandProcess(PVBOXVHWACMD pCommand)
     if (pFramebuffer == NULL || !fVHWASupported)
         return VERR_NOT_IMPLEMENTED; /* Implementation is not available. */
 
-    HRESULT hr = pFramebuffer->ProcessVHWACommand((BYTE*)pCommand);
+    HRESULT hr = pFramebuffer->ProcessVHWACommand((BYTE *)pCommand, enmCmd, fGuestCmd);
     if (hr == S_FALSE)
         return VINF_SUCCESS;
     if (SUCCEEDED(hr))
@@ -3708,11 +3708,12 @@ int Display::i_handleVHWACommandProcess(PVBOXVHWACMD pCommand)
     return VERR_GENERAL_FAILURE;
 }
 
-DECLCALLBACK(int) Display::i_displayVHWACommandProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVHWACMD pCommand)
+DECLCALLBACK(int) Display::i_displayVHWACommandProcess(PPDMIDISPLAYCONNECTOR pInterface, int enmCmd, bool fGuestCmd,
+                                                       VBOXVHWACMD RT_UNTRUSTED_VOLATILE_GUEST *pCommand)
 {
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
 
-    return pDrv->pDisplay->i_handleVHWACommandProcess(pCommand);
+    return pDrv->pDisplay->i_handleVHWACommandProcess(enmCmd, fGuestCmd, pCommand);
 }
 #endif
 
@@ -3731,12 +3732,12 @@ void Display::i_handleCrHgsmiControlCompletion(int32_t result, uint32_t u32Funct
     mpDrv->pVBVACallbacks->pfnCrHgsmiControlCompleteAsync(mpDrv->pVBVACallbacks, pCtl, result);
 }
 
-void Display::i_handleCrHgsmiCommandProcess(PVBOXVDMACMD_CHROMIUM_CMD pCmd, uint32_t cbCmd)
+void Display::i_handleCrHgsmiCommandProcess(VBOXVDMACMD_CHROMIUM_CMD RT_UNTRUSTED_VOLATILE_GUEST *pCmd, uint32_t cbCmd)
 {
     int rc = VERR_NOT_SUPPORTED;
     VBOXHGCMSVCPARM parm;
     parm.type = VBOX_HGCM_SVC_PARM_PTR;
-    parm.u.pointer.addr = pCmd;
+    parm.u.pointer.addr = (void *)pCmd;
     parm.u.pointer.size = cbCmd;
 
     if (mhCrOglSvc)
@@ -3759,12 +3760,12 @@ void Display::i_handleCrHgsmiCommandProcess(PVBOXVDMACMD_CHROMIUM_CMD pCmd, uint
     i_handleCrHgsmiCommandCompletion(rc, SHCRGL_HOST_FN_CRHGSMI_CMD, &parm);
 }
 
-void Display::i_handleCrHgsmiControlProcess(PVBOXVDMACMD_CHROMIUM_CTL pCtl, uint32_t cbCtl)
+void Display::i_handleCrHgsmiControlProcess(VBOXVDMACMD_CHROMIUM_CTL RT_UNTRUSTED_VOLATILE_GUEST *pCtl, uint32_t cbCtl)
 {
     int rc = VERR_NOT_SUPPORTED;
     VBOXHGCMSVCPARM parm;
     parm.type = VBOX_HGCM_SVC_PARM_PTR;
-    parm.u.pointer.addr = pCtl;
+    parm.u.pointer.addr = (void *)pCtl;
     parm.u.pointer.size = cbCtl;
 
     if (mhCrOglSvc)
@@ -3809,7 +3810,8 @@ void Display::i_handleCrHgsmiControlProcess(PVBOXVDMACMD_CHROMIUM_CTL pCtl, uint
     i_handleCrHgsmiControlCompletion(rc, SHCRGL_HOST_FN_CRHGSMI_CTL, &parm);
 }
 
-DECLCALLBACK(void) Display::i_displayCrHgsmiCommandProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVDMACMD_CHROMIUM_CMD pCmd,
+DECLCALLBACK(void) Display::i_displayCrHgsmiCommandProcess(PPDMIDISPLAYCONNECTOR pInterface,
+                                                           VBOXVDMACMD_CHROMIUM_CMD RT_UNTRUSTED_VOLATILE_GUEST *pCmd,
                                                            uint32_t cbCmd)
 {
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
@@ -3817,7 +3819,8 @@ DECLCALLBACK(void) Display::i_displayCrHgsmiCommandProcess(PPDMIDISPLAYCONNECTOR
     pDrv->pDisplay->i_handleCrHgsmiCommandProcess(pCmd, cbCmd);
 }
 
-DECLCALLBACK(void) Display::i_displayCrHgsmiControlProcess(PPDMIDISPLAYCONNECTOR pInterface, PVBOXVDMACMD_CHROMIUM_CTL pCmd,
+DECLCALLBACK(void) Display::i_displayCrHgsmiControlProcess(PPDMIDISPLAYCONNECTOR pInterface,
+                                                           VBOXVDMACMD_CHROMIUM_CTL RT_UNTRUSTED_VOLATILE_GUEST *pCmd,
                                                            uint32_t cbCmd)
 {
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
@@ -3847,14 +3850,13 @@ DECLCALLBACK(void)  Display::i_displayCrHgcmCtlSubmitCompletion(int32_t result, 
                                                                 void *pvContext)
 {
     RT_NOREF(u32Function);
-    VBOXCRCMDCTL *pCmd = (VBOXCRCMDCTL*)pParam->u.pointer.addr;
+    VBOXCRCMDCTL *pCmd = (VBOXCRCMDCTL *)pParam->u.pointer.addr;
     if (pCmd->u.pfnInternal)
         ((PFNCRCTLCOMPLETION)pCmd->u.pfnInternal)(pCmd, pParam->u.pointer.size, result, pvContext);
 }
 
-int  Display::i_handleCrHgcmCtlSubmit(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd,
-                                    PFNCRCTLCOMPLETION pfnCompletion,
-                                    void *pvCompletion)
+int  Display::i_handleCrHgcmCtlSubmit(struct VBOXCRCMDCTL RT_UNTRUSTED_VOLATILE_GUEST *pCmd, uint32_t cbCmd,
+                                    PFNCRCTLCOMPLETION pfnCompletion, void *pvCompletion)
 {
     VMMDev *pVMMDev = mParent ? mParent->i_getVMMDev() : NULL;
     if (!pVMMDev)
@@ -3866,10 +3868,10 @@ int  Display::i_handleCrHgcmCtlSubmit(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd,
     Assert(mhCrOglSvc);
     VBOXHGCMSVCPARM parm;
     parm.type = VBOX_HGCM_SVC_PARM_PTR;
-    parm.u.pointer.addr = pCmd;
+    parm.u.pointer.addr = (void *)pCmd;
     parm.u.pointer.size = cbCmd;
 
-    pCmd->u.pfnInternal = (void(*)())pfnCompletion;
+    pCmd->u.pfnInternal = (PFNRT)pfnCompletion;
     int rc = pVMMDev->hgcmHostFastCallAsync(mhCrOglSvc, SHCRGL_HOST_FN_CTL, &parm, i_displayCrHgcmCtlSubmitCompletion,
                                             pvCompletion);
     if (!RT_SUCCESS(rc))
@@ -3878,10 +3880,8 @@ int  Display::i_handleCrHgcmCtlSubmit(struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd,
     return rc;
 }
 
-DECLCALLBACK(int)  Display::i_displayCrHgcmCtlSubmit(PPDMIDISPLAYCONNECTOR pInterface,
-                                                     struct VBOXCRCMDCTL* pCmd, uint32_t cbCmd,
-                                                     PFNCRCTLCOMPLETION pfnCompletion,
-                                                     void *pvCompletion)
+DECLCALLBACK(int)  Display::i_displayCrHgcmCtlSubmit(PPDMIDISPLAYCONNECTOR pInterface, struct VBOXCRCMDCTL *pCmd, uint32_t cbCmd,
+                                                     PFNCRCTLCOMPLETION pfnCompletion, void *pvCompletion)
 {
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
     Display *pThis = pDrv->pDisplay;
@@ -4187,7 +4187,11 @@ DECLCALLBACK(void) Display::i_displayVRecCompletion(struct VBOXCRCMDCTL *pCmd, u
 
 
 #ifdef VBOX_WITH_HGSMI
-DECLCALLBACK(int) Display::i_displayVBVAEnable(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId, PVBVAHOSTFLAGS pHostFlags,
+/**
+ * @interface_method_impl{PDMIDISPLAYCONNECTOR,pfnVBVAEnable}
+ */
+DECLCALLBACK(int) Display::i_displayVBVAEnable(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId,
+                                               VBVAHOSTFLAGS RT_UNTRUSTED_VOLATILE_GUEST *pHostFlags,
                                                bool fRenderThreadMode)
 {
     LogRelFlowFunc(("uScreenId %d\n", uScreenId));
@@ -4214,6 +4218,9 @@ DECLCALLBACK(int) Display::i_displayVBVAEnable(PPDMIDISPLAYCONNECTOR pInterface,
     return VINF_SUCCESS;
 }
 
+/**
+ * @interface_method_impl{PDMIDISPLAYCONNECTOR,pfnVBVADisable}
+ */
 DECLCALLBACK(void) Display::i_displayVBVADisable(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId)
 {
     LogRelFlowFunc(("uScreenId %d\n", uScreenId));
@@ -4273,10 +4280,16 @@ DECLCALLBACK(void) Display::i_displayVBVAUpdateBegin(PPDMIDISPLAYCONNECTOR pInte
     }
 }
 
+/**
+ * @interface_method_impl{PDMIDISPLAYCONNECTOR,pfnVBVAUpdateProcess}
+ */
 DECLCALLBACK(void) Display::i_displayVBVAUpdateProcess(PPDMIDISPLAYCONNECTOR pInterface, unsigned uScreenId,
-                                                       PCVBVACMDHDR pCmd, size_t cbCmd)
+                                                       struct VBVACMDHDR const RT_UNTRUSTED_VOLATILE_GUEST *pCmd, size_t cbCmd)
 {
     LogFlowFunc(("uScreenId %d pCmd %p cbCmd %d, @%d,%d %dx%d\n", uScreenId, pCmd, cbCmd, pCmd->x, pCmd->y, pCmd->w, pCmd->h));
+    VBVACMDHDR hdrSaved;
+    RT_COPY_VOLATILE(hdrSaved, *pCmd);
+    RT_UNTRUSTED_NONVOLATILE_COPY_FENCE();
 
     PDRVMAINDISPLAY pDrv = PDMIDISPLAYCONNECTOR_2_MAINDISPLAY(pInterface);
     Display *pThis = pDrv->pDisplay;
@@ -4288,7 +4301,7 @@ DECLCALLBACK(void) Display::i_displayVBVAUpdateProcess(PPDMIDISPLAYCONNECTOR pIn
         if (   uScreenId == VBOX_VIDEO_PRIMARY_SCREEN
             && !pFBInfo->fDisabled)
         {
-            pDrv->pUpPort->pfnUpdateDisplayRect(pDrv->pUpPort, pCmd->x, pCmd->y, pCmd->w, pCmd->h);
+            pDrv->pUpPort->pfnUpdateDisplayRect(pDrv->pUpPort, hdrSaved.x, hdrSaved.y, hdrSaved.w, hdrSaved.h);
         }
         else if (   !pFBInfo->pSourceBitmap.isNull()
                  && !pFBInfo->fDisabled)
@@ -4309,12 +4322,12 @@ DECLCALLBACK(void) Display::i_displayVBVAUpdateProcess(PPDMIDISPLAYCONNECTOR pIn
                                                                   &bitmapFormat);
             if (SUCCEEDED(hrc))
             {
-                uint32_t width              = pCmd->w;
-                uint32_t height             = pCmd->h;
+                uint32_t width              = hdrSaved.w;
+                uint32_t height             = hdrSaved.h;
 
                 const uint8_t *pu8Src       = pFBInfo->pu8FramebufferVRAM;
-                int32_t xSrc                = pCmd->x - pFBInfo->xOrigin;
-                int32_t ySrc                = pCmd->y - pFBInfo->yOrigin;
+                int32_t xSrc                = hdrSaved.x - pFBInfo->xOrigin;
+                int32_t ySrc                = hdrSaved.y - pFBInfo->yOrigin;
                 uint32_t u32SrcWidth        = pFBInfo->w;
                 uint32_t u32SrcHeight       = pFBInfo->h;
                 uint32_t u32SrcLineSize     = pFBInfo->u32LineSize;
@@ -4342,14 +4355,15 @@ DECLCALLBACK(void) Display::i_displayVBVAUpdateProcess(PPDMIDISPLAYCONNECTOR pIn
         }
     }
 
-    VBVACMDHDR hdrSaved = *pCmd;
-
+    /*
+     * Here is your classic 'temporary' solution.
+     */
+    /** @todo New SendUpdate entry which can get a separate cmd header or coords. */
     VBVACMDHDR *pHdrUnconst = (VBVACMDHDR *)pCmd;
 
     pHdrUnconst->x -= (int16_t)pFBInfo->xOrigin;
     pHdrUnconst->y -= (int16_t)pFBInfo->yOrigin;
 
-    /** @todo new SendUpdate entry which can get a separate cmd header or coords. */
     pThis->mParent->i_consoleVRDPServer()->SendUpdate(uScreenId, pHdrUnconst, (uint32_t)cbCmd);
 
     *pHdrUnconst = hdrSaved;

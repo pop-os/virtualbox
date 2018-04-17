@@ -2456,7 +2456,9 @@ HRESULT GuestSession::fileCopyFromGuest(const com::Utf8Str &aSource, const com::
         for (size_t i = 0; i < aFlags.size(); i++)
             fFlags |= aFlags[i];
     }
-/** @todo r=bird: fend off flags we don't implement here!  */
+
+    if (fFlags)
+        return setError(E_NOTIMPL, tr("Flag(s) not yet implemented"));
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -2529,7 +2531,9 @@ HRESULT GuestSession::fileCopyToGuest(const com::Utf8Str &aSource, const com::Ut
         for (size_t i = 0; i < aFlags.size(); i++)
             fFlags |= aFlags[i];
     }
-/** @todo r=bird: fend off flags we don't implement here!  */
+
+    if (fFlags)
+        return setError(E_NOTIMPL, tr("Flag(s) not yet implemented"));
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
