@@ -1,6 +1,7 @@
 virtualbox (5.2.10-dfsg-3) unstable; urgency=medium
 
   * Enable again videorec features (Closes: #895791)
+  * Do not add GL bindings anymore, breaking userspace applications.
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 20 Apr 2018 15:17:21 +0200
 
