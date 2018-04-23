@@ -59,6 +59,12 @@ case "$1" in
 			return 1
 		fi
 	fi
+	if /usr/bin/VBoxClient --check3d 2>/dev/null; then
+		if test -e /usr/lib/virtualbox/additions/00vboxvideo.conf; then
+			cp -f /usr/lib/virtualbox/additions/00vboxvideo.conf /etc/ld.so.conf.d/00vboxvideo.conf
+			ldconfig
+		fi
+	fi
 
 	start-stop-daemon --start --quiet --oknodo --exec /usr/sbin/VBoxService
 	if [ $? -ne 0 ]; then
@@ -72,6 +78,11 @@ case "$1" in
   stop)
 	in_virtual_machine || exit 0
 	log_begin_msg "Stopping VirtualBox Additions"
+
+	if test -e /etc/ld.so.conf.d/00vboxvideo.conf; then
+		rm -f /etc/ld.so.conf.d/00vboxvideo.conf
+		ldconfig
+	fi
 
 	start-stop-daemon --stop --quiet --oknodo --exec /usr/sbin/VBoxService
 	if [ $? -ne 0 ]; then

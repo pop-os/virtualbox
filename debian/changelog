@@ -1,3 +1,10 @@
+virtualbox (5.2.10-dfsg-5) unstable; urgency=medium
+
+  * Do the ldconfig and configure of 3d only in case is available
+    from configuration file (host side) and x11 package is installed.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 23 Apr 2018 19:24:28 +0200
+
 virtualbox (5.2.10-dfsg-4) unstable; urgency=medium
 
   * Refresh previous patch
