@@ -2,7 +2,7 @@ Index: virtualbox/configure
 ===================================================================
 --- virtualbox.orig/configure
 +++ virtualbox/configure
-@@ -1653,6 +1654,42 @@
+@@ -1653,6 +1654,41 @@
  
  
  #
@@ -31,7 +31,6 @@ Index: virtualbox/configure
 +      [ -n "$INCOPUS" ] && I_INCOPUS=`prefix_I "$INCOPUS"`
 +      if test_compile "$LIBOPUS $I_INCOPUS" opus opus; then
 +        if test_execute; then
-+          cnf_append "VBOX_WITH_SYSTEM_LIBOPUS" "1"
 +          cnf_append "SDK_VBOX_OPUS_INCS" "$INCOPUS"
 +          cnf_append "SDK_VBOX_OPUS_LIBS" "`strip_l "$LIBOPUS"`"
 +          fi
@@ -63,16 +62,3 @@ Index: virtualbox/configure
   [ "$OS" != "darwin"  ] && check_z
    [ "$OS" != "darwin"  ] && check_png
    [ $OSE -eq 0 -a "$OS" = "linux" ] && check_pam
-diff --git a/src/libs/Makefile.kmk b/src/libs/Makefile.kmk
-index e7239922f..6543b44c4 100644
---- a/src/libs/Makefile.kmk
-+++ b/src/libs/Makefile.kmk
-@@ -87,7 +87,7 @@ if defined(VBOX_WITH_MAIN) \
-  endif
- 
-  # Opus for supporting audio when doing video capturing.
-- if defined(VBOX_WITH_LIBOPUS) && !defined(VBOX_ONLY_DOCS) && !defined(VBOX_WITH_SDK) \
-+ if defined(VBOX_WITH_LIBOPUS) && !defined(VBOX_WITH_SYSTEM_LIBOPUS) && !defined(VBOX_ONLY_DOCS) && !defined(VBOX_WITH_SDK) \
-    && ("$(SDK_VBOX_OPUS_INCS)" == "$(SDK_VBOX_OPUS_DEFAULT_INCS)")
-   include $(PATH_SUB_CURRENT)/libopus-1.2.1/Makefile.kmk
-  endif
