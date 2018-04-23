@@ -49,7 +49,8 @@ endif
 	    --disable-kmods \
 	    --enable-webservice \
 	    --enable-vde \
-	    --enable-vnc
+	    --enable-vnc \
+	    --enable-system-libopus
 
 override_dh_python3:
 	dh_python3 --no-ext-rename

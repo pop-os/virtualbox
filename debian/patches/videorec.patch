@@ -1,0 +1,78 @@
+Index: virtualbox/configure
+===================================================================
+--- virtualbox.orig/configure
++++ virtualbox/configure
+@@ -1653,6 +1654,42 @@
+ 
+ 
+ #
++# Check for libopus
++#
++check_libopus()
++{
++  if [ ! -z "$BUILD_LIBOPUS" ]; then
++    test_header libopus
++    if which_wrapper pkg-config > /dev/null; then
++      libopus_ver=`pkg-config opus --modversion 2>> $LOG`
++      if [ $? -eq 0 ]; then
++        FLGOPUS=`pkg-config opus --cflags`
++        INCOPUS=`strip_I "$FLGOPUS"`
++        LIBOPUS=`pkg-config opus --libs`
++      fi
++      cat > $ODIR.tmp_src.cc << EOF
++#include <cstdio>
++#include <opus/opus.h>
++extern "C" int main(void)
++{
++  OpusEncoder *test;
++  printf("found, OK.\n");
++}
++EOF
++      [ -n "$INCOPUS" ] && I_INCOPUS=`prefix_I "$INCOPUS"`
++      if test_compile "$LIBOPUS $I_INCOPUS" opus opus; then
++        if test_execute; then
++          cnf_append "VBOX_WITH_SYSTEM_LIBOPUS" "1"
++          cnf_append "SDK_VBOX_OPUS_INCS" "$INCOPUS"
++          cnf_append "SDK_VBOX_OPUS_LIBS" "`strip_l "$LIBOPUS"`"
++          fi
++      fi
++    fi
++  fi
++}
++
++
++#
+ # Check for libvpx
+ #
+ check_vpx()
+@@ -2529,6 +2563,9 @@
+     --enable-hardening)
+       WITH_HARDENING=2
+       ;;
++    --enable-system-libopus)
++      BUILD_LIBOPUS=1
++      ;;
+     --disable-udptunnel)
+       WITH_UDPTUNNEL=0
+       ;;
+@@ -2754,6 +2791,7 @@
+   check_ssl
+   check_curl
+   [ $WITH_LIBVPX -eq 1 ] && check_vpx
++  check_libopus
+  [ "$OS" != "darwin"  ] && check_z
+   [ "$OS" != "darwin"  ] && check_png
+   [ $OSE -eq 0 -a "$OS" = "linux" ] && check_pam
+diff --git a/src/libs/Makefile.kmk b/src/libs/Makefile.kmk
+index e7239922f..6543b44c4 100644
+--- a/src/libs/Makefile.kmk
++++ b/src/libs/Makefile.kmk
+@@ -87,7 +87,7 @@ if defined(VBOX_WITH_MAIN) \
+  endif
+ 
+  # Opus for supporting audio when doing video capturing.
+- if defined(VBOX_WITH_LIBOPUS) && !defined(VBOX_ONLY_DOCS) && !defined(VBOX_WITH_SDK) \
++ if defined(VBOX_WITH_LIBOPUS) && !defined(VBOX_WITH_SYSTEM_LIBOPUS) && !defined(VBOX_ONLY_DOCS) && !defined(VBOX_WITH_SDK) \
+    && ("$(SDK_VBOX_OPUS_INCS)" == "$(SDK_VBOX_OPUS_DEFAULT_INCS)")
+   include $(PATH_SUB_CURRENT)/libopus-1.2.1/Makefile.kmk
+  endif
