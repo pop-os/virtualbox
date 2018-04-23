@@ -62,3 +62,24 @@ Index: virtualbox/configure
   [ "$OS" != "darwin"  ] && check_z
    [ "$OS" != "darwin"  ] && check_png
    [ $OSE -eq 0 -a "$OS" = "linux" ] && check_pam
+diff --git a/Config.kmk b/Config.kmk
+index ee6f70771..0d2408384 100644
+--- a/Config.kmk
++++ b/Config.kmk
+@@ -1181,14 +1181,14 @@ ifdef VBOX_OSE
+  ifn1of ($(KBUILD_TARGET), darwin linux solaris win)
+   VBOX_WITH_INSTALLER=
+  endif
+- # if1of ($(KBUILD_TARGET), win)
++  if1of ($(KBUILD_TARGET), win)
+   # Undefine codec libraries which are not needed.
+   VBOX_WITH_LIBVPX=
+   VBOX_WITH_LIBOPUS=
+   # Disable video recording (with audio support).
+   VBOX_WITH_VIDEOREC=
+   VBOX_WITH_AUDIO_VIDEOREC=
+- # endif
++  endif
+  # branding
+  VBOX_BRAND_LICENSE_HTML             := $(PATH_ROOT)/doc/License-gpl-2.0.html
+  VBOX_BRAND_LICENSE_RTF              := $(PATH_ROOT)/doc/License-gpl-2.0.rtf
