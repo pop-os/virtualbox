@@ -19,3 +19,4 @@ fix-build.patch
 java9.patch
 GL-fixes.patch
 videorec.patch
+vm-restore.patch
