@@ -6879,7 +6879,7 @@
     </message>
     <message>
         <source>Encryption C&amp;ipher:</source>
-        <translation type="vanished">Şifreleme Ş&amp;ifreleyici:</translation>
+        <translation type="vanished">Şifreleme Ş&amp;ifreleyicisi:</translation>
     </message>
     <message>
         <source>Holds the cipher to be used for encrypting the virtual machine disks.</source>
@@ -6907,7 +6907,7 @@
     </message>
     <message>
         <source>Encryption cipher type not specified.</source>
-        <translation type="vanished">Şifreleme şifreleyicisi türü belirlenmemiş.</translation>
+        <translation type="vanished">Şifreleme şifreleyicisi türü belirtilmemiş.</translation>
     </message>
     <message>
         <source>Encryption password empty.</source>
@@ -6932,43 +6932,43 @@
     </message>
     <message>
         <source>Disk Enc&amp;ryption</source>
-        <translation type="unfinished"></translation>
+        <translation>Disk Şif&amp;releme</translation>
     </message>
     <message>
         <source>When checked, disks attached to this virtual machine will be encrypted.</source>
-        <translation type="unfinished"></translation>
+        <translation>İşaretlendiğinde, bu sanal makineye takılı diskler şifrelenecektir.</translation>
     </message>
     <message>
         <source>En&amp;able Disk Encryption</source>
-        <translation type="unfinished"></translation>
+        <translation>Disk Şifrelemeyi &amp;etkinleştir</translation>
     </message>
     <message>
         <source>Disk Encryption C&amp;ipher:</source>
-        <translation type="unfinished"></translation>
+        <translation>Disk Şifreleme Ş&amp;ifreleyicisi:</translation>
     </message>
     <message>
         <source>Holds the encryption password for disks attached to this virtual machine.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bu sanal makineye takılı diskler için şifreleme parolasını tutar.</translation>
     </message>
     <message>
         <source>Confirms the disk encryption password.</source>
-        <translation type="unfinished"></translation>
+        <translation>Disk şifreleme parolasını onaylar.</translation>
     </message>
     <message>
         <source>You are trying to enable disk encryption for this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site.</source>
-        <translation type="unfinished"></translation>
+        <translation>Bu sanal makine için disk şifrelemeyi etkinleştirmeye çalışıyorsunuz. Ancak bu, &lt;i&gt;%1&lt;/i&gt; yüklenmesini gerektirir. Lütfen VirtualBox indirme sitesinden Genişletme Paketini yükleyin.</translation>
     </message>
     <message>
         <source>Disk encryption cipher type not specified.</source>
-        <translation type="unfinished"></translation>
+        <translation>Disk şifreleme şifreleyicisi türü belirtilmemiş.</translation>
     </message>
     <message>
         <source>Disk encryption password empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>Disk şifreleme parolası boş.</translation>
     </message>
     <message>
         <source>Disk encryption passwords do not match.</source>
-        <translation type="unfinished"></translation>
+        <translation>Disk şifreleme parolaları eşleşmiyor.</translation>
     </message>
 </context>
 <context>
@@ -11081,7 +11081,7 @@
     </message>
     <message>
         <source>&lt;p&gt;A new version of VirtualBox has been released! Version &lt;b&gt;%1&lt;/b&gt; is available at &lt;a href=&quot;https://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt;.&lt;/p&gt;&lt;p&gt;You can download this version using the link:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;VirtualBox&apos;ın yeni bir sürümü yayımlandı! Sürüm &lt;b&gt;%1&lt;/b&gt; &lt;a href=&quot;https://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt; adresinde mevcuttur.&lt;/p&gt;&lt;p&gt;Şu bağlantıyı kullanarak bu sürümü indirebilirsiniz:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;VirtualBox&apos;ın yeni bir sürümü yayımlandı! Sürüm &lt;b&gt;%1&lt;/b&gt; &lt;a href=&quot;https://www.virtualbox.org/&quot;&gt;virtualbox.org&lt;/a&gt; adresinde mevcuttur.&lt;/p&gt;&lt;p&gt;Aşağıdaki bağlantıyı kullanarak bu sürümü indirebilirsiniz:&lt;/p&gt;&lt;p&gt;&lt;a href=%2&gt;%3&lt;/a&gt;&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Drag and drop operation from host to guest failed.</source>

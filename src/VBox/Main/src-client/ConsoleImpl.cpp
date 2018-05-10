@@ -5513,34 +5513,38 @@ HRESULT Console::i_onVideoCaptureChange()
             Display *pDisplay = mDisplay;
             AssertPtr(pDisplay);
 
-            /* Release lock because the call scheduled on EMT may also try to take it. */
-            alock.release();
+            BOOL fEnabled;
+            rc = mMachine->COMGETTER(VideoCaptureEnabled)(&fEnabled);
+            AssertComRCReturnRC(rc);
 
-            const PVIDEORECCFG pCfg = pDisplay->i_videoRecGetConfig();
-# ifdef VBOX_WITH_AUDIO_VIDEOREC
-            const unsigned     uLUN = pCfg->Audio.uLUN; /* Get the currently configured LUN. */
-# else
-            const unsigned     uLUN = 0;
-# endif
-            int vrc = VMR3ReqCallWaitU(ptrVM.rawUVM(), VMCPUID_ANY /*idDstCpu*/,
-                                       (PFNRT)Display::i_videoRecConfigure, 4,
-                                       pDisplay, pCfg, true /* fAttachDetach */, &uLUN);
-            if (RT_SUCCESS(vrc))
+            if (fEnabled)
             {
-                /* Make sure to acquire the lock again after we're done running in EMT. */
-                alock.acquire();
+	            const PVIDEORECCFG pCfg = pDisplay->i_videoRecGetConfig();
+# ifdef VBOX_WITH_AUDIO_VIDEOREC
+	            const unsigned     uLUN = pCfg->Audio.uLUN; /* Get the currently configured LUN. */
+# else
+	            const unsigned     uLUN = 0;
+# endif
+	            /* Release lock because the call scheduled on EMT may also try to take it. */
+	            alock.release();
 
-                if (!mDisplay->i_videoRecStarted())
-                {
+	            int vrc = VMR3ReqCallWaitU(ptrVM.rawUVM(), VMCPUID_ANY /*idDstCpu*/,
+	                                       (PFNRT)Display::i_videoRecConfigure, 4,
+	                                       pDisplay, pCfg, true /* fAttachDetach */, &uLUN);
+	            if (RT_SUCCESS(vrc))
+	            {
+	                /* Make sure to acquire the lock again after we're done running in EMT. */
+	                alock.acquire();
+
                     vrc = mDisplay->i_videoRecStart();
                     if (RT_FAILURE(vrc))
                         rc = setError(E_FAIL, tr("Unable to start video capturing (%Rrc)"), vrc);
-                }
-                else
-                    mDisplay->i_videoRecStop();
-            }
-            else
-                rc = setError(E_FAIL, tr("Unable to set screens for capturing (%Rrc)"), vrc);
+	            }
+	            else
+	                rc = setError(E_FAIL, tr("Unable to set screens for capturing (%Rrc)"), vrc);
+	    	}
+	    	else
+	    	    mDisplay->i_videoRecStop();
         }
 
         ptrVM.release();

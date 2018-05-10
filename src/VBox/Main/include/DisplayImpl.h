@@ -208,7 +208,7 @@ public:
 
 #ifdef VBOX_WITH_VIDEOREC
     PVIDEORECCFG             i_videoRecGetConfig(void) { return &mVideoRecCfg; }
-    VIDEORECFEATURES         i_videoRecGetEnabled(void);
+    VIDEORECFEATURES         i_videoRecGetFeatures(void);
     bool                     i_videoRecStarted(void);
 # ifdef VBOX_WITH_AUDIO_VIDEOREC
     int                      i_videoRecConfigureAudioDriver(const Utf8Str& strAdapter, unsigned uInstance, unsigned uLUN, bool fAttach);

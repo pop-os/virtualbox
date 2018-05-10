@@ -227,8 +227,8 @@ typedef struct VIDEORECCONTEXT
     RTCRITSECT          CritSect;
     /** Semaphore to signal the encoding worker thread. */
     RTSEMEVENT          WaitEvent;
-    /** Whether this conext is enabled or not. */
-    bool                fEnabled;
+    /** Whether this conext is in started state or not. */
+    bool                fStarted;
     /** Shutdown indicator. */
     bool                fShutdown;
     /** Worker thread. */
@@ -721,6 +721,7 @@ int VideoRecContextCreate(uint32_t cScreens, PVIDEORECCFG pVideoRecCfg, PVIDEORE
     {
         pCtx->tsStartMs = RTTimeMilliTS();
         pCtx->enmState  = VIDEORECSTS_UNINITIALIZED;
+        pCtx->fStarted  = false;
         pCtx->fShutdown = false;
 
         /* Copy the configuration to our context. */
@@ -738,7 +739,7 @@ int VideoRecContextCreate(uint32_t cScreens, PVIDEORECCFG pVideoRecCfg, PVIDEORE
         if (RT_SUCCESS(rc))
         {
             pCtx->enmState = VIDEORECSTS_INITIALIZED;
-            pCtx->fEnabled = true;
+            pCtx->fStarted = true;
 
             if (ppCtx)
                 *ppCtx = pCtx;
@@ -764,9 +765,6 @@ int VideoRecContextDestroy(PVIDEORECCONTEXT pCtx)
     if (!pCtx)
         return VINF_SUCCESS;
 
-    /* First, disable the context. */
-    ASMAtomicWriteBool(&pCtx->fEnabled, false);
-
     if (pCtx->enmState == VIDEORECSTS_INITIALIZED)
     {
         /* Set shutdown indicator. */
@@ -778,6 +776,9 @@ int VideoRecContextDestroy(PVIDEORECCONTEXT pCtx)
         int rc = RTThreadWait(pCtx->Thread, 10 * 1000 /* 10s timeout */, NULL);
         if (RT_FAILURE(rc))
             return rc;
+
+        /* Disable the context. */
+        ASMAtomicWriteBool(&pCtx->fStarted, false);
 
         rc = RTSemEventDestroy(pCtx->WaitEvent);
         AssertRC(rc);
@@ -1065,7 +1066,7 @@ int VideoRecStreamInit(PVIDEORECCONTEXT pCtx, uint32_t uScreen)
 
     PVIDEORECCFG pCfg = &pCtx->Cfg;
 
-    pStream->pCtx          = pCtx;
+    pStream->pCtx = pCtx;
 
     /** @todo Make the following parameters configurable on a per-stream basis? */
     pStream->Video.uWidth                = pCfg->Video.uWidth;
@@ -1222,13 +1223,10 @@ int VideoRecStreamInit(PVIDEORECCONTEXT pCtx, uint32_t uScreen)
  * @returns Enabled video recording features.
  * @param   pCfg                Pointer to recording configuration.
  */
-VIDEORECFEATURES VideoRecGetEnabled(PVIDEORECCFG pCfg)
+VIDEORECFEATURES VideoRecGetFeatures(PVIDEORECCFG pCfg)
 {
-    if (   !pCfg
-        || !pCfg->fEnabled)
-    {
+    if (!pCfg)
         return VIDEORECFEATURE_NONE;
-    }
 
     VIDEORECFEATURES fFeatures = VIDEORECFEATURE_NONE;
 
@@ -1274,17 +1272,17 @@ bool VideoRecIsReady(PVIDEORECCONTEXT pCtx, uint32_t uScreen, uint64_t uTimeStam
 }
 
 /**
- * Returns whether video recording for a given recording context is active or not.
+ * Returns whether a given recording context has been started or not.
  *
  * @returns true if active, false if not.
  * @param   pCtx                 Pointer to video recording context.
  */
-bool VideoRecIsActive(PVIDEORECCONTEXT pCtx)
+bool VideoRecIsStarted(PVIDEORECCONTEXT pCtx)
 {
     if (!pCtx)
         return false;
 
-    return ASMAtomicReadBool(&pCtx->fEnabled);
+    return ASMAtomicReadBool(&pCtx->fStarted);
 }
 
 /**

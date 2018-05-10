@@ -48,6 +48,9 @@ void __stack_chk_fail(void)
 /* Furthermore, wrap references to memcpy to force them to go to the right
  * version.  We are forced to do it this way because the shared libraries
  * supc++ and gcc_eh contain references which we cannot change. */
+
+extern void *__wrap_memcpy(void *dest, const void *src, size_t n);
+
 asm (".symver memcpy, memcpy@GLIBC_2.2.5");
 void *__wrap_memcpy(void *dest, const void *src, size_t n)
 {
