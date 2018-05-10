@@ -2709,17 +2709,26 @@ HRESULT GuestSession::directoryExists(const com::Utf8Str &aPath, BOOL aFollowSym
         *aExists = objData.mType == FsObjType_Directory;
     else
     {
-        /** @todo r=bird: Looks like this code raises errors if the directory doesn't
-         *        exist... That's of course not right. */
         switch (rc)
         {
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestProcess::i_setErrorExternal(this, guestRc);
+            {
+                switch (guestRc)
+                {
+                    case VERR_PATH_NOT_FOUND:
+                        *aExists = FALSE;
+                        break;
+                    default:
+                        hr = setError(VBOX_E_IPRT_ERROR, tr("Querying directory existence \"%s\" failed: %s"),
+                                                            aPath.c_str(), GuestProcess::i_guestErrorToString(guestRc).c_str());
+                        break;
+                }
                 break;
+            }
 
             default:
                hr = setError(VBOX_E_IPRT_ERROR, tr("Querying directory existence \"%s\" failed: %Rrc"),
-                             aPath.c_str(), rc);
+                                                   aPath.c_str(), rc);
                break;
         }
     }

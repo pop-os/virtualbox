@@ -6,7 +6,7 @@
     <message>
         <source>English</source>
         <comment>Native language name</comment>
-        <translatorcomment>2017-11-04</translatorcomment>
+        <translatorcomment>2018-04-26</translatorcomment>
         <translation>Ελληνικά</translation>
     </message>
     <message>
@@ -38,7 +38,7 @@
     </message>
     <message>
         <source>Incompatible Qt Library Error</source>
-        <translation>Μη συμβατή βιβλιοθήκη Qt</translation>
+        <translation>Λάθος μη συμβατής βιβλιοθήκης Qt</translation>
     </message>
     <message>
         <source>VirtualBox - Error In %1</source>
@@ -74,23 +74,23 @@
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Please try completely uninstalling and reinstalling VirtualBox.</source>
-        <translation>Ο οδηγός πυρήνα δεν ταιριάζει με αυτή την έκδοση του VirtualBox. Η εγκατάσταση του VirtualBox δεν ήταν μάλλον επιτυχημένη. Παρακαλούμε απεγκαταστήστε πλήρως και επανεγκαταστήστε το VirtualBox.</translation>
+        <translation>Ο οδηγός πυρήνα δεν ταιριάζει με αυτή την έκδοση του VirtualBox. Η εγκατάσταση του VirtualBox προφανώς δεν ήταν επιτυχημένη. Παρακαλούμε απεγκαταστήστε πλήρως και επανεγκαταστήστε το VirtualBox.</translation>
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation type="vanished">Ο οδηγός πυρήνα δεν ταιριάζει με αυτή την έκδοση του VirtualBox. Η εγκατάσταση του VirtualBox δεν ήταν μάλλον επιτυχημένη. Τρέχοντας&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;μπορεί να το διορθώσει. Σιγουρευτείτε οτι δεν αναμειγνύετε την έκδοση OSE και την έκδοση PUEL του VirtualBox.</translation>
+        <translation type="vanished">Ο οδηγός πυρήνα δεν ταιριάζει με αυτή την έκδοση του VirtualBox. Η εγκατάσταση του VirtualBox προφανώς δεν ήταν επιτυχημένη. Τρέχοντας&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;μπορεί να το διορθώσει. Σιγουρευτείτε οτι δεν αναμειγνύετε την έκδοση OSE και την έκδοση PUEL του VirtualBox.</translation>
     </message>
     <message>
         <source>This error means that the kernel driver was either not able to allocate enough memory or that some mapping operation failed.</source>
-        <translation>Αυτό το λάθος σημαίνει οτι ο οδηγός πυρήνα είτε δεν μπόρεσε να δεσμεύσει αρκετή μνήμη ή κάποια διαδικασία χαρτογράφησης απέτυχε.</translation>
+        <translation>Αυτό το λάθος σημαίνει οτι ο οδηγός πυρήνα ή δεν μπόρεσε να δεσμεύσει αρκετή μνήμη ή κάποια διαδικασία χαρτογράφησης απέτυχε.</translation>
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root. If it is available in your distribution, you should install the DKMS package first. This package keeps track of Linux kernel changes and recompiles the vboxdrv kernel module if necessary.</source>
-        <translation type="vanished">Ο οδηγός πυρήνα του VirtualBox Linux (vboxdrv) δεν φορτώθηκε ή υπάρχει πρόβλημα με δικαιώματα του /dev/vboxdrv. Εγκαταστήστε ξανά την υπομονάδα του πυρήνα εκτελώντας&lt;br/&gt;&lt;br/&gt;  &lt;font color=&quot;blue&quot;&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;σαν διαχειριστής. Αν είναι διαθέσιμο για την έκδοσή σας, θα πρέπει να εγκαταστήσετε πρώτα το πακέτο DKMS. Αυτό το πακέτο διατηρεί ένα αρχείο με τις αλλαγές στον πυρήνα του Linux και ξαναχτίζει την υπομονάδα του πυρήνα vboxdrv αν χρειάζεται.</translation>
+        <translation type="vanished">Ο οδηγός πυρήνα του VirtualBox Linux (vboxdrv) δεν φορτώθηκε ή υπάρχει πρόβλημα με δικαιώματα του /dev/vboxdrv. Εγκαταστήστε ξανά την υπομονάδα του πυρήνα εκτελώντας&lt;br/&gt;&lt;br/&gt;  &lt;font color=&quot;blue&quot;&gt;&apos;/sbin/rcvboxdrv setup&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;σαν διαχειριστής. Αν είναι διαθέσιμο για την έκδοσή σας, θα πρέπει να εγκαταστήσετε πρώτα το πακέτο DKMS. Αυτό το πακέτο διατηρεί ένα αρχείο με τις αλλαγές στον πυρήνα του Linux και ξαναχτίζει την υπομονάδα του πυρήνα vboxdrv αν χρειαστεί.</translation>
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
-        <translation>Ο οδηγός πυρήνα του VirtualBox Linux (vboxdrv) δεν φορτώθηκε ή υπάρχει πρόβλημα με δικαιώματα του /dev/vboxdrv. Εγκαταστήστε ξανά την υπομονάδα του πυρήνα εκτελώντας&lt;br/&gt;&lt;br/&gt;  &lt;font color=&quot;blue&quot;&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;σαν διαχειριστής.</translation>
+        <translation>Ο οδηγός πυρήνα του VirtualBox Linux (vboxdrv) είτε δεν φορτώθηκε ή υπάρχει πρόβλημα με δικαιώματα του /dev/vboxdrv. Εγκαταστήστε ξανά την υπομονάδα του πυρήνα εκτελώντας&lt;br/&gt;&lt;br/&gt;  &lt;font color=&quot;blue&quot;&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;σαν διαχειριστής.</translation>
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
@@ -224,11 +224,11 @@
     </message>
     <message>
         <source>&amp;Adjust Window Size</source>
-        <translation>Ρύθμιση Μεγέθους Παράθυρου</translation>
+        <translation>Προσαρμογή Μεγέθους Παράθυρου</translation>
     </message>
     <message>
         <source>Adjust window size and position to best fit the guest display</source>
-        <translation>Ρύθμιση παραθύρου για τη καλύτερη ομοιότητα με την οθόνη επισκέπτη</translation>
+        <translation>Ρύθμιση μεγέθους και θέσης παραθύρου για την καλύτερη συμβατότητα με την οθόνη επισκέπτη</translation>
     </message>
     <message>
         <source>Take a snapshot of the virtual machine</source>
@@ -240,7 +240,7 @@
     </message>
     <message>
         <source>Suspend the execution of the virtual machine</source>
-        <translation>Παγώστε τη λειτουργία της εικονικής μηχανής</translation>
+        <translation>Αναστολή λειτουργίας της εικονικής μηχανής</translation>
     </message>
     <message>
         <source>&amp;Reset</source>
@@ -294,19 +294,19 @@
     </message>
     <message>
         <source>Show Monitor Preview</source>
-        <translation>Δείξτε την Προεπισκόπηση Οθόνης</translation>
+        <translation>Εμφάνιση Προεπισκόπησης Οθόνης</translation>
     </message>
     <message>
         <source>Show Application Icon</source>
-        <translation>Δείξτε το Εικονίδιο της Εφαρμογής</translation>
+        <translation>Εμφάνιση Εικονιδίου της Εφαρμογής</translation>
     </message>
     <message>
         <source>Switch between normal and seamless desktop integration mode</source>
-        <translation>Αλλαγή μεταξύ κανονικής και ενσωματωμένης οθόνης</translation>
+        <translation>Εναλλαγή λειτουργείας μεταξύ κανονικής και ενσωματωμένης οθόνης</translation>
     </message>
     <message>
         <source>Switch between normal and scaled mode</source>
-        <translation>Αλλαγή μεταξύ κανονικής και κλιμακώμενης οθόνης</translation>
+        <translation>Εναλλαγή λειτουργείας μεταξύ κανονικής και κλιμακώμενης οθόνης</translation>
     </message>
     <message>
         <source>Auto-resize &amp;Guest Display</source>
@@ -326,7 +326,7 @@
     </message>
     <message>
         <source>Show help contents</source>
-        <translation>Δείξτε τα περιεχόμενα βοήθειας</translation>
+        <translation>Προβολή περιεχομένων βοήθειας</translation>
     </message>
     <message>
         <source>Open the browser and go to the VirtualBox product web site</source>
@@ -342,7 +342,7 @@
     </message>
     <message>
         <source>Check for a new VirtualBox version</source>
-        <translation>Ελέγξτε για καινούρια έκδοση VirtualBox</translation>
+        <translation>Έλεγχος για καινούρια έκδοση VirtualBox</translation>
     </message>
     <message>
         <source>&amp;About VirtualBox...</source>
@@ -372,7 +372,7 @@
     </message>
     <message>
         <source>Display the Virtual Media Manager window</source>
-        <translation>Εμφανίστε τον Διαχειριστή Εικονικών Μέσων</translation>
+        <translation>Εμφάνιση του Διαχειριστή Εικονικών Μέσων</translation>
     </message>
     <message>
         <source>&amp;Import Appliance...</source>
@@ -380,7 +380,7 @@
     </message>
     <message>
         <source>Import an appliance into VirtualBox</source>
-        <translation>Εισάγετε μία συσκευή στο VirtualBox</translation>
+        <translation>Εισαγωγή μίας συσκευής στο VirtualBox</translation>
     </message>
     <message>
         <source>&amp;Export Appliance...</source>
@@ -388,7 +388,7 @@
     </message>
     <message>
         <source>Export one or more VirtualBox virtual machines as an appliance</source>
-        <translation>Εξάγετε μία ή περισότερες εικονικές μηχανές του VirtualBox σαν συσκευή</translation>
+        <translation>Εξαγωγή μίας ή περισότερων εικονικών μηχανών του VirtualBox σαν συσκευή</translation>
     </message>
     <message>
         <source>E&amp;xit</source>
@@ -452,11 +452,11 @@
     </message>
     <message>
         <source>Rena&amp;me Group...</source>
-        <translation>Μετονομάστε την Ομάδα...</translation>
+        <translation>Μετονομασία Ομάδας...</translation>
     </message>
     <message>
         <source>Po&amp;wer Off</source>
-        <translation>Σβήσιμο</translation>
+        <translation>Τερματισμός</translation>
     </message>
     <message>
         <source>&amp;New Machine...</source>
@@ -472,7 +472,7 @@
     </message>
     <message>
         <source>Shared &amp;Clipboard</source>
-        <translation>Κοινά Πρόχειρα</translation>
+        <translation>Κοινόχρηστα Πρόχειρα</translation>
     </message>
     <message>
         <source>Power off the virtual machine</source>
@@ -508,7 +508,7 @@
     </message>
     <message>
         <source>&amp;Insert Guest Additions CD image...</source>
-        <translation>Εισάγετε τον δίσκο με τις Προσθήκες Επισκέπτη...</translation>
+        <translation>Εισαγωγή δίσκου με τις Προσθήκες Επισκέπτη...</translation>
     </message>
     <message>
         <source>&amp;VirtualBox</source>
@@ -573,7 +573,7 @@
     </message>
     <message>
         <source>Display the Extra Data Manager window</source>
-        <translation>Εμφανίστε τον Διαχειριστή Επιπλέον Δεδομένων</translation>
+        <translation>Εμφανίστε το Διαχειριστή Επιπλέον Δεδομένων</translation>
     </message>
     <message>
         <source>&amp;File</source>
@@ -593,7 +593,7 @@
     </message>
     <message>
         <source>Switch between normal and full-screen mode</source>
-        <translation>Αλλαγή μεταξύ κανονικής και πλήρης οθόνης</translation>
+        <translation>Εναλλαγή μεταξύ κανονικής και πλήρους οθόνης</translation>
     </message>
     <message>
         <source>Seam&amp;less Mode</source>
@@ -654,11 +654,11 @@
     </message>
     <message>
         <source>Display the Network Operations Manager window</source>
-        <translation>Εμφανίστε το παράθυρο του Διαχειριστή Διαδικασιών Δικτύου</translation>
+        <translation>Εμφάνιση παραθύρου του Διαχειριστή Διαδικασιών Δικτύου</translation>
     </message>
     <message>
         <source>Display a window with product information</source>
-        <translation>Εμφανίστε ένα παράθυρο με πληροφορίες για το προϊόν</translation>
+        <translation>Εμφάνιση παραθύρου με πληροφορίες για το προϊόν</translation>
     </message>
     <message>
         <source>&amp;Preferences...</source>
@@ -667,11 +667,11 @@
     </message>
     <message>
         <source>Display the global preferences window</source>
-        <translation>Εμφανίστε το παράθυρο των γενικών επιλογών</translation>
+        <translation>Εμφάνιση παραθύρου των γενικών επιλογών</translation>
     </message>
     <message>
         <source>Display the virtual machine settings window</source>
-        <translation>Εμφανίστε το παράθυρο των ρυθμίσεων της εικονικής μηχανής</translation>
+        <translation>Εμφάνιση παραθύρου των ρυθμίσεων της εικονικής μηχανής</translation>
     </message>
     <message>
         <source>Display the virtual machine session information window</source>
@@ -699,7 +699,7 @@
     </message>
     <message>
         <source>Take guest display screenshot</source>
-        <translation>Πάρτε ένα στιγμιότυπο οθόνης του επισκέπτη</translation>
+        <translation>Λήψη στιγμιοτύπου οθόνης του επισκέπτη</translation>
     </message>
     <message>
         <source>Display virtual machine settings window to configure video capture</source>
@@ -715,7 +715,7 @@
     </message>
     <message>
         <source>Display window to configure menu-bar</source>
-        <translation>Εμφανίζει το παράθυρο για να διαμορφώσετε τον κατάλογο επιλογών</translation>
+        <translation>Εμφάνιση παραθύρου για τη διαμόρφωση του καταλόγου επιλογών</translation>
     </message>
     <message>
         <source>Enable menu-bar</source>
@@ -731,7 +731,7 @@
     </message>
     <message>
         <source>Display global preferences window to configure keyboard shortcuts</source>
-        <translation>Εμφανίστε το παράθυρο των ρυθμίσεων συντομεύσεων πληκτρολογίου</translation>
+        <translation>Εμφάνιση παραθύρου γενικών ρυθμίσεων συντομεύσεων πληκτρολογίου</translation>
     </message>
     <message>
         <source>&amp;Insert %1</source>
@@ -768,7 +768,7 @@
     </message>
     <message>
         <source>Display virtual machine settings window to configure shared folders</source>
-        <translation>Εμφανίστε το παράθυρο των ρυθμίσεων κοινών φακέλων της εικονικής μηχανής</translation>
+        <translation>Εμφανίστε το παράθυρο των ρυθμίσεων κοινόχρηστων φακέλων της εικονικής μηχανής</translation>
     </message>
     <message>
         <source>Insert the Guest Additions disk file into the virtual optical drive</source>
@@ -875,7 +875,7 @@
     </message>
     <message>
         <source>Suspend execution of selected virtual machines</source>
-        <translation>Παγώστε τη λειτουργία των επιλεγμένων εικονικών μηχανών</translation>
+        <translation>Αναστολή λειτουργείας των επιλεγμένων εικονικών μηχανών</translation>
     </message>
     <message>
         <source>Reset selected virtual machines</source>
@@ -887,7 +887,7 @@
     </message>
     <message>
         <source>Discard saved state of selected virtual machines</source>
-        <translation>Απορρίψτε την σωσμένη κατάσταση των επιλεγμένων εικονικών μηχανών</translation>
+        <translation>Απορρίψτε την αποθηκευμένη κατάσταση των επιλεγμένων εικονικών μηχανών</translation>
     </message>
     <message>
         <source>Show log files of selected virtual machines</source>
@@ -1357,11 +1357,11 @@
     <name>UIDownloader</name>
     <message>
         <source>Looking for %1...</source>
-        <translation>Κοιτάω για το %1...</translation>
+        <translation>Αναζήτηση για %1...</translation>
     </message>
     <message>
         <source>Downloading %1...</source>
-        <translation>Κατέβασσμα %1...</translation>
+        <translation>Κατέβασμα %1...</translation>
     </message>
     <message>
         <source>Verifying %1...</source>
@@ -3491,7 +3491,7 @@
     <message>
         <source>&lt;nobr&gt;Indicates the activity of the machine&apos;s shared folders:&lt;/nobr&gt;%1</source>
         <comment>Shared folders tooltip</comment>
-        <translation type="vanished">&lt;nobr&gt;Δείχνει δραστηριότητα των κοινών φακέλων της μηχανής:&lt;/nobr&gt;%1</translation>
+        <translation type="vanished">&lt;nobr&gt;Δείχνει δραστηριότητα των κοινόχρηστων φακέλων της μηχανής:&lt;/nobr&gt;%1</translation>
     </message>
     <message>
         <source>No shared folders</source>
@@ -4484,43 +4484,43 @@
     </message>
     <message>
         <source>Disk Enc&amp;ryption</source>
-        <translation type="unfinished"></translation>
+        <translation>Κρυπτογράφηση δίσκου</translation>
     </message>
     <message>
         <source>When checked, disks attached to this virtual machine will be encrypted.</source>
-        <translation type="unfinished"></translation>
+        <translation>Όταν επιλεγεί, οι δίσκοι που είναι προσαρτημένοι σε αυτή την εικονική μηχανή θα είναι κρυπτογραφημένοι.</translation>
     </message>
     <message>
         <source>En&amp;able Disk Encryption</source>
-        <translation type="unfinished"></translation>
+        <translation>Ενεργοποίηση Κρυπτογράφησης Δίσκου</translation>
     </message>
     <message>
         <source>Disk Encryption C&amp;ipher:</source>
-        <translation type="unfinished"></translation>
+        <translation>Κωδικοποίηση Κρυπτογράφησης Δίσκου:</translation>
     </message>
     <message>
         <source>Holds the encryption password for disks attached to this virtual machine.</source>
-        <translation type="unfinished"></translation>
+        <translation>Δείχνει τον κωδικό κρυπτογράφησης για προσαρτημένους δίσκους σε αυτή την εικονική μηχανή.</translation>
     </message>
     <message>
         <source>Confirms the disk encryption password.</source>
-        <translation type="unfinished"></translation>
+        <translation>Επιβεβαιώνει τον κωδικό κρυπτογράφησης του δίσκου.</translation>
     </message>
     <message>
         <source>You are trying to enable disk encryption for this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site.</source>
-        <translation type="unfinished"></translation>
+        <translation>Προσπαθείτε να ενεργοποιήσετε την κρυπτογραφήση δίσκου για αυτή την εικονική μηχανή. Ωστόσο, αυτό απαιτεί να έχει εγκατασταθεί το &lt;i&gt;%1&lt;/i&gt;. Παρακαλούμε εγκαταστήστε το Πακέτο Επέκτασης από τον ιστότοπο του VirtualBox.</translation>
     </message>
     <message>
         <source>Disk encryption cipher type not specified.</source>
-        <translation type="unfinished"></translation>
+        <translation>Ο τύπος της κωδικοποίησης κρυπτογράφησης δίσκου δεν έχει προσδιοριστεί.</translation>
     </message>
     <message>
         <source>Disk encryption password empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>Κενός κωδικός κρυπτογράφησης δίσκου.</translation>
     </message>
     <message>
         <source>Disk encryption passwords do not match.</source>
-        <translation type="unfinished"></translation>
+        <translation>Οι κωδικοί κρυπτογράφησης δίσκου δεν ταιριάζουν.</translation>
     </message>
 </context>
 <context>
@@ -6474,7 +6474,7 @@
     </message>
     <message>
         <source>You are trying to shut down the guest with the ACPI power button. This is currently not possible because the guest does not support software shutdown.</source>
-        <translation>Προσπαθείτε να σβήσετε τον επισκέπτη με τη χρήση του κουμπιού ACPI. Αυτό δεν είναι δυνατό, γιατί ο επισκέπτης δεν υποστηρίζει λογισμικό σβήσιμο.</translation>
+        <translation>Προσπαθείτε να τερματίσετε τον επισκέπτη με τη χρήση του κουμπιού ACPI. Αυτό δεν είναι δυνατό, γιατί ο επισκέπτης δεν υποστηρίζει τερματισμό μέσω λογισμικού.</translation>
     </message>
     <message>
         <source>&lt;p&gt;VT-x/AMD-V hardware acceleration has been enabled, but is not operational. Your 64-bit guest will fail to detect a 64-bit CPU and will not be able to boot.&lt;/p&gt;&lt;p&gt;Please ensure that you have enabled VT-x/AMD-V properly in the BIOS of your host computer.&lt;/p&gt;</source>
@@ -6514,7 +6514,7 @@
     </message>
     <message>
         <source>A file named &lt;b&gt;%1&lt;/b&gt; already exists. Are you sure you want to replace it?&lt;br /&gt;&lt;br /&gt;Replacing it will overwrite its contents.</source>
-        <translation>Το αρχείο &lt;b&gt;%1&lt;/b&gt; υπάρχει ήδη. Είστε σίγουροι οτι θέλετε να το αντικαταστήσετε? Αντικαθιστώντας το θα διαγράψετε τα περιεχόμενά του.</translation>
+        <translation>Το αρχείο &lt;b&gt;%1&lt;/b&gt; υπάρχει ήδη. Είστε σίγουροι οτι θέλετε να το αντικαταστήσετε; Αντικαθιστώντας το θα διαγράψετε τα περιεχόμενά του.</translation>
     </message>
     <message>
         <source>&lt;p&gt;VT-x/AMD-V hardware acceleration has been enabled, but is not operational. Certain guests (e.g. OS/2 and QNX) require this feature.&lt;/p&gt;&lt;p&gt;Please ensure that you have enabled VT-x/AMD-V properly in the BIOS of your host computer.&lt;/p&gt;</source>
@@ -6810,7 +6810,7 @@
     <message>
         <source>Power Off</source>
         <comment>machine</comment>
-        <translation>Σβήσιμο</translation>
+        <translation>Τερματισμός</translation>
     </message>
     <message>
         <source>&lt;p&gt;Cannot remove the machine folder &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please check that this folder really exists and that you have permissions to remove it.&lt;/p&gt;</source>
@@ -6834,7 +6834,7 @@
     </message>
     <message>
         <source>&lt;p&gt;Do you really want to power off the following virtual machines?&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;This will cause any unsaved data in applications running inside it to be lost.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Θέλετε σίγουρα να σβήσετε τις ακόλουθες εικονικές μηχανές;&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Αυτό θα προκαλέσει την απώλεια των μη αποθηκευμένων δεδομένων στις εφαρμογές που τρέχουν στις μηχανές.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Θέλετε σίγουρα να τερματίσετε τις ακόλουθες εικονικές μηχανές;&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Αυτό θα προκαλέσει την απώλεια των μη αποθηκευμένων δεδομένων στις εφαρμογές που τρέχουν στις μηχανές.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You are trying to move machine &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; to group &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; which already have sub-group &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;&lt;p&gt;Please resolve this name-conflict and try again.&lt;/p&gt;</source>
@@ -6968,13 +6968,13 @@
         <source>&lt;p&gt;The %n following virtual machine(s) are currently in a saved state: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;If you continue the runtime state of the exported machine(s) will be discarded. The other machine(s) will not be changed.&lt;/p&gt;</source>
         <comment>This text is never used with n == 0. Feel free to drop the %n where possible, we only included it because of problems with Qt Linguist (but the user can see how many machines are in the list and doesn&apos;t need to be told).</comment>
         <translation>
-            <numerusform>&lt;p&gt;Η ακόλουθη εικονική μηχανή είναι σε μη αποθηκευμένη κατάσταση: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Αν συνεχίσετε η κατάσταση εκτέλεσης της εξαγώμενης μηχανής θα αποριφθεί. Οι άλλες μηχανές δεν θα αλλάξουν.&lt;/p&gt;</numerusform>
-            <numerusform>&lt;p&gt;Οι ακόλουθες %n εικονικές μηχανές είναι σε μη αποθηκευμένη κατάσταση: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Αν συνεχίσετε η κατάσταση εκτέλεσης των εξαγώμενων μηχανών θα αποριφθεί. Οι άλλες μηχανές δεν θα αλλάξουν.&lt;/p&gt;</numerusform>
+            <numerusform>&lt;p&gt;Η ακόλουθη εικονική μηχανή είναι σε μη αποθηκευμένη κατάσταση: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Αν συνεχίσετε η κατάσταση εκτέλεσης της εξαγώμενης μηχανής θα απορριφθεί. Οι άλλες μηχανές δεν θα αλλάξουν.&lt;/p&gt;</numerusform>
+            <numerusform>&lt;p&gt;Οι ακόλουθες %n εικονικές μηχανές είναι σε μη αποθηκευμένη κατάσταση: &lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Αν συνεχίσετε η κατάσταση εκτέλεσης των εξαγώμενων μηχανών θα απορριφθεί. Οι άλλες μηχανές δεν θα αλλάξουν.&lt;/p&gt;</numerusform>
         </translation>
     </message>
     <message>
         <source>Switch</source>
-        <translation>Αλλαγή</translation>
+        <translation>Εναλλαγή</translation>
     </message>
     <message>
         <source>Failed to enable the remote desktop server for the virtual machine &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -7189,7 +7189,7 @@
     </message>
     <message>
         <source>&lt;p&gt;The virtual machine window will be now switched to &lt;b&gt;full-screen&lt;/b&gt; mode. You can go back to windowed mode at any time by pressing &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the &lt;i&gt;Host&lt;/i&gt; key is currently defined as &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Note that the main menu bar is hidden in full-screen mode. You can access it by pressing &lt;b&gt;Host+Home&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Το παράθυρο της εικονικής μηχανής θα αλλάξει τώρα σε λειτουργία &lt;b&gt;πλήρους οθόνης&lt;/b&gt;. Μπορείτε να επιστρέψετε σε λειτουργία παραθύρου οποτεδήποτε πατώντας &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Σημειώστε οτι το κουμπί &lt;i&gt;Οικοδεσπότη&lt;/i&gt; είναι καθορισμένο ως &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Σημειώστε οτι η γραμμή καταλόγου επιλογών είναι κρυμμένη σε λειτουργία πλήρους οθόνης. Μπορείτε να έχετε πρόσβαση σε αυτή πατόντας &lt;b&gt;Οικοδεσπότης+Home&lt;/b&gt;.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Το παράθυρο της εικονικής μηχανής θα αλλάξει τώρα σε λειτουργία &lt;b&gt;πλήρους οθόνης&lt;/b&gt;. Μπορείτε να επιστρέψετε σε λειτουργία παραθύρου οποτεδήποτε πατώντας &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Σημειώστε οτι το κουμπί &lt;i&gt;Οικοδεσπότη&lt;/i&gt; είναι καθορισμένο ως &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Σημειώστε οτι η γραμμή καταλόγου επιλογών είναι κρυμμένη σε λειτουργία πλήρους οθόνης. Μπορείτε να έχετε πρόσβαση σε αυτή πατώντας &lt;b&gt;Οικοδεσπότης+Home&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Could not switch the guest display to full-screen mode due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Ignore&lt;/b&gt; to switch to full-screen mode anyway or press &lt;b&gt;Cancel&lt;/b&gt; to cancel the operation.&lt;/p&gt;</source>
@@ -7282,7 +7282,7 @@
     </message>
     <message>
         <source>Failed to save host network interface parameter.</source>
-        <translation>Αποτυχία σωσίματος παραμέτρου της κάρτας δικτύου του οικοδεσπότη.</translation>
+        <translation>Αποτυχία αποθήκευσης παραμέτρου της κάρτας δικτύου του οικοδεσπότη.</translation>
     </message>
     <message>
         <source>Failed to create a DHCP server for the network interface &lt;b&gt;%1&lt;/b&gt;.</source>
@@ -7298,7 +7298,7 @@
     </message>
     <message>
         <source>Failed to save DHCP server parameter.</source>
-        <translation>Αποτυχία σωσίματος παραμέτρου του διακομιστή DHCP.</translation>
+        <translation>Αποτυχία αποθήκευσης παραμέτρου του διακομιστή DHCP.</translation>
     </message>
     <message>
         <source>&lt;p&gt;You are about to install a VirtualBox extension pack. Extension packs complement the functionality of VirtualBox and can contain system level software that could be potentially harmful to your system. Please review the description below and only proceed if you have obtained the extension pack from a trusted source.&lt;/p&gt;&lt;p&gt;&lt;table cellpadding=0 cellspacing=5&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Name:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%1&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Version:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%2&lt;/td&gt;&lt;/tr&gt;&lt;tr&gt;&lt;td&gt;&lt;b&gt;Description:&amp;nbsp;&amp;nbsp;&lt;/b&gt;&lt;/td&gt;&lt;td&gt;%3&lt;/td&gt;&lt;/tr&gt;&lt;/table&gt;&lt;/p&gt;</source>
@@ -7346,7 +7346,7 @@
     </message>
     <message>
         <source>&lt;p&gt;The changes you requested require this disk to be released from the machines it is attached to.&lt;/p&gt;&lt;p&gt;Are you sure you want to release the disk image file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Οι αλλαγές που ζητήσατε απαιτούνε αυτό το δίσκο να αποδεσμευτεί από τις μηχανές που είναι προσαρτημένος.&lt;/p&gt;&lt;p&gt;Είστε σίγουροι οτι θέλετε να απελευθερώσετε το αρχείο εικόνας δίσκου &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;;&lt;/p&gt;&lt;p&gt;Αυτό θα το αποσυνδέσει από την ακόλουθη εικονική μηχανή(ές): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
 </context>
 <context>
@@ -8230,7 +8230,7 @@
     </message>
     <message>
         <source>&lt;p&gt;Saves the current execution state of the virtual machine to the physical hard disk of the host PC.&lt;/p&gt;&lt;p&gt;Next time this machine is started, it will be restored from the saved state and continue execution from the same place you saved it at, which will let you continue your work immediately.&lt;/p&gt;&lt;p&gt;Note that saving the machine state may take a long time, depending on the guest operating system type and the amount of memory you assigned to the virtual machine.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Σώζει την τρέχουσα κατάσταση εκτέλεσης της εικονικής μηχανής στον φυσικό σκληρό δίσκο του οικοδεσπότη.&lt;/p&gt;&lt;p&gt;Την επόμενη φορά που θα ξεκινήσει η μηχανή, θα αποκατασταθεί από τη σωσμένη κατάσταση και θα συνεχίσει την εκτέλεση από το ίδιο σημείο που τη σώσατε, το οποίο θα σας επιτρέψει να συνεχίσετε τη δουλειά σας άμεσα.&lt;/p&gt;&lt;p&gt;Σημειώνεται οτι το να σώσετε την κατάσταση της μηχανής μπορεί να πάρει πολύ χρόνο, κάτι το οποίο εξαρτάται από το λειτουργικό σύστημα του επισκέπτη και το ποσό της μνήμης που εκχωρήσατε στην εικονική μηχανή.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Αποθηκεύει την τρέχουσα κατάσταση εκτέλεσης της εικονικής μηχανής στον φυσικό σκληρό δίσκο του οικοδεσπότη.&lt;/p&gt;&lt;p&gt;Την επόμενη φορά που θα ξεκινήσει η μηχανή, θα αποκατασταθεί από την αποθηκευμένη κατάσταση και θα συνεχίσει την εκτέλεση από το ίδιο σημείο που την αποθηκεύσατε, το οποίο θα σας επιτρέψει να συνεχίσετε τη δουλειά σας άμεσα.&lt;/p&gt;&lt;p&gt;Σημειώνεται οτι το να αποθηκεύσετε την κατάσταση της μηχανής μπορεί να πάρει πολύ χρόνο, κάτι το οποίο εξαρτάται από το λειτουργικό σύστημα του επισκέπτη και το ποσό της μνήμης που εκχωρήσατε στην εικονική μηχανή.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Save the machine state</source>
@@ -8238,7 +8238,7 @@
     </message>
     <message>
         <source>&lt;p&gt;Sends the ACPI Power Button press event to the virtual machine.&lt;/p&gt;&lt;p&gt;Normally, the guest operating system running inside the virtual machine will detect this event and perform a clean shutdown procedure. This is a recommended way to turn off the virtual machine because all applications running inside it will get a chance to save their data and state.&lt;/p&gt;&lt;p&gt;If the machine doesn&apos;t respond to this action then the guest operating system may be misconfigured or doesn&apos;t understand ACPI Power Button events at all. In this case you should select the &lt;b&gt;Power off the machine&lt;/b&gt; action to stop virtual machine execution.&lt;/p&gt;</source>
-        <translation>Στέλνει το σήμα τερματισμού ACPI στην εικονική μηχανή.&lt;/p&gt;&lt;p&gt;Κανονικά, το λειτουργικό σύστημα του επισκέπτη θα αναγνωρίσει το σήμα και θα πραγματοποιήσει μία διαδικασία τερματισμού. Αυτός είναι ο προτινόμενος τρόπος να τερματίσετε μία εικονική μηχανή γιατί όλες οι εφαρμογές που τρέχουν στην ΕΜ θα έχουν την ευκαιρία να σώσουν τα αρχεία τους και τα δεδομένα τους.&lt;/p&gt;&lt;p&gt;Αν η ΕΜ δεν ανταποκριθεί στο σήμα, τότε μπορεί το λειτουργικό σύστημα του επισκέπτη να μην έχει διαμορφωθεί σωστά ή να μην καταλαβαίνει τα σήματα τερματισμού ACPI. Σ&apos; αυτήν την περίπτωση πρέπει να επιλέξετε την ενέργεια &lt;b&gt;Τερματισμός της εικονικής μηχανής&lt;/b&gt; για να σταματήσετε την λειτουργία της ΕΜ.&lt;/p&gt;</translation>
+        <translation>Στέλνει το σήμα τερματισμού ACPI στην εικονική μηχανή.&lt;/p&gt;&lt;p&gt;Κανονικά, το λειτουργικό σύστημα του επισκέπτη θα αναγνωρίσει το σήμα και θα πραγματοποιήσει μία διαδικασία τερματισμού. Αυτός είναι ο προτεινόμενος τρόπος να τερματίσετε μία εικονική μηχανή γιατί όλες οι εφαρμογές που τρέχουν στην ΕΜ θα έχουν την ευκαιρία να αποθηκεύσουν τα αρχεία τους και τα δεδομένα τους.&lt;/p&gt;&lt;p&gt;Αν η ΕΜ δεν ανταποκριθεί στο σήμα, τότε μπορεί το λειτουργικό σύστημα του επισκέπτη να μην έχει διαμορφωθεί σωστά ή να μην καταλαβαίνει τα σήματα τερματισμού ACPI. Σ&apos; αυτήν την περίπτωση πρέπει να επιλέξετε την ενέργεια &lt;b&gt;Τερματισμός της εικονικής μηχανής&lt;/b&gt; για να σταματήσετε την λειτουργία της ΕΜ.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>S&amp;end the shutdown signal</source>
@@ -8246,7 +8246,7 @@
     </message>
     <message>
         <source>&lt;p&gt;Turns off the virtual machine.&lt;/p&gt;&lt;p&gt;Note that this action will stop machine execution immediately so that the guest operating system running inside it will not be able to perform a clean shutdown procedure which may result in &lt;i&gt;data loss&lt;/i&gt; inside the virtual machine. Selecting this action is recommended only if the virtual machine does not respond to the &lt;b&gt;Send the shutdown signal&lt;/b&gt; action.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Σβήστε την εικονική μηχανή.&lt;/p&gt;&lt;p&gt;Σημειώνεται οτι αυτή η ενέργεια θα σταματήσει την εκτέλεση της μηχανής αμέσως και το λειτουργικό σύστημα του επισκέπτη δεν θα μπορέσει να ακολουθήσει μία κανονική διαδικασία τερματισμού, το οποίο μπορεί να έχει αποτέλεσμα την &lt;i&gt;απώλεια δεδομένων&lt;/i&gt; στην εικονική μηχανή. Επιλογή αυτής της ενέργειας μόνο αν η εικονική μηχανή δεν ανταποκρίνεται στην ενέργεια &lt;b&gt;Αποστολή του σήματος τερματισμού&lt;/b&gt; action.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Τερματίζει την εικονική μηχανή.&lt;/p&gt;&lt;p&gt;Σημειώνεται οτι αυτή η ενέργεια θα σταματήσει την εκτέλεση της μηχανής αμέσως και το λειτουργικό σύστημα του επισκέπτη δεν θα μπορέσει να ακολουθήσει μία κανονική διαδικασία τερματισμού, το οποίο μπορεί να έχει αποτέλεσμα την &lt;i&gt;απώλεια δεδομένων&lt;/i&gt; στην εικονική μηχανή. Επιλογή αυτής της ενέργειας μόνο αν η εικονική μηχανή δεν ανταποκρίνεται στην ενέργεια &lt;b&gt;Αποστολή του σήματος τερματισμού&lt;/b&gt; action.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&amp;Power off the machine</source>
@@ -8446,7 +8446,7 @@
     </message>
     <message>
         <source>C&amp;ase Sensitive</source>
-        <translation>Ταίριασμα πεζών/κεφαλαίων</translation>
+        <translation>Διάκριση πεζών/κεφαλαίων</translation>
     </message>
     <message>
         <source>Perform case sensitive search (when checked)</source>
@@ -8832,7 +8832,7 @@
     </message>
     <message>
         <source>&amp;This computer</source>
-        <translation>Αυτόν το υπολογιστή</translation>
+        <translation>Αυτός ο υπολογιστής</translation>
     </message>
     <message>
         <source>Sun &amp;Cloud</source>
@@ -9052,7 +9052,7 @@
     </message>
     <message>
         <source>These are the virtual machines contained in the appliance and the suggested settings of the imported VirtualBox machines. You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
-        <translation>Αυτές είναι οι εικονικές μηχανές που περιέχονται στη συσκευή και οι προτινόμενες ρυθμίσεις των εισαγώμενων μηχανών VirtualBox. Μπορείτε να αλλάξετε πολλές από τις ιδιότητες κάνοντας διπλό-κλικ στα στοιχεία και να απενεργοποιήσετε άλλες χρησιμοποιόντας τα πλαίσια ελέγχου παρακάτω.</translation>
+        <translation>Αυτές είναι οι εικονικές μηχανές που περιέχονται στη συσκευή και οι προτεινόμενες ρυθμίσεις των εισαγώμενων μηχανών VirtualBox. Μπορείτε να αλλάξετε πολλές από τις ιδιότητες κάνοντας διπλό-κλικ στα στοιχεία και να απενεργοποιήσετε άλλες χρησιμοποιόντας τα πλαίσια ελέγχου παρακάτω.</translation>
     </message>
     <message>
         <source>Import Virtual Appliance</source>
@@ -9447,7 +9447,7 @@
     <message>
         <source>Powered Off</source>
         <comment>MachineState</comment>
-        <translation>Σβηστή</translation>
+        <translation>Τερματισμένη</translation>
     </message>
     <message>
         <source>Saved</source>

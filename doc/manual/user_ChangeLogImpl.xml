@@ -4,6 +4,40 @@
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
    <sect1>
+    <title>Version 5.2.12 (2018-05-09)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>Serial: fixed possible data corruption when sending data under
+          certain circumstances</para>
+      </listitem>
+
+      <listitem>
+        <para>Video recording: fixed starting / stopping recording under certain
+          circumstances</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: support Linux 4.17 changes.  Thank you Larry Finger</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: support Linux 4.16 and EL 7.5 kernels (bugs #17676 and
+          #17678)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: 3D fixes for recent guests (bug #17623)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.2.10 (2018-04-17)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
@@ -12,7 +46,7 @@
     <itemizedlist>
 
       <listitem>
-        <para>VMM: Fixed missing NULL pointer check in MMIO code</para>
+        <para>VMM: fixed missing NULL pointer check in MMIO code</para>
       </listitem>
 
       <listitem>
@@ -31,23 +65,23 @@
       </listitem>
 
       <listitem>
-        <para>Audio: Fixed interrupt storm in FreeBSD guests with HDA (bug #17219)</para>
+        <para>Audio: fixed interrupt storm in FreeBSD guests with HDA (bug #17219)</para>
       </listitem>
 
       <listitem>
-        <para>Keyboard: Introduced a small delay to fix old software which expects
+        <para>Keyboard: introduced a small delay to fix old software which expects
           to be able to read an incoming scan code more than once (bug #17592)</para>
       </listitem>
 
       <listitem>
-        <para>Windows installer: Removed the "Ignore" action in the case the current
+        <para>Windows installer: removed the "Ignore" action in the case the current
           VBox installation is still running, as the (successful) update will not work
           until a host reboot is performed</para>
       </listitem>
 
       <listitem>
-      	<para>NAT: Handle <computeroutput>nameserver 0.0.0.0</computeroutput>
-	        which is a valid setting (bug #17584)</para>
+        <para>NAT: handle <computeroutput>nameserver 0.0.0.0</computeroutput>
+          which is a valid setting (bug #17584)</para>
       </listitem>
 
       <listitem>

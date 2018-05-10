@@ -1379,27 +1379,27 @@
     <message>
         <source>Result&amp;nbsp;Code: </source>
         <comment>error info</comment>
-        <translation type="unfinished">Rezultat&amp;nbsp;Kod: </translation>
+        <translation>Rezultat&amp;nbsp;Kod: </translation>
     </message>
     <message>
         <source>Component: </source>
         <comment>error info</comment>
-        <translation type="unfinished">Komponenta: </translation>
+        <translation>Komponenta: </translation>
     </message>
     <message>
         <source>Interface: </source>
         <comment>error info</comment>
-        <translation type="unfinished">Sučelje: </translation>
+        <translation>Sučelje: </translation>
     </message>
     <message>
         <source>Callee: </source>
         <comment>error info</comment>
-        <translation type="unfinished">Pozivatelj: </translation>
+        <translation>Pozivatelj: </translation>
     </message>
     <message>
         <source>Callee&amp;nbsp;RC: </source>
         <comment>error info</comment>
-        <translation type="unfinished">Pozivatelj&amp;nbsp;RC: </translation>
+        <translation>Pozivatelj&amp;nbsp;RC: </translation>
     </message>
 </context>
 <context>
@@ -2981,11 +2981,11 @@
     </message>
     <message>
         <source>Adding network...</source>
-        <translation type="unfinished"></translation>
+        <translation>Dodajem mrežu...</translation>
     </message>
     <message>
         <source>Removing network...</source>
-        <translation type="unfinished"></translation>
+        <translation>Uklanjam mrežu...</translation>
     </message>
 </context>
 <context>
@@ -3908,11 +3908,11 @@
     </message>
     <message>
         <source>When checked, VirtualBox will record the audio stream to video file as well.</source>
-        <translation type="unfinished"></translation>
+        <translation>Kada je označeno, VirtualBox će snimati zvučni stream u video datoteku također.</translation>
     </message>
     <message>
         <source>&amp;Record Audio</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Snimaj Zvuk</translation>
     </message>
 </context>
 <context>
@@ -5275,35 +5275,35 @@
     </message>
     <message>
         <source>Choose Medium Location</source>
-        <translation type="unfinished"></translation>
+        <translation>Odaberite Mjesto Medija</translation>
     </message>
     <message>
         <source>Location can not be empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>Mjesto ne može biti prazno.</translation>
     </message>
     <message>
         <source>This type of medium is attached directly or indirectly, preserved when taking snapshots.</source>
-        <translation type="unfinished">Ova vrsta medija je pričvršćena direktno ili indirektno, sačuvana za spremanje snimaka.</translation>
+        <translation>Ova vrsta medija je pričvršćena direktno ili indirektno, sačuvana za stvaranje snimaka.</translation>
     </message>
     <message>
         <source>This type of medium is attached indirectly, changes are wiped out the next time the virtual machine is started.</source>
-        <translation type="unfinished">Ova vrsta medija je pričvršćena indirektno, promjene su obrisane sljedeći put kada je mašina pokrenuta.</translation>
+        <translation>Ova vrsta medija je pričvršćena indirektno, promjene su obrisane sljedeći put kada je mašina pokrenuta.</translation>
     </message>
     <message>
         <source>This type of medium is attached directly, ignored when taking snapshots.</source>
-        <translation type="unfinished">Ova vrsta medija je pričvršćena direktno, ignorirana kada se stvaraju snimci.</translation>
+        <translation>Ova vrsta medija je pričvršćena direktno, ignorirana kada se stvaraju snimci.</translation>
     </message>
     <message>
         <source>This type of medium is attached directly, allowed to be used concurrently by several machines.</source>
-        <translation type="unfinished">Ova vrsta medija je pričvršćena direktno, omogućujući korištenje istovremeno od različitih mašina.</translation>
+        <translation>Ova vrsta medija je pričvršćena direktno, omogućujući korištenje istovremeno od različitih mašina.</translation>
     </message>
     <message>
         <source>This type of medium is attached directly, and can be used by several machines.</source>
-        <translation type="unfinished">Ova vrsta medija je pričvršćena direktno, i može biti korišten od nekoliko mašina.</translation>
+        <translation>Ova vrsta medija je pričvršćena direktno, i može biti korišten od nekoliko mašina.</translation>
     </message>
     <message>
         <source>This type of medium is attached indirectly, so that one base medium can be used for several VMs which have their own differencing medium to store their modifications.</source>
-        <translation type="unfinished">Ova vrsta medija je pričvršćena indirektno, tako da jedan glavni medij može biti korišten za nekoliko VM-ova koji imaju vlastiti različiti medij za pohranu njihovih modifikacija.</translation>
+        <translation>Ova vrsta medija je pričvršćena indirektno, tako da jedan glavni medij može biti korišten za nekoliko VM-ova koji imaju vlastiti različiti medij za pohranu njihovih modifikacija.</translation>
     </message>
 </context>
 <context>
@@ -5472,43 +5472,43 @@
     </message>
     <message>
         <source>Current extension (*.%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>Trenutni nastavak (*.%1)</translation>
     </message>
     <message>
         <source>Choose the location of this medium</source>
-        <translation type="unfinished"></translation>
+        <translation>Odaberite mjesto ovog medija</translation>
     </message>
     <message>
         <source>Copy Disk Image File (%1)</source>
-        <translation type="unfinished">Kopiraj Datoteku Slike Tvrdog Diska (%1)</translation>
+        <translation>Kopiraj Datoteku Slike Diska (%1)</translation>
     </message>
     <message>
         <source>&amp;Move...</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Premjesti...</translation>
     </message>
     <message>
         <source>Move Disk Image File (%1)</source>
-        <translation type="unfinished"></translation>
+        <translation>Premjesti Datoteku Slike Diska (%1)</translation>
     </message>
     <message>
         <source>Move selected disk image file</source>
-        <translation type="unfinished"></translation>
+        <translation>Premjesti odabranu datoteku slike diska</translation>
     </message>
     <message>
         <source>Remove Disk Image File (%1)</source>
-        <translation type="unfinished">Ukloni Datoteku Slike Diska (%1)</translation>
+        <translation>Ukloni Datoteku Slike Diska (%1)</translation>
     </message>
     <message>
         <source>Release Disk Image File (%1)</source>
-        <translation type="unfinished">Pusti Datoteku Slike Diska (%1)</translation>
+        <translation>Pusti Datoteku Slike Diska (%1)</translation>
     </message>
     <message>
         <source>Open Disk Image File Properties (%1)</source>
-        <translation type="unfinished">Otvori Svojstva Datoteke Slike Diska (%1)</translation>
+        <translation>Otvori Svojstva Datoteke Slike Diska (%1)</translation>
     </message>
     <message>
         <source>Refresh Disk Image Files (%1)</source>
-        <translation type="unfinished">Osvježi Datoteku Slike Diska (%1)</translation>
+        <translation>Osvježi Datoteku Slike Diska (%1)</translation>
     </message>
 </context>
 <context>
@@ -6475,11 +6475,11 @@
     </message>
     <message>
         <source>Failed to detach the optical drive (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) from the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>Nisam uspio odčvrstiti optički pogon (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) s priključka &lt;i&gt;%2&lt;/i&gt; od mašine &lt;b&gt;%3&lt;/b&gt;.</translation>
+        <translation>Nisam uspio odvojiti optički pogon (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) s priključka &lt;i&gt;%2&lt;/i&gt; od mašine &lt;b&gt;%3&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>Failed to detach the floppy drive (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) from the slot &lt;i&gt;%2&lt;/i&gt; of the machine &lt;b&gt;%3&lt;/b&gt;.</source>
-        <translation>Nisam uspio odčvrstiti disketni pogon (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) s priključka &lt;i&gt;%2&lt;/i&gt; od mašine &lt;b&gt;%3&lt;/b&gt;.</translation>
+        <translation>Nisam uspio odvojiti disketni pogon (&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;) s priključka &lt;i&gt;%2&lt;/i&gt; od mašine &lt;b&gt;%3&lt;/b&gt;.</translation>
     </message>
     <message>
         <source>&lt;p&gt;The &lt;b&gt;VirtualBox Guest Additions&lt;/b&gt; disk image file has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to register this disk image file and insert it into the virtual optical drive?&lt;/p&gt;</source>
@@ -6535,7 +6535,7 @@
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to release the disk image file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Jeste li sigurni da želite pustiti datoteku slike diska &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;Ovo će ju odčvrstiti od sljedećih virtualnih mašina: &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Jeste li sigurni da želite pustiti datoteku slike diska &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;Ovo će ju odvojiti od sljedećih virtualnih mašina: &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Do you want to delete the storage unit of the virtual hard disk &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;If you select &lt;b&gt;Delete&lt;/b&gt; then the specified storage unit will be permanently deleted. This operation &lt;b&gt;cannot be undone&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;If you select &lt;b&gt;Keep&lt;/b&gt; then the hard disk will be only removed from the list of known hard disks, but the storage unit will be left untouched which makes it possible to add this hard disk to the list later again.&lt;/p&gt;</source>
@@ -6704,11 +6704,11 @@
     </message>
     <message>
         <source>&lt;p&gt;The changes you requested require this disk to be released from the machines it is attached to.&lt;/p&gt;&lt;p&gt;Are you sure you want to release the disk image file &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;This will detach it from the following virtual machine(s): &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Promjene koje ste zatražili zahtijevaju da je disk pušten s mašina na kojima je pričvršćen.&lt;/p&gt;&lt;p&gt;Jeste li sigurni da želite pustiti datoteku slike diska &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;&lt;p&gt;Ovo će ga odvojiti sa sljedećih virtualnih mašina:&lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to create the virtual disk image storage &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>Nisam uspio napraviti pohranu slike virtualnog diska &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;</translation>
     </message>
 </context>
 <context>
@@ -7851,76 +7851,76 @@
     </message>
     <message>
         <source>Copy Virtual Disk Image</source>
-        <translation type="unfinished"></translation>
+        <translation>Kopiraj Sliku Virtualnog Diska</translation>
     </message>
     <message>
         <source>Disk image to copy</source>
-        <translation type="unfinished"></translation>
+        <translation>Slika diska za kopiranje</translation>
     </message>
     <message>
         <source>&lt;p&gt;Please select the virtual disk image file that you would like to copy if it is not already selected. You can either choose one from the list or use the folder icon beside the list to select one.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Odaberite datoteku slike virtualnog diska koju želite kopirati ako već nije odabrana. Možete ili odabrati jednu s popisa ili koristiti ikonu mape pokraj popisa za odabir jedne.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Choose a virtual disk image file to copy...</source>
-        <translation type="unfinished"></translation>
+        <translation>Odaberite datoteku slike virtualnog diska za kopiranje...</translation>
     </message>
     <message>
         <source>Disk image file type</source>
-        <translation type="unfinished"></translation>
+        <translation>Vrsta datoteke slike diska</translation>
     </message>
     <message>
         <source>Please choose the type of file that you would like to use for the new virtual disk image. If you do not need to use it with other virtualization software you can leave this setting unchanged.</source>
-        <translation type="unfinished"></translation>
+        <translation>Odaberite vrstu datoteke koju želite koristiti za novu sliku virtualnog diska. Ako ju ne trebate koristiti s drugim virtualizacijskim softverom, možete ostaviti ovu postavku nepromijenjenu.</translation>
     </message>
     <message>
         <source>Please choose whether the new virtual disk image file should grow as it is used (dynamically allocated) or if it should be created at its maximum size (fixed size).</source>
-        <translation type="unfinished"></translation>
+        <translation>Odaberite hoće li nova datoteka slike virtualnog diska rasti kao što je i korištena (dinamički dodijeljena) ili bi bila napravljena na maksimalnoj veličini (fiksna veličina).</translation>
     </message>
     <message>
         <source>&lt;p&gt;A &lt;b&gt;dynamically allocated&lt;/b&gt; disk image file will only use space on your physical hard disk as it fills up (up to a maximum &lt;b&gt;fixed size&lt;/b&gt;), although it will not shrink again automatically when space on it is freed.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;&lt;b&gt;Dinamički dodijeljena&lt;/b&gt; datoteka slike diska će samo koristiti prostor na fizičkom tvrdom disku kako se i popunjava (do maksimalne &lt;b&gt;fiksne veličine&lt;/b&gt;), ali se neće smanjiti automatski kada je prostor oslobođen.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;A &lt;b&gt;fixed size&lt;/b&gt; disk image file may take longer to create on some systems but is often faster to use.&lt;/p&gt;</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;&lt;b&gt;Fiksna veličina&lt;/b&gt; datoteke slike diska bi se mogla duže praviti na nekim sustavima, ali je češće brža za korištenje.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You can also choose to &lt;b&gt;split&lt;/b&gt; the disk image file into several files of up to two gigabytes each. This is mainly useful if you wish to store the virtual machine on removable USB devices or old systems, some of which cannot handle very large files.</source>
-        <translation type="unfinished"></translation>
+        <translation>&lt;p&gt;Također možete odabrati da &lt;b&gt;podijelite&lt;/b&gt; datoteku slike diska u nekoliko datoteka, svaka do 2GB. Ovo je uglavnom korisno ako želite pohraniti virtualnu mašinu na prenosive USB uređaje ili stare sustave,koji od njih ne mogu baratati s velikim datotekama.</translation>
     </message>
     <message>
         <source>Please choose a location for new virtual disk image file</source>
-        <translation type="unfinished"></translation>
+        <translation>Odaberite mjesto za novu datoteku slike virtualnog diska</translation>
     </message>
     <message>
         <source>New disk image to create</source>
-        <translation type="unfinished"></translation>
+        <translation>Nova slika diska za stvaranje</translation>
     </message>
     <message>
         <source>Please type the name of the new virtual disk image file into the box below or click on the folder icon to select a different folder to create the file in.</source>
-        <translation type="unfinished"></translation>
+        <translation>Upišite ime nove datoteke virtualnog tvrdog diska u kućicu ispod ili kliknite na ikonu mape za odabir drugačije mape.</translation>
     </message>
     <message>
         <source>Choose a location for new virtual disk image file...</source>
-        <translation type="unfinished"></translation>
+        <translation>Odaberite mjesto za novu datoteku slike virtualnog diska...</translation>
     </message>
     <message>
         <source>%1_copy</source>
         <comment>copied virtual disk image name</comment>
-        <translation type="unfinished">%1_kopija</translation>
+        <translation>%1_kopija</translation>
     </message>
     <message>
         <source>Disk image to &amp;copy</source>
-        <translation type="unfinished"></translation>
+        <translation>Slika diska za &amp;kopiranje</translation>
     </message>
     <message>
         <source>&amp;New disk image to create</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Nova slika diska za stvaranje</translation>
     </message>
     <message>
         <source>Disk image file &amp;type</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Vrsta datoteke slike diska</translation>
     </message>
 </context>
 <context>
