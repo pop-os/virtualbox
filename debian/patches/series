@@ -17,7 +17,4 @@
 37-python-3.6-support.patch
 fix-build.patch
 java9.patch
-GL-fixes.patch
 videorec.patch
-vm-restore.patch
-71985.patch

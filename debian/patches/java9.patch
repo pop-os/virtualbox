@@ -2,7 +2,7 @@ Index: virtualbox/Config.kmk
 ===================================================================
 --- virtualbox.orig/Config.kmk
 +++ virtualbox/Config.kmk
-@@ -7215,8 +7215,8 @@
+@@ -7262,8 +7262,8 @@
  else
   VBOX_SEP = $(COLON)
  endif
