@@ -18,3 +18,4 @@
 fix-build.patch
 java9.patch
 videorec.patch
+fix-build-failure-new-acpica-unix.patch
