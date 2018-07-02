@@ -25,6 +25,7 @@
 # include <QTranslator>
 #  include <QStandardPaths>
 # include <QDesktopServices>
+# include <QGraphicsWidget>
 # include <QMutex>
 # include <QToolButton>
 # include <QProcess>
@@ -79,6 +80,7 @@
 #  ifndef VBOX_OSE
 #   include "VBoxLicenseViewer.h"
 #  endif /* VBOX_OSE */
+#  include "VBoxX11Helper.h"
 # endif /* VBOX_WS_X11 */
 # ifdef VBOX_WS_MAC
 #  include "VBoxUtils-darwin.h"
@@ -280,6 +282,24 @@ uint VBoxGlobal::qtRTVersion()
     return (rt_ver_str.section ('.', 0, 0).toInt() << 16) +
            (rt_ver_str.section ('.', 1, 1).toInt() << 8) +
            rt_ver_str.section ('.', 2, 2).toInt();
+}
+
+/* static */
+uint VBoxGlobal::qtRTMajorVersion()
+{
+    return VBoxGlobal::qtRTVersionString().section ('.', 0, 0).toInt();
+}
+
+/* static */
+uint VBoxGlobal::qtRTMinorVersion()
+{
+    return VBoxGlobal::qtRTVersionString().section ('.', 1, 1).toInt();
+}
+
+/* static */
+uint VBoxGlobal::qtRTRevisionNumber()
+{
+    return VBoxGlobal::qtRTVersionString().section ('.', 2, 2).toInt();
 }
 
 /* static */
@@ -2733,6 +2753,111 @@ bool VBoxGlobal::activateWindow (WId aWId, bool aSwitchDesktop /* = true */)
     return result;
 }
 
+/* static */
+void VBoxGlobal::setCursor(QWidget *pWidget, const QCursor &cursor)
+{
+    if (!pWidget)
+        return;
+
+#ifdef VBOX_WS_X11
+    /* As reported in https://www.virtualbox.org/ticket/16348,
+     * in X11 QWidget::setCursor(..) call uses RENDER
+     * extension. Qt (before 5.11) fails to handle the case where the mentioned extension
+     * is missing. Please see https://codereview.qt-project.org/#/c/225665/ for Qt patch: */
+    if ((VBoxGlobal::qtRTMajorVersion() < 5) ||
+        (VBoxGlobal::qtRTMajorVersion() == 5 && VBoxGlobal::qtRTMinorVersion() < 11))
+    {
+        if (X11CheckExtension("RENDER"))
+            pWidget->setCursor(cursor);
+    }
+    else
+    {
+        pWidget->setCursor(cursor);
+    }
+#else
+    pWidget->setCursor(cursor);
+#endif
+}
+
+/* static */
+void VBoxGlobal::setCursor(QGraphicsWidget *pWidget, const QCursor &cursor)
+{
+
+    if (!pWidget)
+        return;
+
+#ifdef VBOX_WS_X11
+    /* As reported in https://www.virtualbox.org/ticket/16348,
+     * in X11 QGraphicsWidget::setCursor(..) call uses RENDER
+     * extension. Qt (before 5.11) fails to handle the case where the mentioned extension
+     * is missing. Please see https://codereview.qt-project.org/#/c/225665/ for Qt patch: */
+    if ((VBoxGlobal::qtRTMajorVersion() < 5) ||
+        (VBoxGlobal::qtRTMajorVersion() == 5 && VBoxGlobal::qtRTMinorVersion() < 11))
+    {
+        if (X11CheckExtension("RENDER"))
+            pWidget->setCursor(cursor);
+    }
+    else
+    {
+        pWidget->setCursor(cursor);
+    }
+#else
+    pWidget->setCursor(cursor);
+#endif
+}
+
+/* static */
+void VBoxGlobal::unsetCursor(QWidget *pWidget)
+{
+    if (!pWidget)
+        return;
+
+#ifdef VBOX_WS_X11
+    /* As reported in https://www.virtualbox.org/ticket/16348,
+     * in X11 QWidget::unsetCursor(..) call uses RENDER
+     * extension. Qt (before 5.11) fails to handle the case where the mentioned extension
+     * is missing. Please see https://codereview.qt-project.org/#/c/225665/ for Qt patch: */
+    if ((VBoxGlobal::qtRTMajorVersion() < 5) ||
+        (VBoxGlobal::qtRTMajorVersion() == 5 && VBoxGlobal::qtRTMinorVersion() < 11))
+    {
+        if (X11CheckExtension("RENDER"))
+            pWidget->unsetCursor();
+    }
+    else
+    {
+        pWidget->unsetCursor();
+    }
+#else
+    pWidget->unsetCursor();
+#endif
+}
+
+/* static */
+void VBoxGlobal::unsetCursor(QGraphicsWidget *pWidget)
+{
+    if (!pWidget)
+        return;
+
+#ifdef VBOX_WS_X11
+    /* As reported in https://www.virtualbox.org/ticket/16348,
+     * in X11 QGraphicsWidget::unsetCursor(..) call uses RENDER
+     * extension. Qt (before 5.11) fails to handle the case where the mentioned extension
+     * is missing. Please see https://codereview.qt-project.org/#/c/225665/ for Qt patch: */
+    if ((VBoxGlobal::qtRTMajorVersion() < 5) ||
+        (VBoxGlobal::qtRTMajorVersion() == 5 && VBoxGlobal::qtRTMinorVersion() < 11))
+    {
+        if (X11CheckExtension("RENDER"))
+            pWidget->unsetCursor();
+    }
+    else
+    {
+        pWidget->unsetCursor();
+    }
+#else
+    pWidget->unsetCursor();
+#endif
+}
+
 #ifdef VBOX_WS_X11
 /* This method tests whether the current X11 window manager supports full-screen mode as we need it.
  * Unfortunately the EWMH specification was not fully clear about whether we can expect to find
@@ -2742,6 +2867,7 @@ bool VBoxGlobal::activateWindow (WId aWId, bool aSwitchDesktop /* = true */)
  * xprop -root | egrep -w '_NET_WM_FULLSCREEN_MONITORS|_NET_WM_STATE|_NET_WM_STATE_FULLSCREEN'
  * in an X11 terminal window.
  * All three strings should be found under a property called "_NET_SUPPORTED(ATOM)". */
+
 /* static */
 bool VBoxGlobal::supportsFullScreenMonitorsProtocolX11()
 {
@@ -4544,4 +4670,3 @@ bool VBoxGlobal::launchMachine(CMachine &machine, LaunchMode enmLaunchMode /* = 
     /* True finally: */
     return true;
 }
-

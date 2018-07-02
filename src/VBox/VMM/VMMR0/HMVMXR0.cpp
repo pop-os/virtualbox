@@ -48,7 +48,6 @@
 # define HMVMX_ALWAYS_CHECK_GUEST_STATE
 # define HMVMX_ALWAYS_TRAP_ALL_XCPTS
 # define HMVMX_ALWAYS_TRAP_PF
-# define HMVMX_ALWAYS_SWAP_FPU_STATE
 # define HMVMX_ALWAYS_FLUSH_TLB
 # define HMVMX_ALWAYS_SWAP_EFER
 #endif
@@ -139,7 +138,6 @@
  * Exception bitmap mask for real-mode guests (real-on-v86).
  *
  * We need to intercept all exceptions manually except:
- * - \#NM, \#MF handled in hmR0VmxLoadSharedCR0().
  * - \#AC and \#DB are always intercepted to prevent the CPU from deadlocking
  *   due to bugs in Intel CPUs.
  * - \#PF need not be intercepted even in real-mode if we have Nested Paging
@@ -147,10 +145,10 @@
  */
 #define HMVMX_REAL_MODE_XCPT_MASK    (  RT_BIT(X86_XCPT_DE)  /* always: | RT_BIT(X86_XCPT_DB) */ | RT_BIT(X86_XCPT_NMI)   \
                                       | RT_BIT(X86_XCPT_BP)             | RT_BIT(X86_XCPT_OF)    | RT_BIT(X86_XCPT_BR)    \
-                                      | RT_BIT(X86_XCPT_UD)            /* RT_BIT(X86_XCPT_NM) */ | RT_BIT(X86_XCPT_DF)    \
+                                      | RT_BIT(X86_XCPT_UD)             | RT_BIT(X86_XCPT_NM)    | RT_BIT(X86_XCPT_DF)    \
                                       | RT_BIT(X86_XCPT_CO_SEG_OVERRUN) | RT_BIT(X86_XCPT_TS)    | RT_BIT(X86_XCPT_NP)    \
                                       | RT_BIT(X86_XCPT_SS)             | RT_BIT(X86_XCPT_GP)   /* RT_BIT(X86_XCPT_PF) */ \
-                                     /* RT_BIT(X86_XCPT_MF)     always: | RT_BIT(X86_XCPT_AC) */ | RT_BIT(X86_XCPT_MC)    \
+                                      | RT_BIT(X86_XCPT_MF)  /* always: | RT_BIT(X86_XCPT_AC) */ | RT_BIT(X86_XCPT_MC)    \
                                       | RT_BIT(X86_XCPT_XF))
 
 /**
@@ -264,8 +262,6 @@ typedef struct VMXTRANSIENT
     /** Mask of currently read VMCS fields; HMVMX_UPDATED_TRANSIENT_*. */
     uint32_t        fVmcsFieldsRead;
 
-    /** Whether the guest FPU was active at the time of VM-exit. */
-    bool            fWasGuestFPUStateActive;
     /** Whether the guest debug state was active at the time of VM-exit. */
     bool            fWasGuestDebugStateActive;
     /** Whether the hyper debug state was active at the time of VM-exit. */
@@ -282,7 +278,7 @@ typedef struct VMXTRANSIENT
 AssertCompileMemberAlignment(VMXTRANSIENT, uExitReason,             sizeof(uint64_t));
 AssertCompileMemberAlignment(VMXTRANSIENT, uExitIntInfo,            sizeof(uint64_t));
 AssertCompileMemberAlignment(VMXTRANSIENT, uEntryIntInfo,           sizeof(uint64_t));
-AssertCompileMemberAlignment(VMXTRANSIENT, fWasGuestFPUStateActive, sizeof(uint64_t));
+AssertCompileMemberAlignment(VMXTRANSIENT, fWasGuestDebugStateActive, sizeof(uint64_t));
 AssertCompileMemberSize(VMXTRANSIENT, ExitInstrInfo, sizeof(uint32_t));
 /** Pointer to VMX transient state. */
 typedef VMXTRANSIENT *PVMXTRANSIENT;
@@ -428,7 +424,6 @@ static FNVMXEXITHANDLER     hmR0VmxExitRdrand;
 static FNVMXEXITHANDLER     hmR0VmxExitInvpcid;
 /** @} */
 
-static int          hmR0VmxExitXcptNM(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVmxTransient);
 static int          hmR0VmxExitXcptPF(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVmxTransient);
 static int          hmR0VmxExitXcptMF(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVmxTransient);
 static int          hmR0VmxExitXcptDB(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVmxTransient);
@@ -3739,6 +3734,8 @@ DECLINLINE(int) hmR0VmxLoadGuestRipRspRflags(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
  */
 static int hmR0VmxLoadSharedCR0(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
 {
+    Assert(CPUMIsGuestFPUStateActive(pVCpu));
+
     /*
      * Guest CR0.
      * Guest FPU.
@@ -3788,19 +3785,6 @@ static int hmR0VmxLoadSharedCR0(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
          * CPUs to support VT-x and no mention of with regards to UX in VM-entry checks.
          */
         u32GuestCR0 |= X86_CR0_NE;
-        bool fInterceptNM = false;
-        if (CPUMIsGuestFPUStateActive(pVCpu))
-        {
-            fInterceptNM = false;              /* Guest FPU active, no need to VM-exit on #NM. */
-            /* The guest should still get #NM exceptions when it expects it to, so we should not clear TS & MP bits here.
-               We're only concerned about -us- not intercepting #NMs when the guest-FPU is active. Not the guest itself! */
-        }
-        else
-        {
-            fInterceptNM = true;               /* Guest FPU inactive, VM-exit on #NM for lazy FPU loading. */
-            u32GuestCR0 |=  X86_CR0_TS         /* Guest can task switch quickly and do lazy FPU syncing. */
-                          | X86_CR0_MP;        /* FWAIT/WAIT should not ignore CR0.TS and should generate #NM. */
-        }
 
         /* Catch floating point exceptions if we need to report them to the guest in a different way. */
         bool fInterceptMF = false;
@@ -3813,25 +3797,15 @@ static int hmR0VmxLoadSharedCR0(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
             Assert(PDMVmmDevHeapIsEnabled(pVM));
             Assert(pVM->hm.s.vmx.pRealModeTSS);
             pVCpu->hm.s.vmx.u32XcptBitmap |= HMVMX_REAL_MODE_XCPT_MASK;
-            fInterceptNM = true;
-            fInterceptMF = true;
         }
         else
         {
             /* For now, cleared here as mode-switches can happen outside HM/VT-x. See @bugref{7626#c11}. */
             pVCpu->hm.s.vmx.u32XcptBitmap &= ~HMVMX_REAL_MODE_XCPT_MASK;
+            if (fInterceptMF)
+                pVCpu->hm.s.vmx.u32XcptBitmap |= RT_BIT(X86_XCPT_MF);
         }
         HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_XCPT_INTERCEPTS);
-
-        if (fInterceptNM)
-            pVCpu->hm.s.vmx.u32XcptBitmap |= RT_BIT(X86_XCPT_NM);
-        else
-            pVCpu->hm.s.vmx.u32XcptBitmap &= ~RT_BIT(X86_XCPT_NM);
-
-        if (fInterceptMF)
-            pVCpu->hm.s.vmx.u32XcptBitmap |= RT_BIT(X86_XCPT_MF);
-        else
-            pVCpu->hm.s.vmx.u32XcptBitmap &= ~RT_BIT(X86_XCPT_MF);
 
         /* Additional intercepts for debugging, define these yourself explicitly. */
 #ifdef HMVMX_ALWAYS_TRAP_ALL_XCPTS
@@ -3894,13 +3868,6 @@ static int hmR0VmxLoadSharedCR0(PVMCPU pVCpu, PCPUMCTX pMixedCtx)
 #endif
         if (pVM->hm.s.fNestedPaging)
             u32CR0Mask &= ~X86_CR0_WP;
-
-        /* If the guest FPU state is active, don't need to VM-exit on writes to FPU related bits in CR0. */
-        if (fInterceptNM)
-        {
-            u32CR0Mask |=  X86_CR0_TS
-                         | X86_CR0_MP;
-        }
 
         /* Write the CR0 mask into the VMCS and update the VCPU's copy of the current CR0 mask. */
         pVCpu->hm.s.vmx.u32CR0Mask = u32CR0Mask;
@@ -9041,15 +9008,7 @@ static void hmR0VmxPreRunGuestCommitted(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCt
     VMCPU_ASSERT_STATE(pVCpu, VMCPUSTATE_STARTED_HM);
     VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED_EXEC);
 
-#ifdef HMVMX_ALWAYS_SWAP_FPU_STATE
     if (!CPUMIsGuestFPUStateActive(pVCpu))
-        if (CPUMR0LoadGuestFPU(pVM, pVCpu) == VINF_CPUM_HOST_CR0_MODIFIED)
-            HMCPU_CF_SET(pVCpu, HM_CHANGED_HOST_CONTEXT);
-    HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_CR0);
-#endif
-
-    if (   pVCpu->hm.s.fPreloadGuestFpu
-        && !CPUMIsGuestFPUStateActive(pVCpu))
     {
         if (CPUMR0LoadGuestFPU(pVM, pVCpu) == VINF_CPUM_HOST_CR0_MODIFIED)
             HMCPU_CF_SET(pVCpu, HM_CHANGED_HOST_CONTEXT);
@@ -9101,7 +9060,6 @@ static void hmR0VmxPreRunGuestCommitted(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCt
         pVmxTransient->fWasGuestDebugStateActive = CPUMIsGuestDebugStateActive(pVCpu);
         pVmxTransient->fWasHyperDebugStateActive = CPUMIsHyperDebugStateActive(pVCpu);
     }
-    pVmxTransient->fWasGuestFPUStateActive = CPUMIsGuestFPUStateActive(pVCpu);
 
     /*
      * Cache the TPR-shadow for checking on every VM-exit if it might have changed.
@@ -9220,14 +9178,6 @@ static void hmR0VmxPostRunGuest(PVM pVM, PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXT
     TMNotifyEndOfExecution(pVCpu);                                    /* Notify TM that the guest is no longer running. */
     Assert(!ASMIntAreEnabled());
     VMCPU_SET_STATE(pVCpu, VMCPUSTATE_STARTED_HM);
-
-#ifdef HMVMX_ALWAYS_SWAP_FPU_STATE
-    if (CPUMR0FpuStateMaybeSaveGuestAndRestoreHost(pVM, pVCpu))
-    {
-        hmR0VmxSaveGuestCR0(pVCpu, pMixedCtx);
-        HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_CR0);
-    }
-#endif
 
 #if HC_ARCH_BITS == 64
     pVCpu->hm.s.vmx.fRestoreHostFlags |= VMX_RESTORE_HOST_REQUIRED;   /* Host state messed up by VT-x, we must restore. */
@@ -11637,12 +11587,13 @@ HMVMX_EXIT_DECL hmR0VmxExitXcptOrNmi(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANS
             {
                 case X86_XCPT_PF: rc = hmR0VmxExitXcptPF(pVCpu, pMixedCtx, pVmxTransient);      break;
                 case X86_XCPT_GP: rc = hmR0VmxExitXcptGP(pVCpu, pMixedCtx, pVmxTransient);      break;
-                case X86_XCPT_NM: rc = hmR0VmxExitXcptNM(pVCpu, pMixedCtx, pVmxTransient);      break;
                 case X86_XCPT_MF: rc = hmR0VmxExitXcptMF(pVCpu, pMixedCtx, pVmxTransient);      break;
                 case X86_XCPT_DB: rc = hmR0VmxExitXcptDB(pVCpu, pMixedCtx, pVmxTransient);      break;
                 case X86_XCPT_BP: rc = hmR0VmxExitXcptBP(pVCpu, pMixedCtx, pVmxTransient);      break;
                 case X86_XCPT_AC: rc = hmR0VmxExitXcptAC(pVCpu, pMixedCtx, pVmxTransient);      break;
 
+                case X86_XCPT_NM: STAM_COUNTER_INC(&pVCpu->hm.s.StatExitGuestNM);
+                                  rc = hmR0VmxExitXcptGeneric(pVCpu, pMixedCtx, pVmxTransient); break;
                 case X86_XCPT_XF: STAM_COUNTER_INC(&pVCpu->hm.s.StatExitGuestXF);
                                   rc = hmR0VmxExitXcptGeneric(pVCpu, pMixedCtx, pVmxTransient); break;
                 case X86_XCPT_DE: STAM_COUNTER_INC(&pVCpu->hm.s.StatExitGuestDE);
@@ -13487,65 +13438,6 @@ static int hmR0VmxExitXcptDB(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVm
     CPUMSetHyperDR6(pVCpu, uDR6);
 
     return rc;
-}
-
-
-/**
- * VM-exit exception handler for \#NM (Device-not-available exception: floating
- * point exception).
- */
-static int hmR0VmxExitXcptNM(PVMCPU pVCpu, PCPUMCTX pMixedCtx, PVMXTRANSIENT pVmxTransient)
-{
-    HMVMX_VALIDATE_EXIT_XCPT_HANDLER_PARAMS();
-
-    /* We require CR0 and EFER. EFER is always up-to-date. */
-    int rc = hmR0VmxSaveGuestCR0(pVCpu, pMixedCtx);
-    AssertRCReturn(rc, rc);
-
-    /* We're playing with the host CPU state here, have to disable preemption or longjmp. */
-    VMMRZCallRing3Disable(pVCpu);
-    HM_DISABLE_PREEMPT();
-
-    /* If the guest FPU was active at the time of the #NM VM-exit, then it's a guest fault. */
-    if (pVmxTransient->fWasGuestFPUStateActive)
-    {
-        rc = VINF_EM_RAW_GUEST_TRAP;
-        Assert(CPUMIsGuestFPUStateActive(pVCpu) || HMCPU_CF_IS_PENDING(pVCpu, HM_CHANGED_GUEST_CR0));
-    }
-    else
-    {
-#ifndef HMVMX_ALWAYS_TRAP_ALL_XCPTS
-        Assert(!pVmxTransient->fWasGuestFPUStateActive || pVCpu->hm.s.fUsingDebugLoop);
-#endif
-        rc = CPUMR0Trap07Handler(pVCpu->CTX_SUFF(pVM), pVCpu);
-        Assert(   rc == VINF_EM_RAW_GUEST_TRAP
-               || ((rc == VINF_SUCCESS || rc == VINF_CPUM_HOST_CR0_MODIFIED) && CPUMIsGuestFPUStateActive(pVCpu)));
-        if (rc == VINF_CPUM_HOST_CR0_MODIFIED)
-            HMCPU_CF_SET(pVCpu, HM_CHANGED_HOST_CONTEXT);
-    }
-
-    HM_RESTORE_PREEMPT();
-    VMMRZCallRing3Enable(pVCpu);
-
-    if (rc == VINF_SUCCESS || rc == VINF_CPUM_HOST_CR0_MODIFIED)
-    {
-        /* Guest FPU state was activated, we'll want to change CR0 FPU intercepts before the next VM-reentry. */
-        HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_CR0);
-        STAM_COUNTER_INC(&pVCpu->hm.s.StatExitShadowNM);
-        pVCpu->hm.s.fPreloadGuestFpu = true;
-    }
-    else
-    {
-        /* Forward #NM to the guest. */
-        Assert(rc == VINF_EM_RAW_GUEST_TRAP);
-        rc = hmR0VmxReadExitIntInfoVmcs(pVmxTransient);
-        AssertRCReturn(rc, rc);
-        hmR0VmxSetPendingEvent(pVCpu, VMX_VMCS_CTRL_ENTRY_IRQ_INFO_FROM_EXIT_INT_INFO(pVmxTransient->uExitIntInfo),
-                               pVmxTransient->cbInstr, 0 /* error code */, 0 /* GCPtrFaultAddress */);
-        STAM_COUNTER_INC(&pVCpu->hm.s.StatExitGuestNM);
-    }
-
-    return VINF_SUCCESS;
 }
 
 

@@ -680,9 +680,9 @@ void UIGDetailsElement::handleHoverEvent(QGraphicsSceneHoverEvent *pEvent)
 void UIGDetailsElement::updateNameHoverLink()
 {
     if (m_fNameHovered)
-        setCursor(Qt::PointingHandCursor);
+        VBoxGlobal::setCursor(this, Qt::PointingHandCursor);
     else
-        unsetCursor();
+        VBoxGlobal::unsetCursor(this);
     update();
 }
 
@@ -698,4 +698,3 @@ void UIGDetailsElement::updateAnimationParameters()
         m_iAdditionalHeight = iAdditionalHeight;
     m_pButton->setAnimationRange(0, iAdditionalHeight);
 }
-
