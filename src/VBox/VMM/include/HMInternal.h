@@ -684,8 +684,6 @@ typedef struct HMCPU
     bool                        fLeaveDone;
     /** Whether we're using the hyper DR7 or guest DR7. */
     bool                        fUsingHyperDR7;
-    /** Whether to preload the guest-FPU state to avoid \#NM VM-exit overhead. */
-    bool                        fPreloadGuestFpu;
     /** Set if XCR0 needs to be loaded and saved when entering and exiting guest
      * code execution. */
     bool                        fLoadSaveGuestXcr0;
@@ -707,7 +705,7 @@ typedef struct HMCPU
     bool                        fGIMTrapXcptUD;
     /** Whether paravirt. hypercalls are enabled. */
     bool                        fHypercallsEnabled;
-    uint8_t                     u8Alignment0[2];
+    uint8_t                     u8Alignment0[3];
 
     /** World switch exit counter. */
     volatile uint32_t           cWorldSwitchExits;

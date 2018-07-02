@@ -42,6 +42,7 @@ void X11ScreenSaverSettingsInit();
 void X11ScreenSaverSettingsSave();
 /** X11: Restores previously saved screen saver settings. */
 void X11ScreenSaverSettingsRestore();
+/** X11: Returns true if XLib extension with name @p extensionName is avaible, false otherwise. */
+bool X11CheckExtension(const char *extensionName);
 
 #endif /* !___VBoxX11Helpers_h___ */
-

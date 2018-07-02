@@ -1,15 +1,110 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
+<!-- Release change log structure
+
+Each release has a matching log of changes which were made for that and
+earlier releases. Earlier releases means anything with a lower number (e.g.
+5.0.18 is lower than 5.1.2) which was released before this one. The log is
+kept in the file doc/manual/user_ChangeLogImpl.xml. Anything worth mentioning,
+particularly new features and fixed bugs, with a trac bug number if possible,
+should be added to the top of the change log (that is, the section for the
+upcoming release) for the branch in which it first appears - stable or
+development - before the next release. If you back-port it to older branches
+please add an entry there too. When a new major release is made, change log
+sections for earlier releases are merged in.
+
+Change log sections are split into two groups: major new features (normally
+only for dot zero releases) and fixes. In addition, the entries in each group
+are ordered as follows:
+
+    VMM-related entries (most important)
+    GUI-related entries (most visible for users)
+    Device-related entries
+    VBoxManage/API/Main-related entries
+    Host-related entries
+    Guest-related entries -->
+
 <chapter> <!-- HACK ALERT! Seems we must have a single top level element for xi:include to work.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
    <sect1>
+    <title>Version 5.2.14 (2018-07-02)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+      <listitem>
+        <para>User interface: fixed a segmentation fault when accessing the
+           interface through VNC (bug #16348)</para>
+      </listitem>
+
+
+      <listitem>
+        <para>User interface: X11: handle repeating keys on the host system
+           correctly (bug #1296, previously fixed, 5.1.0 regression)</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: Fixed emulation of the undocumented SALC instruction</para>
+      </listitem>
+
+      <listitem>
+        <para>VMM: Fixed emulation of so-called "huge unreal mode" (bug #17744); this
+           in practice only affected Intel CPUs with VT-x without unrestricted
+           execution.</para>
+      </listitem>
+
+      <listitem>
+        <para>Keyboard: The PS/2 keyboard emulation has been corrected to
+           not queue partial scan code sequences (bug #17709); this problem
+           was likely only visible on Linux hosts due to losing the fix for bug #1296</para>
+      </listitem>
+
+      <listitem>
+        <para>Storage: Fixed CUE file support to correct REM keyword parsing
+           (bug #17783)</para>
+      </listitem>
+
+      <listitem>
+        <para>USB: Fixed a problem where the emulated xHCI device under very
+           rare circumstances failed to report an empty isochronous transfer
+           ring error, causing the transfers on the corresponding endpoint to stop.
+           </para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed Linux kernel log flooding (bug #17759)
+           </para>
+      </listitem>
+
+      <listitem>
+        <para>Apple hosts: make kernel driver load with Mac OS Mojave pre-release
+           (bug #17805).
+           </para>
+      </listitem>
+
+      <listitem>
+        <para>Linux guests: made vboxvideo driver build with kernel
+           4.17 (bug #17801) and with pre-3.14 and EL 7.1 kernels
+           (bug #17771)
+           </para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.2.12 (2018-05-09)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
       added:</para>
 
     <itemizedlist>
+
+      <listitem>
+        <para>VBoxManage: fixed MODIFYVM_AUDIOOUT (bug #17409)</para>
+      </listitem>
 
       <listitem>
         <para>Serial: fixed possible data corruption when sending data under

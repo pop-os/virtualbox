@@ -207,8 +207,6 @@ typedef struct SVMTRANSIENT
     /** Alignment. */
     uint8_t         abAlignment0[7];
 
-    /** Whether the guest FPU state was active at the time of \#VMEXIT. */
-    bool            fWasGuestFPUStateActive;
     /** Whether the guest debug state was active at the time of \#VMEXIT. */
     bool            fWasGuestDebugStateActive;
     /** Whether the hyper debug state was active at the time of \#VMEXIT. */
@@ -225,7 +223,7 @@ typedef struct SVMTRANSIENT
     bool            fVectoringPF;
 } SVMTRANSIENT, *PSVMTRANSIENT;
 AssertCompileMemberAlignment(SVMTRANSIENT, u64ExitCode,             sizeof(uint64_t));
-AssertCompileMemberAlignment(SVMTRANSIENT, fWasGuestFPUStateActive, sizeof(uint64_t));
+AssertCompileMemberAlignment(SVMTRANSIENT, fWasGuestDebugStateActive, sizeof(uint64_t));
 /** @}  */
 
 /**
@@ -299,7 +297,6 @@ static FNSVMEXITHANDLER hmR0SvmExitVmmCall;
 static FNSVMEXITHANDLER hmR0SvmExitPause;
 static FNSVMEXITHANDLER hmR0SvmExitIret;
 static FNSVMEXITHANDLER hmR0SvmExitXcptPF;
-static FNSVMEXITHANDLER hmR0SvmExitXcptNM;
 static FNSVMEXITHANDLER hmR0SvmExitXcptUD;
 static FNSVMEXITHANDLER hmR0SvmExitXcptMF;
 static FNSVMEXITHANDLER hmR0SvmExitXcptDB;
@@ -1145,6 +1142,8 @@ DECLINLINE(void) hmR0SvmRemoveXcptIntercept(PSVMVMCB pVmcb, uint32_t u32Xcpt)
  */
 static void hmR0SvmLoadSharedCR0(PVMCPU pVCpu, PSVMVMCB pVmcb, PCPUMCTX pCtx)
 {
+    Assert(CPUMIsGuestFPUStateActive(pVCpu));
+
     uint64_t u64GuestCR0 = pCtx->cr0;
 
     /* Always enable caching. */
@@ -1162,33 +1161,19 @@ static void hmR0SvmLoadSharedCR0(PVMCPU pVCpu, PSVMVMCB pVmcb, PCPUMCTX pCtx)
     /*
      * Guest FPU bits.
      */
-    bool fInterceptNM = false;
     bool fInterceptMF = false;
     u64GuestCR0 |= X86_CR0_NE;         /* Use internal x87 FPU exceptions handling rather than external interrupts. */
-    if (CPUMIsGuestFPUStateActive(pVCpu))
+
+    /* Catch floating point exceptions if we need to report them to the guest in a different way. */
+    if (!(pCtx->cr0 & X86_CR0_NE))
     {
-        /* Catch floating point exceptions if we need to report them to the guest in a different way. */
-        if (!(pCtx->cr0 & X86_CR0_NE))
-        {
-            Log4(("hmR0SvmLoadGuestControlRegs: Intercepting Guest CR0.MP Old-style FPU handling!!!\n"));
-            fInterceptMF = true;
-        }
-    }
-    else
-    {
-        fInterceptNM = true;           /* Guest FPU inactive, #VMEXIT on #NM for lazy FPU loading. */
-        u64GuestCR0 |=  X86_CR0_TS     /* Guest can task switch quickly and do lazy FPU syncing. */
-                      | X86_CR0_MP;    /* FWAIT/WAIT should not ignore CR0.TS and should generate #NM. */
+        Log4(("hmR0SvmLoadGuestControlRegs: Intercepting Guest CR0.MP Old-style FPU handling!!!\n"));
+        fInterceptMF = true;
     }
 
     /*
      * Update the exception intercept bitmap.
      */
-    if (fInterceptNM)
-        hmR0SvmAddXcptIntercept(pVmcb, X86_XCPT_NM);
-    else
-        hmR0SvmRemoveXcptIntercept(pVmcb, X86_XCPT_NM);
-
     if (fInterceptMF)
         hmR0SvmAddXcptIntercept(pVmcb, X86_XCPT_MF);
     else
@@ -2744,23 +2729,6 @@ DECLINLINE(void) hmR0SvmSetPendingXcptPF(PVMCPU pVCpu, PCPUMCTX pCtx, uint32_t u
 
 
 /**
- * Sets a device-not-available (\#NM) exception as pending-for-injection into
- * the VM.
- *
- * @param   pVCpu       The cross context virtual CPU structure.
- */
-DECLINLINE(void) hmR0SvmSetPendingXcptNM(PVMCPU pVCpu)
-{
-    SVMEVENT Event;
-    Event.u          = 0;
-    Event.n.u1Valid  = 1;
-    Event.n.u3Type   = SVM_EVENT_EXCEPTION;
-    Event.n.u8Vector = X86_XCPT_NM;
-    hmR0SvmSetPendingEvent(pVCpu, &Event, 0 /* GCPtrFaultAddress */);
-}
-
-
-/**
  * Sets a math-fault (\#MF) exception as pending-for-injection into the VM.
  *
  * @param   pVCpu       The cross context virtual CPU structure.
@@ -3873,8 +3841,7 @@ static void hmR0SvmPreRunGuestCommittedNested(PVM pVM, PVMCPU pVCpu, PCPUMCTX pC
     PSVMVMCB pVmcbNstGst = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
     hmR0SvmInjectPendingEvent(pVCpu, pCtx, pVmcbNstGst);
 
-    if (   pVCpu->hm.s.fPreloadGuestFpu
-        && !CPUMIsGuestFPUStateActive(pVCpu))
+    if (!CPUMIsGuestFPUStateActive(pVCpu))
     {
         CPUMR0LoadGuestFPU(pVM, pVCpu); /* (Ignore rc, no need to set HM_CHANGED_HOST_CONTEXT for SVM.) */
         HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_CR0);
@@ -3913,7 +3880,6 @@ static void hmR0SvmPreRunGuestCommittedNested(PVM pVM, PVMCPU pVCpu, PCPUMCTX pC
         pSvmTransient->fWasGuestDebugStateActive = CPUMIsGuestDebugStateActive(pVCpu);
         pSvmTransient->fWasHyperDebugStateActive = CPUMIsHyperDebugStateActive(pVCpu);
     }
-    pSvmTransient->fWasGuestFPUStateActive = CPUMIsGuestFPUStateActive(pVCpu);
 
     /* The TLB flushing would've already been setup by the nested-hypervisor. */
     ASMAtomicWriteBool(&pVCpu->hm.s.fCheckedTLBFlush, true);    /* Used for TLB flushing, set this across the world switch. */
@@ -3984,8 +3950,7 @@ static void hmR0SvmPreRunGuestCommitted(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, PS
     PSVMVMCB pVmcb = pVCpu->hm.s.svm.pVmcb;
     hmR0SvmInjectPendingEvent(pVCpu, pCtx, pVmcb);
 
-    if (   pVCpu->hm.s.fPreloadGuestFpu
-        && !CPUMIsGuestFPUStateActive(pVCpu))
+    if (!CPUMIsGuestFPUStateActive(pVCpu))
     {
         CPUMR0LoadGuestFPU(pVM, pVCpu); /* (Ignore rc, no need to set HM_CHANGED_HOST_CONTEXT for SVM.) */
         HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_CR0);
@@ -4024,7 +3989,6 @@ static void hmR0SvmPreRunGuestCommitted(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx, PS
         pSvmTransient->fWasGuestDebugStateActive = CPUMIsGuestDebugStateActive(pVCpu);
         pSvmTransient->fWasHyperDebugStateActive = CPUMIsHyperDebugStateActive(pVCpu);
     }
-    pSvmTransient->fWasGuestFPUStateActive = CPUMIsGuestFPUStateActive(pVCpu);
 
     /* Flush the appropriate tagged-TLB entries. */
     ASMAtomicWriteBool(&pVCpu->hm.s.fCheckedTLBFlush, true);    /* Used for TLB flushing, set this across the world switch. */
@@ -4754,14 +4718,6 @@ static int hmR0SvmHandleExitNested(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT pS
             return hmR0SvmExitXcptPFNested(pVCpu, pCtx,pSvmTransient);
         }
 
-        case SVM_EXIT_EXCEPTION_7:   /* X86_XCPT_NM */
-        {
-            if (HM_SVM_IS_XCPT_INTERCEPT_SET(pCtx, X86_XCPT_NM))
-                return HM_SVM_VMEXIT_NESTED(pVCpu, uExitCode, uExitInfo1, uExitInfo2);
-            hmR0SvmSetPendingXcptNM(pVCpu);
-            return VINF_SUCCESS;
-        }
-
         case SVM_EXIT_EXCEPTION_6:   /* X86_XCPT_UD */
         {
             if (HM_SVM_IS_XCPT_INTERCEPT_SET(pCtx, X86_XCPT_UD))
@@ -5101,9 +5057,6 @@ static int hmR0SvmHandleExit(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT pSvmTran
         case SVM_EXIT_EXCEPTION_14:  /* X86_XCPT_PF */
             return hmR0SvmExitXcptPF(pVCpu, pCtx, pSvmTransient);
 
-        case SVM_EXIT_EXCEPTION_7:   /* X86_XCPT_NM */
-            return hmR0SvmExitXcptNM(pVCpu, pCtx, pSvmTransient);
-
         case SVM_EXIT_EXCEPTION_6:   /* X86_XCPT_UD */
             return hmR0SvmExitXcptUD(pVCpu, pCtx, pSvmTransient);
 
@@ -5236,7 +5189,7 @@ static int hmR0SvmHandleExit(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT pSvmTran
                 case SVM_EXIT_EXCEPTION_4:             /* X86_XCPT_OF */
                 case SVM_EXIT_EXCEPTION_5:             /* X86_XCPT_BR */
                 /*   SVM_EXIT_EXCEPTION_6: */          /* X86_XCPT_UD - Handled above. */
-                /*   SVM_EXIT_EXCEPTION_7: */          /* X86_XCPT_NM - Handled above. */
+                case SVM_EXIT_EXCEPTION_7:             /* X86_XCPT_NM */
                 case SVM_EXIT_EXCEPTION_8:             /* X86_XCPT_DF */
                 case SVM_EXIT_EXCEPTION_9:             /* X86_XCPT_CO_SEG_OVERRUN */
                 case SVM_EXIT_EXCEPTION_10:            /* X86_XCPT_TS */
@@ -5254,8 +5207,7 @@ static int hmR0SvmHandleExit(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT pSvmTran
                 case SVM_EXIT_EXCEPTION_26: case SVM_EXIT_EXCEPTION_27: case SVM_EXIT_EXCEPTION_28:
                 case SVM_EXIT_EXCEPTION_29: case SVM_EXIT_EXCEPTION_30: case SVM_EXIT_EXCEPTION_31:
                 {
-                    /** @todo r=ramshankar; We should be doing
-                     *        HMSVM_CHECK_EXIT_DUE_TO_EVENT_DELIVERY here! */
+                    HMSVM_CHECK_EXIT_DUE_TO_EVENT_DELIVERY();
 
                     PSVMVMCB pVmcb   = pVCpu->hm.s.svm.pVmcb;
                     SVMEVENT Event;
@@ -7028,60 +6980,6 @@ HMSVM_EXIT_DECL hmR0SvmExitXcptPF(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT pSv
     TRPMResetTrap(pVCpu);
     STAM_COUNTER_INC(&pVCpu->hm.s.StatExitShadowPFEM);
     return rc;
-}
-
-
-/**
- * \#VMEXIT handler for device-not-available exceptions (SVM_EXIT_EXCEPTION_7).
- * Conditional \#VMEXIT.
- */
-HMSVM_EXIT_DECL hmR0SvmExitXcptNM(PVMCPU pVCpu, PCPUMCTX pCtx, PSVMTRANSIENT pSvmTransient)
-{
-    HMSVM_VALIDATE_EXIT_HANDLER_PARAMS();
-
-    /* Paranoia; Ensure we cannot be called as a result of event delivery. */
-    PSVMVMCB pVmcb = pVCpu->hm.s.svm.pVmcb;
-    Assert(!pVmcb->ctrl.ExitIntInfo.n.u1Valid); NOREF(pVmcb);
-
-    /* We're playing with the host CPU state here, make sure we don't preempt or longjmp. */
-    VMMRZCallRing3Disable(pVCpu);
-    HM_DISABLE_PREEMPT();
-
-    int rc;
-    /* If the guest FPU was active at the time of the #NM exit, then it's a guest fault. */
-    if (pSvmTransient->fWasGuestFPUStateActive)
-    {
-        rc = VINF_EM_RAW_GUEST_TRAP;
-        Assert(CPUMIsGuestFPUStateActive(pVCpu) || HMCPU_CF_IS_PENDING(pVCpu, HM_CHANGED_GUEST_CR0));
-    }
-    else
-    {
-#ifndef HMSVM_ALWAYS_TRAP_ALL_XCPTS
-        Assert(!pSvmTransient->fWasGuestFPUStateActive);
-#endif
-        rc = CPUMR0Trap07Handler(pVCpu->CTX_SUFF(pVM), pVCpu); /* (No need to set HM_CHANGED_HOST_CONTEXT for SVM.) */
-        Assert(   rc == VINF_EM_RAW_GUEST_TRAP
-               || ((rc == VINF_SUCCESS || rc == VINF_CPUM_HOST_CR0_MODIFIED) && CPUMIsGuestFPUStateActive(pVCpu)));
-    }
-
-    HM_RESTORE_PREEMPT();
-    VMMRZCallRing3Enable(pVCpu);
-
-    if (rc == VINF_SUCCESS || rc == VINF_CPUM_HOST_CR0_MODIFIED)
-    {
-        /* Guest FPU state was activated, we'll want to change CR0 FPU intercepts before the next VM-reentry. */
-        HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_CR0);
-        STAM_COUNTER_INC(&pVCpu->hm.s.StatExitShadowNM);
-        pVCpu->hm.s.fPreloadGuestFpu = true;
-    }
-    else
-    {
-        /* Forward #NM to the guest. */
-        Assert(rc == VINF_EM_RAW_GUEST_TRAP);
-        hmR0SvmSetPendingXcptNM(pVCpu);
-        STAM_COUNTER_INC(&pVCpu->hm.s.StatExitGuestNM);
-    }
-    return VINF_SUCCESS;
 }
 
 

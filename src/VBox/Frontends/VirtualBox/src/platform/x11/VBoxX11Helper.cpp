@@ -144,3 +144,11 @@ void X11ScreenSaverSettingsRestore()
         DPMSEnable(display);
 }
 
+bool X11CheckExtension(const char *extensionName)
+{
+    Display *pDisplay = QX11Info::display();
+    int major_opcode;
+    int first_event;
+    int first_error;
+    return XQueryExtension(pDisplay, extensionName, &major_opcode, &first_event, &first_error);
+}
