@@ -1,7 +1,11 @@
 virtualbox (5.2.14-dfsg-3) unstable; urgency=low
 
+  [ Gianfranco Costamagna ]
   * Tweak python patch to make it compatible with Python3.7
   * Tweak previous changelog entry
+
+  [ Will Thompson ]
+  * guest-utils.service: add ConditionVirtualization=oracle
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 12 Jul 2018 12:03:32 +0200
 
