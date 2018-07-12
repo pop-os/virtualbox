@@ -1,6 +1,7 @@
 [Unit]
 Description=Virtualbox guest utils
 Conflicts=systemd-timesyncd.service
+ConditionVirtualization=oracle
 
 [Service]
 Type=forking
