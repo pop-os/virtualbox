@@ -1,0 +1,12 @@
+Origin: upstream
+--- virtualbox-5.2.14-dfsg.orig/src/libs/xpcom18a4/python/src/ErrorUtils.cpp
++++ virtualbox-5.2.14-dfsg/src/libs/xpcom18a4/python/src/ErrorUtils.cpp
+@@ -440,7 +440,7 @@ char *PyTraceback_AsString(PyObject *exc
+ #if PY_MAJOR_VERSION <= 2
+ 	char *tempResult = PyString_AsString(obResult);
+ #else
+-	char *tempResult = PyUnicode_AsUTF8(obResult);
++	const char *tempResult = (const char *)PyUnicode_AsUTF8(obResult);
+ #endif
+ 	result = (char *)PyMem_Malloc(strlen(tempResult)+1);
+ 	if (result==NULL)

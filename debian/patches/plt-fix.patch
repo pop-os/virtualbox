@@ -1,4 +1,10 @@
-Description: "VMMR0.r0 has been built (presumably due to the recent binutils upgrades in unstable) with the new PLT32 relocation type, which the virtualbox ELF relocation code cannot handle at the moment. Having a quick glance at .text and .rela.text of VMMR0.r0, it seems to me that PC32 and PLT32 can be handled identically, similar to what commit b21ebf2fb4cd of the Linux kernel did?"
+Description: "VMMR0.r0 has been built (presumably due to the recent binutils upgrades in unstable)
+ with the new PLT32 relocation type, which the virtualbox ELF relocation code cannot handle at the moment.
+ Having a quick glance at .text and .rela.text of VMMR0.r0, it seems to me that PC32 and PLT32 can be handled identically,
+ similar to what commit b21ebf2fb4cd of the Linux kernel did?"
+
+Author: Jan Nordholz, Gianfranco Costamagna <locutusofborg@debian.org>
+Forwarded: yes, mail list vbox-dev and irc
 
 --- virtualbox-5.2.14-dfsg.orig/src/VBox/Devices/EFI/Firmware/BaseTools/Source/C/GenFw/Elf64Convert.c
 +++ virtualbox-5.2.14-dfsg/src/VBox/Devices/EFI/Firmware/BaseTools/Source/C/GenFw/Elf64Convert.c

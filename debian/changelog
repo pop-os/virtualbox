@@ -1,8 +1,14 @@
+virtualbox (5.2.14-dfsg-3) unstable; urgency=low
+
+  * Tweak python patch to make it compatible with Python3.7
+  * Tweak previous changelog entry
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 12 Jul 2018 12:03:32 +0200
+
 virtualbox (5.2.14-dfsg-2) unstable; urgency=low
 
   * Try to fix issue with new binutils (Closes: #902897)
-    - thanks Nordholz, Jan Christoph, Prof. Dr." <j.nordholz@tu-berlin.de>"
-      for the great help and tip!
+    - thanks Jan Christoph Nordholz for the great help and fix!
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 12 Jul 2018 09:49:54 +0200
 
