@@ -1,0 +1,31 @@
+Origin: https://www.virtualbox.org/changeset/73086/vbox https://www.virtualbox.org/changeset/73087/vbox
+Last-Update: 2018-07-13
+
+--- virtualbox-5.2.14-dfsg.orig/src/VBox/Runtime/common/ldr/ldrELFRelocatable.cpp.h
++++ virtualbox-5.2.14-dfsg/src/VBox/Runtime/common/ldr/ldrELFRelocatable.cpp.h
+@@ -359,6 +359,7 @@ static int RTLDRELF_NAME(RelocateSection
+              * PC relative addressing.
+              */
+             case R_X86_64_PC32:
++            case R_X86_64_PLT32: /* binutils commit 451875b4f976a527395e9303224c7881b65e12ed feature/regression. */
+             {
+                 const Elf_Addr SourceAddr = SecAddr + paRels[iRel].r_offset + BaseAddr; /* Where the source really is. */
+                 Value -= SourceAddr;
+--- virtualbox-5.2.14-dfsg.orig/src/VBox/ValidationKit/bootsectors/bs3kit/VBoxBs3ObjConverter.cpp
++++ virtualbox-5.2.14-dfsg/src/VBox/ValidationKit/bootsectors/bs3kit/VBoxBs3ObjConverter.cpp
+@@ -1860,6 +1860,7 @@ static bool convertElfSectionsToLeDataAn
+                         fSelfRel = false;
+                         RT_FALL_THRU();
+                     case R_X86_64_PC32:
++                    case R_X86_64_PLT32: /* binutils commit 451875b4f976a527395e9303224c7881b65e12ed feature/regression. */
+                     {
+                         /* defaults are ok, just handle the addend. */
+                         int32_t iAddend = paRelocs[iReloc].r_addend;
+@@ -1877,7 +1878,6 @@ static bool convertElfSectionsToLeDataAn
+                         continue; /* Ignore this one */
+ 
+                     case R_X86_64_GOT32:
+-                    case R_X86_64_PLT32:
+                     case R_X86_64_COPY:
+                     case R_X86_64_GLOB_DAT:
+                     case R_X86_64_JMP_SLOT:
