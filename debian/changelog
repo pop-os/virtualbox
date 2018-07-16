@@ -1,9 +1,16 @@
+virtualbox (5.2.14-dfsg-7) unstable; urgency=medium
+
+  * Add again libopus hack in rules file, this might be dropped
+    in next upstream release
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 16 Jul 2018 08:51:46 +0200
+
 virtualbox (5.2.14-dfsg-6) unstable; urgency=medium
 
   [ Jan Nordoholz ]
   * Refresh patch to make it really work.
 
- -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 16 Jul 2018 08:38:24 +0200
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 16 Jul 2018 08:51:18 +0200
 
 virtualbox (5.2.14-dfsg-5) unstable; urgency=medium
 
