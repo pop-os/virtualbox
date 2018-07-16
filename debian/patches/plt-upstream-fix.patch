@@ -13,14 +13,14 @@ Index: virtualbox/src/VBox/Runtime/common/ldr/ldrELFRelocatable.cpp.h
              {
                  const Elf_Addr SourceAddr = SecAddr + paRels[iRel].r_offset + BaseAddr; /* Where the source really is. */
                  Value -= SourceAddr;
-@@ -574,6 +575,7 @@
+@@ -631,6 +632,7 @@
               * PC relative addressing.
               */
-             case R_386_PC32:
+             case R_X86_64_PC32:
 +            case R_X86_64_PLT32: /* binutils commit 451875b4f976a527395e9303224c7881b65e12ed feature/regression. */
              {
                  const Elf_Addr SourceAddr = SecAddr + paRels[iRel].r_offset + BaseAddr; /* Where the source really is. */
-                 const Elf_Addr Value = SymValue + *(uint32_t *)pAddrR - SourceAddr;
+                 const Elf_Addr Value = SymValue + paRels[iRel].r_addend - SourceAddr;
 Index: virtualbox/src/VBox/ValidationKit/bootsectors/bs3kit/VBoxBs3ObjConverter.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/ValidationKit/bootsectors/bs3kit/VBoxBs3ObjConverter.cpp
