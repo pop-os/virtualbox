@@ -1,4 +1,4 @@
-Description: add python 3.6m and 3.7m as a supported version
+Description: add python 3.7m as a supported version
 Author: Michael Hudson-Doyle <michael.hudson@ubuntu.com>
 Origin: vendor
 Last-Update: 2018-07-12
@@ -6,11 +6,11 @@ Last-Update: 2018-07-12
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 --- a/configure
 +++ b/configure
-@@ -1958,7 +1958,7 @@
+@@ -1964,7 +1964,7 @@
  }
  EOF
    found=
--  SUPPYTHONLIBS="python2.7 python2.6 python3.1 python3.2 python3.3 python3.4 python3.4m python3.5 python3.5m"
+-  SUPPYTHONLIBS="python2.7 python2.6 python3.1 python3.2 python3.3 python3.4 python3.4m python3.5 python3.5m python3.6 python3.6m"
 +  SUPPYTHONLIBS="python2.7 python2.6 python3.1 python3.2 python3.3 python3.4 python3.4m python3.5 python3.5m python3.6 python3.6m python3.7 python3.7m"
    for p in $PYTHONDIR; do
      for d in $SUPPYTHONLIBS; do

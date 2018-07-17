@@ -15,8 +15,4 @@
 35-libvdeplug-soname.patch
 36-fix-vnc-version-string.patch
 37-python-3.7-support.patch
-fix-build.patch
-java9.patch
-videorec.patch
 python3.7-fix.patch
-plt-upstream-fix.patch
