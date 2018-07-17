@@ -28,6 +28,31 @@ are ordered as follows:
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
    <sect1>
+    <title>Version 5.2.16 (2018-07-17)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>OVF: case insensitive comparison of manifest attribute values,
+          to improve compatibility (bug #17357)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux: build for openSUSE 15.0 (bug #17554)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux: various build fixes for distribution builds, thank you
+           you Gianfranco Costmagna</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.2.14 (2018-07-02)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or
