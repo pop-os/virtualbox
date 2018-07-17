@@ -11,6 +11,5 @@ VBOX_WITH_RUNPATH := $(VBOX_PATH_APP_PRIVATE_ARCH)
 VBOX_PATH_APP_PRIVATE := /usr/share/virtualbox
 VBOX_PATH_APP_DOCS = /usr/share/doc/virtualbox
 VBOX_WITH_VBOXBFE :=
-VBOX_JAVA_HOME := /usr/lib/jvm/default-java
 VBOX_PATH_DOCBOOK_DTD := /usr/share/xml/docbook/schema/dtd/4/
 VBOX_WITH_VBOX_IMG = 1

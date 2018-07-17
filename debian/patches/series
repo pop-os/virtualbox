@@ -16,3 +16,4 @@
 36-fix-vnc-version-string.patch
 37-python-3.7-support.patch
 python3.7-fix.patch
+java9.patch
