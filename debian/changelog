@@ -3,6 +3,7 @@ virtualbox (5.2.16-dfsg-1) unstable; urgency=medium
   * New upstream version 5.2.16-dfsg, patch refresh
   * Drop now upstreamed patches: {fix-build,java9,plt-upstream-fix,videorec}.patch
   * Bump std-version to 4.1.5, no changes required
+  * Drop now-useless --enable-system-libopus switch
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 17 Jul 2018 19:36:46 +0200
 
