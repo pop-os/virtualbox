@@ -1,3 +1,10 @@
+virtualbox (5.2.16-dfsg-3) unstable; urgency=medium
+
+  * from: Kevin Puetz:
+    - patch to avoid virtualbox guest utils run if no virtual machines are detected.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 19 Jul 2018 12:36:05 +0200
+
 virtualbox (5.2.16-dfsg-2) unstable; urgency=medium
 
   * Allow new gcc8 to build
