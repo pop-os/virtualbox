@@ -1,7 +1,7 @@
 Source: virtualbox
 Section: contrib/misc
 Priority: optional
-Maintainer: Debian Virtualbox Team  <team+debian-virtualbox@tracker.debian.org>
+Maintainer: Debian Virtualbox Team <team+debian-virtualbox@tracker.debian.org>
 Uploaders: Ritesh Raj Sarraf <rrs@debian.org>,
            Gianfranco Costamagna <locutusofborg@debian.org>
 Build-Depends: bzip2,
