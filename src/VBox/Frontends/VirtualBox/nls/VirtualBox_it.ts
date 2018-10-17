@@ -157,11 +157,11 @@
     </message>
     <message>
         <source>The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or there is a permission problem with /dev/vboxdrv. Please reinstall the kernel module by executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;as root.</source>
-        <translation>Il driver del kernel Linux di VirtualBox (vboxdrv) non è stato caricato o c&apos;è un problema di permessi su /dev/vboxdrv. Reinstalla il modulo del kernel eseguendo &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;come root.</translation>
+        <translation>Il driver del kernel Linux di VirtualBox (vboxdrv) non è stato caricato o c&apos;è un problema di permessi su /dev/vboxdrv. Reinstalla il modulo del kernel eseguendo&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;come root.</translation>
     </message>
     <message>
         <source>The VirtualBox kernel modules do not match this version of VirtualBox. The installation of VirtualBox was apparently not successful. Executing&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;may correct this. Make sure that you do not mix the OSE version and the PUEL version of VirtualBox.</source>
-        <translation>I moduli del kernel non corrispondono a questa versione di VirtualBox. L&apos;installazione di VirtualBox sembra non essere riuscita. L&apos;esecuzione di &lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;potrebbe risolvere il problema. Assicurati di non mischiare la versione OSE con la versione PUEL di VirtualBox.</translation>
+        <translation>I moduli del kernel non corrispondono a questa versione di VirtualBox. L&apos;installazione di VirtualBox sembra non essere riuscita. L&apos;esecuzione di&lt;br/&gt;&lt;br/&gt;  &lt;font color=blue&gt;&apos;/sbin/vboxconfig&apos;&lt;/font&gt;&lt;br/&gt;&lt;br/&gt;potrebbe risolvere il problema. Assicurati di non mischiare la versione OSE con la versione PUEL di VirtualBox.</translation>
     </message>
 </context>
 <context>
@@ -363,7 +363,7 @@
     </message>
     <message>
         <source>Adjust window size and position to best fit the guest display</source>
-        <translation>Adatta la dimensione e posizione della finestra a seconda dello schermo Guest</translation>
+        <translation>Adatta la dimensione e posizione della finestra a seconda dello schermo del guest</translation>
     </message>
     <message>
         <source>Disable &amp;Mouse Integration</source>
@@ -542,7 +542,7 @@
     </message>
     <message>
         <source>Auto-resize &amp;Guest Display</source>
-        <translation>Ridimensiona automaticamente lo schermo del &amp;Guest</translation>
+        <translation>Ridimensiona automaticamente lo schermo del &amp;guest</translation>
     </message>
     <message>
         <source>Enable R&amp;emote Display</source>
@@ -1507,7 +1507,7 @@
     </message>
     <message>
         <source>Insert the Guest Additions disk file into the virtual optical drive</source>
-        <translation>Inserisci il file del disco delle Guest Additions nel lettore virtuale</translation>
+        <translation>Inserisci il file del disco delle Guest Additions nel lettore ottico virtuale</translation>
     </message>
     <message>
         <source>%1%</source>
@@ -6798,7 +6798,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Indicates whether the host mouse pointer is captured by the guest OS:%1</source>
         <comment>Mouse tooltip</comment>
-        <translation>Indica se il puntatore del mouse dell&apos;host a è acquisito dal sistema operativo del Guest: %1</translation>
+        <translation>Indica se il puntatore del mouse dell&apos;host a è acquisito dal sistema operativo del guest: %1</translation>
     </message>
     <message>
         <source>pointer is not captured</source>
@@ -6833,7 +6833,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Indicates whether the host keyboard is captured by the guest OS:%1</source>
         <comment>Keyboard tooltip</comment>
-        <translation>Indica se la tastiera dell&apos;host a è acquisita dal sistema operativo del Guest: %1</translation>
+        <translation>Indica se la tastiera dell&apos;host a è acquisita dal sistema operativo del guest: %1</translation>
     </message>
     <message>
         <source>keyboard is not captured</source>
@@ -7693,7 +7693,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Remote Display is currently enabled for this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site as otherwise your VM will be started with Remote Display disabled.</source>
-        <translation>Lo schermo  remoto è attualmente abilitato per questa macchina virtuale. Tuttavia, ciò richiede che &lt;b&gt;%1&lt;/b&gt; sia installato. Installa l&apos;Extension Pack scaricabile dal sito di VirtualBox altrimenti la MV sarà avviata senza schermo remoto.</translation>
+        <translation>Lo schermo remoto è attualmente abilitato per questa macchina virtuale. Tuttavia, ciò richiede che &lt;b&gt;%1&lt;/b&gt; sia installato. Installa l&apos;Extension Pack scaricabile dal sito di VirtualBox altrimenti la MV sarà avviata senza schermo remoto.</translation>
     </message>
     <message>
         <source>&lt;i&gt;About %1MB per 5 minute video&lt;/i&gt;</source>
@@ -8157,43 +8157,43 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Disk Enc&amp;ryption</source>
-        <translation type="unfinished"></translation>
+        <translation>Cif&amp;ratura del disco</translation>
     </message>
     <message>
         <source>When checked, disks attached to this virtual machine will be encrypted.</source>
-        <translation type="unfinished"></translation>
+        <translation>Se selezionata, i dischi collegati a questa macchina virtuale saranno cifrati.</translation>
     </message>
     <message>
         <source>En&amp;able Disk Encryption</source>
-        <translation type="unfinished"></translation>
+        <translation>&amp;Abilita cifratura disco</translation>
     </message>
     <message>
         <source>Disk Encryption C&amp;ipher:</source>
-        <translation type="unfinished"></translation>
+        <translation>C&amp;ifrario della cifratura disco:</translation>
     </message>
     <message>
         <source>Holds the encryption password for disks attached to this virtual machine.</source>
-        <translation type="unfinished"></translation>
+        <translation>Contiene la password di cifratura dei dischi collegati a questa macchina virtuale.</translation>
     </message>
     <message>
         <source>Confirms the disk encryption password.</source>
-        <translation type="unfinished"></translation>
+        <translation>Conferma la password di cifratura del disco.</translation>
     </message>
     <message>
         <source>You are trying to enable disk encryption for this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site.</source>
-        <translation type="unfinished"></translation>
+        <translation>Stai tentando di abilitare la cifratura del disco per questa macchina virtuale. Tuttavia, ciò richiede che &lt;b&gt;%1&lt;/b&gt; sia installato. Installa l&apos;Extension Pack scaricabile dal sito di VirtualBox.</translation>
     </message>
     <message>
         <source>Disk encryption cipher type not specified.</source>
-        <translation type="unfinished"></translation>
+        <translation>Tipo di cifrario per la cifratura del disco non specificato.</translation>
     </message>
     <message>
         <source>Disk encryption password empty.</source>
-        <translation type="unfinished"></translation>
+        <translation>Password per la cifratura del disco vuota.</translation>
     </message>
     <message>
         <source>Disk encryption passwords do not match.</source>
-        <translation type="unfinished"></translation>
+        <translation>Le password di cifratura del disco non coincidono.</translation>
     </message>
 </context>
 <context>
@@ -8973,7 +8973,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>When checked, the guest OS will try to automatically mount the shared folder on startup.</source>
-        <translation>Se marcata, il sistema Guest proverà a montare automaticamente all&apos;avvio la cartella condivisa.</translation>
+        <translation>Se marcata, il sistema guest proverà a montare automaticamente all&apos;avvio la cartella condivisa.</translation>
     </message>
     <message>
         <source>&amp;Auto-mount</source>
@@ -9085,7 +9085,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Selects the working mode of this serial port. If you select &lt;b&gt;Disconnected&lt;/b&gt;, the guest OS will detect the serial port but will not be able to operate it.</source>
-        <translation>Seleziona la modalità di lavoro di questa porta seriale. Se  selezioni &lt;b&gt;Disconnessa&lt;/b&gt;, il sistema Guest rileverà la porta seriale, ma non sarà in grado di utilizzarla.</translation>
+        <translation>Seleziona la modalità di lavoro di questa porta seriale. Se selezioni &lt;b&gt;Disconnessa&lt;/b&gt;, il sistema guest rileverà la porta seriale, ma non sarà in grado di utilizzarla.</translation>
     </message>
     <message>
         <source>When checked, the virtual machine will assume that the pipe or socket specified in the &lt;b&gt;Path/Address&lt;/b&gt; field exists and try to use it. Otherwise, the pipe or socket will be created by the virtual machine when it starts.</source>
@@ -12643,7 +12643,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to download the &lt;b&gt;VirtualBox User Manual&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; (size %2 bytes)?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Sei sicuro di voler scaricare il  &lt;b&gt;manuale utente di VirtualBox&lt;/b&gt; da &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; (dimensione %2 byte)?&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Sei sicuro di voler scaricare il &lt;b&gt;manuale utente di VirtualBox&lt;/b&gt; da &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; (dimensione %2 byte)?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The VirtualBox User Manual has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
@@ -12845,7 +12845,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>&lt;p&gt;Could not switch the guest display to full-screen mode due to insufficient guest video memory.&lt;/p&gt;&lt;p&gt;You should configure the virtual machine to have at least &lt;b&gt;%1&lt;/b&gt; of video memory.&lt;/p&gt;&lt;p&gt;Press &lt;b&gt;Ignore&lt;/b&gt; to switch to full-screen mode anyway or press &lt;b&gt;Cancel&lt;/b&gt; to cancel the operation.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Impossibile abilitare la modalità a schermo intero a causa della mancanza di memoria video nel sistema guest.&lt;/p&gt;&lt;p&gt;È necessario configurare la macchina virtuale assegnandole almeno &lt;b&gt;%1&lt;/b&gt; di memoria video.&lt;/p&gt;&lt;p&gt;Premi &lt;b&gt;Ignora&lt;/b&gt; per passare comunque alla modalità a  schermo intero oppure premi &lt;b&gt;Annulla&lt;/b&gt; per annullare l&apos;operazione.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Impossibile abilitare la modalità a schermo intero a causa della mancanza di memoria video nel sistema guest.&lt;/p&gt;&lt;p&gt;È necessario configurare la macchina virtuale assegnandole almeno &lt;b&gt;%1&lt;/b&gt; di memoria video.&lt;/p&gt;&lt;p&gt;Premi &lt;b&gt;Ignora&lt;/b&gt; per passare comunque alla modalità a schermo intero oppure premi &lt;b&gt;Annulla&lt;/b&gt; per annullare l&apos;operazione.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Encryption password for &lt;nobr&gt;ID = &apos;%1&apos;&lt;/nobr&gt; is invalid.</source>
@@ -13107,7 +13107,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Selects the operating system type that you plan to install into this virtual machine (called a guest operating system).</source>
-        <translation>Visualizza il tipo di sistema operativo che intendi installare nella macchina virtuale (chiamato sistema operativo Guest).</translation>
+        <translation>Visualizza il tipo di sistema operativo che intendi installare nella macchina virtuale (chiamato sistema operativo guest).</translation>
     </message>
     <message>
         <source>N&amp;ame:</source>
@@ -16051,7 +16051,7 @@ questo passo e collegare hard disk più tardi tramite Impostazioni della MV.&lt;
     </message>
     <message>
         <source>These are the virtual machines contained in the appliance and the suggested settings of the imported VirtualBox machines. You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
-        <translation>Queste sono le macchine virtuali contenute  nell&apos;applicazione virtuale con le impostazioni proposte per l&apos;importazione in VirtualBox. Puoi cambiare molte delle proprietà mostrate facendo un doppio clic sugli elementi e disabilitarne altre utilizzando le caselle di selezione che seguono.</translation>
+        <translation>Queste sono le macchine virtuali contenute nell&apos;applicazione virtuale con le impostazioni proposte per l&apos;importazione in VirtualBox. Puoi cambiare molte delle proprietà mostrate facendo un doppio clic sugli elementi e disabilitarne altre utilizzando le caselle di selezione che seguono.</translation>
     </message>
     <message>
         <source>Import Virtual Appliance</source>
@@ -17969,7 +17969,7 @@ Versione %1</translation>
     <message>
         <source>Guest To Host</source>
         <comment>ClipboardType</comment>
-        <translation>Da Guest a Host</translation>
+        <translation>Da guest a host</translation>
     </message>
     <message>
         <source>Bidirectional</source>
