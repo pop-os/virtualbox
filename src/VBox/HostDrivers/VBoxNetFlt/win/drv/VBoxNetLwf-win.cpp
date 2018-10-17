@@ -1363,7 +1363,11 @@ DECLINLINE(ULONG) vboxNetLwfWinCalcSegments(PNET_BUFFER pNetBuf)
 {
     ULONG cSegs = 0;
     for (PMDL pMdl = NET_BUFFER_CURRENT_MDL(pNetBuf); pMdl; pMdl = NDIS_MDL_LINKAGE(pMdl))
-        cSegs++;
+    {
+        /* Skip empty MDLs (see @bugref{9233}) */
+        if (MmGetMdlByteCount(pMdl))
+            cSegs++;
+    }
     return cSegs;
 }
 
@@ -1567,7 +1571,7 @@ static PINTNETSG vboxNetLwfWinNBtoSG(PVBOXNETLWF_MODULE pModule, PNET_BUFFER pNe
     UINT cSegs = vboxNetLwfWinCalcSegments(pNetBuf);
     /* Allocate and initialize SG */
     PINTNETSG pSG = (PINTNETSG)NdisAllocateMemoryWithTagPriority(pModule->hFilter,
-                                                                 RT_OFFSETOF(INTNETSG, aSegs[cSegs]),
+                                                                 RT_UOFFSETOF_DYN(INTNETSG, aSegs[cSegs]),
                                                                  VBOXNETLWF_MEM_TAG,
                                                                  NormalPoolPriority);
     AssertReturn(pSG, pSG);
@@ -1588,6 +1592,9 @@ static PINTNETSG vboxNetLwfWinNBtoSG(PVBOXNETLWF_MODULE pModule, PNET_BUFFER pNe
             break;
         }
         ULONG cbSrc = MmGetMdlByteCount(pMdl);
+        if (cbSrc == 0)
+            continue; /* Skip empty MDLs (see @bugref{9233}) */
+
         if (uOffset)
         {
             Assert(uOffset < cbSrc);
@@ -2633,7 +2640,8 @@ int vboxNetFltOsInitInstance(PVBOXNETFLTINS pThis, void *pvContext)
         }
     }
     NdisReleaseSpinLock(&g_VBoxNetLwfGlobals.Lock);
-    vboxNetLwfLogErrorEvent(IO_ERR_INTERNAL_ERROR, STATUS_SUCCESS, 6);
+    // Internal network code will try to reconnect periodically, we should not spam in event log
+    //vboxNetLwfLogErrorEvent(IO_ERR_INTERNAL_ERROR, STATUS_SUCCESS, 6);
     LogFlow(("<==vboxNetFltOsInitInstance: return VERR_INTNET_FLT_IF_NOT_FOUND\n"));
     return VERR_INTNET_FLT_IF_NOT_FOUND;
 }
