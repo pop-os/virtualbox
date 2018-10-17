@@ -2,7 +2,7 @@ Index: virtualbox/Config.kmk
 ===================================================================
 --- virtualbox.orig/Config.kmk
 +++ virtualbox/Config.kmk
-@@ -7270,8 +7270,8 @@
+@@ -7284,8 +7284,8 @@
  if defined(VBOX_JAVA_VERSION) && $(VBOX_JAVA_VERSION) >= 10900
   VBOX_JAVA_WS_OPTS ?= --add-modules java.xml.ws
  endif
