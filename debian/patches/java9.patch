@@ -8,8 +8,8 @@ Index: virtualbox/Config.kmk
  endif
 -VBOX_JAVAC_OPTS   = -encoding UTF-8 -source 1.5 -target 1.5 -Xlint:unchecked
 -VBOX_JAVADOC_OPTS = -encoding UTF-8
-+VBOX_JAVAC_OPTS   = -encoding UTF-8 -source 1.8 -target 1.8 -Xlint:unchecked --add-modules java.xml.ws
-+VBOX_JAVADOC_OPTS = -encoding UTF-8 --add-modules java.xml.ws
++VBOX_JAVAC_OPTS   = -encoding UTF-8 -source 1.8 -target 1.8 -Xlint:unchecked
++VBOX_JAVADOC_OPTS = -encoding UTF-8
  
  
  #
