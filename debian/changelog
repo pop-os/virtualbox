@@ -1,3 +1,9 @@
+virtualbox (5.2.20-dfsg-2) unstable; urgency=medium
+
+  * use java8 again, java11 removes wsimport, useful to have the build finish.
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Wed, 24 Oct 2018 18:00:28 +0200
+
 virtualbox (5.2.20-dfsg-1) unstable; urgency=medium
 
   * New upstream version 5.2.20-dfsg

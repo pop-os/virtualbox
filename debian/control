@@ -6,7 +6,7 @@ Uploaders: Ritesh Raj Sarraf <rrs@debian.org>,
            Gianfranco Costamagna <locutusofborg@debian.org>
 Build-Depends: bzip2,
                debhelper (>= 10),
-               default-jdk,
+               openjdk-8-jdk-headless,
                dh-python,
                dh-systemd (>=1.5),
                dkms (>= 2.1.1.1),

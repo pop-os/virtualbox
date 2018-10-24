@@ -68,6 +68,7 @@ override_dh_auto_build:
 	    VBOX_WITH_REGISTRATION_REQUEST= \
 	    VBOX_WITH_UPDATE_REQUEST= \
 	    KBUILD_VERBOSE=2 \
+	    VBOX_JAVA_HOME=/usr/lib/jvm/java-8-openjdk-amd64 \
 	    VBOX_WITH_EXTPACK_VBOXDTRACE=
 
 	xsltproc --nonet --stringparam section.autolabel 1 \
