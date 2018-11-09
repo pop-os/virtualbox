@@ -363,7 +363,7 @@
     </message>
     <message>
         <source>Adjust window size and position to best fit the guest display</source>
-        <translation>Adatta la dimensione e posizione della finestra a seconda dello schermo del guest</translation>
+        <translation>Adatta la dimensione e posizione della finestra a seconda dello schermo Guest</translation>
     </message>
     <message>
         <source>Disable &amp;Mouse Integration</source>
@@ -542,7 +542,7 @@
     </message>
     <message>
         <source>Auto-resize &amp;Guest Display</source>
-        <translation>Ridimensiona automaticamente lo schermo del &amp;guest</translation>
+        <translation>Ridimensiona automaticamente lo schermo del &amp;Guest</translation>
     </message>
     <message>
         <source>Enable R&amp;emote Display</source>
@@ -1507,7 +1507,7 @@
     </message>
     <message>
         <source>Insert the Guest Additions disk file into the virtual optical drive</source>
-        <translation>Inserisci il file del disco delle Guest Additions nel lettore ottico virtuale</translation>
+        <translation>Inserisci il file del disco delle Guest Additions nel lettore virtuale</translation>
     </message>
     <message>
         <source>%1%</source>
@@ -6798,7 +6798,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Indicates whether the host mouse pointer is captured by the guest OS:%1</source>
         <comment>Mouse tooltip</comment>
-        <translation>Indica se il puntatore del mouse dell&apos;host a è acquisito dal sistema operativo del guest: %1</translation>
+        <translation>Indica se il puntatore del mouse dell&apos;host a è acquisito dal sistema operativo del Guest: %1</translation>
     </message>
     <message>
         <source>pointer is not captured</source>
@@ -6833,7 +6833,7 @@ p, li { white-space: pre-wrap; }
     <message>
         <source>Indicates whether the host keyboard is captured by the guest OS:%1</source>
         <comment>Keyboard tooltip</comment>
-        <translation>Indica se la tastiera dell&apos;host a è acquisita dal sistema operativo del guest: %1</translation>
+        <translation>Indica se la tastiera dell&apos;host a è acquisita dal sistema operativo del Guest: %1</translation>
     </message>
     <message>
         <source>keyboard is not captured</source>
@@ -8181,7 +8181,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>You are trying to enable disk encryption for this virtual machine. However, this requires the &lt;i&gt;%1&lt;/i&gt; to be installed. Please install the Extension Pack from the VirtualBox download site.</source>
-        <translation>Stai tentando di abilitare la cifratura del disco per questa macchina virtuale. Tuttavia, ciò richiede che &lt;b&gt;%1&lt;/b&gt; sia installato. Installa l&apos;Extension Pack scaricabile dal sito di VirtualBox.</translation>
+        <translation>Stai tentando di abilitare la cifratura del disco per questa macchina virtuale. Tuttavia, ciò richiede che &lt;i&gt;%1&lt;/i&gt; sia installato. Installa l&apos;Extension Pack scaricabile dal sito di VirtualBox.</translation>
     </message>
     <message>
         <source>Disk encryption cipher type not specified.</source>
@@ -8973,7 +8973,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>When checked, the guest OS will try to automatically mount the shared folder on startup.</source>
-        <translation>Se marcata, il sistema guest proverà a montare automaticamente all&apos;avvio la cartella condivisa.</translation>
+        <translation>Se marcata, il sistema Guest proverà a montare automaticamente all&apos;avvio la cartella condivisa.</translation>
     </message>
     <message>
         <source>&amp;Auto-mount</source>
@@ -9085,7 +9085,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Selects the working mode of this serial port. If you select &lt;b&gt;Disconnected&lt;/b&gt;, the guest OS will detect the serial port but will not be able to operate it.</source>
-        <translation>Seleziona la modalità di lavoro di questa porta seriale. Se selezioni &lt;b&gt;Disconnessa&lt;/b&gt;, il sistema guest rileverà la porta seriale, ma non sarà in grado di utilizzarla.</translation>
+        <translation>Seleziona la modalità di lavoro di questa porta seriale. Se selezioni &lt;b&gt;Disconnessa&lt;/b&gt;, il sistema Guest rileverà la porta seriale, ma non sarà in grado di utilizzarla.</translation>
     </message>
     <message>
         <source>When checked, the virtual machine will assume that the pipe or socket specified in the &lt;b&gt;Path/Address&lt;/b&gt; field exists and try to use it. Otherwise, the pipe or socket will be created by the virtual machine when it starts.</source>
@@ -13107,7 +13107,7 @@ p, li { white-space: pre-wrap; }
     </message>
     <message>
         <source>Selects the operating system type that you plan to install into this virtual machine (called a guest operating system).</source>
-        <translation>Visualizza il tipo di sistema operativo che intendi installare nella macchina virtuale (chiamato sistema operativo guest).</translation>
+        <translation>Visualizza il tipo di sistema operativo che intendi installare nella macchina virtuale (chiamato sistema operativo Guest).</translation>
     </message>
     <message>
         <source>N&amp;ame:</source>
@@ -17969,7 +17969,7 @@ Versione %1</translation>
     <message>
         <source>Guest To Host</source>
         <comment>ClipboardType</comment>
-        <translation>Da guest a host</translation>
+        <translation>Da Guest a Host</translation>
     </message>
     <message>
         <source>Bidirectional</source>
