@@ -60,6 +60,20 @@ case "$1" in
 		fi
 	fi
 	if /usr/bin/VBoxClient --check3d 2>/dev/null; then
+		setup_gl=true
+	else
+		unset setup_gl
+	fi
+	# Disable 3D if Xwayland is found, except on Ubuntu 18.04.
+	if type Xwayland >/dev/null 2>&1; then
+		unset PRETTY_NAME
+		. /etc/os-release 2>/dev/null
+		case "${PRETTY_NAME}" in
+			"Ubuntu 18.04"*) ;;
+			*) unset setup_gl ;;
+		esac
+	fi
+	if test -n "${setup_gl}"; then
 		if test -e /usr/lib/virtualbox/additions/00vboxvideo.conf; then
 			cp -f /usr/lib/virtualbox/additions/00vboxvideo.conf /etc/ld.so.conf.d/00vboxvideo.conf
 			ldconfig
