@@ -28,6 +28,62 @@ are ordered as follows:
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
    <sect1>
+    <title>Version 5.2.22 (2018-11-09)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>Audio: fixed a regression in the Core Audio backend causing a hang
+          when returning from host sleep when processing input buffers</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: fixed a potential crash in the HDA emulation if a stream has
+          no valid mixer sink attached -- thanks to Rink Springer (rink@rink.nu)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed an incompatibility with recent versions
+           of Windows 10 (bug #17977)</para>
+      </listitem>
+
+      <listitem>
+        <para>Windows hosts: fixed a number of brigded networking driver
+           crashes (bug #18046)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: disable 3D for recent guests using Wayland
+           (bug #18116)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fix for rebuilding kernel modules for new
+           kernels on RPM guests</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: further fixes for Linux 4.19</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fixed errors rebuilding initrd files
+           with dracut on EL 6 (bug 18055#)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux Additions: fixed 5.2.20 regression: guests not
+           remembering the screen size after shutdown and restart
+           (bug #18078)</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
     <title>Version 5.2.20 (2018-10-16)</title>
 
     <para>This is a maintenance release. The following items were fixed and/or

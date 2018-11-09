@@ -1399,7 +1399,8 @@ static int hdaRegWriteSDCTL(PHDASTATE pThis, uint32_t iReg, uint32_t u32Value)
                 AssertRC(rc2);
 
                 /* Remove the old stream from the device setup. */
-                hdaR3RemoveStream(pThis, &pStream->State.Cfg);
+                rc2 = hdaR3RemoveStream(pThis, &pStream->State.Cfg);
+                AssertRC(rc2);
 
                 /* Add the stream to the device setup. */
                 rc2 = hdaR3AddStream(pThis, &pStream->State.Cfg);
@@ -2908,9 +2909,11 @@ static DECLCALLBACK(void) hdaR3Timer(PPDMDEVINS pDevIns, PTMTIMER pTimer, void *
 
     hdaR3StreamUpdate(pStream, true /* fInTimer */);
 
-    /* Flag indicating whether to kick the timer again for a
-     * new data processing round. */
-    const bool fSinkActive = AudioMixerSinkIsActive(pStream->pMixSink->pMixSink);
+    /* Flag indicating whether to kick the timer again for a new data processing round. */
+    bool fSinkActive = false;
+    if (pStream->pMixSink)
+        fSinkActive = AudioMixerSinkIsActive(pStream->pMixSink->pMixSink);
+
     if (fSinkActive)
     {
         const bool fTimerScheduled = hdaR3StreamTransferIsScheduled(pStream);
@@ -5207,6 +5210,12 @@ static DECLCALLBACK(int) hdaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGM
         /*
          * Create all hardware streams.
          */
+        static const char * const s_apszNames[] =
+        {
+            "HDA SD0", "HDA SD1", "HDA SD2", "HDA SD3",
+            "HDA SD4", "HDA SD5", "HDA SD6", "HDA SD7",
+        };
+        AssertCompile(RT_ELEMENTS(s_apszNames) == HDA_MAX_STREAMS);
         for (uint8_t i = 0; i < HDA_MAX_STREAMS; ++i)
         {
             /* Create the emulation timer (per stream).
@@ -5215,11 +5224,8 @@ static DECLCALLBACK(int) hdaR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGM
              *        relies on exact (virtual) DMA timing and uses DMA Position Buffers
              *        instead of the LPIB registers.
              */
-            char szTimer[16];
-            RTStrPrintf2(szTimer, sizeof(szTimer), "HDA SD%RU8", i);
-
             rc = PDMDevHlpTMTimerCreate(pDevIns, TMCLOCK_VIRTUAL_SYNC, hdaR3Timer, &pThis->aStreams[i],
-                                        TMTIMER_FLAGS_NO_CRIT_SECT, szTimer, &pThis->pTimer[i]);
+                                        TMTIMER_FLAGS_NO_CRIT_SECT, s_apszNames[i], &pThis->pTimer[i]);
             AssertRCReturn(rc, rc);
 
             /* Use our own critcal section for the device timer.

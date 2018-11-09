@@ -6780,6 +6780,8 @@ if1of ($(KBUILD_TARGET), dragonfly freebsd linux netbsd openbsd) # the gnu ld gu
 endif
 TEMPLATE_VBOXGUESTR3XF86MOD_CFLAGS  = $(TEMPLATE_VBOXGUESTR3EXE_CFLAGS) -fno-pie -fno-merge-constants -std=c99 -ffreestanding
 TEMPLATE_VBOXGUESTR3XF86MOD_CXXFLAGS= $(TEMPLATE_VBOXGUESTR3EXE_CXXFLAGS) -fno-pie -fno-merge-constants -ffreestanding
+TEMPLATE_VBOXGUESTR3XF86MOD_CFLAGS.linux  = $(VBOX_GCC_fno-stack-protector) # Remove symvers.h
+TEMPLATE_VBOXGUESTR3XF86MOD_CXXFLAGS.linux = $(VBOX_GCC_fno-stack-protector) # Remove symvers.h
 TEMPLATE_VBOXGUESTR3XF86MOD_SYSSUFF = .o
 TEMPLATE_VBOXGUESTR3XF86MOD_LIBS  = \
 	$(VBOX_LIB_VBGL_R3_XFREE86)
@@ -7215,7 +7217,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 125587 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 126257 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=
