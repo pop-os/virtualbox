@@ -1,6 +1,8 @@
 virtualbox (5.2.22-dfsg-1) unstable; urgency=high
 
   * New upstream release (Closes: #913137)
+  * Drop gcc patch
+  * patch refresh
 
  -- Gianfranco Costamagna <locutusofborg@debian.org>  Fri, 09 Nov 2018 12:12:06 +0100
 
