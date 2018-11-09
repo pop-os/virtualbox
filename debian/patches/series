@@ -17,5 +17,4 @@
 37-python-3.7-support.patch
 python3.7-fix.patch
 java9.patch
-new-gcc.patch
 do-not-run-if-not-in-vm.patch

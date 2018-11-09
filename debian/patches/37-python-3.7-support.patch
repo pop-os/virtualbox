@@ -6,7 +6,7 @@ Last-Update: 2018-07-12
 This patch header follows DEP-3: http://dep.debian.net/deps/dep3/
 --- a/configure
 +++ b/configure
-@@ -1964,7 +1964,7 @@
+@@ -1963,7 +1963,7 @@
  }
  EOF
    found=
