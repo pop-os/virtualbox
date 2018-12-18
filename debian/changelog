@@ -7,7 +7,10 @@ virtualbox (5.2.22-dfsg-3) UNRELEASED; urgency=medium
   * debian/patches/VBoxVNC.fix.patch: LP: #1804048
     - thanks AZ for the patch, that is now part of upstream codebase
 
- -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 27 Nov 2018 10:35:44 +0100
+  [ Kevin Locke ]
+  * Add udev rules for vboxdrvu and vboxnetctl (Closes: #916464)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 18 Dec 2018 15:11:18 +0100
 
 virtualbox (5.2.22-dfsg-2) unstable; urgency=low
 
