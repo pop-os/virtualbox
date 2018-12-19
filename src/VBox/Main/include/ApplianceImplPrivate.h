@@ -53,6 +53,7 @@ struct LocationInfo
     LocationInfo()
       : storageType(VFSType_File) {}
     VFSType_T storageType; /* Which type of storage should be handled */
+    Utf8Str strProvider;   /* cloud provider name in case of export/import to Cloud */
     Utf8Str strPath;       /* File path for the import/export */
     Utf8Str strHostname;   /* Hostname on remote storage locations (could be empty) */
     Utf8Str strUsername;   /* Username on remote storage locations (could be empty) */
@@ -287,6 +288,89 @@ public:
     }
 };
 
+class Appliance::TaskOPC : public ThreadTask
+{
+public:
+    enum TaskType
+    {
+        Export
+    };
+
+    TaskOPC(Appliance *aThat,
+            TaskType aType,
+            LocationInfo aLocInfo,
+            ComObjPtr<Progress> &aProgress)
+      : ThreadTask("TaskOPC"),
+        pAppliance(aThat),
+        taskType(aType),
+        locInfo(aLocInfo),
+        pProgress(aProgress),
+        rc(S_OK)
+    {
+        m_strTaskName = "OPCExpt";
+    }
+
+    ~TaskOPC()
+    {
+    }
+
+    static DECLCALLBACK(int) updateProgress(unsigned uPercent, void *pvUser);
+
+    Appliance *pAppliance;
+    TaskType taskType;
+    const LocationInfo locInfo;
+    ComObjPtr<Progress> pProgress;
+
+    HRESULT rc;
+
+    void handler()
+    {
+        Appliance::i_exportOPCThreadTask(this);
+    }
+};
+
+
+class Appliance::TaskCloud : public ThreadTask
+{
+public:
+    enum TaskType
+    {
+        Export
+    };
+
+    TaskCloud(Appliance *aThat,
+            TaskType aType,
+            LocationInfo aLocInfo,
+            ComObjPtr<Progress> &aProgress)
+      : ThreadTask("TaskCloud"),
+        pAppliance(aThat),
+        taskType(aType),
+        locInfo(aLocInfo),
+        pProgress(aProgress),
+        rc(S_OK)
+    {
+        m_strTaskName = "CloudExpt";
+    }
+
+    ~TaskCloud()
+    {
+    }
+
+    static DECLCALLBACK(int) updateProgress(unsigned uPercent, void *pvUser);
+
+    Appliance *pAppliance;
+    TaskType taskType;
+    const LocationInfo locInfo;
+    ComObjPtr<Progress> pProgress;
+
+    HRESULT rc;
+
+    void handler()
+    {
+        Appliance::i_exportCloudThreadTask(this);
+    }
+};
+
 struct MyHardDiskAttachment
 {
     ComPtr<IMachine>    pMachine;
@@ -309,8 +393,10 @@ struct Appliance::ImportStack
 
     // input parameters from VirtualSystemDescriptions
     Utf8Str                         strNameVBox;        // VM name
-    Utf8Str                         strMachineFolder;   // FQ host folder where the VirtualBox machine would be created
+    Utf8Str                         strSettingsFilename; // Absolute path to VM config file
+    Utf8Str                         strMachineFolder;   // Absolute path to VM folder (derived from strSettingsFilename)
     Utf8Str                         strOsTypeVBox;      // VirtualBox guest OS type as string
+    Utf8Str                         strPrimaryGroup;    // VM primary group as string
     Utf8Str                         strDescription;
     uint32_t                        cCPUs;              // CPU count
     bool                            fForceHWVirt;       // if true, we force enabling hardware virtualization

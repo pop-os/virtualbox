@@ -361,7 +361,7 @@ int main(int argc, char **argv)
 
 
             case 'V':
-                RTPrintf("$Revision: 125570 $");
+                RTPrintf("$Revision: 123672 $");
                 break;
 
             case 'h':

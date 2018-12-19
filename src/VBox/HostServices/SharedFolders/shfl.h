@@ -19,8 +19,8 @@
 
 #include <VBox/err.h>
 #include <VBox/hgcmsvc.h>
+#include <VBox/shflsvc.h>
 
-#define LOG_GROUP LOG_GROUP_SHARED_FOLDERS
 #include <VBox/log.h>
 
 /**
@@ -42,6 +42,10 @@
 /** Client both supports and wants to use symlinks. */
 #define SHFL_CF_SYMLINKS         (0x00000008)
 
+/** The call to SHFL_FN_WAIT_FOR_MAPPINGS_CHANGES will return immediately
+ *  because of a SHFL_FN_CANCEL_MAPPINGS_CHANGES_WAITS call. */
+#define SHFL_CF_CANCEL_NEXT_WAIT (0x00000010)
+
 /** @} */
 
 typedef struct _SHFLCLIENTDATA
@@ -50,6 +54,14 @@ typedef struct _SHFLCLIENTDATA
     uint32_t fu32Flags;
     /** Path delimiter. */
     RTUTF16  PathDelimiter;
+    /** Currently unused.   */
+    uint8_t  bPadding;
+    /** Set if the client has mapping usage counts.
+     * This is for helping with saved state. */
+    uint8_t  fHasMappingCounts;
+    /** Mapping counts for each root ID so we can unmap the folders when the
+     *  session disconnects or the VM resets. */
+    uint16_t acMappings[SHFL_MAX_MAPPINGS];
 } SHFLCLIENTDATA;
 /** Pointer to a SHFLCLIENTDATA structure. */
 typedef SHFLCLIENTDATA *PSHFLCLIENTDATA;

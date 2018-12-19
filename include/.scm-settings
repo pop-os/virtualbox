@@ -29,6 +29,9 @@
 /iprt/formats/elf-i386.h:   --no-update-license  --no-update-copyright-year
 /iprt/formats/elf-i386.h:   --no-update-license  --no-update-copyright-year
 
+# external copyright
+/iprt/formats/lx.h:         --external-copyright
+
 # TODO: This is using LGPL with Oracle disclaimer. Implement.
 /VBox/VBoxKeyboard.h: --external-copyright --lgpl-disclaimer
 
@@ -45,6 +48,14 @@
 /VBox/Graphics/VBoxVideoVBE.h:          --license-mit
 /VBox/Graphics/VBoxVideoVBEPrivate.h:   --license-mit
 
+# And so are some files used by the shared folder guest code.
+/VBox/shflsvc.h:                        --license-mit
+/VBox/VBoxGuest.h:                      --license-mit
+/VBox/VBoxGuestCoreTypes.h:             --license-mit
+/VBox/VBoxGuestLib.h:                   --license-mit
+/VBox/VBoxGuestLibSharedFolders.h:      --license-mit
+/VBox/VMMDev.h:                         --license-mit
+/VBox/VMMDevCoreTypes.h:                --license-mit
 
 /VBox/HostServices/glext.h:             --external-copyright --no-convert-tabs --no-strip-trailing-blanks
 /VBox/HostServices/glxext.h:            --external-copyright --no-convert-tabs --no-strip-trailing-blanks

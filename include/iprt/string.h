@@ -1468,6 +1468,20 @@ RTDECL(char *) RTStrPrevCp(const char *pszStart, const char *psz);
  *                            i.e. a series of space separated bytes formatted as two digit hex value.
  *                            Use the precision to specify the length. Default length is 16 bytes.
  *                            The width, if specified, is ignored.
+ *
+ *      - \%Rhcb            - Human readable byte size formatting, using
+ *                            binary unit prefixes (GiB, MiB and such).  Takes a
+ *                            64-bit unsigned integer as input.  Does one
+ *                            decimal point by default, can do 0-3 via precision
+ *                            field.  No rounding when calculating fraction.
+ *      - \%Rhci            - SI variant of \%Rhcb, fraction is rounded.
+ *      - \%Rhub            - Human readable number formatting, using
+ *                            binary unit prefixes. Takes a 64-bit unsigned
+ *                            integer as input. Does one decimal point by
+ *                            default, can do 0-3 via precision field.  No
+ *                            rounding when calculating fraction.
+ *      - \%Rhui            - SI variant of \%Rhub, fraction is rounded.
+ *
  *      - \%Rrc             - Takes an integer iprt status code as argument. Will insert the
  *                            status code define corresponding to the iprt status code.
  *      - \%Rrs             - Takes an integer iprt status code as argument. Will insert the
@@ -1504,13 +1518,34 @@ RTDECL(char *) RTStrPrevCp(const char *pszStart, const char *psz);
  *      - \%RDtimespec      - Takes a PCRTTIMESPEC.
  *
  *
- * Group 5, XML / HTML escapers:
+ * Group 5, XML / HTML, JSON and URI escapers:
  *      - \%RMas            - Takes a string pointer (const char *) and outputs
  *                            it as an attribute value with the proper escaping.
  *                            This typically ends up in double quotes.
  *
  *      - \%RMes            - Takes a string pointer (const char *) and outputs
  *                            it as an element with the necessary escaping.
+ *
+ *      - \%RMjs            - Takes a string pointer (const char *) and outputs
+ *                            it in quotes with proper JSON escaping.
+ *
+ *      - \%RMpa            - Takes a string pointer (const char *) and outputs
+ *                            it percent-encoded (RFC-3986).  All reserved characters
+ *                            are encoded.
+ *
+ *      - \%RMpf            - Takes a string pointer (const char *) and outputs
+ *                            it percent-encoded (RFC-3986), form style.  This
+ *                            means '+' is used to escape space (' ') and '%2B'
+ *                            is used to escape '+'.
+ *
+ *      - \%RMpp            - Takes a string pointer (const char *) and outputs
+ *                            it percent-encoded (RFC-3986), path style.  This
+ *                            means '/' will not be escaped.
+ *
+ *      - \%RMpq            - Takes a string pointer (const char *) and outputs
+ *                            it percent-encoded (RFC-3986), query style.  This
+ *                            means '+' will not be escaped.
+ *
  *
  * Group 6, CPU Architecture Register dumpers:
  *      - \%RAx86[reg]      - Takes a 64-bit register value if the register is
@@ -2350,7 +2385,7 @@ RTDECL(int) RTStrICmp(const char *psz1, const char *psz2);
  * both have been lower cased.
  *
  * If the string encoding is invalid the function will assert (strict builds)
- * and use RTStrCmp for the remainder of the string.
+ * and use RTStrNCmp for the remainder of the string.
  *
  * @returns < 0 if the first string less than the second string.
  * @returns 0 if the first string identical to the second string.
@@ -2376,9 +2411,29 @@ RTDECL(int) RTStrNICmp(const char *psz1, const char *psz2, size_t cchMax);
  * @returns > 0 if the first string greater than the second string.
  * @param   psz1        First UTF-8 string. Null is allowed.
  * @param   psz2        Second string, 7-bit ASCII. Null is allowed.
- * @sa      RTUtf16ICmpAscii
+ * @sa      RTStrICmp, RTUtf16ICmpAscii
  */
 RTDECL(int) RTStrICmpAscii(const char *psz1, const char *psz2);
+
+/**
+ * Performs a case insensitive string compare between a UTF-8 string and a 7-bit
+ * ASCII string, given a maximum string length.
+ *
+ * This is potentially faster than RTStrNICmp and drags in less dependencies.
+ * It is really handy for hardcoded inputs.
+ *
+ * If the string encoding is invalid the function will assert (strict builds)
+ * and use RTStrNCmp for the remainder of the string.
+ *
+ * @returns < 0 if the first string less than the second string.
+ * @returns 0 if the first string identical to the second string.
+ * @returns > 0 if the first string greater than the second string.
+ * @param   psz1        First UTF-8 string. Null is allowed.
+ * @param   psz2        Second string, 7-bit ASCII. Null is allowed.
+ * @param   cchMax      Maximum string length
+ * @sa      RTStrNICmp, RTUtf16NICmpAscii
+ */
+RTDECL(int) RTStrNICmpAscii(const char *psz1, const char *psz2, size_t cchMax);
 
 /**
  * Checks whether @a pszString starts with @a pszStart.
@@ -2741,7 +2796,7 @@ RTDECL(int) RTStrToUInt32Ex(const char *pszValue, char **ppszNext, unsigned uBas
 RTDECL(int) RTStrToUInt32Full(const char *pszValue, unsigned uBase, uint32_t *pu32);
 
 /**
- * Converts a string representation of a number to a 64-bit unsigned number.
+ * Converts a string representation of a number to a 32-bit unsigned number.
  * The base is guessed.
  *
  * @returns 32-bit unsigned number on success.
@@ -3106,14 +3161,14 @@ typedef PRTSTRSPACECORE *PPRTSTRSPACECORE;
  */
 typedef struct RTSTRSPACECORE
 {
-    /** Hash key. Don't touch. */
-    uint32_t        Key;
     /** Pointer to the left leaf node. Don't touch. */
     PRTSTRSPACECORE pLeft;
     /** Pointer to the left right node. Don't touch. */
     PRTSTRSPACECORE pRight;
-    /** Pointer to the list of string with the same key. Don't touch. */
+    /** Pointer to the list of string with the same hash key value. Don't touch. */
     PRTSTRSPACECORE pList;
+    /** Hash key. Don't touch. */
+    uint32_t        Key;
     /** Height of this tree: max(heigth(left), heigth(right)) + 1. Don't touch */
     unsigned char   uchHeight;
     /** The string length. Read only! */

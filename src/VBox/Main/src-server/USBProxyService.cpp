@@ -577,7 +577,7 @@ void USBProxyService::i_deviceAdded(ComObjPtr<HostUSBDevice> &aDevice,
             && pHostDevice->i_compare(pDev) < 0)
             break;
 
-        it++;
+        ++it;
     }
 
     mDevices.insert(it, aDevice);
@@ -948,11 +948,11 @@ HRESULT USBProxyService::setError(HRESULT aResultCode, const char *aText, ...)
     va_list va;
     va_start(va, aText);
     HRESULT rc = VirtualBoxBase::setErrorInternal(aResultCode,
-                                                    COM_IIDOF(IHost),
-                                                    "USBProxyService",
-                                                    Utf8Str(aText, va),
-                                                    false /* aWarning*/,
-                                                    true /* aLogIt*/);
+                                                  COM_IIDOF(IHost),
+                                                  "USBProxyService",
+                                                  Utf8Str(aText, va),
+                                                  false /* aWarning*/,
+                                                  true /* aLogIt*/);
     va_end(va);
     return rc;
 }

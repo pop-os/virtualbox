@@ -23,6 +23,7 @@
 
 #include <VBox/vmm/pdmthread.h>
 
+#include "vmsvga/svga3d_reg.h"
 
 /** Default FIFO size. */
 #define VMSVGA_FIFO_SIZE                _2M
@@ -122,6 +123,30 @@ typedef struct VMSVGAVIEWPORT
     uint32_t        uAlignment;
 } VMSVGAVIEWPORT;
 
+/**
+ * Screen object state.
+ */
+typedef struct VMSVGASCREENOBJECT
+{
+    /** SVGA_SCREEN_* flags. */
+    uint32_t    fuScreen;
+    /** The screen object id. */
+    uint32_t    idScreen;
+    /** The screen dimensions. */
+    int32_t     xOrigin;
+    int32_t     yOrigin;
+    uint32_t    cWidth;
+    uint32_t    cHeight;
+    /** Offset of the screen buffer in the guest VRAM. */
+    uint32_t    offVRAM;
+    /** Scanline pitch. */
+    uint32_t    cbPitch;
+    /** Bits per pixel. */
+    uint32_t    cBpp;
+    bool        fDefined;
+    bool        fModified;
+} VMSVGASCREENOBJECT;
+
 /** Pointer to the private VMSVGA ring-3 state structure.
  * @todo Still not entirely satisfired with the type name, but better than
  *       the previous lower/upper case only distinction. */
@@ -137,8 +162,6 @@ typedef struct VMSVGA3DSTATE *PVMSVGA3DSTATE;
  */
 typedef struct VMSVGAState
 {
-    /** The host window handle */
-    uint64_t                    u64HostWindowId;
     /** The R3 FIFO pointer. */
     R3PTRTYPE(uint32_t *)       pFIFOR3;
     /** The R0 FIFO pointer. */
@@ -205,6 +228,10 @@ typedef struct VMSVGAState
     R3PTRTYPE(RTSEMEVENT)       FIFOExtCmdSem;
     /** FIFO IO Thread. */
     R3PTRTYPE(PPDMTHREAD)       pFIFOIOThread;
+    /** The legacy GFB mode registers. If used, they correspond to screen 0. */
+    /** True when the guest modifies the GFB mode registers. */
+    bool                        fGFBRegisters;
+    bool                        afPadding[7];
     uint32_t                    uWidth;
     uint32_t                    uHeight;
     uint32_t                    uBpp;
@@ -236,7 +263,7 @@ typedef struct VMSVGAState
 #endif
     /** Number of GMRs. */
     uint32_t                    cGMR;
-    uint32_t                    u32Padding1;
+    uint32_t                    uScreenOffset; /* Used only for loading older saved states. */
 
     /** Scratch array.
      * Putting this at the end since it's big it probably not . */
@@ -337,6 +364,27 @@ int vmsvgaLoadDone(PPDMDEVINS pDevIns);
 int vmsvgaSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM);
 DECLCALLBACK(void) vmsvgaR3PowerOn(PPDMDEVINS pDevIns);
 DECLCALLBACK(void) vmsvgaR3PowerOff(PPDMDEVINS pDevIns);
+
+typedef struct VGAState *PVGASTATE;
+
+#ifdef IN_RING3
+VMSVGASCREENOBJECT *vmsvgaGetScreenObject(PVGASTATE pThis, uint32_t idScreen);
+int vmsvgaUpdateScreen(PVGASTATE pThis, VMSVGASCREENOBJECT *pScreen, int x, int y, int w, int h);
+#endif
+
+void vmsvgaGMRFree(PVGASTATE pThis, uint32_t idGMR);
+int vmsvgaGMRTransfer(PVGASTATE pThis, const SVGA3dTransferType enmTransferType,
+                      uint8_t *pbHstBuf, uint32_t cbHstBuf, uint32_t offHst, int32_t cbHstPitch,
+                      SVGAGuestPtr gstPtr, uint32_t offGst, int32_t cbGstPitch,
+                      uint32_t cbWidth, uint32_t cHeight);
+
+void vmsvgaClipCopyBox(const SVGA3dSize *pSizeSrc,
+                       const SVGA3dSize *pSizeDest,
+                       SVGA3dCopyBox *pBox);
+void vmsvgaClipBox(const SVGA3dSize *pSize,
+                   SVGA3dBox *pBox);
+void vmsvgaClipRect(SVGASignedRect const *pBound,
+                    SVGASignedRect *pRect);
 
 #endif
 

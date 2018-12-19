@@ -34,19 +34,25 @@ class UIWizardCloneVMPageExpert : public UIWizardPage,
 {
     Q_OBJECT;
     Q_PROPERTY(QString cloneName READ cloneName WRITE setCloneName);
-    Q_PROPERTY(bool reinitMACs READ isReinitMACsChecked);
+    Q_PROPERTY(QString cloneFilePath READ cloneFilePath WRITE setCloneFilePath);
     Q_PROPERTY(bool linkedClone READ isLinkedClone);
     Q_PROPERTY(KCloneMode cloneMode READ cloneMode WRITE setCloneMode);
+    Q_PROPERTY(MACAddressClonePolicy macAddressClonePolicy READ macAddressClonePolicy WRITE setMACAddressClonePolicy);
+    Q_PROPERTY(bool keepDiskNames READ keepDiskNames WRITE setKeepDiskNames);
+    Q_PROPERTY(bool keepHWUUIDs READ keepHWUUIDs WRITE setKeepHWUUIDs);
 
 public:
 
     /* Constructor: */
-    UIWizardCloneVMPageExpert(const QString &strOriginalName, bool fAdditionalInfo, bool fShowChildsOption);
+    UIWizardCloneVMPageExpert(const QString &strOriginalName, const QString &strDefaultPath,
+                              bool fAdditionalInfo, bool fShowChildsOption, const QString &strGroup);
 
 private slots:
 
-    /* Button click handler: */
-    void sltButtonClicked(QAbstractButton *pButton);
+    /* Button toggle handler: */
+    void sltButtonToggled(QAbstractButton *pButton, bool fChecked);
+    void sltNameChanged();
+    void sltPathChanged();
 
 private:
 
@@ -61,10 +67,11 @@ private:
     bool validatePage();
 
     /* Widgets: */
-    QGroupBox *m_pNameCnt;
-    QGroupBox *m_pCloneTypeCnt;
-    QGroupBox *m_pCloneModeCnt;
+    QGroupBox   *m_pNameCnt;
+    QGroupBox   *m_pCloneTypeCnt;
+    QGroupBox   *m_pCloneModeCnt;
+    QGroupBox   *m_pCloneOptionsCnt;
+    QGridLayout *m_pCloneOptionsLayout;
 };
 
 #endif // __UIWizardCloneVMPageExpert_h__
-

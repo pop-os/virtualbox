@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,6 +28,7 @@
 /* GUI includes: */
 # include "UIIconPool.h"
 # include "UIExtraDataManager.h"
+# include "UIModalWindowManager.h"
 
 /* COM includes: */
 # include "COMEnums.h"
@@ -38,6 +39,10 @@
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
+
+/*********************************************************************************************************************************
+*   Class UIIconPool implementation.                                                                                             *
+*********************************************************************************************************************************/
 
 /* static */
 QPixmap UIIconPool::pixmap(const QString &strName)
@@ -253,13 +258,22 @@ void UIIconPool::addName(QIcon &icon, const QString &strName,
     /* Parse name to prefix and suffix: */
     QString strPrefix = strName.section('.', 0, -2);
     QString strSuffix = strName.section('.', -1, -1);
-    /* Prepare HiDPI pixmap on the basis of values above: */
-    QPixmap pixmapHiDPI(strPrefix + "_hidpi." + strSuffix);
-    /* Add HiDPI pixmap (if any): */
-    if (!pixmapHiDPI.isNull())
-        icon.addPixmap(pixmapHiDPI, mode, state);
+    /* Prepare HiDPI pixmaps: */
+    const QStringList aPixmapNames = QStringList() << (strPrefix + "_x2." + strSuffix)
+                                                   /*<< (strPrefix + "_x3." + strSuffix)
+                                                   << (strPrefix + "_x4." + strSuffix)*/;
+    foreach (const QString &strPixmapName, aPixmapNames)
+    {
+        QPixmap pixmapHiDPI(strPixmapName);
+        if (!pixmapHiDPI.isNull())
+            icon.addPixmap(pixmapHiDPI, mode, state);
+    }
 }
 
+
+/*********************************************************************************************************************************
+*   Class UIIconPoolGeneral implementation.                                                                                      *
+*********************************************************************************************************************************/
 
 UIIconPoolGeneral::UIIconPoolGeneral()
 {
@@ -273,6 +287,7 @@ UIIconPoolGeneral::UIIconPoolGeneral()
     m_guestOSTypeIconNames.insert("Windows95",       ":/os_win95.png");
     m_guestOSTypeIconNames.insert("Windows98",       ":/os_win98.png");
     m_guestOSTypeIconNames.insert("WindowsMe",       ":/os_winme.png");
+    m_guestOSTypeIconNames.insert("WindowsNT3x",     ":/os_winnt4.png");
     m_guestOSTypeIconNames.insert("WindowsNT4",      ":/os_winnt4.png");
     m_guestOSTypeIconNames.insert("Windows2000",     ":/os_win2k.png");
     m_guestOSTypeIconNames.insert("WindowsXP",       ":/os_winxp.png");
@@ -360,7 +375,7 @@ UIIconPoolGeneral::UIIconPoolGeneral()
 QIcon UIIconPoolGeneral::userMachineIcon(const CMachine &comMachine) const
 {
     /* Get machine ID: */
-    const QString strMachineId = comMachine.GetId();
+    const QUuid uMachineId = comMachine.GetId();
     AssertReturn(comMachine.isOk(), QPixmap());
 
     /* Prepare icon: */
@@ -368,7 +383,7 @@ QIcon UIIconPoolGeneral::userMachineIcon(const CMachine &comMachine) const
 
     /* 1. First, load icon from IMachine extra-data: */
     if (icon.isNull())
-        foreach (const QString &strIconName, gEDataManager->machineWindowIconNames(strMachineId))
+        foreach (const QString &strIconName, gEDataManager->machineWindowIconNames(uMachineId))
             if (!strIconName.isEmpty() && QFile::exists(strIconName))
                 icon.addFile(strIconName);
 
@@ -453,6 +468,9 @@ QIcon UIIconPoolGeneral::guestOSTypeIcon(const QString &strOSTypeID) const
         /* Compose proper icon if we have that 'guest OS type' known: */
         if (m_guestOSTypeIconNames.contains(strOSTypeID))
             m_guestOSTypeIcons[strOSTypeID] = iconSet(m_guestOSTypeIconNames[strOSTypeID]);
+        /* Assign fallback icon if we do NOT have that 'guest OS type' registered: */
+        else if (!strOSTypeID.isNull())
+            m_guestOSTypeIcons[strOSTypeID] = iconSet(m_guestOSTypeIconNames["Other"]);
         /* Assign fallback icon if we do NOT have that 'guest OS type' known: */
         else
             m_guestOSTypeIcons[strOSTypeID] = iconSet(nullIcon);
@@ -509,8 +527,11 @@ QPixmap UIIconPoolGeneral::guestOSTypePixmapDefault(const QString &strOSTypeID, 
         if (pLogicalSize)
             *pLogicalSize = iconSize;
 
-        /* Get pixmap of requested size: */
-        pixmap = icon.pixmap(iconSize);
+        /* Get pixmap of requested size (take into account the DPI of the main shown window, if possible): */
+        if (windowManager().mainWindowShown() && windowManager().mainWindowShown()->windowHandle())
+            pixmap = icon.pixmap(windowManager().mainWindowShown()->windowHandle(), iconSize);
+        else
+            pixmap = icon.pixmap(iconSize);
     }
 
     /* Return pixmap: */

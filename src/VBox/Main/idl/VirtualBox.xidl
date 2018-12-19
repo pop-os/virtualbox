@@ -2,7 +2,7 @@
 
 <!--
 
-    Copyright (C) 2006-2017 Oracle Corporation
+    Copyright (C) 2006-2018 Oracle Corporation
 
     This file is part of VirtualBox Open Source Edition (OSE), as
     available from http://www.virtualbox.org. This file is free software;
@@ -434,6 +434,24 @@
     </desc>
   </result>
 
+  <result name="VBOX_E_MAXIMUM_REACHED" value="0x80BB000E">
+    <desc>
+      A maximum has been reached.
+    </desc>
+  </result>
+
+  <result name="VBOX_E_GSTCTL_GUEST_ERROR" value="0x80BB000F">
+    <desc>
+      Guest Control reported an error from the guest side.
+    </desc>
+  </result>
+
+  <result name="VBOX_E_TIMEOUT" value="0x80BB0010">
+    <desc>
+      The operation ran into an explicitly requested timeout.
+    </desc>
+  </result>
+
   <!--
     Note that src/VBox/Runtime/common/err/errmsgvboxcom.xsl will ignore
     everything in <result>/<desc> after (and including) the first dot, so express
@@ -578,9 +596,9 @@
       -->
     </const>
     <const name="v1_17" value="19">
-      <desc>Settings version "1.17", written by VirtualBox 5.2.x.</desc>
+      <desc>Settings version "1.17", written by VirtualBox 6.0.x.</desc>
       <!--
-          So far absolutely no change to v1_16.
+          Machine changes: nested hardware virtualization, UART type selection.
       -->
     </const>
 
@@ -961,7 +979,7 @@
 
   <enum
     name="CPUPropertyType"
-    uuid="cc6ecdad-a07c-4e81-9c0e-d767e0678d5a"
+    uuid="3fcfe589-ca66-468f-e313-656f9d0b2eb6"
     >
     <desc>
       Virtual CPU property type. This enumeration represents possible values of the
@@ -1019,6 +1037,12 @@
         is a real need to be paranoid.
       </desc>
     </const>
+    <const name="HWVirt"                value="8">
+      <desc>
+        Enabled the hardware virtualization (AMD-V/VT-x) feature on the guest CPU.
+        This requires hardware virtualization on the host CPU.
+      </desc>
+    </const>
     <const name="SpecCtrl"              value="9">
       <desc>
         If set, the speculation control CPUID bits and MSRs, when available on the
@@ -1030,23 +1054,6 @@
       <desc>
         If set, the speculation controls are managed by the host. This is intended
         for guests which do not set the speculation controls themselves.
-        Note! This has not yet been implemented beyond leaving everything to the host OS.
-      </desc>
-    </const>
-    <const name="L1DFlushOnEMTScheduling" value="11">
-      <desc>
-        If set and the host is affected by CVE-2018-3646, flushes the level 1 data
-        cache when the EMT is scheduled to do ring-0 guest execution.  There could
-        be a small performance penalty for certain typs of workloads.
-        For security reasons this setting will be enabled by default.
-      </desc>
-    </const>
-    <const name="L1DFlushOnVMEntry"     value="12">
-      <desc>
-        If set and the host is affected by CVE-2018-3646, flushes the level 1 data
-        on every VM entry.  This setting may significantly slow down workloads
-        causing many VM exits, so it is only recommended for situation where there
-        is a real need to be paranoid.
       </desc>
     </const>
   </enum>
@@ -1054,7 +1061,7 @@
 
   <enum
     name="HWVirtExPropertyType"
-    uuid="411ad0ea-aeeb-44cb-9d03-1624d0d025ac"
+    uuid="bc05551e-e288-467e-1ea3-233de08e4480"
     >
     <desc>
       Hardware virtualization property type. This enumeration represents possible values
@@ -1094,6 +1101,12 @@
       <desc>
         Whether the VM should fail to start if hardware virtualization (VT-x/AMD-V) cannot be used. If
         not set, there will be an automatic fallback to software virtualization.
+      </desc>
+    </const>
+    <const name="UseNativeApi"          value="7">
+      <desc>
+        Use the native hypervisor API instead of the VirtualBox one (HM) for VT-X/AMD-V.  This is
+        ignored if <link to="HWVirtExPropertyType_Enabled"/> isn't set.
       </desc>
     </const>
   </enum>
@@ -1328,7 +1341,7 @@
 
   <enum
     name="ProcessorFeature"
-    uuid="64c38e6b-8bcf-45ad-ac03-9b406287c5bf"
+    uuid="fed0e385-dc5a-4cef-b9e2-66bafb6af6aa"
     >
     <desc>
       CPU features.
@@ -1338,6 +1351,8 @@
     <const name="PAE"               value="1"/>
     <const name="LongMode"          value="2"/>
     <const name="NestedPaging"      value="3"/>
+    <const name="UnrestrictedGuest" value="4"/>
+    <const name="NestedHWVirt"      value="5"/>
   </enum>
 
   <enum
@@ -1776,7 +1791,7 @@
 
   <interface
     name="IDHCPServer" extends="$unknown"
-    uuid="00c8f974-92c5-44a1-8f3f-702469fdd04b"
+    uuid="ea2d467f-b6c2-4b9a-8eb5-6e2f275dd72e"
     wsmap="managed"
     reservedMethods="2" reservedAttributes="6"
     >
@@ -1829,6 +1844,25 @@
       <param name="value" type="wstring" dir="in" />
     </method>
 
+    <method name="removeGlobalOption">
+      <desc>
+        removes the specified option
+        <result name="E_INVALIDARG">
+          invalid option id supplied
+        </result>
+      </desc>
+      <param name="option" type="DhcpOpt" dir="in"/>
+    </method>
+
+    <method name="removeGlobalOptions">
+      <desc>
+        removes all global options
+        <result name="E_FAIL">
+          failed to remove global options
+        </result>
+      </desc>
+    </method>
+
     <!-- string in format: "option_id:value" -->
     <attribute name="globalOptions" type="wstring" safearray="yes" readonly="yes"/>
 
@@ -1862,7 +1896,25 @@
       <param name="value" type="wstring" dir="in" />
     </method>
 
+    <method name="removeVmSlotOption">
+      <desc>
+        removes the specified option
+        <result name="E_INVALIDARG">
+          invalid VM, slot, or option id supplied
+        </result>
+      </desc>
+      <param name="vmname" type="wstring" dir="in"/>
+      <param name="slot" type="long" dir="in"/>
+      <param name="option" type="DhcpOpt" dir="in"/>
+    </method>
+
     <method name="removeVmSlotOptions">
+      <desc>
+        removes all option for the specified adapter
+        <result name="E_INVALIDARG">
+          invalid VM or slot supplied
+        </result>
+      </desc>
       <param name="vmname" type="wstring" dir="in"/>
       <param name="slot" type="long" dir="in"/>
     </method>
@@ -1941,13 +1993,23 @@
         </result>
       </desc>
     </method>
+
+    <method name="restart">
+      <desc>
+        Restart running DHCP server process.
+        <result name="E_FAIL">
+          Failed to restart the process.
+        </result>
+      </desc>
+    </method>
   </interface>
 
   <interface
     name="IVirtualBox" extends="$unknown"
-    uuid="9570b9d5-f1a1-448a-10c5-e12f5285adad"
+    uuid="d0a0163f-e254-4e5b-a1f2-011cf991c38d"
     wsmap="managed"
     reservedMethods="8" reservedAttributes="12"
+    wrap-gen-hook="yes"
     >
     <desc>
       The IVirtualBox interface represents the main interface exposed by the
@@ -2153,6 +2215,12 @@
     <attribute name="genericNetworkDrivers" type="wstring" safearray="yes" readonly="yes">
       <desc>
         Names of all generic network drivers.
+      </desc>
+    </attribute>
+
+    <attribute name="cloudProviderManager" type="ICloudProviderManager" readonly="yes">
+      <desc>
+        The cloud provider manager (singleton).
       </desc>
     </attribute>
 
@@ -2606,11 +2674,11 @@
         a "DVD" device type, this is ignored and read-only mode is always assumed.</desc>
       </param>
       <param name="forceNewUuid" type="boolean" dir="in">
-         <desc>Allows the caller to request a completely new medium UUID for
-           the image which is to be opened. Useful if one intends to open an exact
-           copy of a previously opened image, as this would normally fail due to
-           the duplicate UUID.</desc>
-         </param>
+        <desc>Allows the caller to request a completely new medium UUID for
+          the image which is to be opened. Useful if one intends to open an exact
+          copy of a previously opened image, as this would normally fail due to
+          the duplicate UUID.</desc>
+        </param>
       <param name="medium" type="IMedium" dir="return">
         <desc>Opened medium object.</desc>
       </param>
@@ -2630,6 +2698,10 @@
         available guest OS type objects. Each object has an
         <link to="IGuestOSType::id"/> attribute which contains an identifier of
         the guest OS this object describes.
+
+        While this function returns an error for unknown guest OS types, they
+        can be still used without serious problems (if one accepts the fact
+        that there is no default VM config information).
 
         <result name="E_INVALIDARG">
           @a id is not a valid Guest OS type.
@@ -2667,6 +2739,12 @@
       <param name="automount" type="boolean" dir="in">
         <desc>Whether the share gets automatically mounted by the guest
           or not.</desc>
+      </param>
+      <param name="autoMountPoint" type="wstring" dir="in">
+        <desc>Where the guest should automatically mount the folder, if possible.
+          For Windows and OS/2 guests this should be a drive letter, while other
+          guests it should be a absolute directory.
+        </desc>
       </param>
     </method>
 
@@ -2726,6 +2804,9 @@
         will be deleted.
 
         <note>
+          Key must contain only printable ASCII characters.
+        </note>
+        <note>
           Before performing the actual data change, this method will ask all
           registered event listener using the
           <link to="IExtraDataCanChangeEvent"/>
@@ -2747,6 +2828,9 @@
         </result>
         <result name="E_ACCESSDENIED">
           Modification request refused.
+        </result>
+        <result name="E_INVALIDARG">
+          Key contains invalid characters.
         </result>
 
       </desc>
@@ -2859,18 +2943,18 @@
       <param name="network" type="INATNetwork" dir="return"/>
     </method>
 
-     <!--
+    <!--
           Returns the NATNetwork by name, e.g. for adding port forward rule or deletion.
-      -->
-     <method name="findNATNetworkByName">
+    -->
+    <method name="findNATNetworkByName">
       <param name="networkName" type="wstring" dir="in"/>
       <param name="network" type="INATNetwork" dir="return"/>
     </method>
     <!--
         Deletes given NAT network.
-     -->
+    -->
     <method name="removeNATNetwork">
-       <param name="network" type="INATNetwork" dir="in"/>
+      <param name="network" type="INATNetwork" dir="in"/>
     </method>
 
     <method name="checkFirmwarePresent">
@@ -2925,6 +3009,7 @@
     <const name="Cloud" value="2" />
     <const name="S3" value="3" />
     <const name="WebDav" value="4" />
+    <const name="OCI" value="5" />
   </enum>
 
   <interface
@@ -3131,10 +3216,10 @@
       <desc>Friendly subject name or similar.</desc>
     </attribute>
     <attribute name="validityPeriodNotBefore" type="wstring" readonly="yes">
-      <desc>Certificate not valid before ISO time stamp.</desc>
+      <desc>Certificate not valid before ISO timestamp.</desc>
     </attribute>
     <attribute name="validityPeriodNotAfter" type="wstring" readonly="yes">
-      <desc>Certificate not valid after ISO time stamp.</desc>
+      <desc>Certificate not valid after ISO timestamp.</desc>
     </attribute>
     <attribute name="publicKeyAlgorithmOID" type="wstring" readonly="yes">
       <desc>The dotted OID of the public key algorithm.</desc>
@@ -3199,9 +3284,9 @@
   -->
   <interface
     name="IAppliance" extends="$unknown"
-    uuid="8398f026-4add-4474-5bc3-2f9f2140b23e"
+    uuid="86a98347-7619-41aa-aece-b21ac5c1a7e6"
     wsmap="managed"
-    reservedMethods="8" reservedAttributes="7"
+    reservedMethods="8" reservedAttributes="8"
     >
     <desc>
         Represents a platform-independent appliance in OVF format. An instance of this is returned
@@ -3510,7 +3595,7 @@
 
   <enum
     name="VirtualSystemDescriptionType"
-    uuid="303c0900-a746-4612-8c67-79003e91f459"
+    uuid="425d0e49-eb9c-43e8-bb0d-be7f78fd3b47"
     >
     <desc>Used with <link to="IVirtualSystemDescription" /> to describe the type of
     a configuration value.</desc>
@@ -3539,8 +3624,32 @@
     <const name="USBController" value="22" />
     <const name="SoundCard" value="23" />
     <const name="SettingsFile" value="24">
-      <desc>Not used/implemented right now, will be added later in 4.1.x.</desc>
+      <desc>Optional, may be unset by the API caller. If this is changed by the
+        API caller it defines the absolute path of the VM settings file and
+        therefore also the VM folder with highest priority.</desc>
     </const>
+    <const name="BaseFolder" value="25">
+      <desc>Optional, may be unset by the API caller. If set (and
+        <link to="VirtualSystemDescriptionType_SettingsFile"/> is not changed),
+        defines the VM base folder (taking the primary group into account if
+        also set).</desc>
+    </const>
+    <const name="PrimaryGroup" value="26">
+      <desc>Optional, empty by default and may be unset by the API caller.
+        Defines the primary group of the VM after import. May influence the
+        selection of the VM folder. Additional groups may be configured later
+        using <link to="IMachine::groups"/>, after importing.</desc>
+    </const>
+    <const name="CloudInstanceShape" value="27" />
+    <const name="CloudDomain" value="28" />
+    <const name="CloudBootDiskSize" value="29" />
+    <const name="CloudBucket" value="30" />
+    <const name="CloudOCIVCN" value="31" />
+    <const name="CloudPublicIP" value="32" />
+    <const name="CloudProfileName" value="33" />
+    <const name="CloudOCISubnet" value="34" />
+    <const name="CloudKeepObject" value="35" />
+    <const name="CloudLaunchInstance" value="36" />
   </enum>
 
   <enum
@@ -3559,7 +3668,7 @@
 
   <interface
     name="IVirtualSystemDescription" extends="$unknown"
-    uuid="316c99a2-405d-41af-8508-46889144d067"
+    uuid="ec49259c-1c50-4353-97a5-0fd92e2caac2"
     wsmap="managed"
     reservedMethods="4" reservedAttributes="4"
     >
@@ -3741,6 +3850,14 @@
         <desc></desc>
       </param>
 
+    </method>
+
+    <method name="removeDescriptionByType">
+      <desc>Delete all records which are equal to the passed type from the list</desc>
+
+      <param name="type" type="VirtualSystemDescriptionType" dir="in">
+        <desc></desc>
+      </param>
     </method>
 
     <method name="getValuesByType">
@@ -4388,7 +4505,7 @@
     <method name="pullGuestProperties">
       <desc>
         Get the list of the guest properties matching a set of patterns along
-        with their values, time stamps and flags and give responsibility for
+        with their values, timestamps and flags and give responsibility for
         managing properties to the console.
       </desc>
       <param name="names" type="wstring" dir="out" safearray="yes">
@@ -4404,7 +4521,7 @@
       </param>
       <param name="timestamps" type="long long" dir="out" safearray="yes">
         <desc>
-          The time stamps of the properties returned. The array entries match
+          The timestamps of the properties returned. The array entries match
           the corresponding entries in the @a name array.
         </desc>
       </param>
@@ -4633,6 +4750,344 @@
 
   </interface>
 
+  <enum
+    name="RecordingDestination"
+    uuid="11E3F06B-DEC1-48B9-BDC4-1E618D72893C"
+    >
+    <desc>
+      Recording destination enumeration.
+    </desc>
+
+    <const name="None"                  value="0">
+      <desc>No destination.</desc>
+    </const>
+    <const name="File"                  value="1">
+      <desc>Destination is a regular file.</desc>
+    </const>
+  </enum>
+
+  <enum
+    name="RecordingFeature"
+    uuid="A7DDC6A5-DAA8-4485-B860-E9F2E98A7794"
+    >
+    <desc>
+      Recording features enumeration.
+    </desc>
+
+    <const name="None"                  value="0">
+      <desc>No feature set.</desc>
+    </const>
+    <const name="Video"                 value="1">
+      <desc>Video recording.</desc>
+    </const>
+    <const name="Audio"                 value="2">
+      <desc>Audio recording.</desc>
+    </const>
+  </enum>
+
+  <enum
+    name="RecordingAudioCodec"
+    uuid="0AEFF775-053A-42F8-9C00-E445107DBED8"
+    >
+    <desc>
+      Recording audio codec enumeration.
+    </desc>
+
+    <const name="None"                  value="0">
+      <desc>No codec set.</desc>
+    </const>
+    <const name="WavPCM"                value="1">
+      <desc>WAV format, linear PCM, uncompressed.
+        Not implemented yet.</desc>
+    </const>
+    <const name="Opus"                  value="2">
+      <desc>Opus Audio.</desc>
+    </const>
+  </enum>
+
+  <enum
+    name="RecordingVideoCodec"
+    uuid="663BFC39-AFFF-49FA-98DD-322A857E877B"
+    >
+    <desc>
+      Recording video codec enumeration.
+    </desc>
+
+    <const name="None"                  value="0">
+      <desc>No codec set.</desc>
+    </const>
+    <const name="VP8"                   value="1">
+      <desc>VP8 codec.</desc>
+    </const>
+    <const name="VP9"                   value="2">
+      <desc>VP9 codec. Not implemented yet.</desc>
+    </const>
+    <const name="AV1"                   value="3">
+      <desc>AV1 codec. Not implemented yet.</desc>
+    </const>
+  </enum>
+
+  <enum
+    name="RecordingVideoScalingMethod"
+    uuid="5576D890-48EE-449A-A81B-B776233598B7"
+    >
+    <desc>
+      Recording video scaling method enumeration.
+    </desc>
+
+    <const name="None"                  value="0">
+      <desc>No scaling performed.</desc>
+    </const>
+    <const name="NearestNeighbor"       value="1">
+      <desc>Performs scaling via nearest-neighbor interpolation.
+        Not yet implemented.</desc>
+    </const>
+    <const name="Bilinear"              value="2">
+      <desc>Performs scaling via bilinear interpolation.
+        Not yet implemented.</desc>
+    </const>
+    <const name="Bicubic"               value="3">
+      <desc>Performs scaling via bicubic interpolation.
+        Not yet implemented.</desc>
+    </const>
+  </enum>
+
+  <enum
+    name="RecordingVideoRateControlMode"
+    uuid="D4EFB692-9F98-4112-88D3-A16FBE2BF6A8"
+    >
+    <desc>
+      Recording video rate control mode enumeration.
+    </desc>
+
+    <const name="CBR" value="0">
+      <desc>Constant bit rate (CBR).</desc>
+    </const>
+    <const name="VBR" value="1">
+      <desc>Variable bit rate (VBR). Not yet implemented.</desc>
+    </const>
+  </enum>
+
+  <interface
+    name="IRecordingScreenSettings" extends="$unknown"
+    uuid="678fbd9a-93af-42a7-7f13-79ad6ef1a18d"
+    wsmap="managed"
+    >
+
+    <desc>
+      The IRecordingScreenSettings interface represents recording settings of a
+      single virtual screen. This is used only in the <link to="IRecordingSettings" />
+      interface.
+    </desc>
+
+    <method name="isFeatureEnabled">
+      <desc>Returns whether a particular recording feature is enabled for this
+        screen or not.</desc>
+      <param name="feature" type="RecordingFeature" dir="in">
+        <desc>Feature to check for.</desc>
+      </param>
+      <param name="enabled" type="boolean" dir="return">
+        <desc>@c true if the feature is enabled, @c false if not.</desc>
+      </param>
+    </method>
+
+    <attribute name="id" type="unsigned long" readonly="yes">
+      <desc>
+        This attribute contains the screen ID bound to these settings.
+      </desc>
+    </attribute>
+
+    <attribute name="enabled" type="boolean" default="false">
+      <desc>
+        This setting determines whether this screen is enabled while recording.
+      </desc>
+    </attribute>
+
+    <attribute name="features" type="unsigned long">
+      <desc>This setting determines all enabled recording features for this
+        screen.</desc>
+    </attribute>
+
+    <attribute name="destination" type="RecordingDestination">
+      <desc>This setting determines the recording destination for this
+        screen.</desc>
+    </attribute>
+
+    <attribute name="filename" type="wstring">
+      <desc>
+        This setting determines the filename VirtualBox uses to save
+        the recorded content. This setting cannot be changed while video
+        recording is enabled.
+        <note>
+          When setting this attribute, the specified path has to be
+          absolute (full path). When reading this attribute, a full path is
+          always returned.
+        </note>
+      </desc>
+    </attribute>
+
+    <attribute name="maxTime" type="unsigned long" default="0">
+      <desc>
+        This setting defines the maximum amount of time in seconds
+        to record. Recording will stop as soon as the defined time
+        interval has elapsed. If this value is zero, recording will not be
+        limited by time. This setting cannot be changed while recording is
+        enabled.
+      </desc>
+    </attribute>
+
+    <attribute name="maxFileSize" type="unsigned long" default="0">
+      <desc>
+        This setting determines the maximal number of recording file
+        size in MB. Recording will stop as soon as the file size has
+        reached the defined value. If this value is zero, recording
+        will not be limited by the file size. This setting cannot be changed
+        while recording is enabled.
+      </desc>
+    </attribute>
+
+    <attribute name="options" type="wstring">
+      <desc>
+        This setting contains any additional recording options
+        required in comma-separated key=value format. This setting
+        cannot be changed while recording is enabled.
+
+        The following keys and their corresponding values are available:
+
+        <table>
+          <tr>
+            <td>ac_enabled</td>
+            <td>Enables audio recording when set to <pre>true</pre>, otherwise
+                set to <pre>false</pre> to disable.
+
+                <b>This feature is considered being experimental.</b></td>
+          </tr>
+        </table>
+
+      </desc>
+    </attribute>
+
+    <attribute name="audioCodec" type="RecordingAudioCodec">
+      <desc>
+        Determines the audio codec to use for encoding the
+        recorded audio data. This setting cannot be changed while recording is
+        enabled.
+      </desc>
+    </attribute>
+
+    <attribute name="audioHz" type="unsigned long" default="22050">
+      <desc>
+        Determines the Hertz (Hz) rate of the recorded audio data. This setting
+        cannot be changed while recording is enabled.
+      </desc>
+    </attribute>
+
+    <attribute name="audioBits" type="unsigned long" default="16">
+      <desc>
+        Determines the bits per sample of the recorded audio data. This setting
+        cannot be changed while recording is enabled.
+      </desc>
+    </attribute>
+
+    <attribute name="audioChannels" type="unsigned long" default="2">
+      <desc>
+        Determines the audio channels of the recorded audio data.
+        Specifiy 2 for stereo or 1 for mono. More than stereo (2) channels
+        are not supported at the moment. This setting cannot be changed while
+        recording is enabled.
+      </desc>
+    </attribute>
+
+    <attribute name="videoCodec" type="RecordingVideoCodec">
+      <desc>
+        Determines the video codec to use for encoding the recorded video data.
+        This setting cannot be changed while recording is enabled.
+      </desc>
+    </attribute>
+
+    <attribute name="videoWidth" type="unsigned long" default="1024">
+      <desc>
+        Determines the horizontal resolution of the recorded video data. This
+        setting cannot be changed while recording is enabled.
+      </desc>
+    </attribute>
+
+    <attribute name="videoHeight" type="unsigned long" default="768">
+      <desc>
+        Determines the vertical resolution of the recorded video data. This
+        setting cannot be changed while recording is enabled.
+      </desc>
+    </attribute>
+
+    <attribute name="videoRate" type="unsigned long" default="512">
+      <desc>
+        Determines the bitrate in kilobits per second. Increasing this value
+        makes the video look better for the cost of an increased file size or
+        transfer rate. This setting cannot be changed while recording is enabled.
+      </desc>
+    </attribute>
+
+    <attribute name="videoRateControlMode" type="RecordingVideoRateControlMode">
+      <desc>
+        Determines the rate control mode. This setting cannot be changed
+        while recording is enabled.
+      </desc>
+    </attribute>
+
+    <attribute name="videoFPS" type="unsigned long" default="25">
+      <desc>
+        Determines the maximum number of frames per second (FPS). Frames with
+        a higher frequency will be skipped. Reducing this value increases the
+        number of skipped frames and reduces the file size or transfer rate.
+        This setting cannot be changed while recording is enabled.
+      </desc>
+    </attribute>
+
+    <attribute name="videoScalingMethod" type="RecordingVideoScalingMethod">
+      <desc>
+        Determines the video scaling method to use.
+        This setting cannot be changed while recording is enabled.
+      </desc>
+    </attribute>
+
+  </interface>
+
+  <interface
+    name="IRecordingSettings" extends="$unknown"
+    uuid="D88F2A5A-47C7-4A3F-AAE1-1B516817DB41"
+    wsmap="managed"
+    >
+
+    <desc>
+      The IRecordingSettings interface represents recording settings of the virtual
+      machine. This is used only in the <link to="IMachine::recordingSettings" />
+      attribute.
+    </desc>
+
+    <method name="getScreenSettings">
+      <desc>Returns the recording settings for a particular screen.</desc>
+      <param name="screenId" type="unsigned long" dir="in">
+        <desc>Screen ID to retrieve recording screen settings for.</desc>
+      </param>
+      <param name="recordScreenSettings" type="IRecordingScreenSettings" dir="return">
+        <desc>Recording screen settings for the requested screen.</desc>
+      </param>
+    </method>
+
+    <attribute name="enabled" type="boolean" default="false">
+      <desc>
+        This setting determines whether VirtualBox uses recording to record a
+        VM session.</desc>
+    </attribute>
+
+    <attribute name="screens" type="IRecordingScreenSettings" readonly="yes" safearray="yes">
+      <desc>
+        This setting returns an array for recording settings of all configured
+        virtual screens.</desc>
+    </attribute>
+
+  </interface>
+
   <interface
     name="IPCIAddress" extends="$unknown"
     uuid="c984d15f-e191-400b-840e-970f3dad7296"
@@ -4714,18 +5169,21 @@
 
   <enum
     name="GraphicsControllerType"
-    uuid="79c96ca0-9f39-4900-948e-68c41cbe127a"
+    uuid="3e009bb0-2b57-4283-a39b-4c363d4f0808"
     >
-    <desc>Graphics controller type, used with <link to="IMachine::unregister" />.
+    <desc>Graphics controller type, used with <link to="IMachine::graphicsControllerType" />.
     </desc>
     <const name="Null"      value="0">
       <desc>Reserved value, invalid.</desc>
     </const>
     <const name="VBoxVGA"   value="1">
-      <desc>Default VirtualBox VGA device.</desc>
+      <desc>VirtualBox VGA device.</desc>
     </const>
     <const name="VMSVGA"    value="2">
       <desc>VMware SVGA II device.</desc>
+    </const>
+    <const name="VBoxSVGA"  value="3">
+      <desc>VirtualBox VGA device with VMware SVGA II extensions.</desc>
     </const>
   </enum>
 
@@ -4791,6 +5249,9 @@
     <const name="KeepDiskNames"     value="4">
       <desc>Don't change the disk names.</desc>
     </const>
+    <const name="KeepHwUUIDs"       value="5">
+      <desc>Don't change UUID of the machine hardware.</desc>
+    </const>
 
   </enum>
 
@@ -4821,11 +5282,11 @@
 
   <interface
     name="IMachine" extends="$unknown"
-    uuid="85cd948e-a71f-4289-281e-0ca7ad48cd89"
+    uuid="5047460a-265d-4538-b23e-ddba5fb84976"
     wsmap="managed"
     wrap-hint-server-addinterfaces="IInternalMachineControl"
     wrap-hint-server="manualaddinterfaces"
-    reservedMethods="6" reservedAttributes="9"
+    reservedMethods="8" reservedAttributes="10"
     >
     <!-- Note! This interface is not compatible between 5.0 and 5.1 as it had too many
                methods/attributes for midl and the reservedAttributes had to be
@@ -5003,7 +5464,8 @@
         User-defined identifier of the Guest OS type.
         You may use <link to="IVirtualBox::getGuestOSType"/> to obtain
         an IGuestOSType object representing details about the given
-        Guest OS type.
+        Guest OS type. All Guest OS types are considered valid, even those
+        which are not known to <link to="IVirtualBox::getGuestOSType"/>.
         <note>
           This value may differ from the value returned by
           <link to="IGuest::OSTypeId"/> if Guest Additions are
@@ -5101,109 +5563,12 @@
       </desc>
     </attribute>
 
-    <attribute name="videoCaptureEnabled" type="boolean" default="false">
-      <desc>
-        This setting determines whether VirtualBox uses video capturing to
-        record a VM session.</desc>
-    </attribute>
-
-    <attribute name="videoCaptureScreens" type="boolean" safearray="yes">
-      <desc>
-        This setting determines for which screens video capturing is
-        enabled.</desc>
-    </attribute>
-
-    <attribute name="videoCaptureFile" type="wstring">
-      <desc>
-        This setting determines the filename VirtualBox uses to save
-        the recorded content. This setting cannot be changed while video
-        capturing is enabled.
-        <note>
-          When setting this attribute, the specified path has to be
-          absolute (full path). When reading this attribute, a full path is
-          always returned.
-        </note>
-      </desc>
-    </attribute>
-
-    <attribute name="videoCaptureWidth" type="unsigned long" default="640">
-      <desc>
-        This setting determines the horizontal resolution of the recorded
-        video. This setting cannot be changed while video capturing is
-        enabled.
-      </desc>
-    </attribute>
-
-    <attribute name="videoCaptureHeight" type="unsigned long" default="480">
-      <desc>
-        This setting determines the vertical resolution of the recorded
-        video. This setting cannot be changed while video capturing is
-        enabled.
-      </desc>
-    </attribute>
-
-    <attribute name="videoCaptureRate" type="unsigned long" default="512">
-      <desc>
-        This setting determines the bitrate in kilobits per second.
-        Increasing this value makes the video look better for the
-        cost of an increased file size. This setting cannot be changed
-        while video capturing is enabled.
-      </desc>
-    </attribute>
-
-    <attribute name="videoCaptureFPS" type="unsigned long" default="25">
-      <desc>
-        This setting determines the maximum number of frames per second.
-        Frames with a higher frequency will be skipped. Reducing this
-        value increases the number of skipped frames and reduces the
-        file size. This setting cannot be changed while video capturing
-        is enabled.
-      </desc>
-    </attribute>
-
-    <attribute name="videoCaptureMaxTime" type="unsigned long" default="0">
-      <desc>
-        This setting determines the maximum amount of time in milliseconds
-        the video capture will work for. The capture stops as the defined time
-        interval  has elapsed. If this value is zero the capturing will not be
-        limited by time. This setting cannot be changed while video capturing is
-        enabled.
-      </desc>
-    </attribute>
-
-    <attribute name="videoCaptureMaxFileSize" type="unsigned long" default="0">
-      <desc>
-        This setting determines the maximal number of captured video file
-        size in MB. The capture stops as the captured video file size
-        has reached the defined. If this value is zero the capturing
-        will not be limited by file size. This setting cannot be changed
-        while video capturing is enabled.
-      </desc>
-    </attribute>
-
-    <attribute name="videoCaptureOptions" type="wstring">
-      <desc>
-        This setting contains any additional video capture options
-        required in comma-separated key=value format. This setting
-        cannot be changed while video capturing is enabled.
-
-        The following keys and their corresponding values are available:
-
-        <table>
-          <tr>
-            <td>ac_enabled</td>
-            <td>Enables audio recording when set to <pre>true</pre>, otherwise
-                set to <pre>false</pre> to disable.
-
-                <b>This feature is considered being experimental.</b></td>
-          </tr>
-        </table>
-
-      </desc>
-    </attribute>
-
     <attribute name="BIOSSettings" type="IBIOSSettings" readonly="yes">
       <desc>Object containing all BIOS settings.</desc>
+    </attribute>
+
+    <attribute name="recordingSettings" type="IRecordingSettings" readonly="yes">
+      <desc>Object containing all recording settings.</desc>
     </attribute>
 
     <attribute name="firmwareType" type="FirmwareType">
@@ -5377,7 +5742,7 @@
 
     <attribute name="lastStateChange" type="long long" readonly="yes">
       <desc>
-        Time stamp of the last execution state change,
+        Timestamp of the last execution state change,
         in milliseconds since 1970-01-01 UTC.
       </desc>
     </attribute>
@@ -5409,7 +5774,7 @@
         currently has no snapshots. If it is not @c null, then it was
         set by one of <link to="#takeSnapshot" />, <link to="#deleteSnapshot" />
         or <link to="#restoreSnapshot" />, depending on which was called last.
-       See <link to="ISnapshot"/> for details.
+        See <link to="ISnapshot"/> for details.
       </desc>
     </attribute>
 
@@ -6456,7 +6821,7 @@ and "VAR" for unsetting. -->
       Invalid machine state.
       </result>
 
-       </desc>
+      </desc>
       <param name="name" type="wstring" dir="in">
       <desc>Name of the storage controller.</desc>
       </param>
@@ -6914,6 +7279,9 @@ and "VAR" for unsetting. -->
         @a key will be deleted.
 
         <note>
+          Key must contain only printable ASCII characters.
+        </note>
+        <note>
           Before performing the actual data change, this method will ask all
           registered listeners using the
           <link to="IExtraDataCanChangeEvent"/>
@@ -6937,6 +7305,9 @@ and "VAR" for unsetting. -->
         </result>
         <result name="VBOX_E_XML_ERROR">
           Could not parse the settings file.
+        </result>
+        <result name="E_INVALIDARG">
+          Key contains invalid characters.
         </result>
 
       </desc>
@@ -7495,6 +7866,12 @@ and "VAR" for unsetting. -->
         <desc>Whether the share gets automatically mounted by the guest
           or not.</desc>
       </param>
+      <param name="autoMountPoint" type="wstring" dir="in">
+        <desc>Where the guest should automatically mount the folder, if possible.
+          For Windows and OS/2 guests this should be a drive letter, while other
+          guests it should be a absolute directory.
+        </desc>
+      </param>
     </method>
 
     <method name="removeSharedFolder">
@@ -7739,7 +8116,7 @@ and "VAR" for unsetting. -->
     <method name="enumerateGuestProperties" const="yes">
       <desc>
         Return a list of the guest properties matching a set of patterns along
-        with their values, time stamps and flags.
+        with their values, timestamps and flags.
       </desc>
       <param name="patterns" type="wstring" dir="in">
         <desc>
@@ -7760,7 +8137,7 @@ and "VAR" for unsetting. -->
       </param>
       <param name="timestamps" type="long long" dir="out" safearray="yes">
         <desc>
-          The time stamps of the properties returned. The array entries match
+          The timestamps of the properties returned. The array entries match
           the corresponding entries in the @a name array.
         </desc>
       </param>
@@ -8022,6 +8399,32 @@ and "VAR" for unsetting. -->
       <param name="options" type="CloneOptions" dir="in" safearray="yes">
         <desc>Options for the cloning operation.</desc>
       </param>
+      <param name="progress" type="IProgress" dir="return">
+        <desc>Progress object to track the operation completion.</desc>
+      </param>
+    </method>
+
+    <method name="moveTo">
+      <desc>
+        Move machine on to new place/folder
+        <result name="E_INVALIDARG">
+          @a target is @c null.
+        </result>
+      </desc>
+
+      <param name="folder" type="wstring" dir="in">
+        <desc>Target folder where machine is moved.</desc>
+      </param>
+
+      <param name="type" type="wstring" dir="in">
+        <desc>Type of moving.
+          Possible values:
+          basic - Only the files which belong solely to this machine
+                  are moved from the original machine's folder to
+                  a new folder.
+        </desc>
+      </param>
+
       <param name="progress" type="IProgress" dir="return">
         <desc>Progress object to track the operation completion.</desc>
       </param>
@@ -8982,6 +9385,12 @@ and "VAR" for unsetting. -->
         <desc>Whether the share gets automatically mounted by the guest
           or not.</desc>
       </param>
+      <param name="autoMountPoint" type="wstring" dir="in">
+        <desc>Where the guest should automatically mount the folder, if possible.
+          For Windows and OS/2 guests this should be a drive letter, while other
+          guests it should be a absolute directory.
+        </desc>
+      </param>
     </method>
 
     <method name="removeSharedFolder">
@@ -9121,6 +9530,7 @@ and "VAR" for unsetting. -->
     name="HostNetworkInterfaceMediumType"
     uuid="1aa54aaf-2497-45a2-bfb1-8eb225e93d5b"
     >
+    <!-- Must match NETIFTYPE in netif.h exactly. -->
     <desc>
       Type of encapsulation. Ethernet encapsulation includes both wired and
       wireless Ethernet connections.
@@ -9153,6 +9563,7 @@ and "VAR" for unsetting. -->
     name="HostNetworkInterfaceStatus"
     uuid="CC474A69-2710-434B-8D99-C38E5D5A6F41"
     >
+    <!-- Must match NETIFSTATUS in netif.h exactly. -->
     <desc>
       Current status of the interface.
       <see><link to="IHostNetworkInterface"/></see>
@@ -9321,9 +9732,9 @@ and "VAR" for unsetting. -->
 
   <interface
     name="IHost" extends="$unknown"
-    uuid="afca788c-4477-787d-60b2-3fa70e56fbbc"
+    uuid="dbe11e5f-7f10-46e7-94c4-1e95bf4b6627"
     wsmap="managed"
-    reservedMethods="0" reservedAttributes="12"
+    reservedMethods="6" reservedAttributes="12"
     >
     <desc>
       The IHost interface represents the physical machine that this VirtualBox
@@ -9826,10 +10237,23 @@ and "VAR" for unsetting. -->
   /////////////////////////////////////////////////////////////////////////
   -->
 
+  <enum name="ProxyMode" uuid="885264b3-b517-40fc-ce46-36e3bae895a4">
+    <desc> Proxy setting: System (default), NoProxy and Manual. <link to="ISystemProperties::proxyMode"/></desc>
+    <const name="System" value="0">
+      <desc>Use the system proxy settings as far as possible.</desc>
+    </const>
+    <const name="NoProxy" value="1">
+      <desc>Direct connection to the Internet.</desc>
+    </const>
+    <const name="Manual" value="2">
+      <desc>Use the manual proxy from <link to="ISystemProperties::proxyURL"/>.</desc>
+    </const>
+  </enum>
+
   <interface
     name="ISystemProperties"
     extends="$unknown"
-    uuid="0eb668d2-495e-5a36-8890-29999b5f030c"
+    uuid="d55176e5-6730-4e9e-fc1f-a59b1f44f78f"
     wsmap="managed"
     reservedMethods="4" reservedAttributes="16"
     >
@@ -10143,6 +10567,31 @@ and "VAR" for unsetting. -->
       </desc>
     </attribute>
 
+    <attribute name="proxyMode" type="ProxyMode" readonly="no">
+      <desc> The proxy mode setting: System, NoProxy or Manual.</desc>
+    </attribute>
+    <attribute name="proxyURL" type="wstring" readonly="no">
+      <desc>
+        Proxy server URL for the <link to="ProxyMode::Manual" /> proxy mode.
+
+        The format is: [{type}"://"][{userid}[@{password}]:]{server}[":"{port}]
+
+        Valid types are: http (default), https, socks4, socks4a, socks5, socks5h and direct.
+        Please note that these are proxy types defining how the proxy operates rather than
+        how to proxy any similarly named protocol (i.e. don't confuse a http-proxy with
+        proxying the http protocol, as a http-proxy usually can proxy https and other protocols too).
+
+        The port number defaults to 80 for http, 443 for https and 1080 for the socks ones.
+
+        <note>The password is currently stored as plain text!  Use the <link to="ProxyMode::System" />
+        mode if you consider the proxy password to be sensitive.</note>
+
+        An empty string will cause the behavior to be identical to <link to="ProxyMode::System" />.
+        For compatibility with libproxy, an URL starting with "direct://" will cause
+        <link to="ProxyMode::NoProxy" /> behavior.
+      </desc>
+    </attribute>
+
     <method name="getMaxNetworkAdapters">
       <desc>
         Maximum total number of network adapters associated with every
@@ -10306,9 +10755,9 @@ and "VAR" for unsetting. -->
 
   <interface
     name="IGuestOSType" extends="$unknown"
-    uuid="b1336a0a-2546-4d99-8cff-8efb130cfa9d"
+    uuid="d0d6c6d8-e5db-4d2c-baaa-c71053a6236d"
     wsmap="struct"
-    reservedAttributes="15"
+    reservedAttributes="16"
     >
     <desc>
     </desc>
@@ -10343,6 +10792,10 @@ and "VAR" for unsetting. -->
 
     <attribute name="recommendedRAM" type="unsigned long" readonly="yes">
       <desc>Recommended RAM size in Megabytes.</desc>
+    </attribute>
+
+    <attribute name="recommendedGraphicsController" type="GraphicsControllerType" readonly="yes">
+      <desc>Recommended graphics controller type.</desc>
     </attribute>
 
     <attribute name="recommendedVRAM" type="unsigned long" readonly="yes">
@@ -10564,7 +11017,7 @@ and "VAR" for unsetting. -->
 
     <attribute name="lastUpdated" type="long long" readonly="yes">
       <desc>
-        Time stamp of the last status update,
+        Timestamp of the last status update,
         in milliseconds since 1970-01-01 UTC.
       </desc>
     </attribute>
@@ -10665,7 +11118,7 @@ and "VAR" for unsetting. -->
     uuid="bb7a372a-f635-4e11-a81a-e707f3a52ef5"
     >
     <desc>
-      Guest session waiting flags. Multiple flags can be combined.
+      Guest session waiting flags.
     </desc>
 
     <const name="None"                    value="0">
@@ -10894,7 +11347,7 @@ and "VAR" for unsetting. -->
     uuid="23b550c7-78e1-437e-98f0-65fd9757bcd2"
     >
     <desc>
-      Process waiting flags. Multiple flags can be combined.
+      Process waiting flags.
     </desc>
 
     <const name="None"                  value="0">
@@ -11012,8 +11465,8 @@ and "VAR" for unsetting. -->
   </enum>
 
   <enum
-    name="FsObjMoveFlags"
-    uuid="98fdd11f-4063-ac60-5737-e49092aab95f"
+    name="FsObjMoveFlag"
+    uuid="2450a05d-80c6-4c96-9a17-94d73293ff86"
     >
     <desc>
       File moving flags.
@@ -11058,8 +11511,8 @@ and "VAR" for unsetting. -->
   </enum>
 
   <enum
-    name="DirectoryCopyFlags"
-    uuid="cc500f0c-4a54-88c9-56b3-7e9310416da7"
+    name="DirectoryCopyFlag"
+    uuid="b5901856-d064-4fbc-ab06-2909ba106154"
     >
     <desc>
       Directory copying flags.
@@ -11251,7 +11704,7 @@ and "VAR" for unsetting. -->
     <const name="TerminatedAbnormally"  value="511">
       <desc>Process terminated abnormally.</desc>
     </const>
-     <const name="TimedOutKilled"       value="512">
+    <const name="TimedOutKilled"       value="512">
       <desc>Process timed out and was killed.</desc>
     </const>
     <const name="TimedOutAbnormally"    value="513">
@@ -11418,8 +11871,8 @@ and "VAR" for unsetting. -->
   </enum>
 
   <enum
-    name="FileOpenExFlags"
-    uuid="9d62017b-ddd3-4e5a-a08e-14d1c23bbac1"
+    name="FileOpenExFlag"
+    uuid="4671abd4-f70c-42aa-8542-6c169cb87a5c"
     >
     <desc>
       Open flags for <link to="IGuestSession::fileOpenEx"/>.
@@ -11553,7 +12006,7 @@ and "VAR" for unsetting. -->
 
     <attribute name="protocolVersion" type="unsigned long" readonly="yes">
       <desc>Returns the protocol version which is used to communicate
-       with the guest.</desc>
+        with the guest.</desc>
     </attribute>
 
     <method name="isFormatSupported" >
@@ -11842,9 +12295,9 @@ and "VAR" for unsetting. -->
 
   <interface
     name="IGuestSession" extends="$unknown"
-    uuid="486fd828-4c6b-239b-a846-c4bb69e41038"
+    uuid="3E14C189-4A75-437E-B0BB-7E7C90D0DF2A"
     wsmap="managed"
-    reservedMethods="8" reservedAttributes="8"
+    reservedMethods="8" reservedAttributes="12"
     >
     <desc>
       A guest session represents one impersonated user account in the guest, so
@@ -11852,8 +12305,9 @@ and "VAR" for unsetting. -->
       the session object via <link to="IGuest::createSession"/>.
 
       There can be a maximum of 32 sessions at once per VM, whereas session 0
-      is reserved for the root session.
-<!-- r=bird: Is the root session part of the maximum of 32?? Not really clear. -->
+      always is reserved for the root session (the root session is part of that
+      limit).
+
       This root session is controlling all other guest sessions and also is
       responsible for actions which require system level privileges.
 
@@ -11865,8 +12319,8 @@ and "VAR" for unsetting. -->
       there a methods for creating guest processes.
 
       There can be up to 2048 objects (guest processes, files and directories)
-      a time per guest session.  Exceeding the limit will result in an error.
-<!-- @todo r=bird: Add specific VBOX_E_XXX error for this and document it here! -->
+      a time per guest session.  Exceeding the limit will result in an error (see
+      the corresponding functions for more).
 
       When done with either of these objects, including the guest session itself,
       use the appropriate close() method to let the object do its cleanup work.
@@ -11964,10 +12418,20 @@ and "VAR" for unsetting. -->
     </attribute>
     <attribute name="currentDirectory" type="wstring">
       <desc>
-        The current directory of the session.  Guest path style.
+        Gets or sets the current directory of the session.  Guest path style.
         <result name="E_NOTIMPL">
           This attribute is not implemented yet.
         </result>
+      </desc>
+    </attribute>
+    <attribute name="userHome" type="wstring" readonly="yes">
+      <desc>
+        Returns the user's home / profile directory.  Guest path style.
+      </desc>
+    </attribute>
+    <attribute name="userDocuments" type="wstring" readonly="yes">
+      <desc>
+        Returns the user's documents directory.  Guest path style.
       </desc>
     </attribute>
     <attribute name="directories" type="IGuestDirectory" readonly="yes" safearray="yes">
@@ -11995,6 +12459,116 @@ and "VAR" for unsetting. -->
       </desc>
     </method>
 
+    <method name="copyFromGuest">
+      <desc>
+        Copies directories and/or files from guest to the host.
+
+        This function requires several parallel arrays to be supplied, one
+        set for each source.
+      </desc>
+      <param name="sources" type="wstring" dir="in" safearray="yes">
+        <desc>Paths to directories and/or files on the guest side that should be
+          copied to the host. Guest path style.</desc>
+      </param>
+      <param name="filters" type="wstring" dir="in" safearray="yes">
+        <desc>Array of source filters. This uses the
+          DOS/NT style wildcard characters '?' and '*'.</desc>
+      </param>
+      <param name="flags" type="wstring" dir="in" safearray="yes">
+        <desc>Array of comma-separated list of source flags.
+
+          The following flags are available for directory sources:
+
+          <table>
+            <tr>
+              <td>CopyIntoExisting</td>
+              <td>Allow copying into an existing destination directory.</td>
+            </tr>
+          </table>
+
+          The following flags are available for file sources:
+
+          <table>
+            <tr>
+              <td>NoReplace</td>
+              <td>Do not replace any destination object.</td>
+            </tr>
+            <tr>
+              <td>FollowLinks</td>
+              <td>Follows (and handles) (symbolic) links.</td>
+            </tr>
+            <tr>
+              <td>Update</td>
+              <td>Only copy when the source file is newer than the destination
+                file or when the destination file is missing.</td>
+            </tr>
+          </table>
+
+        </desc>
+      </param>
+      <param name="destination" type="wstring" dir="in">
+        <desc>Where to put the sources on the host. Host path style.</desc>
+      </param>
+      <param name="progress" type="IProgress" dir="return">
+        <desc>Progress object to track the operation to completion.</desc>
+      </param>
+    </method>
+
+    <method name="copyToGuest">
+      <desc>
+        Copies directories and/or files from host to the guest.
+
+        This function requires several parallel arrays to be supplied, one
+        set for each source.
+      </desc>
+      <param name="sources" type="wstring" dir="in" safearray="yes">
+        <desc>Paths to directories and/or files on the host side that should be
+          copied to the guest. Host path style.</desc>
+      </param>
+      <param name="filters" type="wstring" dir="in" safearray="yes">
+        <desc>Array of source filters. This uses the
+          DOS/NT style wildcard characters '?' and '*'.</desc>
+      </param>
+      <param name="flags" type="wstring" dir="in" safearray="yes">
+        <desc>Array of comma-separated list of source flags.
+
+          The following flags are available for directory sources:
+
+          <table>
+            <tr>
+              <td>CopyIntoExisting</td>
+              <td>Allow copying into an existing destination directory.</td>
+            </tr>
+          </table>
+
+          The following flags are available for file sources:
+
+          <table>
+            <tr>
+              <td>NoReplace</td>
+              <td>Do not replace any destination object.</td>
+            </tr>
+            <tr>
+              <td>FollowLinks</td>
+              <td>Follows (and handles) (symbolic) links.</td>
+            </tr>
+            <tr>
+              <td>Update</td>
+              <td>Only copy when the source file is newer than the destination
+                file or when the destination file is missing.</td>
+            </tr>
+          </table>
+
+        </desc>
+      </param>
+      <param name="destination" type="wstring" dir="in">
+        <desc>Where to put the sources on the guest. Guest path style.</desc>
+      </param>
+      <param name="progress" type="IProgress" dir="return">
+        <desc>Progress object to track the operation to completion.</desc>
+      </param>
+    </method>
+
     <!-- Directory related methods.  -->
 
     <method name="directoryCopy">
@@ -12010,11 +12584,11 @@ and "VAR" for unsetting. -->
       </param>
       <param name="destination" type="wstring" dir="in">
         <desc>The path to the target directory (in the guest).  Unless the
-          <link to="DirectoryCopyFlags_CopyIntoExisting"/> flag is given, the
+          <link to="DirectoryCopyFlag_CopyIntoExisting"/> flag is given, the
           directory shall not already exist.  Guest path style.</desc>
       </param>
-      <param name="flags" type="DirectoryCopyFlags" dir="in" safearray="yes">
-        <desc>Zero or more <link to="DirectoryCopyFlags"/> values.</desc>
+      <param name="flags" type="DirectoryCopyFlag" dir="in" safearray="yes">
+        <desc>Zero or more <link to="DirectoryCopyFlag"/> values.</desc>
       </param>
       <param name="progress" type="IProgress" dir="return">
         <desc>Progress object to track the operation to completion.</desc>
@@ -12024,22 +12598,18 @@ and "VAR" for unsetting. -->
     <method name="directoryCopyFromGuest">
       <desc>
         Recursively copies a directory from the guest to the host.
-
-        <result name="E_NOTIMPL">
-          Not yet implemented.
-        </result>
       </desc>
       <param name="source" type="wstring" dir="in">
         <desc>Path to the directory on the guest side that should be copied to
-          the host.  Guest path style.</desc>
+          the host. Guest path style.</desc>
       </param>
       <param name="destination" type="wstring" dir="in">
         <desc>Where to put the directory on the host.  Unless the
-          <link to="DirectoryCopyFlags_CopyIntoExisting"/> flag is given, the
+          <link to="DirectoryCopyFlag_CopyIntoExisting"/> flag is given, the
           directory shall not already exist.  Host path style.</desc>
       </param>
-      <param name="flags" type="DirectoryCopyFlags" dir="in" safearray="yes">
-        <desc>Zero or more <link to="DirectoryCopyFlags"/> values.</desc>
+      <param name="flags" type="DirectoryCopyFlag" dir="in" safearray="yes">
+        <desc>Zero or more <link to="DirectoryCopyFlag"/> values.</desc>
       </param>
       <param name="progress" type="IProgress" dir="return">
         <desc>Progress object to track the operation to completion.</desc>
@@ -12049,10 +12619,6 @@ and "VAR" for unsetting. -->
     <method name="directoryCopyToGuest">
       <desc>
         Recursively copies a directory from the host to the guest.
-
-        <result name="E_NOTIMPL">
-          Not yet implemented.
-        </result>
       </desc>
       <param name="source" type="wstring" dir="in">
         <desc>Path to the directory on the host side that should be copied to
@@ -12060,11 +12626,11 @@ and "VAR" for unsetting. -->
       </param>
       <param name="destination" type="wstring" dir="in">
         <desc>Where to put the file in the guest. Unless the
-          <link to="DirectoryCopyFlags_CopyIntoExisting"/> flag is given, the
-          directory shall not already exist.  Guest style path.</desc>
+          <link to="DirectoryCopyFlag_CopyIntoExisting"/> flag is given, the
+          directory shall not already exist. Guest style path.</desc>
       </param>
-      <param name="flags" type="DirectoryCopyFlags" dir="in" safearray="yes">
-        <desc>Zero or more <link to="DirectoryCopyFlags"/> values.</desc>
+      <param name="flags" type="DirectoryCopyFlag" dir="in" safearray="yes">
+        <desc>Zero or more <link to="DirectoryCopyFlag"/> values.</desc>
       </param>
       <param name="progress" type="IProgress" dir="return">
         <desc>Progress object to track the operation to completion.</desc>
@@ -12166,7 +12732,7 @@ and "VAR" for unsetting. -->
           and the existance of the symlink target made the question for this method.
           If @c false, a symbolic link in the final component will make the
           method return @c false (because a symlink isn't a directory).
-         </desc>
+        </desc>
       </param>
       <param name="exists" type="boolean" dir="return">
         <desc>Returns @c true if the directory exists, @c false if not.</desc>
@@ -12186,6 +12752,9 @@ and "VAR" for unsetting. -->
         </result>
         <result name="VBOX_E_IPRT_ERROR">
           Error while opening the directory.
+        </result>
+        <result name="VBOX_E_MAXIMUM_REACHED">
+          The maximum of concurrent guest directories has been reached.
         </result>
       </desc>
       <param name="path" type="wstring" dir="in">
@@ -12240,7 +12809,7 @@ and "VAR" for unsetting. -->
       <param name="flags" type="DirectoryRemoveRecFlag" dir="in" safearray="yes">
         <desc>Zero or more <link to="DirectoryRemoveRecFlag"/> flags.
           <note>WARNING! SPECIFYING <link to="DirectoryRemoveRecFlag_ContentAndDir"/> IS
-             MANDATORY AT THE MOMENT!!</note>
+            MANDATORY AT THE MOMENT!!</note>
         </desc>
       </param>
       <param name="progress" type="IProgress" dir="return">
@@ -12427,7 +12996,7 @@ and "VAR" for unsetting. -->
           at least one 'X' character. The first group of consecutive 'X'
           characters in the template will be replaced by a random
           alphanumeric string to produce a unique name.
-         </desc>
+        </desc>
       </param>
       <param name="mode" type="unsigned long" dir="in">
         <desc>
@@ -12475,7 +13044,7 @@ and "VAR" for unsetting. -->
           and the existance of the symlink target made the question for this method.
           If @c false, a symbolic link in the final component will make the
           method return @c false (because a symlink isn't a regular file).
-         </desc>
+        </desc>
       </param>
       <param name="exists" type="boolean" dir="return">
         <desc>Returns @c true if the file exists, @c false if not.  @c false is
@@ -12493,6 +13062,9 @@ and "VAR" for unsetting. -->
         </result>
         <result name="VBOX_E_IPRT_ERROR">
           Error while opening the file.
+        </result>
+        <result name="VBOX_E_MAXIMUM_REACHED">
+          The maximum of concurrent guest files has been reached.
         </result>
       </desc>
       <param name="path" type="wstring" dir="in">
@@ -12557,8 +13129,8 @@ and "VAR" for unsetting. -->
           OS dependent.  The API does the best it can on each OS.
         </desc>
       </param>
-      <param name="flags" type="FileOpenExFlags" dir="in" safearray="yes">
-        <desc>Zero or more <link to="FileOpenExFlags"/> values. </desc>
+      <param name="flags" type="FileOpenExFlag" dir="in" safearray="yes">
+        <desc>Zero or more <link to="FileOpenExFlag"/> values. </desc>
       </param>
       <param name="file" type="IGuestFile" dir="return">
         <desc><link to="IGuestFile"/> object representing the opened file.</desc>
@@ -12581,11 +13153,11 @@ and "VAR" for unsetting. -->
       </param>
       <param name="followSymlinks" type="boolean" dir="in">
         <desc>
-           It @c true, symbolic links in the final path component will be
-           followed to their target, and the size of the target is returned.
-           If @c false, symbolic links in the final path component will make
-           the method call fail (symblink is not a regular file).
-         </desc>
+          It @c true, symbolic links in the final path component will be
+          followed to their target, and the size of the target is returned.
+          If @c false, symbolic links in the final path component will make
+          the method call fail (symblink is not a regular file).
+        </desc>
       </param>
       <param name="size" type="long long" dir="return">
         <desc>Queried file size.</desc>
@@ -12609,11 +13181,11 @@ and "VAR" for unsetting. -->
       </param>
       <param name="followSymlinks" type="boolean" dir="in">
         <desc>
-           If @c true, symbolic links in the final component will be followed
-           and the method will instead check if the target exists.
-           If @c false, symbolic links in the final component will satisfy the
-           method and it will return @c true in @a exists.
-         </desc>
+          If @c true, symbolic links in the final component will be followed
+          and the method will instead check if the target exists.
+          If @c false, symbolic links in the final component will satisfy the
+          method and it will return @c true in @a exists.
+        </desc>
       </param>
       <param name="exists" type="boolean" dir="return">
         <desc>Returns @c true if the file exists, @c false if not.</desc>
@@ -12638,10 +13210,10 @@ and "VAR" for unsetting. -->
       </param>
       <param name="followSymlinks" type="boolean" dir="in">
         <desc>
-           Information about symbolic links is returned if @c false.  Otherwise,
-           symbolic links are followed and the returned information concerns
-           itself with the symlink target if @c true.
-         </desc>
+          Information about symbolic links is returned if @c false.  Otherwise,
+          symbolic links are followed and the returned information concerns
+          itself with the symlink target if @c true.
+        </desc>
       </param>
       <param name="info" type="IGuestFsObjInfo" dir="return">
         <desc><link to="IGuestFsObjInfo"/> object containing the information.</desc>
@@ -12669,6 +13241,28 @@ and "VAR" for unsetting. -->
       </desc>
       <param name="path" type="wstring" dir="in">
         <desc>Path to the file system object to remove.  Guest style path.</desc>
+      </param>
+    </method>
+
+    <method name="fsObjRemoveArray">
+      <desc>
+        Removes multiple file system objects (files, directories, symlinks, etc)
+        in the guest. Use with caution.
+
+        <note>This method is not implemented yet and will return E_NOTIMPL.</note>
+
+        <note>This method will remove symbolic links in the final path
+          component, not follow them.</note>
+
+        <result name="E_NOTIMPL">
+          The method has not been implemented yet.
+        </result>
+      </desc>
+      <param name="path" type="wstring" dir="in" safearray="yes">
+        <desc>Array of paths to the file system objects to remove.  Guest style path.</desc>
+      </param>
+      <param name="progress" type="IProgress" dir="return">
+        <desc>Progress object to track the operation to completion.</desc>
       </param>
     </method>
 
@@ -12716,8 +13310,56 @@ and "VAR" for unsetting. -->
         <desc>Where to move the file to (file, not directory).  Guest path
           style.</desc>
       </param>
-      <param name="flags" type="FsObjMoveFlags" dir="in" safearray="yes">
-        <desc>Zero or more <link to="FsObjMoveFlags"/> values.</desc>
+      <param name="flags" type="FsObjMoveFlag" dir="in" safearray="yes">
+        <desc>Zero or more <link to="FsObjMoveFlag"/> values.</desc>
+      </param>
+      <param name="progress" type="IProgress" dir="return">
+        <desc>Progress object to track the operation to completion.</desc>
+      </param>
+    </method>
+
+    <method name="fsObjMoveArray">
+      <desc>
+        Moves file system objects (files, directories, symlinks, etc) from one
+        guest location to another.
+
+        <result name="E_NOTIMPL">
+          Not yet implemented.
+        </result>
+      </desc>
+      <param name="source" type="wstring" dir="in" safearray="yes">
+        <desc>Array of paths to the file system objects to move.  Guest style path.</desc>
+      </param>
+      <param name="destination" type="wstring" dir="in">
+        <desc>Where to move the file system objects to (directory).  Guest path
+          style.</desc>
+      </param>
+      <param name="flags" type="FsObjMoveFlag" dir="in" safearray="yes">
+        <desc>Zero or more <link to="FsObjMoveFlag"/> values.</desc>
+      </param>
+      <param name="progress" type="IProgress" dir="return">
+        <desc>Progress object to track the operation to completion.</desc>
+      </param>
+    </method>
+
+    <method name="fsObjCopyArray">
+      <desc>
+        Copies file system objects (files, directories, symlinks, etc) from one
+        guest location to another.
+
+        <result name="E_NOTIMPL">
+          Not yet implemented.
+        </result>
+      </desc>
+      <param name="source" type="wstring" dir="in" safearray="yes">
+        <desc>Array of paths to the file system objects to copy.  Guest style path.</desc>
+      </param>
+      <param name="destination" type="wstring" dir="in">
+        <desc>Where to copy the file system objects to (directory).  Guest path
+          style.</desc>
+      </param>
+      <param name="flags" type="FileCopyFlag" dir="in" safearray="yes">
+        <desc>Zero or more <link to="FileCopyFlag"/> values.</desc>
       </param>
       <param name="progress" type="IProgress" dir="return">
         <desc>Progress object to track the operation to completion.</desc>
@@ -12741,7 +13383,7 @@ and "VAR" for unsetting. -->
           If @c true symbolic links in the final component will be followed,
           otherwise, if @c false, the method will work directly on a symbolic
           link in the final component.
-         </desc>
+        </desc>
       </param>
       <param name="acl" type="wstring" dir="in">
         <desc>The ACL specification string. To-be-defined.</desc>
@@ -12776,6 +13418,10 @@ and "VAR" for unsetting. -->
 
         <result name="VBOX_E_IPRT_ERROR">
           Error creating guest process.
+        </result>
+
+        <result name="VBOX_E_MAXIMUM_REACHED">
+          The maximum of concurrent guest processes has been reached.
         </result>
       </desc>
       <param name="executable" type="wstring" dir="in">
@@ -13043,9 +13689,9 @@ and "VAR" for unsetting. -->
 
   <interface
     name="IProcess" extends="$unknown"
-    uuid="2e20707d-4325-9a83-83cf-3faf5b97457c"
+    uuid="bc68370c-8a02-45f3-a07d-a67aa72756aa"
     wsmap="managed"
-    reservedMethods="1" reservedAttributes="4"
+    reservedMethods="4" reservedAttributes="8"
     >
     <desc>
       Abstract parent interface for processes handled by VirtualBox.
@@ -13187,7 +13833,7 @@ and "VAR" for unsetting. -->
         </desc>
       </param>
       <param name="written" type="unsigned long" dir="return">
-        <desc>How much bytes were written.</desc>
+        <desc>How many bytes were written.</desc>
       </param>
     </method>
 
@@ -13217,7 +13863,7 @@ and "VAR" for unsetting. -->
         </desc>
       </param>
       <param name="written" type="unsigned long" dir="return">
-        <desc>How much bytes were written.</desc>
+        <desc>How may bytes were written.</desc>
       </param>
     </method>
 
@@ -13245,9 +13891,9 @@ and "VAR" for unsetting. -->
 
   <interface
     name="IDirectory" extends="$unknown"
-    uuid="f73650f4-4506-50ca-045a-23a0e32ea508"
+    uuid="758d7eac-e4b1-486a-8f2e-747ae346c3e9"
     wsmap="managed"
-    reservedMethods="2" reservedAttributes="4"
+    reservedMethods="4" reservedAttributes="8"
     >
     <desc>
       Abstract parent interface for directories handled by VirtualBox.
@@ -13301,9 +13947,9 @@ and "VAR" for unsetting. -->
 
   <interface
     name="IFile" extends="$unknown"
-    uuid="14c66b23-404c-f24a-3cc1-ee9501d44f2a"
+    uuid="59a235ac-2f1a-4d6c-81fc-e3fa843f49ae"
     wsmap="managed"
-    reservedMethods="4" reservedAttributes="4"
+    reservedMethods="4" reservedAttributes="8"
     >
     <desc>
       Abstract parent interface for files handled by VirtualBox.
@@ -13346,7 +13992,7 @@ and "VAR" for unsetting. -->
 
     <!-- The following attributes just remembers the fileOpen parameters for you.
          Nice for introspection and probably doesn't cost us much. -->
-    <attribute name="fileName" type="wstring" readonly="yes">
+    <attribute name="filename" type="wstring" readonly="yes">
       <desc>Full path of the actual file name of this file.
         <!-- r=bird: The 'actual' file name is too tough, we cannot guarentee
                      that on unix guests.  Seeing how IGuestDirectory did things,
@@ -13373,10 +14019,6 @@ and "VAR" for unsetting. -->
     <method name="queryInfo">
       <desc>
         Queries information about this file.
-
-        <result name="E_NOTIMPL">
-          The method is not implemented yet.
-        </result>
       </desc>
       <param name="objInfo" type="IFsObjInfo" dir="return">
         <desc>Object information of this file. Also see
@@ -13388,13 +14030,9 @@ and "VAR" for unsetting. -->
       <!-- Can also be gotten via seek(Current, 0), but this is easier to us.
            This is a query method both to match IGuestSession::fileQuerySize to
            highlight that it is a value that is not cacheable as others may be
-           changing the file concurrently (image reading /var/log/messages). -->
+           changing the file concurrently (imagine reading /var/log/messages). -->
       <desc>
         Queries the current file size.
-
-        <result name="E_NOTIMPL">
-          The method is not implemented yet.
-        </result>
       </desc>
       <param name="size" type="long long" dir="return">
         <desc>Queried file size.</desc>
@@ -13519,7 +14157,7 @@ and "VAR" for unsetting. -->
         </desc>
       </param>
       <param name="written" type="unsigned long" dir="return">
-        <desc>How much bytes were written.</desc>
+        <desc>How many bytes were written.</desc>
       </param>
     </method>
 
@@ -13547,7 +14185,7 @@ and "VAR" for unsetting. -->
         </desc>
       </param>
       <param name="written" type="unsigned long" dir="return">
-        <desc>How much bytes were written.</desc>
+        <desc>How many bytes were written.</desc>
       </param>
     </method>
 
@@ -13567,83 +14205,27 @@ and "VAR" for unsetting. -->
 
   <interface
     name="IFsObjInfo" extends="$unknown"
-    uuid="d344626e-4b0a-10bc-9c2b-68973052de16"
+    uuid="081fc833-c6fa-430e-6020-6a505d086387"
     wsmap="managed"
-    reservedAttributes="4"
+    reservedAttributes="8"
     >
     <desc>
       Abstract parent interface for VirtualBox file system object information.
       This can be information about a file or a directory, for example.
     </desc>
-
-    <attribute name="accessTime" type="long long" readonly="yes">
-      <desc>
-        Time of last access (st_atime).
-      </desc>
-    </attribute>
-    <attribute name="allocatedSize" type="long long" readonly="yes">
-      <desc>
-        Disk allocation size (st_blocks * DEV_BSIZE).
-      </desc>
-    </attribute>
-    <attribute name="birthTime" type="long long" readonly="yes">
-      <desc>
-        Time of file birth (st_birthtime).
-      </desc>
-    </attribute>
-        <attribute name="changeTime" type="long long" readonly="yes">
-      <desc>
-        Time of last status change (st_ctime).
-      </desc>
-    </attribute>
-    <attribute name="deviceNumber" type="unsigned long" readonly="yes">
-      <desc>
-        The device number of a character or block device type object (st_rdev).
-      </desc>
-    </attribute>
-    <attribute name="fileAttributes" type="wstring" readonly="yes">
-      <desc>
-        File attributes. Not implemented yet.
-      </desc>
-    </attribute>
-    <attribute name="generationId" type="unsigned long" readonly="yes">
-      <desc>
-        The current generation number (st_gen).
-      </desc>
-    </attribute>
-    <attribute name="GID" type="unsigned long" readonly="yes">
-      <desc>
-        The group the filesystem object is assigned (st_gid).
-      </desc>
-    </attribute>
-    <attribute name="groupName" type="wstring" readonly="yes">
-      <desc>
-        The group name.
-      </desc>
-    </attribute>
-    <attribute name="hardLinks" type="unsigned long" readonly="yes">
-      <desc>
-        Number of hard links to this filesystem object (st_nlink).
-      </desc>
-    </attribute>
-    <attribute name="modificationTime" type="long long" readonly="yes">
-      <desc>
-        Time of last data modification (st_mtime).
-      </desc>
-    </attribute>
     <attribute name="name" type="wstring" readonly="yes">
       <desc>
         The object's name.
       </desc>
     </attribute>
-    <attribute name="nodeId" type="long long" readonly="yes">
+    <attribute name="type" type="FsObjType" readonly="yes">
       <desc>
-        The unique identifier (within the filesystem) of this filesystem object (st_ino).
+        The object type. See <link to="FsObjType" /> for more.
       </desc>
     </attribute>
-    <attribute name="nodeIdDevice" type="unsigned long" readonly="yes">
+    <attribute name="fileAttributes" type="wstring" readonly="yes">
       <desc>
-        The device number of the device which this filesystem object resides on (st_dev).
+        File attributes. Not implemented yet.
       </desc>
     </attribute>
     <attribute name="objectSize" type="long long" readonly="yes">
@@ -13653,19 +14235,36 @@ and "VAR" for unsetting. -->
         symbolic link. For other objects this fields needs to be specified.
       </desc>
     </attribute>
-    <attribute name="type" type="FsObjType" readonly="yes">
+    <attribute name="allocatedSize" type="long long" readonly="yes">
       <desc>
-        The object type. See <link to="FsObjType" /> for more.
+        Disk allocation size (st_blocks * DEV_BSIZE).
       </desc>
     </attribute>
-    <attribute name="UID" type="unsigned long" readonly="yes">
+    <!-- Time attributes: -->
+    <attribute name="accessTime" type="long long" readonly="yes">
       <desc>
-        The user owning the filesystem object (st_uid).
+        Time of last access (st_atime).
       </desc>
     </attribute>
-    <attribute name="userFlags" type="unsigned long" readonly="yes">
+    <attribute name="birthTime" type="long long" readonly="yes">
       <desc>
-        User flags (st_flags).
+        Time of file birth (st_birthtime).
+      </desc>
+    </attribute>
+    <attribute name="changeTime" type="long long" readonly="yes">
+      <desc>
+        Time of last status change (st_ctime).
+      </desc>
+    </attribute>
+    <attribute name="modificationTime" type="long long" readonly="yes">
+      <desc>
+        Time of last data modification (st_mtime).
+      </desc>
+    </attribute>
+    <!-- Ownership attributes: -->
+    <attribute name="UID" type="long" readonly="yes">
+      <desc>
+        The user owning the filesystem object (st_uid).  This is -1 if not available.
       </desc>
     </attribute>
     <attribute name="userName" type="wstring" readonly="yes">
@@ -13673,7 +14272,48 @@ and "VAR" for unsetting. -->
         The user name.
       </desc>
     </attribute>
-
+    <attribute name="GID" type="long" readonly="yes">
+      <desc>
+        The group the filesystem object is assigned (st_gid).  This is -1 if not available.
+      </desc>
+    </attribute>
+    <attribute name="groupName" type="wstring" readonly="yes">
+      <desc>
+        The group name.
+      </desc>
+    </attribute>
+    <!-- More esoteric attributes: -->
+    <attribute name="nodeId" type="long long" readonly="yes">
+      <desc>
+        The unique identifier (within the filesystem) of this filesystem object (st_ino).
+        This is zero if not availalbe.
+      </desc>
+    </attribute>
+    <attribute name="nodeIdDevice" type="unsigned long" readonly="yes">
+      <desc>
+        The device number of the device which this filesystem object resides on (st_dev).
+      </desc>
+    </attribute>
+    <attribute name="hardLinks" type="unsigned long" readonly="yes">
+      <desc>
+        Number of hard links to this filesystem object (st_nlink).
+      </desc>
+    </attribute>
+    <attribute name="deviceNumber" type="unsigned long" readonly="yes">
+      <desc>
+        The device number of a character or block device type object (st_rdev).
+      </desc>
+    </attribute>
+    <attribute name="generationId" type="unsigned long" readonly="yes">
+      <desc>
+        The current generation number (st_gen).
+      </desc>
+    </attribute>
+    <attribute name="userFlags" type="unsigned long" readonly="yes">
+      <desc>
+        User flags (st_flags).
+      </desc>
+    </attribute>
   </interface>
 
   <interface
@@ -13902,16 +14542,17 @@ and "VAR" for unsetting. -->
         user account in the guest are not allowed reasons of security.
 
         There can be a maximum of 32 sessions at once per VM.  An error will
-        be returned if this has been reached. <!-- This should actually read:
-        VBOX_E_IPRT_ERROR will be return if this limit has been reached.
-        However, keep in mind that VBOX_E_IPRT_ERROR can be returned for about
-        88 unrelated reasons, so you don't know what happend unless you parse
-        the error text. (bird) -->
-<!-- @todo r=bird: Seriously, add an dedicated VBOX_E_MAX_GUEST_SESSIONS status
-for this condition.  Do the same for all other maximums and things that could be
-useful to the API client. -->
+        be returned if this has been reached.
 
         For more information please consult <link to="IGuestSession"/>
+
+        <result name="VBOX_E_IPRT_ERROR">
+          Error creating guest session.
+        </result>
+
+        <result name="VBOX_E_MAXIMUM_REACHED">
+          The maximum of concurrent guest sessions has been reached.
+        </result>
       </desc>
       <param name="user" type="wstring" dir="in">
         <desc>
@@ -14018,9 +14659,10 @@ useful to the API client. -->
 
   <interface
     name="IProgress" extends="$unknown"
-    uuid="e0026dc0-0c55-47b1-aa64-d340a396b418"
+    uuid="d7b98d2b-30e8-447e-99cb-e31becae6ae4"
     wsmap="managed"
-    reservedMethods="1" reservedAttributes="2"
+    wrap-hint-server-addinterfaces="IInternalProgressControl"
+    reservedMethods="8" reservedAttributes="12"
     >
     <desc>
         The IProgress interface is used to track and control
@@ -14157,16 +14799,6 @@ useful to the API client. -->
 
     <attribute name="eventSource" type="IEventSource" readonly="yes"/>
 
-    <method name="setCurrentOperationProgress">
-      <desc>Internal method, not to be called externally.</desc>
-      <param name="percent" type="unsigned long" dir="in" />
-    </method>
-    <method name="setNextOperation">
-      <desc>Internal method, not to be called externally.</desc>
-      <param name="nextOperationDescription" type="wstring" dir="in" />
-      <param name="nextOperationsWeight" type="unsigned long" dir="in" />
-    </method>
-
     <method name="waitForCompletion">
       <desc>
           Waits until the task is done (including all sub-operations)
@@ -14217,34 +14849,6 @@ useful to the API client. -->
       </param>
     </method>
 
-    <method name="waitForAsyncProgressCompletion">
-      <desc>
-          Waits until the other task is completed (including all
-          sub-operations) and forward all changes from the other progress to
-          this progress. This means sub-operation number, description, percent
-          and so on.
-
-          You have to take care on setting up at least the same count on
-          sub-operations in this progress object like there are in the other
-          progress object.
-
-          If the other progress object supports cancel and this object gets any
-          cancel request (when here enabled as well), it will be forwarded to
-          the other progress object.
-
-          If there is an error in the other progress, this error isn't
-          automatically transfered to this progress object. So you have to
-          check any operation error within the other progress object, after
-          this method returns.
-      </desc>
-
-      <param name="pProgressAsync" type="IProgress" dir="in">
-        <desc>
-          The progress object of the asynchrony process.
-        </desc>
-      </param>
-    </method>
-
     <method name="cancel">
       <desc>
         Cancels the task.
@@ -14261,6 +14865,67 @@ useful to the API client. -->
 
   </interface>
 
+  <interface
+    name="IInternalProgressControl" extends="$unknown"
+    uuid="41a033b8-cc87-4f6e-a0e9-47bb7f2d4be5"
+    internal="yes"
+    wsmap="suppress"
+    reservedMethods="8" reservedAttributes="8"
+    >
+
+    <method name="setCurrentOperationProgress">
+      <desc>Internal method, not to be called externally.</desc>
+      <param name="percent" type="unsigned long" dir="in" />
+    </method>
+
+    <method name="waitForOtherProgressCompletion">
+      <desc>
+        Internal method, not to be called externally.
+
+        Waits until the other task is completed (including all sub-operations)
+        and forward all changes from the other progress to this progress. This
+        means sub-operation number, description, percent and so on.
+
+        The caller is responsible for having at least the same count of
+        sub-operations in this progress object as there are in the other
+        progress object.
+
+        If the other progress object supports cancel and this object gets any
+        cancel request (when here enabled as well), it will be forwarded to
+        the other progress object.
+
+        Error information is automatically preserved (by transferring it to
+        the current thread's error information). If the caller wants to set it
+        as the completion state of this progress it needs to be done separately.
+
+        <result name="VBOX_E_TIMEOUT">
+          Waiting time has expired.
+        </result>
+      </desc>
+      <param name="progressOther" type="IProgress" dir="in" />
+      <param name="timeoutMS" type="unsigned long" dir="in">
+        <desc>Timeout (in ms). Pass 0 for an infinite timeout.</desc>
+      </param>
+    </method>
+
+    <method name="setNextOperation">
+      <desc>Internal method, not to be called externally.</desc>
+      <param name="nextOperationDescription" type="wstring" dir="in" />
+      <param name="nextOperationsWeight" type="unsigned long" dir="in" />
+    </method>
+
+    <method name="notifyPointOfNoReturn">
+      <desc>Internal method, not to be called externally.</desc>
+    </method>
+
+    <method name="notifyComplete">
+      <desc>Internal method, not to be called externally.</desc>
+      <param name="resultCode" type="long" dir="in" />
+      <param name="errorInfo" type="IVirtualBoxErrorInfo" dir="in" />
+    </method>
+
+  </interface>
+
   <!--
   // ISnapshot
   /////////////////////////////////////////////////////////////////////////
@@ -14268,9 +14933,9 @@ useful to the API client. -->
 
   <interface
     name="ISnapshot" extends="$unknown"
-    uuid="5732f030-4194-ec8b-c761-e1a99327e9f0"
+    uuid="6cc49055-dad4-4496-85cf-3f76bcb3b5fa"
     wsmap="managed"
-    reservedMethods="1" reservedAttributes="2"
+    reservedMethods="4" reservedAttributes="8"
     >
     <desc>
       The ISnapshot interface represents a snapshot of the virtual
@@ -14374,7 +15039,7 @@ useful to the API client. -->
 
     <attribute name="timeStamp" type="long long" readonly="yes">
       <desc>
-        Time stamp of the snapshot, in milliseconds since 1970-01-01 UTC.
+        Timestamp of the snapshot, in milliseconds since 1970-01-01 UTC.
       </desc>
     </attribute>
 
@@ -14417,15 +15082,11 @@ useful to the API client. -->
       </desc>
     </attribute>
 
-    <method name="getChildrenCount" const="yes">
+    <attribute name="childrenCount" type="unsigned long" readonly="yes">
       <desc>
         Returns the number of direct children of this snapshot.
       </desc>
-      <param name="childrenCount" type="unsigned long" dir="return">
-        <desc>
-        </desc>
-      </param>
-    </method>
+    </attribute>
 
   </interface>
 
@@ -14591,6 +15252,12 @@ useful to the API client. -->
         Differencing image. Only allowed for child images.
       </desc>
     </const>
+    <const name="Formatted"             value="0x20000000">
+      <desc>
+        Special flag which requests formatting the disk image. Right now
+        supported for floppy images only.
+      </desc>
+    </const>
     <const name="NoCreateDir"           value="0x40000000">
       <desc>
         Special flag which suppresses automatic creation of the subdirectory.
@@ -14601,9 +15268,9 @@ useful to the API client. -->
 
   <interface
     name="IMediumAttachment" extends="$unknown"
-    uuid="3785b3f7-7b5f-4000-8842-ad0cc6ab30b7"
+    uuid="cbc97ce0-dfae-4c70-a6aa-769e5186363b"
     wsmap="struct"
-    reservedAttributes="4"
+    reservedAttributes="8"
     >
     <desc>
       The IMediumAttachment interface links storage media to virtual machines.
@@ -14844,9 +15511,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IMedium" extends="$unknown"
-    uuid="4afe423b-43e0-e9d0-82e8-ceb307940dda"
+    uuid="ad47ad09-787b-44ab-b343-a082a3f2dfb1"
     wsmap="managed"
-    reservedMethods="4" reservedAttributes="8"
+    reservedMethods="8" reservedAttributes="12"
     >
     <desc>
       The IMedium interface represents virtual storage for a machine's
@@ -15015,7 +15682,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </desc>
     </attribute>
 
-    <attribute name="description" type="wstring">
+    <attribute name="description" type="wstring" wrap-hint-server="passcaller">
       <desc>
         Optional description of the medium. For a newly created medium the value
         of this attribute is an empty string.
@@ -15059,7 +15726,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </desc>
     </attribute>
 
-    <attribute name="location" type="wstring" readonly="yes">
+    <attribute name="location" type="wstring">
       <desc>
         Location of the storage unit holding medium data.
 
@@ -15682,7 +16349,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <method name="createBaseStorage">
       <desc>
         Starts creating a hard disk storage unit (fixed/dynamic, according
-        to the variant flags) in in the background. The previous storage unit
+        to the variant flags) in the background. The previous storage unit
         created for this object, if any, must first be deleted using
         <link to="#deleteStorage"/>, otherwise the operation will fail.
 
@@ -15974,7 +16641,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
     <!-- other methods -->
 
-    <method name="setLocation">
+    <method name="moveTo" wrap-hint-server="passcaller">
       <desc>
         Changes the location of this medium. Some medium types may support
         changing the storage unit location by simply changing the value of the
@@ -16136,7 +16803,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </param>
     </method>
 
-    <method name="getEncryptionSettings" const="yes">
+    <method name="getEncryptionSettings" const="yes" wrap-hint-server="passcaller">
       <desc>
         Returns the encryption settings for this medium.
 
@@ -16165,6 +16832,22 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </desc>
       <param name="password" type="wstring" dir="in">
         <desc>The password to check.</desc>
+      </param>
+    </method>
+
+    <method name="openForIO">
+      <desc>
+        Open the medium for I/O.
+      </desc>
+      <param name="writable" type="boolean" dir="in">
+      <desc>Set this to open the medium for both reading and writing.  When
+        not set the medium is opened readonly.</desc>
+      </param>
+      <param name="password" type="wstring" dir="in">
+        <desc>Password for accessing an encrypted medium. Must be empty if not encrypted.</desc>
+      </param>
+      <param name="mediumIO" type="IMediumIO" dir="return">
+        <desc>Medium I/O object.</desc>
       </param>
     </method>
 
@@ -16288,9 +16971,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IMediumFormat" extends="$unknown"
-    uuid="10f337fb-422e-e57e-661b-0998ac309175"
+    uuid="11be93c7-a862-4dc9-8c89-bf4ba74a886a"
     wsmap="managed"
-    reservedMethods="1" reservedAttributes="2"
+    reservedMethods="2" reservedAttributes="4"
     >
     <desc>
         The IMediumFormat interface represents a medium format.
@@ -16401,6 +17084,216 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   </interface>
 
+  <!--
+  // IDataStream
+  /////////////////////////////////////////////////////////////////////////
+  -->
+
+  <interface
+    name="IDataStream" extends="$unknown"
+    uuid="a338ed20-58d9-43ae-8b03-c1fd7088ef15"
+    wsmap="managed"
+    reservedMethods="4" reservedAttributes="8"
+    >
+    <desc>
+      The IDataStream interface is used to retrieve a data stream. It is
+      returned by <link to="IMediumIO::convertToStream"/>.
+    </desc>
+
+    <attribute name="readSize" type="unsigned long" readonly="yes">
+      <desc>Recommended size of a read. Requesting a larger read may be
+        possible in certain situations, but it is not guaranteed.</desc>
+    </attribute>
+
+    <method name="read">
+      <desc>
+        Read data from the stream.
+        <result name="VBOX_E_TIMEOUT">
+          Waiting time has expired.
+        </result>
+      </desc>
+      <param name="size" type="unsigned long" dir="in">
+        <desc>How many bytes to try read.</desc>
+      </param>
+      <param name="timeoutMS" type="unsigned long" dir="in">
+        <desc>
+          Timeout (in ms) for limiting the wait time for data to be available.
+          Pass 0 for an infinite timeout.
+        </desc>
+      </param>
+      <param name="data" type="octet" dir="return" safearray="yes">
+        <desc>Array of data read. This may be shorter than the specified size.
+          Returning a zero-sized array indicates the end of the stream, if the
+          status is successful.</desc>
+      </param>
+    </method>
+
+  </interface>
+
+  <!--
+  // IMediumIO
+  /////////////////////////////////////////////////////////////////////////
+  -->
+
+  <enum
+    name="PartitionTableType"
+    uuid="360066eb-d19e-4fa1-57ef-fed434fbe2a9"
+    >
+    <desc>
+      Partition table types.
+    </desc>
+
+    <const name="MBR" value="1"/>
+    <const name="GPT" value="2"/>
+  </enum>
+
+
+  <interface
+    name="IMediumIO" extends="$unknown"
+    uuid="e4b301a9-5f86-4d65-ad1b-87ca284fb1c8"
+    wsmap="managed"
+    reservedMethods="4" reservedAttributes="8"
+    >
+    <desc>
+      The IMediumIO interface is used to access and modify the content of a
+      medium.  It is returned by <link to="IMedium::openForIO"/>.
+    </desc>
+
+    <attribute name="medium" type="IMedium" readonly="yes">
+      <desc>The open medium.</desc>
+    </attribute>
+
+    <attribute name="writable" type="boolean" readonly="yes">
+      <desc>Whether the medium can be written to. (It can always be read from.)</desc>
+    </attribute>
+
+    <attribute name="explorer" type="IVFSExplorer" readonly="yes">
+      <desc>
+        Returns the virtual file system explorer for the medium.
+
+        This will attempt to recognize the format of the medium content and
+        present it as a virtual directory structure to the API user.
+
+        A FAT floppy image will be represented will a single root subdir 'fat12'
+        that gives access to the file system content.
+
+        A ISO-9660 image will have one subdir in the root for each format present
+        in the image, so the API user can select which data view to access (iso9660,
+        rockridge, jolie, udf, hfs, ...).
+
+        A partitioned harddisk image will have subdirs for each partition.  The
+        the filesystem content of each partition can be accessed thru the subdirs
+        if we have a file system interpreter for it.  There will also be raw files
+        for each subdirectory, to provide a simple way of accessing raw partition
+        data from an API client.
+
+        Please note that the explorer may show inconsistent information if
+        the API user modifies the raw image content after it was opened.
+      </desc>
+    </attribute>
+
+    <method name="read">
+      <desc>
+        Read data from the medium.
+      </desc>
+      <param name="offset" type="long long" dir="in">
+        <desc>The byte offset into the medium to start reading at.</desc>
+      </param>
+      <param name="size" type="unsigned long" dir="in">
+        <desc>How many bytes to try read.</desc>
+      </param>
+      <param name="data" type="octet" dir="return" safearray="yes">
+        <desc>Array of data read. This may be shorter than the specified size.</desc>
+      </param>
+    </method>
+
+    <method name="write">
+      <desc>
+        Write data to the medium.
+      </desc>
+      <param name="offset" type="long long" dir="in">
+        <desc>The byte offset into the medium to start reading at.</desc>
+      </param>
+      <param name="data" type="octet" dir="in" safearray="yes">
+        <desc>Array of data to write.</desc>
+      </param>
+      <param name="written" type="unsigned long" dir="return">
+        <desc>How many bytes were actually written.</desc>
+      </param>
+    </method>
+
+    <method name="formatFAT">
+      <desc>
+        Formats the medium as FAT.  Generally only useful for floppy images as
+        no partition table will be created.
+      </desc>
+      <param name="quick" type="boolean" dir="in">
+        <desc>Quick format it when set.</desc>
+      </param>
+    </method>
+
+    <method name="initializePartitionTable">
+      <desc>
+        Writes an empty partition table to the disk.
+      </desc>
+      <param name="format" type="PartitionTableType" dir="in">
+        <desc>The partition table format.</desc>
+      </param>
+      <param name="wholeDiskInOneEntry" type="boolean" dir="in">
+        <desc>
+          When @c true a partition table entry for the whole disk is created.
+          Otherwise the partition table is empty.
+        </desc>
+      </param>
+    </method>
+
+    <method name="convertToStream">
+      <desc>
+        Converts the currently opened image into a stream of the specified
+        image type/variant. It is sufficient to open the image in read-only
+        mode. Only few types and variants are supported due to the inherent
+        restrictions of the output style.
+        <result name="VBOX_E_NOT_SUPPORTED">
+          The requested format/variant combination cannot handle stream output.
+        </result>
+        <result name="VBOX_E_FILE_ERROR">
+          An error occurred during the conversion.
+        </result>
+      </desc>
+      <param name="format" type="wstring" dir="in">
+        <desc>Identifier of the storage format to use for output.</desc>
+      </param>
+      <param name="variant" type="MediumVariant" safearray="yes" dir="in">
+        <desc>The partition table format.</desc>
+      </param>
+      <param name="bufferSize" type="unsigned long" dir="in">
+        <desc>
+          Requested buffer size (in bytes) for efficient conversion. Sizes
+          which are too small or too large are silently truncated to suitable
+          values. Tens to hundreds of Megabytes are a good choice.
+        </desc>
+      </param>
+      <param name="stream" type="IDataStream" dir="out">
+        <desc>Data stream object for reading the target image.</desc>
+      </param>
+      <param name="progress" type="IProgress" dir="return">
+        <desc>Progress object to track the operation completion.</desc>
+      </param>
+    </method>
+
+    <method name="close">
+      <desc>
+        Explictly close the medium I/O rather than waiting for garbage
+        collection and the destructor.
+
+        This will wait for any pending reads and writes to complete and then
+        close down the I/O access without regard for open explorer instances or
+        anything like that.
+      </desc>
+    </method>
+
+  </interface>
+
 
   <!--
   // IToken
@@ -16463,9 +17356,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IKeyboard" extends="$unknown"
-    uuid="da91d4c9-4c02-fdb1-c5ac-d89e22e81302"
+    uuid="a7c88b82-2330-44e3-b247-1421a018f9c1"
     wsmap="managed"
-    reservedMethods="1" reservedAttributes="2"
+    reservedMethods="4" reservedAttributes="4"
     >
     <desc>
       The IKeyboard interface represents the virtual machine's keyboard. Used
@@ -16584,9 +17477,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IMousePointerShape" extends="$unknown"
-    uuid="e04e5545-4a0f-f9d2-5bef-f9b25b6557ed"
+    uuid="1e775ea3-9070-4f9c-b0d5-53054496dbe0"
     wsmap="managed"
-    reservedAttributes="2"
+    reservedAttributes="4"
     >
     <desc>
       The guest mouse pointer description.
@@ -16658,9 +17551,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IMouse" extends="$unknown"
-    uuid="ee35adb0-4748-3e12-e7fd-5aad957bba0f"
+    uuid="10cd08d0-e8b8-4838-b10c-45ba193734c1"
     wsmap="managed"
-    reservedMethods="1" reservedAttributes="2"
+    reservedMethods="4" reservedAttributes="4"
     >
     <desc>
       The IMouse interface represents the virtual machine's mouse. Used in
@@ -17336,10 +18229,10 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IDisplay" extends="$unknown"
-    uuid="76eed314-3c72-4bbb-95cf-5eb4947a4041"
+    uuid="ab4164db-c13e-4dab-842d-61ee3f0c1e87"
     wsmap="managed"
     wrap-hint-server-addinterfaces="IEventListener"
-    reservedMethods="4" reservedAttributes="2"
+    reservedMethods="8" reservedAttributes="16"
     >
     <desc>
       The IDisplay interface represents the virtual machine's display.
@@ -17653,7 +18546,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
     <method name="querySourceBitmap" wsmap="suppress">
       <desc>
-         Obtains the guest screen bitmap parameters.
+        Obtains the guest screen bitmap parameters.
       </desc>
       <param name="screenId" type="unsigned long" dir="in"/>
       <param name="displaySourceBitmap" type="IDisplaySourceBitmap" dir="out"/>
@@ -17661,7 +18554,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
     <method name="notifyScaleFactorChange">
       <desc>
-         Notify OpenGL HGCM host service about graphics content scaling factor change.
+        Notify OpenGL HGCM host service about graphics content scaling factor change.
       </desc>
       <param name="screenId" type="unsigned long" dir="in"/>
       <param name="u32ScaleFactorWMultiplied" type="unsigned long" dir="in"/>
@@ -17670,7 +18563,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
     <method name="notifyHiDPIOutputPolicyChange">
       <desc>
-         Notify OpenGL HGCM host service about HiDPI monitor scaling policy change.
+        Notify OpenGL HGCM host service about HiDPI monitor scaling policy change.
       </desc>
       <param name="fUnscaledHiDPI" type="boolean" dir="in"/>
     </method>
@@ -17688,6 +18581,64 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         Unplugs monitors from the virtual graphics card.
       </desc>
       <param name="screenIds" type="long" safearray="yes" dir="in"/>
+    </method>
+
+    <method name="createGuestScreenInfo">
+      <desc>
+        Make a IGuestScreenInfo object with the provided parameters.
+      </desc>
+      <param name="display" type="unsigned long" dir="in">
+        <desc>
+          The number of the guest display.
+        </desc>
+      </param>
+      <param name="status" type="GuestMonitorStatus" dir="in">
+        <desc>
+          @c True, if this guest screen is enabled,
+          @c False otherwise.
+        </desc>
+      </param>
+      <param name="primary" type="boolean" dir="in">
+        <desc>
+          Whether this guest monitor must be primary.
+        </desc>
+      </param>
+      <param name="changeOrigin" type="boolean" dir="in">
+        <desc>
+          @c True, if the origin of the guest screen should be changed,
+          @c False otherwise.
+        </desc>
+      </param>
+      <param name="originX" type="long" dir="in">
+        <desc>
+          The X origin of the guest screen.
+        </desc>
+      </param>
+      <param name="originY" type="long" dir="in">
+        <desc>
+          The Y origin of the guest screen.
+        </desc>
+      </param>
+      <param name="width" type="unsigned long" dir="in">
+        <desc>
+          The width of the guest screen.
+        </desc>
+      </param>
+      <param name="height" type="unsigned long" dir="in">
+        <desc>
+          The height of the guest screen.
+        </desc>
+      </param>
+      <param name="bitsPerPixel" type="unsigned long" dir="in">
+        <desc>
+          The number of bits per pixel of the guest screen.
+        </desc>
+      </param>
+      <param name="guestScreenInfo" type="IGuestScreenInfo" dir="return">
+        <desc>
+          The created object.
+        </desc>
+      </param>
     </method>
 
   </interface>
@@ -17774,9 +18725,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="INetworkAdapter" extends="$unknown"
-    uuid="e925c2aa-4fe4-aaf6-91c5-e9b8ea4151ee"
+    uuid="e9a0c183-7071-4894-93d6-dcbec010fa91"
     wsmap="managed"
-    reservedMethods="1" reservedAttributes="4"
+    reservedMethods="4" reservedAttributes="8"
     >
     <desc>
         Represents a virtual network adapter that is attached to a virtual machine.
@@ -18012,11 +18963,36 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     </const>
   </enum>
 
+  <enum
+    name="UartType"
+    uuid="c8899d39-0b90-4265-9d02-1e38bd4d1b39"
+    >
+    <desc>
+      The UART type represents the emulated UART chip for the serial port device.
+    </desc>
+
+    <const name="U16450"            value="0">
+      <desc>The most basic emulated UART which doesn't support FIFO operation.</desc>
+    </const>
+    <const name="U16550A"           value="1">
+      <desc>
+        The successor of the 16450 UART introducing a 16 byte FIFO to reduce
+        operational overhead.
+      </desc>
+    </const>
+    <const name="U16750"            value="2">
+      <desc>
+        This UART developed by Texas Instruments introduced a 64 byte FIFO
+        and hardware flow control.
+      </desc>
+    </const>
+  </enum>
+
   <interface
     name="ISerialPort" extends="$unknown"
-    uuid="cb0a4a29-43a3-9040-0c25-34845db7b042"
+    uuid="5587d0f6-a227-4f23-8278-2f675eea1bb2"
     wsmap="managed"
-    reservedAttributes="2"
+    reservedAttributes="4"
     >
 
     <desc>
@@ -18089,11 +19065,15 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         Path to the serial port's pipe on the host when <link to="ISerialPort::hostMode"/> is
         PortMode_HostPipe, the host serial device name when
         <link to="ISerialPort::hostMode"/> is PortMode_HostDevice or the TCP
-       <b>port</b> (server) or <b>hostname:port</b> (client) when
+        <b>port</b> (server) or <b>hostname:port</b> (client) when
         <link to="ISerialPort::hostMode"/> is PortMode_TCP.
         For those cases, setting a @c null or empty string as the attribute's
         value is an error. Otherwise, the value of this property is ignored.
       </desc>
+    </attribute>
+
+    <attribute name="uartType" type="UartType">
+      <desc>Selects the emulated UART implementation.</desc>
     </attribute>
 
   </interface>
@@ -18164,11 +19144,32 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
   /////////////////////////////////////////////////////////////////////////
   -->
 
+  <enum
+    name="VMExecutionEngine"
+    uuid="56029577-31f7-44d2-3334-7ecbf95294b6"
+    >
+    <desc>
+      The main execution engine of a VM.
+    </desc>
+    <const name="NotSet"            value="0">
+      <desc>Has not yet been set (try again later).</desc>
+    </const>
+    <const name="RawMode"           value="1">
+      <desc>Raw-mode.</desc>
+    </const>
+    <const name="HwVirt"            value="2">
+      <desc>Hardware assisted virtualization thru HM.</desc>
+    </const>
+    <const name="NativeApi"         value="3">
+      <desc>Hardware assisted virtualization thru native API (NEM).</desc>
+    </const>
+  </enum>
+
   <interface
     name="IMachineDebugger" extends="$unknown"
-    uuid="9c0f5269-47ae-ee34-c2fe-53a16e388925"
+    uuid="e91bb944-f211-4bd5-b44c-8f1d0beafa13"
     wsmap="managed"
-    reservedMethods="16" reservedAttributes="15"
+    reservedMethods="16" reservedAttributes="16"
     >
     <method name="dumpGuestCore">
       <desc>
@@ -18582,10 +19583,16 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       <desc>The relase logger's destination settings.</desc>
     </attribute>
 
+    <attribute name="executionEngine" type="VMExecutionEngine" readonly="yes">
+      <desc>Gets the main execution engine of the VM.</desc>
+    </attribute>
+
     <attribute name="HWVirtExEnabled" type="boolean" readonly="yes">
       <desc>
         Flag indicating whether the VM is currently making use of CPU hardware
         virtualization extensions.
+
+        Superseeded by mainExecutionMode.
       </desc>
     </attribute>
 
@@ -18809,9 +19816,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IUSBController" extends="$unknown"
-    uuid="0c293c51-4810-e174-4f78-199376c63bbe"
+    uuid="ee206a6e-7ff8-4a84-bd34-0c651e118bb5"
     wsmap="managed"
-    reservedAttributes="2"
+    reservedAttributes="4"
     >
 
     <attribute name="name" type="wstring">
@@ -18895,9 +19902,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IUSBDevice" extends="$unknown"
-    uuid="5915d179-83c7-4f2b-a323-9a97f46f4e29"
+    uuid="202c8c43-2d2d-4866-acf7-56ffae36f1f9"
     wsmap="managed"
-    reservedAttributes="2"
+    reservedAttributes="4"
     >
     <desc>
       The IUSBDevice interface represents a virtual USB device attached to the
@@ -19455,9 +20462,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IAudioAdapter" extends="$unknown"
-    uuid="aeccc0a8-e0a0-427f-b946-c42063f54d81"
+    uuid="5155bfd3-7ba7-45a8-b26d-c91ae3754e37"
     wsmap="managed"
-    reservedMethods="1" reservedAttributes="2"
+    reservedMethods="4" reservedAttributes="8"
     >
     <desc>
         The IAudioAdapter interface represents the virtual audio adapter of
@@ -19564,9 +20571,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IVRDEServer" extends="$unknown"
-    uuid="6e758489-453a-6f98-9cb9-2da2cb8eabb5"
+    uuid="08e25756-08a2-41af-a05f-d7c661abaebe"
     wsmap="managed"
-    reservedMethods="1" reservedAttributes="2"
+    reservedMethods="2" reservedAttributes="4"
     >
 
     <attribute name="enabled" type="boolean">
@@ -19658,9 +20665,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="ISharedFolder" extends="$unknown"
-    uuid="15aabe95-e594-4e18-9222-b5e83a23f1da"
-    wsmap="struct"
-    reservedAttributes="4"
+    uuid="9622225a-5409-414b-bd16-77df7ba3451e"
+    wsmap="managed"
+    reservedAttributes="8"
     >
     <desc>
       The ISharedFolder interface represents a folder in the host computer's
@@ -19724,22 +20731,37 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       <desc>
         Whether the folder defined by the host path is currently
         accessible or not.
+
         For example, the folder can be inaccessible if it is placed
         on the network share that is not available by the time
         this property is read.
       </desc>
     </attribute>
 
-    <attribute name="writable" type="boolean" readonly="yes">
+    <attribute name="writable" type="boolean">
       <desc>
         Whether the folder defined by the host path is writable or
         not.
       </desc>
     </attribute>
 
-    <attribute name="autoMount" type="boolean" readonly="yes">
+    <attribute name="autoMount" type="boolean">
       <desc>
         Whether the folder gets automatically mounted by the guest or not.
+      </desc>
+    </attribute>
+
+    <attribute name="autoMountPoint" type="wstring">
+      <desc>
+        Desired mount point in the guest for automatically mounting the folder
+        when <link to="ISharedFolder::autoMount"/> is set.  For Windows and
+        OS/2 guests this should be a drive letter, while other guests it should
+        be a absolute directory.  It is possible to combine the two, e.g.
+        "T:/mnt/testrsrc" will be attached to "T:" by windows and OS/2 while
+        the unixy guests will mount it at "/mnt/testrsrc".
+
+        When empty the guest will choose a mount point.  The guest may do so
+        too should the specified mount point be in use or otherwise unusable.
       </desc>
     </attribute>
 
@@ -19790,7 +20812,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IInternalSessionControl" extends="$unknown"
-    uuid="747e397e-69c8-45a0-88d9-f7f070960718"
+    uuid="B1C3994E-F8CD-4D02-94D0-1AAF884751ED"
     internal="yes"
     wsmap="suppress"
     >
@@ -20090,10 +21112,13 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </param>
     </method>
 
-    <method name="onVideoCaptureChange">
+    <method name="onRecordingChange">
       <desc>
-        Triggered when video capture settings have changed.
+        Triggered when recording settings have changed.
       </desc>
+      <param name="enable" type="boolean" dir="in">
+        <desc>TODO</desc>
+      </param>
     </method>
 
     <method name="onUSBControllerChange">
@@ -20230,7 +21255,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <method name="enumerateGuestProperties" const="yes">
       <desc>
         Return a list of the guest properties matching a set of patterns along
-        with their values, time stamps and flags.
+        with their values, timestamps and flags.
 
         <result name="VBOX_E_INVALID_VM_STATE">
           Machine session is not open.
@@ -20260,7 +21285,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       </param>
       <param name="timestamps" type="long long" dir="out" safearray="yes">
         <desc>
-          The time stamps of the properties returned. The array entries match
+          The timestamps of the properties returned. The array entries match
           the corresponding entries in the @a key array.
         </desc>
       </param>
@@ -20430,10 +21455,10 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="ISession" extends="$unknown"
-    uuid="7844aa05-b02e-4cdd-a04f-ade4a762e6b7"
+    uuid="c0447716-ff5a-4795-b57a-ecd5fffa18a4"
     wsmap="managed"
     wrap-hint-server-addinterfaces="IInternalSessionControl"
-    reservedMethods="3" reservedAttributes="4"
+    reservedMethods="4" reservedAttributes="8"
     >
     <desc>
       The ISession interface represents a client process and allows for locking
@@ -20645,9 +21670,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IStorageController" extends="$unknown"
-    uuid="49b19d41-4a75-7bd5-c124-259acba3c41d"
+    uuid="ddca7247-bf98-47fb-ab2f-b5177533f493"
     wsmap="managed"
-    reservedMethods="1" reservedAttributes="2"
+    reservedMethods="4" reservedAttributes="8"
     >
     <desc>
         Represents a storage controller that is attached to a virtual machine
@@ -21307,9 +22332,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="INATEngine" extends="$unknown"
-    uuid="c1cdb6bf-44cb-e334-66fa-469a17fd09df"
+    uuid="8faef61e-6e15-4f71-a6a5-94e707fafbcc"
     wsmap="managed"
-    reservedMethods="2" reservedAttributes="4"
+    reservedMethods="4" reservedAttributes="8"
     >
     <desc>Interface for managing a NAT engine which is used with a virtual machine. This
       allows for changing NAT behavior such as port-forwarding rules. This interface is
@@ -21424,9 +22449,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IExtPackPlugIn" extends="$unknown"
-    uuid="c8e667b2-4234-1f9c-6508-afa9cea4efa1"
+    uuid="78861431-d545-44aa-8013-181b8c288554"
     wsmap="suppress"
-    reservedAttributes="2"
+    reservedAttributes="4"
     >
     <desc>
       Interface for keeping information about a plug-in that ships with an
@@ -21450,9 +22475,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IExtPackBase" extends="$unknown"
-    uuid="4bd17415-4438-8657-e78e-80a40713a23c"
+    uuid="f25aca3d-0b79-4350-bdd9-a0376cd6e6e3"
     wsmap="suppress"
-    reservedMethods="1" reservedAttributes="4"
+    reservedMethods="4" reservedAttributes="8"
     >
     <desc>
       Interface for querying information about an extension pack as well as
@@ -21576,9 +22601,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IExtPackFile" extends="IExtPackBase"
-    uuid="4c7f4bf6-4671-2f75-0fbb-a99f6218cdfc"
+    uuid="41304f1b-7e72-4f34-b8f6-682785620c57"
     wsmap="suppress"
-    reservedMethods="1" reservedAttributes="2"
+    reservedMethods="2" reservedAttributes="4"
     >
     <desc>
       Extension pack file (aka tarball, .vbox-extpack) representation returned
@@ -21616,9 +22641,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IExtPackManager" extends="$unknown"
-    uuid="edba9d10-45d8-b440-1712-46ac0c9bc4c5"
+    uuid="70401eef-c8e9-466b-9660-45cb3e9979e4"
     wsmap="suppress"
-    reservedMethods="1" reservedAttributes="2"
+    reservedMethods="4" reservedAttributes="8"
     >
     <desc>
       Interface for managing VirtualBox Extension Packs.
@@ -21721,8 +22746,8 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
   /////////////////////////////////////////////////////////////////////////
   -->
   <enum
-     name="BandwidthGroupType"
-     uuid="1d92b67d-dc69-4be9-ad4c-93a01e1e0c8e">
+    name="BandwidthGroupType"
+    uuid="1d92b67d-dc69-4be9-ad4c-93a01e1e0c8e">
 
     <desc>
       Type of a bandwidth control group.
@@ -21915,7 +22940,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
   -->
   <enum
     name="VBoxEventType"
-    uuid="b2ddb312-2f9e-4e69-98df-7235e43b2149"
+    uuid="822087CA-4703-49E4-B20D-C6D794E67969"
     >
 
     <desc>
@@ -22274,9 +23299,9 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
           not unnecessarily overflow the event queue.</note>
       </desc>
     </const>
-    <const name="OnVideoCaptureChanged" value="91">
+    <const name="OnRecordingChanged" value="91">
       <desc>
-        See <link to="IVideoCaptureChangedEvent">IVideoCapturedChangeEvent</link>.
+        See <link to="IRecordingChangedEvent">IRecordingChangeEvent</link>.
       </desc>
     </const>
     <const name="OnGuestUserStateChanged" value="92">
@@ -22319,8 +23344,13 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
         See <link to="IProgressTaskCompletedEvent">IProgressTaskCompletedEvent</link>.
       </desc>
     </const>
+    <const name="OnCursorPositionChanged" value="100">
+      <desc>
+        See <link to="ICursorPositionChangedEvent">ICursorPositionChangedEvent</link>.
+      </desc>
+    </const>
     <!-- Last event marker -->
-    <const name="Last" value="100">
+    <const name="Last" value="101">
       <desc>
         Must be last event, used for iterations and structures relying on numerical event values.
       </desc>
@@ -23656,12 +24686,12 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
   </interface>
 
   <interface
-    name="IVideoCaptureChangedEvent" extends="IEvent"
-    uuid="6215d169-25dd-4719-ab34-c908701efb58"
-    wsmap="managed" autogen="VBoxEvent" id="OnVideoCaptureChanged"
+    name="IRecordingChangedEvent" extends="IEvent"
+    uuid="B5DDB370-08A7-4C8F-910D-47AABD67253A"
+    wsmap="managed" autogen="VBoxEvent" id="OnRecordingChanged"
     >
     <desc>
-      Notification when video capture settings have changed.
+      Notification when recording settings have changed.
     </desc>
     <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
@@ -24393,6 +25423,331 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <attribute name="midlDoesNotLikeEmptyInterfaces" readonly="yes" type="boolean"/>
   </interface>
 
+  <interface
+    name="ICursorPositionChangedEvent" extends="IEvent"
+    uuid="6f302674-c927-11e7-b788-33c248e71fc7"
+    wsmap="managed" autogen="VBoxEvent" id="OnCursorPositionChanged">
+    <desc>The guest reports cursor position data.</desc>
+
+    <attribute name="hasData" readonly="yes" type="boolean">
+      <desc>Event contains valid data (alternative: notification of support)</desc>
+    </attribute>
+    <attribute name="x" readonly="yes" type="unsigned long">
+      <desc>Reported X position</desc>
+    </attribute>
+    <attribute name="y" readonly="yes" type="unsigned long">
+      <desc>Reported Y position</desc>
+    </attribute>
+  </interface>
+
+
+  <!--
+  // ICloudClient
+  //////////////////////////////////////////////////////////////////////////
+  -->
+  <interface
+    name="ICloudClient" extends="$unknown"
+    uuid="3d9aacbe-b3bc-4126-9633-5634bad24ad7"
+    wsmap="managed" reservedMethods="16" reservedAttributes="8"
+    >
+
+    <method name="getExportLaunchParameters" const="yes">
+      <desc>
+        Returns parameters to be shown to the user for the cloud export and launch operation.
+      </desc>
+      <param name="jsonString" type="wstring" dir="return">
+        <desc>the parameters with values in json format.</desc>
+      </param>
+    </method>
+
+    <method name="exportLaunchVM">
+      <desc>
+        Exports and optionally launch a VM described in description parameter
+      </desc>
+      <param name="description" type="IVirtualSystemDescription" dir="in">
+        <desc>VirtualSystemDescription object which is describing a machine and all required parameters.</desc>
+      </param>
+      <param name="progress" type="IProgress" dir="in">
+        <desc>Progress object to track the operation completion.</desc>
+      </param>
+      <param name="virtualBox" type="IVirtualBox" dir="in">
+        <desc>Reference to the server-side API root object.</desc>
+      </param>
+    </method>
+  </interface>
+
+  <!--
+  // ICloudProfile
+  //////////////////////////////////////////////////////////////////////////
+  -->
+
+  <interface
+    name="ICloudProfile" extends="$unknown"
+    uuid="b1d978b8-f7b7-4b05-900e-2a9253c00f51"
+    wsmap="managed" reservedMethods="4" reservedAttributes="8"
+    >
+
+    <attribute name="name" type="wstring">
+      <desc>
+        Returns the profile name.
+      </desc>
+    </attribute>
+
+    <attribute name="providerId" type="uuid" mod="string" readonly="yes">
+      <desc>
+        Returns provider identifier tied with this profile.
+      </desc>
+    </attribute>
+
+    <method name="getProperty" const="yes">
+      <desc>
+        Returns the value of the cloud profile property with the given name.
+
+        If the requested data @a name does not exist, this function will
+        succeed and return an empty string in the @a value argument.
+
+        <result name="E_INVALIDARG">@a name is @c null or empty.</result>
+      </desc>
+      <param name="name" type="wstring" dir="in">
+        <desc>Name of the property to get.</desc>
+      </param>
+      <param name="value" type="wstring" dir="return">
+        <desc>Current property value.</desc>
+      </param>
+    </method>
+
+    <method name="setProperty" const="yes">
+      <desc>
+        Sets the value of the cloud profile property with the given name.
+
+        Setting the property value to @c null or an empty string is equivalent
+        to deleting the existing value.
+
+        <result name="E_INVALIDARG">@a name is @c null or empty.</result>
+      </desc>
+      <param name="name" type="wstring" dir="in">
+        <desc>Name of the property to set.</desc>
+      </param>
+      <param name="value" type="wstring" dir="in">
+        <desc>Property value to set.</desc>
+      </param>
+    </method>
+
+    <method name="getProperties" const="yes">
+      <desc>
+        Returns values for a group of properties in one call.
+
+        The names of the properties to get are specified using the @a names
+        argument which is a list of comma-separated property names or
+        an empty string if all properties are to be returned.
+        <note>Currently the value of this argument is ignored and the method
+        always returns all existing properties.</note>
+
+        The method returns two arrays, the array of property names corresponding
+        to the @a names argument and the current values of these properties.
+        Both arrays have the same number of elements with each element at the
+        given index in the first array corresponds to an element at the same
+        index in the second array.
+      </desc>
+      <param name="names" type="wstring" dir="in">
+        <desc>
+          Names of properties to get.
+        </desc>
+      </param>
+      <param name="returnNames" type="wstring" safearray="yes" dir="out">
+        <desc>Names of returned properties.</desc>
+      </param>
+      <param name="returnValues" type="wstring" safearray="yes" dir="return">
+        <desc>Values of returned properties.</desc>
+      </param>
+    </method>
+
+    <method name="setProperties">
+      <desc>
+        Updates profile, changing/adding/removing properties.
+
+        The names of the properties to set are passed in the @a names
+        array along with the new values for them in the @a values array. Both
+        arrays have the same number of elements with each element at the given
+        index in the first array corresponding to an element at the same index
+        in the second array.
+
+        If there is at least one property name in @a names that is not valid,
+        the method will fail before changing the values of any other properties
+        from the @a names array.
+
+        Using this method over <link to="#setProperty"/> is preferred if you
+        need to set several properties at once since it is more efficient.
+
+        Setting the property value to @c null or an empty string is equivalent
+        to deleting the existing value.
+      </desc>
+      <param name="names" type="wstring" safearray="yes" dir="in">
+        <desc>Names of properties.</desc>
+      </param>
+      <param name="values" type="wstring" safearray="yes" dir="in">
+        <desc>Values of set properties.</desc>
+      </param>
+    </method>
+
+    <method name="remove">
+      <desc>
+        Deletes a profile.
+      </desc>
+    </method>
+
+    <method name="createCloudClient">
+      <desc>
+        Creates a cloud client for this cloud profile.
+      </desc>
+      <param name="cloudClient" type="ICloudClient" dir="return">
+        <desc>
+          The cloud client object reference.
+        </desc>
+      </param>
+    </method>
+
+  </interface>
+
+  <!--
+  // ICloudProvider
+  //////////////////////////////////////////////////////////////////////////
+  -->
+
+  <interface
+    name="ICloudProvider" extends="$unknown"
+    uuid="22363cfc-07da-41ec-ac4a-3dd99db35594"
+    wsmap="managed" reservedMethods="8" reservedAttributes="16"
+    >
+
+    <attribute name="name" type="wstring" readonly="yes">
+      <desc>Returns the long name of the provider. Includes vendor and precise
+        product name spelled out in the preferred way.</desc>
+    </attribute>
+
+    <attribute name="shortName" type="wstring" readonly="yes">
+      <desc>Returns the short name of the provider. Less than 8 ASCII chars,
+        using acronyms. No vendor name, but can contain a hint if it's a 3rd
+        party implementation for this cloud provider, to keep it unique.</desc>
+    </attribute>
+
+    <attribute name="id" type="uuid" mod="string" readonly="yes">
+      <desc>Returns the UUID of this cloud provider.</desc>
+    </attribute>
+
+    <!-- if there are any generally useful, static pieces of information about
+         a particular cloud provider, please add them here. Maybe a description
+         of the functionality of the cloud provider implementation?-->
+
+    <attribute name="profiles" type="ICloudProfile" safearray="yes" readonly="yes">
+      <desc>Returns all profiles for this cloud provider.</desc>
+    </attribute>
+
+    <attribute name="profileNames" type="wstring" safearray="yes" readonly="yes">
+      <desc>Returns all profile names for this cloud provider.</desc>
+    </attribute>
+
+    <attribute name="supportedPropertyNames" type="wstring" safearray="yes" readonly="yes">
+      <desc>
+        Returns the supported property names.
+      </desc>
+    </attribute>
+
+    <method name="getPropertyDescription" const="yes">
+      <param name="name" type="wstring" dir="in">
+        <desc>Property name.</desc>
+      </param>
+      <param name="description" type="wstring" dir="return">
+        <desc>Property description.</desc>
+      </param>
+    </method>
+
+    <method name="createProfile">
+      <desc>
+        Creates a new profile.
+      </desc>
+      <param name="profileName" type="wstring" dir="in">
+        <desc>
+          The profile name. Must not exist, otherwise an error is raised.
+        </desc>
+      </param>
+      <param name="names" type="wstring" safearray="yes" dir="in">
+        <desc>Names of properties.</desc>
+      </param>
+      <param name="values" type="wstring" safearray="yes" dir="in">
+        <desc>Values of set properties.</desc>
+      </param>
+    </method>
+
+    <method name="importProfiles">
+      <desc>
+        Import the profiles from the original source
+      </desc>
+    </method>
+
+    <method name="restoreProfiles">
+      <desc>
+        Restores the old local profiles if they exist
+      </desc>
+    </method>
+
+    <method name="saveProfiles">
+      <desc>
+        Saves the local profiles
+      </desc>
+    </method>
+
+    <method name="getProfileByName">
+      <param name="profileName" type="wstring" dir="in"/>
+      <param name="profile" type="ICloudProfile" dir="return"/>
+    </method>
+
+    <method name="prepareUninstall" wrap-hint-server="passcaller">
+      <desc>
+        The caller requests the cloud provider to cease operation. Should
+        return an error if this is currently not possible (due to ongoing
+        cloud activity, possibly by a different API client). However, this
+        must not wait for the completion for a larger amount of time (ideally
+        stays below a second of execution time). If this succeeds it should
+        leave the cloud provider in a state which does not allow starting new
+        operations.
+      </desc>
+    </method>
+
+  </interface>
+
+  <!--
+  // ICloudProviderManager
+  //////////////////////////////////////////////////////////////////////////
+  -->
+  <interface
+    name="ICloudProviderManager" extends="$unknown"
+    uuid="9128800f-762e-4120-871c-a2014234a607"
+    wsmap="managed" reservedMethods="4" reservedAttributes="8"
+    >
+
+    <attribute name="providers" type="ICloudProvider" safearray="yes" readonly="yes">
+      <desc>Returns all supported cloud providers.</desc>
+    </attribute>
+
+    <method name="getProviderById">
+      <param name="providerId" type="uuid" mod="string" dir="in"/>
+      <param name="provider" type="ICloudProvider" dir="return"/>
+    </method>
+
+    <method name="getProviderByShortName">
+      <param name="providerName" type="wstring" dir="in"/>
+      <param name="provider" type="ICloudProvider" dir="return"/>
+    </method>
+
+    <method name="getProviderByName">
+      <param name="providerName" type="wstring" dir="in"/>
+      <param name="provider" type="ICloudProvider" dir="return"/>
+    </method>
+
+  </interface>
+
+
   <module name="VBoxSVC" context="LocalServer">
     <class name="VirtualBox" uuid="B1A7A4F2-47B9-4A1E-82B2-07CCD5323C3F"
            namespace="virtualbox.org">
@@ -24414,6 +25769,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
 </application>
 
+<if target="midl">
 <!-- Pay attention! Application uuid of this application is used in midl.xsl
      So if you change it then change filter in "interface" and "class" template in midl.xsl too
 -->
@@ -24423,8 +25779,6 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
   supportsErrorInfo="yes"
 >
 
-<if target="midl">
-
   <!--
   // IVBoxSVC
   // Note! This actually extends IUnknown rather than IDispatch, notdual=yes
@@ -24433,7 +25787,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
   -->
   <interface
     name="IVBoxSVCRegistration" extends="$unknown" notdual="yes"
-    uuid="f22181fb-921b-4f2a-7801-0cc5ec28cdae"
+    uuid="9e106366-4521-44cc-df95-186e4d057c83"
     wsmap="suppress" internal="yes"
     reservedMethods="0" reservedAttributes="0"
     >
@@ -24460,7 +25814,7 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   <interface
     name="IVirtualBoxSDS" extends="$unknown" notdual="yes"
-    uuid="787d20ed-faf3-4170-6697-3a2a7de6e086"
+    uuid="152265b8-fe7d-4077-9dd6-032bc3f1c5a3"
     wsmap="suppress" internal="yes"
     reservedMethods="0" reservedAttributes="0"
     >
@@ -24500,16 +25854,23 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
 
   </interface>
 
-</if> <!-- bird: shouldn't this if-element at leat include the VBoxSDS module, if not the whole system service application? -->
-
+<!-- Warning: the name of module should coincide with real windows service name.
+     VirtualBox_Typelib.xsl and VirtualBox_TypeLibWithInterfaces.xsl uses this name to make list of COM registration
+     actions in Wix. Installer will not able to register COM windows service properly if the name of module
+     differs from SCM windows service name.
+     The Name of windows service is referenced in different places.
+     Don't forget to change it in other places too If you change it here :
+         VBoxMergeApp.wxi (cp_VBoxSDS component),
+         VBoxSDS.cpp and VBoxProxyStub.cpp
+     -->
   <module name="VBoxSDS" context="LocalService">
-    <class name="VirtualBoxSDS" uuid="74ab5ffe-8726-4435-aa7e-876d705bcba5"
-           namespace="virtualbox.org">
-      <interface name="IVirtualBoxSDS" default="yes"/>
-    </class>
+      <class name="VirtualBoxSDS" uuid="74ab5ffe-8726-4435-aa7e-876d705bcba5"
+             namespace="virtualbox.org">
+          <interface name="IVirtualBoxSDS" default="yes"/>
+      </class>
   </module>
-
 </application>
+</if>
 
 </library>
 

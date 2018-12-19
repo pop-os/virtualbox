@@ -265,6 +265,17 @@ RTDECL(int) RTUtf16NLenEx(PCRTUTF16 pwszString, size_t cwcMax, size_t *pcwc);
 RTDECL(PCRTUTF16) RTUtf16End(PCRTUTF16 pwszString, size_t cwcMax);
 
 /**
+ * Finds a give UTF-16 character in a UTF-16 string.
+ *
+ * @returns Pointer to the first occurence of @a wc.
+ * @returns NULL if @a wc was not found.
+ *
+ * @param   pwszString  The string to search.
+ * @param   wc          The UTF-16 character to search for.
+ */
+RTDECL(PRTUTF16) RTUtf16Chr(PCRTUTF16 pwszString, RTUTF16 wc);
+
+/**
  * Strips blankspaces from both ends of the string.
  *
  * @returns Pointer to first non-blank char in the string.
@@ -381,7 +392,7 @@ RTDECL(int) RTUtf16CatEx(PRTUTF16 pwszDst, size_t cwcDst, PCRTUTF16 pwszSrc, siz
 /**
  * Performs a case sensitive string compare between two UTF-16 strings.
  *
- * @returns < 0 if the first string less than the second string.s
+ * @returns < 0 if the first string less than the second string.
  * @returns 0 if the first string identical to the second string.
  * @returns > 0 if the first string greater than the second string.
  * @param   pwsz1       First UTF-16 string. Null is allowed.
@@ -394,7 +405,7 @@ RTDECL(int) RTUtf16Cmp(PCRTUTF16 pwsz1, PCRTUTF16 pwsz2);
  * Performs a case sensitive string compare between an UTF-16 string and a pure
  * ASCII string.
  *
- * @returns < 0 if the first string less than the second string.s
+ * @returns < 0 if the first string less than the second string.
  * @returns 0 if the first string identical to the second string.
  * @returns > 0 if the first string greater than the second string.
  * @param   pwsz1       First UTF-16 string. Null is allowed.
@@ -407,7 +418,7 @@ RTDECL(int) RTUtf16CmpAscii(PCRTUTF16 pwsz1, const char *psz2);
  * Performs a case sensitive string compare between an UTF-16 string and a UTF-8
  * string.
  *
- * @returns < 0 if the first string less than the second string.s
+ * @returns < 0 if the first string less than the second string.
  * @returns 0 if the first string identical to the second string.
  * @returns > 0 if the first string greater than the second string.
  * @param   pwsz1       First UTF-16 string. Null is allowed.
@@ -415,6 +426,52 @@ RTDECL(int) RTUtf16CmpAscii(PCRTUTF16 pwsz1, const char *psz2);
  * @remarks NULL and empty strings are treated equally.
  */
 RTDECL(int) RTUtf16CmpUtf8(PCRTUTF16 pwsz1, const char *psz2);
+
+
+/**
+ * Performs a case sensitive and length limited string compare between two UTF-16 strings.
+ *
+ * @returns < 0 if the first string less than the second string.
+ * @returns 0 if the first string identical to the second string.
+ * @returns > 0 if the first string greater than the second string.
+ * @param   pwsz1       First UTF-16 string. Null is allowed.
+ * @param   pwsz2       Second UTF-16 string. Null is allowed.
+ * @param   cwcMax      Maximum number of characters (RTUTF16) from the first
+ * @remark  This function will not make any attempt to validate the encoding.
+ */
+RTDECL(int) RTUtf16NCmp(PCRTUTF16 pwsz1, PCRTUTF16 pwsz2, size_t cwcMax);
+
+/**
+ * Performs a case sensitive and length limited string compare between an UTF-16
+ * string and a pure ASCII string.
+ *
+ * @returns < 0 if the first string less than the second string.
+ * @returns 0 if the first string identical to the second string.
+ * @returns > 0 if the first string greater than the second string.
+ * @param   pwsz1       First UTF-16 string. Null is allowed.
+ * @param   psz2        Second string, pure ASCII. Null is allowed.
+ * @param   cwcMax      Maximum number of characters (RTUTF16) to compare.
+ * @remark  This function will not make any attempt to validate the encoding.
+ */
+RTDECL(int) RTUtf16NCmpAscii(PCRTUTF16 pwsz1, const char *psz2, size_t cwcMax);
+
+/**
+ * Performs a case sensitive and length limited string compare between an UTF-16
+ * string and a UTF-8 string.
+ *
+ * @returns < 0 if the first string less than the second string.
+ * @returns 0 if the first string identical to the second string.
+ * @returns > 0 if the first string greater than the second string.
+ * @param   pwsz1       First UTF-16 string. Null is allowed.
+ * @param   psz2        Second string, UTF-8. Null is allowed.
+ * @param   cwcMax1     Maximum number of UTF-16 characters (RTUTF16) from the
+ *                      first string to compare.
+ * @param   cchMax2     Maximum number of UTF-8 characters (char) from the
+ *                      second string to compare.
+ * @remarks NULL and empty strings are treated equally.
+ */
+RTDECL(int) RTUtf16NCmpUtf8(PCRTUTF16 pwsz1, const char *psz2, size_t cwcMax1, size_t cchMax2);
+
 
 /**
  * Performs a case insensitive string compare between two UTF-16 strings.

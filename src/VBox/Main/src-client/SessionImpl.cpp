@@ -724,7 +724,7 @@ HRESULT Session::onVRDEServerChange(BOOL aRestart)
 #endif
 }
 
-HRESULT Session::onVideoCaptureChange()
+HRESULT Session::onRecordingChange(BOOL aEnable)
 {
     LogFlowThisFunc(("\n"));
 
@@ -734,8 +734,9 @@ HRESULT Session::onVideoCaptureChange()
 #ifndef VBOX_COM_INPROC_API_CLIENT
     AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
 
-    return mConsole->i_onVideoCaptureChange();
+    return mConsole->i_onRecordingChange(aEnable);
 #else
+    RT_NOREF(aEnable);
     return S_OK;
 #endif
 }

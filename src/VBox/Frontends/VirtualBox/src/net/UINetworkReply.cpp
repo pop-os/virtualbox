@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,6 +34,7 @@
 # ifndef VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS
 #  include "VBoxGlobal.h"
 #  include "VBoxUtils.h"
+#  include "CSystemProperties.h"
 # else /* VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS */
 #  include <VBox/log.h>
 # endif /* VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS */
@@ -383,19 +384,16 @@ int UINetworkReplyPrivateThread::applyProxyRules()
     m_strContext = tr("During proxy configuration");
 
 #ifndef VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS
-    /* Get the proxy-manager: */
-    UIProxyManager proxyManager(gEDataManager->proxySettings());
-
     /* If the specific proxy settings are enabled, we'll use them
      * unless user disabled that functionality manually. */
-    switch (proxyManager.proxyState())
+    const CSystemProperties comProperties = vboxGlobal().virtualBox().GetSystemProperties();
+    const KProxyMode enmProxyMode = comProperties.GetProxyMode();
+    AssertReturn(comProperties.isOk(), VERR_INTERNAL_ERROR_3);
+    switch (enmProxyMode)
     {
-        case UIProxyManager::ProxyState_Enabled:
-            return RTHttpSetProxy(m_hHttp,
-                                  proxyManager.proxyHost().toUtf8().constData(),
-                                  proxyManager.proxyPort().toUInt(),
-                                  NULL /* pszProxyUser */, NULL /* pszProxyPwd */);
-        case UIProxyManager::ProxyState_Disabled:
+        case KProxyMode_Manual:
+            return RTHttpSetProxyByUrl(m_hHttp, comProperties.GetProxyURL().toUtf8().constData());
+        case KProxyMode_NoProxy:
             return VINF_SUCCESS;
         default:
             break;

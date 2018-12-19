@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,6 +23,7 @@
 #include <QUrl>
 
 /* GUI includes: */
+#include "UILibraryDefs.h"
 #include "UINetworkDefs.h"
 
 /* Forward declarations: */
@@ -30,7 +31,7 @@ class UINetworkReplyPrivate;
 
 /** QObject extension
   * used as network-reply interface. */
-class UINetworkReply : public QObject
+class SHARED_LIBRARY_STUFF UINetworkReply : public QObject
 {
     Q_OBJECT;
 

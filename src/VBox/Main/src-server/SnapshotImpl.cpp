@@ -1081,6 +1081,10 @@ HRESULT SnapshotMachine::init(SessionMachine *aSessionMachine,
     rc = mBIOSSettings->initCopy(this, pMachine->mBIOSSettings);
     if (FAILED(rc)) return rc;
 
+    unconst(mRecordingSettings).createObject();
+    rc = mRecordingSettings->initCopy(this, pMachine->mRecordingSettings);
+    if (FAILED(rc)) return rc;
+
     unconst(mVRDEServer).createObject();
     rc = mVRDEServer->initCopy(this, pMachine->mVRDEServer);
     if (FAILED(rc)) return rc;
@@ -1202,6 +1206,9 @@ HRESULT SnapshotMachine::initFromSettings(Machine *aMachine,
 
     unconst(mBIOSSettings).createObject();
     mBIOSSettings->init(this);
+
+    unconst(mRecordingSettings).createObject();
+    mRecordingSettings->init(this);
 
     unconst(mVRDEServer).createObject();
     mVRDEServer->init(this);
@@ -1746,7 +1753,7 @@ void SessionMachine::i_takeSnapshotHandler(TakeSnapshotTask &task)
             else
                 LogRel(("Machine: skipped saving state as part of online snapshot\n"));
 
-            if (!task.m_pProgress->i_notifyPointOfNoReturn())
+            if (FAILED(task.m_pProgress->NotifyPointOfNoReturn()))
                 throw setError(E_FAIL, tr("Canceled"));
 
             // STEP 4: reattach hard disks
@@ -2496,6 +2503,8 @@ HRESULT SessionMachine::i_deleteSnapshot(const com::Guid &aStartId,
         ++ulTotalWeight;            // assume 1 MB for deleting the state file
     }
 
+    bool fDeleteOnline = mData->mMachineState == MachineState_Running || mData->mMachineState == MachineState_Paused;
+
     // count normal hard disks and add their sizes to the weight
     for (MediumAttachmentList::iterator
          it = pSnapMachine->mMediumAttachments->begin();
@@ -2519,6 +2528,9 @@ HRESULT SessionMachine::i_deleteSnapshot(const com::Guid &aStartId,
             {
                 // normal or immutable media need attention
                 ++ulOpCount;
+                // offline merge includes medium resizing
+                if (!fDeleteOnline)
+                    ++ulOpCount;
                 ulTotalWeight += (ULONG)(pHD->i_getSize() / _1M);
             }
             LogFlowThisFunc(("op %d: considering hard disk attachment %s\n", ulOpCount, pHD->i_getName().c_str()));
@@ -2534,9 +2546,6 @@ HRESULT SessionMachine::i_deleteSnapshot(const com::Guid &aStartId,
                     ulTotalWeight,
                     Bstr(tr("Setting up")).raw(),
                     1);
-
-    bool fDeleteOnline = (   (mData->mMachineState == MachineState_Running)
-                          || (mData->mMachineState == MachineState_Paused));
 
     /* create and start the task on a separate thread */
     DeleteSnapshotTask *pTask = new DeleteSnapshotTask(this, pProgress,
@@ -2806,8 +2815,8 @@ void SessionMachine::i_deleteSnapshotHandler(DeleteSnapshotTask &task)
             // base image. Important e.g. for medium formats which do not have
             // a file representation such as iSCSI.
 
-            // not going to merge a big source into a small target
-            if (pSource->i_getLogicalSize() > pTarget->i_getLogicalSize())
+            // not going to merge a big source into a small target on online merge. Otherwise it will be resized
+            if (fNeedsOnlineMerge && pSource->i_getLogicalSize() > pTarget->i_getLogicalSize())
             {
                 rc = setError(E_FAIL,
                               tr("Unable to merge storage '%s', because it is smaller than the source image. If you resize it to have a capacity of at least %lld bytes you can retry"),
@@ -2874,13 +2883,13 @@ void SessionMachine::i_deleteSnapshotHandler(DeleteSnapshotTask &task)
         }
 
         {
-            /*check available place on the storage*/
+            /* check available space on the storage */
             RTFOFF pcbTotal = 0;
             RTFOFF pcbFree = 0;
             uint32_t pcbBlock = 0;
             uint32_t pcbSector = 0;
-            std::multimap<uint32_t,uint64_t> neededStorageFreeSpace;
-            std::map<uint32_t,const char*> serialMapToStoragePath;
+            std::multimap<uint32_t, uint64_t> neededStorageFreeSpace;
+            std::map<uint32_t, const char*> serialMapToStoragePath;
 
             for (MediumDeleteRecList::const_iterator
                  it = toDelete.begin();
@@ -2916,10 +2925,16 @@ void SessionMachine::i_deleteSnapshotHandler(DeleteSnapshotTask &task)
 
                     pSource_local->COMGETTER(Size)((LONG64*)&diskSize);
 
+                    /** @todo r=klaus this is too pessimistic... should take
+                     * the current size and maximum size of the target image
+                     * into account, because a X GB image with Y GB capacity
+                     * can only grow by Y-X GB (ignoring overhead, which
+                     * unfortunately is hard to estimate, some have next to
+                     * nothing, some have a certain percentage...) */
                     /* store needed free space in multimap */
-                    neededStorageFreeSpace.insert(std::make_pair(pu32Serial,diskSize));
+                    neededStorageFreeSpace.insert(std::make_pair(pu32Serial, diskSize));
                     /* linking storage UID with snapshot path, it is a helper container (just for easy finding needed path) */
-                    serialMapToStoragePath.insert(std::make_pair(pu32Serial,pTarget_local->i_getLocationFull().c_str()));
+                    serialMapToStoragePath.insert(std::make_pair(pu32Serial, pTarget_local->i_getLocationFull().c_str()));
                 }
             }
 
@@ -2928,7 +2943,7 @@ void SessionMachine::i_deleteSnapshotHandler(DeleteSnapshotTask &task)
                 std::pair<std::multimap<uint32_t,uint64_t>::iterator,std::multimap<uint32_t,uint64_t>::iterator> ret;
                 uint64_t commonSourceStoragesSize = 0;
 
-                /* find all records in multimap with identical storage UID*/
+                /* find all records in multimap with identical storage UID */
                 ret = neededStorageFreeSpace.equal_range(neededStorageFreeSpace.begin()->first);
                 std::multimap<uint32_t,uint64_t>::const_iterator it_ns = ret.first;
 
@@ -2937,7 +2952,7 @@ void SessionMachine::i_deleteSnapshotHandler(DeleteSnapshotTask &task)
                     commonSourceStoragesSize += it_ns->second;
                 }
 
-                /* find appropriate path by storage UID*/
+                /* find appropriate path by storage UID */
                 std::map<uint32_t,const char*>::const_iterator it_sm = serialMapToStoragePath.find(ret.first->first);
                 /* get info about a storage */
                 if (it_sm == serialMapToStoragePath.end())
@@ -2950,7 +2965,7 @@ void SessionMachine::i_deleteSnapshotHandler(DeleteSnapshotTask &task)
                     throw rc;
                 }
 
-                int vrc = RTFsQuerySizes(it_sm->second, &pcbTotal, &pcbFree,&pcbBlock, &pcbSector);
+                int vrc = RTFsQuerySizes(it_sm->second, &pcbTotal, &pcbFree, &pcbBlock, &pcbSector);
                 if (RT_FAILURE(vrc))
                 {
                     rc = setError(E_FAIL,
@@ -3025,7 +3040,11 @@ void SessionMachine::i_deleteSnapshotHandler(DeleteSnapshotTask &task)
                 ulWeight = (ULONG)(pMedium->i_getSize() / _1M);
             }
 
-            task.m_pProgress->SetNextOperation(BstrFmt(tr("Merging differencing image '%s'"),
+            const char *pszOperationText = it->mfNeedsOnlineMerge ?
+                                             tr("Merging differencing image '%s'")
+                                           : tr("Resizing before merge differencing image '%s'");
+
+            task.m_pProgress->SetNextOperation(BstrFmt(pszOperationText,
                                                pMedium->i_getName().c_str()).raw(),
                                                ulWeight);
 

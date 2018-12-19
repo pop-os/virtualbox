@@ -196,52 +196,40 @@ DECLINLINE(void) apicAndVectorsToReg(volatile XAPIC256BITREG *pApicReg, size_t i
 /**
  * Reports and returns appropriate error code for invalid MSR accesses.
  *
- * @returns Strict VBox status code.
- * @retval  VINF_CPUM_R3_MSR_WRITE if the MSR write could not be serviced in the
- *          current context (raw-mode or ring-0).
- * @retval  VINF_CPUM_R3_MSR_READ if the MSR read could not be serviced in the
- *          current context (raw-mode or ring-0).
- * @retval  VERR_CPUM_RAISE_GP_0 on failure, the caller is expected to take the
- *          appropriate actions.
+ * @returns VERR_CPUM_RAISE_GP_0
  *
  * @param   pVCpu           The cross context virtual CPU structure.
  * @param   u32Reg          The MSR being accessed.
  * @param   enmAccess       The invalid-access type.
  */
-static VBOXSTRICTRC apicMsrAccessError(PVMCPU pVCpu, uint32_t u32Reg, APICMSRACCESS enmAccess)
+static int apicMsrAccessError(PVMCPU pVCpu, uint32_t u32Reg, APICMSRACCESS enmAccess)
 {
     static struct
     {
         const char *pszBefore;   /* The error message before printing the MSR index */
         const char *pszAfter;    /* The error message after printing the MSR index */
-        int         rcRZ;        /* The RZ error code */
     } const s_aAccess[] =
     {
-        /* enmAccess  pszBefore                        pszAfter                       rcRZ */
-        /* 0 */     { "read MSR",                      " while not in x2APIC mode",   VINF_CPUM_R3_MSR_READ  },
-        /* 1 */     { "write MSR",                     " while not in x2APIC mode",   VINF_CPUM_R3_MSR_WRITE },
-        /* 2 */     { "read reserved/unknown MSR",     "",                            VINF_CPUM_R3_MSR_READ  },
-        /* 3 */     { "write reserved/unknown MSR",    "",                            VINF_CPUM_R3_MSR_WRITE },
-        /* 4 */     { "read write-only MSR",           "",                            VINF_CPUM_R3_MSR_READ  },
-        /* 5 */     { "write read-only MSR",           "",                            VINF_CPUM_R3_MSR_WRITE },
-        /* 6 */     { "read reserved bits of MSR",     "",                            VINF_CPUM_R3_MSR_READ  },
-        /* 7 */     { "write reserved bits of MSR",    "",                            VINF_CPUM_R3_MSR_WRITE },
-        /* 8 */     { "write an invalid value to MSR", "",                            VINF_CPUM_R3_MSR_WRITE },
-        /* 9 */     { "write MSR",                     "disallowed by configuration", VINF_CPUM_R3_MSR_WRITE },
-        /* 10 */    { "read MSR",                      "disallowed by configuration", VINF_CPUM_R3_MSR_READ }
+        /* enmAccess  pszBefore                        pszAfter */
+        /* 0 */     { "read MSR",                      " while not in x2APIC mode"    },
+        /* 1 */     { "write MSR",                     " while not in x2APIC mode"    },
+        /* 2 */     { "read reserved/unknown MSR",     ""                             },
+        /* 3 */     { "write reserved/unknown MSR",    ""                             },
+        /* 4 */     { "read write-only MSR",           ""                             },
+        /* 5 */     { "write read-only MSR",           ""                             },
+        /* 6 */     { "read reserved bits of MSR",     ""                             },
+        /* 7 */     { "write reserved bits of MSR",    ""                             },
+        /* 8 */     { "write an invalid value to MSR", ""                             },
+        /* 9 */     { "write MSR",                     " disallowed by configuration" },
+        /* 10 */    { "read MSR",                      " disallowed by configuration" },
     };
     AssertCompile(RT_ELEMENTS(s_aAccess) == APICMSRACCESS_COUNT);
 
     size_t const i = enmAccess;
     Assert(i < RT_ELEMENTS(s_aAccess));
-#ifdef IN_RING3
-    LogRelMax(5, ("APIC%u: Attempt to %s (%#x)%s -> #GP(0)\n", pVCpu->idCpu, s_aAccess[i].pszBefore, u32Reg,
-                  s_aAccess[i].pszAfter));
+    if (pVCpu->apic.s.cLogMaxAccessError++ < 5)
+        LogRel(("APIC%u: Attempt to %s (%#x)%s -> #GP(0)\n", pVCpu->idCpu, s_aAccess[i].pszBefore, u32Reg, s_aAccess[i].pszAfter));
     return VERR_CPUM_RAISE_GP_0;
-#else
-    RT_NOREF_PV(u32Reg); RT_NOREF_PV(pVCpu);
-    return s_aAccess[i].rcRZ;
-#endif
 }
 
 
@@ -548,11 +536,11 @@ static void apicSignalNextPendingIntr(PVMCPU pVCpu)
 /**
  * Sets the Spurious-Interrupt Vector Register (SVR).
  *
- * @returns Strict VBox status code.
+ * @returns VINF_SUCCESS or VERR_CPUM_RAISE_GP_0.
  * @param   pVCpu           The cross context virtual CPU structure.
  * @param   uSvr            The SVR value.
  */
-static VBOXSTRICTRC apicSetSvr(PVMCPU pVCpu, uint32_t uSvr)
+static int apicSetSvr(PVMCPU pVCpu, uint32_t uSvr)
 {
     VMCPU_ASSERT_EMT(pVCpu);
 
@@ -1117,11 +1105,11 @@ static VBOXSTRICTRC apicSetIcr(PVMCPU pVCpu, uint64_t u64Icr, int rcRZ)
 /**
  * Sets the Error Status Register (ESR).
  *
- * @returns Strict VBox status code.
+ * @returns VINF_SUCCESS or VERR_CPUM_RAISE_GP_0.
  * @param   pVCpu           The cross context virtual CPU structure.
  * @param   uEsr            The ESR value.
  */
-static VBOXSTRICTRC apicSetEsr(PVMCPU pVCpu, uint32_t uEsr)
+static int apicSetEsr(PVMCPU pVCpu, uint32_t uEsr)
 {
     VMCPU_ASSERT_EMT(pVCpu);
 
@@ -1192,13 +1180,13 @@ static uint8_t apicGetPpr(PVMCPU pVCpu)
 /**
  * Sets the Task Priority Register (TPR).
  *
- * @returns Strict VBox status code.
+ * @returns VINF_SUCCESS or VERR_CPUM_RAISE_GP_0.
  * @param   pVCpu                   The cross context virtual CPU structure.
  * @param   uTpr                    The TPR value.
  * @param   fForceX2ApicBehaviour   Pretend the APIC is in x2APIC mode during
  *                                  this write.
  */
-static VBOXSTRICTRC apicSetTprEx(PVMCPU pVCpu, uint32_t uTpr, bool fForceX2ApicBehaviour)
+static int apicSetTprEx(PVMCPU pVCpu, uint32_t uTpr, bool fForceX2ApicBehaviour)
 {
     VMCPU_ASSERT_EMT(pVCpu);
 
@@ -1963,6 +1951,20 @@ VMM_INT_DECL(VBOXSTRICTRC) APICReadMsr(PVMCPU pVCpu, uint32_t u32Reg, uint64_t *
                 break;
             }
 
+            /*
+             * Windows guest using Hyper-V x2APIC MSR compatibility mode tries to read the "high"
+             * LDR bits, which is quite absurd (as it's a 32-bit register) using this invalid MSR
+             * index (0x80E), see @bugref{8382#c175}.
+             */
+            case MSR_IA32_X2APIC_LDR + 1:
+            {
+                if (pApic->fHyperVCompatMode)
+                    *pu64Value = 0;
+                else
+                    rcStrict = apicMsrAccessError(pVCpu, u32Reg, APICMSRACCESS_READ_RSVD_OR_UNKNOWN);
+                break;
+            }
+
             /* Reserved MSRs: */
             case MSR_IA32_X2APIC_LVT_CMCI:
             default:
@@ -2156,17 +2158,193 @@ VMM_INT_DECL(VBOXSTRICTRC) APICWriteMsr(PVMCPU pVCpu, uint32_t u32Reg, uint64_t 
 
 
 /**
+ * Resets the APIC base MSR.
+ *
+ * @param   pVCpu           The cross context virtual CPU structure.
+ */
+static void apicResetBaseMsr(PVMCPU pVCpu)
+{
+    /*
+     * Initialize the APIC base MSR. The APIC enable-bit is set upon power-up or reset[1].
+     *
+     * A Reset (in xAPIC and x2APIC mode) brings up the local APIC in xAPIC mode.
+     * An INIT IPI does -not- cause a transition between xAPIC and x2APIC mode[2].
+     *
+     * [1] See AMD spec. 14.1.3 "Processor Initialization State"
+     * [2] See Intel spec. 10.12.5.1 "x2APIC States".
+     */
+    VMCPU_ASSERT_EMT_OR_NOT_RUNNING(pVCpu);
+
+    /* Construct. */
+    PAPICCPU pApicCpu     = VMCPU_TO_APICCPU(pVCpu);
+    PAPIC    pApic        = VM_TO_APIC(pVCpu->CTX_SUFF(pVM));
+    uint64_t uApicBaseMsr = MSR_IA32_APICBASE_ADDR;
+    if (pVCpu->idCpu == 0)
+        uApicBaseMsr |= MSR_IA32_APICBASE_BSP;
+
+    /* If the VM was configured with no APIC, don't enable xAPIC mode, obviously. */
+    if (pApic->enmMaxMode != PDMAPICMODE_NONE)
+    {
+        uApicBaseMsr |= MSR_IA32_APICBASE_EN;
+
+        /*
+         * While coming out of a reset the APIC is enabled and in xAPIC mode. If software had previously
+         * disabled the APIC (which results in the CPUID bit being cleared as well) we re-enable it here.
+         * See Intel spec. 10.12.5.1 "x2APIC States".
+         */
+        if (CPUMSetGuestCpuIdPerCpuApicFeature(pVCpu, true /*fVisible*/) == false)
+            LogRel(("APIC%u: Resetting mode to xAPIC\n", pVCpu->idCpu));
+    }
+
+    /* Commit. */
+    ASMAtomicWriteU64(&pApicCpu->uApicBaseMsr, uApicBaseMsr);
+}
+
+
+/**
+ * Initializes per-VCPU APIC to the state following an INIT reset
+ * ("Wait-for-SIPI" state).
+ *
+ * @param   pVCpu       The cross context virtual CPU structure.
+ */
+void apicInitIpi(PVMCPU pVCpu)
+{
+    VMCPU_ASSERT_EMT_OR_NOT_RUNNING(pVCpu);
+    PXAPICPAGE pXApicPage = VMCPU_TO_XAPICPAGE(pVCpu);
+
+    /*
+     * See Intel spec. 10.4.7.3 "Local APIC State After an INIT Reset (Wait-for-SIPI State)"
+     * and AMD spec 16.3.2 "APIC Registers".
+     *
+     * The reason we don't simply zero out the entire APIC page and only set the non-zero members
+     * is because there are some registers that are not touched by the INIT IPI (e.g. version)
+     * operation and this function is only a subset of the reset operation.
+     */
+    RT_ZERO(pXApicPage->irr);
+    RT_ZERO(pXApicPage->irr);
+    RT_ZERO(pXApicPage->isr);
+    RT_ZERO(pXApicPage->tmr);
+    RT_ZERO(pXApicPage->icr_hi);
+    RT_ZERO(pXApicPage->icr_lo);
+    RT_ZERO(pXApicPage->ldr);
+    RT_ZERO(pXApicPage->tpr);
+    RT_ZERO(pXApicPage->ppr);
+    RT_ZERO(pXApicPage->timer_icr);
+    RT_ZERO(pXApicPage->timer_ccr);
+    RT_ZERO(pXApicPage->timer_dcr);
+
+    pXApicPage->dfr.u.u4Model        = XAPICDESTFORMAT_FLAT;
+    pXApicPage->dfr.u.u28ReservedMb1 = UINT32_C(0xfffffff);
+
+    /** @todo CMCI. */
+
+    RT_ZERO(pXApicPage->lvt_timer);
+    pXApicPage->lvt_timer.u.u1Mask = 1;
+
+#if XAPIC_HARDWARE_VERSION == XAPIC_HARDWARE_VERSION_P4
+    RT_ZERO(pXApicPage->lvt_thermal);
+    pXApicPage->lvt_thermal.u.u1Mask = 1;
+#endif
+
+    RT_ZERO(pXApicPage->lvt_perf);
+    pXApicPage->lvt_perf.u.u1Mask = 1;
+
+    RT_ZERO(pXApicPage->lvt_lint0);
+    pXApicPage->lvt_lint0.u.u1Mask = 1;
+
+    RT_ZERO(pXApicPage->lvt_lint1);
+    pXApicPage->lvt_lint1.u.u1Mask = 1;
+
+    RT_ZERO(pXApicPage->lvt_error);
+    pXApicPage->lvt_error.u.u1Mask = 1;
+
+    RT_ZERO(pXApicPage->svr);
+    pXApicPage->svr.u.u8SpuriousVector = 0xff;
+
+    /* The self-IPI register is reset to 0. See Intel spec. 10.12.5.1 "x2APIC States" */
+    PX2APICPAGE pX2ApicPage = VMCPU_TO_X2APICPAGE(pVCpu);
+    RT_ZERO(pX2ApicPage->self_ipi);
+
+    /* Clear the pending-interrupt bitmaps. */
+    PAPICCPU pApicCpu = VMCPU_TO_APICCPU(pVCpu);
+    RT_BZERO(&pApicCpu->ApicPibLevel, sizeof(APICPIB));
+    RT_BZERO(pApicCpu->CTX_SUFF(pvApicPib), sizeof(APICPIB));
+
+    /* Clear the interrupt line states for LINT0 and LINT1 pins. */
+    pApicCpu->fActiveLint0 = false;
+    pApicCpu->fActiveLint1 = false;
+}
+
+
+/**
+ * Initializes per-VCPU APIC to the state following a power-up or hardware
+ * reset.
+ *
+ * @param   pVCpu               The cross context virtual CPU structure.
+ * @param   fResetApicBaseMsr   Whether to reset the APIC base MSR.
+ */
+void apicResetCpu(PVMCPU pVCpu, bool fResetApicBaseMsr)
+{
+    VMCPU_ASSERT_EMT_OR_NOT_RUNNING(pVCpu);
+
+    LogFlow(("APIC%u: apicR3ResetCpu: fResetApicBaseMsr=%RTbool\n", pVCpu->idCpu, fResetApicBaseMsr));
+
+#ifdef VBOX_STRICT
+    /* Verify that the initial APIC ID reported via CPUID matches our VMCPU ID assumption. */
+    uint32_t uEax, uEbx, uEcx, uEdx;
+    uEax = uEbx = uEcx = uEdx = UINT32_MAX;
+    CPUMGetGuestCpuId(pVCpu, 1, 0, &uEax, &uEbx, &uEcx, &uEdx);
+    Assert(((uEbx >> 24) & 0xff) == pVCpu->idCpu);
+#endif
+
+    /*
+     * The state following a power-up or reset is a superset of the INIT state.
+     * See Intel spec. 10.4.7.3 "Local APIC State After an INIT Reset ('Wait-for-SIPI' State)"
+     */
+    apicInitIpi(pVCpu);
+
+    /*
+     * The APIC version register is read-only, so just initialize it here.
+     * It is not clear from the specs, where exactly it is initialized.
+     * The version determines the number of LVT entries and size of the APIC ID (8 bits for P4).
+     */
+    PXAPICPAGE pXApicPage = VMCPU_TO_XAPICPAGE(pVCpu);
+#if XAPIC_HARDWARE_VERSION == XAPIC_HARDWARE_VERSION_P4
+    pXApicPage->version.u.u8MaxLvtEntry = XAPIC_MAX_LVT_ENTRIES_P4 - 1;
+    pXApicPage->version.u.u8Version     = XAPIC_HARDWARE_VERSION_P4;
+    AssertCompile(sizeof(pXApicPage->id.u8ApicId) >= XAPIC_APIC_ID_BIT_COUNT_P4 / 8);
+#else
+# error "Implement Pentium and P6 family APIC architectures"
+#endif
+
+    /** @todo It isn't clear in the spec. where exactly the default base address
+     *        is (re)initialized, atm we do it here in Reset. */
+    if (fResetApicBaseMsr)
+        apicResetBaseMsr(pVCpu);
+
+    /*
+     * Initialize the APIC ID register to xAPIC format.
+     */
+    ASMMemZero32(&pXApicPage->id, sizeof(pXApicPage->id));
+    pXApicPage->id.u8ApicId = pVCpu->idCpu;
+}
+
+
+/**
  * Sets the APIC base MSR.
  *
- * @returns Strict VBox status code.
+ * @returns VBox status code - no informational ones, esp. not
+ *          VINF_CPUM_R3_MSR_WRITE.  Only the following two:
+ * @retval  VINF_SUCCESS
+ * @retval  VERR_CPUM_RAISE_GP_0
+ *
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   u64BaseMsr  The value to set.
  */
-VMM_INT_DECL(VBOXSTRICTRC) APICSetBaseMsr(PVMCPU pVCpu, uint64_t u64BaseMsr)
+VMM_INT_DECL(int) APICSetBaseMsr(PVMCPU pVCpu, uint64_t u64BaseMsr)
 {
     Assert(pVCpu);
 
-#ifdef IN_RING3
     PAPICCPU pApicCpu   = VMCPU_TO_APICCPU(pVCpu);
     PAPIC    pApic      = VM_TO_APIC(pVCpu->CTX_SUFF(pVM));
     APICMODE enmOldMode = apicGetMode(pApicCpu->uApicBaseMsr);
@@ -2186,16 +2364,16 @@ VMM_INT_DECL(VBOXSTRICTRC) APICSetBaseMsr(PVMCPU pVCpu, uint64_t u64BaseMsr)
     /** @todo Handle per-VCPU APIC base relocation. */
     if (MSR_IA32_APICBASE_GET_ADDR(uBaseMsr) != MSR_IA32_APICBASE_ADDR)
     {
-        LogRelMax(5, ("APIC%u: Attempt to relocate base to %#RGp, unsupported -> #GP(0)\n", pVCpu->idCpu,
-                      MSR_IA32_APICBASE_GET_ADDR(uBaseMsr)));
+        if (pVCpu->apic.s.cLogMaxSetApicBaseAddr++ < 5)
+            LogRel(("APIC%u: Attempt to relocate base to %#RGp, unsupported -> #GP(0)\n", pVCpu->idCpu,
+                    MSR_IA32_APICBASE_GET_ADDR(uBaseMsr)));
         return VERR_CPUM_RAISE_GP_0;
     }
 
     /* Don't allow enabling xAPIC/x2APIC if the VM is configured with the APIC disabled. */
     if (pApic->enmMaxMode == PDMAPICMODE_NONE)
     {
-        LogRel(("APIC%u: Disallowing APIC base MSR write as the VM is configured with APIC disabled!\n",
-                pVCpu->idCpu));
+        LogRel(("APIC%u: Disallowing APIC base MSR write as the VM is configured with APIC disabled!\n", pVCpu->idCpu));
         return apicMsrAccessError(pVCpu, MSR_IA32_APICBASE, APICMSRACCESS_WRITE_DISALLOWED_CONFIG);
     }
 
@@ -2218,7 +2396,7 @@ VMM_INT_DECL(VBOXSTRICTRC) APICSetBaseMsr(PVMCPU pVCpu, uint64_t u64BaseMsr)
                  * at the end of this function rather than updating it in apicR3ResetCpu. This means we also
                  * need to update the CPUID leaf ourselves.
                  */
-                apicR3ResetCpu(pVCpu, false /* fResetApicBaseMsr */);
+                apicResetCpu(pVCpu, false /* fResetApicBaseMsr */);
                 uBaseMsr &= ~(MSR_IA32_APICBASE_EN | MSR_IA32_APICBASE_EXTD);
                 CPUMSetGuestCpuIdPerCpuApicFeature(pVCpu, false /*fVisible*/);
                 LogRel(("APIC%u: Switched mode to disabled\n", pVCpu->idCpu));
@@ -2289,12 +2467,6 @@ VMM_INT_DECL(VBOXSTRICTRC) APICSetBaseMsr(PVMCPU pVCpu, uint64_t u64BaseMsr)
 
     ASMAtomicWriteU64(&pApicCpu->uApicBaseMsr, uBaseMsr);
     return VINF_SUCCESS;
-
-#else  /* !IN_RING3 */
-    RT_NOREF_PV(pVCpu);
-    RT_NOREF_PV(u64BaseMsr);
-    return VINF_CPUM_R3_MSR_WRITE;
-#endif /* IN_RING3 */
 }
 
 
@@ -2331,26 +2503,26 @@ VMM_INT_DECL(VBOXSTRICTRC) APICGetBaseMsr(PVMCPU pVCpu, uint64_t *pu64Value)
         return VINF_SUCCESS;
     }
 
-#ifdef IN_RING3
-    LogRelMax(5, ("APIC%u: Reading APIC base MSR (%#x) when there is no APIC -> #GP(0)\n", pVCpu->idCpu, MSR_IA32_APICBASE));
+    if (pVCpu->apic.s.cLogMaxGetApicBaseAddr++ < 5)
+        LogRel(("APIC%u: Reading APIC base MSR (%#x) when there is no APIC -> #GP(0)\n", pVCpu->idCpu, MSR_IA32_APICBASE));
     return VERR_CPUM_RAISE_GP_0;
-#else
-    return VINF_CPUM_R3_MSR_WRITE;
-#endif
 }
 
 
 /**
  * Sets the TPR (Task Priority Register).
  *
- * @returns VBox status code.
+ * @retval  VINF_SUCCESS
+ * @retval  VERR_CPUM_RAISE_GP_0
+ * @retval  VERR_PDM_NO_APIC_INSTANCE
+ *
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   u8Tpr       The TPR value to set.
  */
 VMMDECL(int) APICSetTpr(PVMCPU pVCpu, uint8_t u8Tpr)
 {
     if (APICIsEnabled(pVCpu))
-        return VBOXSTRICTRC_VAL(apicSetTprEx(pVCpu, u8Tpr, false /* fForceX2ApicBehaviour */));
+        return apicSetTprEx(pVCpu, u8Tpr, false /* fForceX2ApicBehaviour */);
     return VERR_PDM_NO_APIC_INSTANCE;
 }
 
@@ -3096,6 +3268,8 @@ VMM_INT_DECL(void) APICDequeueInterruptFromService(PVMCPU pVCpu, uint8_t u8Pendi
  * Updates pending interrupts from the pending-interrupt bitmaps to the IRR.
  *
  * @param   pVCpu               The cross context virtual CPU structure.
+ *
+ * @note    NEM/win is ASSUMING the an up to date TPR is not required here.
  */
 VMMDECL(void) APICUpdatePendingInterrupts(PVMCPU pVCpu)
 {
@@ -3166,7 +3340,7 @@ VMMDECL(void) APICUpdatePendingInterrupts(PVMCPU pVCpu)
     Log3(("APIC%u: APICUpdatePendingInterrupts: fHasPendingIntrs=%RTbool\n", pVCpu->idCpu, fHasPendingIntrs));
 
     if (   fHasPendingIntrs
-        && !VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC))
+        && !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC))
         apicSignalNextPendingIntr(pVCpu);
 }
 

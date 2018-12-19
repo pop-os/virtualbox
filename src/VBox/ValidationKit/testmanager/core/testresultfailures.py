@@ -29,8 +29,10 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118412 $"
+__version__ = "$Revision: 120396 $"
+
 # Standard python imports.
+import sys;
 import unittest;
 
 # Validation Kit imports.
@@ -39,6 +41,9 @@ from testmanager.core.base          import ModelDataBase, ModelLogicBase, ModelD
 from testmanager.core.failurereason import FailureReasonData;
 from testmanager.core.useraccount   import UserAccountLogic;
 
+# Python 3 hacks:
+if sys.version_info[0] >= 3:
+    xrange = range; # pylint: disable=redefined-builtin,invalid-name
 
 
 class TestResultFailureData(ModelDataBase):

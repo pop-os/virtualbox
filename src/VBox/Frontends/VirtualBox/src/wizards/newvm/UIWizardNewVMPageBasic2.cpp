@@ -31,7 +31,7 @@
 # include "UIWizardNewVMPageBasic2.h"
 # include "UIWizardNewVM.h"
 # include "VBoxGlobal.h"
-# include "VBoxGuestRAMSlider.h"
+# include "UIGuestRAMSlider.h"
 # include "QIRichTextLabel.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
@@ -65,15 +65,15 @@ UIWizardNewVMPageBasic2::UIWizardNewVMPageBasic2()
         m_pLabel = new QIRichTextLabel(this);
         QGridLayout *pMemoryLayout = new QGridLayout;
         {
-            m_pRamSlider = new VBoxGuestRAMSlider(this);
+            m_pRamSlider = new UIGuestRAMSlider(this);
             {
                 m_pRamSlider->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
                 m_pRamSlider->setOrientation(Qt::Horizontal);
             }
             m_pRamEditor = new QSpinBox(this);
             {
-                m_pRamEditor->setMinimum(m_pRamSlider->minRAM());
-                m_pRamEditor->setMaximum(m_pRamSlider->maxRAM());
+                m_pRamEditor->setMinimum(m_pRamSlider->minimum());
+                m_pRamEditor->setMaximum(m_pRamSlider->maximum());
                 vboxGlobal().setMinimumWidthAccordingSymbolCount(m_pRamEditor, 5);
             }
             m_pRamUnits = new QLabel(this);
@@ -101,8 +101,10 @@ UIWizardNewVMPageBasic2::UIWizardNewVMPageBasic2()
     }
 
     /* Setup connections: */
-    connect(m_pRamSlider, SIGNAL(valueChanged(int)), this, SLOT(sltRamSliderValueChanged()));
-    connect(m_pRamEditor, SIGNAL(valueChanged(int)), this, SLOT(sltRamEditorValueChanged()));
+    connect(m_pRamSlider, &UIGuestRAMSlider::valueChanged,
+            this, &UIWizardNewVMPageBasic2::sltRamSliderValueChanged);
+    connect(m_pRamEditor, static_cast<void(QSpinBox::*)(int)>(&QSpinBox::valueChanged),
+            this, &UIWizardNewVMPageBasic2::sltRamEditorValueChanged);
 
     /* Register fields: */
     registerField("ram", m_pRamSlider, "value", SIGNAL(valueChanged(int)));
@@ -163,4 +165,3 @@ bool UIWizardNewVMPageBasic2::isComplete() const
     return m_pRamSlider->value() >= qMax(1, (int)m_pRamSlider->minRAM()) &&
            m_pRamSlider->value() <= (int)m_pRamSlider->maxRAM();
 }
-

@@ -25,6 +25,7 @@
 # include <QRadioButton>
 
 /* GUI includes: */
+# include "UIConverter.h"
 # include "UIWizardCloneVDPageBasic2.h"
 # include "UIWizardCloneVD.h"
 # include "VBoxGlobal.h"
@@ -146,7 +147,8 @@ UIWizardCloneVDPageBasic2::UIWizardCloneVDPageBasic2(KDeviceType enmDeviceType)
     }
 
     /* Setup connections: */
-    connect(m_pFormatButtonGroup, SIGNAL(buttonClicked(QAbstractButton *)), this, SIGNAL(completeChanged()));
+    connect(m_pFormatButtonGroup, static_cast<void(QButtonGroup::*)(QAbstractButton*)>(&QButtonGroup::buttonClicked),
+            this, &UIWizardCloneVDPageBasic2::completeChanged);
 
     /* Register classes: */
     qRegisterMetaType<CMediumFormat>();
@@ -167,7 +169,8 @@ void UIWizardCloneVDPageBasic2::retranslateUi()
     for (int i = 0; i < buttons.size(); ++i)
     {
         QAbstractButton *pButton = buttons[i];
-        pButton->setText(VBoxGlobal::fullMediumFormatName(m_formatNames[m_pFormatButtonGroup->id(pButton)]));
+        UIMediumFormat enmFormat = gpConverter->fromInternalString<UIMediumFormat>(m_formatNames[m_pFormatButtonGroup->id(pButton)]);
+        pButton->setText(gpConverter->toString(enmFormat));
     }
 }
 

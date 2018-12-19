@@ -229,8 +229,8 @@ void UIMachineLogicNormal::sltHandleActionTriggerViewScreenToggle(int iIndex, bo
     display().GetScreenResolution(iIndex, uWidth, uHeight, uBitsPerPixel, uOriginX, uOriginY, monitorStatus);
     if (!fEnabled)
     {
-        display().SetVideoModeHint(iIndex, false, false, 0, 0, 0, 0, 0);
         uisession()->setScreenVisibleHostDesires(iIndex, false);
+        display().SetVideoModeHint(iIndex, false, false, 0, 0, 0, 0, 0);
     }
     else
     {
@@ -239,8 +239,8 @@ void UIMachineLogicNormal::sltHandleActionTriggerViewScreenToggle(int iIndex, bo
             uWidth = 800;
         if (!uHeight)
             uHeight = 600;
-        display().SetVideoModeHint(iIndex, true, false, 0, 0, uWidth, uHeight, 32);
         uisession()->setScreenVisibleHostDesires(iIndex, true);
+        display().SetVideoModeHint(iIndex, true, false, 0, 0, uWidth, uHeight, 32);
     }
 }
 
@@ -266,6 +266,17 @@ void UIMachineLogicNormal::sltHostScreenAvailableAreaChange()
 
     /* Call to base-class: */
     UIMachineLogic::sltHostScreenAvailableAreaChange();
+}
+
+void UIMachineLogicNormal::prepareActionGroups()
+{
+    /* Call to base-class: */
+    UIMachineLogic::prepareActionGroups();
+
+    /* Restrict 'Remap' actions for 'View' menu: */
+    actionPool()->toRuntime()->setRestrictionForMenuView(UIActionRestrictionLevel_Logic,
+                                                         (UIExtraDataMetaDefs::RuntimeMenuViewActionType)
+                                                         (UIExtraDataMetaDefs::RuntimeMenuViewActionType_Remap));
 }
 
 void UIMachineLogicNormal::prepareActionConnections()
@@ -387,4 +398,3 @@ void UIMachineLogicNormal::cleanupActionConnections()
     /* Call to base-class: */
     UIMachineLogic::cleanupActionConnections();
 }
-

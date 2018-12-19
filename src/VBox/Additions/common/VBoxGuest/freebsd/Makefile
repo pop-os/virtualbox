@@ -85,15 +85,23 @@ SRCS += \
 .PATH:	${.CURDIR}/common/string
 SRCS += \
 	RTStrCat.c \
+	RTStrCmp.c \
 	RTStrCopy.c \
 	RTStrCopyEx.c \
 	RTStrCopyP.c \
+	RTStrICmpAscii.c \
+	RTStrNICmpAscii.c \
+	RTStrNCmp.c \
+	RTStrNLen.c \
+	stringalloc.c \
 	strformat.c \
+	strformatnum.c \
 	strformatrt.c \
 	strformattype.c \
 	strprintf.c \
 	strtonum.c \
-	memchr.c
+	memchr.c \
+	utf-8.c
 
 .PATH:	${.CURDIR}/common/rand
 SRCS += \

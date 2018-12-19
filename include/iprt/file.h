@@ -1130,24 +1130,13 @@ RTDECL(void) RTFileReadAllFree(void *pvFile, size_t cbFile);
 #define RTFILE_RDALL_O_DENY_ALL             RTFILE_O_DENY_ALL
 #define RTFILE_RDALL_O_DENY_NOT_DELETE      RTFILE_O_DENY_NOT_DELETE
 #define RTFILE_RDALL_O_DENY_MASK            RTFILE_O_DENY_MASK
+/** Fail with VERR_OUT_OF_RANGE if the file size exceeds the specified maximum
+ * size.  The default behavior is to cap the size at cbMax. */
+#define RTFILE_RDALL_F_FAIL_ON_MAX_SIZE     RT_BIT_32(30)
 /** Add a trailing zero byte to facilitate reading text files. */
 #define RTFILE_RDALL_F_TRAILING_ZERO_BYTE   RT_BIT_32(31)
 /** Mask of valid flags. */
-#define RTFILE_RDALL_VALID_MASK             (RTFILE_RDALL_O_DENY_MASK | UINT32_C(0x80000000))
-/** @} */
-
-/** @name RTFileSetAllocationSize flags
- * @{ */
-/** Default flags. */
-#define RTFILE_ALLOC_SIZE_F_DEFAULT         0
-/** Do not change the size of the file if the given size is
- * bigger than the current file size. Useful to preallocate
- * blocks beyond the current size for appending data in an efficient
- * manner. Might not be supported on all hosts and will return
- * VERR_NOT_SUPPORTED in that case. */
-#define RTFILE_ALLOC_SIZE_F_KEEP_SIZE       RT_BIT(0)
-/** Mask of valid flags. */
-#define RTFILE_ALLOC_SIZE_F_VALID           (RTFILE_ALLOC_SIZE_F_KEEP_SIZE)
+#define RTFILE_RDALL_VALID_MASK             (RTFILE_RDALL_O_DENY_MASK | UINT32_C(0xc0000000))
 /** @} */
 
 /**
@@ -1155,14 +1144,30 @@ RTDECL(void) RTFileReadAllFree(void *pvFile, size_t cbFile);
  * are allocated on the underlying medium.
  *
  * @returns IPRT status code.
- * @retval  VERR_NOT_SUPPORTED if either this operation is not supported on the current host
- *                             in an efficient manner or the given combination of flags is
- *                             not supported.
+ * @retval  VERR_NOT_SUPPORTED if either this operation is not supported on the
+ *          current host in an efficient manner or the given combination of
+ *          flags is not supported.
  * @param   hFile           The handle to the file.
  * @param   cbSize          The new size of the file to allocate.
  * @param   fFlags          Combination of RTFILE_ALLOC_SIZE_F_*
  */
 RTDECL(int) RTFileSetAllocationSize(RTFILE hFile, uint64_t cbSize, uint32_t fFlags);
+
+/** @name RTFILE_ALLOC_SIZE_F_XXX - RTFileSetAllocationSize flags
+ * @{ */
+/** Default flags. */
+#define RTFILE_ALLOC_SIZE_F_DEFAULT         0
+/** Do not change the size of the file if the given size is bigger than the
+ * current file size.
+ *
+ * Useful to preallocate blocks beyond the current size for appending data in an
+ * efficient manner. Might not be supported on all hosts and will return
+ * VERR_NOT_SUPPORTED in that case. */
+#define RTFILE_ALLOC_SIZE_F_KEEP_SIZE       RT_BIT(0)
+/** Mask of valid flags. */
+#define RTFILE_ALLOC_SIZE_F_VALID           (RTFILE_ALLOC_SIZE_F_KEEP_SIZE)
+/** @} */
+
 
 #ifdef IN_RING3
 

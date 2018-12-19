@@ -42,13 +42,6 @@
 #include <iprt/err.h>
 
 
-extern const char *gVBoxLangSubDir;
-extern const char *gVBoxLangFileBase;
-extern const char *gVBoxLangFileExt;
-extern const char *gVBoxLangIDRegExp;
-extern const char *gVBoxBuiltInLangName;
-
-
 /** Global settings: Language page data structure. */
 struct UIDataSettingsGlobalLanguage
 {
@@ -78,6 +71,8 @@ struct UIDataSettingsGlobalLanguage
 /* Language item: */
 class UILanguageItem : public QITreeWidgetItem
 {
+    Q_OBJECT;
+
 public:
 
     /* Language item constructor: */
@@ -118,8 +113,8 @@ public:
         }
         else
         {
-            strItemName += UIGlobalSettingsLanguage::tr(" (built-in)", "Language");
-            strLanguageName += UIGlobalSettingsLanguage::tr(" (built-in)", "Language");
+            strItemName += tr(" (built-in)", "Language");
+            strLanguageName += tr(" (built-in)", "Language");
         }
 
         setText(0, strItemName);
@@ -145,8 +140,8 @@ public:
 
         setText(0, QString("<%1>").arg(strId));
         setText(1, strId);
-        setText(2, UIGlobalSettingsLanguage::tr("<unavailable>", "Language"));
-        setText(3, UIGlobalSettingsLanguage::tr("<unknown>", "Author(s)"));
+        setText(2, tr("<unavailable>", "Language"));
+        setText(3, tr("<unknown>", "Author(s)"));
 
         /* Invalid language appears in italic: */
         QFont fnt = font(0);
@@ -159,7 +154,7 @@ public:
     UILanguageItem(QITreeWidget *pParent)
         : QITreeWidgetItem(pParent), m_fBuiltIn(false)
     {
-        setText(0, UIGlobalSettingsLanguage::tr("Default", "Language"));
+        setText(0, tr("Default", "Language"));
         setText(1, QString::null);
         /* Empty strings of some reasonable length to prevent the info part
          * from being shrinked too much when the list wants to be wider */
@@ -394,20 +389,22 @@ void UIGlobalSettingsLanguage::reloadLanguageTree(const QString &strLanguageId)
     char szNlsPath[RTPATH_MAX];
     int rc = RTPathAppPrivateNoArch(szNlsPath, sizeof(szNlsPath));
     AssertRC(rc);
-    QString strNlsPath = QString(szNlsPath) + gVBoxLangSubDir;
+    QString strNlsPath = QString(szNlsPath) + VBoxGlobal::vboxLanguageSubDirectory();
     QDir nlsDir(strNlsPath);
-    QStringList files = nlsDir.entryList(QStringList(QString("%1*%2").arg(gVBoxLangFileBase, gVBoxLangFileExt)), QDir::Files);
+    QStringList files = nlsDir.entryList(QStringList(QString("%1*%2").arg(VBoxGlobal::vboxLanguageFileBase(),
+                                                                          VBoxGlobal::vboxLanguageFileExtension())),
+                                         QDir::Files);
 
     QTranslator translator;
     /* Add the default language: */
     new UILanguageItem(m_pLanguageTree);
     /* Add the built-in language: */
-    new UILanguageItem(m_pLanguageTree, translator, gVBoxBuiltInLangName, true /* built-in */);
+    new UILanguageItem(m_pLanguageTree, translator, VBoxGlobal::vboxBuiltInLanguageName(), true /* built-in */);
     /* Add all existing languages */
     for (QStringList::Iterator it = files.begin(); it != files.end(); ++it)
     {
         QString strFileName = *it;
-        QRegExp regExp(QString(gVBoxLangFileBase) + gVBoxLangIDRegExp);
+        QRegExp regExp(VBoxGlobal::vboxLanguageFileBase() + VBoxGlobal::vboxLanguageIdRegExp());
         int iPos = regExp.indexIn(strFileName);
         if (iPos == -1)
             continue;
@@ -464,3 +461,5 @@ bool UIGlobalSettingsLanguage::saveLanguageData()
     return fSuccess;
 }
 
+
+#include "UIGlobalSettingsLanguage.moc"

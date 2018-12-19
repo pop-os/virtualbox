@@ -98,12 +98,11 @@ typedef struct VBOXSERVICECTRLSESSIONTHREAD
     /** @todo Use a map later? */
     RTLISTNODE                      Node;
     /** The sessions's startup info. */
-    VBOXSERVICECTRLSESSIONSTARTUPINFO
-                                    StartupInfo;
-    /** The worker thread. */
-    RTTHREAD                        Thread;
+    VBOXSERVICECTRLSESSIONSTARTUPINFO StartupInfo;
     /** Critical section for thread-safe use. */
     RTCRITSECT                      CritSect;
+    /** The worker thread. */
+    RTTHREAD                        Thread;
     /** Process handle for forked child. */
     RTPROCESS                       hProcess;
     /** Shutdown indicator; will be set when the thread
@@ -132,6 +131,10 @@ typedef struct VBOXSERVICECTRLSESSIONTHREAD
     /** The other end of hNotificationPipeW. */
     RTPIPE                          hNotificationPipeR;
 #endif
+    /** Pipe for handing the secret key to the session process. */
+    RTPIPE                          hKeyPipe;
+    /** Secret key. */
+    uint8_t                         abKey[_4K];
 } VBOXSERVICECTRLSESSIONTHREAD;
 /** Pointer to thread data. */
 typedef VBOXSERVICECTRLSESSIONTHREAD *PVBOXSERVICECTRLSESSIONTHREAD;
@@ -243,14 +246,10 @@ typedef struct VBOXSERVICECTRLPROCESS
     /** Shutdown indicator; will be set when the thread
       * needs (or is asked) to shutdown. */
     bool volatile                   fShutdown;
-    /** Whether the guest process thread was stopped
-     *  or not. */
+    /** Whether the guest process thread was stopped or not. */
     bool volatile                   fStopped;
-    /** Whether the guest process thread was started
-     *  or not. */
+    /** Whether the guest process thread was started or not. */
     bool                            fStarted;
-    /** Client ID. */
-    uint32_t                        uClientID;
     /** Context ID. */
     uint32_t                        uContextID;
     /** Critical section for thread-safe use. */
@@ -275,10 +274,12 @@ typedef struct VBOXSERVICECTRLPROCESS
     /** StdOut pipe for addressing reads from
      *  guest process' stdout.*/
     RTPIPE                          hPipeStdErrR;
-    /** The notification pipe associated with this guest process.
+
+    /** The write end of the notification pipe that is used to poke the thread
+     * monitoring the process.
      *  This is NIL_RTPIPE for output pipes. */
     RTPIPE                          hNotificationPipeW;
-    /** The other end of hNotificationPipeW. */
+    /** The other end of hNotificationPipeW, read by vgsvcGstCtrlProcessProcLoop(). */
     RTPIPE                          hNotificationPipeR;
 } VBOXSERVICECTRLPROCESS;
 /** Pointer to thread data. */
@@ -288,6 +289,8 @@ RT_C_DECLS_BEGIN
 
 extern RTLISTANCHOR             g_lstControlSessionThreads;
 extern VBOXSERVICECTRLSESSION   g_Session;
+extern uint32_t                 g_idControlSvcClient;
+extern bool                     g_fControlSupportsOptimizations;
 
 
 /** @name Guest session thread handling.

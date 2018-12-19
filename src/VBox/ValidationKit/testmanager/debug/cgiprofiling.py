@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118412 $"
+__version__ = "$Revision: 120396 $"
 
 
 def profileIt(fnMain, sAppendToElement = 'main', sSort = 'time'):
@@ -51,7 +51,7 @@ def profileIt(fnMain, sAppendToElement = 'main', sSort = 'time'):
           '  <pre>');
     try:
         oProfiler.print_stats(sort = sSort);
-    except Exception, oXcpt:
+    except Exception as oXcpt:
         print('<p><pre>%s</pre></p>\n' % (oXcpt,));
     else:
         print('</pre>\n');

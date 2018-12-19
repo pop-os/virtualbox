@@ -48,7 +48,7 @@
            <number>0</number>
           </property>
           <item>
-           <widget class="VBoxGuestRAMSlider" name="m_pSliderMemorySize">
+           <widget class="UIGuestRAMSlider" name="m_pSliderMemorySize">
             <property name="whatsThis">
              <string>Controls the amount of memory provided to the virtual machine. If you assign too much, the machine might not start.</string>
             </property>
@@ -510,7 +510,17 @@
          </property>
         </widget>
        </item>
-       <item row="5" column="0" colspan="3">
+       <item row="5" column="1" colspan="2">
+        <widget class="QCheckBox" name="m_pCheckBoxNestedVirtualization">
+         <property name="whatsThis">
+          <string>When checked, the nested hardware virtualization CPU feature will be exposed to the virtual machine.</string>
+         </property>
+         <property name="text">
+          <string>Enable Nested &amp;VT-x/AMD-V</string>
+         </property>
+        </widget>
+       </item>
+       <item row="6" column="0" colspan="3">
         <spacer name="m_pSpacerVertical3">
          <property name="orientation">
           <enum>Qt::Vertical</enum>
@@ -657,9 +667,9 @@
    <header>QIAdvancedSlider.h</header>
   </customwidget>
   <customwidget>
-   <class>VBoxGuestRAMSlider</class>
+   <class>UIGuestRAMSlider</class>
    <extends>QIAdvancedSlider</extends>
-   <header>VBoxGuestRAMSlider.h</header>
+   <header>UIGuestRAMSlider.h</header>
   </customwidget>
   <customwidget>
    <class>QIToolButton</class>
@@ -673,12 +683,5 @@
   </customwidget>
  </customwidgets>
  <resources/>
- <connections>
-  <connection>
-   <sender>m_pCheckBoxVirtualization</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>m_pCheckBoxNestedPaging</receiver>
-   <slot>setEnabled(bool)</slot>
-  </connection>
- </connections>
+ <connections/>
 </ui>

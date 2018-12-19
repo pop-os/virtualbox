@@ -21,7 +21,9 @@
 
 /* Qt includes: */
 # include <QCloseEvent>
+# include <QGridLayout>
 # include <QProcess>
+# include <QStyle>
 # include <QTimer>
 
 /* GUI includes: */
@@ -41,6 +43,7 @@
 # include "UIKeyboardHandler.h"
 # include "UIMouseHandler.h"
 # include "UIVMCloseDialog.h"
+# include "VBox2DHelpers.h"
 
 /* COM includes: */
 # include "CConsole.h"
@@ -134,7 +137,7 @@ void UIMachineWindow::prepare()
     QString strWindowName = strWindowClass;
     /* Check if we want Window Manager to distinguish Virtual Machine windows: */
     if (gEDataManager->distinguishMachineWindowGroups(vboxGlobal().managedVMUuid()))
-        strWindowName = QString("VirtualBox Machine UUID: %1").arg(vboxGlobal().managedVMUuid());
+        strWindowName = QString("VirtualBox Machine UUID: %1").arg(vboxGlobal().managedVMUuid().toString());
     /* Assign WM_CLASS property: */
     VBoxGlobal::setWMClass(this, strWindowName, strWindowClass);
 #endif
@@ -256,13 +259,53 @@ void UIMachineWindow::retranslateUi()
     updateAppearanceOf(UIVisualElement_WindowTitle);
 }
 
-void UIMachineWindow::showEvent(QShowEvent *pShowEvent)
+bool UIMachineWindow::event(QEvent *pEvent)
 {
-    /* Call to base class: */
-    QMainWindow::showEvent(pShowEvent);
+    /* Call to base-class: */
+    const bool fResult = QIWithRetranslateUI2<QMainWindow>::event(pEvent);
+
+    /* Handle particular events: */
+    switch (pEvent->type())
+    {
+        case QEvent::WindowActivate:
+        {
+            /* Initiate registration in the modal window manager: */
+            windowManager().setMainWindowShown(this);
+            break;
+        }
+        default:
+            break;
+    }
+
+    /* Return result: */
+    return fResult;
+}
+
+void UIMachineWindow::showEvent(QShowEvent *pEvent)
+{
+    /* Call to base-class: */
+    QMainWindow::showEvent(pEvent);
+
+    /* Initiate registration in the modal window manager: */
+    windowManager().setMainWindowShown(this);
 
     /* Update appearance for indicator-pool: */
     updateAppearanceOf(UIVisualElement_IndicatorPoolStuff);
+}
+
+void UIMachineWindow::hideEvent(QHideEvent *pEvent)
+{
+    /* Update registration in the modal window manager: */
+    if (windowManager().mainWindowShown() == this)
+    {
+        if (machineLogic()->activeMachineWindow())
+            windowManager().setMainWindowShown(machineLogic()->activeMachineWindow());
+        else
+            windowManager().setMainWindowShown(machineLogic()->mainMachineWindow());
+    }
+
+    /* Call to base-class: */
+    QMainWindow::hideEvent(pEvent);
 }
 
 void UIMachineWindow::closeEvent(QCloseEvent *pCloseEvent)
@@ -279,7 +322,7 @@ void UIMachineWindow::closeEvent(QCloseEvent *pCloseEvent)
     if (!strScript.isEmpty())
     {
         /* Execute asynchronously and leave: */
-        QProcess::startDetached(strScript, QStringList() << machine().GetId());
+        QProcess::startDetached(strScript, QStringList() << machine().GetId().toString());
         return;
     }
 
@@ -318,10 +361,7 @@ void UIMachineWindow::closeEvent(QCloseEvent *pCloseEvent)
                                                                   restrictedCloseActions);
         /* Configure close-dialog: */
         if (uisession() && uisession()->machineWindowIcon())
-        {
-            const int iIconMetric = QApplication::style()->pixelMetric(QStyle::PM_LargeIconSize);
-            pCloseDlg->setPixmap(uisession()->machineWindowIcon()->pixmap(QSize(iIconMetric, iIconMetric)));
-        }
+            pCloseDlg->setIcon(*uisession()->machineWindowIcon());
 
         /* Make sure close-dialog is valid: */
         if (pCloseDlg->isValid())
@@ -460,7 +500,7 @@ void UIMachineWindow::prepareMachineView()
 {
 #ifdef VBOX_WITH_VIDEOHWACCEL
     /* Need to force the QGL framebuffer in case 2D Video Acceleration is supported & enabled: */
-    bool bAccelerate2DVideo = machine().GetAccelerate2DVideoEnabled() && VBoxGlobal::isAcceleration2DVideoAvailable();
+    bool bAccelerate2DVideo = machine().GetAccelerate2DVideoEnabled() && VBox2DHelpers::isAcceleration2DVideoAvailable();
 #endif /* VBOX_WITH_VIDEOHWACCEL */
 
     /* Get visual-state type: */

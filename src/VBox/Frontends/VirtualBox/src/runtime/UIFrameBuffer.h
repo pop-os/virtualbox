@@ -105,10 +105,14 @@ public:
     /** Define the scale-factor used by the frame-buffer. */
     void setScaleFactor(double dScaleFactor);
 
-    /** Returns backing-scale-factor used by HiDPI frame-buffer. */
-    double backingScaleFactor() const;
-    /** Defines backing-scale-factor used by HiDPI frame-buffer. */
-    void setBackingScaleFactor(double dBackingScaleFactor);
+    /** Returns device-pixel-ratio set for HiDPI frame-buffer. */
+    double devicePixelRatio() const;
+    /** Defines device-pixel-ratio set for HiDPI frame-buffer. */
+    void setDevicePixelRatio(double dDevicePixelRatio);
+    /** Returns actual device-pixel-ratio set for HiDPI frame-buffer. */
+    double devicePixelRatioActual() const;
+    /** Defines actual device-pixel-ratio set for HiDPI frame-buffer. */
+    void setDevicePixelRatioActual(double dDevicePixelRatioActual);
 
     /** Returns whether frame-buffer should use unscaled HiDPI output. */
     bool useUnscaledHiDPIOutput() const;
@@ -119,11 +123,6 @@ public:
     ScalingOptimizationType scalingOptimizationType() const;
     /** Defines the frame-buffer scaling optimization type. */
     void setScalingOptimizationType(ScalingOptimizationType type);
-
-    /** Returns HiDPI frame-buffer optimization type. */
-    HiDPIOptimizationType hiDPIOptimizationType() const;
-    /** Defines HiDPI frame-buffer optimization type: */
-    void setHiDPIOptimizationType(HiDPIOptimizationType type);
 
     /** Handles frame-buffer notify-change-event. */
     void handleNotifyChange(int iWidth, int iHeight);

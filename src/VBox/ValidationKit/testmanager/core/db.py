@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118412 $"
+__version__ = "$Revision: 120398 $"
 
 
 # Standard python imports.
@@ -44,6 +44,9 @@ from testmanager                        import config;
 if sys.version_info[0] < 3:
     psycopg2.extensions.register_type(psycopg2.extensions.UNICODE);
     psycopg2.extensions.register_type(psycopg2.extensions.UNICODEARRAY);
+else:
+    unicode = str;  # pylint: disable=redefined-builtin,invalid-name
+
 
 
 def isDbTimestampInfinity(tsValue):
@@ -346,7 +349,7 @@ class TMDatabaseConnection(object):
             sBound = unicode(sOperation);
 
         if sys.version_info[0] >= 3 and not isinstance(sBound, str):
-            sBound = sBound.decode('utf-8');
+            sBound = sBound.decode('utf-8'); # pylint: disable=redefined-variable-type
 
         aasExplain = None;
         if self._oExplainCursor is not None and not sBound.startswith('DROP'):

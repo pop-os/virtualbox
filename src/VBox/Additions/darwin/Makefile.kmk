@@ -22,3 +22,4 @@ include $(PATH_SUB_CURRENT)/VBoxClient/Makefile.kmk
 include $(PATH_SUB_CURRENT)/Installer/Makefile.kmk
 
 include $(FILE_KBUILD_SUB_FOOTER)
+

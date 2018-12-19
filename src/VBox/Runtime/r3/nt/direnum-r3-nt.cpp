@@ -42,6 +42,7 @@
 #include "internal/fs.h"
 #include "internal/dir.h"
 #include "internal/path.h"
+#include "../win/internal-r3-win.h"
 
 
 /*********************************************************************************************************************************
@@ -105,38 +106,91 @@ int rtDirNativeOpen(PRTDIRINTERNAL pDir, char *pszPathBuf, uintptr_t hRelativeDi
 #ifdef IPRT_WITH_NT_PATH_PASSTHRU
     bool fObjDir = false;
 #endif
-    if (hRelativeDir == ~(uintptr_t)0 && pvNativeRelative == NULL)
-        rc = RTNtPathOpenDir(pszPathBuf,
-                             FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | FILE_TRAVERSE | SYNCHRONIZE,
-                             FILE_SHARE_READ | FILE_SHARE_WRITE,
-                             FILE_DIRECTORY_FILE | FILE_OPEN_FOR_BACKUP_INTENT | FILE_SYNCHRONOUS_IO_NONALERT,
-                             OBJ_CASE_INSENSITIVE,
-                             &pDir->hDir,
-#ifdef IPRT_WITH_NT_PATH_PASSTHRU
-                             &fObjDir
-#else
-                             NULL
-#endif
-                             );
-    else if (pvNativeRelative != NULL)
-        rc = RTNtPathOpenDirEx((HANDLE)hRelativeDir,
-                               (struct _UNICODE_STRING *)pvNativeRelative,
-                               FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | FILE_TRAVERSE | SYNCHRONIZE,
-                               FILE_SHARE_READ | FILE_SHARE_WRITE,
-                               FILE_DIRECTORY_FILE | FILE_OPEN_FOR_BACKUP_INTENT | FILE_SYNCHRONOUS_IO_NONALERT,
-                               OBJ_CASE_INSENSITIVE,
-                               &pDir->hDir,
-#ifdef IPRT_WITH_NT_PATH_PASSTHRU
-                               &fObjDir
-#else
-                               NULL
-#endif
-
-                               );
-    else
+    if (hRelativeDir != ~(uintptr_t)0 && pvNativeRelative == NULL)
     {
+        /* Caller already opened it, easy! */
         pDir->hDir = (HANDLE)hRelativeDir;
         rc = VINF_SUCCESS;
+    }
+    else
+    {
+        /*
+         * If we have to check for reparse points, this gets complicated!
+         */
+        static int volatile g_fReparsePoints = -1;
+        uint32_t            fOptions         = FILE_DIRECTORY_FILE | FILE_OPEN_FOR_BACKUP_INTENT | FILE_SYNCHRONOUS_IO_NONALERT;
+        int fReparsePoints = g_fReparsePoints;
+        if (   fReparsePoints != 0
+            && (pDir->fFlags & RTDIR_F_NO_FOLLOW)
+            && !pDir->fDirSlash)
+            fOptions |= FILE_OPEN_REPARSE_POINT;
+
+        for (;;)
+        {
+            if (pvNativeRelative == NULL)
+                rc = RTNtPathOpenDir(pszPathBuf,
+                                     FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | FILE_TRAVERSE | SYNCHRONIZE,
+                                     FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                     fOptions,
+                                     OBJ_CASE_INSENSITIVE,
+                                     &pDir->hDir,
+#ifdef IPRT_WITH_NT_PATH_PASSTHRU
+                                     &fObjDir
+#else
+                                     NULL
+#endif
+                                     );
+            else
+                rc = RTNtPathOpenDirEx((HANDLE)hRelativeDir,
+                                       (struct _UNICODE_STRING *)pvNativeRelative,
+                                       FILE_LIST_DIRECTORY | FILE_READ_ATTRIBUTES | FILE_TRAVERSE | SYNCHRONIZE,
+                                       FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                       fOptions,
+                                       OBJ_CASE_INSENSITIVE,
+                                       &pDir->hDir,
+#ifdef IPRT_WITH_NT_PATH_PASSTHRU
+                                       &fObjDir
+#else
+                                       NULL
+#endif
+                                       );
+            if (   !(fOptions & FILE_OPEN_REPARSE_POINT)
+                || (rc != VINF_SUCCESS && rc != VERR_INVALID_PARAMETER) )
+                break;
+            if (rc == VINF_SUCCESS)
+            {
+                if (fReparsePoints == -1)
+                    g_fReparsePoints = 1;
+
+                /*
+                 * We now need to check if we opened a symbolic directory link.
+                 * (These can be enumerated, but contains only '.' and '..'.)
+                 */
+                FILE_ATTRIBUTE_TAG_INFORMATION  TagInfo = { 0, 0 };
+                IO_STATUS_BLOCK                 Ios = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+                NTSTATUS rcNt = NtQueryInformationFile(pDir->hDir, &Ios, &TagInfo, sizeof(TagInfo), FileAttributeTagInformation);
+                AssertMsg(NT_SUCCESS(rcNt), ("%#x\n", rcNt));
+                if (!NT_SUCCESS(rcNt))
+                    TagInfo.FileAttributes = TagInfo.ReparseTag = 0;
+                if (!(TagInfo.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT))
+                    break;
+
+                NtClose(pDir->hDir);
+                pDir->hDir = RTNT_INVALID_HANDLE_VALUE;
+
+                if (TagInfo.ReparseTag == IO_REPARSE_TAG_SYMLINK)
+                {
+                    rc = VERR_IS_A_SYMLINK;
+                    break;
+                }
+
+                /* Reparse point that isn't a symbolic link, try follow the reparsing. */
+            }
+            else if (fReparsePoints == -1)
+                g_fReparsePoints = fReparsePoints = 0;
+            fOptions &= ~FILE_OPEN_REPARSE_POINT;
+        }
+
     }
     if (RT_SUCCESS(rc))
     {
@@ -199,7 +253,7 @@ RTDECL(int) RTDirClose(RTDIR hDir)
  */
 static int rtDirNtCheckRecord(PRTDIRINTERNAL pThis)
 {
-#ifdef RTDIR_NT_STRICT
+#if defined(RTDIR_NT_STRICT) || defined(RT_ARCH_X86)
 # ifdef IPRT_WITH_NT_PATH_PASSTHRU
     if (pThis->enmInfoClass != FileMaximumInformation)
 # endif
@@ -209,8 +263,32 @@ static int rtDirNtCheckRecord(PRTDIRINTERNAL pThis)
             uEndAddr = (uintptr_t)&pThis->uCurData.pBothId->FileName[0];
         else
             uEndAddr = (uintptr_t)&pThis->uCurData.pBoth->FileName[0];
-        AssertReturn(uEndAddr < (uintptr_t)&pThis->pabBuffer[pThis->cbBuffer], VERR_IO_GEN_FAILURE);
 
+# ifdef RT_ARCH_X86
+        /* Workaround for NT 3.1 bug where FAT returns a too short buffer length.
+           Including all NT 3.x versions in case it bug was fixed till NT 4. */
+        uintptr_t const uEndBuffer = (uintptr_t)&pThis->pabBuffer[pThis->cbBuffer];
+        if (   uEndAddr < uEndBuffer
+            && uEndAddr + pThis->uCurData.pBoth->FileNameLength <= uEndBuffer)
+        { /* likely */ }
+        else if (   (   g_enmWinVer == kRTWinOSType_NT310
+                     || g_enmWinVer == kRTWinOSType_NT350 // not sure when it was fixed...
+                     || g_enmWinVer == kRTWinOSType_NT351)
+                 && pThis->enmInfoClass == FileBothDirectoryInformation)
+        {
+            size_t cbLeft = (uintptr_t)&pThis->pabBuffer[pThis->cbBufferAlloc] - (uintptr_t)pThis->uCurData.pBoth;
+            if (   cbLeft >= RT_UOFFSETOF(FILE_BOTH_DIR_INFORMATION, FileName)
+                && pThis->uCurData.pBoth->FileNameLength > 0
+                && cbLeft >= RT_UOFFSETOF(FILE_BOTH_DIR_INFORMATION, FileName) + pThis->uCurData.pBoth->FileNameLength)
+            {
+                pThis->cbBuffer = ((uintptr_t)&pThis->uCurData.pBoth->FileName[0] + pThis->uCurData.pBoth->FileNameLength)
+                                - (uintptr_t)&pThis->pabBuffer[0];
+            }
+        }
+# endif
+
+# ifdef RTDIR_NT_STRICT
+        AssertReturn(uEndAddr < (uintptr_t)&pThis->pabBuffer[pThis->cbBuffer], VERR_IO_GEN_FAILURE);
         AssertReturn(pThis->uCurData.pBoth->FileNameLength < _64K, VERR_FILENAME_TOO_LONG);
         AssertReturn((pThis->uCurData.pBoth->FileNameLength & 1) == 0, VERR_IO_GEN_FAILURE);
 
@@ -219,6 +297,7 @@ static int rtDirNtCheckRecord(PRTDIRINTERNAL pThis)
 
         AssertReturn((unsigned)pThis->uCurData.pBoth->ShortNameLength <= sizeof(pThis->uCurData.pBoth->ShortName),
                      VERR_IO_GEN_FAILURE);
+# endif
     }
 #else
     RT_NOREF_PV(pThis);
@@ -352,7 +431,7 @@ static int rtDirNtFetchMore(PRTDIRINTERNAL pThis)
                                                        pThis->pabBuffer,
                                                        pThis->cbBufferAlloc,
                                                        RTDIR_NT_SINGLE_RECORD /*ReturnSingleEntry */,
-                                                       FALSE /*RestartScan*/,
+                                                       pThis->fRestartScan,
                                                        &pThis->uObjDirCtx,
                                                        (PULONG)&Ios.Information);
         }
@@ -368,7 +447,7 @@ static int rtDirNtFetchMore(PRTDIRINTERNAL pThis)
                                         pThis->enmInfoClass,
                                         RTDIR_NT_SINGLE_RECORD /*ReturnSingleEntry */,
                                         pThis->pNtFilterStr,
-                                        FALSE /*RestartScan */);
+                                        pThis->fRestartScan);
     }
     else
     {
@@ -406,12 +485,12 @@ static int rtDirNtFetchMore(PRTDIRINTERNAL pThis)
                                     pThis->enmInfoClass,
                                     RTDIR_NT_SINGLE_RECORD /*ReturnSingleEntry */,
                                     pThis->pNtFilterStr,
-                                    FALSE /*RestartScan */);
+                                    pThis->fRestartScan);
         if (NT_SUCCESS(rcNt))
         { /* likely */ }
         else
         {
-            bool fRestartScan = false;
+            bool fRestartScan = pThis->fRestartScan;
             for (unsigned iRetry = 0; iRetry < 2; iRetry++)
             {
                 if (   rcNt == STATUS_INVALID_INFO_CLASS
@@ -471,7 +550,10 @@ static int rtDirNtFetchMore(PRTDIRINTERNAL pThis)
             return VERR_NO_MORE_FILES;
         return RTErrConvertFromNtStatus(rcNt);
     }
-    Assert(Ios.Information > sizeof(*pThis->uCurData.pBoth));
+    pThis->fRestartScan = false;
+    AssertMsg(  Ios.Information
+              > (pThis->enmInfoClass == FileMaximumInformation ? sizeof(*pThis->uCurData.pObjDir) : sizeof(*pThis->uCurData.pBoth)),
+              ("Ios.Information=%#x\n", Ios.Information));
 
     /*
      * Set up the data members.
@@ -824,6 +906,24 @@ RTDECL(int) RTDirReadEx(RTDIR hDir, PRTDIRENTRYEX pDirEntry, size_t *pcbDirEntry
     return rtDirNtAdvanceBuffer(pDir);
 }
 
+
+RTDECL(int) RTDirRewind(RTDIR hDir)
+{
+    /*
+     * Validate and digest input.
+     */
+    PRTDIRINTERNAL pThis = hDir;
+    AssertPtrReturn(pThis, VERR_INVALID_POINTER);
+    AssertReturn(pThis->u32Magic == RTDIR_MAGIC, VERR_INVALID_HANDLE);
+
+    /*
+     * The work is done on the next call to rtDirNtFetchMore.
+     */
+    pThis->fRestartScan = true;
+    pThis->fDataUnread  = false;
+
+    return VINF_SUCCESS;
+}
 
 
 RTR3DECL(int) RTDirQueryInfo(RTDIR hDir, PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD enmAdditionalAttribs)

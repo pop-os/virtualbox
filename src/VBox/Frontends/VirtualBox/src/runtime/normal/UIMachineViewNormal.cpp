@@ -174,16 +174,16 @@ void UIMachineViewNormal::resendSizeHint()
     /* Send saved size-hint to the guest: */
     /// @todo What if not m_bIsGuestAutoresizeEnabled?
     ///       Just let the guest start at the default 800x600?
+    uisession()->setScreenVisibleHostDesires(screenId(), guestScreenVisibilityStatus());
     display().SetVideoModeHint(screenId(),
                                guestScreenVisibilityStatus(),
                                false, 0, 0, sizeHint.width(), sizeHint.height(), 0);
-    uisession()->setScreenVisibleHostDesires(screenId(), guestScreenVisibilityStatus());
 }
 
 void UIMachineViewNormal::adjustGuestScreenSize()
 {
     /* Should we adjust guest-screen size? Logging paranoia is required here to reveal the truth. */
-    LogRel(("GUI: UIMachineViewNormal::adjustGuestScreenSize: Adjust guest-screen size if necessary.\n"));
+    LogRel(("GUI: UIMachineViewNormal::adjustGuestScreenSize: Adjust guest-screen size if necessary\n"));
     bool fAdjust = false;
 
     /* Step 1: Is the guest-screen of another size than necessary? */

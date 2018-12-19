@@ -79,7 +79,7 @@
       <item>
        <widget class="QLabel" name="m_pHostLabel">
         <property name="text">
-         <string>Ho&amp;st:</string>
+         <string>&amp;URL:</string>
         </property>
         <property name="alignment">
          <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -90,31 +90,7 @@
        </widget>
       </item>
       <item>
-       <widget class="QILineEdit" name="m_pHostEditor">
-        <property name="whatsThis">
-         <string>Holds the proxy host.</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QLabel" name="m_pPortLabel">
-        <property name="text">
-         <string>&amp;Port:</string>
-        </property>
-        <property name="alignment">
-         <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-        </property>
-        <property name="buddy">
-         <cstring>m_pPortEditor</cstring>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QILineEdit" name="m_pPortEditor">
-        <property name="whatsThis">
-         <string>Holds the proxy port.</string>
-        </property>
-       </widget>
+       <widget class="QILineEdit" name="m_pHostEditor"/>
       </item>
      </layout>
     </widget>

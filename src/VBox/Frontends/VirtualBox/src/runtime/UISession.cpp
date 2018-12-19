@@ -46,7 +46,7 @@
 # include "UIFrameBuffer.h"
 # include "UISettingsDialogSpecific.h"
 # ifdef VBOX_WITH_VIDEOHWACCEL
-#  include "VBoxFBOverlay.h"
+#  include "VBox2DHelpers.h"
 # endif /* VBOX_WITH_VIDEOHWACCEL */
 # ifdef VBOX_WS_MAC
 #  include "VBoxUtils-darwin.h"
@@ -59,6 +59,7 @@
 
 /* COM includes: */
 # include "CAudioAdapter.h"
+# include "CRecordingSettings.h"
 # include "CSystemProperties.h"
 # include "CStorageController.h"
 # include "CMediumAttachment.h"
@@ -166,7 +167,7 @@ bool UISession::initialize()
 
     /* Notify user about mouse&keyboard auto-capturing: */
     if (gEDataManager->autoCaptureEnabled())
-        popupCenter().remindAboutAutoCapture(machineLogic()->activeMachineWindow());
+        popupCenter().remindAboutAutoCapture(activeMachineWindow());
 
     /* Check if we are in teleportation waiting mode.
      * In that case no first run wizard is necessary. */
@@ -203,9 +204,9 @@ bool UISession::initialize()
 
     /* Apply ad-hoc reconfigurations from the command line: */
     if (vboxGlobal().hasFloppyImageToMount())
-        mountAdHocImage(KDeviceType_Floppy, UIMediumType_Floppy, vboxGlobal().getFloppyImage());
+        mountAdHocImage(KDeviceType_Floppy, UIMediumDeviceType_Floppy, vboxGlobal().getFloppyImage().toString());
     if (vboxGlobal().hasDvdImageToMount())
-        mountAdHocImage(KDeviceType_DVD, UIMediumType_DVD, vboxGlobal().getDvdImage());
+        mountAdHocImage(KDeviceType_DVD, UIMediumDeviceType_DVD, vboxGlobal().getDvdImage().toString());
 
     /* Power UP if this is NOT separate process: */
     if (!vboxGlobal().isSeparateProcess())
@@ -247,7 +248,7 @@ bool UISession::initialize()
 #ifdef VBOX_WITH_VIDEOHWACCEL
     /* Log whether 2D video acceleration is enabled: */
     LogRel(("GUI: 2D video acceleration is %s\n",
-           machine().GetAccelerate2DVideoEnabled() && VBoxGlobal::isAcceleration2DVideoAvailable()
+           machine().GetAccelerate2DVideoEnabled() && VBox2DHelpers::isAcceleration2DVideoAvailable()
            ? "enabled" : "disabled"));
 #endif /* VBOX_WITH_VIDEOHWACCEL */
 
@@ -424,12 +425,12 @@ bool UISession::restoreCurrentSnapshot()
     {
         /* Search for corresponding VM: */
         CVirtualBox vbox = vboxGlobal().virtualBox();
-        const QString strMachineID = vboxGlobal().managedVMUuid();
-        const CMachine mach = vbox.FindMachine(strMachineID);
+        const QUuid uMachineID = vboxGlobal().managedVMUuid();
+        const CMachine mach = vbox.FindMachine(uMachineID.toString());
         if (!vbox.isOk() || mach.isNull())
         {
             /* Unable to find VM: */
-            msgCenter().cannotFindMachineById(vbox, strMachineID);
+            msgCenter().cannotFindMachineById(vbox, uMachineID);
             break;
         }
 
@@ -500,6 +501,11 @@ QWidget* UISession::mainMachineWindow() const
 WId UISession::mainMachineWindowId() const
 {
     return mainMachineWindow()->winId();
+}
+
+UIMachineWindow *UISession::activeMachineWindow() const
+{
+    return machineLogic() ? machineLogic()->activeMachineWindow() : 0;
 }
 
 bool UISession::isVisualStateAllowed(UIVisualStateType state) const
@@ -582,7 +588,7 @@ void UISession::sltInstallGuestAdditionsFrom(const QString &strSource)
         return;
 
     /* Mount medium add-hoc: */
-    mountAdHocImage(KDeviceType_DVD, UIMediumType_DVD, strSource);
+    mountAdHocImage(KDeviceType_DVD, UIMediumDeviceType_DVD, strSource);
 }
 
 void UISession::sltCloseRuntimeUI()
@@ -592,10 +598,10 @@ void UISession::sltCloseRuntimeUI()
 }
 
 #ifdef RT_OS_DARWIN
-void UISession::sltHandleMenuBarConfigurationChange(const QString &strMachineID)
+void UISession::sltHandleMenuBarConfigurationChange(const QUuid &uMachineID)
 {
     /* Skip unrelated machine IDs: */
-    if (vboxGlobal().managedVMUuid() != strMachineID)
+    if (vboxGlobal().managedVMUuid() != uMachineID)
         return;
 
     /* Update Mac OS X menu-bar: */
@@ -715,15 +721,17 @@ void UISession::sltVRDEChange()
     emit sigVRDEChange();
 }
 
-void UISession::sltVideoCaptureChange()
+void UISession::sltRecordingChange()
 {
-    /* Check/Uncheck Video Capture action depending on feature status: */
-    actionPool()->action(UIActionIndexRT_M_View_M_VideoCapture_T_Start)->blockSignals(true);
-    actionPool()->action(UIActionIndexRT_M_View_M_VideoCapture_T_Start)->setChecked(machine().GetVideoCaptureEnabled());
-    actionPool()->action(UIActionIndexRT_M_View_M_VideoCapture_T_Start)->blockSignals(false);
+    CRecordingSettings comRecordingSettings = machine().GetRecordingSettings();
 
-    /* Notify listeners about Video Capture change: */
-    emit sigVideoCaptureChange();
+    /* Check/Uncheck Capture action depending on feature status: */
+    actionPool()->action(UIActionIndexRT_M_View_M_Recording_T_Start)->blockSignals(true);
+    actionPool()->action(UIActionIndexRT_M_View_M_Recording_T_Start)->setChecked(comRecordingSettings.GetEnabled());
+    actionPool()->action(UIActionIndexRT_M_View_M_Recording_T_Start)->blockSignals(false);
+
+    /* Notify listeners about Recording change: */
+    emit sigRecordingChange();
 }
 
 void UISession::sltGuestMonitorChange(KGuestMonitorChangedEventType changeType, ulong uScreenId, QRect screenGeo)
@@ -891,13 +899,16 @@ void UISession::sltAdditionsChange()
         m_fIsGuestSupportsGraphics = fIsGuestSupportsGraphics;
         m_fIsGuestSupportsSeamless = fIsGuestSupportsSeamless;
 
+        /* Make sure action-pool knows whether GA supports graphics: */
+        actionPool()->toRuntime()->setGuestSupportsGraphics(m_fIsGuestSupportsGraphics);
+
         /* Notify listeners about GA state really changed: */
-        LogRel(("GUI: UISession::sltAdditionsChange: GA state really changed, notifying listeners.\n"));
+        LogRel(("GUI: UISession::sltAdditionsChange: GA state really changed, notifying listeners\n"));
         emit sigAdditionsStateActualChange();
     }
 
     /* Notify listeners about GA state change event came: */
-    LogRel(("GUI: UISession::sltAdditionsChange: GA state change event came, notifying listeners.\n"));
+    LogRel(("GUI: UISession::sltAdditionsChange: GA state change event came, notifying listeners\n"));
     emit sigAdditionsStateChange();
 }
 
@@ -947,8 +958,8 @@ UISession::UISession(UIMachine *pMachine)
     , m_fIsMouseIntegrated(true)
     , m_fIsValidPointerShapePresent(false)
     , m_fIsHidingHostPointer(true)
+    , m_enmVMExecutionEngine(KVMExecutionEngine_NotSet)
     /* CPU hardware virtualization features for VM: */
-    , m_fIsHWVirtExEnabled(false)
     , m_fIsHWVirtExNestedPagingEnabled(false)
     , m_fIsHWVirtExUXEnabled(false)
     /* VM's effective paravirtualization provider: */
@@ -1056,9 +1067,6 @@ void UISession::prepareActions()
     m_pActionPool = UIActionPool::create(UIActionPoolType_Runtime);
     AssertPtrReturnVoid(actionPool());
     {
-        /* Configure action-pool: */
-        actionPool()->toRuntime()->setSession(this);
-
         /* Update action restrictions: */
         updateActionRestrictions();
 
@@ -1068,8 +1076,8 @@ void UISession::prepareActions()
         AssertPtrReturnVoid(m_pMenuBar);
         {
             /* Configure Mac OS X menu-bar: */
-            connect(gEDataManager, SIGNAL(sigMenuBarConfigurationChange(const QString&)),
-                    this, SLOT(sltHandleMenuBarConfigurationChange(const QString&)));
+            connect(gEDataManager, SIGNAL(sigMenuBarConfigurationChange(const QUuid &)),
+                    this, SLOT(sltHandleMenuBarConfigurationChange(const QUuid &)));
             /* Update Mac OS X menu-bar: */
             updateMenu();
         }
@@ -1124,8 +1132,8 @@ void UISession::prepareConsoleEventHandlers()
     connect(gConsoleEvents, SIGNAL(sigVRDEChange()),
             this, SLOT(sltVRDEChange()));
 
-    connect(gConsoleEvents, SIGNAL(sigVideoCaptureChange()),
-            this, SLOT(sltVideoCaptureChange()));
+    connect(gConsoleEvents, SIGNAL(sigRecordingChange()),
+            this, SLOT(sltRecordingChange()));
 
     connect(gConsoleEvents, SIGNAL(sigNetworkAdapterChange(CNetworkAdapter)),
             this, SIGNAL(sigNetworkAdapterChange(CNetworkAdapter)));
@@ -1224,18 +1232,23 @@ void UISession::prepareScreens()
             m_monitorVisibilityVector[0] = true;
     }
 
-    /* Prepare initial screen visibility status of host-desires.
-     * This is mostly dummy initialization as host-desires should get updated later in multi-screen layout.
-     * By default making host-desires same as facts. */
+    /* Prepare initial screen visibility status of host-desires (same as facts): */
     m_monitorVisibilityVectorHostDesires.resize(machine().GetMonitorCount());
     for (int iScreenIndex = 0; iScreenIndex < m_monitorVisibilityVector.size(); ++iScreenIndex)
         m_monitorVisibilityVectorHostDesires[iScreenIndex] = m_monitorVisibilityVector[iScreenIndex];
+
+    /* Make sure action-pool knows guest-screen visibility status: */
+    for (int iScreenIndex = 0; iScreenIndex < m_monitorVisibilityVector.size(); ++iScreenIndex)
+        actionPool()->toRuntime()->setGuestScreenVisible(iScreenIndex, m_monitorVisibilityVector.at(iScreenIndex));
 }
 
 void UISession::prepareFramebuffers()
 {
     /* Each framebuffer will be really prepared on first UIMachineView creation: */
     m_frameBufferVector.resize(machine().GetMonitorCount());
+
+    /* Make sure action-pool knows guest-screen count: */
+    actionPool()->toRuntime()->setGuestScreenCount(m_frameBufferVector.size());
 }
 
 void UISession::loadSessionSettings()
@@ -1243,7 +1256,7 @@ void UISession::loadSessionSettings()
     /* Load extra-data settings: */
     {
         /* Get machine ID: */
-        const QString strMachineID = vboxGlobal().managedVMUuid();
+        const QUuid uMachineID = vboxGlobal().managedVMUuid();
 
         /* Prepare machine-window icon: */
         {
@@ -1261,21 +1274,21 @@ void UISession::loadSessionSettings()
 
 #ifndef VBOX_WS_MAC
         /* Load user's machine-window name postfix: */
-        m_strMachineWindowNamePostfix = gEDataManager->machineWindowNamePostfix(strMachineID);
+        m_strMachineWindowNamePostfix = gEDataManager->machineWindowNamePostfix(uMachineID);
 #endif
 
         /* Is there should be First RUN Wizard? */
-        m_fIsFirstTimeStarted = gEDataManager->machineFirstTimeStarted(strMachineID);
+        m_fIsFirstTimeStarted = gEDataManager->machineFirstTimeStarted(uMachineID);
 
         /* Should guest autoresize? */
         QAction *pGuestAutoresizeSwitch = actionPool()->action(UIActionIndexRT_M_View_T_GuestAutoresize);
-        pGuestAutoresizeSwitch->setChecked(gEDataManager->guestScreenAutoResizeEnabled(strMachineID));
+        pGuestAutoresizeSwitch->setChecked(gEDataManager->guestScreenAutoResizeEnabled(uMachineID));
 
 #ifndef VBOX_WS_MAC
         /* Menu-bar options: */
         {
             const bool fEnabledGlobally = !gEDataManager->guiFeatureEnabled(GUIFeatureType_NoMenuBar);
-            const bool fEnabledForMachine = gEDataManager->menuBarEnabled(strMachineID);
+            const bool fEnabledForMachine = gEDataManager->menuBarEnabled(uMachineID);
             const bool fEnabled = fEnabledGlobally && fEnabledForMachine;
             QAction *pActionMenuBarSettings = actionPool()->action(UIActionIndexRT_M_View_M_MenuBar_S_Settings);
             pActionMenuBarSettings->setEnabled(fEnabled);
@@ -1289,7 +1302,7 @@ void UISession::loadSessionSettings()
         /* Status-bar options: */
         {
             const bool fEnabledGlobally = !gEDataManager->guiFeatureEnabled(GUIFeatureType_NoStatusBar);
-            const bool fEnabledForMachine = gEDataManager->statusBarEnabled(strMachineID);
+            const bool fEnabledForMachine = gEDataManager->statusBarEnabled(uMachineID);
             const bool fEnabled = fEnabledGlobally && fEnabledForMachine;
             QAction *pActionStatusBarSettings = actionPool()->action(UIActionIndexRT_M_View_M_StatusBar_S_Settings);
             pActionStatusBarSettings->setEnabled(fEnabled);
@@ -1314,10 +1327,8 @@ void UISession::loadSessionSettings()
         }
 
         /* What is the default close action and the restricted are? */
-        m_defaultCloseAction = gEDataManager->defaultMachineCloseAction(strMachineID);
-        m_restrictedCloseActions = gEDataManager->restrictedMachineCloseActions(strMachineID);
-        /* We decided to keep the Detach close-action hidden and provide the user with the separate Machine menu action instead: */
-        m_restrictedCloseActions = static_cast<MachineCloseAction>(m_restrictedCloseActions | MachineCloseAction_Detach);
+        m_defaultCloseAction = gEDataManager->defaultMachineCloseAction(uMachineID);
+        m_restrictedCloseActions = gEDataManager->restrictedMachineCloseActions(uMachineID);
         m_fAllCloseActionsRestricted =  (!vboxGlobal().isSeparateProcess() || (m_restrictedCloseActions & MachineCloseAction_Detach))
                                      && (m_restrictedCloseActions & MachineCloseAction_SaveState)
                                      && (m_restrictedCloseActions & MachineCloseAction_Shutdown)
@@ -1364,6 +1375,9 @@ void UISession::cleanupFramebuffers()
         }
     }
     m_frameBufferVector.clear();
+
+    /* Make sure action-pool knows guest-screen count: */
+    actionPool()->toRuntime()->setGuestScreenCount(m_frameBufferVector.size());
 }
 
 void UISession::cleanupConsoleEventHandlers()
@@ -1472,6 +1486,9 @@ void UISession::updateMenu()
         if (pMenuUI->isConsumable() && !pMenuUI->isConsumed())
             pMenuUI->setConsumed(true);
     }
+    /* Update the dock menu as well: */
+    if (machineLogic())
+        machineLogic()->updateDock();
 }
 #endif /* VBOX_WS_MAC */
 
@@ -1775,21 +1792,38 @@ void UISession::setPointerShape(const uchar *pShapeData, bool fHasAlpha,
 
     /* Create cursor-pixmap from the image: */
     QPixmap cursorPixmap = QPixmap::fromImage(image);
-# ifdef VBOX_WS_MAC
-    /* Adjust backing-scale-factor: */
-    /// @todo In case of multi-monitor setup check whether backing-scale factor and cursor are screen specific.
+
+# if defined(VBOX_WS_MAC)
+    /* Adjust device-pixel-ratio: */
+    /// @todo In case of multi-monitor setup check whether device-pixel-ratio and cursor are screen specific.
     /* Get screen-id of main-window: */
-    const ulong uScreenID = machineLogic()->activeMachineWindow()->screenId();
-    /* Get backing-scale-factor: */
-    const double dBackingScaleFactor = frameBuffer(uScreenID)->backingScaleFactor();
-    /* Adjust backing-scale-factor if necessary: */
-    if (dBackingScaleFactor > 1.0 && frameBuffer(uScreenID)->useUnscaledHiDPIOutput())
+    const ulong uScreenID = activeMachineWindow()->screenId();
+    /* Get device-pixel-ratio: */
+    const double dDevicePixelRatio = frameBuffer(uScreenID)->devicePixelRatio();
+    /* Adjust device-pixel-ratio if necessary: */
+    if (dDevicePixelRatio > 1.0 && frameBuffer(uScreenID)->useUnscaledHiDPIOutput())
     {
-        uXHot /= dBackingScaleFactor;
-        uYHot /= dBackingScaleFactor;
-        cursorPixmap.setDevicePixelRatio(dBackingScaleFactor);
+        uXHot /= dDevicePixelRatio;
+        uYHot /= dDevicePixelRatio;
+        cursorPixmap.setDevicePixelRatio(dDevicePixelRatio);
     }
-# endif /* VBOX_WS_MAC */
+# elif defined(VBOX_WS_X11)
+    /* Adjust device-pixel-ratio: */
+    /// @todo In case of multi-monitor setup check whether device-pixel-ratio and cursor are screen specific.
+    /* Get screen-id of main-window: */
+    const ulong uScreenID = activeMachineWindow()->screenId();
+    /* Get device-pixel-ratio: */
+    const double dDevicePixelRatio = frameBuffer(uScreenID)->devicePixelRatio();
+    /* Adjust device-pixel-ratio if necessary: */
+    if (dDevicePixelRatio > 1.0 && !frameBuffer(uScreenID)->useUnscaledHiDPIOutput())
+    {
+        uXHot *= dDevicePixelRatio;
+        uYHot *= dDevicePixelRatio;
+        cursorPixmap = cursorPixmap.scaled(cursorPixmap.width() * dDevicePixelRatio, cursorPixmap.height() * dDevicePixelRatio,
+                                           Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+    }
+# endif /* VBOX_WS_X11 */
+
     /* Set the new cursor: */
     m_cursor = QCursor(cursorPixmap, uXHot, uYHot);
     m_fIsValidPointerShapePresent = true;
@@ -1873,7 +1907,7 @@ bool UISession::preprocessInitialization()
     return true;
 }
 
-bool UISession::mountAdHocImage(KDeviceType enmDeviceType, UIMediumType enmMediumType, const QString &strMediumName)
+bool UISession::mountAdHocImage(KDeviceType enmDeviceType, UIMediumDeviceType enmMediumType, const QString &strMediumName)
 {
     /* Get VBox: */
     CVirtualBox comVBox = vboxGlobal().virtualBox();
@@ -1889,16 +1923,16 @@ bool UISession::mountAdHocImage(KDeviceType enmDeviceType, UIMediumType enmMediu
         const CMedium comMedium = comVBox.OpenMedium(strMediumName, enmDeviceType, KAccessMode_ReadWrite, false /* fForceNewUuid */);
         if (!comVBox.isOk() || comMedium.isNull())
         {
-            popupCenter().cannotOpenMedium(machineLogic()->activeMachineWindow(), comVBox, enmMediumType, strMediumName);
+            popupCenter().cannotOpenMedium(activeMachineWindow(), comVBox, enmMediumType, strMediumName);
             return false;
         }
 
         /* Make sure medium ID is valid: */
-        const QString strMediumId = comMedium.GetId();
-        AssertReturn(!strMediumId.isNull(), false);
+        const QUuid uMediumId = comMedium.GetId();
+        AssertReturn(!uMediumId.isNull(), false);
 
         /* Try to find UIMedium among cached: */
-        guiMedium = vboxGlobal().medium(strMediumId);
+        guiMedium = vboxGlobal().medium(uMediumId);
         if (guiMedium.isNull())
         {
             /* Cache new one if necessary: */
@@ -1932,7 +1966,7 @@ bool UISession::mountAdHocImage(KDeviceType enmDeviceType, UIMediumType enmMediu
     QList<ExactStorageSlot> sStorageSlots = aFreeStorageSlots + aBusyStorageSlots;
     if (sStorageSlots.isEmpty())
     {
-        popupCenter().cannotMountImage(machineLogic()->activeMachineWindow(), machineName(), strMediumName);
+        popupCenter().cannotMountImage(activeMachineWindow(), machineName(), strMediumName);
         return false;
     }
 
@@ -1948,7 +1982,7 @@ bool UISession::mountAdHocImage(KDeviceType enmDeviceType, UIMediumType enmMediu
     /* Show error message if necessary: */
     if (!machine().isOk())
     {
-        msgCenter().cannotRemountMedium(machine(), guiMedium, true /* mount? */, false /* retry? */, mainMachineWindow());
+        msgCenter().cannotRemountMedium(machine(), guiMedium, true /* mount? */, false /* retry? */, activeMachineWindow());
         return false;
     }
 
@@ -1958,7 +1992,7 @@ bool UISession::mountAdHocImage(KDeviceType enmDeviceType, UIMediumType enmMediu
     /* Show error message if necessary: */
     if (!machine().isOk())
     {
-        popupCenter().cannotSaveMachineSettings(machineLogic()->activeMachineWindow(), machine());
+        popupCenter().cannotSaveMachineSettings(activeMachineWindow(), machine());
         return false;
     }
 
@@ -1972,8 +2006,8 @@ bool UISession::postprocessInitialization()
     const bool fIs64BitsGuest = vboxGlobal().virtualBox().GetGuestOSType(guest().GetOSTypeId()).GetIs64Bit();
     const bool fRecommendVirtEx = vboxGlobal().virtualBox().GetGuestOSType(guest().GetOSTypeId()).GetRecommendedVirtEx();
     AssertMsg(!fIs64BitsGuest || fRecommendVirtEx, ("Virtualization support missed for 64bit guest!\n"));
-    const bool fIsVirtActive = debugger().GetHWVirtExEnabled();
-    if (fRecommendVirtEx && !fIsVirtActive)
+    const KVMExecutionEngine enmEngine = debugger().GetExecutionEngine();
+    if (fRecommendVirtEx && enmEngine == KVMExecutionEngine_RawMode)
     {
         /* Check whether vt-x / amd-v supported: */
         bool fVTxAMDVSupported = vboxGlobal().host().GetProcessorFeature(KProcessorFeature_HWVirtEx);
@@ -2026,6 +2060,10 @@ void UISession::setScreenVisibleHostDesires(ulong uScreenId, bool fIsMonitorVisi
 
     /* Remember 'actual' (host-desire) visibility status: */
     m_monitorVisibilityVectorHostDesires[(int)uScreenId] = fIsMonitorVisible;
+
+    /* And remember the request in extra data for guests with VMSVGA: */
+    /* This should be done before the actual hint is sent in case the guest overrides it. */
+    gEDataManager->setLastGuestScreenVisibilityStatus(uScreenId, fIsMonitorVisible, vboxGlobal().managedVMUuid());
 }
 
 bool UISession::isScreenVisible(ulong uScreenId) const
@@ -2045,7 +2083,12 @@ void UISession::setScreenVisible(ulong uScreenId, bool fIsMonitorVisible)
     /* Remember 'actual' visibility status: */
     m_monitorVisibilityVector[(int)uScreenId] = fIsMonitorVisible;
     /* Remember 'desired' visibility status: */
-    gEDataManager->setLastGuestScreenVisibilityStatus(uScreenId, fIsMonitorVisible, vboxGlobal().managedVMUuid());
+    /* See note in UIMachineView::sltHandleNotifyChange() regarding the graphics controller check. */
+    if (machine().GetGraphicsControllerType() != KGraphicsControllerType_VMSVGA)
+        gEDataManager->setLastGuestScreenVisibilityStatus(uScreenId, fIsMonitorVisible, vboxGlobal().managedVMUuid());
+
+    /* Make sure action-pool knows guest-screen visibility status: */
+    actionPool()->toRuntime()->setGuestScreenVisible(uScreenId, fIsMonitorVisible);
 }
 
 QSize UISession::lastFullScreenSize(ulong uScreenId) const
@@ -2075,10 +2118,41 @@ int UISession::countOfVisibleWindows()
     return cCountOfVisibleWindows;
 }
 
+QList<int> UISession::listOfVisibleWindows() const
+{
+    QList<int> visibleWindows;
+    for (int i = 0; i < m_monitorVisibilityVector.size(); ++i)
+        if (m_monitorVisibilityVector.at(i))
+            visibleWindows.push_back(i);
+    return visibleWindows;
+}
+
+CMediumVector UISession::getMachineMedia() const
+{
+    CMediumVector media;
+    foreach (const CStorageController &comController, m_machine.GetStorageControllers())
+    {
+        QString strAttData;
+        /* Enumerate all the attachments: */
+        foreach (const CMediumAttachment &comAttachment, m_machine.GetMediumAttachmentsOfController(comController.GetName()))
+        {
+            /* Skip unrelated attachments: */
+            if (comAttachment.GetType() != KDeviceType_HardDisk &&
+                comAttachment.GetType() != KDeviceType_Floppy &&
+                comAttachment.GetType() != KDeviceType_DVD)
+                continue;
+            if (comAttachment.GetIsEjected() || comAttachment.GetMedium().isNull())
+                continue;
+            media.append(comAttachment.GetMedium());
+        }
+    }
+    return media;
+}
+
 void UISession::loadVMSettings()
 {
-    /* Load CPU hardware virtualization extension: */
-    m_fIsHWVirtExEnabled = m_debugger.GetHWVirtExEnabled();
+    /* Cache IMachine::ExecutionEngine value. */
+    m_enmVMExecutionEngine = m_debugger.GetExecutionEngine();
     /* Load nested-paging CPU hardware virtualization extension: */
     m_fIsHWVirtExNestedPagingEnabled = m_debugger.GetHWVirtExNestedPagingEnabled();
     /* Load whether the VM is currently making use of the unrestricted execution feature of VT-x: */
@@ -2102,9 +2176,13 @@ void UISession::setFrameBuffer(ulong uScreenId, UIFrameBuffer* pFrameBuffer)
 
 void UISession::updateHostScreenData()
 {
+    /* Rebuild host-screen data vector: */
     m_hostScreens.clear();
     for (int iScreenIndex = 0; iScreenIndex < gpDesktop->screenCount(); ++iScreenIndex)
         m_hostScreens << gpDesktop->screenGeometry(iScreenIndex);
+
+    /* Make sure action-pool knows host-screen count: */
+    actionPool()->toRuntime()->setHostScreenCount(m_hostScreens.size());
 }
 
 void UISession::updateActionRestrictions()
@@ -2222,4 +2300,3 @@ static void signalHandlerSIGUSR1(int sig, siginfo_t * /* pInfo */, void * /*pSec
             gpMachine->uisession()->machineLogic()->keyboardHandler()->releaseAllPressedKeys();
 }
 #endif /* VBOX_GUI_WITH_KEYS_RESET_HANDLER */
-

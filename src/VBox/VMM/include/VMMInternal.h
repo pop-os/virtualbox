@@ -182,6 +182,16 @@ typedef struct VMMR0JMPBUF
     RTHCUINTREG                 SavedEsp;
     /** EBP/RBP at the time of the jump to ring 3. */
     RTHCUINTREG                 SavedEbp;
+    /** EIP/RIP within vmmR0CallRing3LongJmp for assisting unwinding. */
+    RTHCUINTREG                 SavedEipForUnwind;
+    /** Unwind: The vmmR0CallRing3SetJmp return address value. */
+    RTHCUINTREG                 UnwindRetPcValue;
+    /** Unwind: The vmmR0CallRing3SetJmp return address stack location. */
+    RTHCUINTREG                 UnwindRetPcLocation;
+#if HC_ARCH_BITS == 32
+    /** Alignment padding. */
+    uint32_t                    uPadding;
+#endif
 
     /** Stats: Max amount of stack used. */
     uint32_t                    cbUsedMax;
@@ -331,7 +341,15 @@ typedef struct VMM
     volatile bool               fRendezvousRecursion;
 
     /** @} */
-    bool                        afAlignment2[HC_ARCH_BITS == 32 ? 7 : 3]; /**< Alignment padding. */
+
+    /** RTThreadPreemptIsPendingTrusty() result, set by vmmR0InitVM() for
+     * release logging purposes. */
+    bool                        fIsPreemptPendingApiTrusty : 1;
+    /** The RTThreadPreemptIsPossible() result,  set by vmmR0InitVM() for
+     * release logging purposes.  */
+    bool                        fIsPreemptPossible : 1;
+
+    bool                        afAlignment2[HC_ARCH_BITS == 32 ? 6 : 2]; /**< Alignment padding. */
 
     /** Buffer for storing the standard assertion message for a ring-0 assertion.
      * Used for saving the assertion message text for the release log and guru
@@ -354,7 +372,6 @@ typedef struct VMM
     STAMCOUNTER                 StatRZRetStaleSelector;
     STAMCOUNTER                 StatRZRetIRETTrap;
     STAMCOUNTER                 StatRZRetEmulate;
-    STAMCOUNTER                 StatRZRetIOBlockEmulate;
     STAMCOUNTER                 StatRZRetPatchEmulate;
     STAMCOUNTER                 StatRZRetIORead;
     STAMCOUNTER                 StatRZRetIOWrite;
@@ -443,6 +460,13 @@ typedef struct VMMCPU
      * This is NULL if logging is disabled. */
     R0PTRTYPE(PVMMR0LOGGER)     pR0LoggerR0;
 
+    /** Pointer to the R0 release logger instance - R3 Ptr.
+     * This is NULL if logging is disabled. */
+    R3PTRTYPE(PVMMR0LOGGER)     pR0RelLoggerR3;
+    /** Pointer to the R0 release instance - R0 Ptr.
+     * This is NULL if logging is disabled. */
+    R0PTRTYPE(PVMMR0LOGGER)     pR0RelLoggerR0;
+
     /** Thread context switching hook (ring-0). */
     RTTHREADCTXHOOK             hCtxHook;
 
@@ -451,8 +475,26 @@ typedef struct VMMCPU
     /** Whether the EMT is executing a rendezvous right now. For detecting
      *  attempts at recursive rendezvous. */
     bool volatile               fInRendezvous;
-    bool                        afPadding[HC_ARCH_BITS == 32 ? 3+4 : 7+8];
+    bool                        afPadding[HC_ARCH_BITS == 32 ? 2 : 6+4];
     /** @} */
+
+    /** Whether we can HLT in VMMR0 rather than having to return to EM.
+     * Updated by vmR3SetHaltMethodU(). */
+    bool                        fMayHaltInRing0;
+    /** The minimum delta for which we can HLT in ring-0 for.
+     * The deadlines we can calculate are  from TM, so, if it's too close
+     * we should just return to ring-3 and run the timer wheel, no point
+     * in spinning in ring-0.
+     * Updated by vmR3SetHaltMethodU(). */
+    uint32_t                    cNsSpinBlockThreshold;
+    /** Number of ring-0 halts (used for depreciating following values). */
+    uint32_t                    cR0Halts;
+    /** Number of ring-0 halts succeeding (VINF_SUCCESS) recently. */
+    uint32_t                    cR0HaltsSucceeded;
+    /** Number of ring-0 halts failing (VINF_EM_HALT) recently. */
+    uint32_t                    cR0HaltsToRing3;
+    /** Padding   */
+    uint32_t                    u32Padding0;
 
     /** @name Raw-mode context tracing data.
      * @{ */
@@ -482,6 +524,15 @@ typedef struct VMMCPU
      *          anything that needs to be accessed from assembly after it. */
     VMMR0JMPBUF                 CallRing3JmpBufR0;
     /** @} */
+
+    STAMPROFILE                 StatR0HaltBlock;
+    STAMPROFILE                 StatR0HaltBlockOnTime;
+    STAMPROFILE                 StatR0HaltBlockOverslept;
+    STAMPROFILE                 StatR0HaltBlockInsomnia;
+    STAMCOUNTER                 StatR0HaltExec;
+    STAMCOUNTER                 StatR0HaltExecFromBlock;
+    STAMCOUNTER                 StatR0HaltExecFromSpin;
+    STAMCOUNTER                 StatR0HaltToR3FromSpin;
 } VMMCPU;
 AssertCompileMemberAlignment(VMMCPU, TracerCtx, 8);
 /** Pointer to VMMCPU. */
@@ -609,6 +660,29 @@ typedef FNVMMR0SETJMP *PFNVMMR0SETJMP;
  */
 DECLASM(int)    vmmR0CallRing3SetJmp(PVMMR0JMPBUF pJmpBuf, PFNVMMR0SETJMP pfn, PVM pVM, PVMCPU pVCpu);
 
+
+/**
+ * Callback function for vmmR0CallRing3SetJmp2.
+ *
+ * @returns VBox status code.
+ * @param   pvUser      The user argument.
+ */
+typedef DECLCALLBACK(int) FNVMMR0SETJMP2(PGVM pGVM, VMCPUID idCpu);
+/** Pointer to FNVMMR0SETJMP2(). */
+typedef FNVMMR0SETJMP2 *PFNVMMR0SETJMP2;
+
+/**
+ * Same as vmmR0CallRing3SetJmp except for the function signature.
+ *
+ * @returns VINF_SUCCESS on success or whatever is passed to vmmR0CallRing3LongJmp.
+ * @param   pJmpBuf     The jmp_buf to set.
+ * @param   pfn         The function to be called when not resuming.
+ * @param   pGVM        The ring-0 VM structure.
+ * @param   idCpu       The ID of the calling EMT.
+ */
+DECLASM(int)    vmmR0CallRing3SetJmp2(PVMMR0JMPBUF pJmpBuf, PFNVMMR0SETJMP2 pfn, PGVM pGVM, VMCPUID idCpu);
+
+
 /**
  * Callback function for vmmR0CallRing3SetJmpEx.
  *
@@ -616,7 +690,7 @@ DECLASM(int)    vmmR0CallRing3SetJmp(PVMMR0JMPBUF pJmpBuf, PFNVMMR0SETJMP pfn, P
  * @param   pvUser      The user argument.
  */
 typedef DECLCALLBACK(int) FNVMMR0SETJMPEX(void *pvUser);
-/** Pointer to FNVMMR0SETJMP(). */
+/** Pointer to FNVMMR0SETJMPEX(). */
 typedef FNVMMR0SETJMPEX *PFNVMMR0SETJMPEX;
 
 /**

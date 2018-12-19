@@ -29,16 +29,16 @@ provider vboxvmm
     probe em__raw__run__ret(struct VMCPU *a_pVCpu, struct CPUMCTX *a_pCtx, int a_rc);
     /*^^VMM-ALT-TP: "%04x:%08llx rc=%d", (a_pCtx)->cs, (a_pCtx)->rip, (a_rc) */
 
-    probe em__ff__high(struct VMCPU *a_pVCpu, uint32_t a_fGlobal, uint32_t a_fLocal, int a_rc);
+    probe em__ff__high(struct VMCPU *a_pVCpu, uint32_t a_fGlobal, uint64_t a_fLocal, int a_rc);
     /*^^VMM-ALT-TP: "vm=%#x cpu=%#x rc=%d", (a_fGlobal), (a_fLocal), (a_rc) */
 
-    probe em__ff__all(struct VMCPU *a_pVCpu, uint32_t a_fGlobal, uint32_t a_fLocal, int a_rc);
+    probe em__ff__all(struct VMCPU *a_pVCpu, uint32_t a_fGlobal, uint64_t a_fLocal, int a_rc);
     /*^^VMM-ALT-TP: "vm=%#x cpu=%#x rc=%d", (a_fGlobal), (a_fLocal), (a_rc) */
 
     probe em__ff__all__ret(struct VMCPU *a_pVCpu, int a_rc);
     /*^^VMM-ALT-TP: "%d", (a_rc) */
 
-    probe em__ff__raw(struct VMCPU *a_pVCpu, uint32_t a_fGlobal, uint32_t a_fLocal);
+    probe em__ff__raw(struct VMCPU *a_pVCpu, uint32_t a_fGlobal, uint64_t a_fLocal);
     /*^^VMM-ALT-TP: "vm=%#x cpu=%#x", (a_fGlobal), (a_fLocal) */
 
     probe em__ff__raw_ret(struct VMCPU *a_pVCpu, int a_rc);
@@ -57,6 +57,7 @@ provider vboxvmm
 
     probe r0__vmm__return__to__ring3__rc(struct VMCPU *a_pVCpu, struct CPUMCTX *p_Ctx, int a_rc);
     probe r0__vmm__return__to__ring3__hm(struct VMCPU *a_pVCpu, struct CPUMCTX *p_Ctx, int a_rc);
+    probe r0__vmm__return__to__ring3__nem(struct VMCPU *a_pVCpu, struct CPUMCTX *p_Ctx, int a_rc);
 
 
     /** @name CPU Exception probes

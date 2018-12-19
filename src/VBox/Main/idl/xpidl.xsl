@@ -23,6 +23,21 @@
 
 <xsl:include href="typemap-shared.inc.xsl"/>
 
+
+<!-- - - - - - - - - - - - - - - - - - - - - - -
+   XSLT parameters
+ - - - - - - - - - - - - - - - - - - - - - - -->
+
+<!-- xpidl doesn't support enums. This parameter performs certain hacks that helps
+     us bridge the gap and get similar behaviour as msidl.
+
+     The https://bugzilla.mozilla.org/show_bug.cgi?id=8781 bug discusses why xpidl
+     doesn't do enums.  It boils down to the gcc short-enum option and similar
+     portability concerns.
+ -->
+<xsl:param name="g_fHackEnumsOntoCppEnums" select="'yes'"/>
+
+
 <!--
 //  templates
 /////////////////////////////////////////////////////////////////////////////
@@ -700,20 +715,56 @@
     <xsl:text>;&#x0A;</xsl:text>
   </xsl:for-each>
   <xsl:text>};&#x0A;&#x0A;</xsl:text>
-  <!-- -->
-  <xsl:value-of select="concat('/* cross-platform type name for ', @name, ' */&#x0A;')"/>
-  <xsl:text>%{C++&#x0A;</xsl:text>
-  <xsl:value-of select="concat('#define ', @name, '_T', ' ',
-                               'PRUint32&#x0A;')"/>
-  <xsl:text>%}&#x0A;&#x0A;</xsl:text>
-  <!-- -->
-  <xsl:value-of select="concat('/* cross-platform constants for ', @name, ' */&#x0A;')"/>
-  <xsl:text>%{C++&#x0A;</xsl:text>
-  <xsl:for-each select="const">
-    <xsl:value-of select="concat('#define ', ../@name, '_', @name, ' ',
-                                 ../@name, '::', @name, '&#x0A;')"/>
-  </xsl:for-each>
-  <xsl:text>%}&#x0A;&#x0A;</xsl:text>
+  <xsl:choose>
+
+    <xsl:when test="$g_fHackEnumsOntoCppEnums = 'yes'">
+      <xsl:text>
+/* IDL typedef for enum </xsl:text><xsl:value-of select="@name" /><xsl:text> and C++ mappings. */
+%{C++
+#ifndef VBOX_WITH_XPCOM_CPP_ENUM_HACK
+%}
+typedef PRUint32 </xsl:text><xsl:value-of select="concat(@name, '_T')" /><xsl:text>;
+%{C++
+</xsl:text>
+      <xsl:for-each select="const">
+        <xsl:value-of select="concat('# define ', ../@name, '_', @name, ' ', ../@name, '::', @name, '&#x0A;')"/>
+      </xsl:for-each>
+      <xsl:text>#else /* VBOX_WITH_XPCOM_CPP_ENUM_HACK */
+typedef enum </xsl:text>
+      <xsl:value-of select="concat(@name, '_T')" />
+      <xsl:text> {
+</xsl:text>
+      <xsl:for-each select="const">
+        <xsl:value-of select="concat('    ', ../@name, '_', @name, ' = ', ../@name, '::', @name, ',&#x0A;')"/>
+      </xsl:for-each>
+      <xsl:value-of select="concat('    ', @name, '_32BitHack = 0x7fffffff', '&#x0A;')"/>
+      <xsl:text>} </xsl:text><xsl:value-of select="concat(@name, '_T')"/><xsl:text>;
+# ifdef AssertCompileSize
+AssertCompileSize(</xsl:text><xsl:value-of select="concat(@name, '_T')"/><xsl:text>, sizeof(PRUint32));
+# endif
+#endif /* VBOX_WITH_XPCOM_CPP_ENUM_HACK */
+%}
+
+</xsl:text>
+    </xsl:when>
+
+    <xsl:otherwise>
+      <!-- -->
+      <xsl:value-of select="concat('/* cross-platform type name for ', @name, ' */&#x0A;')"/>
+      <xsl:text>%{C++&#x0A;</xsl:text>
+      <xsl:value-of select="concat('#define ', @name, '_T', ' ',
+                                   'PRUint32&#x0A;')"/>
+      <xsl:text>%}&#x0A;&#x0A;</xsl:text>
+      <!-- -->
+      <xsl:value-of select="concat('/* cross-platform constants for ', @name, ' */&#x0A;')"/>
+      <xsl:text>%{C++&#x0A;</xsl:text>
+      <xsl:for-each select="const">
+        <xsl:value-of select="concat('#define ', ../@name, '_', @name, ' ',
+                                     ../@name, '::', @name, '&#x0A;')"/>
+      </xsl:for-each>
+      <xsl:text>%}&#x0A;&#x0A;</xsl:text>
+    </xsl:otherwise>
+  </xsl:choose>
 </xsl:template>
 
 
@@ -901,7 +952,14 @@
               (ancestor::library/application/enum[@name=current()]) or
               (ancestor::library/application/if[@target=$self_target]/enum[@name=current()])
             ">
-              <xsl:text>PRUint32</xsl:text>
+              <xsl:choose>
+                <xsl:when test="$g_fHackEnumsOntoCppEnums = 'yes'">
+                  <xsl:value-of select="concat(., '_T')" />
+                </xsl:when>
+                <xsl:otherwise>
+                  <xsl:text>PRUint32</xsl:text>
+                </xsl:otherwise>
+              </xsl:choose>
             </xsl:when>
             <!-- custom interface types -->
             <xsl:when test="

@@ -37,6 +37,7 @@ else ifdef VBOX_ONLY_EXTPACKS
  include $(PATH_SUB_CURRENT)/Runtime/Makefile.kmk
  include $(PATH_SUB_CURRENT)/Devices/Makefile.kmk
  include $(PATH_SUB_CURRENT)/HostDrivers/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/Main/Makefile.kmk
  include $(PATH_SUB_CURRENT)/Storage/Makefile.kmk
  include $(PATH_SUB_CURRENT)/ExtPacks/Makefile.kmk
  ifdef VBOX_WITH_VRDP
@@ -99,6 +100,7 @@ else
   endif
  endif
  include $(PATH_SUB_CURRENT)/ExtPacks/Makefile.kmk
+ include $(PATH_SUB_CURRENT)/ImageMounter/Makefile.kmk
  ifdef VBOX_WITH_INSTALLER
   include $(PATH_SUB_CURRENT)/Installer/Makefile.kmk 		        # Keep this last.
  endif

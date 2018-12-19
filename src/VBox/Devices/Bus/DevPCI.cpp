@@ -151,7 +151,7 @@ static int pci_data_write(PDEVPCIROOT pGlobals, uint32_t addr, uint32_t val, int
         {
 #ifdef IN_RING3
             LogFunc(("%s: addr=%02x val=%08x len=%d\n", pci_dev->pszNameR3, config_addr, val, len));
-            pci_dev->Int.s.pfnConfigWrite(pci_dev->Int.s.CTX_SUFF(pDevIns), pci_dev, config_addr, val, len);
+            return VBOXSTRICTRC_TODO(pci_dev->Int.s.pfnConfigWrite(pci_dev->Int.s.CTX_SUFF(pDevIns), pci_dev, config_addr, val, len));
 #else
             return VINF_IOM_R3_IOPORT_WRITE;
 #endif
@@ -490,10 +490,12 @@ static void pci_bios_init_device(PDEVPCIROOT pGlobals, PDEVPCIBUS pBus, PPDMPCID
                 }
                 break;
             case 0x0300:
+            {
                 if (vendor_id != 0x80ee)
                     goto default_map;
                 /* VGA: map frame buffer to default Bochs VBE address */
-                devpciR3BiosInitSetRegionAddress(pBus, pPciDev, 0, 0xe0000000);
+                int iRegion = devpciR3GetWord(pPciDev, VBOX_PCI_SUBSYSTEM_VENDOR_ID) == 0x15ad ? 1 : 0;
+                devpciR3BiosInitSetRegionAddress(pBus, pPciDev, iRegion, 0xe0000000);
                 /*
                  * Legacy VGA I/O ports are implicitly decoded by a VGA class device. But
                  * only the framebuffer (i.e., a memory region) is explicitly registered via
@@ -503,6 +505,7 @@ static void pci_bios_init_device(PDEVPCIROOT pGlobals, PDEVPCIBUS pBus, PPDMPCID
                                   devpciR3GetWord(pPciDev, PCI_COMMAND)
                                 | PCI_COMMAND_IOACCESS | PCI_COMMAND_MEMACCESS);
                 break;
+            }
             case 0x0800:
                 /* PIC */
                 vendor_id = devpciR3GetWord(pPciDev, PCI_VENDOR_ID);
@@ -728,7 +731,7 @@ static int pciR3FakePCIBIOS(PPDMDEVINS pDevIns)
     uint64_t const  cbAbove4GB = MMR3PhysGetRamSizeAbove4GB(pVM);
     RT_NOREF(cbBelow4GB, cbAbove4GB);
 
-    LogRel(("PCI: setting up resources and interrupts\n"));
+    LogRel(("PCI: Setting up resources and interrupts\n"));
 
     /*
      * Set the start addresses.
@@ -1513,6 +1516,7 @@ static DECLCALLBACK(void) pcibridgeR3ConfigWrite(PPDMDEVINSR3 pDevIns, uint8_t i
         if (pPciDev)
         {
             LogFunc(("%s: addr=%02x val=%08x len=%d\n", pPciDev->pszNameR3, u32Address, u32Value, cb));
+            /** @todo return rc   */
             pPciDev->Int.s.pfnConfigWrite(pPciDev->Int.s.CTX_SUFF(pDevIns), pPciDev, u32Address, u32Value, cb);
         }
     }

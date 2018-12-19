@@ -1223,10 +1223,12 @@ GLboolean renderspu_SystemVBoxCreateWindow( VisualInfo *visual, GLboolean showIt
     }
 
     /* set the window pointer data at the last step to ensure our WM_PAINT callback does not do anything until we are fully initialized */
+#ifdef RT_STRICT
+    SetLastError(NO_ERROR);
+#endif
     {
         LONG_PTR oldVal = SetWindowLongPtr(window->hWnd, GWLP_USERDATA, (LONG_PTR)window);
-        DWORD winEr = GetLastError();
-        Assert(!oldVal && winEr == NO_ERROR);
+        Assert(!oldVal && GetLastError() == NO_ERROR); RT_NOREF_PV(oldVal);
     }
 
     return GL_TRUE;
@@ -1587,6 +1589,7 @@ void renderspu_SystemWindowVisibleRegion(WindowInfo *window, GLint cRects, const
 {
     GLint i;
     HRGN hRgn, hTmpRgn;
+	RECT rectRgnBound;
 
     CRASSERT(window);
     CRASSERT(window->visual);
@@ -1599,11 +1602,20 @@ void renderspu_SystemWindowVisibleRegion(WindowInfo *window, GLint cRects, const
 
     hRgn = CreateRectRgn(0, 0, 0, 0);
 
-    for (i=0; i<cRects; i++)
+    for (i = 0; i < cRects; i++)
     {
-        hTmpRgn = CreateRectRgn(pRects[4*i], pRects[4*i+1], pRects[4*i+2], pRects[4*i+3]);
+        crDebug("Render SPU: CreateRectRgn #%d: (%d, %d)-(%d, %d)", i, 
+            pRects[4 * i], pRects[4 * i + 1], pRects[4 * i + 2], pRects[4 * i + 3]);
+
+        hTmpRgn = CreateRectRgn(pRects[4 * i], pRects[4 * i + 1], pRects[4 * i + 2], pRects[4 * i + 3]);
         CombineRgn(hRgn, hRgn, hTmpRgn, RGN_OR);
         DeleteObject(hTmpRgn);
+    }
+
+    if (GetRgnBox(hRgn, &rectRgnBound))
+    {
+        crDebug("Render SPU: Rgn bounding box (%d, %d)-(%d, %d)", 
+            rectRgnBound.left, rectRgnBound.top, rectRgnBound.right, rectRgnBound.bottom);
     }
 
     window->hRgn = hRgn;

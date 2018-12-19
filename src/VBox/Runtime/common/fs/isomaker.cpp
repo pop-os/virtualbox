@@ -7254,33 +7254,12 @@ static DECLCALLBACK(int) rtFsIsoMakerOutFile_Read(void *pvThis, RTFOFF off, PCRT
 
 
 /**
- * @interface_method_impl{RTVFSIOSTREAMOPS,pfnWrite}
- */
-static DECLCALLBACK(int) rtFsIsoMakerOutFile_Write(void *pvThis, RTFOFF off, PCRTSGBUF pSgBuf, bool fBlocking, size_t *pcbWritten)
-{
-    RT_NOREF(pvThis, off, pSgBuf, fBlocking, pcbWritten);
-    return VERR_WRITE_PROTECT;
-}
-
-
-/**
  * @interface_method_impl{RTVFSIOSTREAMOPS,pfnFlush}
  */
 static DECLCALLBACK(int) rtFsIsoMakerOutFile_Flush(void *pvThis)
 {
     RT_NOREF(pvThis);
     return VINF_SUCCESS;
-}
-
-
-/**
- * @interface_method_impl{RTVFSIOSTREAMOPS,pfnPollOne}
- */
-static DECLCALLBACK(int) rtFsIsoMakerOutFile_PollOne(void *pvThis, uint32_t fEvents, RTMSINTERVAL cMillies, bool fIntr,
-                                                     uint32_t *pfRetEvents)
-{
-    NOREF(pvThis);
-    return RTVfsUtilDummyPollOne(fEvents, cMillies, fIntr, pfRetEvents);
 }
 
 
@@ -7302,37 +7281,6 @@ static DECLCALLBACK(int) rtFsIsoMakerOutFile_Skip(void *pvThis, RTFOFF cb)
 {
     RTFOFF offIgnored;
     return rtFsIsoMakerOutFile_Seek(pvThis, cb, RTFILE_SEEK_CURRENT, &offIgnored);
-}
-
-
-/**
- * @interface_method_impl{RTVFSOBJSETOPS,pfnMode}
- */
-static DECLCALLBACK(int) rtFsIsoMakerOutFile_SetMode(void *pvThis, RTFMODE fMode, RTFMODE fMask)
-{
-    RT_NOREF(pvThis, fMode, fMask);
-    return VERR_WRITE_PROTECT;
-}
-
-
-/**
- * @interface_method_impl{RTVFSOBJSETOPS,pfnSetTimes}
- */
-static DECLCALLBACK(int) rtFsIsoMakerOutFile_SetTimes(void *pvThis, PCRTTIMESPEC pAccessTime, PCRTTIMESPEC pModificationTime,
-                                                      PCRTTIMESPEC pChangeTime, PCRTTIMESPEC pBirthTime)
-{
-    RT_NOREF(pvThis, pAccessTime, pModificationTime, pChangeTime, pBirthTime);
-    return VERR_WRITE_PROTECT;
-}
-
-
-/**
- * @interface_method_impl{RTVFSOBJSETOPS,pfnSetOwner}
- */
-static DECLCALLBACK(int) rtFsIsoMakerOutFile_SetOwner(void *pvThis, RTUID uid, RTGID gid)
-{
-    RT_NOREF(pvThis, uid, gid);
-    return VERR_WRITE_PROTECT;
 }
 
 
@@ -7417,9 +7365,9 @@ DECL_HIDDEN_CONST(const RTVFSFILEOPS) g_rtFsIsoMakerOutputFileOps =
         RTVFSIOSTREAMOPS_VERSION,
         RTVFSIOSTREAMOPS_FEAT_NO_SG,
         rtFsIsoMakerOutFile_Read,
-        rtFsIsoMakerOutFile_Write,
+        NULL /*Write*/,
         rtFsIsoMakerOutFile_Flush,
-        rtFsIsoMakerOutFile_PollOne,
+        NULL /*PollOne*/,
         rtFsIsoMakerOutFile_Tell,
         rtFsIsoMakerOutFile_Skip,
         NULL /*ZeroFill*/,
@@ -7430,13 +7378,15 @@ DECL_HIDDEN_CONST(const RTVFSFILEOPS) g_rtFsIsoMakerOutputFileOps =
     { /* ObjSet */
         RTVFSOBJSETOPS_VERSION,
         RT_UOFFSETOF(RTVFSFILEOPS, ObjSet) - RT_UOFFSETOF(RTVFSFILEOPS, Stream.Obj),
-        rtFsIsoMakerOutFile_SetMode,
-        rtFsIsoMakerOutFile_SetTimes,
-        rtFsIsoMakerOutFile_SetOwner,
+        NULL /*SetMode*/,
+        NULL /*SetTimes*/,
+        NULL /*SetOwner*/,
         RTVFSOBJSETOPS_VERSION
     },
     rtFsIsoMakerOutFile_Seek,
     rtFsIsoMakerOutFile_QuerySize,
+    NULL /*SetSize*/,
+    NULL /*QueryMaxSize*/,
     RTVFSFILEOPS_VERSION
 };
 

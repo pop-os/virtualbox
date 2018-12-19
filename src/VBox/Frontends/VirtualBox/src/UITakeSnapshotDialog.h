@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,9 +18,13 @@
 #ifndef ___UITakeSnapshotDialog_h___
 #define ___UITakeSnapshotDialog_h___
 
+/* Qt includes: */
+#include <QIcon>
+
 /* GUI includes: */
 #include "QIDialog.h"
 #include "QIWithRetranslateUI.h"
+#include "UILibraryDefs.h"
 
 /* Forward declarations: */
 class QLabel;
@@ -30,9 +34,8 @@ class QIDialogButtonBox;
 class QILabel;
 class CMachine;
 
-
 /** QIDialog subclass for taking snapshot name/description. */
-class UITakeSnapshotDialog : public QIWithRetranslateUI<QIDialog>
+class SHARED_LIBRARY_STUFF UITakeSnapshotDialog : public QIWithRetranslateUI<QIDialog>
 {
     Q_OBJECT;
 
@@ -42,8 +45,8 @@ public:
       * @param  comMachine  Brings the machine to take snapshot for. */
     UITakeSnapshotDialog(QWidget *pParent, const CMachine &comMachine);
 
-    /** Defines dialog @a pixmap. */
-    void setPixmap(const QPixmap &pixmap);
+    /** Defines snapshot @a icon. */
+    void setIcon(const QIcon &icon);
 
     /** Defines snapshot @a strName. */
     void setName(const QString &strName);
@@ -55,24 +58,35 @@ public:
 
 protected:
 
+    /** Handles any Qt @a pEvent. */
+    virtual bool event(QEvent *pEvent) /* override */;
+
     /** Handles translation event. */
     virtual void retranslateUi() /* override */;
 
 private slots:
 
-    /** Handles name change signal. */
+    /** Handles @a strName change signal. */
     void sltHandleNameChanged(const QString &strName);
 
 private:
 
     /** Prepares all. */
     void prepare();
+    /** Prepares contents. */
+    void prepareContents();
+
+    /** Updates pixmap. */
+    void updatePixmap();
 
     /** Holds the wrapper of machine to take snapshot for. */
     const CMachine &m_comMachine;
 
+    /** Holds the snapshot icon. */
+    QIcon m_icon;
+
     /** Holds the amount of immutable attachments. */
-    int m_cImmutableMediums;
+    int  m_cImmutableMedia;
 
     /** Holds the icon label instance. */
     QLabel *m_pLabelIcon;
@@ -95,4 +109,3 @@ private:
 };
 
 #endif /* !___UITakeSnapshotDialog_h___ */
-

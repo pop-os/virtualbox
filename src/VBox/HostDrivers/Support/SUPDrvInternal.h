@@ -368,6 +368,12 @@ typedef struct SUPDRVLDRIMAGE
     /** Hack for seeing the module in perf, dtrace and other stack crawlers. */
     struct module                  *pLnxModHack;
 #endif
+#if defined(RT_OS_DARWIN) && defined(VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION)
+    /** Load module handle. */
+    RTLDRMOD                        hLdrMod;
+    /** Allocate object. */
+    RTR0MEMOBJ                      hMemAlloc;
+#endif
     /** Whether it's loaded by the native loader or not. */
     bool                            fNative;
     /** Image name. */
@@ -454,6 +460,32 @@ typedef struct SUPDRVUSAGE
     /** The usage count. */
     uint32_t volatile               cUsage;
 } SUPDRVUSAGE, *PSUPDRVUSAGE;
+
+
+/**
+ * I/O control context.
+ */
+typedef struct SUPR0IOCTLCTX
+{
+    /** Magic value (SUPR0IOCTLCTX_MAGIC). */
+    uint32_t                u32Magic;
+    /** Reference counter. */
+    uint32_t volatile       cRefs;
+#ifdef RT_OS_WINDOWS
+# ifndef SUPDRV_AGNOSTIC
+    /** The file object, referenced. */
+    PFILE_OBJECT            pFileObject;
+    /** The device object, not referenced. */
+    PDEVICE_OBJECT          pDeviceObject;
+    /** Pointer to fast I/O routine if available. */
+    FAST_IO_DEVICE_CONTROL *pfnFastIoDeviceControl;
+# else
+    void                   *apvPadding[3];
+# endif
+#endif
+} SUPR0IOCTLCTX;
+/** Magic value for SUPR0IOCTLCTX (Ahmad Jamal). */
+#define SUPR0IOCTLCTX_MAGIC     UINT32_C(0x19300702)
 
 
 /**
@@ -762,6 +794,11 @@ typedef struct SUPDRVDEVEXT
     PCALLBACK_OBJECT                pObjPowerCallback;
     /** Callback handle returned by ExRegisterCallback. */
     PVOID                           hPowerCallback;
+# elif defined(RT_OS_DARWIN) && defined(VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION)
+    /** Trusted root certificates for code signing validation. */
+    RTCRSTORE                       hRootStore;
+    /** Intermedite certificates for code signing validation. */
+    RTCRSTORE                       hAdditionalStore;
 # endif
 #endif
 } SUPDRVDEVEXT;
@@ -890,9 +927,10 @@ void VBOXCALL   supdrvOSLdrNotifyOpened(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE p
  * @param   pImage              The image data (still in the open state).
  * @param   pv                  The address within the image.
  * @param   pbImageBits         The image bits as loaded by ring-3.
+ * @param   pszSymbol           The name of the entrypoint being checked.
  */
 int  VBOXCALL   supdrvOSLdrValidatePointer(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage,
-                                           void *pv, const uint8_t *pbImageBits);
+                                           void *pv, const uint8_t *pbImageBits, const char *pszSymbol);
 
 /**
  * Load the image.
@@ -906,7 +944,6 @@ int  VBOXCALL   supdrvOSLdrValidatePointer(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAG
  *                              entry points can be adjusted.
  */
 int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const uint8_t *pbImageBits, PSUPLDRLOAD pReq);
-
 
 /**
  * Unload the image (only called if supdrvOSLdrOpen returned success).
@@ -926,6 +963,19 @@ void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
  * @param   pImage              The image handle.
  */
 void VBOXCALL   supdrvOSLdrNotifyUnloaded(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage);
+
+/**
+ * Queries a symbol address is a native module.
+ *
+ * @returns IPRT status code.
+ * @param   pDevExt             The device globals.
+ * @param   pImage              The image to search.
+ * @param   pszSymbol           The symbol to search for.
+ * @param   cchSymbol           The length of the symbol.
+ * @param   ppvSymbol           Where to return the symbol address if found.
+ */
+int  VBOXCALL   supdrvOSLdrQuerySymbol(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage,
+                                       const char *pszSymbol, size_t cchSymbol, void **ppvSymbol);
 
 
 #ifdef SUPDRV_WITH_MSR_PROBER
@@ -985,7 +1035,7 @@ int VBOXCALL    supdrvDarwinResumeSuspendedKbds(void);
 *******************************************************************************/
 /* SUPDrv.c */
 int  VBOXCALL   supdrvIOCtl(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPREQHDR pReqHdr, size_t cbReq);
-int  VBOXCALL   supdrvIOCtlFast(uintptr_t uIOCtl, VMCPUID idCpu, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
+int  VBOXCALL   supdrvIOCtlFast(uintptr_t uOperation, VMCPUID idCpu, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession);
 int  VBOXCALL   supdrvIDC(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPDRVIDCREQHDR pReqHdr);
 int  VBOXCALL   supdrvInitDevExt(PSUPDRVDEVEXT pDevExt, size_t cbSession);
 void VBOXCALL   supdrvDeleteDevExt(PSUPDRVDEVEXT pDevExt);
@@ -999,6 +1049,7 @@ uint32_t VBOXCALL supdrvSessionRelease(PSUPDRVSESSION pSession);
 void VBOXCALL   supdrvBadContext(PSUPDRVDEVEXT pDevExt, const char *pszFile, uint32_t uLine, const char *pszExtra);
 int VBOXCALL    supdrvQueryVTCapsInternal(uint32_t *pfCaps);
 int VBOXCALL    supdrvLdrLoadError(int rc, PSUPLDRLOAD pReq, const char *pszFormat, ...);
+int VBOXCALL    supdrvLdrGetExportedSymbol(const char *pszSymbol, uintptr_t *puValue);
 
 /* SUPDrvGip.cpp */
 int  VBOXCALL   supdrvGipCreate(PSUPDRVDEVEXT pDevExt);

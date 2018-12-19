@@ -50,16 +50,16 @@
  * @{
  */
 /** Start of range 0. */
-#define MSR_GIM_KVM_RANGE0_START                   UINT32_C(0x11)
+#define MSR_GIM_KVM_RANGE0_FIRST                   UINT32_C(0x11)
 /** Old, deprecated wall clock. */
 #define MSR_GIM_KVM_WALL_CLOCK_OLD                 UINT32_C(0x11)
 /** Old, deprecated System time. */
 #define MSR_GIM_KVM_SYSTEM_TIME_OLD                UINT32_C(0x12)
 /** End of range 0. */
-#define MSR_GIM_KVM_RANGE0_END                     MSR_GIM_KVM_SYSTEM_TIME_OLD
+#define MSR_GIM_KVM_RANGE0_LAST                    MSR_GIM_KVM_SYSTEM_TIME_OLD
 
 /** Start of range 1. */
-#define MSR_GIM_KVM_RANGE1_START                   UINT32_C(0x4b564d00)
+#define MSR_GIM_KVM_RANGE1_FIRST                   UINT32_C(0x4b564d00)
 /** Wall clock. */
 #define MSR_GIM_KVM_WALL_CLOCK                     UINT32_C(0x4b564d00)
 /** System time. */
@@ -71,10 +71,10 @@
 /** Paravirtualized EOI (end-of-interrupt). */
 #define MSR_GIM_KVM_EOI                            UINT32_C(0x4b564d04)
 /** End of range 1. */
-#define MSR_GIM_KVM_RANGE1_END                     MSR_GIM_KVM_EOI
+#define MSR_GIM_KVM_RANGE1_LAST                    MSR_GIM_KVM_EOI
 
-AssertCompile(MSR_GIM_KVM_RANGE0_START <= MSR_GIM_KVM_RANGE0_END);
-AssertCompile(MSR_GIM_KVM_RANGE1_START <= MSR_GIM_KVM_RANGE1_END);
+AssertCompile(MSR_GIM_KVM_RANGE0_FIRST <= MSR_GIM_KVM_RANGE0_LAST);
+AssertCompile(MSR_GIM_KVM_RANGE1_FIRST <= MSR_GIM_KVM_RANGE1_LAST);
 
 /** KVM page size.  */
 #define GIM_KVM_PAGE_SIZE                          0x1000
@@ -199,7 +199,11 @@ typedef struct GIMKVM
     /** Whether GIM needs to trap \#UD exceptions. */
     bool                        fTrapXcptUD;
     /** Disassembler opcode of hypercall instruction native for this host CPU. */
-    uint16_t                    uOpCodeNative;
+    uint16_t                    uOpcodeNative;
+    /** Native hypercall opcode bytes.  Use for replacing. */
+    uint8_t                     abOpcodeNative[3];
+    /** Alignment padding. */
+    uint8_t                     abPadding[5];
     /** The TSC frequency (in HZ) reported to the guest. */
     uint64_t                    cTscTicksPerSecond;
     /** Spinlock used for protecting GIMKVMCPU::uTsc and
@@ -265,7 +269,7 @@ VMM_INT_DECL(VBOXSTRICTRC)      gimKvmReadMsr(PVMCPU pVCpu, uint32_t idMsr, PCCP
 VMM_INT_DECL(VBOXSTRICTRC)      gimKvmWriteMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMSRRANGE pRange, uint64_t uRawValue);
 VMM_INT_DECL(bool)              gimKvmShouldTrapXcptUD(PVMCPU pVCpu);
 VMM_INT_DECL(VBOXSTRICTRC)      gimKvmXcptUD(PVMCPU pVCpu, PCPUMCTX pCtx, PDISCPUSTATE pDis, uint8_t *pcbInstr);
-VMM_INT_DECL(VBOXSTRICTRC)      gimKvmExecHypercallInstr(PVMCPU pVCpu, PCPUMCTX pCtx, PDISCPUSTATE pDis);
+VMM_INT_DECL(VBOXSTRICTRC)      gimKvmHypercallEx(PVMCPU pVCpu, PCPUMCTX pCtx, unsigned uDisOpcode, uint8_t cbInstr);
 
 
 RT_C_DECLS_END

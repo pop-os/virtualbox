@@ -29,10 +29,6 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #if defined(RT_OS_WINDOWS)
-# ifdef TARGET_NT4
-#  undef _WIN32_WINNT
-#  define _WIN32_WINNT 0x501
-# endif
 # include <iprt/win/windows.h>
 # include <psapi.h>
 # include <winternl.h>
@@ -62,6 +58,7 @@
 #include <iprt/thread.h>
 #include <VBox/VMMDev.h> /* For VMMDevReportGuestStats and indirectly VbglR3StatReport. */
 #include <VBox/VBoxGuestLib.h>
+
 #include "VBoxServiceInternal.h"
 #include "VBoxServiceUtils.h"
 

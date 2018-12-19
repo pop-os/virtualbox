@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,19 +22,26 @@
 /* Qt includes: */
 # include <QLayout>
 # include <QMainWindow>
+# include <QResizeEvent>
+# ifdef VBOX_WS_MAC
+#  include <QPainter>
+# endif
 
 /* GUI includes: */
 # include "UIToolBar.h"
 # ifdef VBOX_WS_MAC
 #  include "VBoxUtils.h"
-# endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+# endif
 
-#endif /* VBOX_WS_MAC */
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 UIToolBar::UIToolBar(QWidget *pParent /* = 0 */)
     : QToolBar(pParent)
     , m_pMainWindow(qobject_cast<QMainWindow*>(pParent))
+#ifdef VBOX_WS_MAC
+    , m_fEmulateUnifiedToolbar(false)
+#endif
 {
     /* Prepare: */
     prepare();
@@ -60,6 +67,12 @@ void UIToolBar::enableMacToolbar()
         m_pMainWindow->setUnifiedTitleAndToolBarOnMac(true);
 }
 
+void UIToolBar::emulateMacToolbar()
+{
+    /* Remember request, to be used in paintEvent: */
+    m_fEmulateUnifiedToolbar = true;
+}
+
 void UIToolBar::setShowToolBarButton(bool fShow)
 {
     ::darwinSetShowsToolbarButton(this, fShow);
@@ -67,16 +80,51 @@ void UIToolBar::setShowToolBarButton(bool fShow)
 
 void UIToolBar::updateLayout()
 {
-    /* There is a bug in Qt Cocoa which result in showing a "more arrow" when
-       the necessary size of the toolbar is increased. Also for some languages
-       the with doesn't match if the text increase. So manually adjust the size
-       after changing the text. */
+    // WORKAROUND:
+    // There is a bug in Qt Cocoa which result in showing a "more arrow" when
+    // the necessary size of the tool-bar is increased. Also for some languages
+    // the with doesn't match if the text increase. So manually adjust the size
+    // after changing the text.
     QSizePolicy sp = sizePolicy();
     setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
     adjustSize();
     setSizePolicy(sp);
     layout()->invalidate();
     layout()->activate();
+}
+#endif /* VBOX_WS_MAC */
+
+void UIToolBar::resizeEvent(QResizeEvent *pEvent)
+{
+    /* Call to base-class: */
+    QToolBar::resizeEvent(pEvent);
+
+    /* Notify listeners about new size: */
+    emit sigResized(pEvent->size());
+}
+
+#ifdef VBOX_WS_MAC
+void UIToolBar::paintEvent(QPaintEvent *pEvent)
+{
+    /* Call to base-class: */
+    QToolBar::paintEvent(pEvent);
+
+    /* If we have request to emulate unified tool-bar: */
+    if (m_fEmulateUnifiedToolbar)
+    {
+        /* Acquire rectangle: */
+        const QRect rectangle = pEvent->rect();
+
+        /* Prepare gradient: */
+        const QColor backgroundColor = palette().color(QPalette::Active, QPalette::Mid);
+        QLinearGradient gradient(rectangle.topLeft(), rectangle.bottomLeft());
+        gradient.setColorAt(0,   backgroundColor.lighter(130));
+        gradient.setColorAt(1,   backgroundColor.lighter(125));
+
+        /* Fill background: */
+        QPainter painter(this);
+        painter.fillRect(rectangle, gradient);
+    }
 }
 #endif /* VBOX_WS_MAC */
 
@@ -87,8 +135,8 @@ void UIToolBar::prepare()
     setMovable(false);
 
 #ifdef VBOX_WS_MAC
-        setStyleSheet("QToolBar { border: 0px none black; }");
-#endif /* VBOX_WS_MAC */
+    setStyleSheet("QToolBar { border: 0px none black; }");
+#endif
 
     /* Configure tool-bar' layout: */
     if (layout())
@@ -97,4 +145,3 @@ void UIToolBar::prepare()
     /* Configure tool-bar' context-menu policy: */
     setContextMenuPolicy(Qt::NoContextMenu);
 }
-

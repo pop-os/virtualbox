@@ -99,6 +99,7 @@ WITH_VNC=0
 WITH_EXTPACK=1
 WITH_DOCS=1
 WITH_LIBVPX=1
+WITH_LIBOPUS=1
 BUILD_LIBXML2=
 BUILD_LIBCURL=
 BUILD_LIBSSL=
@@ -379,6 +380,14 @@ check_environment()
         LIB='lib/64'
       fi
       ;;
+    sparc64|sparcv9)
+        BUILD_MACHINE='sparc64'
+        BUILD_CPU='blend'
+        ;;
+    sparc32|sparc|sparcv8|sparcv7|sparcv8e)
+        BUILD_MACHINE='sparc32'
+        BUILD_CPU='blend'
+        ;;
     *)
       log_failure "Cannot determine system"
       exit 1
@@ -649,7 +658,7 @@ check_xsltproc()
 
 
 #
-# Check for libxml2, needed by VBoxSettings and Runtime.
+# Check for libxml2, needed by the Runtime.
 # 2.6.24 is known to NOT work, 2.6.26 is known to work (there is no 2.6.25 release)
 #
 check_libxml2()
@@ -683,6 +692,7 @@ EOF
         [ -n "$INCXML2" ] && I_INCXML2=`prefix_I "$INCXML2"`
         if test_compile "$LIBXML2 $LIBPTHREAD $I_INCXML2" xml2 xml2; then
           if test_execute; then
+            cnf_append "SDK_VBOX_LIBXML2_DEFS" "_REENTRANT" ## @todo get defines from --cflags
             cnf_append "SDK_VBOX_LIBXML2_INCS" "$INCXML2"
             cnf_append "SDK_VBOX_LIBXML2_LIBS" "`strip_l "$LIBXML2"`"
           fi
@@ -716,6 +726,7 @@ EOF
         [ -n "$INCXML2" ] && I_INCXML2=`prefix_I "$INCXML2"`
         if test_compile "$LIBXML2 $LIBPTHREAD $I_INCXML2" xml2 xml2; then
           if test_execute; then
+            cnf_append "SDK_VBOX_LIBXML2_DEFS" "_REENTRANT" ## @todo get defines from --cflags
             cnf_append "SDK_VBOX_LIBXML2_INCS" "$INCXML2"
             cnf_append "SDK_VBOX_LIBXML2_LIBS" "`strip_l "$LIBXML2"`"
           fi
@@ -826,11 +837,11 @@ extern "C" int main(void)
 {
   printf("found version %s", OPENSSL_VERSION_TEXT);
   SSL_library_init();
-#if OPENSSL_VERSION_NUMBER >= 0x00908000
+#if OPENSSL_VERSION_NUMBER >= 0x10001000
   printf(", OK.\n");
   return 0;
 #else
-  printf(", expected version 0.9.8 or higher\n");
+  printf(", expected version 1.0.1 or higher\n");
   return 1;
 #endif
 }
@@ -2316,6 +2327,7 @@ EOF
 [ $OSE          -eq 0 ] && echo "  --disable-extpack        don't build the extpack"
 [ $WITH_DOCS    -eq 1 ] && echo "  --disable-docs           don't build the documentation"
 [ $WITH_LIBVPX  -eq 1 ] && echo "  --disable-libvpx         don't use libvpx for video capturing"
+[ $WITH_LIBOPUS -eq 1 ] && echo "  --disable-libopus        don't use libopus for audio capturing"
 [ "$OS" = "linux" -o "$OS" = "freebsd" ] && echo "  --enable-vde             enable VDE networking"
 cat << EOF
   --disable-udptunnel      disable UDP tunnel networking
@@ -2387,6 +2399,7 @@ if [ "$OS" = "darwin" ]; then
   BUILD_LIBVPX=1
   [ $OSE -eq 1 ] || BUILD_LIBCURL=1
   [ $OSE -eq 1 ] && WITH_LIBVPX=0
+  [ $OSE -eq 1 ] && WITH_LIBOPUS=0
   WITH_XCODE_DIR=""
 elif [ "$OS" = "haiku" ]; then
   #WITH_SDL=0
@@ -2401,6 +2414,7 @@ elif [ "$OS" = "haiku" ]; then
   BUILD_LIBXSLT=1
   BUILD_LIBXML2=1
   WITH_LIBVPX=0
+  WITH_LIBOPUS=0
   # it is part of libroot, which is linked by default,
   # but the script wants something
   LIBPTHREAD="-lroot"
@@ -2408,6 +2422,7 @@ elif [ "$OS" = "haiku" ]; then
   [ $OSE -eq 1 ] || BUILD_LIBSSL=1
 elif [ "$OS" = "solaris" ]; then
   [ $OSE -eq 1 ] && WITH_LIBVPX=0
+  [ $OSE -eq 1 ] && WITH_LIBOPUS=0
 fi
 
 # scan command line options
@@ -2549,6 +2564,9 @@ for option in "$@"; do
       ;;
     --disable-libvpx)
       WITH_LIBVPX=0
+      ;;
+    --disable-libopus)
+      WITH_LIBOPUS=0
       ;;
     --disable-sdl)
       WITH_SDL=0
@@ -2737,7 +2755,11 @@ fi
 [ $WITH_VMMRAW    -eq 0 ] && cnf_append "VBOX_WITH_RAW_MODE" ""
 if [ $WITH_LIBVPX -eq 0 ]; then
   cnf_append "VBOX_WITH_LIBVPX" ""
-  cnf_append "VBOX_WITH_VIDEOREC" ""
+  cnf_append "VBOX_WITH_RECORDING" ""
+fi
+if [ $WITH_LIBOPUS -eq 0 ]; then
+  cnf_append "VBOX_WITH_LIBOPUS" ""
+  cnf_append "VBOX_WITH_AUDIO_RECORDING" ""
 fi
 
 # Darwin-specific
@@ -2762,8 +2784,8 @@ if [ $ONLY_ADDITIONS -eq 0 ]; then
   check_ssl
   check_curl
   [ $WITH_LIBVPX -eq 1 ] && check_vpx
-  check_libopus
- [ "$OS" != "darwin"  ] && check_z
+  [ $WITH_LIBOPUS -eq 1 ] && check_libopus
+  [ "$OS" != "darwin"  ] && check_z
   [ "$OS" != "darwin"  ] && check_png
   [ $OSE -eq 0 -a "$OS" = "linux" ] && check_pam
   if [ $WITH_SDL -eq 1 ]; then

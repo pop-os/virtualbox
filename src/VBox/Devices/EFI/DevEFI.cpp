@@ -1250,6 +1250,8 @@ static int efiPortImageEventWrite(PDEVEFI pThis, uint32_t u32, unsigned cb)
         case EFI_IMAGE_EVT_CMD_START_LOAD64:
         case EFI_IMAGE_EVT_CMD_START_UNLOAD32:
         case EFI_IMAGE_EVT_CMD_START_UNLOAD64:
+        case EFI_IMAGE_EVT_CMD_START_RELOC32:
+        case EFI_IMAGE_EVT_CMD_START_RELOC64:
             AssertBreak(EFI_IMAGE_EVT_GET_PAYLOAD(u32) == 0);
 
             /* Reset the state. */
@@ -1297,6 +1299,13 @@ static int efiPortImageEventWrite(PDEVEFI pThis, uint32_t u32, unsigned cb)
                                              &pThis->ImageEvt.szName[pThis->ImageEvt.offNameLastComponent]);
                         break;
                     }
+                case EFI_IMAGE_EVT_CMD_START_RELOC32:
+                case EFI_IMAGE_EVT_CMD_START_RELOC64:
+                {
+                    LogRel(("EFI: relocate module to %#llx from %#llx\n",
+                            pThis->ImageEvt.uAddr0, pThis->ImageEvt.uAddr1));
+                    break;
+                }
                 }
             }
             return VINF_SUCCESS;
@@ -1313,8 +1322,8 @@ static int efiPortImageEventWrite(PDEVEFI pThis, uint32_t u32, unsigned cb)
 
         case EFI_IMAGE_EVT_CMD_ADDR1:
             AssertBreak(EFI_IMAGE_EVT_GET_PAYLOAD(u32) <= UINT16_MAX);
-            pThis->ImageEvt.uAddr0 <<= 16;
-            pThis->ImageEvt.uAddr0 |= EFI_IMAGE_EVT_GET_PAYLOAD_U16(u32);
+            pThis->ImageEvt.uAddr1 <<= 16;
+            pThis->ImageEvt.uAddr1 |= EFI_IMAGE_EVT_GET_PAYLOAD_U16(u32);
             return VINF_SUCCESS;
 
         case EFI_IMAGE_EVT_CMD_SIZE0:
@@ -1794,13 +1803,6 @@ static DECLCALLBACK(void) efiMemSetup(PPDMDEVINS pDevIns, PDMDEVMEMSETUPCTX enmC
 {
     RT_NOREF(enmCtx);
     PDEVEFI pThis = PDMINS_2_DATA(pDevIns, PDEVEFI);
-
-    /*
-     * Plant some structures in RAM.
-     */
-    FwCommonPlantSmbiosAndDmiHdrs(pDevIns, pThis->cbDmiTables, pThis->cNumDmiTables);
-    if (pThis->u8IOAPIC)
-        FwCommonPlantMpsFloatPtr(pDevIns);
 
     /*
      * Re-shadow the Firmware Volume and make it RAM/RAM.
@@ -2409,16 +2411,27 @@ static DECLCALLBACK(int)  efiConstruct(PPDMDEVINS pDevIns, int iInstance, PCFGMN
         return rc;
 
     /*
-     * Plant DMI and MPS tables.
+     * Plant DMI and MPS tables in the ROM region.
      */
-    /** @todo XXX I wonder if we really need these tables as there is no SMBIOS header... */
     rc = FwCommonPlantDMITable(pDevIns, pThis->au8DMIPage, VBOX_DMI_TABLE_SIZE, &pThis->aUuid,
                                pDevIns->pCfg, pThis->cCpus, &pThis->cbDmiTables, &pThis->cNumDmiTables);
     AssertRCReturn(rc, rc);
+
+    /*
+     * NB: VBox/Devices/EFI/Firmware/VBoxPkg/VBoxSysTables/VBoxSysTables.c scans memory for
+     * the SMBIOS header. The header must be placed in a range that EFI will scan.
+     */
+    FwCommonPlantSmbiosAndDmiHdrs(pDevIns, pThis->au8DMIPage + VBOX_DMI_TABLE_SIZE,
+                                  pThis->cbDmiTables, pThis->cNumDmiTables);
+
     if (pThis->u8IOAPIC)
+    {
         FwCommonPlantMpsTable(pDevIns,
-                              pThis->au8DMIPage + VBOX_DMI_TABLE_SIZE,
-                              _4K - VBOX_DMI_TABLE_SIZE, pThis->cCpus);
+                              pThis->au8DMIPage /* aka VBOX_DMI_TABLE_BASE */ + VBOX_DMI_TABLE_SIZE + VBOX_DMI_HDR_SIZE,
+                              _4K - VBOX_DMI_TABLE_SIZE - VBOX_DMI_HDR_SIZE, pThis->cCpus);
+        FwCommonPlantMpsFloatPtr(pDevIns, VBOX_DMI_TABLE_BASE + VBOX_DMI_TABLE_SIZE + VBOX_DMI_HDR_SIZE);
+    }
+
     rc = PDMDevHlpROMRegister(pDevIns, VBOX_DMI_TABLE_BASE, _4K, pThis->au8DMIPage, _4K,
                               PGMPHYS_ROM_FLAGS_PERMANENT_BINARY, "DMI tables");
 

@@ -21,6 +21,21 @@
 /* GUI includes: */
 #include "UIApplianceEditorWidget.h"
 
+/* Forward declarations: */
+class UIFilePathSelector;
+class QIRichTextLabel;
+class QComboBox;
+class QGridLayout;
+
+/** MAC address policies. */
+enum MACAddressImportPolicy
+{
+    MACAddressImportPolicy_KeepAllMACs,
+    MACAddressImportPolicy_KeepNATMACs,
+    MACAddressImportPolicy_StripAllMACs,
+    MACAddressImportPolicy_MAX
+};
+
 class UIApplianceImportEditorWidget: public UIApplianceEditorWidget
 {
     Q_OBJECT;
@@ -33,7 +48,32 @@ public:
     bool import();
 
     QList<QPair<QString, QString> > licenseAgreements() const;
+
+protected:
+    /** Handles translation event. */
+    virtual void retranslateUi() /* override */;
+
+private slots:
+
+    void    sltHandlePathChanged(const QString &newPath);
+
+private:
+
+    void    prepareWidgets();
+    /** Populates MAC address policies. */
+    void    populateMACAddressImportPolicies();
+    void    setMACAddressImportPolicy(MACAddressImportPolicy enmMACAddressImportPolicy);
+    void    sltHandleMACAddressImportPolicyComboChange();
+    void    updateMACAddressImportPolicyComboToolTip();
+
+    QIRichTextLabel    *m_pPathSelectorLabel;
+    UIFilePathSelector *m_pPathSelector;
+    /** Holds the checkbox that controls 'import HDs as VDI' behaviour. */
+    QCheckBox          *m_pImportHDsAsVDI;
+    QLabel             *m_pMACComboBoxLabel;
+    QComboBox          *m_pMACComboBox;
+    QGridLayout        *m_pOptionsLayout;
+    QLabel             *m_pAdditionalOptionsLabel;
 };
 
 #endif /* __UIApplianceImportEditorWidget_h__ */
-

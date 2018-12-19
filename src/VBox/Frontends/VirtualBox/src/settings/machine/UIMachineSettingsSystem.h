@@ -26,10 +26,9 @@
 struct UIDataSettingsMachineSystem;
 typedef UISettingsCache<UIDataSettingsMachineSystem> UISettingsCacheMachineSystem;
 
-
 /** Machine settings: System page. */
-class UIMachineSettingsSystem : public UISettingsPageMachine,
-                                public Ui::UIMachineSettingsSystem
+class SHARED_LIBRARY_STUFF UIMachineSettingsSystem : public UISettingsPageMachine,
+                                                     public Ui::UIMachineSettingsSystem
 {
     Q_OBJECT;
 
@@ -40,8 +39,20 @@ public:
     /** Destructs System settings page. */
     ~UIMachineSettingsSystem();
 
+    /** Returns whether the HW Virt Ex is supported. */
+    bool isHWVirtExSupported() const;
     /** Returns whether the HW Virt Ex is enabled. */
     bool isHWVirtExEnabled() const;
+
+    /** Returns whether the Nested Paging is supported. */
+    bool isNestedPagingSupported() const;
+    /** Returns whether the Nested Paging is enabled. */
+    bool isNestedPagingEnabled() const;
+
+    /** Returns whether the Nested HW Virt Ex is supported. */
+    bool isNestedHWVirtExSupported() const;
+    /** Returns whether the Nested HW Virt Ex is enabled. */
+    bool isNestedHWVirtExEnabled() const;
 
     /** Returns whether the HID is enabled. */
     bool isHIDEnabled() const;
@@ -105,6 +116,9 @@ private slots:
     /** Handles CPU execution cap editor change. */
     void sltHandleCPUExecCapEditorChange();
 
+    /** Handles HW Virt Ex check-box toggling. */
+    void sltHandleHwVirtExToggle();
+
 private:
 
     /** Prepares all. */
@@ -164,4 +178,3 @@ private:
 };
 
 #endif /* !___UIMachineSettingsSystem_h___ */
-

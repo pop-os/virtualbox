@@ -1,11 +1,11 @@
 /* $Id: BIOSSettingsImpl.cpp $ */
 /** @file
  *
- * VirtualBox COM class implementation
+ * VirtualBox COM class implementation - Machine BIOS settings.
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -58,7 +58,7 @@ HRESULT BIOSSettings::FinalConstruct()
 
 void BIOSSettings::FinalRelease()
 {
-    uninit ();
+    uninit();
     BaseFinalRelease();
 }
 
@@ -66,7 +66,7 @@ void BIOSSettings::FinalRelease()
 /////////////////////////////////////////////////////////////////////////////
 
 /**
- * Initializes the audio adapter object.
+ * Initializes the BIOS settings object.
  *
  * @returns COM result indicator
  */
@@ -95,7 +95,7 @@ HRESULT BIOSSettings::init(Machine *aParent)
 }
 
 /**
- *  Initializes the audio adapter object given another audio adapter object
+ *  Initializes the BIOS settings object given another BIOS settings object
  *  (a kind of copy constructor). This object shares data with
  *  the object passed as an argument.
  *
@@ -561,17 +561,17 @@ void BIOSSettings::i_commit()
     }
 }
 
-void BIOSSettings::i_copyFrom (BIOSSettings *aThat)
+void BIOSSettings::i_copyFrom(BIOSSettings *aThat)
 {
-    AssertReturnVoid (aThat != NULL);
+    AssertReturnVoid(aThat != NULL);
 
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid (autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.rc());
 
     /* sanity too */
-    AutoCaller thatCaller (aThat);
-    AssertComRCReturnVoid (thatCaller.rc());
+    AutoCaller thatCaller(aThat);
+    AssertComRCReturnVoid(thatCaller.rc());
 
     /* peer is not modified, lock it for reading (aThat is "master" so locked
      * first) */
@@ -582,18 +582,19 @@ void BIOSSettings::i_copyFrom (BIOSSettings *aThat)
     m->bd.assignCopy(aThat->m->bd);
 }
 
-void BIOSSettings::i_applyDefaults (GuestOSType *aOsType)
+void BIOSSettings::i_applyDefaults(GuestOSType *aOsType)
 {
-    AssertReturnVoid (aOsType != NULL);
-
     /* sanity */
     AutoCaller autoCaller(this);
-    AssertComRCReturnVoid (autoCaller.rc());
+    AssertComRCReturnVoid(autoCaller.rc());
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     /* Initialize default BIOS settings here */
-    m->bd->fIOAPICEnabled = aOsType->i_recommendedIOAPIC();
+    if (aOsType)
+        m->bd->fIOAPICEnabled = aOsType->i_recommendedIOAPIC();
+    else
+        m->bd->fIOAPICEnabled = true;
 }
 
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

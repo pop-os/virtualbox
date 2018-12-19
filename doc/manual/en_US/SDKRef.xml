@@ -1,22 +1,26 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.3//EN"
-"http://www.oasis-open.org/docbook/xml/4.3/docbookx.dtd">
+<!DOCTYPE book PUBLIC "-//OASIS//DTD DocBook XML V4.5//EN"
+  "http://www.oasis-open.org/docbook/xml/4.5/docbookx.dtd"[
+<!ENTITY % all.entities SYSTEM "all-entities.ent">
+%all.entities;
+]>
+
 <book>
   <bookinfo>
-    <title>@VBOX_PRODUCT@<superscript>®</superscript></title>
+    <title>&VBOX_PRODUCT;</title>
 
     <subtitle>Programming Guide and Reference</subtitle>
 
-    <edition>Version @VBOX_VERSION_STRING@</edition>
+    <edition>Version &VBOX_VERSION_STRING;</edition>
 
-    <corpauthor>@VBOX_VENDOR@</corpauthor>
+    <corpauthor>&VBOX_VENDOR;</corpauthor>
 
     <address>http://www.virtualbox.org</address>
 
     <copyright>
-      <year>2004-@VBOX_C_YEAR@</year>
+      <year>2004-&VBOX_C_YEAR;</year>
 
-      <holder>@VBOX_VENDOR@</holder>
+      <holder>&VBOX_VENDOR;</holder>
     </copyright>
   </bookinfo>
 
@@ -1197,7 +1201,7 @@ version = webservice.IVirtualBox_getVersion(oVirtualBox);
 print version;</screen></para>
 
                 <para>And it will print
-                "@VBOX_VERSION_MAJOR@.@VBOX_VERSION_MINOR@.@VBOX_VERSION_BUILD@".</para>
+                "&VBOX_VERSION_MAJOR;.&VBOX_VERSION_MINOR;.&VBOX_VERSION_BUILD;".</para>
               </listitem>
 
               <listitem>
@@ -3085,17 +3089,17 @@ es.unregisterListener(listener); </screen></para>
         and <computeroutput>VBox/VBoxGuest.h</computeroutput>).</para>
 
         <para><screen>
-DECLVBGL(int) VbglHGCMConnect (VBGLHGCMHANDLE *pHandle, VBoxGuestHGCMConnectInfo *pData);
+DECLR0VBGL(int) VbglR0HGCMConnect(VBGLHGCMHANDLE *pHandle, const char *pszServiceName, HGCMCLIENTID *pidClient);
           </screen> Connects to the service: <screen>
     VBoxGuestHGCMConnectInfo data;
 
-    memset (&amp;data, sizeof (VBoxGuestHGCMConnectInfo));
+    memset(&amp;data, sizeof(VBoxGuestHGCMConnectInfo));
 
     data.result   = VINF_SUCCESS;
     data.Loc.type = VMMDevHGCMLoc_LocalHost_Existing;
     strcpy (data.Loc.u.host.achName, "VBoxSharedFolders");
 
-    rc = VbglHGCMConnect (&amp;handle, &amp;data);
+    rc = VbglHGCMConnect (&amp;handle, "VBoxSharedFolders"&amp;data);
 
     if (RT_SUCCESS (rc))
     {
@@ -3914,6 +3918,74 @@ AuthResult AUTHCALL AuthEntry(
     existing client code.</para>
 
     <sect1>
+      <title>Incompatible API changes with version 6.0</title>
+
+      <itemizedlist>
+
+        <listitem><para>Video recording APIs for were changed as follows:
+          <itemizedlist>
+            <listitem><para>All attributes which were living in <link linkend="IMachine">IMachine</link> before
+              have been moved to an own, dedicated interface named <link linkend="IRecordingSettings">IRecordingSettings</link>.
+              This new interface can be accessed via the new <link linkend="IMachine__recordingSettings">IMachine::recordingSettings</link>
+              attribute. This should emphasize that recording is not limited to video capturing as such.</para>
+            </listitem>
+
+            <listitem><para>For further flexibility all specific per-VM-screen settings have been moved to a new interface
+              called <link linkend="IRecordingScreenSettings">IRecordingScreenSettings</link>. Such settings now exist per configured
+              VM display and can be retrieved via the <link linkend="IRecordingSettings__screens">IRecordingSettings::screens</link>
+              attribute or the <link linkend="IRecordingSettings__getScreenSettings">IRecordingSettings::getScreenSettings</link>
+              method.
+              <note><para>For now all screen settings will share the same settings, e.g. different settings on a per-screen basis
+                is not implemented yet.</para></note>
+              </para>
+            </listitem>
+
+            <listitem><para>The event <computeroutput>IVideoCaptureChangedEvent</computeroutput> was renamed into
+              <link linkend="IRecordingChangedEvent">IRecordingChangedEvent</link>.</para>
+            </listitem>
+
+          </itemizedlist>
+        </para></listitem>
+
+        <listitem><para>Guest Control APIs were changed as follows:
+          <itemizedlist>
+            <listitem><para><link linkend="IGuest__createSession">IGuest::createSession()</link>,
+              <link linkend="IGuestSession__processCreate">IGuestSession::processCreate()</link>,
+              <link linkend="IGuestSession__processCreateEx">IGuestSession::processCreateEx()</link>,
+              <link linkend="IGuestSession__directoryOpen">IGuestSession::directoryOpen()</link> and
+              <link linkend="IGuestSession__fileOpen">IGuestSession::fileOpen()</link> now will
+              return the new error code VBOX_E_MAXIMUM_REACHED if the limit for the according object
+              group has been reached.</para>
+            </listitem>
+
+            <listitem><para>The enumerations FileOpenExFlags, FsObjMoveFlags and DirectoryCopyFlags have
+              been renamed to <link linkend="FileOpenExFlag">FileOpenExFlag</link>,
+              <link linkend="FsObjMoveFlag">FsObjMoveFlag</link> and <link linkend="DirectoryCopyFlag">DirectoryCopyFlag</link>
+              accordingly to match the rest of the API.</para>
+            </listitem>
+
+            <listitem>
+              <para>The following methods have been implemented:
+                <computeroutput>IGuestSession::directoryCopyFromGuest()</computeroutput> and
+                <computeroutput>IGuestSession::directoryCopyToGuest()</computeroutput>.
+              </para>
+
+              <para>The following attributes have been implemented:
+                <computeroutput>IGuestFsObjInfo::accessTime</computeroutput>,
+                <computeroutput>IGuestFsObjInfo::birthTime</computeroutput>,
+                <computeroutput>IGuestFsObjInfo::changeTime</computeroutput> and
+                <computeroutput>IGuestFsObjInfo::modificationTime</computeroutput>.
+              </para>
+
+            </listitem>
+          </itemizedlist>
+        </para></listitem>
+
+      </itemizedlist>
+
+    </sect1>
+
+    <sect1>
       <title>Incompatible API changes with version 5.x</title>
 
       <itemizedlist>
@@ -4289,7 +4361,7 @@ AuthResult AUTHCALL AuthEntry(
                   <link linkend="FileSharingMode">FileSharingMode</link>
                   (fileOpenEx only).</para></listitem>
                 <listitem><para>Added a flags parameter taking a list of
-                <link linkend="FileOpenExFlags">FileOpenExFlags</link> values
+                <link linkend="FileOpenExFlag">FileOpenExFlag</link> values
                 (fileOpenEx only).</para></listitem>
                 <listitem><para>Removed the offset parameter (fileOpenEx
                 only).</para></listitem>

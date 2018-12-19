@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,7 +28,7 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#define LOG_GROUP LOG_GROUP_GUEST_CONTROL //LOG_GROUP_MAIN_GUESTPROCESS
+#define LOG_GROUP LOG_GROUP_MAIN_GUESTPROCESS
 #include "LoggingNew.h"
 
 #ifndef VBOX_WITH_GUEST_CONTROL
@@ -177,11 +177,11 @@ void GuestProcess::FinalRelease(void)
 // public initializer/uninitializer for internal purposes only
 /////////////////////////////////////////////////////////////////////////////
 
-int GuestProcess::init(Console *aConsole, GuestSession *aSession, ULONG aProcessID,
+int GuestProcess::init(Console *aConsole, GuestSession *aSession, ULONG aObjectID,
                        const GuestProcessStartupInfo &aProcInfo, const GuestEnvironment *pBaseEnv)
 {
-    LogFlowThisFunc(("aConsole=%p, aSession=%p, aProcessID=%RU32 pBaseEnv=%p\n",
-                     aConsole, aSession, aProcessID, pBaseEnv));
+    LogFlowThisFunc(("aConsole=%p, aSession=%p, aObjectID=%RU32, pBaseEnv=%p\n",
+                     aConsole, aSession, aObjectID, pBaseEnv));
 
     AssertPtrReturn(aConsole, VERR_INVALID_POINTER);
     AssertPtrReturn(aSession, VERR_INVALID_POINTER);
@@ -192,7 +192,7 @@ int GuestProcess::init(Console *aConsole, GuestSession *aSession, ULONG aProcess
 
     HRESULT hr;
 
-    int vrc = bindToSession(aConsole, aSession, aProcessID /* Object ID */);
+    int vrc = bindToSession(aConsole, aSession, aObjectID);
     if (RT_SUCCESS(vrc))
     {
         hr = unconst(mEventSource).createObject();
@@ -281,8 +281,8 @@ void GuestProcess::uninit(void)
     LogFlowThisFunc(("mExe=%s, PID=%RU32\n", mData.mProcess.mExecutable.c_str(), mData.mPID));
 
     /* Terminate process if not already done yet. */
-    int guestRc = VINF_SUCCESS;
-    int vrc = i_terminateProcess(30 * 1000, &guestRc); /** @todo Make timeouts configurable. */
+    int rcGuest = VINF_SUCCESS;
+    int vrc = i_terminateProcess(30 * 1000, &rcGuest); /** @todo Make timeouts configurable. */
     /* Note: Don't return here yet; first uninit all other stuff in
      *       case of failure. */
 
@@ -294,8 +294,7 @@ void GuestProcess::uninit(void)
 
     baseUninit();
 
-    LogFlowThisFunc(("Returning rc=%Rrc, guestRc=%Rrc\n",
-                     vrc, guestRc));
+    LogFlowThisFunc(("Returning rc=%Rrc, rcGuest=%Rrc\n", vrc, rcGuest));
     RT_NOREF_PV(vrc);
 }
 
@@ -336,7 +335,7 @@ HRESULT GuestProcess::getEnvironment(std::vector<com::Utf8Str> &aEnvironment)
         hrc = Global::vboxStatusCodeToCOM(vrc);
     }
     else
-        hrc = setError(VBOX_E_NOT_SUPPORTED, tr("The base environment feature is not supported by the guest additions"));
+        hrc = setError(VBOX_E_NOT_SUPPORTED, tr("The base environment feature is not supported by installed Guest Additions"));
     LogFlowThisFuncLeave();
     return hrc;
 #endif
@@ -494,12 +493,12 @@ inline int GuestProcess::i_checkPID(uint32_t uPID)
 }
 
 /* static */
-Utf8Str GuestProcess::i_guestErrorToString(int guestRc)
+Utf8Str GuestProcess::i_guestErrorToString(int rcGuest)
 {
     Utf8Str strError;
 
     /** @todo pData->u32Flags: int vs. uint32 -- IPRT errors are *negative* !!! */
-    switch (guestRc)
+    switch (rcGuest)
     {
         case VERR_FILE_NOT_FOUND: /* This is the most likely error. */
             RT_FALL_THROUGH();
@@ -539,7 +538,7 @@ Utf8Str GuestProcess::i_guestErrorToString(int guestRc)
             strError += Utf8StrFmt(tr("Invalid user/password credentials"));
             break;
 
-        case VERR_MAX_PROCS_REACHED:
+        case VERR_GSTCTL_MAX_OBJECTS_REACHED:
             strError += Utf8StrFmt(tr("Maximum number of concurrent guest processes has been reached"));
             break;
 
@@ -548,7 +547,7 @@ Utf8Str GuestProcess::i_guestErrorToString(int guestRc)
             break;
 
         default:
-            strError += Utf8StrFmt("%Rrc", guestRc);
+            strError += Utf8StrFmt("%Rrc", rcGuest);
             break;
     }
 
@@ -567,7 +566,7 @@ Utf8Str GuestProcess::i_guestErrorToString(int guestRc)
 bool GuestProcess::i_isGuestError(int rc)
 {
     return (   rc == VERR_GSTCTL_GUEST_ERROR
-            || rc == VWRN_GSTCTL_PROCESS_EXIT_CODE);
+            || rc == VERR_GSTCTL_PROCESS_EXIT_CODE);
 }
 
 inline bool GuestProcess::i_isAlive(void)
@@ -610,13 +609,13 @@ int GuestProcess::i_onProcessInputStatus(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGU
 
     CALLBACKDATA_PROC_INPUT dataCb;
     /* pSvcCb->mpaParms[0] always contains the context ID. */
-    int vrc = pSvcCbData->mpaParms[1].getUInt32(&dataCb.uPID);
+    int vrc = HGCMSvcGetU32(&pSvcCbData->mpaParms[1], &dataCb.uPID);
     AssertRCReturn(vrc, vrc);
-    vrc = pSvcCbData->mpaParms[2].getUInt32(&dataCb.uStatus);
+    vrc = HGCMSvcGetU32(&pSvcCbData->mpaParms[2], &dataCb.uStatus);
     AssertRCReturn(vrc, vrc);
-    vrc = pSvcCbData->mpaParms[3].getUInt32(&dataCb.uFlags);
+    vrc = HGCMSvcGetU32(&pSvcCbData->mpaParms[3], &dataCb.uFlags);
     AssertRCReturn(vrc, vrc);
-    vrc = pSvcCbData->mpaParms[4].getUInt32(&dataCb.uProcessed);
+    vrc = HGCMSvcGetU32(&pSvcCbData->mpaParms[4], &dataCb.uProcessed);
     AssertRCReturn(vrc, vrc);
 
     LogFlowThisFunc(("uPID=%RU32, uStatus=%RU32, uFlags=%RI32, cbProcessed=%RU32\n",
@@ -684,13 +683,13 @@ int GuestProcess::i_onProcessStatusChange(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXG
 
     CALLBACKDATA_PROC_STATUS dataCb;
     /* pSvcCb->mpaParms[0] always contains the context ID. */
-    int vrc = pSvcCbData->mpaParms[1].getUInt32(&dataCb.uPID);
+    int vrc = HGCMSvcGetU32(&pSvcCbData->mpaParms[1], &dataCb.uPID);
     AssertRCReturn(vrc, vrc);
-    vrc = pSvcCbData->mpaParms[2].getUInt32(&dataCb.uStatus);
+    vrc = HGCMSvcGetU32(&pSvcCbData->mpaParms[2], &dataCb.uStatus);
     AssertRCReturn(vrc, vrc);
-    vrc = pSvcCbData->mpaParms[3].getUInt32(&dataCb.uFlags);
+    vrc = HGCMSvcGetU32(&pSvcCbData->mpaParms[3], &dataCb.uFlags);
     AssertRCReturn(vrc, vrc);
-    vrc = pSvcCbData->mpaParms[4].getPointer(&dataCb.pvData, &dataCb.cbData);
+    vrc = HGCMSvcGetPv(&pSvcCbData->mpaParms[4], &dataCb.pvData, &dataCb.cbData);
     AssertRCReturn(vrc, vrc);
 
     LogFlowThisFunc(("uPID=%RU32, uStatus=%RU32, uFlags=%RU32\n",
@@ -794,13 +793,13 @@ int GuestProcess::i_onProcessOutput(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCT
 
     CALLBACKDATA_PROC_OUTPUT dataCb;
     /* pSvcCb->mpaParms[0] always contains the context ID. */
-    int vrc = pSvcCbData->mpaParms[1].getUInt32(&dataCb.uPID);
+    int vrc = HGCMSvcGetU32(&pSvcCbData->mpaParms[1], &dataCb.uPID);
     AssertRCReturn(vrc, vrc);
-    vrc = pSvcCbData->mpaParms[2].getUInt32(&dataCb.uHandle);
+    vrc = HGCMSvcGetU32(&pSvcCbData->mpaParms[2], &dataCb.uHandle);
     AssertRCReturn(vrc, vrc);
-    vrc = pSvcCbData->mpaParms[3].getUInt32(&dataCb.uFlags);
+    vrc = HGCMSvcGetU32(&pSvcCbData->mpaParms[3], &dataCb.uFlags);
     AssertRCReturn(vrc, vrc);
-    vrc = pSvcCbData->mpaParms[4].getPointer(&dataCb.pvData, &dataCb.cbData);
+    vrc = HGCMSvcGetPv(&pSvcCbData->mpaParms[4], &dataCb.pvData, &dataCb.cbData);
     AssertRCReturn(vrc, vrc);
 
     LogFlowThisFunc(("uPID=%RU32, uHandle=%RU32, uFlags=%RI32, pvData=%p, cbData=%RU32\n",
@@ -850,10 +849,10 @@ int GuestProcess::i_onRemove(void)
 }
 
 int GuestProcess::i_readData(uint32_t uHandle, uint32_t uSize, uint32_t uTimeoutMS,
-                             void *pvData, size_t cbData, uint32_t *pcbRead, int *pGuestRc)
+                             void *pvData, size_t cbData, uint32_t *pcbRead, int *prcGuest)
 {
-    LogFlowThisFunc(("uPID=%RU32, uHandle=%RU32, uSize=%RU32, uTimeoutMS=%RU32, pvData=%p, cbData=%RU32, pGuestRc=%p\n",
-                     mData.mPID, uHandle, uSize, uTimeoutMS, pvData, cbData, pGuestRc));
+    LogFlowThisFunc(("uPID=%RU32, uHandle=%RU32, uSize=%RU32, uTimeoutMS=%RU32, pvData=%p, cbData=%RU32, prcGuest=%p\n",
+                     mData.mPID, uHandle, uSize, uTimeoutMS, pvData, cbData, prcGuest));
     AssertReturn(uSize, VERR_INVALID_PARAMETER);
     AssertPtrReturn(pvData, VERR_INVALID_POINTER);
     AssertReturn(cbData >= uSize, VERR_INVALID_PARAMETER);
@@ -873,8 +872,8 @@ int GuestProcess::i_readData(uint32_t uHandle, uint32_t uSize, uint32_t uTimeout
     {
         if (pcbRead)
             *pcbRead = 0;
-        if (pGuestRc)
-            *pGuestRc = VINF_SUCCESS;
+        if (prcGuest)
+            *prcGuest = VINF_SUCCESS;
         return VINF_SUCCESS; /* Nothing to read anymore. */
     }
 
@@ -909,10 +908,10 @@ int GuestProcess::i_readData(uint32_t uHandle, uint32_t uSize, uint32_t uTimeout
     {
         VBOXHGCMSVCPARM paParms[8];
         int i = 0;
-        paParms[i++].setUInt32(pEvent->ContextID());
-        paParms[i++].setUInt32(mData.mPID);
-        paParms[i++].setUInt32(uHandle);
-        paParms[i++].setUInt32(0 /* Flags, none set yet. */);
+        HGCMSvcSetU32(&paParms[i++], pEvent->ContextID());
+        HGCMSvcSetU32(&paParms[i++], mData.mPID);
+        HGCMSvcSetU32(&paParms[i++], uHandle);
+        HGCMSvcSetU32(&paParms[i++], 0 /* Flags, none set yet. */);
 
         alock.release(); /* Drop the write lock before sending. */
 
@@ -995,15 +994,15 @@ int GuestProcess::i_setProcessStatus(ProcessStatus_T procStatus, int procRc)
 }
 
 /* static */
-HRESULT GuestProcess::i_setErrorExternal(VirtualBoxBase *pInterface, int guestRc)
+HRESULT GuestProcess::i_setErrorExternal(VirtualBoxBase *pInterface, int rcGuest)
 {
     AssertPtr(pInterface);
-    AssertMsg(RT_FAILURE(guestRc), ("Guest rc does not indicate a failure when setting error\n"));
+    AssertMsg(RT_FAILURE(rcGuest), ("Guest rc does not indicate a failure when setting error\n"));
 
-    return pInterface->setError(VBOX_E_IPRT_ERROR, GuestProcess::i_guestErrorToString(guestRc).c_str());
+    return pInterface->setErrorBoth(VBOX_E_IPRT_ERROR, rcGuest, GuestProcess::i_guestErrorToString(rcGuest).c_str());
 }
 
-int GuestProcess::i_startProcess(uint32_t cMsTimeout, int *pGuestRc)
+int GuestProcess::i_startProcess(uint32_t cMsTimeout, int *prcGuest)
 {
     LogFlowThisFunc(("cMsTimeout=%RU32, procExe=%s, procTimeoutMS=%RU32, procFlags=%x, sessionID=%RU32\n",
                      cMsTimeout, mData.mProcess.mExecutable.c_str(), mData.mProcess.mTimeoutMS, mData.mProcess.mFlags,
@@ -1031,7 +1030,7 @@ int GuestProcess::i_startProcess(uint32_t cMsTimeout, int *pGuestRc)
     if (RT_FAILURE(vrc))
         return vrc;
 
-    vrc = i_startProcessInner(cMsTimeout, alock, pEvent, pGuestRc);
+    vrc = i_startProcessInner(cMsTimeout, alock, pEvent, prcGuest);
 
     unregisterWaitEvent(pEvent);
 
@@ -1039,7 +1038,7 @@ int GuestProcess::i_startProcess(uint32_t cMsTimeout, int *pGuestRc)
     return vrc;
 }
 
-int GuestProcess::i_startProcessInner(uint32_t cMsTimeout, AutoWriteLock &rLock, GuestWaitEvent *pEvent, int *pGuestRc)
+int GuestProcess::i_startProcessInner(uint32_t cMsTimeout, AutoWriteLock &rLock, GuestWaitEvent *pEvent, int *prcGuest)
 {
     GuestSession *pSession = mSession;
     AssertPtr(pSession);
@@ -1094,21 +1093,21 @@ int GuestProcess::i_startProcessInner(uint32_t cMsTimeout, AutoWriteLock &rLock,
         /* Prepare HGCM call. */
         VBOXHGCMSVCPARM paParms[16];
         int i = 0;
-        paParms[i++].setUInt32(pEvent->ContextID());
-        paParms[i++].setCppString(mData.mProcess.mExecutable);
-        paParms[i++].setUInt32(mData.mProcess.mFlags);
-        paParms[i++].setUInt32((uint32_t)mData.mProcess.mArguments.size());
-        paParms[i++].setPointer(pszArgs, (uint32_t)cbArgs);
-        paParms[i++].setUInt32(mData.mProcess.mEnvironmentChanges.count());
-        paParms[i++].setUInt32((uint32_t)cbEnvBlock);
-        paParms[i++].setPointer(pszzEnvBlock, (uint32_t)cbEnvBlock);
+        HGCMSvcSetU32(&paParms[i++], pEvent->ContextID());
+        HGCMSvcSetRTCStr(&paParms[i++], mData.mProcess.mExecutable);
+        HGCMSvcSetU32(&paParms[i++], mData.mProcess.mFlags);
+        HGCMSvcSetU32(&paParms[i++], (uint32_t)mData.mProcess.mArguments.size());
+        HGCMSvcSetPv(&paParms[i++], pszArgs, (uint32_t)cbArgs);
+        HGCMSvcSetU32(&paParms[i++], mData.mProcess.mEnvironmentChanges.count());
+        HGCMSvcSetU32(&paParms[i++], (uint32_t)cbEnvBlock);
+        HGCMSvcSetPv(&paParms[i++], pszzEnvBlock, (uint32_t)cbEnvBlock);
         if (uProtocol < 2)
         {
             /* In protocol v1 (VBox < 4.3) the credentials were part of the execution
              * call. In newer protocols these credentials are part of the opened guest
              * session, so not needed anymore here. */
-            paParms[i++].setCppString(sessionCreds.mUser);
-            paParms[i++].setCppString(sessionCreds.mPassword);
+            HGCMSvcSetRTCStr(&paParms[i++], sessionCreds.mUser);
+            HGCMSvcSetRTCStr(&paParms[i++], sessionCreds.mPassword);
         }
         /*
          * If the WaitForProcessStartOnly flag is set, we only want to define and wait for a timeout
@@ -1117,17 +1116,17 @@ int GuestProcess::i_startProcessInner(uint32_t cMsTimeout, AutoWriteLock &rLock,
          * but let the started process perform lengthly operations then.
          */
         if (mData.mProcess.mFlags & ProcessCreateFlag_WaitForProcessStartOnly)
-            paParms[i++].setUInt32(UINT32_MAX /* Infinite timeout */);
+            HGCMSvcSetU32(&paParms[i++], UINT32_MAX /* Infinite timeout */);
         else
-            paParms[i++].setUInt32(mData.mProcess.mTimeoutMS);
+            HGCMSvcSetU32(&paParms[i++], mData.mProcess.mTimeoutMS);
         if (uProtocol >= 2)
         {
-            paParms[i++].setUInt32(mData.mProcess.mPriority);
+            HGCMSvcSetU32(&paParms[i++], mData.mProcess.mPriority);
             /* CPU affinity: We only support one CPU affinity block at the moment,
              * so that makes up to 64 CPUs total. This can be more in the future. */
-            paParms[i++].setUInt32(1);
+            HGCMSvcSetU32(&paParms[i++], 1);
             /* The actual CPU affinity blocks. */
-            paParms[i++].setPointer((void *)&mData.mProcess.mAffinity, sizeof(mData.mProcess.mAffinity));
+            HGCMSvcSetPv(&paParms[i++], (void *)&mData.mProcess.mAffinity, sizeof(mData.mProcess.mAffinity));
         }
 
         rLock.release(); /* Drop the write lock before sending. */
@@ -1146,7 +1145,7 @@ int GuestProcess::i_startProcessInner(uint32_t cMsTimeout, AutoWriteLock &rLock,
 
     if (RT_SUCCESS(vrc))
         vrc = i_waitForStatusChange(pEvent, cMsTimeout,
-                                    NULL /* Process status */, pGuestRc);
+                                    NULL /* Process status */, prcGuest);
     return vrc;
 }
 
@@ -1164,10 +1163,10 @@ int GuestProcess::i_startProcessAsync(void)
         if (!pTask->i_isOk())
         {
             delete pTask;
-            LogFlow(("GuestProcess: Could not create GuestProcessStartTask object \n"));
+            LogFlowThisFunc(("Could not create GuestProcessStartTask object\n"));
             throw VERR_MEMOBJ_INIT_FAILED;
         }
-        LogFlow(("GuestProcess: Successfully created GuestProcessStartTask object \n"));
+        LogFlowThisFunc(("Successfully created GuestProcessStartTask object\n"));
         //this function delete pTask in case of exceptions, so there is no need in the call of delete operator
         hr = pTask->createThread();
     }
@@ -1178,7 +1177,7 @@ int GuestProcess::i_startProcessAsync(void)
     catch(int eVRC)
     {
         vrc = eVRC;
-        LogFlow(("GuestSession: Could not create thread for GuestProcessStartTask task %Rrc\n", vrc));
+        LogFlowThisFunc(("Could not create thread for GuestProcessStartTask task %Rrc\n", vrc));
     }
 
     LogFlowFuncLeaveRC(vrc);
@@ -1186,7 +1185,7 @@ int GuestProcess::i_startProcessAsync(void)
 }
 
 /* static */
-void GuestProcess::i_startProcessThreadTask(GuestProcessStartTask *pTask)
+int GuestProcess::i_startProcessThreadTask(GuestProcessStartTask *pTask)
 {
     LogFlowFunc(("pTask=%p\n", pTask));
 
@@ -1195,25 +1194,18 @@ void GuestProcess::i_startProcessThreadTask(GuestProcessStartTask *pTask)
 
     AutoCaller autoCaller(pProcess);
     if (FAILED(autoCaller.rc()))
-        return;
+        return VERR_COM_UNEXPECTED;
 
-    int vrc = pProcess->i_startProcess(30 * 1000 /* 30s timeout */,
-                                       NULL /* Guest rc, ignored */);
-/** @todo
- *
- * r=bird: what's up with vrc here? Safe to ignore it?
- *
- */
-
+    int vrc = pProcess->i_startProcess(30 * 1000 /* 30s timeout */, NULL /* Guest rc, ignored */);
     /* Nothing to do here anymore. */
 
-    LogFlowFunc(("pProcess=%p vrc=%Rrc (ignored)\n", (GuestProcess *)pProcess, vrc));
-    NOREF(vrc);
+    LogFlowFunc(("pProcess=%p, vrc=%Rrc\n", (GuestProcess *)pProcess, vrc));
+    return vrc;
 }
 
-int GuestProcess::i_terminateProcess(uint32_t uTimeoutMS, int *pGuestRc)
+int GuestProcess::i_terminateProcess(uint32_t uTimeoutMS, int *prcGuest)
 {
-    /* pGuestRc is optional. */
+    /* prcGuest is optional. */
     LogFlowThisFunc(("uTimeoutMS=%RU32\n", uTimeoutMS));
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -1253,15 +1245,15 @@ int GuestProcess::i_terminateProcess(uint32_t uTimeoutMS, int *pGuestRc)
 
             VBOXHGCMSVCPARM paParms[4];
             int i = 0;
-            paParms[i++].setUInt32(pEvent->ContextID());
-            paParms[i++].setUInt32(mData.mPID);
+            HGCMSvcSetU32(&paParms[i++], pEvent->ContextID());
+            HGCMSvcSetU32(&paParms[i++], mData.mPID);
 
             alock.release(); /* Drop the write lock before sending. */
 
             vrc = sendCommand(HOST_EXEC_TERMINATE, i, paParms);
             if (RT_SUCCESS(vrc))
                 vrc = i_waitForStatusChange(pEvent, uTimeoutMS,
-                                            NULL /* ProcessStatus */, pGuestRc);
+                                            NULL /* ProcessStatus */, prcGuest);
             unregisterWaitEvent(pEvent);
         }
     }
@@ -1339,6 +1331,9 @@ ProcessWaitResult_T GuestProcess::i_waitFlagsToResultEx(uint32_t fWaitFlags,
             /* No result available yet, leave wait
              * flags untouched. */
             break;
+#ifdef VBOX_WITH_XPCOM_CPP_ENUM_HACK
+        case ProcessStatus_32BitHack: AssertFailedBreak(); /* (compiler warnings) */
+#endif
     }
 
     if (newStatus == ProcessStatus_Started)
@@ -1382,14 +1377,14 @@ ProcessWaitResult_T GuestProcess::i_waitFlagsToResult(uint32_t fWaitFlags)
 }
 
 int GuestProcess::i_waitFor(uint32_t fWaitFlags, ULONG uTimeoutMS,
-                            ProcessWaitResult_T &waitResult, int *pGuestRc)
+                            ProcessWaitResult_T &waitResult, int *prcGuest)
 {
     AssertReturn(fWaitFlags, VERR_INVALID_PARAMETER);
 
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
-    LogFlowThisFunc(("fWaitFlags=0x%x, uTimeoutMS=%RU32, procStatus=%RU32, procRc=%Rrc, pGuestRc=%p\n",
-                     fWaitFlags, uTimeoutMS, mData.mStatus, mData.mLastError, pGuestRc));
+    LogFlowThisFunc(("fWaitFlags=0x%x, uTimeoutMS=%RU32, procStatus=%RU32, procRc=%Rrc, prcGuest=%p\n",
+                     fWaitFlags, uTimeoutMS, mData.mStatus, mData.mLastError, prcGuest));
 
     /* Did some error occur before? Then skip waiting and return. */
     ProcessStatus_T curStatus = mData.mStatus;
@@ -1398,9 +1393,9 @@ int GuestProcess::i_waitFor(uint32_t fWaitFlags, ULONG uTimeoutMS,
         waitResult = ProcessWaitResult_Error;
         AssertMsg(RT_FAILURE(mData.mLastError),
                              ("No error rc (%Rrc) set when guest process indicated an error\n", mData.mLastError));
-        if (pGuestRc)
-            *pGuestRc = mData.mLastError; /* Return last set error. */
-        LogFlowThisFunc(("Process is in error state (guestRc=%Rrc)\n", mData.mLastError));
+        if (prcGuest)
+            *prcGuest = mData.mLastError; /* Return last set error. */
+        LogFlowThisFunc(("Process is in error state (rcGuest=%Rrc)\n", mData.mLastError));
         return VERR_GSTCTL_GUEST_ERROR;
     }
 
@@ -1409,9 +1404,9 @@ int GuestProcess::i_waitFor(uint32_t fWaitFlags, ULONG uTimeoutMS,
     /* No waiting needed? Return immediately using the last set error. */
     if (waitResult != ProcessWaitResult_None)
     {
-        if (pGuestRc)
-            *pGuestRc = mData.mLastError; /* Return last set error (if any). */
-        LogFlowThisFunc(("Nothing to wait for (guestRc=%Rrc)\n", mData.mLastError));
+        if (prcGuest)
+            *prcGuest = mData.mLastError; /* Return last set error (if any). */
+        LogFlowThisFunc(("Nothing to wait for (rcGuest=%Rrc)\n", mData.mLastError));
         return RT_SUCCESS(mData.mLastError) ? VINF_SUCCESS : VERR_GSTCTL_GUEST_ERROR;
     }
 
@@ -1457,7 +1452,7 @@ int GuestProcess::i_waitFor(uint32_t fWaitFlags, ULONG uTimeoutMS,
         vrc = i_waitForStatusChange(pEvent,
                                     uTimeoutMS == RT_INDEFINITE_WAIT
                                     ? RT_INDEFINITE_WAIT : uTimeoutMS - (uint32_t)u64ElapsedMS,
-                                    &newStatus, pGuestRc);
+                                    &newStatus, prcGuest);
         if (RT_SUCCESS(vrc))
         {
             alock.acquire();
@@ -1604,11 +1599,11 @@ int GuestProcess::i_waitForOutput(GuestWaitEvent *pEvent, uint32_t uHandle, uint
 }
 
 int GuestProcess::i_waitForStatusChange(GuestWaitEvent *pEvent, uint32_t uTimeoutMS,
-                                        ProcessStatus_T *pProcessStatus, int *pGuestRc)
+                                        ProcessStatus_T *pProcessStatus, int *prcGuest)
 {
     AssertPtrReturn(pEvent, VERR_INVALID_POINTER);
     /* pProcessStatus is optional. */
-    /* pGuestRc is optional. */
+    /* prcGuest is optional. */
 
     VBoxEventType_T evtType;
     ComPtr<IEvent> pIEvent;
@@ -1634,14 +1629,14 @@ int GuestProcess::i_waitForStatusChange(GuestWaitEvent *pEvent, uint32_t uTimeou
         hr = errorInfo->COMGETTER(ResultDetail)(&lGuestRc);
         ComAssertComRC(hr);
 
-        LogFlowThisFunc(("Got procStatus=%RU32, guestRc=%RI32 (%Rrc)\n",
+        LogFlowThisFunc(("Got procStatus=%RU32, rcGuest=%RI32 (%Rrc)\n",
                          procStatus, lGuestRc, lGuestRc));
 
         if (RT_FAILURE((int)lGuestRc))
             vrc = VERR_GSTCTL_GUEST_ERROR;
 
-        if (pGuestRc)
-            *pGuestRc = (int)lGuestRc;
+        if (prcGuest)
+            *prcGuest = (int)lGuestRc;
     }
 
     LogFlowFuncLeaveRC(vrc);
@@ -1683,10 +1678,10 @@ bool GuestProcess::i_waitResultImpliesEx(ProcessWaitResult_T waitResult,
 }
 
 int GuestProcess::i_writeData(uint32_t uHandle, uint32_t uFlags,
-                              void *pvData, size_t cbData, uint32_t uTimeoutMS, uint32_t *puWritten, int *pGuestRc)
+                              void *pvData, size_t cbData, uint32_t uTimeoutMS, uint32_t *puWritten, int *prcGuest)
 {
-    LogFlowThisFunc(("uPID=%RU32, uHandle=%RU32, uFlags=%RU32, pvData=%p, cbData=%RU32, uTimeoutMS=%RU32, puWritten=%p, pGuestRc=%p\n",
-                     mData.mPID, uHandle, uFlags, pvData, cbData, uTimeoutMS, puWritten, pGuestRc));
+    LogFlowThisFunc(("uPID=%RU32, uHandle=%RU32, uFlags=%RU32, pvData=%p, cbData=%RU32, uTimeoutMS=%RU32, puWritten=%p, prcGuest=%p\n",
+                     mData.mPID, uHandle, uFlags, pvData, cbData, uTimeoutMS, puWritten, prcGuest));
     /* All is optional. There can be 0 byte writes. */
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
@@ -1694,8 +1689,8 @@ int GuestProcess::i_writeData(uint32_t uHandle, uint32_t uFlags,
     {
         if (puWritten)
             *puWritten = 0;
-        if (pGuestRc)
-            *pGuestRc = VINF_SUCCESS;
+        if (prcGuest)
+            *prcGuest = VINF_SUCCESS;
         return VINF_SUCCESS; /* Not available for writing (anymore). */
     }
 
@@ -1728,11 +1723,11 @@ int GuestProcess::i_writeData(uint32_t uHandle, uint32_t uFlags,
 
     VBOXHGCMSVCPARM paParms[5];
     int i = 0;
-    paParms[i++].setUInt32(pEvent->ContextID());
-    paParms[i++].setUInt32(mData.mPID);
-    paParms[i++].setUInt32(uFlags);
-    paParms[i++].setPointer(pvData, (uint32_t)cbData);
-    paParms[i++].setUInt32((uint32_t)cbData);
+    HGCMSvcSetU32(&paParms[i++], pEvent->ContextID());
+    HGCMSvcSetU32(&paParms[i++], mData.mPID);
+    HGCMSvcSetU32(&paParms[i++], uFlags);
+    HGCMSvcSetPv(&paParms[i++], pvData, (uint32_t)cbData);
+    HGCMSvcSetU32(&paParms[i++], (uint32_t)cbData);
 
     alock.release(); /* Drop the write lock before sending. */
 
@@ -1745,7 +1740,7 @@ int GuestProcess::i_writeData(uint32_t uHandle, uint32_t uFlags,
                                    &inputStatus, &cbProcessed);
         if (RT_SUCCESS(vrc))
         {
-            /** @todo Set guestRc. */
+            /** @todo Set rcGuest. */
 
             if (puWritten)
                 *puWritten = cbProcessed;
@@ -1765,17 +1760,20 @@ int GuestProcess::i_writeData(uint32_t uHandle, uint32_t uFlags,
 
 HRESULT GuestProcess::read(ULONG aHandle, ULONG aToRead, ULONG aTimeoutMS, std::vector<BYTE> &aData)
 {
-    LogFlowThisFuncEnter();
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     if (aToRead == 0)
         return setError(E_INVALIDARG, tr("The size to read is zero"));
+
+    LogFlowThisFuncEnter();
 
     aData.resize(aToRead);
 
     HRESULT hr = S_OK;
 
-    uint32_t cbRead; int guestRc;
-    int vrc = i_readData(aHandle, aToRead, aTimeoutMS, &aData.front(), aToRead, &cbRead, &guestRc);
+    uint32_t cbRead; int rcGuest;
+    int vrc = i_readData(aHandle, aToRead, aTimeoutMS, &aData.front(), aToRead, &cbRead, &rcGuest);
     if (RT_SUCCESS(vrc))
     {
         if (aData.size() != cbRead)
@@ -1788,13 +1786,12 @@ HRESULT GuestProcess::read(ULONG aHandle, ULONG aToRead, ULONG aTimeoutMS, std::
         switch (vrc)
         {
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestProcess::i_setErrorExternal(this, guestRc);
+                hr = GuestProcess::i_setErrorExternal(this, rcGuest);
                 break;
 
             default:
-                hr = setError(VBOX_E_IPRT_ERROR,
-                              tr("Reading from process \"%s\" (PID %RU32) failed: %Rrc"),
-                              mData.mProcess.mExecutable.c_str(), mData.mPID, vrc);
+                hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Reading from process \"%s\" (PID %RU32) failed: %Rrc"),
+                                  mData.mProcess.mExecutable.c_str(), mData.mPID, vrc);
                 break;
         }
     }
@@ -1807,29 +1804,32 @@ HRESULT GuestProcess::read(ULONG aHandle, ULONG aToRead, ULONG aTimeoutMS, std::
 
 HRESULT GuestProcess::terminate()
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    LogFlowThisFuncEnter();
+
     HRESULT hr = S_OK;
 
-    int guestRc;
-    int vrc = i_terminateProcess(30 * 1000 /* Timeout in ms */,
-                                 &guestRc);
+    int rcGuest;
+    int vrc = i_terminateProcess(30 * 1000 /* Timeout in ms */, &rcGuest);
     if (RT_FAILURE(vrc))
     {
         switch (vrc)
         {
            case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestProcess::i_setErrorExternal(this, guestRc);
+                hr = GuestProcess::i_setErrorExternal(this, rcGuest);
                 break;
 
             case VERR_NOT_SUPPORTED:
-                hr = setError(VBOX_E_IPRT_ERROR,
-                              tr("Terminating process \"%s\" (PID %RU32) not supported by installed Guest Additions"),
-                              mData.mProcess.mExecutable.c_str(), mData.mPID);
+                hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
+                                  tr("Terminating process \"%s\" (PID %RU32) not supported by installed Guest Additions"),
+                                  mData.mProcess.mExecutable.c_str(), mData.mPID);
                 break;
 
             default:
-                hr = setError(VBOX_E_IPRT_ERROR,
-                              tr("Terminating process \"%s\" (PID %RU32) failed: %Rrc"),
-                              mData.mProcess.mExecutable.c_str(), mData.mPID, vrc);
+                hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Terminating process \"%s\" (PID %RU32) failed: %Rrc"),
+                                  mData.mProcess.mExecutable.c_str(), mData.mPID, vrc);
                 break;
         }
     }
@@ -1837,7 +1837,7 @@ HRESULT GuestProcess::terminate()
     /* Remove process from guest session list. Now only API clients
      * still can hold references to it. */
     AssertPtr(mSession);
-    int rc2 = mSession->i_processRemoveFromList(this);
+    int rc2 = mSession->i_processUnregister(this);
     if (RT_SUCCESS(vrc))
         vrc = rc2;
 
@@ -1845,18 +1845,21 @@ HRESULT GuestProcess::terminate()
     return hr;
 }
 
-HRESULT GuestProcess::waitFor(ULONG aWaitFor,
-                              ULONG aTimeoutMS,
-                              ProcessWaitResult_T *aReason)
+HRESULT GuestProcess::waitFor(ULONG aWaitFor, ULONG aTimeoutMS, ProcessWaitResult_T *aReason)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
+    LogFlowThisFuncEnter();
+
     /*
      * Note: Do not hold any locks here while waiting!
      */
     HRESULT hr = S_OK;
 
-    int guestRc;
+    int rcGuest;
     ProcessWaitResult_T waitResult;
-    int vrc = i_waitFor(aWaitFor, aTimeoutMS, waitResult, &guestRc);
+    int vrc = i_waitFor(aWaitFor, aTimeoutMS, waitResult, &rcGuest);
     if (RT_SUCCESS(vrc))
     {
         *aReason = waitResult;
@@ -1866,7 +1869,7 @@ HRESULT GuestProcess::waitFor(ULONG aWaitFor,
         switch (vrc)
         {
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestProcess::i_setErrorExternal(this, guestRc);
+                hr = GuestProcess::i_setErrorExternal(this, rcGuest);
                 break;
 
             case VERR_TIMEOUT:
@@ -1874,9 +1877,8 @@ HRESULT GuestProcess::waitFor(ULONG aWaitFor,
                 break;
 
             default:
-                hr = setError(VBOX_E_IPRT_ERROR,
-                              tr("Waiting for process \"%s\" (PID %RU32) failed: %Rrc"),
-                              mData.mProcess.mExecutable.c_str(), mData.mPID, vrc);
+                hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Waiting for process \"%s\" (PID %RU32) failed: %Rrc"),
+                                  mData.mProcess.mExecutable.c_str(), mData.mPID, vrc);
                 break;
         }
     }
@@ -1888,9 +1890,6 @@ HRESULT GuestProcess::waitFor(ULONG aWaitFor,
 HRESULT GuestProcess::waitForArray(const std::vector<ProcessWaitForFlag_T> &aWaitFor,
                                    ULONG aTimeoutMS, ProcessWaitResult_T *aReason)
 {
-    /*
-     * Note: Do not hold any locks here while waiting!
-     */
     uint32_t fWaitFor = ProcessWaitForFlag_None;
     for (size_t i = 0; i < aWaitFor.size(); i++)
         fWaitFor |= aWaitFor[i];
@@ -1901,26 +1900,28 @@ HRESULT GuestProcess::waitForArray(const std::vector<ProcessWaitForFlag_T> &aWai
 HRESULT GuestProcess::write(ULONG aHandle, ULONG aFlags, const std::vector<BYTE> &aData,
                             ULONG aTimeoutMS, ULONG *aWritten)
 {
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
+
     LogFlowThisFuncEnter();
 
     HRESULT hr = S_OK;
 
-    uint32_t cbWritten; int guestRc;
+    uint32_t cbWritten; int rcGuest;
     uint32_t cbData = (uint32_t)aData.size();
     void *pvData = cbData > 0? (void *)&aData.front(): NULL;
-    int vrc = i_writeData(aHandle, aFlags, pvData, cbData, aTimeoutMS, &cbWritten, &guestRc);
+    int vrc = i_writeData(aHandle, aFlags, pvData, cbData, aTimeoutMS, &cbWritten, &rcGuest);
     if (RT_FAILURE(vrc))
     {
         switch (vrc)
         {
             case VERR_GSTCTL_GUEST_ERROR:
-                hr = GuestProcess::i_setErrorExternal(this, guestRc);
+                hr = GuestProcess::i_setErrorExternal(this, rcGuest);
                 break;
 
             default:
-                hr = setError(VBOX_E_IPRT_ERROR,
-                              tr("Writing to process \"%s\" (PID %RU32) failed: %Rrc"),
-                              mData.mProcess.mExecutable.c_str(), mData.mPID, vrc);
+                hr = setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Writing to process \"%s\" (PID %RU32) failed: %Rrc"),
+                                  mData.mProcess.mExecutable.c_str(), mData.mPID, vrc);
                 break;
         }
     }
@@ -1938,9 +1939,6 @@ HRESULT GuestProcess::writeArray(ULONG aHandle, const std::vector<ProcessInputFl
 {
     LogFlowThisFuncEnter();
 
-    /*
-     * Note: Do not hold any locks here while writing!
-     */
     ULONG fWrite = ProcessInputFlag_None;
     for (size_t i = 0; i < aFlags.size(); i++)
         fWrite |= aFlags[i];
@@ -1958,11 +1956,11 @@ GuestProcessTool::GuestProcessTool(void)
 
 GuestProcessTool::~GuestProcessTool(void)
 {
-    i_terminate(30 * 1000, NULL /* pGuestRc */);
+    uninit();
 }
 
-int GuestProcessTool::Init(GuestSession *pGuestSession, const GuestProcessStartupInfo &startupInfo,
-                           bool fAsync, int *pGuestRc)
+int GuestProcessTool::init(GuestSession *pGuestSession, const GuestProcessStartupInfo &startupInfo,
+                           bool fAsync, int *prcGuest)
 {
     LogFlowThisFunc(("pGuestSession=%p, exe=%s, fAsync=%RTbool\n",
                      pGuestSession, startupInfo.mExecutable.c_str(), fAsync));
@@ -1976,7 +1974,7 @@ int GuestProcessTool::Init(GuestSession *pGuestSession, const GuestProcessStartu
     /* Make sure the process is hidden. */
     mStartupInfo.mFlags |= ProcessCreateFlag_Hidden;
 
-    int vrc = pSession->i_processCreateExInternal(mStartupInfo, pProcess);
+    int vrc = pSession->i_processCreateEx(mStartupInfo, pProcess);
     if (RT_SUCCESS(vrc))
     {
         int vrcGuest = VINF_SUCCESS;
@@ -1989,8 +1987,8 @@ int GuestProcessTool::Init(GuestSession *pGuestSession, const GuestProcessStartu
             && RT_FAILURE(vrcGuest)
            )
         {
-            if (pGuestRc)
-                *pGuestRc = vrcGuest;
+            if (prcGuest)
+                *prcGuest = vrcGuest;
             vrc = VERR_GSTCTL_GUEST_ERROR;
         }
     }
@@ -1999,7 +1997,23 @@ int GuestProcessTool::Init(GuestSession *pGuestSession, const GuestProcessStartu
     return vrc;
 }
 
-int GuestProcessTool::i_getCurrentBlock(uint32_t uHandle, GuestProcessStreamBlock &strmBlock)
+void GuestProcessTool::uninit(void)
+{
+    /* Make sure the process is terminated and unregistered from the guest session. */
+    int rcGuestIgnored;
+    terminate(30 * 1000 /* 30s timeout */, &rcGuestIgnored);
+
+    /* Unregister the process from the process (and the session's object) list. */
+    if (   pSession
+        && pProcess)
+        pSession->i_processUnregister(pProcess);
+
+    /* Release references. */
+    pProcess.setNull();
+    pSession.setNull();
+}
+
+int GuestProcessTool::getCurrentBlock(uint32_t uHandle, GuestProcessStreamBlock &strmBlock)
 {
     const GuestProcessStream *pStream = NULL;
     if (uHandle == OUTPUT_HANDLE_ID_STDOUT)
@@ -2024,16 +2038,16 @@ int GuestProcessTool::i_getCurrentBlock(uint32_t uHandle, GuestProcessStreamBloc
     return vrc;
 }
 
-int GuestProcessTool::i_getRc(void) const
+int GuestProcessTool::getRc(void) const
 {
     LONG exitCode = -1;
     HRESULT hr = pProcess->COMGETTER(ExitCode(&exitCode));
     AssertComRC(hr);
 
-    return GuestProcessTool::i_exitCodeToRc(mStartupInfo, exitCode);
+    return GuestProcessTool::exitCodeToRc(mStartupInfo, exitCode);
 }
 
-bool GuestProcessTool::i_isRunning(void)
+bool GuestProcessTool::isRunning(void)
 {
     AssertReturn(!pProcess.isNull(), false);
 
@@ -2051,45 +2065,77 @@ bool GuestProcessTool::i_isRunning(void)
     return false;
 }
 
-/* static */
-int GuestProcessTool::i_run(      GuestSession              *pGuestSession,
-                            const GuestProcessStartupInfo   &startupInfo,
-                                  int                       *pGuestRc /* = NULL */)
+/**
+ * Returns whether the tool has been run correctly or not, based on it's internal process
+ * status and reported exit status.
+ *
+ * @return @c true if the tool has been run correctly (exit status 0), or @c false if some error
+ *         occurred (exit status <> 0 or wrong process state).
+ */
+bool GuestProcessTool::isTerminatedOk(void)
 {
-    int guestRc;
-
-    GuestProcessToolErrorInfo errorInfo;
-    int vrc = i_runErrorInfo(pGuestSession, startupInfo, errorInfo);
-    if (RT_SUCCESS(vrc))
-    {
-        if (errorInfo.guestRc == VWRN_GSTCTL_PROCESS_EXIT_CODE)
-            guestRc = GuestProcessTool::i_exitCodeToRc(startupInfo, errorInfo.iExitCode);
-        else
-            guestRc = errorInfo.guestRc;
-
-        if (pGuestRc)
-            *pGuestRc = guestRc;
-    }
-
-    return vrc;
+    return getTerminationStatus() == VINF_SUCCESS ? true : false;
 }
 
 /**
  * Static helper function to start and wait for a certain toolbox tool.
  *
- * @return  IPRT status code.
+ * This function most likely is the one you want to use in the first place if you
+ * want to just use a toolbox tool and wait for its result. See runEx() if you also
+ * needs its output.
+ *
+ * @return  VBox status code.
+ * @param   pGuestSession           Guest control session to use for starting the toolbox tool in.
+ * @param   startupInfo             Startup information about the toolbox tool.
+ * @param   prcGuest                Where to store the toolbox tool's specific error code in case
+ *                                  VERR_GSTCTL_GUEST_ERROR is returned.
+ */
+/* static */
+int GuestProcessTool::run(      GuestSession              *pGuestSession,
+                          const GuestProcessStartupInfo   &startupInfo,
+                                int                       *prcGuest /* = NULL */)
+{
+    int rcGuest;
+
+    GuestProcessToolErrorInfo errorInfo;
+    int vrc = runErrorInfo(pGuestSession, startupInfo, errorInfo);
+    if (RT_SUCCESS(vrc))
+    {
+        /* Make sure to check the error information we got from the guest tool. */
+        if (GuestProcess::i_isGuestError(errorInfo.rcGuest))
+        {
+            if (errorInfo.rcGuest == VERR_GSTCTL_PROCESS_EXIT_CODE) /* Translate exit code to a meaningful error code. */
+                rcGuest = GuestProcessTool::exitCodeToRc(startupInfo, errorInfo.iExitCode);
+            else /* At least return something. */
+                rcGuest = errorInfo.rcGuest;
+
+            if (prcGuest)
+                *prcGuest = rcGuest;
+
+            vrc = VERR_GSTCTL_GUEST_ERROR;
+        }
+    }
+
+    LogFlowFunc(("Returned rc=%Rrc, rcGuest=%Rrc, iExitCode=%d\n", vrc, errorInfo.rcGuest, errorInfo.iExitCode));
+    return vrc;
+}
+
+/**
+ * Static helper function to start and wait for a certain toolbox tool, returning
+ * extended error information from the guest.
+ *
+ * @return  VBox status code.
  * @param   pGuestSession           Guest control session to use for starting the toolbox tool in.
  * @param   startupInfo             Startup information about the toolbox tool.
  * @param   errorInfo               Error information returned for error handling.
  */
 /* static */
-int GuestProcessTool::i_runErrorInfo(      GuestSession              *pGuestSession,
-                                     const GuestProcessStartupInfo   &startupInfo,
-                                           GuestProcessToolErrorInfo &errorInfo)
+int GuestProcessTool::runErrorInfo(      GuestSession              *pGuestSession,
+                                   const GuestProcessStartupInfo   &startupInfo,
+                                         GuestProcessToolErrorInfo &errorInfo)
 {
-    return i_runExErrorInfo(pGuestSession, startupInfo,
-                            NULL /* paStrmOutObjects */, 0 /* cStrmOutObjects */,
-                            errorInfo);
+    return runExErrorInfo(pGuestSession, startupInfo,
+                          NULL /* paStrmOutObjects */, 0 /* cStrmOutObjects */, errorInfo);
 }
 
 /**
@@ -2101,34 +2147,37 @@ int GuestProcessTool::i_runErrorInfo(      GuestSession              *pGuestSess
  * @param   paStrmOutObjects        Pointer to stream objects array to use for retrieving the output of the toolbox tool.
  *                                  Optional.
  * @param   cStrmOutObjects         Number of stream objects passed in. Optional.
- * @param   pGuestRc                Error code returned from the guest side if VERR_GSTCTL_GUEST_ERROR is returned. Optional.
+ * @param   prcGuest                Error code returned from the guest side if VERR_GSTCTL_GUEST_ERROR is returned. Optional.
  */
 /* static */
-int GuestProcessTool::i_runEx(      GuestSession              *pGuestSession,
-                              const GuestProcessStartupInfo   &startupInfo,
-                                    GuestCtrlStreamObjects    *paStrmOutObjects,
-                                    uint32_t                   cStrmOutObjects,
-                                    int                       *pGuestRc /* = NULL */)
+int GuestProcessTool::runEx(      GuestSession              *pGuestSession,
+                            const GuestProcessStartupInfo   &startupInfo,
+                                  GuestCtrlStreamObjects    *paStrmOutObjects,
+                                  uint32_t                   cStrmOutObjects,
+                                  int                       *prcGuest /* = NULL */)
 {
-    int guestRc;
+    int rcGuest;
 
     GuestProcessToolErrorInfo errorInfo;
-    int vrc = GuestProcessTool::i_runExErrorInfo(pGuestSession, startupInfo, paStrmOutObjects, cStrmOutObjects, errorInfo);
+    int vrc = GuestProcessTool::runExErrorInfo(pGuestSession, startupInfo, paStrmOutObjects, cStrmOutObjects, errorInfo);
     if (RT_SUCCESS(vrc))
     {
-        if (errorInfo.guestRc == VWRN_GSTCTL_PROCESS_EXIT_CODE)
-            guestRc = GuestProcessTool::i_exitCodeToRc(startupInfo, errorInfo.iExitCode);
-        else
-            guestRc = errorInfo.guestRc;
+        /* Make sure to check the error information we got from the guest tool. */
+        if (GuestProcess::i_isGuestError(errorInfo.rcGuest))
+        {
+            if (errorInfo.rcGuest == VERR_GSTCTL_PROCESS_EXIT_CODE) /* Translate exit code to a meaningful error code. */
+                rcGuest = GuestProcessTool::exitCodeToRc(startupInfo, errorInfo.iExitCode);
+            else /* At least return something. */
+                rcGuest = errorInfo.rcGuest;
 
-        /* Return VERR_GSTCTL_GUEST_ERROR if we retrieved a guest return code. */
-        if (RT_FAILURE(guestRc))
+            if (prcGuest)
+                *prcGuest = rcGuest;
+
             vrc = VERR_GSTCTL_GUEST_ERROR;
-
-        if (pGuestRc)
-            *pGuestRc = guestRc;
+        }
     }
 
+    LogFlowFunc(("Returned rc=%Rrc, rcGuest=%Rrc, iExitCode=%d\n", vrc, errorInfo.rcGuest, errorInfo.iExitCode));
     return vrc;
 }
 
@@ -2139,7 +2188,7 @@ int GuestProcessTool::i_runEx(      GuestSession              *pGuestSession,
  * objects. Those objects are issued on the guest side as part of VBoxService's toolbox tools (think of a BusyBox-like approach)
  * on stdout and can be used on the host side to retrieve more information about the actual command issued on the guest side.
  *
- * @return  IPRT status code.
+ * @return  VBox status code.
  * @param   pGuestSession           Guest control session to use for starting the toolbox tool in.
  * @param   startupInfo             Startup information about the toolbox tool.
  * @param   paStrmOutObjects        Pointer to stream objects array to use for retrieving the output of the toolbox tool.
@@ -2148,11 +2197,11 @@ int GuestProcessTool::i_runEx(      GuestSession              *pGuestSession,
  * @param   errorInfo               Error information returned for error handling.
  */
 /* static */
-int GuestProcessTool::i_runExErrorInfo(      GuestSession              *pGuestSession,
-                                       const GuestProcessStartupInfo   &startupInfo,
-                                             GuestCtrlStreamObjects    *paStrmOutObjects,
-                                             uint32_t                   cStrmOutObjects,
-                                             GuestProcessToolErrorInfo &errorInfo)
+int GuestProcessTool::runExErrorInfo(      GuestSession              *pGuestSession,
+                                     const GuestProcessStartupInfo   &startupInfo,
+                                           GuestCtrlStreamObjects    *paStrmOutObjects,
+                                           uint32_t                   cStrmOutObjects,
+                                           GuestProcessToolErrorInfo &errorInfo)
 {
     AssertPtrReturn(pGuestSession, VERR_INVALID_POINTER);
     /* paStrmOutObjects is optional. */
@@ -2160,7 +2209,7 @@ int GuestProcessTool::i_runExErrorInfo(      GuestSession              *pGuestSe
     /** @todo Check if this is a valid toolbox. */
 
     GuestProcessTool procTool;
-    int vrc = procTool.Init(pGuestSession, startupInfo, false /* Async */, &errorInfo.guestRc);
+    int vrc = procTool.init(pGuestSession, startupInfo, false /* Async */, &errorInfo.rcGuest);
     if (RT_SUCCESS(vrc))
     {
         while (cStrmOutObjects--)
@@ -2168,9 +2217,9 @@ int GuestProcessTool::i_runExErrorInfo(      GuestSession              *pGuestSe
             try
             {
                 GuestProcessStreamBlock strmBlk;
-                vrc = procTool.i_waitEx(  paStrmOutObjects
-                                        ? GUESTPROCESSTOOL_FLAG_STDOUT_BLOCK
-                                        : GUESTPROCESSTOOL_FLAG_NONE, &strmBlk, &errorInfo.guestRc);
+                vrc = procTool.waitEx(  paStrmOutObjects
+                                        ? GUESTPROCESSTOOL_WAIT_FLAG_STDOUT_BLOCK
+                                        : GUESTPROCESSTOOL_WAIT_FLAG_NONE, &strmBlk, &errorInfo.rcGuest);
                 if (paStrmOutObjects)
                     paStrmOutObjects->push_back(strmBlk);
             }
@@ -2184,31 +2233,31 @@ int GuestProcessTool::i_runExErrorInfo(      GuestSession              *pGuestSe
     if (RT_SUCCESS(vrc))
     {
         /* Make sure the process runs until completion. */
-        vrc = procTool.i_wait(GUESTPROCESSTOOL_FLAG_NONE, &errorInfo.guestRc);
+        vrc = procTool.wait(GUESTPROCESSTOOL_WAIT_FLAG_NONE, &errorInfo.rcGuest);
         if (RT_SUCCESS(vrc))
-            errorInfo.guestRc = procTool.i_terminatedOk(&errorInfo.iExitCode);
+            errorInfo.rcGuest = procTool.getTerminationStatus(&errorInfo.iExitCode);
     }
 
-    LogFlowFunc(("Returned rc=%Rrc, guestRc=%Rrc, iExitCode=%d\n", vrc, errorInfo.guestRc, errorInfo.iExitCode));
+    LogFlowFunc(("Returned rc=%Rrc, rcGuest=%Rrc, iExitCode=%d\n", vrc, errorInfo.rcGuest, errorInfo.iExitCode));
     return vrc;
 }
 
 /**
  * Reports if the tool has been run correctly.
  *
- * @return  Will return VWRN_GSTCTL_PROCESS_EXIT_CODE if the tool process returned an exit code <> 0,
+ * @return  Will return VERR_GSTCTL_PROCESS_EXIT_CODE if the tool process returned an exit code <> 0,
  *          VERR_GSTCTL_PROCESS_WRONG_STATE if the tool process is in a wrong state (e.g. still running),
  *          or VINF_SUCCESS otherwise.
  *
  * @param   piExitCode      Exit code of the tool. Optional.
  */
-int GuestProcessTool::i_terminatedOk(int32_t *piExitCode /* = NULL */)
+int GuestProcessTool::getTerminationStatus(int32_t *piExitCode /* = NULL */)
 {
     Assert(!pProcess.isNull());
     /* pExitCode is optional. */
 
     int vrc;
-    if (!i_isRunning())
+    if (!isRunning())
     {
         LONG iExitCode = -1;
         HRESULT hr = pProcess->COMGETTER(ExitCode(&iExitCode));
@@ -2217,7 +2266,7 @@ int GuestProcessTool::i_terminatedOk(int32_t *piExitCode /* = NULL */)
         if (piExitCode)
             *piExitCode = iExitCode;
 
-        vrc = iExitCode != 0 ? VWRN_GSTCTL_PROCESS_EXIT_CODE : VINF_SUCCESS;
+        vrc = iExitCode != 0 ? VERR_GSTCTL_PROCESS_EXIT_CODE : VINF_SUCCESS;
     }
     else
         vrc = VERR_GSTCTL_PROCESS_WRONG_STATE;
@@ -2226,32 +2275,32 @@ int GuestProcessTool::i_terminatedOk(int32_t *piExitCode /* = NULL */)
     return vrc;
 }
 
-int GuestProcessTool::i_wait(uint32_t fFlags, int *pGuestRc)
+int GuestProcessTool::wait(uint32_t fToolWaitFlags, int *prcGuest)
 {
-    return i_waitEx(fFlags, NULL /* pStrmBlkOut */, pGuestRc);
+    return waitEx(fToolWaitFlags, NULL /* pStrmBlkOut */, prcGuest);
 }
 
-int GuestProcessTool::i_waitEx(uint32_t fFlags, GuestProcessStreamBlock *pStrmBlkOut, int *pGuestRc)
+int GuestProcessTool::waitEx(uint32_t fToolWaitFlags, GuestProcessStreamBlock *pStrmBlkOut, int *prcGuest)
 {
-    LogFlowThisFunc(("fFlags=0x%x, pStreamBlock=%p, pGuestRc=%p\n", fFlags, pStrmBlkOut, pGuestRc));
+    LogFlowThisFunc(("fToolWaitFlags=0x%x, pStreamBlock=%p, prcGuest=%p\n", fToolWaitFlags, pStrmBlkOut, prcGuest));
 
     /* Can we parse the next block without waiting? */
     int vrc;
-    if (fFlags & GUESTPROCESSTOOL_FLAG_STDOUT_BLOCK)
+    if (fToolWaitFlags & GUESTPROCESSTOOL_WAIT_FLAG_STDOUT_BLOCK)
     {
         AssertPtr(pStrmBlkOut);
-        vrc = i_getCurrentBlock(OUTPUT_HANDLE_ID_STDOUT, *pStrmBlkOut);
+        vrc = getCurrentBlock(OUTPUT_HANDLE_ID_STDOUT, *pStrmBlkOut);
         if (RT_SUCCESS(vrc))
             return vrc;
         /* else do the waiting below. */
     }
 
     /* Do the waiting. */
-    uint32_t fWaitFlags = ProcessWaitForFlag_Terminate;
+    uint32_t fProcWaitForFlags = ProcessWaitForFlag_Terminate;
     if (mStartupInfo.mFlags & ProcessCreateFlag_WaitForStdOut)
-        fWaitFlags |= ProcessWaitForFlag_StdOut;
+        fProcWaitForFlags |= ProcessWaitForFlag_StdOut;
     if (mStartupInfo.mFlags & ProcessCreateFlag_WaitForStdErr)
-        fWaitFlags |= ProcessWaitForFlag_StdErr;
+        fProcWaitForFlags |= ProcessWaitForFlag_StdErr;
 
     /** @todo Decrease timeout while running. */
     uint64_t u64StartMS = RTTimeMilliTS();
@@ -2292,8 +2341,7 @@ int GuestProcessTool::i_waitEx(uint32_t fFlags, GuestProcessStreamBlock *pStrmBl
         uint64_t u64ElapsedMS;
         UPDATE_AND_CHECK_ELAPSED_TIME();
 
-        vrc = pProcess->i_waitFor(fWaitFlags, GET_REMAINING_TIME,
-                                  waitRes, &vrcGuest);
+        vrc = pProcess->i_waitFor(fProcWaitForFlags, GET_REMAINING_TIME, waitRes, &vrcGuest);
         if (RT_FAILURE(vrc))
             break;
 
@@ -2312,9 +2360,9 @@ int GuestProcessTool::i_waitEx(uint32_t fFlags, GuestProcessStreamBlock *pStrmBl
                 break;
 
             case ProcessWaitResult_WaitFlagNotSupported:
-                if (fWaitFlags & ProcessWaitForFlag_StdOut)
+                if (fProcWaitForFlags & ProcessWaitForFlag_StdOut)
                     fHandleStdOut = true;
-                if (fWaitFlags & ProcessWaitForFlag_StdErr)
+                if (fProcWaitForFlags & ProcessWaitForFlag_StdErr)
                     fHandleStdErr = true;
                 /* Since waiting for stdout / stderr is not supported by the guest,
                  * wait a bit to not hog the CPU too much when polling for data. */
@@ -2365,10 +2413,10 @@ int GuestProcessTool::i_waitEx(uint32_t fFlags, GuestProcessStreamBlock *pStrmBl
                 vrc = mStdOut.AddData(byBuf, cbRead);
 
                 if (   RT_SUCCESS(vrc)
-                    && (fFlags & GUESTPROCESSTOOL_FLAG_STDOUT_BLOCK))
+                    && (fToolWaitFlags & GUESTPROCESSTOOL_WAIT_FLAG_STDOUT_BLOCK))
                 {
                     AssertPtr(pStrmBlkOut);
-                    vrc = i_getCurrentBlock(OUTPUT_HANDLE_ID_STDOUT, *pStrmBlkOut);
+                    vrc = getCurrentBlock(OUTPUT_HANDLE_ID_STDOUT, *pStrmBlkOut);
 
                     /* When successful, break out of the loop because we're done
                      * with reading the first stream block. */
@@ -2412,23 +2460,20 @@ int GuestProcessTool::i_waitEx(uint32_t fFlags, GuestProcessStreamBlock *pStrmBl
 
     LogFlowThisFunc(("Loop ended with rc=%Rrc, vrcGuest=%Rrc, waitRes=%RU32\n",
                      vrc, vrcGuest, waitRes));
-    if (pGuestRc)
-        *pGuestRc = vrcGuest;
+    if (prcGuest)
+        *prcGuest = vrcGuest;
 
     LogFlowFuncLeaveRC(vrc);
     return vrc;
 }
 
-int GuestProcessTool::i_terminate(uint32_t uTimeoutMS, int *pGuestRc)
+int GuestProcessTool::terminate(uint32_t uTimeoutMS, int *prcGuest)
 {
     LogFlowThisFuncEnter();
 
-    int rc = VINF_SUCCESS;
+    int rc;
     if (!pProcess.isNull())
-    {
-        rc = pProcess->i_terminateProcess(uTimeoutMS, pGuestRc);
-        pProcess.setNull();
-    }
+        rc = pProcess->i_terminateProcess(uTimeoutMS, prcGuest);
     else
         rc = VERR_NOT_FOUND;
 
@@ -2444,7 +2489,7 @@ int GuestProcessTool::i_terminate(uint32_t uTimeoutMS, int *pGuestRc)
  * @param   iExitCode   The toolbox tool's exit code to lookup IPRT error for.
  */
 /* static */
-int GuestProcessTool::i_exitCodeToRc(const GuestProcessStartupInfo &startupInfo, int32_t iExitCode)
+int GuestProcessTool::exitCodeToRc(const GuestProcessStartupInfo &startupInfo, int32_t iExitCode)
 {
     if (startupInfo.mArguments.size() == 0)
     {
@@ -2452,7 +2497,7 @@ int GuestProcessTool::i_exitCodeToRc(const GuestProcessStartupInfo &startupInfo,
         return VERR_GENERAL_FAILURE; /* Should not happen. */
     }
 
-    return i_exitCodeToRc(startupInfo.mArguments[0].c_str(), iExitCode);
+    return exitCodeToRc(startupInfo.mArguments[0].c_str(), iExitCode);
 }
 
 /**
@@ -2463,7 +2508,7 @@ int GuestProcessTool::i_exitCodeToRc(const GuestProcessStartupInfo &startupInfo,
  * @param   iExitCode   The toolbox tool's exit code to lookup IPRT error for.
  */
 /* static */
-int GuestProcessTool::i_exitCodeToRc(const char *pszTool, int32_t iExitCode)
+int GuestProcessTool::exitCodeToRc(const char *pszTool, int32_t iExitCode)
 {
     AssertPtrReturn(pszTool, VERR_INVALID_POINTER);
 
@@ -2488,17 +2533,19 @@ int GuestProcessTool::i_exitCodeToRc(const char *pszTool, int32_t iExitCode)
     {
         switch (iExitCode)
         {
-            case VBOXSERVICETOOLBOX_STAT_EXITCODE_ACCESS_DENIED:  return VERR_ACCESS_DENIED;
-            case VBOXSERVICETOOLBOX_STAT_EXITCODE_FILE_NOT_FOUND: return VERR_FILE_NOT_FOUND;
-            case VBOXSERVICETOOLBOX_STAT_EXITCODE_PATH_NOT_FOUND: return VERR_PATH_NOT_FOUND;
-            default:                                              break;
+            case VBOXSERVICETOOLBOX_STAT_EXITCODE_ACCESS_DENIED:      return VERR_ACCESS_DENIED;
+            case VBOXSERVICETOOLBOX_STAT_EXITCODE_FILE_NOT_FOUND:     return VERR_FILE_NOT_FOUND;
+            case VBOXSERVICETOOLBOX_STAT_EXITCODE_PATH_NOT_FOUND:     return VERR_PATH_NOT_FOUND;
+            case VBOXSERVICETOOLBOX_STAT_EXITCODE_NET_PATH_NOT_FOUND: return VERR_NET_PATH_NOT_FOUND;
+            default:                                                  break;
         }
     }
     else if (!RTStrICmp(pszTool, VBOXSERVICE_TOOL_MKDIR))
     {
         switch (iExitCode)
         {
-            case RTEXITCODE_FAILURE:                                return VERR_CANT_CREATE;
+            case RTEXITCODE_FAILURE: return VERR_CANT_CREATE;
+            default:                 break;
         }
     }
 

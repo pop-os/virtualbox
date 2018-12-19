@@ -34,6 +34,7 @@
  */
 # pragma warning(push)
 # pragma warning(disable:4668)
+# pragma warning(disable:4480) /* W10/wincrypt.h(9193) : warning C4480: nonstandard extension used: specifying underlying type for enum 'CertKeyType' */
 # if _MSC_VER >= 1800 /*RT_MSC_VER_VC120*/
 #  pragma warning(disable:4005) /* sdk/v7.1/include/sal_supp.h(57) : warning C4005: '__useHeader' : macro redefinition */
 # endif
@@ -46,6 +47,8 @@
 
 #ifdef _MSC_VER
 # pragma warning(pop)
+/* VS2010: Something causes this to be re-enabled above and triggering errors using RT_FLEXIBLE_ARRAY. */
+# pragma warning(disable:4200)
 #endif
 
 #endif

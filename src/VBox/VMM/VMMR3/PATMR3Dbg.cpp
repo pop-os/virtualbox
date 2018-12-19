@@ -197,7 +197,7 @@ void patmR3DbgAddPatch(PVM pVM, PPATMPATCHREC pPatchRec)
 
             int rc = DBGFR3AsSymbolByAddr(pVM->pUVM, DBGF_AS_GLOBAL,
                                           DBGFR3AddrFromFlat(pVM->pUVM, &Addr, pPatchRec->patch.pPrivInstrGC),
-                                          RTDBGSYMADDR_FLAGS_LESS_OR_EQUAL,
+                                          RTDBGSYMADDR_FLAGS_LESS_OR_EQUAL | RTDBGSYMADDR_FLAGS_SKIP_ABS_IN_DEFERRED,
                                           &offDisp, &Symbol, NULL /*phMod*/);
             if (RT_SUCCESS(rc))
             {
@@ -267,7 +267,7 @@ static void patmR3DbgAddPatches(PVM pVM, RTDBGMOD hDbgMod)
  */
 VMMR3_INT_DECL(void) PATMR3DbgPopulateAddrSpace(PVM pVM, RTDBGAS hDbgAs)
 {
-    AssertReturnVoid(!HMIsEnabled(pVM));
+    AssertReturnVoid(VM_IS_RAW_MODE_ENABLED(pVM));
 
     /*
      * Add a fake debug module for the PATMGCSTATE structure.

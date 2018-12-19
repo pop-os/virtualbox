@@ -484,8 +484,6 @@ HRESULT NetworkAdapter::setBridgedInterface(const com::Utf8Str &aBridgedInterfac
     AutoMutableOrSavedOrRunningStateDependency adep(mParent);
     if (FAILED(adep.rc())) return adep.rc();
 
-    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
     Bstr canonicalName = aBridgedInterface;
 #ifdef RT_OS_DARWIN
     com::SafeIfaceArray<IHostNetworkInterface> hostNetworkInterfaces;
@@ -508,11 +506,14 @@ HRESULT NetworkAdapter::setBridgedInterface(const com::Utf8Str &aBridgedInterfac
         }
     }
 #endif /* RT_OS_DARWIN */
+    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+
     if (Bstr(mData->strBridgedName) != canonicalName)
     {
         /* if an empty/null string is to be set, bridged interface must be
          * turned off */
-        if (canonicalName.isEmpty()
+        if (   canonicalName.isEmpty()
+            && mData->fEnabled
             && mData->mode == NetworkAttachmentType_Bridged)
         {
             return setError(E_FAIL,
@@ -559,8 +560,9 @@ HRESULT NetworkAdapter::setHostOnlyInterface(const com::Utf8Str &aHostOnlyInterf
     {
         /* if an empty/null string is to be set, host only interface must be
          * turned off */
-        if ( aHostOnlyInterface.isEmpty()
-             && mData->mode == NetworkAttachmentType_HostOnly)
+        if (   aHostOnlyInterface.isEmpty()
+            && mData->fEnabled
+            && mData->mode == NetworkAttachmentType_HostOnly)
         {
             return setError(E_FAIL,
                             tr("Empty or null host only interface name is not valid"));
@@ -607,7 +609,9 @@ HRESULT NetworkAdapter::setInternalNetwork(const com::Utf8Str &aInternalNetwork)
     {
         /* if an empty/null string is to be set, internal networking must be
          * turned off */
-        if (aInternalNetwork.isEmpty() && mData->mode == NetworkAttachmentType_Internal)
+        if (   aInternalNetwork.isEmpty()
+            && mData->fEnabled
+            && mData->mode == NetworkAttachmentType_Internal)
         {
             return setError(E_FAIL,
                             tr("Empty or null internal network name is not valid"));
@@ -653,7 +657,8 @@ HRESULT NetworkAdapter::setNATNetwork(const com::Utf8Str &aNATNetwork)
     {
         /* if an empty/null string is to be set, host only interface must be
          * turned off */
-        if (aNATNetwork.isEmpty()
+        if (   aNATNetwork.isEmpty()
+            && mData->fEnabled
             && mData->mode == NetworkAttachmentType_NATNetwork)
             return setError(E_FAIL,
                             tr("Empty or null NAT network name is not valid"));
@@ -1122,12 +1127,12 @@ HRESULT NetworkAdapter::i_saveSettings(settings::NetworkAdapter &data)
  * Returns true if any setter method has modified settings of this instance.
  * @return
  */
-bool NetworkAdapter::i_isModified() {
-
+bool NetworkAdapter::i_isModified()
+{
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     bool fChanged = mData.isBackedUp();
-    fChanged |= (mData->type == NetworkAttachmentType_NAT? mNATEngine->i_isModified() : false);
+    fChanged     |= mNATEngine->i_isModified();
     return fChanged;
 }
 
@@ -1227,9 +1232,18 @@ void NetworkAdapter::i_applyDefaults(GuestOSType *aOsType)
     e1000enabled = true;
 #endif // VBOX_WITH_E1000
 
-    NetworkAdapterType_T defaultType = NetworkAdapterType_Am79C973;
+    NetworkAdapterType_T defaultType;
     if (aOsType)
         defaultType = aOsType->i_networkAdapterType();
+    else
+    {
+#ifdef VBOX_WITH_E1000
+        defaultType = NetworkAdapterType_I82540EM;
+#else
+        defaultType = NetworkAdapterType_Am79C973A;
+#endif
+    }
+
 
     /* Set default network adapter for this OS type */
     if (defaultType == NetworkAdapterType_I82540EM ||

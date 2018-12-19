@@ -49,6 +49,8 @@ public:
     static const std::string kDsrKeyGateway;
     static const std::string kDsrKeyLowerIp;
     static const std::string kDsrKeyUpperIp;
+    static const std::string kDsrKeyConfig;
+    static const std::string kDsrKeyComment;
 };
 
 /**
@@ -114,16 +116,22 @@ private:
     // Wrapped IDHCPServer Methods
     HRESULT addGlobalOption(DhcpOpt_T aOption,
                             const com::Utf8Str &aValue);
+    HRESULT removeGlobalOption(DhcpOpt_T aOption);
+    HRESULT removeGlobalOptions();
     HRESULT addVmSlotOption(const com::Utf8Str &aVmName,
                             LONG aSlot,
                             DhcpOpt_T aOption,
                             const com::Utf8Str &aValue);
+    HRESULT removeVmSlotOption(const com::Utf8Str &aVmName,
+                               LONG aSlot,
+                               DhcpOpt_T aOption);
     HRESULT removeVmSlotOptions(const com::Utf8Str &aVmName,
                                 LONG aSlot);
     HRESULT start(const com::Utf8Str &aNetworkName,
                   const com::Utf8Str &aTrunkName,
                   const com::Utf8Str &aTrunkType);
     HRESULT stop();
+    HRESULT restart();
 
     struct Data;
     Data *m;

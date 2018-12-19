@@ -128,6 +128,7 @@ private:
  */
 #if defined(__cplusplus) \
  && !defined(RTERR_STRICT_RC) \
+ && !defined(RTERR_NO_STRICT_RC) \
  && (   defined(DOXYGEN_RUNNING) \
      || defined(DEBUG) \
      || defined(RT_STRICT) )
@@ -644,13 +645,25 @@ RTDECL(int)         RTErrInfoLogAndAddV(PRTERRINFO pErrInfo, int rc, uint32_t iL
 
 /** @name Macros wrapping the RTErrInfoLog* functions.
  * @{ */
-#define RTERRINFO_LOG_SET(  a_pErrInfo, a_rc, a_pszMsg)             RTErrInfoLogAndSet( a_pErrInfo, a_rc, LOG_GROUP, 0, a_pszMsg)
-#define RTERRINFO_LOG_SET_V(a_pErrInfo, a_rc, a_pszMsg, a_va)       RTErrInfoLogAndSetV(a_pErrInfo, a_rc, LOG_GROUP, 0, a_pszMsg, a_va)
-#define RTERRINFO_LOG_ADD(  a_pErrInfo, a_rc, a_pszMsg)             RTErrInfoLogAndAdd( a_pErrInfo, a_rc, LOG_GROUP, 0, a_pszMsg)
-#define RTERRINFO_LOG_ADD_V(a_pErrInfo, a_rc, a_pszMsg, a_va)       RTErrInfoLogAndAddV(a_pErrInfo, a_rc, LOG_GROUP, 0, a_pszMsg, a_va)
-#ifdef RT_COMPILER_SUPPORTS_VA_ARGS
-# define RTERRINFO_LOG_ADD_F(a_pErrInfo, a_rc, ...)                 RTErrInfoLogAndAddF(a_pErrInfo, a_rc, LOG_GROUP, 0, __VA_ARGS__)
-# define RTERRINFO_LOG_SET_F(a_pErrInfo, a_rc, ...)                 RTErrInfoLogAndSetF(a_pErrInfo, a_rc, LOG_GROUP, 0, __VA_ARGS__)
+#ifndef LOG_DISABLED
+# define RTERRINFO_LOG_SET(  a_pErrInfo, a_rc, a_pszMsg)            RTErrInfoLogAndSet( a_pErrInfo, a_rc, LOG_GROUP, 0, a_pszMsg)
+# define RTERRINFO_LOG_SET_V(a_pErrInfo, a_rc, a_pszMsg, a_va)      RTErrInfoLogAndSetV(a_pErrInfo, a_rc, LOG_GROUP, 0, a_pszMsg, a_va)
+# define RTERRINFO_LOG_ADD(  a_pErrInfo, a_rc, a_pszMsg)            RTErrInfoLogAndAdd( a_pErrInfo, a_rc, LOG_GROUP, 0, a_pszMsg)
+# define RTERRINFO_LOG_ADD_V(a_pErrInfo, a_rc, a_pszMsg, a_va)      RTErrInfoLogAndAddV(a_pErrInfo, a_rc, LOG_GROUP, 0, a_pszMsg, a_va)
+# ifdef RT_COMPILER_SUPPORTS_VA_ARGS
+#  define RTERRINFO_LOG_ADD_F(a_pErrInfo, a_rc, ...)                RTErrInfoLogAndAddF(a_pErrInfo, a_rc, LOG_GROUP, 0, __VA_ARGS__)
+#  define RTERRINFO_LOG_SET_F(a_pErrInfo, a_rc, ...)                RTErrInfoLogAndSetF(a_pErrInfo, a_rc, LOG_GROUP, 0, __VA_ARGS__)
+# else
+#  define RTERRINFO_LOG_ADD_F                                       RTErrInfoSetF
+#  define RTERRINFO_LOG_SET_F                                       RTErrInfoAddF
+# endif
+#else
+# define RTERRINFO_LOG_SET(  a_pErrInfo, a_rc, a_pszMsg)            RTErrInfoSet( a_pErrInfo, a_rc, a_pszMsg)
+# define RTERRINFO_LOG_SET_V(a_pErrInfo, a_rc, a_pszMsg, a_va)      RTErrInfoSetV(a_pErrInfo, a_rc, a_pszMsg, a_va)
+# define RTERRINFO_LOG_ADD(  a_pErrInfo, a_rc, a_pszMsg)            RTErrInfoAdd( a_pErrInfo, a_rc, a_pszMsg)
+# define RTERRINFO_LOG_ADD_V(a_pErrInfo, a_rc, a_pszMsg, a_va)      RTErrInfoAddV(a_pErrInfo, a_rc, a_pszMsg, a_va)
+# define RTERRINFO_LOG_ADD_F                                        RTErrInfoSetF
+# define RTERRINFO_LOG_SET_F                                        RTErrInfoAddF
 #endif
 
 #define RTERRINFO_LOG_REL_SET(  a_pErrInfo, a_rc, a_pszMsg)         RTErrInfoLogAndSet( a_pErrInfo, a_rc, LOG_GROUP, RTERRINFO_LOG_F_RELEASE, a_pszMsg)
@@ -1049,6 +1062,8 @@ RT_C_DECLS_END
 #define VERR_MISMATCH                       (-22408)
 /** Wrong type. */
 #define VERR_WRONG_TYPE                     (-22409)
+/** Wrong type. */
+#define VWRN_WRONG_TYPE                     (22409)
 /** This indicates that the process does not have sufficient privileges to
  * perform the operation. */
 #define VERR_PRIVILEGE_NOT_HELD             (-22410)
@@ -1065,6 +1080,18 @@ RT_C_DECLS_END
 #define VERR_PROC_IQ_PRIV_NOT_HELD          (-22413)
 /** The system has too many CPUs. */
 #define VERR_MP_TOO_MANY_CPUS               (-22414)
+/** Wrong parameter count. */
+#define VERR_WRONG_PARAMETER_COUNT          (-22415)
+/** Wrong parameter type. */
+#define VERR_WRONG_PARAMETER_TYPE           (-22416)
+/** Invalid client ID. */
+#define VERR_INVALID_CLIENT_ID              (-22417)
+/** Invalid session ID. */
+#define VERR_INVALID_SESSION_ID             (-22418)
+/** Requires process elevation (UAC). */
+#define VERR_PROC_ELEVATION_REQUIRED        (-22419)
+/** Incompatible configuration requested. */
+#define VERR_INCOMPATIBLE_CONFIG            (-22420)
 /** @} */
 
 
@@ -1197,6 +1224,18 @@ RT_C_DECLS_END
 #define VERR_NS_SYMLINK_CHANGE_OWNER        (-158)
 /** Symbolic link not allowed. */
 #define VERR_SYMLINK_NOT_ALLOWED            (-159)
+/** Is a symbolic link. */
+#define VERR_IS_A_SYMLINK                   (-160)
+/** Is a FIFO. */
+#define VERR_IS_A_FIFO                      (-161)
+/** Is a socket. */
+#define VERR_IS_A_SOCKET                    (-162)
+/** Is a block device. */
+#define VERR_IS_A_BLOCK_DEVICE              (-163)
+/** Is a character device. */
+#define VERR_IS_A_CHAR_DEVICE               (-164)
+/** No media in drive. */
+#define VERR_DRIVE_IS_EMPTY                 (-165)
 /** @} */
 
 
@@ -1437,6 +1476,10 @@ RT_C_DECLS_END
 #define VERR_NET_PROTOCOL_ERROR                 (-466)
 /** Incomplete packet was submitted by guest. */
 #define VERR_NET_INCOMPLETE_TX_PACKET           (-467)
+/** Winsock init error. */
+#define VERR_NET_INIT_FAILED                    (-468)
+/** Trying to use too new winsock API. */
+#define VERR_NET_NOT_UNSUPPORTED                (-469)
 /** @} */
 
 
@@ -1702,6 +1745,12 @@ RT_C_DECLS_END
 #define VERR_CV_TODO                            (-692)
 /** Internal processing error the CodeView debug information reader. */
 #define VERR_CV_IPE                             (-693)
+/** No unwind information was found. */
+#define VERR_DBG_NO_UNWIND_INFO                 (-694)
+/** No unwind information for the specified location. */
+#define VERR_DBG_UNWIND_INFO_NOT_FOUND          (-695)
+/** Malformed unwind information. */
+#define VERR_DBG_MALFORMED_UNWIND_INFO          (-696)
 /** @} */
 
 /** @name Request Packet Status Codes.
@@ -1804,6 +1853,8 @@ RT_C_DECLS_END
 
 /** @name HTTP status codes
  * @{ */
+/** HTTP Internal Server Error. */
+#define VERR_HTTP_STATUS_SERVER_ERROR           (-884)
 /** HTTP initialization failed. */
 #define VERR_HTTP_INIT_FAILED                   (-885)
 /** The server has not found anything matching the URI given. */
@@ -2303,9 +2354,9 @@ RT_C_DECLS_END
 /** Bad ASN.1 object length encoding. */
 #define VERR_ASN1_CURSOR_BAD_LENGTH_ENCODING        (-22831)
 /** Indefinite length form is against the rules. */
-#define VERR_ASN1_CURSOR_ILLEGAL_IDEFINITE_LENGTH   (-22832)
-/** Indefinite length form is not implemented. */
-#define VERR_ASN1_CURSOR_IDEFINITE_LENGTH_NOT_SUP   (-22833)
+#define VERR_ASN1_CURSOR_ILLEGAL_INDEFINITE_LENGTH  (-22832)
+/** Malformed indefinite length encoding. */
+#define VERR_ASN1_CURSOR_BAD_INDEFINITE_LENGTH      (-22833)
 /** ASN.1 object length goes beyond the end of the byte stream being decoded. */
 #define VERR_ASN1_CURSOR_BAD_LENGTH                 (-22834)
 /** Not more data in ASN.1 byte stream. */
@@ -2434,6 +2485,8 @@ RT_C_DECLS_END
 #define VERR_LDRVI_PAGE_HASH_MISMATCH               (-22928)
 /** Image hash mismatch. */
 #define VERR_LDRVI_IMAGE_HASH_MISMATCH              (-22929)
+/** Malformed code signing structure. */
+#define VERR_LDRVI_BAD_CERT_FORMAT                  (-22930)
 
 /** Cannot resolve symbol because it's a forwarder. */
 #define VERR_LDR_FORWARDER                          (-22950)
@@ -2445,6 +2498,82 @@ RT_C_DECLS_END
 #define VERR_LDR_FORWARDER_CHAIN_TOO_LONG           (-22953)
 /** Support for forwarders has not been implemented. */
 #define VERR_LDR_FORWARDERS_NOT_SUPPORTED           (-22954)
+/** Only native endian Mach-O files are supported. */
+#define VERR_LDRMACHO_OTHER_ENDIAN_NOT_SUPPORTED    (-22955)
+/** The Mach-O header is bad or contains new and unsupported features. */
+#define VERR_LDRMACHO_BAD_HEADER                    (-22956)
+/** The file type isn't supported. */
+#define VERR_LDRMACHO_UNSUPPORTED_FILE_TYPE         (-22957)
+/** The machine (cputype / cpusubtype combination) isn't supported. */
+#define VERR_LDRMACHO_UNSUPPORTED_MACHINE           (-22958)
+/** Bad load command(s). */
+#define VERR_LDRMACHO_BAD_LOAD_COMMAND              (-22959)
+/** Encountered an unknown load command.*/
+#define VERR_LDRMACHO_UNKNOWN_LOAD_COMMAND          (-22960)
+/** Encountered a load command that's not implemented.*/
+#define VERR_LDRMACHO_UNSUPPORTED_LOAD_COMMAND      (-22961)
+/** Bad section. */
+#define VERR_LDRMACHO_BAD_SECTION                   (-22962)
+/** Encountered a section type that's not implemented.*/
+#define VERR_LDRMACHO_UNSUPPORTED_SECTION           (-22963)
+/** Encountered a init function section.   */
+#define VERR_LDRMACHO_UNSUPPORTED_INIT_SECTION      (-22964)
+/** Encountered a term function section.   */
+#define VERR_LDRMACHO_UNSUPPORTED_TERM_SECTION      (-22965)
+/** Encountered a section type that's not known to the loader. (probably invalid) */
+#define VERR_LDRMACHO_UNKNOWN_SECTION               (-22966)
+/** The sections aren't ordered by segment as expected by the loader. */
+#define VERR_LDRMACHO_BAD_SECTION_ORDER             (-22967)
+/** The image is 32-bit and contains 64-bit load commands or vise versa. */
+#define VERR_LDRMACHO_BIT_MIX                       (-22968)
+/** Bad MH_OBJECT file. */
+#define VERR_LDRMACHO_BAD_OBJECT_FILE               (-22969)
+/** Bad symbol table entry. */
+#define VERR_LDRMACHO_BAD_SYMBOL                    (-22970)
+/** Unsupported fixup type. */
+#define VERR_LDRMACHO_UNSUPPORTED_FIXUP_TYPE        (-22971)
+/** Both debug and non-debug sections in segment. */
+#define VERR_LDRMACHO_MIXED_DEBUG_SECTION_FLAGS     (-22972)
+/** The segment bits are non-contiguous in the file. */
+#define VERR_LDRMACHO_NON_CONT_SEG_BITS             (-22973)
+/** Hit a todo in the mach-o loader. */
+#define VERR_LDRMACHO_TODO                          (-22974)
+/** Bad symbol table size in Mach-O image. */
+#define VERR_LDRMACHO_BAD_SYMTAB_SIZE               (-22975)
+/** Duplicate segment name. */
+#define VERR_LDR_DUPLICATE_SEGMENT_NAME             (-22976)
+/** No image UUID. */
+#define VERR_LDR_NO_IMAGE_UUID                      (-22977)
+/** Bad image relocation. */
+#define VERR_LDR_BAD_FIXUP                          (-22978)
+/** Address overflow. */
+#define VERR_LDR_ADDRESS_OVERFLOW                   (-22979)
+/** validation of LX header failed. */
+#define VERR_LDRLX_BAD_HEADER                       (-22980)
+/** validation of the loader section (in the LX header) failed. */
+#define VERR_LDRLX_BAD_LOADER_SECTION               (-22981)
+/** validation of the fixup section (in the LX header) failed. */
+#define VERR_LDRLX_BAD_FIXUP_SECTION                (-22982)
+/** validation of the LX object table failed. */
+#define VERR_LDRLX_BAD_OBJECT_TABLE                 (-22983)
+/** A bad page map entry was encountered. */
+#define VERR_LDRLX_BAD_PAGE_MAP                     (-22984)
+/** Bad iterdata (EXEPACK) data. */
+#define VERR_LDRLX_BAD_ITERDATA                     (-22985)
+/** Bad iterdata2 (EXEPACK2) data. */
+#define VERR_LDRLX_BAD_ITERDATA2                    (-22986)
+/** Bad bundle data. */
+#define VERR_LDRLX_BAD_BUNDLE                       (-22987)
+/** No soname. */
+#define VERR_LDRLX_NO_SONAME                        (-22988)
+/** Bad soname. */
+#define VERR_LDRLX_BAD_SONAME                       (-22989)
+/** Bad forwarder entry. */
+#define VERR_LDRLX_BAD_FORWARDER                    (-22990)
+/** internal fixup chain isn't implemented yet. */
+#define VERR_LDRLX_NRICHAIN_NOT_SUPPORTED           (-22991)
+/** Import module ordinal is out of bounds. */
+#define VERR_LDRLX_IMPORT_ORDINAL_OUT_OF_BOUNDS     (-22992)
 /** @} */
 
 /** @name RTCrX509 status codes.
@@ -2615,6 +2744,8 @@ RT_C_DECLS_END
 #define VERR_CR_PKCS7_SIGNER_CERT_NOT_SHIPPED                   (-22358)
 /** The encrypted digest algorithm does not match the one in the certificate. */
 #define VERR_CR_PKCS7_SIGNER_INFO_DIGEST_ENCRYPT_MISMATCH       (-22359)
+/** The PKCS \#7 content is not data. */
+#define VERR_CR_PKCS7_NOT_DATA                                  (-22360)
 /** @} */
 
 /** @name RTCrSpc status codes.
@@ -2696,12 +2827,63 @@ RT_C_DECLS_END
 #define VERR_CR_PKIX_OSSL_D2I_PUBLIC_KEY_FAILED     (-23516)
 /** The EVP_PKEY_type API in OpenSSL failed.  */
 #define VERR_CR_PKIX_OSSL_EVP_PKEY_TYPE_ERROR       (-23517)
+/** OpenSSL failed to decode the public key. */
+#define VERR_CR_PKIX_OSSL_D2I_PRIVATE_KEY_FAILED    (-23518)
+/** The EVP_PKEY_CTX_set_rsa_padding API in OpenSSL failed.  */
+#define VERR_CR_PKIX_OSSL_EVP_PKEY_RSA_PAD_ERROR    (-23519)
+/** Final OpenSSL PKIX signing failed. */
+#define VERR_CR_PKIX_OSSL_SIGN_FINAL_FAILED         (-23520)
+/** OpenSSL and IPRT disagree on the signature size. */
+#define VERR_CR_PKIX_OSSL_VS_IPRT_SIGNATURE_SIZE    (-23521)
+/** OpenSSL and IPRT disagree on the signature. */
+#define VERR_CR_PKIX_OSSL_VS_IPRT_SIGNATURE         (-23522)
+/** Expected RSA private key. */
+#define VERR_CR_PKIX_NOT_RSA_PRIVATE_KEY            (-23523)
+/** Expected RSA public key. */
+#define VERR_CR_PKIX_NOT_RSA_PUBLIC_KEY             (-23524)
 /** @} */
 
 /** @name RTCrStore status codes.
  * @{ */
 /** Generic store error. */
 #define VERR_CR_STORE_GENERIC_ERROR                 (-23700)
+/** @} */
+
+/** @name RTCrKey status codes.
+ * @{ */
+/** Could not recognize the key type. */
+#define VERR_CR_KEY_UNKNOWN_TYPE                    (-23800)
+/** Unsupported key format. */
+#define VERR_CR_KEY_FORMAT_NOT_SUPPORTED            (-23801)
+/** Key encrypted but no password was given. */
+#define VERR_CR_KEY_ENCRYPTED                       (-23802)
+/** The key was marked as encrypted by no DEK-Info field with the encryption
+ * algortihms was found. */
+#define VERR_CR_KEY_NO_DEK_INFO                     (-23803)
+/** The algorithms part of the DEK-Info field is too long. */
+#define VERR_CR_KEY_DEK_INFO_TOO_LONG               (-23804)
+/** Key decryption is not supported. */
+#define VERR_CR_KEY_DECRYPTION_NOT_SUPPORTED        (-23805)
+/** Unsupported key encryption cipher. */
+#define VERR_CR_KEY_UNSUPPORTED_CIPHER              (-23806)
+/** Found unexpected cipher parameters for encrypted key. */
+#define VERR_CR_KEY_UNEXPECTED_CIPHER_PARAMS        (-23807)
+/** Missing ciper parameters for encrypted key. */
+#define VERR_CR_KEY_MISSING_CIPHER_PARAMS           (-23808)
+/** To short initialization vector for encrypted key ciper. */
+#define VERR_CR_KEY_TOO_SHORT_CIPHER_IV             (-23809)
+/** Malformed initialization vector for encrypted key ciper. */
+#define VERR_CR_KEY_MALFORMED_CIPHER_IV             (-23810)
+/** Error encoding the password for key decryption. */
+#define VERR_CR_KEY_PASSWORD_ENCODING               (-23811)
+/** EVP_DecryptInit_ex failed. */
+#define VERR_CR_KEY_OSSL_DECRYPT_INIT_ERROR         (-23812)
+/** Key decryption failed, perhaps due to an incorrect password. */
+#define VERR_CR_KEY_DECRYPTION_FAILED               (-23813)
+/** The key was decrypted. */
+#define VINF_CR_KEY_WAS_DECRYPTED                   (23814)
+/** Failed to generate RSA key. */
+#define VERR_CR_KEY_GEN_FAILED_RSA                  (-23815)
 /** @} */
 
 /** @name RTCrRsa status codes.
@@ -2727,6 +2909,32 @@ RT_C_DECLS_END
 #define VERR_CR_DIGEST_OSSL_DIGEST_INIT_ERROR       (-24200)
 /** OpenSSL failed to clone the digest algorithm context. */
 #define VERR_CR_DIGEST_OSSL_DIGEST_CTX_COPY_ERROR   (-24201)
+/** Deprecated digest. */
+#define VINF_CR_DIGEST_DEPRECATED                   (24202)
+/** Deprecated digest. */
+#define VERR_CR_DIGEST_DEPRECATED                   (-24202)
+/** Compromised digest. */
+#define VINF_CR_DIGEST_COMPROMISED                  (24203)
+/** Compromised digest. */
+#define VERR_CR_DIGEST_COMPROMISED                  (-24203)
+/** Severely compromised digest. */
+#define VINF_CR_DIGEST_SEVERELY_COMPROMISED         (24204)
+/** Severely compromised digest. */
+#define VERR_CR_DIGEST_SEVERELY_COMPROMISED         (-24204)
+/** Specified digest not supported in this context. */
+#define VERR_CR_DIGEST_NOT_SUPPORTED                (-24205)
+/** @} */
+
+/** @name RTCr misc status codes.
+ * @{ */
+/** Failed to derivate key from password. */
+#define VERR_CR_PASSWORD_2_KEY_DERIVIATION_FAILED   (-24396)
+/** Failed getting cryptographically strong random bytes. */
+#define VERR_CR_RANDOM_SETUP_FAILED                 (-24397)
+/** Failed getting cryptographically strong random bytes. */
+#define VERR_CR_RANDOM_FAILED                       (-24398)
+/** Malformed or failed to parse PEM formatted data. */
+#define VERR_CR_MALFORMED_PEM_HEADER                (-24399)
 /** @} */
 
 /** @name RTPath  status codes.
@@ -2775,6 +2983,16 @@ RT_C_DECLS_END
 #define VERR_JSON_ITERATOR_END                      (-24701)
 /** The JSON document is malformed. */
 #define VERR_JSON_MALFORMED                         (-24702)
+/** Object or array is empty. */
+#define VERR_JSON_IS_EMPTY                          (-24703)
+/** Invalid UTF-16 escape sequence. */
+#define VERR_JSON_INVALID_UTF16_ESCAPE_SEQUENCE     (-24704)
+/** Missing UTF-16 surrogate pair. */
+#define VERR_JSON_MISSING_SURROGATE_PAIR            (-24705)
+/** Bad UTF-16 surrogate pair sequence. */
+#define VERR_JSON_BAD_SURROGATE_PAIR_SEQUENCE       (-24706)
+/** Invalid codepoint. */
+#define VERR_JSON_INVALID_CODEPOINT                 (-24707)
 /** @} */
 
 /** @name RTVfs status codes.
@@ -2787,6 +3005,8 @@ RT_C_DECLS_END
 #define VERR_VFS_BOGUS_OFFSET                       (-24802)
 /** Unsupported file system format. */
 #define VERR_VFS_UNSUPPORTED_FORMAT                 (-24803)
+/** Unsupported create type in an RTVfsObjOpen or RTVfsDirOpenObj call.  */
+#define VERR_VFS_UNSUPPORTED_CREATE_TYPE            (-24804)
 /** @} */
 
 /** @name RTFsIsoMaker status codes.
@@ -3090,7 +3310,99 @@ RT_C_DECLS_END
 #define VERR_ISOFS_IPE_4                                (-25394)
 /** Internal processing error \#5.  */
 #define VERR_ISOFS_IPE_5                                (-25395)
+/** @} */
 
+
+/** @name RTSerialPort status codes
+ * @{ */
+/** A break was detected until all requested data could be received. */
+#define VERR_SERIALPORT_BREAK_DETECTED                  (-25500)
+/** The chosen baudrate is invalid or not supported by the given serial port. */
+#define VERR_SERIALPORT_INVALID_BAUDRATE                (-25501)
+/** @} */
+
+
+/** @name RTCRest status codes
+ * @{ */
+/** Do not know how to handle the content type in the server response. */
+#define VERR_REST_RESPONSE_CONTENT_TYPE_NOT_SUPPORTED   (-25700)
+/** Invalid UTF-8 encoding in the response. */
+#define VERR_REST_RESPONSE_INVALID_UTF8_ENCODING        (-25701)
+/** Server response contains embedded zero character(s). */
+#define VERR_REST_RESPONSE_EMBEDDED_ZERO_CHAR           (-25702)
+/** Server response contains unexpected repetitive header field. */
+#define VERR_REST_RESPONSE_REPEAT_HEADER_FIELD          (-25703)
+/** Unable to decode date value. */
+#define VWRN_REST_UNABLE_TO_DECODE_DATE                 (25704)
+/** Unable to decode date value. */
+#define VERR_REST_UNABLE_TO_DECODE_DATE                 (-25704)
+/** Wrong JSON type for bool value. */
+#define VERR_REST_WRONG_JSON_TYPE_FOR_BOOL              (-25705)
+/** Wrong JSON type for integer value. */
+#define VERR_REST_WRONG_JSON_TYPE_FOR_INTEGER           (-25706)
+/** Wrong JSON type for double value. */
+#define VERR_REST_WRONG_JSON_TYPE_FOR_DOUBLE            (-25707)
+/** Wrong JSON type for string value. */
+#define VERR_REST_WRONG_JSON_TYPE_FOR_STRING            (-25708)
+/** Wrong JSON type for date value. */
+#define VERR_REST_WRONG_JSON_TYPE_FOR_DATE              (-25709)
+/** Unable to parse string as bool. */
+#define VERR_REST_UNABLE_TO_PARSE_STRING_AS_BOOL        (-25710)
+/** A path parameter was not set. */
+#define VERR_REST_PATH_PARAMETER_NOT_SET                (-25711)
+/** A required query parameter was not set. */
+#define VERR_REST_REQUIRED_QUERY_PARAMETER_NOT_SET      (-25712)
+/** A required header parmaeter was not set. */
+#define VERR_REST_REQUIRED_HEADER_PARAMETER_NOT_SET     (-25713)
+
+/** Internal error \#1. */
+#define VERR_REST_INTERNAL_ERROR_1                      (-25791)
+/** Internal error \#2. */
+#define VERR_REST_INTERNAL_ERROR_2                      (-25792)
+/** Internal error \#3. */
+#define VERR_REST_INTERNAL_ERROR_3                      (-25793)
+/** Internal error \#4. */
+#define VERR_REST_INTERNAL_ERROR_4                      (-25794)
+/** Internal error \#5. */
+#define VERR_REST_INTERNAL_ERROR_5                      (-25795)
+/** Internal error \#6. */
+#define VERR_REST_INTERNAL_ERROR_6                      (-25796)
+/** Internal error \#7. */
+#define VERR_REST_INTERNAL_ERROR_7                      (-25797)
+/** Internal error \#8. */
+#define VERR_REST_INTERNAL_ERROR_8                      (-25798)
+/** Internal error \#9. */
+#define VERR_REST_INTERNAL_ERROR_9                      (-25799)
+/** @} */
+
+
+/** @name RTCrCipher status codes
+ * @{ */
+/** Unsupported cipher. */
+#define VERR_CR_CIPHER_NOT_SUPPORTED                            (-25800)
+/** EVP_EncryptInit failed. */
+#define VERR_CR_CIPHER_OSSL_ENCRYPT_INIT_FAILED                 (-25801)
+/** EVP_EncryptUpdate failed. */
+#define VERR_CR_CIPHER_OSSL_ENCRYPT_UPDATE_FAILED               (-25802)
+/** EVP_EncryptFinal failed. */
+#define VERR_CR_CIPHER_OSSL_ENCRYPT_FINAL_FAILED                (-25803)
+/** EVP_DecryptInit failed. */
+#define VERR_CR_CIPHER_OSSL_DECRYPT_INIT_FAILED                 (-25804)
+/** EVP_DecryptUpdate failed. */
+#define VERR_CR_CIPHER_OSSL_DECRYPT_UPDATE_FAILED               (-25805)
+/** EVP_DecryptFinal failed. */
+#define VERR_CR_CIPHER_OSSL_DECRYPT_FINAL_FAILED                (-25806)
+/** Invalid key length. */
+#define VERR_CR_CIPHER_INVALID_KEY_LENGTH                       (-25807)
+/** Invalid initialization vector length. */
+#define VERR_CR_CIPHER_INVALID_INITIALIZATION_VECTOR_LENGTH     (-25808)
+/** @} */
+
+
+/** @name RTShMem status codes
+ * @{ */
+/** Maximum number of mappings reached. */
+#define VERR_SHMEM_MAXIMUM_MAPPINGS_REACHED                     (-26000)
 /** @} */
 
 /* SED-END */

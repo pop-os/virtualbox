@@ -1,10 +1,10 @@
 /* $Id: QIStatusBarIndicator.h $ */
 /** @file
- * VBox Qt GUI - QIStatusBarIndicator interface declaration.
+ * VBox Qt GUI - Qt extensions: QIStatusBarIndicator interface declaration.
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,15 +19,23 @@
 #define ___QIStatusBarIndicators_h___
 
 /* Qt includes: */
-#include <QWidget>
-#include <QMap>
 #include <QIcon>
+#include <QMap>
+#include <QWidget>
+
+/* GUI includes: */
+#include "UILibraryDefs.h"
 
 /* Forward declarations: */
+class QIcon;
 class QLabel;
+class QSize;
+class QString;
+class QWidget;
+
 
 /** QWidget extension used as status-bar indicator. */
-class QIStatusBarIndicator : public QWidget
+class SHARED_LIBRARY_STUFF QIStatusBarIndicator : public QWidget
 {
     Q_OBJECT;
 
@@ -40,7 +48,7 @@ signals:
 
 public:
 
-    /** Constructor, passes @a pParent to the QWidget constructor. */
+    /** Constructs status-bar indicator passing @a pParent to the base-class. */
     QIStatusBarIndicator(QWidget *pParent = 0);
 
     /** Returns size-hint. */
@@ -49,28 +57,28 @@ public:
 protected:
 
 #ifdef VBOX_WS_MAC
-    /** Mac OS X: Mouse-press-event handler.
-      *           Make the left button also show the context-menu to make things
-      *           simpler for users with single mouse button mice (laptops++). */
-    virtual void mousePressEvent(QMouseEvent *pEvent);
+    /** Handles mouse-press @a pEvent. */
+    virtual void mousePressEvent(QMouseEvent *pEvent) /* override */;
 #endif /* VBOX_WS_MAC */
-    /** Mouse-double-click-event handler. */
-    virtual void mouseDoubleClickEvent(QMouseEvent *pEvent);
-    /** Context-menu-event handler. */
-    virtual void contextMenuEvent(QContextMenuEvent *pEvent);
+    /** Handles mouse-double-click @a pEvent. */
+    virtual void mouseDoubleClickEvent(QMouseEvent *pEvent) /* override */;
+
+    /** Handles context-menu @a pEvent. */
+    virtual void contextMenuEvent(QContextMenuEvent *pEvent) /* override */;
 
     /** Holds currently cached size. */
     QSize m_size;
 };
 
+
 /** QIStatusBarIndicator extension used as status-bar state indicator. */
-class QIStateStatusBarIndicator : public QIStatusBarIndicator
+class SHARED_LIBRARY_STUFF QIStateStatusBarIndicator : public QIStatusBarIndicator
 {
     Q_OBJECT;
 
 public:
 
-    /** Constructor, passes @a pParent to the QIStatusBarIndicator constructor. */
+    /** Constructs state status-bar indicator passing @a pParent to the base-class. */
     QIStateStatusBarIndicator(QWidget *pParent = 0);
 
     /** Returns current state. */
@@ -90,10 +98,10 @@ public slots:
 
 protected:
 
-    /** Paint-event handler. */
-    virtual void paintEvent(QPaintEvent *pEvent);
+    /** Handles paint @a pEvent. */
+    virtual void paintEvent(QPaintEvent *pEvent) /* override */;
 
-    /** Draw-contents routine. */
+    /** Draws contents using passed @a pPainter. */
     virtual void drawContents(QPainter *pPainter);
 
 private:
@@ -104,14 +112,15 @@ private:
     QMap<int, QIcon> m_icons;
 };
 
+
 /** QIStatusBarIndicator extension used as status-bar state indicator. */
-class QITextStatusBarIndicator : public QIStatusBarIndicator
+class SHARED_LIBRARY_STUFF QITextStatusBarIndicator : public QIStatusBarIndicator
 {
     Q_OBJECT;
 
 public:
 
-    /** Constructor, passes @a pParent to the QIStatusBarIndicator constructor. */
+    /** Constructs text status-bar indicator passing @a pParent to the base-class. */
     QITextStatusBarIndicator(QWidget *pParent = 0);
 
     /** Returns text. */
@@ -124,5 +133,6 @@ private:
     /** Holds the label instance. */
     QLabel *m_pLabel;
 };
+
 
 #endif /* !___QIStatusBarIndicators_h___ */

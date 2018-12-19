@@ -1,6 +1,6 @@
 /* $Id: service.cpp $ */
 /** @file
- * Shared Clipboard: Host service entry points.
+ * Shared Clipboard Service - Host service entry points.
  */
 
 /*
@@ -69,6 +69,11 @@
  * This section may be written in the future :)
  */
 
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
+#define LOG_GROUP LOG_GROUP_SHARED_CLIPBOARD
 #include <VBox/HostServices/VBoxClipboardSvc.h>
 #include <VBox/HostServices/VBoxClipboardExt.h>
 
@@ -79,6 +84,29 @@
 #include <VBox/vmm/ssm.h>
 
 #include "VBoxClipboard.h"
+
+
+/*********************************************************************************************************************************
+*   Global Variables                                                                                                             *
+*********************************************************************************************************************************/
+static PVBOXHGCMSVCHELPERS g_pHelpers;
+
+static RTCRITSECT critsect;
+static uint32_t g_u32Mode;
+
+static PFNHGCMSVCEXT g_pfnExtension;
+static void *g_pvExtension;
+
+static VBOXCLIPBOARDCLIENTDATA *g_pClient;
+
+/* Serialization of data reading and format announcements from the RDP client. */
+static bool g_fReadingData = false;
+static bool g_fDelayedAnnouncement = false;
+static uint32_t g_u32DelayedFormats = 0;
+
+/** Is the clipboard running in headless mode? */
+static bool g_fHeadless = false;
+
 
 static void VBoxHGCMParmUInt32Set (VBOXHGCMSVCPARM *pParm, uint32_t u32)
 {
@@ -118,23 +146,6 @@ static int VBoxHGCMParmPtrGet (VBOXHGCMSVCPARM *pParm, void **ppv, uint32_t *pcb
     return VERR_INVALID_PARAMETER;
 }
 
-static PVBOXHGCMSVCHELPERS g_pHelpers;
-
-static RTCRITSECT critsect;
-static uint32_t g_u32Mode;
-
-static PFNHGCMSVCEXT g_pfnExtension;
-static void *g_pvExtension;
-
-static VBOXCLIPBOARDCLIENTDATA *g_pClient;
-
-/* Serialization of data reading and format announcements from the RDP client. */
-static bool g_fReadingData = false;
-static bool g_fDelayedAnnouncement = false;
-static uint32_t g_u32DelayedFormats = 0;
-
-/** Is the clipboard running in headless mode? */
-static bool g_fHeadless = false;
 
 static uint32_t vboxSvcClipboardMode (void)
 {
@@ -356,8 +367,9 @@ static DECLCALLBACK(int) svcDisconnect (void *, uint32_t u32ClientID, void *pvCl
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) svcConnect (void *, uint32_t u32ClientID, void *pvClient)
+static DECLCALLBACK(int) svcConnect (void *, uint32_t u32ClientID, void *pvClient, uint32_t fRequestor, bool fRestoring)
 {
+    RT_NOREF(fRequestor, fRestoring);
     VBOXCLIPBOARDCLIENTDATA *pClient = (VBOXCLIPBOARDCLIENTDATA *)pvClient;
 
     int rc = VINF_SUCCESS;
@@ -395,8 +407,10 @@ static DECLCALLBACK(void) svcCall (void *,
                                    void *pvClient,
                                    uint32_t u32Function,
                                    uint32_t cParms,
-                                   VBOXHGCMSVCPARM paParms[])
+                                   VBOXHGCMSVCPARM paParms[],
+                                   uint64_t tsArrival)
 {
+    RT_NOREF_PV(tsArrival);
     int rc = VINF_SUCCESS;
 
     LogRel2(("svcCall: u32ClientID = %d, fn = %d, cParms = %d, pparms = %d\n",
@@ -842,9 +856,10 @@ typedef struct CLIPSAVEDSTATEDATA
 
 } CLIPSAVEDSTATEDATA;
 
-static DECLCALLBACK(int) svcLoadState(void *, uint32_t u32ClientID, void *pvClient, PSSMHANDLE pSSM)
+static DECLCALLBACK(int) svcLoadState(void *, uint32_t u32ClientID, void *pvClient, PSSMHANDLE pSSM, uint32_t uVersion)
 {
 #ifndef UNIT_TEST
+    RT_NOREF(uVersion);
     LogRel2 (("svcLoadState: u32ClientID = %d\n", u32ClientID));
 
     VBOXCLIPBOARDCLIENTDATA *pClient = (VBOXCLIPBOARDCLIENTDATA *)pvClient;
@@ -916,7 +931,7 @@ static DECLCALLBACK(int) svcLoadState(void *, uint32_t u32ClientID, void *pvClie
     vboxClipboardSync (pClient);
 
 #else  /* UNIT_TEST*/
-    RT_NOREF3(u32ClientID, pvClient, pSSM);
+    RT_NOREF(u32ClientID, pvClient, pSSM, uVersion);
 #endif /* UNIT_TEST */
     return VINF_SUCCESS;
 }
@@ -1019,6 +1034,7 @@ extern "C" DECLCALLBACK(DECLEXPORT(int)) VBoxHGCMSvcLoad (VBOXHGCMSVCFNTABLE *pt
             ptable->pfnSaveState  = svcSaveState;
             ptable->pfnLoadState  = svcLoadState;
             ptable->pfnRegisterExtension  = svcRegisterExtension;
+            ptable->pfnNotify     = NULL;
             ptable->pvService     = NULL;
 
             /* Service specific initialization. */

@@ -52,7 +52,7 @@
  *      version (stored in m->sv) is high enough. That is, for VirtualBox 4.0, write it
  *      only if (m->sv >= SettingsVersion_v1_11).
  *
- *   5) You _must_ update xml/VirtalBox-settings.xsd to contain the new tags and attributes.
+ *   5) You _must_ update xml/VirtualBox-settings.xsd to contain the new tags and attributes.
  *      Check that settings file from before and after your change are validating properly.
  *      Use "kmk testvalidsettings", it should not find any files which don't validate.
  */
@@ -78,6 +78,7 @@
 #include <iprt/process.h>
 #include <iprt/ldr.h>
 #include <iprt/base64.h>
+#include <iprt/uri.h>
 #include <iprt/cpp/lock.h>
 
 // generated header
@@ -1578,9 +1579,10 @@ bool NATHostLoopbackOffset::operator==(const NATHostLoopbackOffset &o) const
 /**
  * Constructor. Needs to set sane defaults which stand the test of time.
  */
-SystemProperties::SystemProperties() :
-    ulLogHistoryCount(3),
-    fExclusiveHwVirt(true)
+SystemProperties::SystemProperties()
+    : uProxyMode(ProxyMode_System)
+    , uLogHistoryCount(3)
+    , fExclusiveHwVirt(true)
 {
 #if defined(RT_OS_DARWIN) || defined(RT_OS_WINDOWS) || defined(RT_OS_SOLARIS)
     fExclusiveHwVirt = false;
@@ -1866,6 +1868,91 @@ void MainConfigFile::readUSBDeviceSources(const xml::ElementNode &elmDeviceSourc
 }
 
 /**
+ * Converts old style Proxy settings from ExtraData/UI section.
+ *
+ * Saves proxy settings directly to systemProperties structure.
+ *
+ * @returns true if conversion was successfull, false if not.
+ * @param strUIProxySettings The GUI settings string to convert.
+ */
+bool MainConfigFile::convertGuiProxySettings(const com::Utf8Str &strUIProxySettings)
+{
+    /*
+     * Possible variants:
+     *    - "ProxyAuto,proxyserver.url,1080,authDisabled,,"
+     *    - "ProxyDisabled,proxyserver.url,1080,authDisabled,,"
+     *    - "ProxyEnabled,proxyserver.url,1080,authDisabled,,"
+     *
+     * Note! We only need to bother with the first three fields as the last
+     *       three was never really used or ever actually passed to the HTTP
+     *       client code.
+     */
+    /* First field: The proxy mode. */
+    const char *psz = RTStrStripL(strUIProxySettings.c_str());
+    static const struct { const char *psz; size_t cch; ProxyMode_T enmMode; } s_aModes[] =
+    {
+        { RT_STR_TUPLE("ProxyAuto"),     ProxyMode_System },
+        { RT_STR_TUPLE("ProxyDisabled"), ProxyMode_NoProxy },
+        { RT_STR_TUPLE("ProxyEnabled"),  ProxyMode_Manual },
+    };
+    for (size_t i = 0; i < RT_ELEMENTS(s_aModes); i++)
+        if (RTStrNICmpAscii(psz, s_aModes[i].psz, s_aModes[i].cch) == 0)
+        {
+            systemProperties.uProxyMode = s_aModes[i].enmMode;
+            psz = RTStrStripL(psz + s_aModes[i].cch);
+            if (*psz == ',')
+            {
+                /* Second field: The proxy host, possibly fully fledged proxy URL. */
+                psz = RTStrStripL(psz + 1);
+                if (*psz != '\0' && *psz != ',')
+                {
+                    const char *pszEnd  = strchr(psz, ',');
+                    size_t      cchHost = pszEnd ? pszEnd - psz : strlen(psz);
+                    while (cchHost > 0 && RT_C_IS_SPACE(psz[cchHost - 1]))
+                        cchHost--;
+                    systemProperties.strProxyUrl.assign(psz, cchHost);
+                    if (systemProperties.strProxyUrl.find("://") == RTCString::npos)
+                        systemProperties.strProxyUrl.replace(0, 0, "http://");
+
+                    /* Third field: The proxy port. Defaulted to 1080 for all proxies.
+                                    The new settings has type specific default ports.  */
+                    uint16_t uPort = 1080;
+                    if (pszEnd)
+                    {
+                        int rc = RTStrToUInt16Ex(RTStrStripL(pszEnd + 1), NULL, 10, &uPort);
+                        if (RT_FAILURE(rc))
+                            uPort = 1080;
+                    }
+                    RTURIPARSED Parsed;
+                    int rc = RTUriParse(systemProperties.strProxyUrl.c_str(), &Parsed);
+                    if (RT_SUCCESS(rc))
+                    {
+                        if (Parsed.uAuthorityPort == UINT32_MAX)
+                            systemProperties.strProxyUrl.appendPrintf(systemProperties.strProxyUrl.endsWith(":")
+                                                                      ? "%u" : ":%u", uPort);
+                    }
+                    else
+                    {
+                        LogRelFunc(("Dropping invalid proxy URL for %u: %s\n",
+                                    systemProperties.uProxyMode, systemProperties.strProxyUrl.c_str()));
+                        systemProperties.strProxyUrl.setNull();
+                    }
+                }
+                /* else: don't bother with the rest if we haven't got a host. */
+            }
+            if (   systemProperties.strProxyUrl.isEmpty()
+                && systemProperties.uProxyMode == ProxyMode_Manual)
+            {
+                systemProperties.uProxyMode = ProxyMode_System;
+                return false;
+            }
+            return true;
+        }
+    LogRelFunc(("Unknown proxy type: %s\n", psz));
+    return false;
+}
+
+/**
  * Constructor.
  *
  * If pstrFilename is != NULL, this reads the given settings file into the member
@@ -1887,6 +1974,7 @@ MainConfigFile::MainConfigFile(const Utf8Str *pstrFilename)
         // we need only analyze what is in there
         xml::NodesLoop nlRootChildren(*m->pelmRoot);
         const xml::ElementNode *pelmRootChild;
+        bool fCopyProxySettingsFromExtraData = false;
         while ((pelmRootChild = nlRootChildren.forAllNodes()))
         {
             if (pelmRootChild->nameEquals("Global"))
@@ -1905,10 +1993,13 @@ MainConfigFile::MainConfigFile(const Utf8Str *pstrFilename)
                             pelmGlobalChild->getAttributeValue("remoteDisplayAuthLibrary", systemProperties.strVRDEAuthLibrary);
                         pelmGlobalChild->getAttributeValue("webServiceAuthLibrary", systemProperties.strWebServiceAuthLibrary);
                         pelmGlobalChild->getAttributeValue("defaultVRDEExtPack", systemProperties.strDefaultVRDEExtPack);
-                        pelmGlobalChild->getAttributeValue("LogHistoryCount", systemProperties.ulLogHistoryCount);
+                        pelmGlobalChild->getAttributeValue("LogHistoryCount", systemProperties.uLogHistoryCount);
                         pelmGlobalChild->getAttributeValue("autostartDatabasePath", systemProperties.strAutostartDatabasePath);
                         pelmGlobalChild->getAttributeValue("defaultFrontend", systemProperties.strDefaultFrontend);
                         pelmGlobalChild->getAttributeValue("exclusiveHwVirt", systemProperties.fExclusiveHwVirt);
+                        if (!pelmGlobalChild->getAttributeValue("proxyMode", systemProperties.uProxyMode))
+                            fCopyProxySettingsFromExtraData = true;
+                        pelmGlobalChild->getAttributeValue("proxyUrl", systemProperties.strProxyUrl);
                     }
                     else if (pelmGlobalChild->nameEquals("ExtraData"))
                         readExtraData(*pelmGlobalChild, mapExtraDataItems);
@@ -1939,6 +2030,14 @@ MainConfigFile::MainConfigFile(const Utf8Str *pstrFilename)
                 }
             } // end if (pelmRootChild->nameEquals("Global"))
         }
+
+        if (fCopyProxySettingsFromExtraData)
+            for (StringsMap::const_iterator it = mapExtraDataItems.begin(); it != mapExtraDataItems.end(); ++it)
+                if (it->first.equals("GUI/ProxySettings"))
+                {
+                    convertGuiProxySettings(it->second);
+                    break;
+                }
 
         clearDocument();
     }
@@ -2140,11 +2239,14 @@ void MainConfigFile::write(const com::Utf8Str strFilename)
         pelmSysProps->setAttribute("webServiceAuthLibrary", systemProperties.strWebServiceAuthLibrary);
     if (systemProperties.strDefaultVRDEExtPack.length())
         pelmSysProps->setAttribute("defaultVRDEExtPack", systemProperties.strDefaultVRDEExtPack);
-    pelmSysProps->setAttribute("LogHistoryCount", systemProperties.ulLogHistoryCount);
+    pelmSysProps->setAttribute("LogHistoryCount", systemProperties.uLogHistoryCount);
     if (systemProperties.strAutostartDatabasePath.length())
         pelmSysProps->setAttribute("autostartDatabasePath", systemProperties.strAutostartDatabasePath);
     if (systemProperties.strDefaultFrontend.length())
         pelmSysProps->setAttribute("defaultFrontend", systemProperties.strDefaultFrontend);
+    if (systemProperties.strProxyUrl.length())
+        pelmSysProps->setAttribute("proxyUrl", systemProperties.strProxyUrl);
+    pelmSysProps->setAttribute("proxyMode", systemProperties.uProxyMode);
     pelmSysProps->setAttribute("exclusiveHwVirt", systemProperties.fExclusiveHwVirt);
 
     buildUSBDeviceFilters(*pelmGlobal->createChild("USBDeviceFilters"),
@@ -2266,6 +2368,184 @@ bool BIOSSettings::operator==(const BIOSSettings &d) const
             && apicMode            == d.apicMode
             && llTimeOffset        == d.llTimeOffset
             && strLogoImagePath    == d.strLogoImagePath);
+}
+
+RecordingScreenSettings::RecordingScreenSettings(void)
+{
+    applyDefaults();
+}
+
+RecordingScreenSettings::~RecordingScreenSettings()
+{
+
+}
+
+/**
+ * Applies the default settings.
+ */
+void RecordingScreenSettings::applyDefaults(void)
+{
+    /*
+     * Set sensible defaults.
+     */
+
+    fEnabled            = false;
+    enmDest             = RecordingDestination_File;
+    ulMaxTimeS          = 0;
+    strOptions          = "";
+    File.ulMaxSizeMB    = 0;
+    File.strName        = "";
+    Video.enmCodec      = RecordingVideoCodec_VP8;
+    Video.ulWidth       = 1024;
+    Video.ulHeight      = 768;
+    Video.ulRate        = 512;
+    Video.ulFPS         = 25;
+    Audio.enmAudioCodec = RecordingAudioCodec_Opus;
+    Audio.cBits         = 16;
+    Audio.cChannels     = 2;
+    Audio.uHz           = 22050;
+
+    featureMap[RecordingFeature_Video] = true;
+    featureMap[RecordingFeature_Audio] = false; /** @todo Audio is not yet enabled by default. */
+}
+
+/**
+ * Check if all settings have default values.
+ */
+bool RecordingScreenSettings::areDefaultSettings(void) const
+{
+    return    fEnabled            == false
+           && enmDest             == RecordingDestination_File
+           && ulMaxTimeS          == 0
+           && strOptions          == ""
+           && File.ulMaxSizeMB    == 0
+           && File.strName        == ""
+           && Video.enmCodec      == RecordingVideoCodec_VP8
+           && Video.ulWidth       == 1024
+           && Video.ulHeight      == 768
+           && Video.ulRate        == 512
+           && Video.ulFPS         == 25
+           && Audio.enmAudioCodec == RecordingAudioCodec_Opus
+           && Audio.cBits         == 16
+           && Audio.cChannels     == 2
+           && Audio.uHz           == 22050;
+}
+
+/**
+ * Returns if a certain recording feature is enabled or not.
+ *
+ * @returns \c true if the feature is enabled, \c false if not.
+ * @param   enmFeature          Feature to check.
+ */
+bool RecordingScreenSettings::isFeatureEnabled(RecordingFeature_T enmFeature) const
+{
+    RecordingFeatureMap::const_iterator itFeature = featureMap.find(enmFeature);
+    if (itFeature != featureMap.end())
+        return itFeature->second;
+
+    return false;
+}
+
+/**
+ * Comparison operator. This gets called from MachineConfigFile::operator==,
+ * which in turn gets called from Machine::saveSettings to figure out whether
+ * machine settings have really changed and thus need to be written out to disk.
+ */
+bool RecordingScreenSettings::operator==(const RecordingScreenSettings &d) const
+{
+    return    fEnabled            == d.fEnabled
+           && enmDest             == d.enmDest
+           && featureMap          == d.featureMap
+           && ulMaxTimeS          == d.ulMaxTimeS
+           && strOptions          == d.strOptions
+           && File.ulMaxSizeMB    == d.File.ulMaxSizeMB
+           && Video.enmCodec      == d.Video.enmCodec
+           && Video.ulWidth       == d.Video.ulWidth
+           && Video.ulHeight      == d.Video.ulHeight
+           && Video.ulRate        == d.Video.ulRate
+           && Video.ulFPS         == d.Video.ulFPS
+           && Audio.enmAudioCodec == d.Audio.enmAudioCodec
+           && Audio.cBits         == d.Audio.cBits
+           && Audio.cChannels     == d.Audio.cChannels
+           && Audio.uHz           == d.Audio.uHz;
+}
+
+/**
+ * Constructor. Needs to set sane defaults which stand the test of time.
+ */
+RecordingSettings::RecordingSettings()
+{
+    applyDefaults();
+}
+
+/**
+ * Applies the default settings.
+ */
+void RecordingSettings::applyDefaults(void)
+{
+    fEnabled = false;
+
+    mapScreens.clear();
+
+    try
+    {
+        /* Always add screen 0 to the default configuration. */
+        RecordingScreenSettings screenSettings; /* Apply default settings for screen 0. */
+        screenSettings.fEnabled = true;       /* Enabled by default. */
+        mapScreens[0] = screenSettings;
+    }
+    catch (std::bad_alloc &)
+    {
+        AssertFailed();
+    }
+}
+
+/**
+ * Check if all settings have default values.
+ */
+bool RecordingSettings::areDefaultSettings() const
+{
+    const bool fDefault =    fEnabled          == false
+                          && mapScreens.size() == 1;
+    if (!fDefault)
+        return false;
+
+    RecordingScreenMap::const_iterator itScreen = mapScreens.begin();
+    return    itScreen->first == 0
+           && itScreen->second.areDefaultSettings();
+}
+
+/**
+ * Comparison operator. This gets called from MachineConfigFile::operator==,
+ * which in turn gets called from Machine::saveSettings to figure out whether
+ * machine settings have really changed and thus need to be written out to disk.
+ */
+bool RecordingSettings::operator==(const RecordingSettings &d) const
+{
+    if (this == &d)
+        return true;
+
+    if (   fEnabled          != d.fEnabled
+        || mapScreens.size() != d.mapScreens.size())
+        return false;
+
+    RecordingScreenMap::const_iterator itScreen = mapScreens.begin();
+    uint32_t i = 0;
+    while (itScreen != mapScreens.end())
+    {
+        RecordingScreenMap::const_iterator itScreenThat = d.mapScreens.find(i);
+        if (itScreen->second == itScreenThat->second)
+        {
+            /* Nothing to do in here (yet). */
+        }
+        else
+            return false;
+
+        ++itScreen;
+        ++i;
+    }
+
+    return true;
 }
 
 /**
@@ -2494,7 +2774,8 @@ SerialPort::SerialPort() :
     ulIOBase(0x3f8),
     ulIRQ(4),
     portMode(PortMode_Disconnected),
-    fServer(false)
+    fServer(false),
+    uartType(UartType_U16550A)
 {
 }
 
@@ -2512,7 +2793,8 @@ bool SerialPort::operator==(const SerialPort &s) const
             && ulIRQ             == s.ulIRQ
             && portMode          == s.portMode
             && strPath           == s.strPath
-            && fServer           == s.fServer);
+            && fServer           == s.fServer
+            && uartType          == s.uartType);
 }
 
 /**
@@ -2602,10 +2884,11 @@ SharedFolder::SharedFolder() :
 bool SharedFolder::operator==(const SharedFolder &g) const
 {
     return (this == &g)
-        || (   strName       == g.strName
-            && strHostPath   == g.strHostPath
-            && fWritable     == g.fWritable
-            && fAutoMount    == g.fAutoMount);
+        || (   strName           == g.strName
+            && strHostPath       == g.strHostPath
+            && fWritable         == g.fWritable
+            && fAutoMount        == g.fAutoMount
+            && strAutoMountPoint == g.strAutoMountPoint);
 }
 
 /**
@@ -2773,6 +3056,7 @@ Hardware::Hardware() :
     fVPID(true),
     fUnrestrictedExecution(true),
     fHardwareVirtForce(false),
+    fUseNativeApi(false),
     fTripleFaultReset(false),
     fPAE(false),
     fAPIC(true),
@@ -2781,8 +3065,7 @@ Hardware::Hardware() :
     fIBPBOnVMEntry(false),
     fSpecCtrl(false),
     fSpecCtrlByHost(false),
-    fL1DFlushOnSched(true),
-    fL1DFlushOnVMEntry(false),
+    fNestedHWVirt(false),
     enmLongMode(HC_ARCH_BITS == 64 ? Hardware::LongMode_Enabled : Hardware::LongMode_Disabled),
     cCPUs(1),
     fCpuHotPlug(false),
@@ -2796,15 +3079,6 @@ Hardware::Hardware() :
     cMonitors(1),
     fAccelerate3D(false),
     fAccelerate2DVideo(false),
-    ulVideoCaptureHorzRes(1024),
-    ulVideoCaptureVertRes(768),
-    ulVideoCaptureRate(512),
-    ulVideoCaptureFPS(25),
-    ulVideoCaptureMaxTime(0),
-    ulVideoCaptureMaxSize(0),
-    fVideoCaptureEnabled(false),
-    u64VideoCaptureScreens(UINT64_C(0xffffffffffffffff)),
-    strVideoCaptureFile(""),
     firmwareType(FirmwareType_BIOS),
     pointingHIDType(PointingHIDType_PS2Mouse),
     keyboardHIDType(KeyboardHIDType_PS2Keyboard),
@@ -2884,23 +3158,6 @@ bool Hardware::areDisplayDefaultSettings() const
 }
 
 /**
- * Check if all Video Capture settings have default values.
- */
-bool Hardware::areVideoCaptureDefaultSettings() const
-{
-    return    !fVideoCaptureEnabled
-           && u64VideoCaptureScreens == UINT64_C(0xffffffffffffffff)
-           && strVideoCaptureFile.isEmpty()
-           && ulVideoCaptureHorzRes == 1024
-           && ulVideoCaptureVertRes == 768
-           && ulVideoCaptureRate == 512
-           && ulVideoCaptureFPS == 25
-           && ulVideoCaptureMaxTime == 0
-           && ulVideoCaptureMaxSize == 0
-           && strVideoCaptureOptions.isEmpty();
-}
-
-/**
  * Check if all Network Adapter settings have default values.
  */
 bool Hardware::areAllNetworkAdaptersDefaultSettings(SettingsVersion_T sv) const
@@ -2931,6 +3188,7 @@ bool Hardware::operator==(const Hardware& h) const
             && fVPID                     == h.fVPID
             && fUnrestrictedExecution    == h.fUnrestrictedExecution
             && fHardwareVirtForce        == h.fHardwareVirtForce
+            && fUseNativeApi             == h.fUseNativeApi
             && fPAE                      == h.fPAE
             && enmLongMode               == h.enmLongMode
             && fTripleFaultReset         == h.fTripleFaultReset
@@ -2940,8 +3198,7 @@ bool Hardware::operator==(const Hardware& h) const
             && fIBPBOnVMEntry            == h.fIBPBOnVMEntry
             && fSpecCtrl                 == h.fSpecCtrl
             && fSpecCtrlByHost           == h.fSpecCtrlByHost
-            && fL1DFlushOnSched          == h.fL1DFlushOnSched
-            && fL1DFlushOnVMEntry        == h.fL1DFlushOnVMEntry
+            && fNestedHWVirt             == h.fNestedHWVirt
             && cCPUs                     == h.cCPUs
             && fCpuHotPlug               == h.fCpuHotPlug
             && ulCpuExecutionCap         == h.ulCpuExecutionCap
@@ -2957,16 +3214,6 @@ bool Hardware::operator==(const Hardware& h) const
             && cMonitors                 == h.cMonitors
             && fAccelerate3D             == h.fAccelerate3D
             && fAccelerate2DVideo        == h.fAccelerate2DVideo
-            && fVideoCaptureEnabled      == h.fVideoCaptureEnabled
-            && u64VideoCaptureScreens    == h.u64VideoCaptureScreens
-            && strVideoCaptureFile       == h.strVideoCaptureFile
-            && ulVideoCaptureHorzRes     == h.ulVideoCaptureHorzRes
-            && ulVideoCaptureVertRes     == h.ulVideoCaptureVertRes
-            && ulVideoCaptureRate        == h.ulVideoCaptureRate
-            && ulVideoCaptureFPS         == h.ulVideoCaptureFPS
-            && ulVideoCaptureMaxTime     == h.ulVideoCaptureMaxTime
-            && ulVideoCaptureMaxSize     == h.ulVideoCaptureMaxTime
-            && strVideoCaptureOptions    == h.strVideoCaptureOptions
             && firmwareType              == h.firmwareType
             && pointingHIDType           == h.pointingHIDType
             && keyboardHIDType           == h.keyboardHIDType
@@ -3636,6 +3883,19 @@ void MachineConfigFile::readSerialPorts(const xml::ElementNode &elmUART,
         pelmPort->getAttributeValue("path", port.strPath);
         pelmPort->getAttributeValue("server", port.fServer);
 
+        Utf8Str strUartType;
+        if (pelmPort->getAttributeValue("uartType", strUartType))
+        {
+            if (strUartType == "16450")
+                port.uartType = UartType_U16450;
+            else if (strUartType == "16550A")
+                port.uartType = UartType_U16550A;
+            else if (strUartType == "16750")
+                port.uartType = UartType_U16750;
+            else
+                throw ConfigFileError(this, pelmPort, N_("Invalid value '%s' in UART/Port/@uartType attribute"), strUartType.c_str());
+        }
+
         ll.push_back(port);
     }
 }
@@ -3909,6 +4169,8 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
                 pelmCPUChild->getAttributeValue("enabled", hw.fUnrestrictedExecution);
             if ((pelmCPUChild = pelmHwChild->findChildElement("HardwareVirtForce")))
                 pelmCPUChild->getAttributeValue("enabled", hw.fHardwareVirtForce);
+            if ((pelmCPUChild = pelmHwChild->findChildElement("HardwareVirtExUseNativeApi")))
+                pelmCPUChild->getAttributeValue("enabled", hw.fUseNativeApi);
 
             if (!(pelmCPUChild = pelmHwChild->findChildElement("PAE")))
             {
@@ -3956,12 +4218,9 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
             pelmCPUChild = pelmHwChild->findChildElement("SpecCtrlByHost");
             if (pelmCPUChild)
                 pelmCPUChild->getAttributeValue("enabled", hw.fSpecCtrlByHost);
-            pelmCPUChild = pelmHwChild->findChildElement("L1DFlushOn");
+            pelmCPUChild = pelmHwChild->findChildElement("NestedHWVirt");
             if (pelmCPUChild)
-            {
-                pelmCPUChild->getAttributeValue("scheduling", hw.fL1DFlushOnSched);
-                pelmCPUChild->getAttributeValue("vmentry", hw.fL1DFlushOnVMEntry);
-            }
+                pelmCPUChild->getAttributeValue("enabled", hw.fNestedHWVirt);
 
             if ((pelmCPUChild = pelmHwChild->findChildElement("CpuIdTree")))
                 readCpuIdTree(*pelmCPUChild, hw.llCpuIdLeafs);
@@ -4142,6 +4401,8 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
                     type = GraphicsControllerType_VBoxVGA;
                 else if (strGraphicsControllerType == "VMSVGA")
                     type = GraphicsControllerType_VMSVGA;
+                else if (strGraphicsControllerType == "VBOXSVGA")
+                    type = GraphicsControllerType_VBoxSVGA;
                 else if (strGraphicsControllerType == "NONE")
                     type = GraphicsControllerType_Null;
                 else
@@ -4157,16 +4418,35 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
         }
         else if (pelmHwChild->nameEquals("VideoCapture"))
         {
-            pelmHwChild->getAttributeValue("enabled",   hw.fVideoCaptureEnabled);
-            pelmHwChild->getAttributeValue("screens",   hw.u64VideoCaptureScreens);
-            pelmHwChild->getAttributeValuePath("file",  hw.strVideoCaptureFile);
-            pelmHwChild->getAttributeValue("horzRes",   hw.ulVideoCaptureHorzRes);
-            pelmHwChild->getAttributeValue("vertRes",   hw.ulVideoCaptureVertRes);
-            pelmHwChild->getAttributeValue("rate",      hw.ulVideoCaptureRate);
-            pelmHwChild->getAttributeValue("fps",       hw.ulVideoCaptureFPS);
-            pelmHwChild->getAttributeValue("maxTime",   hw.ulVideoCaptureMaxTime);
-            pelmHwChild->getAttributeValue("maxSize",   hw.ulVideoCaptureMaxSize);
-            pelmHwChild->getAttributeValue("options",   hw.strVideoCaptureOptions);
+            pelmHwChild->getAttributeValue("enabled",   hw.recordingSettings.fEnabled);
+
+            /* Right now I don't want to bump the settings version, so just convert the enabled
+             * screens to the former uint64t_t bit array and vice versa. */
+            uint64_t u64VideoCaptureScreens;
+            pelmHwChild->getAttributeValue("screens",   u64VideoCaptureScreens);
+
+            /* At the moment we only support one capturing configuration, that is, all screens
+             * have the same configuration. So load/save to/from screen 0. */
+            Assert(hw.recordingSettings.mapScreens.size()); /* At least screen must be present. */
+            RecordingScreenSettings &screen0Settings = hw.recordingSettings.mapScreens[0];
+
+            pelmHwChild->getAttributeValue("maxTime",   screen0Settings.ulMaxTimeS);
+            pelmHwChild->getAttributeValue("options",   screen0Settings.strOptions);
+            pelmHwChild->getAttributeValuePath("file",  screen0Settings.File.strName);
+            pelmHwChild->getAttributeValue("maxSize",   screen0Settings.File.ulMaxSizeMB);
+            pelmHwChild->getAttributeValue("horzRes",   screen0Settings.Video.ulWidth);
+            pelmHwChild->getAttributeValue("vertRes",   screen0Settings.Video.ulHeight);
+            pelmHwChild->getAttributeValue("rate",      screen0Settings.Video.ulRate);
+            pelmHwChild->getAttributeValue("fps",       screen0Settings.Video.ulFPS);
+
+            for (unsigned i = 0; i < hw.cMonitors; i++) /* Don't add more settings than we have monitors configured. */
+            {
+                /* Add screen i to config in any case. */
+                hw.recordingSettings.mapScreens[i] = screen0Settings;
+
+                if (u64VideoCaptureScreens & RT_BIT_64(i)) /* Screen i enabled? */
+                    hw.recordingSettings.mapScreens[i].fEnabled = true;
+            }
         }
         else if (pelmHwChild->nameEquals("RemoteDisplay"))
         {
@@ -4428,6 +4708,7 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
                 pelmFolder->getAttributeValue("hostPath", sf.strHostPath);
                 pelmFolder->getAttributeValue("writable", sf.fWritable);
                 pelmFolder->getAttributeValue("autoMount", sf.fAutoMount);
+                pelmFolder->getAttributeValue("autoMountPoint", sf.strAutoMountPoint);
                 hw.llSharedFolders.push_back(sf);
             }
         }
@@ -4744,6 +5025,7 @@ void MachineConfigFile::readStorageControllers(const xml::ElementNode &elmStorag
             att.fDiscard = false;
             att.fNonRotational = false;
             att.fHotPluggable = false;
+            att.fPassThrough = false;
 
             if (strTemp == "HardDisk")
             {
@@ -5296,19 +5578,14 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
             if (hw.fIBPBOnVMEntry)
                 pelmChild->setAttribute("vmentry", hw.fIBPBOnVMEntry);
         }
-        if (hw.fSpecCtrl)
-            pelmCPU->createChild("SpecCtrl")->setAttribute("enabled", hw.fSpecCtrl);
-        if (hw.fSpecCtrlByHost)
-            pelmCPU->createChild("SpecCtrlByHost")->setAttribute("enabled", hw.fSpecCtrlByHost);
-        if (!hw.fL1DFlushOnSched || hw.fL1DFlushOnVMEntry)
-        {
-            xml::ElementNode *pelmChild = pelmCPU->createChild("L1DFlushOn");
-            if (!hw.fL1DFlushOnSched)
-                pelmChild->setAttribute("scheduling", hw.fL1DFlushOnSched);
-            if (hw.fL1DFlushOnVMEntry)
-                pelmChild->setAttribute("vmentry", hw.fL1DFlushOnVMEntry);
-        }
     }
+    if (m->sv >= SettingsVersion_v1_16 && hw.fSpecCtrl)
+        pelmCPU->createChild("SpecCtrl")->setAttribute("enabled", hw.fSpecCtrl);
+    if (m->sv >= SettingsVersion_v1_16 && hw.fSpecCtrlByHost)
+        pelmCPU->createChild("SpecCtrlByHost")->setAttribute("enabled", hw.fSpecCtrlByHost);
+    if (m->sv >= SettingsVersion_v1_17 && hw.fNestedHWVirt)
+        pelmCPU->createChild("NestedHWVirt")->setAttribute("enabled", hw.fNestedHWVirt);
+
     if (m->sv >= SettingsVersion_v1_14 && hw.enmLongMode != Hardware::LongMode_Legacy)
     {
         // LongMode has too crazy default handling, must always save this setting.
@@ -5341,6 +5618,9 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
         if (hw.fHardwareVirtForce)
             pelmCPU->createChild("HardwareVirtForce")->setAttribute("enabled", hw.fHardwareVirtForce);
     }
+
+    if (m->sv >= SettingsVersion_v1_9 && hw.fUseNativeApi)
+        pelmCPU->createChild("HardwareVirtExUseNativeApi")->setAttribute("enabled", hw.fUseNativeApi);
 
     if (m->sv >= SettingsVersion_v1_10)
     {
@@ -5531,6 +5811,7 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
             {
                 case GraphicsControllerType_VBoxVGA:            pcszGraphics = "VBoxVGA"; break;
                 case GraphicsControllerType_VMSVGA:             pcszGraphics = "VMSVGA"; break;
+                case GraphicsControllerType_VBoxSVGA:           pcszGraphics = "VBoxSVGA"; break;
                 default: /*case GraphicsControllerType_Null:*/  pcszGraphics = "None"; break;
             }
             pelmDisplay->setAttribute("controller", pcszGraphics);
@@ -5549,30 +5830,53 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
         }
     }
 
-    if (m->sv >= SettingsVersion_v1_14 && !hw.areVideoCaptureDefaultSettings())
+    if (m->sv >= SettingsVersion_v1_14 && !hw.recordingSettings.areDefaultSettings())
     {
         xml::ElementNode *pelmVideoCapture = pelmHardware->createChild("VideoCapture");
-        if (hw.fVideoCaptureEnabled)
-            pelmVideoCapture->setAttribute("enabled",      hw.fVideoCaptureEnabled);
-        if (hw.u64VideoCaptureScreens != UINT64_C(0xffffffffffffffff))
-            pelmVideoCapture->setAttribute("screens",      hw.u64VideoCaptureScreens);
-        if (!hw.strVideoCaptureFile.isEmpty())
-            pelmVideoCapture->setAttributePath("file",     hw.strVideoCaptureFile);
-        if (hw.ulVideoCaptureHorzRes != 1024 || hw.ulVideoCaptureVertRes != 768)
+
+        if (hw.recordingSettings.fEnabled)
+            pelmVideoCapture->setAttribute("enabled", hw.recordingSettings.fEnabled);
+
+        /* Right now I don't want to bump the settings version, so just convert the enabled
+         * screens to the former uint64t_t bit array and vice versa. */
+        uint64_t u64VideoCaptureScreens = 0;
+        RecordingScreenMap::const_iterator itScreen = hw.recordingSettings.mapScreens.begin();
+        while (itScreen != hw.recordingSettings.mapScreens.end())
         {
-            pelmVideoCapture->setAttribute("horzRes",      hw.ulVideoCaptureHorzRes);
-            pelmVideoCapture->setAttribute("vertRes",      hw.ulVideoCaptureVertRes);
+            if (itScreen->second.fEnabled)
+               u64VideoCaptureScreens |= RT_BIT_64(itScreen->first);
+            ++itScreen;
         }
-        if (hw.ulVideoCaptureRate != 512)
-            pelmVideoCapture->setAttribute("rate",         hw.ulVideoCaptureRate);
-        if (hw.ulVideoCaptureFPS)
-            pelmVideoCapture->setAttribute("fps",          hw.ulVideoCaptureFPS);
-        if (hw.ulVideoCaptureMaxTime)
-            pelmVideoCapture->setAttribute("maxTime",      hw.ulVideoCaptureMaxTime);
-        if (hw.ulVideoCaptureMaxSize)
-            pelmVideoCapture->setAttribute("maxSize",      hw.ulVideoCaptureMaxSize);
-        if (!hw.strVideoCaptureOptions.isEmpty())
-            pelmVideoCapture->setAttributePath("options",  hw.strVideoCaptureOptions);
+
+        if (u64VideoCaptureScreens)
+            pelmVideoCapture->setAttribute("screens",      u64VideoCaptureScreens);
+
+        /* At the moment we only support one capturing configuration, that is, all screens
+         * have the same configuration. So load/save to/from screen 0. */
+        Assert(hw.recordingSettings.mapScreens.size());
+        const RecordingScreenMap::const_iterator itScreen0Settings = hw.recordingSettings.mapScreens.find(0);
+        Assert(itScreen0Settings != hw.recordingSettings.mapScreens.end());
+
+        if (itScreen0Settings->second.ulMaxTimeS)
+            pelmVideoCapture->setAttribute("maxTime",      itScreen0Settings->second.ulMaxTimeS);
+        if (itScreen0Settings->second.strOptions.isNotEmpty())
+            pelmVideoCapture->setAttributePath("options",  itScreen0Settings->second.strOptions);
+
+        if (!itScreen0Settings->second.File.strName.isEmpty())
+            pelmVideoCapture->setAttributePath("file",     itScreen0Settings->second.File.strName);
+        if (itScreen0Settings->second.File.ulMaxSizeMB)
+            pelmVideoCapture->setAttribute("maxSize",      itScreen0Settings->second.File.ulMaxSizeMB);
+
+        if (   itScreen0Settings->second.Video.ulWidth  != 1024
+            || itScreen0Settings->second.Video.ulHeight != 768)
+        {
+            pelmVideoCapture->setAttribute("horzRes",      itScreen0Settings->second.Video.ulWidth);
+            pelmVideoCapture->setAttribute("vertRes",      itScreen0Settings->second.Video.ulHeight);
+        }
+        if (itScreen0Settings->second.Video.ulRate != 512)
+            pelmVideoCapture->setAttribute("rate",         itScreen0Settings->second.Video.ulRate);
+        if (itScreen0Settings->second.Video.ulFPS)
+            pelmVideoCapture->setAttribute("fps",          itScreen0Settings->second.Video.ulFPS);
     }
 
     if (!hw.vrdeSettings.areDefaultSettings(m->sv))
@@ -6012,6 +6316,21 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
                     break;
             }
             pelmPort->setAttribute("hostMode", pcszHostMode);
+
+            if (   m->sv >= SettingsVersion_v1_17
+                && port.uartType != UartType_U16550A)
+            {
+                const char *pcszUartType;
+
+                switch (port.uartType)
+                {
+                    case UartType_U16450: pcszUartType = "16450"; break;
+                    case UartType_U16550A: pcszUartType = "16550A"; break;
+                    case UartType_U16750: pcszUartType = "16750"; break;
+                    default: pcszUartType = "16550A"; break;
+                }
+                pelmPort->setAttribute("uartType", pcszUartType);
+            }
         }
     }
 
@@ -6150,6 +6469,8 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
             pelmThis->setAttribute("hostPath", sf.strHostPath);
             pelmThis->setAttribute("writable", sf.fWritable);
             pelmThis->setAttribute("autoMount", sf.fAutoMount);
+            if (sf.strAutoMountPoint.isNotEmpty())
+                pelmThis->setAttribute("autoMountPoint", sf.strAutoMountPoint);
         }
     }
 
@@ -6834,15 +7155,19 @@ void MachineConfigFile::buildMachineXML(xml::ElementNode &elmMachine,
         xml::ElementNode *pelmFaultTolerance = elmMachine.createChild("FaultTolerance");
         switch (machineUserData.enmFaultToleranceState)
         {
-        case FaultToleranceState_Inactive:
-            pelmFaultTolerance->setAttribute("state", "inactive");
-            break;
-        case FaultToleranceState_Master:
-            pelmFaultTolerance->setAttribute("state", "master");
-            break;
-        case FaultToleranceState_Standby:
-            pelmFaultTolerance->setAttribute("state", "standby");
-            break;
+            case FaultToleranceState_Inactive:
+                pelmFaultTolerance->setAttribute("state", "inactive");
+                break;
+            case FaultToleranceState_Master:
+                pelmFaultTolerance->setAttribute("state", "master");
+                break;
+            case FaultToleranceState_Standby:
+                pelmFaultTolerance->setAttribute("state", "standby");
+                break;
+#ifdef VBOX_WITH_XPCOM_CPP_ENUM_HACK
+            case FaultToleranceState_32BitHack: /* (compiler warnings) */
+                AssertFailedBreak();
+#endif
         }
 
         pelmFaultTolerance->setAttribute("port", machineUserData.uFaultTolerancePort);
@@ -6922,26 +7247,26 @@ AudioDriverType_T MachineConfigFile::getHostDefaultAudioDriver()
 #elif defined(RT_OS_LINUX)
     /* On Linux, we need to check at runtime what's actually supported. */
     static RTCLockMtx s_mtx;
-    static AudioDriverType_T s_linuxDriver = -1;
+    static AudioDriverType_T s_enmLinuxDriver = AudioDriverType_Null;
     RTCLock lock(s_mtx);
-    if (s_linuxDriver == (AudioDriverType_T)-1)
+    if (s_enmLinuxDriver == AudioDriverType_Null)
     {
 # ifdef VBOX_WITH_AUDIO_PULSE
         /* Check for the pulse library & that the pulse audio daemon is running. */
         if (RTProcIsRunningByName("pulseaudio") &&
             RTLdrIsLoadable("libpulse.so.0"))
-            s_linuxDriver = AudioDriverType_Pulse;
+            s_enmLinuxDriver = AudioDriverType_Pulse;
         else
 # endif /* VBOX_WITH_AUDIO_PULSE */
 # ifdef VBOX_WITH_AUDIO_ALSA
             /* Check if we can load the ALSA library */
              if (RTLdrIsLoadable("libasound.so.2"))
-                s_linuxDriver = AudioDriverType_ALSA;
+                s_enmLinuxDriver = AudioDriverType_ALSA;
         else
 # endif /* VBOX_WITH_AUDIO_ALSA */
-            s_linuxDriver = AudioDriverType_OSS;
+            s_enmLinuxDriver = AudioDriverType_OSS;
     }
-    return s_linuxDriver;
+    return s_enmLinuxDriver;
 
 #elif defined(RT_OS_DARWIN)
     return AudioDriverType_CoreAudio;
@@ -6970,6 +7295,41 @@ AudioDriverType_T MachineConfigFile::getHostDefaultAudioDriver()
  */
 void MachineConfigFile::bumpSettingsVersionIfNeeded()
 {
+    if (m->sv < SettingsVersion_v1_17)
+    {
+        // VirtualBox 6.0 adds nested hardware virtualization, using native API (NEM).
+        if (   hardwareMachine.fNestedHWVirt
+            || hardwareMachine.fUseNativeApi)
+        {
+            m->sv = SettingsVersion_v1_17;
+            return;
+        }
+        if (hardwareMachine.llSharedFolders.size())
+            for (SharedFoldersList::const_iterator it = hardwareMachine.llSharedFolders.begin();
+                 it != hardwareMachine.llSharedFolders.end();
+                 ++it)
+                if (it->strAutoMountPoint.isNotEmpty())
+                {
+                    m->sv = SettingsVersion_v1_17;
+                    return;
+                }
+
+        /*
+         * Check if any serial port uses a non 16550A serial port.
+         */
+        for (SerialPortsList::const_iterator it = hardwareMachine.llSerialPorts.begin();
+             it != hardwareMachine.llSerialPorts.end();
+             ++it)
+        {
+            const SerialPort &port = *it;
+            if (port.uartType != UartType_U16550A)
+            {
+                m->sv = SettingsVersion_v1_17;
+                return;
+            }
+        }
+    }
+
     if (m->sv < SettingsVersion_v1_16)
     {
         // VirtualBox 5.1 adds a NVMe storage controller, paravirt debug
@@ -6983,9 +7343,7 @@ void MachineConfigFile::bumpSettingsVersionIfNeeded()
             || hardwareMachine.fIBPBOnVMExit
             || hardwareMachine.fIBPBOnVMEntry
             || hardwareMachine.fSpecCtrl
-            || hardwareMachine.fSpecCtrlByHost
-            || !hardwareMachine.fL1DFlushOnSched
-            || hardwareMachine.fL1DFlushOnVMEntry)
+            || hardwareMachine.fSpecCtrlByHost)
         {
             m->sv = SettingsVersion_v1_16;
             return;
@@ -7100,12 +7458,12 @@ void MachineConfigFile::bumpSettingsVersionIfNeeded()
     if (m->sv < SettingsVersion_v1_14)
     {
         // VirtualBox 4.3 adds default frontend setting, graphics controller
-        // setting, explicit long mode setting, video capturing and NAT networking.
+        // setting, explicit long mode setting, (video) capturing and NAT networking.
         if (   !hardwareMachine.strDefaultFrontend.isEmpty()
             || hardwareMachine.graphicsControllerType != GraphicsControllerType_VBoxVGA
             || hardwareMachine.enmLongMode != Hardware::LongMode_Legacy
             || machineUserData.ovIcon.size() > 0
-            || hardwareMachine.fVideoCaptureEnabled)
+            || hardwareMachine.recordingSettings.fEnabled)
         {
             m->sv = SettingsVersion_v1_14;
             return;

@@ -1,4 +1,4 @@
-# $Revision: 119168 $
+# $Revision: 119722 $
 ## @file
 # VirtualBox Guest Additions Module Makefile.
 #
@@ -82,14 +82,22 @@ MOD_OBJS   = \
 	common/misc/assert.o \
 	common/misc/thread.o \
 	common/string/RTStrCat.o \
+	common/string/RTStrCmp.o \
 	common/string/RTStrCopy.o \
 	common/string/RTStrCopyEx.o \
 	common/string/RTStrCopyP.o \
+	common/string/RTStrICmpAscii.o \
+	common/string/RTStrNICmpAscii.o \
+	common/string/RTStrNCmp.o \
+	common/string/RTStrNLen.o \
+	common/string/stringalloc.o \
 	common/string/strformat.o \
+	common/string/strformatnum.o \
 	common/string/strformatrt.o \
 	common/string/strformattype.o \
 	common/string/strprintf.o \
 	common/string/strtonum.o \
+	common/string/utf-8.o \
 	common/table/avlpv.o \
 	common/time/time.o \
 	generic/RTAssertShouldPanic-generic.o \

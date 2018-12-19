@@ -23,6 +23,7 @@
 #include <QSet>
 
 /* GUI includes: */
+#include "UILibraryDefs.h"
 #include "UIMedium.h"
 #include "QIWithRetranslateUI.h"
 
@@ -31,23 +32,23 @@ class UIThreadPool;
 class UITask;
 
 /* Typedefs: */
-typedef QMap<QString, CMedium> CMediumMap;
+typedef QMap<QUuid, CMedium> CMediumMap;
 
 /* Medium-enumerator prototype.
  * Manages access to medium information using thread-pool interface. */
-class UIMediumEnumerator : public QIWithRetranslateUI3<QObject>
+class SHARED_LIBRARY_STUFF UIMediumEnumerator : public QIWithRetranslateUI3<QObject>
 {
     Q_OBJECT;
 
 signals:
 
     /* Notifiers: Medium-operations stuff: */
-    void sigMediumCreated(const QString &strMediumID);
-    void sigMediumDeleted(const QString &strMediumID);
+    void sigMediumCreated(const QUuid &uMediumID);
+    void sigMediumDeleted(const QUuid &uMediumID);
 
     /* Notifiers: Medium-enumeration stuff: */
     void sigMediumEnumerationStarted();
-    void sigMediumEnumerated(const QString &strMediumID);
+    void sigMediumEnumerated(const QUuid &uMediumID);
     void sigMediumEnumerationFinished();
 
 public:
@@ -56,23 +57,24 @@ public:
     UIMediumEnumerator();
 
     /* API: Medium-access stuff: */
-    QList<QString> mediumIDs() const;
-    UIMedium medium(const QString &strMediumID);
+    QList<QUuid> mediumIDs() const;
+    UIMedium medium(const QUuid &uMediumID);
     void createMedium(const UIMedium &medium);
-    void deleteMedium(const QString &strMediumID);
+    void deleteMedium(const QUuid &uMediumID);
 
     /* API: Medium-enumeration stuff: */
     bool isMediumEnumerationInProgress() const { return m_fMediumEnumerationInProgress; }
-    void enumerateMediums();
+    void enumerateMedia(const CMediumVector &mediaList = CMediumVector());
+    void refreshMedia();
 
 private slots:
 
     /** Handles machine-data-change and snapshot-change events. */
-    void sltHandleMachineUpdate(QString strMachineID);
+    void sltHandleMachineUpdate(const QUuid &uMachineID);
     /** Handles machine-[un]registration events. */
-    void sltHandleMachineRegistration(QString strMachineID, bool fRegistered);
+    void sltHandleMachineRegistration(const QUuid &uMachineID, const bool fRegistered);
     /** Handles snapshot-deleted events. */
-    void sltHandleSnapshotDeleted(QString strMachineID, QString strSnapshotID);
+    void sltHandleSnapshotDeleted(const QUuid &uMachineID, const QUuid &uSnapshotID);
 
     /* Handler: Medium-enumeration stuff: */
     void sltHandleMediumEnumerationTaskComplete(UITask *pTask);
@@ -84,23 +86,21 @@ private:
 
     /* Helpers: Medium-enumeration stuff: */
     void createMediumEnumerationTask(const UIMedium &medium);
-    void addNullMediumToMap(UIMediumMap &mediums);
-    void addMediumsToMap(const CMediumVector &inputMediums, UIMediumMap &outputMediums, UIMediumType mediumType);
-    void addHardDisksToMap(const CMediumVector &inputMediums, UIMediumMap &outputMediums);
+    void addNullMediumToMap(UIMediumMap &media);
+    void addMediaToMap(const CMediumVector &inputMedia, UIMediumMap &outputMedia);
 
     /* Helpers: Medium re-caching stuff: */
-    void calculateCachedUsage(const QString &strMachineID, QStringList &previousUIMediumIDs, bool fTakeIntoAccountCurrentStateOnly) const;
-    void calculateActualUsage(const QString &strMachineID, CMediumMap &currentCMediums, QStringList &currentCMediumIDs, bool fTakeIntoAccountCurrentStateOnly) const;
-    void calculateActualUsage(const CSnapshot &snapshot, CMediumMap &currentCMediums, QStringList &currentCMediumIDs) const;
-    void calculateActualUsage(const CMachine &machine, CMediumMap &currentCMediums, QStringList &currentCMediumIDs) const;
-    void recacheFromCachedUsage(const QStringList &previousUIMediumIDs);
-    void recacheFromActualUsage(const CMediumMap &currentCMediums, const QStringList &currentCMediumIDs);
+    void calculateCachedUsage(const QUuid &uMachineID, QList<QUuid> &previousUIMediumIDs, const bool fTakeIntoAccountCurrentStateOnly) const;
+    void calculateActualUsage(const QUuid &uMachineID, CMediumMap &currentCMediums, QList<QUuid> &currentCMediumIDs, const bool fTakeIntoAccountCurrentStateOnly) const;
+    void calculateActualUsage(const CSnapshot &snapshot, CMediumMap &currentCMediums, QList<QUuid> &currentCMediumIDs) const;
+    void calculateActualUsage(const CMachine &machine, CMediumMap &currentCMediums, QList<QUuid> &currentCMediumIDs) const;
+    void recacheFromCachedUsage(const QList<QUuid> &previousUIMediumIDs);
+    void recacheFromActualUsage(const CMediumMap &currentCMediums, const QList<QUuid> &currentCMediumIDs);
 
     /* Variables: */
     bool m_fMediumEnumerationInProgress;
     QSet<UITask*> m_tasks;
-    UIMediumMap m_mediums;
+    UIMediumMap m_media;
 };
 
 #endif /* !___UIMediumEnumerator_h___ */
-

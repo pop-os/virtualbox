@@ -13,7 +13,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,16 +36,20 @@
 #ifndef ___VBox_com_VirtualBox_h
 #define ___VBox_com_VirtualBox_h
 
-// generated VirtualBox COM library definition file
+/* For XPCOM/C++ enum hack checks. */
+#include <iprt/assertcompile.h>
+
+/* Generated VirtualBox COM library definition file. */
 #if !defined(VBOXCOM_NOINCLUDE)
 # if !defined(VBOX_WITH_XPCOM)
 #  include <VirtualBox.h>
 # else
+#  define VBOX_WITH_XPCOM_CPP_ENUM_HACK
 #  include <VirtualBox_XPCOM.h>
 # endif
 #endif
 
-// for convenience
+/* For convenience. */
 #include "VBox/com/defs.h"
 #include "VBox/com/ptr.h"
 

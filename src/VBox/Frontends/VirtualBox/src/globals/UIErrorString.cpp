@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,11 +20,12 @@
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
+#include <QApplication>
 #include <QObject>
 
 /* GUI includes: */
-#include "UIErrorString.h"
 #include "VBoxGlobal.h"
+#include "UIErrorString.h"
 
 /* COM includes: */
 #include "COMDefs.h"

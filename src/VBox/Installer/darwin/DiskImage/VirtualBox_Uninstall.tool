@@ -199,6 +199,18 @@ if test "$my_default_prompt" != "Yes"; then
     echo ""
 fi
 
+my_fuse_macos_core_uninstall=0
+if test "$my_default_prompt" != "Yes" -a -f "/Library/Filesystems/osxfuse.fs/Contents/Resources/uninstall_osxfuse.app/Contents/Resources/Scripts/uninstall_osxfuse.sh"; then
+    echo "VirtualBox detected the FUSE for macOS core package which might've been installed"
+    echo "by VirtualBox itself for the vboximg-mount utility. Do you wish to uninstall"
+    echo "the FUSE for macOS core package (Yes/No)?"
+    read my_answer
+    if test "$my_answer" == "Yes"  -o  "$my_answer" == "YES"  -o  "$my_answer" == "yes"; then
+        my_fuse_macos_core_uninstall=1;
+    fi
+    echo ""
+fi
+
 #
 # Unregister has to be done before the files are removed.
 #
@@ -225,8 +237,14 @@ if test -n "${my_files[*]}"  -o  -n "${my_directories[*]}"; then
         test -x /bin/rm       || echo "warning: Cannot find /bin/rm or it's not an executable"
         echo ""
         echo "The uninstall failed. Please retry."
+        test "$my_default_prompt" != "Yes" && read -p "Press <ENTER> to exit"
         exit 1;
     fi
+fi
+
+if test "$my_fuse_macos_core_uninstall" != 0; then
+    echo "Uninstalling the FUSE for macOS core package"
+    /usr/bin/sudo -p "Please enter %u's password:" /Library/Filesystems/osxfuse.fs/Contents/Resources/uninstall_osxfuse.app/Contents/Resources/Scripts/uninstall_osxfuse.sh
 fi
 
 my_rc=0
@@ -245,6 +263,7 @@ if test "$my_rc" -eq 0; then
     echo "Successfully unloaded VirtualBox kernel extensions."
 else
     echo "Failed to unload one or more KEXTs, please reboot the machine to complete the uninstall."
+    test "$my_default_prompt" != "Yes" && read -p "Press <ENTER> to exit"
     exit 1;
 fi
 

@@ -18,14 +18,17 @@
 #ifndef __UIWizardFirstRunPageBasic_h__
 #define __UIWizardFirstRunPageBasic_h__
 
-/* Local includes: */
+/* Qt includes: */
+#include <QUuid>
+
+/* GUI includes: */
 #include "UIWizardPage.h"
 
 /* Forward declarations: */
 class CMachine;
-class VBoxMediaComboBox;
-class QIToolButton;
 class QIRichTextLabel;
+class QIToolButton;
+class UIMediaComboBox;
 
 /* Single page of the First Run wizard (base part): */
 class UIWizardFirstRunPage : public UIWizardPageBase
@@ -39,14 +42,14 @@ protected:
     void onOpenMediumWithFileOpenDialog();
 
     /* Stuff for 'id' field: */
-    QString id() const;
-    void setId(const QString &strId);
+    QUuid id() const;
+    void setId(const QUuid &uId);
 
     /* Variables: */
     bool m_fBootHardDiskWasSet;
 
     /* Widgets: */
-    VBoxMediaComboBox *m_pMediaSelector;
+    UIMediaComboBox *m_pMediaSelector;
     QIToolButton *m_pSelectMediaButton;
 };
 
@@ -55,12 +58,12 @@ class UIWizardFirstRunPageBasic : public UIWizardPage, public UIWizardFirstRunPa
 {
     Q_OBJECT;
     Q_PROPERTY(QString source READ source);
-    Q_PROPERTY(QString id READ id WRITE setId);
+    Q_PROPERTY(QUuid id READ id WRITE setId);
 
 public:
 
     /* Constructor: */
-    UIWizardFirstRunPageBasic(const QString &strMachineId, bool fBootHardDiskWasSet);
+    UIWizardFirstRunPageBasic(const QUuid &uMachineId, bool fBootHardDiskWasSet);
 
 protected:
 

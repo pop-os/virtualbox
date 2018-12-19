@@ -28,7 +28,6 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#include <iprt/filesystem.h>
 #include <iprt/vfs.h>
 #include <iprt/err.h>
 #include <iprt/test.h>
@@ -47,10 +46,10 @@ static int tstRTFilesystem(RTTEST hTest, RTVFSFILE hVfsFile)
 
     RTTestSubF(hTest, "Create filesystem object");
 
-    rc = RTFilesystemVfsFromFile(hVfsFile, &hVfs);
+    rc = RTVfsMountVol(hVfsFile,  RTVFSMNT_F_READ_ONLY | RTVFSMNT_F_FOR_RANGE_IN_USE, &hVfs, NULL);
     if (RT_FAILURE(rc))
     {
-        RTTestIFailed("RTFilesystemVfsFromFile -> %Rrc", rc);
+        RTTestIFailed("RTVfsMountVol -> %Rrc", rc);
         return rc;
     }
 
@@ -71,7 +70,7 @@ static int tstRTFilesystem(RTTEST hTest, RTVFSFILE hVfsFile)
     {
         bool fUsed = false;
 
-        rc = RTVfsIsRangeInUse(hVfs, off, 1024, &fUsed);
+        rc = RTVfsQueryRangeState(hVfs, off, 1024, &fUsed);
         if (RT_FAILURE(rc))
         {
             RTTestIFailed("RTVfsIsRangeInUse -> %Rrc", rc);

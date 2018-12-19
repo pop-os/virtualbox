@@ -26,6 +26,7 @@
 
 /* GUI includes: */
 #include "QIWithRetranslateUI.h"
+#include "UIExtraDataDefs.h"
 
 /* COM includes: */
 #include "COMEnums.h"
@@ -37,6 +38,95 @@ class QCheckBox;
 class QLabel;
 class QTextEdit;
 class QITreeView;
+class QVBoxLayout;
+
+
+/** Abstract VSD parameter kinds. */
+enum AbstractVSDParameterKind
+{
+    ParameterKind_Invalid,
+    ParameterKind_Bool,
+    ParameterKind_Double,
+    ParameterKind_String,
+    ParameterKind_Array
+};
+
+/** Abstract VSD parameter of Bool type, internal level. */
+struct AbstractVSDParameterBool
+{
+    /** Public default constructor to fit Q_DECLARE_METATYPE rule. */
+    AbstractVSDParameterBool()
+        : value(false) {}
+    /** Public copy constructor to fit Q_DECLARE_METATYPE rule. */
+    AbstractVSDParameterBool(const AbstractVSDParameterBool &other)
+        : value(other.value) {}
+    /** Holds the value. */
+    bool value;
+};
+Q_DECLARE_METATYPE(AbstractVSDParameterBool);
+
+/** Abstract VSD parameter of Double type, internal level. */
+struct AbstractVSDParameterDouble
+{
+    /** Public default constructor to fit Q_DECLARE_METATYPE rule. */
+    AbstractVSDParameterDouble()
+        : minimum(0), maximum(0), unit(QString()) {}
+    /** Public copy constructor to fit Q_DECLARE_METATYPE rule. */
+    AbstractVSDParameterDouble(const AbstractVSDParameterDouble &other)
+        : minimum(other.minimum), maximum(other.maximum), unit(other.unit) {}
+    /** Holds the minimum/base value. */
+    double   minimum;
+    /** Holds the maximum value. */
+    double   maximum;
+    /** Holds the unit. */
+    QString  unit;
+};
+Q_DECLARE_METATYPE(AbstractVSDParameterDouble);
+
+/** Abstract VSD parameter of String type, internal level. */
+struct AbstractVSDParameterString
+{
+    /** Public default constructor to fit Q_DECLARE_METATYPE rule. */
+    AbstractVSDParameterString()
+        : value(QString()) {}
+    /** Public copy constructor to fit Q_DECLARE_METATYPE rule. */
+    AbstractVSDParameterString(const AbstractVSDParameterString &other)
+        : value(other.value) {}
+    /** Holds the value. */
+    QString value;
+};
+Q_DECLARE_METATYPE(AbstractVSDParameterString);
+
+/** Abstract VSD parameter of Array type, internal level. */
+struct AbstractVSDParameterArray
+{
+    /** Public default constructor to fit Q_DECLARE_METATYPE rule. */
+    AbstractVSDParameterArray()
+        : values(QIStringPairList()) {}
+    /** Public copy constructor to fit Q_DECLARE_METATYPE rule. */
+    AbstractVSDParameterArray(const AbstractVSDParameterArray &other)
+        : values(other.values) {}
+    /** Holds the values array. */
+    QIStringPairList values;
+};
+Q_DECLARE_METATYPE(AbstractVSDParameterArray);
+
+/** Abstract VSD parameter interface, facade level. */
+struct AbstractVSDParameter
+{
+    /** Holds the parameter name. */
+    QString                        name;
+    /** Holds the parameter type. */
+    KVirtualSystemDescriptionType  type;
+    /** Holds the parameter kind. */
+    AbstractVSDParameterKind       kind;
+    /** Holds the parameter abstract getter. */
+    QVariant                       get;
+};
+
+/** Abstract VSD parameter list. */
+typedef QList<AbstractVSDParameter> AbstractVSDParameterList;
+Q_DECLARE_METATYPE(AbstractVSDParameterList);
 
 
 /** Appliance tree-view section types. */
@@ -101,7 +191,21 @@ public:
     /** Cache currently stored values. */
     void putBack();
 
+    void setVirtualSystemBaseFolder(const QString& path);
+
+    /** Defines the list of VSD @a hints. */
+    void setVsdHints(const AbstractVSDParameterList &hints);
+    /** Returns a name hint for certain VSD @a enmType. */
+    QString nameHint(KVirtualSystemDescriptionType enmType) const;
+    /** Returns a kind hint for certain VSD @a enmType. */
+    AbstractVSDParameterKind kindHint(KVirtualSystemDescriptionType enmType) const;
+    /** Returns a value hint for certain VSD @a enmType. */
+    QVariant getHint(KVirtualSystemDescriptionType enmType) const;
+
 private:
+
+    /** Holds the list of VSD hints. */
+    AbstractVSDParameterList  m_listVsdHints;
 
     /** Holds the root item reference. */
     UIApplianceModelItem *m_pRootItem;
@@ -186,6 +290,9 @@ public:
     /** Constructs the Appliance Editor widget passing @a pParent to the base-class. */
     UIApplianceEditorWidget(QWidget *pParent = 0);
 
+    /** Defines the list of VSD @a hints. */
+    void setVsdHints(const AbstractVSDParameterList &hints);
+
     /** Returns whether the Appliance Editor has valid state. */
     bool isValid() const { return m_pAppliance != 0; }
     /** Returns the currently set appliance reference. */
@@ -210,17 +317,22 @@ protected:
     /** Handles translation event. */
     virtual void retranslateUi() /* override */;
 
+    void setVirtualSystemBaseFolder(const QString& path);
+
+    /** Holds the list of VSD hints. */
+    AbstractVSDParameterList  m_listVsdHints;
+
     /** Holds the currently set appliance reference. */
     CAppliance         *m_pAppliance;
     /** Holds the Appliance model reference. */
     UIApplianceModel *m_pModel;
 
+    QVBoxLayout *m_pLayout;
+
     /** Holds the information pane instance. */
     QWidget   *m_pPaneInformation;
     /** Holds the settings tree-view instance. */
     QITreeView *m_pTreeViewSettings;
-    /** Holds the 'reinit MACs' check-box instance. */
-    QCheckBox *m_pCheckBoxReinitMACs;
 
     /** Holds the warning pane instance. */
     QWidget   *m_pPaneWarning;
@@ -245,4 +357,3 @@ private:
 };
 
 #endif /* !___UIApplianceEditorWidget_h___ */
-

@@ -909,6 +909,8 @@ typedef struct VBVABUFFER
 #define VBVA_INFO_HEAP    4
 #define VBVA_FLUSH        5
 #define VBVA_INFO_SCREEN  6
+/** Enables or disables VBVA.  Enabling VBVA without disabling it before
+ * causes a complete screen update. */
 #define VBVA_ENABLE       7
 #define VBVA_MOUSE_POINTER_SHAPE 8
 #ifdef VBOX_WITH_VIDEOHWACCEL
@@ -1285,8 +1287,11 @@ typedef struct VBVAREPORTINPUTMAPPING
 } VBVAREPORTINPUTMAPPING;
 
 /** Report the guest cursor position and query the host one.  The host may wish
- *  to use the guest information to re-position its own cursor (though this is
- *  currently unlikely).
+ *  to use the guest information to re-position its own cursor, particularly
+ *  when the cursor is captured and the guest does not support switching to a
+ *  software cursor.  After every mode switch the guest must signal that it
+ *  supports sending position information by sending an event with
+ *  @a fReportPosition set to false.
  *  @see VBVA_CURSOR_POSITION */
 typedef struct VBVACURSORPOSITION
 {

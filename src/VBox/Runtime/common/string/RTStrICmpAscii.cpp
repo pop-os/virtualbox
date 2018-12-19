@@ -1,6 +1,6 @@
 /* $Id: RTStrICmpAscii.cpp $ */
 /** @file
- * IPRT - RTUtf16ICmpAscii.
+ * IPRT - RTStrICmpAscii.
  */
 
 /*

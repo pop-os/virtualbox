@@ -24,64 +24,61 @@
 #include "HMInternal.h"
 #include <VBox/vmm/apic.h>
 #include <VBox/vmm/gim.h>
-#include <VBox/vmm/hm.h>
 #include <VBox/vmm/iem.h>
 #include <VBox/vmm/vm.h>
-#include <VBox/vmm/hm_svm.h>
 
 
 #ifndef IN_RC
+
 /**
- * Emulates a simple MOV TPR (CR8) instruction, used for TPR patching on 32-bit
- * guests. This simply looks up the patch record at EIP and does the required.
+ * Emulates a simple MOV TPR (CR8) instruction.
+ *
+ * Used for TPR patching on 32-bit guests. This simply looks up the patch record
+ * at EIP and does the required.
  *
  * This VMMCALL is used a fallback mechanism when mov to/from cr8 isn't exactly
  * like how we want it to be (e.g. not followed by shr 4 as is usually done for
  * TPR). See hmR3ReplaceTprInstr() for the details.
  *
  * @returns VBox status code.
- * @retval VINF_SUCCESS if the access was handled successfully.
+ * @retval VINF_SUCCESS if the access was handled successfully, RIP + RFLAGS updated.
  * @retval VERR_NOT_FOUND if no patch record for this RIP could be found.
  * @retval VERR_SVM_UNEXPECTED_PATCH_TYPE if the found patch type is invalid.
  *
  * @param   pVCpu               The cross context virtual CPU structure.
  * @param   pCtx                Pointer to the guest-CPU context.
- * @param   pfUpdateRipAndRF    Whether the guest RIP/EIP has been updated as
- *                              part of the TPR patch operation.
  */
-static int hmSvmEmulateMovTpr(PVMCPU pVCpu, PCPUMCTX pCtx, bool *pfUpdateRipAndRF)
+int hmSvmEmulateMovTpr(PVMCPU pVCpu)
 {
+    PCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
     Log4(("Emulated VMMCall TPR access replacement at RIP=%RGv\n", pCtx->rip));
 
     /*
      * We do this in a loop as we increment the RIP after a successful emulation
      * and the new RIP may be a patched instruction which needs emulation as well.
      */
-    bool fUpdateRipAndRF = false;
-    bool fPatchFound     = false;
+    bool fPatchFound = false;
     PVM  pVM = pVCpu->CTX_SUFF(pVM);
     for (;;)
     {
-        bool    fPending;
-        uint8_t u8Tpr;
-
         PHMTPRPATCH pPatch = (PHMTPRPATCH)RTAvloU32Get(&pVM->hm.s.PatchTree, (AVLOU32KEY)pCtx->eip);
         if (!pPatch)
             break;
-
         fPatchFound = true;
+
+        uint8_t u8Tpr;
         switch (pPatch->enmType)
         {
             case HMTPRINSTR_READ:
             {
-                int rc = APICGetTpr(pVCpu, &u8Tpr, &fPending, NULL /* pu8PendingIrq */);
+                bool fPending;
+                int  rc = APICGetTpr(pVCpu, &u8Tpr, &fPending, NULL /* pu8PendingIrq */);
                 AssertRC(rc);
 
                 rc = DISWriteReg32(CPUMCTX2CORE(pCtx), pPatch->uDstOperand, u8Tpr);
                 AssertRC(rc);
                 pCtx->rip += pPatch->cbOp;
                 pCtx->eflags.Bits.u1RF = 0;
-                fUpdateRipAndRF = true;
                 break;
             }
 
@@ -100,11 +97,11 @@ static int hmSvmEmulateMovTpr(PVMCPU pVCpu, PCPUMCTX pCtx, bool *pfUpdateRipAndR
 
                 int rc2 = APICSetTpr(pVCpu, u8Tpr);
                 AssertRC(rc2);
-                HMCPU_CF_SET(pVCpu, HM_CHANGED_SVM_GUEST_APIC_STATE);
-
                 pCtx->rip += pPatch->cbOp;
                 pCtx->eflags.Bits.u1RF = 0;
-                fUpdateRipAndRF = true;
+                ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_GUEST_APIC_TPR
+                                                         | HM_CHANGED_GUEST_RIP
+                                                         | HM_CHANGED_GUEST_RFLAGS);
                 break;
             }
 
@@ -112,94 +109,191 @@ static int hmSvmEmulateMovTpr(PVMCPU pVCpu, PCPUMCTX pCtx, bool *pfUpdateRipAndR
             {
                 AssertMsgFailed(("Unexpected patch type %d\n", pPatch->enmType));
                 pVCpu->hm.s.u32HMError = pPatch->enmType;
-                *pfUpdateRipAndRF = fUpdateRipAndRF;
                 return VERR_SVM_UNEXPECTED_PATCH_TYPE;
             }
         }
     }
 
-    *pfUpdateRipAndRF = fUpdateRipAndRF;
-    if (fPatchFound)
-        return VINF_SUCCESS;
-    return VERR_NOT_FOUND;
+    return fPatchFound ? VINF_SUCCESS : VERR_NOT_FOUND;
 }
-#endif /* !IN_RC */
+
+# ifdef VBOX_WITH_NESTED_HWVIRT_SVM
+/**
+ * Notification callback for when a \#VMEXIT happens outside SVM R0 code (e.g.
+ * in IEM).
+ *
+ * @param   pVCpu           The cross context virtual CPU structure.
+ * @param   pCtx            Pointer to the guest-CPU context.
+ *
+ * @sa      hmR0SvmVmRunCacheVmcb.
+ */
+VMM_INT_DECL(void) HMSvmNstGstVmExitNotify(PVMCPU pVCpu, PCPUMCTX pCtx)
+{
+    PSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
+    if (pVmcbNstGstCache->fCacheValid)
+    {
+        /*
+         * Restore fields as our own code might look at the VMCB controls as part
+         * of the #VMEXIT handling in IEM. Otherwise, strictly speaking we don't need to
+         * restore these fields because currently none of them are written back to memory
+         * by a physical CPU on #VMEXIT.
+         */
+        PSVMVMCBCTRL pVmcbNstGstCtrl = &pCtx->hwvirt.svm.CTX_SUFF(pVmcb)->ctrl;
+        pVmcbNstGstCtrl->u16InterceptRdCRx                 = pVmcbNstGstCache->u16InterceptRdCRx;
+        pVmcbNstGstCtrl->u16InterceptWrCRx                 = pVmcbNstGstCache->u16InterceptWrCRx;
+        pVmcbNstGstCtrl->u16InterceptRdDRx                 = pVmcbNstGstCache->u16InterceptRdDRx;
+        pVmcbNstGstCtrl->u16InterceptWrDRx                 = pVmcbNstGstCache->u16InterceptWrDRx;
+        pVmcbNstGstCtrl->u16PauseFilterThreshold           = pVmcbNstGstCache->u16PauseFilterThreshold;
+        pVmcbNstGstCtrl->u16PauseFilterCount               = pVmcbNstGstCache->u16PauseFilterCount;
+        pVmcbNstGstCtrl->u32InterceptXcpt                  = pVmcbNstGstCache->u32InterceptXcpt;
+        pVmcbNstGstCtrl->u64InterceptCtrl                  = pVmcbNstGstCache->u64InterceptCtrl;
+        pVmcbNstGstCtrl->u64TSCOffset                      = pVmcbNstGstCache->u64TSCOffset;
+        pVmcbNstGstCtrl->IntCtrl.n.u1VIntrMasking          = pVmcbNstGstCache->fVIntrMasking;
+        pVmcbNstGstCtrl->NestedPagingCtrl.n.u1NestedPaging = pVmcbNstGstCache->fNestedPaging;
+        pVmcbNstGstCtrl->LbrVirt.n.u1LbrVirt               = pVmcbNstGstCache->fLbrVirt;
+        pVmcbNstGstCache->fCacheValid = false;
+    }
+
+    /*
+     * Transitions to ring-3 flag a full CPU-state change except if we transition to ring-3
+     * in response to a physical CPU interrupt as no changes to the guest-CPU state are
+     * expected (see VINF_EM_RAW_INTERRUPT handling in hmR0SvmExitToRing3).
+     *
+     * However, with nested-guests, the state -can- change on trips to ring-3 for we might
+     * try to inject a nested-guest physical interrupt and cause a SVM_EXIT_INTR #VMEXIT for
+     * the nested-guest from ring-3. Import the complete state here as we will be swapping
+     * to the guest VMCB after the #VMEXIT.
+     */
+    CPUMImportGuestStateOnDemand(pVCpu, CPUMCTX_EXTRN_ALL);
+    AssertMsg(!(pVCpu->cpum.GstCtx.fExtrn & CPUMCTX_EXTRN_ALL),
+              ("fExtrn=%#RX64 fExtrnMbz=%#RX64\n", pVCpu->cpum.GstCtx.fExtrn, CPUMCTX_EXTRN_ALL));
+    ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_ALL_GUEST);
+}
+# endif
+
+/**
+ * Checks if the Virtual GIF (Global Interrupt Flag) feature is supported and
+ * enabled for the VM.
+ *
+ * @returns @c true if VGIF is enabled, @c false otherwise.
+ * @param   pVM         The cross context VM structure.
+ *
+ * @remarks This value returned by this functions is expected by the callers not
+ *          to change throughout the lifetime of the VM.
+ */
+VMM_INT_DECL(bool) HMSvmIsVGifActive(PVM pVM)
+{
+    bool const fVGif    = RT_BOOL(pVM->hm.s.svm.u32Features & X86_CPUID_SVM_FEATURE_EDX_VGIF);
+    bool const fUseVGif = fVGif && pVM->hm.s.svm.fVGif;
+    return fVGif && fUseVGif;
+}
 
 
 /**
- * Performs the operations necessary that are part of the vmmcall instruction
- * execution in the guest.
+ * Applies the TSC offset of an SVM nested-guest if any and returns the new TSC
+ * value for the nested-guest.
  *
- * @returns Strict VBox status code (i.e. informational status codes too).
- * @retval  VINF_SUCCESS on successful handling, no \#UD needs to be thrown,
- *          update RIP and eflags.RF depending on @a pfUpdatedRipAndRF and
- *          continue guest execution.
- * @retval  VINF_GIM_HYPERCALL_CONTINUING continue hypercall without updating
- *          RIP.
- * @retval  VINF_GIM_R3_HYPERCALL re-start the hypercall from ring-3.
+ * @returns The TSC offset after applying any nested-guest TSC offset.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
+ * @param   uTicks      The guest TSC.
+ *
+ * @remarks This function looks at the VMCB cache rather than directly at the
+ *          nested-guest VMCB. The latter may have been modified for executing
+ *          using hardware-assisted SVM.
+ *
+ * @note    If you make any changes to this function, please check if
+ *          hmR0SvmNstGstUndoTscOffset() needs adjusting.
+ *
+ * @sa      CPUMApplyNestedGuestTscOffset(), hmR0SvmNstGstUndoTscOffset().
+ */
+VMM_INT_DECL(uint64_t) HMSvmNstGstApplyTscOffset(PVMCPU pVCpu, uint64_t uTicks)
+{
+    PCCPUMCTX pCtx = &pVCpu->cpum.GstCtx;
+    Assert(CPUMIsGuestInSvmNestedHwVirtMode(pCtx)); RT_NOREF(pCtx);
+    PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
+    Assert(pVmcbNstGstCache->fCacheValid);
+    return uTicks + pVmcbNstGstCache->u64TSCOffset;
+}
+
+
+/**
+ * Interface used by IEM to handle patched TPR accesses.
+ *
+ * @returns VBox status code
+ * @retval  VINF_SUCCESS if hypercall was handled, RIP + RFLAGS all dealt with.
+ * @retval  VERR_NOT_FOUND if hypercall was _not_ handled.
+ * @retval  VERR_SVM_UNEXPECTED_PATCH_TYPE on IPE.
  *
  * @param   pVCpu               The cross context virtual CPU structure.
- * @param   pCtx                Pointer to the guest-CPU context.
- * @param   pfUpdatedRipAndRF   Whether the guest RIP/EIP has been updated as
- *                              part of handling the VMMCALL operation.
  */
-VMM_INT_DECL(VBOXSTRICTRC) HMSvmVmmcall(PVMCPU pVCpu, PCPUMCTX pCtx, bool *pfUpdatedRipAndRF)
+VMM_INT_DECL(int) HMHCSvmMaybeMovTprHypercall(PVMCPU pVCpu)
 {
-#ifndef IN_RC
-    /*
-     * TPR patched instruction emulation for 32-bit guests.
-     */
     PVM pVM = pVCpu->CTX_SUFF(pVM);
     if (pVM->hm.s.fTprPatchingAllowed)
     {
-        int rc = hmSvmEmulateMovTpr(pVCpu, pCtx, pfUpdatedRipAndRF);
+        int rc = hmSvmEmulateMovTpr(pVCpu);
         if (RT_SUCCESS(rc))
             return VINF_SUCCESS;
-
-        if (rc != VERR_NOT_FOUND)
-        {
-            Log(("hmSvmExitVmmCall: hmSvmEmulateMovTpr returns %Rrc\n", rc));
-            return rc;
-        }
+        return rc;
     }
-#endif
-
-    /*
-     * Paravirtualized hypercalls.
-     */
-    *pfUpdatedRipAndRF = false;
-    if (pVCpu->hm.s.fHypercallsEnabled)
-        return GIMHypercall(pVCpu, pCtx);
-
-    return VERR_NOT_AVAILABLE;
+    return VERR_NOT_FOUND;
 }
 
 
 /**
- * Converts an SVM event type to a TRPM event type.
+ * Checks if the current AMD CPU is subject to erratum 170 "In SVM mode,
+ * incorrect code bytes may be fetched after a world-switch".
  *
- * @returns The TRPM event type.
- * @retval  TRPM_32BIT_HACK if the specified type of event isn't among the set
- *          of recognized trap types.
- *
- * @param   pEvent       Pointer to the SVM event.
+ * @param   pu32Family      Where to store the CPU family (can be NULL).
+ * @param   pu32Model       Where to store the CPU model (can be NULL).
+ * @param   pu32Stepping    Where to store the CPU stepping (can be NULL).
+ * @returns true if the erratum applies, false otherwise.
  */
-VMM_INT_DECL(TRPMEVENT) HMSvmEventToTrpmEventType(PCSVMEVENT pEvent)
+VMM_INT_DECL(int) HMSvmIsSubjectToErratum170(uint32_t *pu32Family, uint32_t *pu32Model, uint32_t *pu32Stepping)
 {
-    uint8_t const uType = pEvent->n.u3Type;
-    switch (uType)
+    /*
+     * Erratum 170 which requires a forced TLB flush for each world switch:
+     * See AMD spec. "Revision Guide for AMD NPT Family 0Fh Processors".
+     *
+     * All BH-G1/2 and DH-G1/2 models include a fix:
+     * Athlon X2:   0x6b 1/2
+     *              0x68 1/2
+     * Athlon 64:   0x7f 1
+     *              0x6f 2
+     * Sempron:     0x7f 1/2
+     *              0x6f 2
+     *              0x6c 2
+     *              0x7c 2
+     * Turion 64:   0x68 2
+     */
+    uint32_t u32Dummy;
+    uint32_t u32Version, u32Family, u32Model, u32Stepping, u32BaseFamily;
+    ASMCpuId(1, &u32Version, &u32Dummy, &u32Dummy, &u32Dummy);
+    u32BaseFamily = (u32Version >> 8) & 0xf;
+    u32Family     = u32BaseFamily + (u32BaseFamily == 0xf ? ((u32Version >> 20) & 0x7f) : 0);
+    u32Model      = ((u32Version >> 4) & 0xf);
+    u32Model      = u32Model | ((u32BaseFamily == 0xf ? (u32Version >> 16) & 0x0f : 0) << 4);
+    u32Stepping   = u32Version & 0xf;
+
+    bool fErratumApplies = false;
+    if (   u32Family == 0xf
+        && !((u32Model == 0x68 || u32Model == 0x6b || u32Model == 0x7f) && u32Stepping >= 1)
+        && !((u32Model == 0x6f || u32Model == 0x6c || u32Model == 0x7c) && u32Stepping >= 2))
     {
-        case SVM_EVENT_EXTERNAL_IRQ:    return TRPM_HARDWARE_INT;
-        case SVM_EVENT_SOFTWARE_INT:    return TRPM_SOFTWARE_INT;
-        case SVM_EVENT_EXCEPTION:
-        case SVM_EVENT_NMI:             return TRPM_TRAP;
-        default:
-            break;
+        fErratumApplies = true;
     }
-    AssertMsgFailed(("HMSvmEventToTrpmEvent: Invalid pending-event type %#x\n", uType));
-    return TRPM_32BIT_HACK;
+
+    if (pu32Family)
+        *pu32Family   = u32Family;
+    if (pu32Model)
+        *pu32Model    = u32Model;
+    if (pu32Stepping)
+        *pu32Stepping = u32Stepping;
+
+    return fErratumApplies;
 }
 
+#endif /* !IN_RC */
 
 /**
  * Gets the MSR permission bitmap byte and bit offset for the specified MSR.
@@ -211,7 +305,7 @@ VMM_INT_DECL(TRPMEVENT) HMSvmEventToTrpmEventType(PCSVMEVENT pEvent)
  * @param   puMsrpmBit  Where to store the bit offset starting at the byte
  *                      returned in @a pbOffMsrpm.
  */
-VMM_INT_DECL(int) HMSvmGetMsrpmOffsetAndBit(uint32_t idMsr, uint16_t *pbOffMsrpm, uint32_t *puMsrpmBit)
+VMM_INT_DECL(int) HMSvmGetMsrpmOffsetAndBit(uint32_t idMsr, uint16_t *pbOffMsrpm, uint8_t *puMsrpmBit)
 {
     Assert(pbOffMsrpm);
     Assert(puMsrpmBit);
@@ -229,8 +323,9 @@ VMM_INT_DECL(int) HMSvmGetMsrpmOffsetAndBit(uint32_t idMsr, uint16_t *pbOffMsrpm
     if (idMsr <= 0x00001fff)
     {
         /* Pentium-compatible MSRs. */
-        *pbOffMsrpm = 0;
-        *puMsrpmBit = idMsr << 1;
+        uint32_t const bitoffMsr = idMsr << 1;
+        *pbOffMsrpm = bitoffMsr >> 3;
+        *puMsrpmBit = bitoffMsr & 7;
         return VINF_SUCCESS;
     }
 
@@ -238,8 +333,9 @@ VMM_INT_DECL(int) HMSvmGetMsrpmOffsetAndBit(uint32_t idMsr, uint16_t *pbOffMsrpm
         && idMsr <= 0xc0001fff)
     {
         /* AMD Sixth Generation x86 Processor MSRs. */
-        *pbOffMsrpm = 0x800;
-        *puMsrpmBit = (idMsr - 0xc0000000) << 1;
+        uint32_t const bitoffMsr = (idMsr - 0xc0000000) << 1;
+        *pbOffMsrpm = 0x800 + (bitoffMsr >> 3);
+        *puMsrpmBit = bitoffMsr & 7;
         return VINF_SUCCESS;
     }
 
@@ -247,8 +343,9 @@ VMM_INT_DECL(int) HMSvmGetMsrpmOffsetAndBit(uint32_t idMsr, uint16_t *pbOffMsrpm
         && idMsr <= 0xc0011fff)
     {
         /* AMD Seventh and Eighth Generation Processor MSRs. */
-        *pbOffMsrpm = 0x1000;
-        *puMsrpmBit = (idMsr - 0xc0001000) << 1;
+        uint32_t const bitoffMsr = (idMsr - 0xc0010000) << 1;
+        *pbOffMsrpm = 0x1000 + (bitoffMsr >> 3);
+        *puMsrpmBit = bitoffMsr & 7;
         return VINF_SUCCESS;
     }
 
@@ -276,7 +373,7 @@ VMM_INT_DECL(bool) HMSvmIsIOInterceptActive(void *pvIoBitmap, uint16_t u16Port, 
                                             uint8_t cAddrSizeBits, uint8_t iEffSeg, bool fRep, bool fStrIo,
                                             PSVMIOIOEXITINFO pIoExitInfo)
 {
-    Assert(cAddrSizeBits == 0 || cAddrSizeBits == 16 || cAddrSizeBits == 32 || cAddrSizeBits == 64);
+    Assert(cAddrSizeBits == 16 || cAddrSizeBits == 32 || cAddrSizeBits == 64);
     Assert(cbReg == 1 || cbReg == 2 || cbReg == 4 || cbReg == 8);
 
     /*
@@ -313,9 +410,9 @@ VMM_INT_DECL(bool) HMSvmIsIOInterceptActive(void *pvIoBitmap, uint16_t u16Port, 
 
             pIoExitInfo->u         = s_auIoOpSize[cbReg & 7];
             pIoExitInfo->u        |= s_auIoAddrSize[(cAddrSizeBits >> 4) & 7];
-            pIoExitInfo->n.u1STR   = fStrIo;
-            pIoExitInfo->n.u1REP   = fRep;
-            pIoExitInfo->n.u3SEG   = iEffSeg & 7;
+            pIoExitInfo->n.u1Str   = fStrIo;
+            pIoExitInfo->n.u1Rep   = fRep;
+            pIoExitInfo->n.u3Seg   = iEffSeg & 7;
             pIoExitInfo->n.u1Type  = enmIoType;
             pIoExitInfo->n.u16Port = u16Port;
         }
@@ -324,51 +421,188 @@ VMM_INT_DECL(bool) HMSvmIsIOInterceptActive(void *pvIoBitmap, uint16_t u16Port, 
 
     /** @todo remove later (for debugging as VirtualBox always traps all IO
      *        intercepts). */
-    AssertMsgFailed(("iemSvmHandleIOIntercept: We expect an IO intercept here!\n"));
+    AssertMsgFailed(("CPUMSvmIsIOInterceptActive: We expect an IO intercept here!\n"));
     return false;
 }
 
 
-#ifdef VBOX_WITH_NESTED_HWVIRT
 /**
- * Notification callback for when a \#VMEXIT happens outside SVM R0 code (e.g.
- * in IEM).
+ * Converts an SVM event type to a TRPM event type.
  *
- * @param   pVCpu           The cross context virtual CPU structure.
- * @param   pCtx            Pointer to the guest-CPU context.
+ * @returns The TRPM event type.
+ * @retval  TRPM_32BIT_HACK if the specified type of event isn't among the set
+ *          of recognized trap types.
  *
- * @sa      hmR0SvmVmRunCacheVmcb.
+ * @param   pEvent       Pointer to the SVM event.
  */
-VMM_INT_DECL(void) HMSvmNstGstVmExitNotify(PVMCPU pVCpu, PCPUMCTX pCtx)
+VMM_INT_DECL(TRPMEVENT) HMSvmEventToTrpmEventType(PCSVMEVENT pEvent)
 {
-    /*
-     * Restore the nested-guest VMCB fields which have been modified for executing
-     * the nested-guest under SVM R0.
-     */
-    if (pCtx->hwvirt.svm.fHMCachedVmcb)
+    uint8_t const uType = pEvent->n.u3Type;
+    switch (uType)
     {
-        PSVMVMCB            pVmcbNstGst      = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
-        PSVMVMCBCTRL        pVmcbNstGstCtrl  = &pVmcbNstGst->ctrl;
-        PSVMVMCBSTATESAVE   pVmcbNstGstState = &pVmcbNstGst->guest;
-        PSVMNESTEDVMCBCACHE pNstGstVmcbCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
-
-        pVmcbNstGstCtrl->u16InterceptRdCRx        = pNstGstVmcbCache->u16InterceptRdCRx;
-        pVmcbNstGstCtrl->u16InterceptWrCRx        = pNstGstVmcbCache->u16InterceptWrCRx;
-        pVmcbNstGstCtrl->u16InterceptRdDRx        = pNstGstVmcbCache->u16InterceptRdDRx;
-        pVmcbNstGstCtrl->u16InterceptWrDRx        = pNstGstVmcbCache->u16InterceptWrDRx;
-        pVmcbNstGstCtrl->u32InterceptXcpt         = pNstGstVmcbCache->u32InterceptXcpt;
-        pVmcbNstGstCtrl->u64InterceptCtrl         = pNstGstVmcbCache->u64InterceptCtrl;
-        pVmcbNstGstState->u64CR3                  = pNstGstVmcbCache->u64CR3;
-        pVmcbNstGstState->u64CR4                  = pNstGstVmcbCache->u64CR4;
-        pVmcbNstGstState->u64EFER                 = pNstGstVmcbCache->u64EFER;
-        pVmcbNstGstCtrl->u64VmcbCleanBits         = pNstGstVmcbCache->u64VmcbCleanBits;
-        pVmcbNstGstCtrl->u64IOPMPhysAddr          = pNstGstVmcbCache->u64IOPMPhysAddr;
-        pVmcbNstGstCtrl->u64MSRPMPhysAddr         = pNstGstVmcbCache->u64MSRPMPhysAddr;
-        pVmcbNstGstCtrl->IntCtrl.n.u1VIntrMasking = pNstGstVmcbCache->fVIntrMasking;
-        pVmcbNstGstCtrl->TLBCtrl                  = pNstGstVmcbCache->TLBCtrl;
-        pVmcbNstGstCtrl->NestedPaging             = pNstGstVmcbCache->NestedPagingCtrl;
-        pCtx->hwvirt.svm.fHMCachedVmcb = false;
+        case SVM_EVENT_EXTERNAL_IRQ:    return TRPM_HARDWARE_INT;
+        case SVM_EVENT_SOFTWARE_INT:    return TRPM_SOFTWARE_INT;
+        case SVM_EVENT_EXCEPTION:
+        case SVM_EVENT_NMI:             return TRPM_TRAP;
+        default:
+            break;
     }
+    AssertMsgFailed(("HMSvmEventToTrpmEvent: Invalid pending-event type %#x\n", uType));
+    return TRPM_32BIT_HACK;
 }
-#endif
+
+
+/**
+ * Returns whether HM has cached the nested-guest VMCB.
+ *
+ * If the VMCB is cached by HM, it means HM may have potentially modified the
+ * VMCB for execution using hardware-assisted SVM.
+ *
+ * @returns true if HM has cached the nested-guest VMCB, false otherwise.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ */
+VMM_INT_DECL(bool) HMHasGuestSvmVmcbCached(PVMCPU pVCpu)
+{
+    PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
+    return pVmcbNstGstCache->fCacheValid;
+}
+
+
+/**
+ * Checks if the nested-guest VMCB has the specified ctrl/instruction intercept
+ * active.
+ *
+ * @returns @c true if in intercept is set, @c false otherwise.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
+ * @param   fIntercept  The SVM control/instruction intercept, see
+ *                      SVM_CTRL_INTERCEPT_*.
+ */
+VMM_INT_DECL(bool) HMIsGuestSvmCtrlInterceptSet(PVMCPU pVCpu, uint64_t fIntercept)
+{
+    Assert(HMHasGuestSvmVmcbCached(pVCpu));
+    PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
+    return RT_BOOL(pVmcbNstGstCache->u64InterceptCtrl & fIntercept);
+}
+
+
+/**
+ * Checks if the nested-guest VMCB has the specified CR read intercept active.
+ *
+ * @returns @c true if in intercept is set, @c false otherwise.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ * @param   uCr     The CR register number (0 to 15).
+ */
+VMM_INT_DECL(bool) HMIsGuestSvmReadCRxInterceptSet(PVMCPU pVCpu, uint8_t uCr)
+{
+    Assert(uCr < 16);
+    Assert(HMHasGuestSvmVmcbCached(pVCpu));
+    PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
+    return RT_BOOL(pVmcbNstGstCache->u16InterceptRdCRx & (1 << uCr));
+}
+
+
+/**
+ * Checks if the nested-guest VMCB has the specified CR write intercept active.
+ *
+ * @returns @c true if in intercept is set, @c false otherwise.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ * @param   uCr     The CR register number (0 to 15).
+ */
+VMM_INT_DECL(bool) HMIsGuestSvmWriteCRxInterceptSet(PVMCPU pVCpu, uint8_t uCr)
+{
+    Assert(uCr < 16);
+    Assert(HMHasGuestSvmVmcbCached(pVCpu));
+    PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
+    return RT_BOOL(pVmcbNstGstCache->u16InterceptWrCRx & (1 << uCr));
+}
+
+
+/**
+ * Checks if the nested-guest VMCB has the specified DR read intercept active.
+ *
+ * @returns @c true if in intercept is set, @c false otherwise.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ * @param   uDr     The DR register number (0 to 15).
+ */
+VMM_INT_DECL(bool) HMIsGuestSvmReadDRxInterceptSet(PVMCPU pVCpu, uint8_t uDr)
+{
+    Assert(uDr < 16);
+    Assert(HMHasGuestSvmVmcbCached(pVCpu));
+    PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
+    return RT_BOOL(pVmcbNstGstCache->u16InterceptRdDRx & (1 << uDr));
+}
+
+
+/**
+ * Checks if the nested-guest VMCB has the specified DR write intercept active.
+ *
+ * @returns @c true if in intercept is set, @c false otherwise.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ * @param   uDr     The DR register number (0 to 15).
+ */
+VMM_INT_DECL(bool) HMIsGuestSvmWriteDRxInterceptSet(PVMCPU pVCpu, uint8_t uDr)
+{
+    Assert(uDr < 16);
+    Assert(HMHasGuestSvmVmcbCached(pVCpu));
+    PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
+    return RT_BOOL(pVmcbNstGstCache->u16InterceptWrDRx & (1 << uDr));
+}
+
+
+/**
+ * Checks if the nested-guest VMCB has the specified exception intercept active.
+ *
+ * @returns true if in intercept is active, false otherwise.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
+ * @param   uVector     The exception / interrupt vector.
+ */
+VMM_INT_DECL(bool) HMIsGuestSvmXcptInterceptSet(PVMCPU pVCpu, uint8_t uVector)
+{
+    Assert(uVector < 32);
+    Assert(HMHasGuestSvmVmcbCached(pVCpu));
+    PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
+    return RT_BOOL(pVmcbNstGstCache->u32InterceptXcpt & (1 << uVector));
+}
+
+
+/**
+ * Checks if the nested-guest VMCB has virtual-interrupts masking enabled.
+ *
+ * @returns true if virtual-interrupts are masked, @c false otherwise.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ */
+VMM_INT_DECL(bool) HMIsGuestSvmVirtIntrMasking(PVMCPU pVCpu)
+{
+    Assert(HMHasGuestSvmVmcbCached(pVCpu));
+    PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
+    return pVmcbNstGstCache->fVIntrMasking;
+}
+
+
+/**
+ * Checks if the nested-guest VMCB has nested-paging enabled.
+ *
+ * @returns true if nested-paging is enabled, @c false otherwise.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ */
+VMM_INT_DECL(bool) HMIsGuestSvmNestedPagingEnabled(PVMCPU pVCpu)
+{
+    Assert(HMHasGuestSvmVmcbCached(pVCpu));
+    PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
+    return pVmcbNstGstCache->fNestedPaging;
+}
+
+
+/**
+ * Returns the nested-guest VMCB pause-filter count.
+ *
+ * @returns The pause-filter count.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ */
+VMM_INT_DECL(uint16_t) HMGetGuestSvmPauseFilterCount(PVMCPU pVCpu)
+{
+    Assert(HMHasGuestSvmVmcbCached(pVCpu));
+    PCSVMNESTEDVMCBCACHE pVmcbNstGstCache = &pVCpu->hm.s.svm.NstGstVmcbCache;
+    return pVmcbNstGstCache->u16PauseFilterCount;
+}
 

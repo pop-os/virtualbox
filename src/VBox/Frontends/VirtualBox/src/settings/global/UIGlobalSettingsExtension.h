@@ -27,10 +27,9 @@ struct UIDataSettingsGlobalExtension;
 struct UIDataSettingsGlobalExtensionItem;
 typedef UISettingsCache<UIDataSettingsGlobalExtension> UISettingsCacheGlobalExtension;
 
-
 /** Global settings: Extension page. */
-class UIGlobalSettingsExtension : public UISettingsPageGlobal,
-                                  public Ui::UIGlobalSettingsExtension
+class SHARED_LIBRARY_STUFF UIGlobalSettingsExtension : public UISettingsPageGlobal,
+                                                       public Ui::UIGlobalSettingsExtension
 {
     Q_OBJECT;
 
@@ -40,13 +39,6 @@ public:
     UIGlobalSettingsExtension();
     /** Destructs Extension settings page. */
     ~UIGlobalSettingsExtension();
-
-    /** Initiates the extension pack installation process.
-      * @param  strFilePath      Brings the extension pack file path.
-      * @param  strDigest        Brings the extension pack file digest.
-      * @param  pParent          Brings the parent dialog reference.
-      * @param  pstrExtPackName  Brings the extension pack name. */
-    static void doInstallation(QString const &strFilePath, QString const &strDigest, QWidget *pParent, QString *pstrExtPackName);
 
 protected:
 
@@ -99,4 +91,3 @@ private:
 };
 
 #endif /* !___UIGlobalSettingsExtension_h___ */
-

@@ -133,8 +133,8 @@ DECLASM(int) vgdrvOS2DevHlpSetIRQ(uint8_t bIRQ);
  */
 DECLASM(int) vgdrvOS2Init(const char *pszArgs)
 {
-    Log(("vgdrvOS2Init: pszArgs='%s' MMIO=0x%RX32 IOPort=0x%RX16 Int=%#x Bus=%#x Dev=%#x Fun=%d\n",
-         pszArgs, g_PhysMMIOBase, g_IOPortBase, g_bInterruptLine, g_bPciBusNo, g_bPciDevFunNo >> 3, g_bPciDevFunNo & 7));
+    //Log(("vgdrvOS2Init: pszArgs='%s' MMIO=0x%RX32 IOPort=0x%RX16 Int=%#x Bus=%#x Dev=%#x Fun=%d\n",
+    //     pszArgs, g_PhysMMIOBase, g_IOPortBase, g_bInterruptLine, g_bPciBusNo, g_bPciDevFunNo >> 3, g_bPciDevFunNo & 7));
 
     /*
      * Initialize the runtime.
@@ -186,6 +186,11 @@ DECLASM(int) vgdrvOS2Init(const char *pszArgs)
                     }
                     if (RT_SUCCESS(rc))
                     {
+                        /*
+                         * Read host configuration.
+                         */
+                        VGDrvCommonProcessOptionsFromHost(&g_DevExt);
+
                         /*
                          * Success
                          */
@@ -358,7 +363,13 @@ DECLASM(int) vgdrvOS2Open(uint16_t sfn)
     /*
      * Create a new session.
      */
-    rc = VGDrvCommonCreateUserSession(&g_DevExt, &pSession);
+    uint32_t fRequestor = VMMDEV_REQUESTOR_USERMODE
+                        | VMMDEV_REQUESTOR_TRUST_NOT_GIVEN
+                        | VMMDEV_REQUESTOR_USR_ROOT  /* everyone is root on OS/2 */
+                        | VMMDEV_REQUESTOR_GRP_WHEEL /* and their admins */
+                        | VMMDEV_REQUESTOR_NO_USER_DEVICE /** @todo implement /dev/vboxuser? */
+                        | VMMDEV_REQUESTOR_CON_DONT_KNOW; /** @todo check screen group/whatever of process to see if console */
+    rc = VGDrvCommonCreateUserSession(&g_DevExt, fRequestor, &pSession);
     if (RT_SUCCESS(rc))
     {
         pSession->sfn = sfn;
@@ -601,6 +612,13 @@ void VGDrvNativeISRMousePollEvent(PVBOXGUESTDEVEXT pDevExt)
 {
     /* No polling on OS/2 */
     NOREF(pDevExt);
+}
+
+
+bool VGDrvNativeProcessOption(PVBOXGUESTDEVEXT pDevExt, const char *pszName, const char *pszValue)
+{
+    RT_NOREF(pDevExt); RT_NOREF(pszName); RT_NOREF(pszValue);
+    return false;
 }
 
 

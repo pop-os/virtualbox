@@ -688,7 +688,9 @@ static struct sk_buff *vboxNetFltLinuxSkBufFromSG(PVBOXNETFLTINS pThis, PINTNETS
 {
     struct sk_buff *pPkt;
     struct net_device *pDev;
+#if defined(VBOXNETFLT_WITH_GSO_XMIT_WIRE) || defined(VBOXNETFLT_WITH_GSO_XMIT_HOST)
     unsigned fGsoType = 0;
+#endif
 
     if (pSG->cbTotal == 0)
     {
@@ -1781,6 +1783,18 @@ static bool vboxNetFltNeedsLinkState(PVBOXNETFLTINS pThis, struct net_device *pD
     return false;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 18)
+DECLINLINE(void) netif_tx_lock_bh(struct net_device *pDev)
+{
+    spin_lock_bh(&pDev->xmit_lock);
+}
+
+DECLINLINE(void) netif_tx_unlock_bh(struct net_device *pDev)
+{
+    spin_unlock_bh(&pDev->xmit_lock);
+}
+#endif
+
 /**
  * Some devices need link state change when filter attaches/detaches
  * since the filter is their link in a sense.
@@ -1870,38 +1884,16 @@ static int vboxNetFltLinuxAttachToInterface(PVBOXNETFLTINS pThis, struct net_dev
     RTSpinlockRelease(pThis->hSpinlock);
 
     /*
-     * If the above succeeded report GSO capabilities,  if not undo and
-     * release the device.
+     * Report GSO capabilities
      */
-    if (!pDev)
+    Assert(pThis->pSwitchPort);
+    if (vboxNetFltTryRetainBusyNotDisconnected(pThis))
     {
-        Assert(pThis->pSwitchPort);
-        if (vboxNetFltTryRetainBusyNotDisconnected(pThis))
-        {
-            vboxNetFltLinuxReportNicGsoCapabilities(pThis);
-            pThis->pSwitchPort->pfnReportMacAddress(pThis->pSwitchPort, &pThis->u.s.MacAddr);
-            pThis->pSwitchPort->pfnReportPromiscuousMode(pThis->pSwitchPort, vboxNetFltLinuxPromiscuous(pThis));
-            pThis->pSwitchPort->pfnReportNoPreemptDsts(pThis->pSwitchPort, INTNETTRUNKDIR_WIRE | INTNETTRUNKDIR_HOST);
-            vboxNetFltRelease(pThis, true /*fBusy*/);
-        }
-    }
-    else
-    {
-#ifdef VBOXNETFLT_WITH_HOST2WIRE_FILTER
-        vboxNetFltLinuxUnhookDev(pThis, pDev);
-#endif
-        RTSpinlockAcquire(pThis->hSpinlock);
-        ASMAtomicUoWriteNullPtr(&pThis->u.s.pDev);
-        RTSpinlockRelease(pThis->hSpinlock);
-        dev_put(pDev);
-        Log(("vboxNetFltLinuxAttachToInterface: Device %p(%s) released. ref=%d\n",
-             pDev, pDev->name,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
-             netdev_refcnt_read(pDev)
-#else
-             atomic_read(&pDev->refcnt)
-#endif
-             ));
+        vboxNetFltLinuxReportNicGsoCapabilities(pThis);
+        pThis->pSwitchPort->pfnReportMacAddress(pThis->pSwitchPort, &pThis->u.s.MacAddr);
+        pThis->pSwitchPort->pfnReportPromiscuousMode(pThis->pSwitchPort, vboxNetFltLinuxPromiscuous(pThis));
+        pThis->pSwitchPort->pfnReportNoPreemptDsts(pThis->pSwitchPort, INTNETTRUNKDIR_WIRE | INTNETTRUNKDIR_HOST);
+        vboxNetFltRelease(pThis, true /*fBusy*/);
     }
 
     LogRel(("VBoxNetFlt: attached to '%s' / %RTmac\n", pThis->szName, &pThis->u.s.MacAddr));

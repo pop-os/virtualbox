@@ -34,6 +34,7 @@
 
 #include <iprt/alloc.h>
 #include <iprt/assert.h>
+#include <iprt/dbg.h>
 #include <iprt/string.h>
 #include <iprt/log.h>
 #include <iprt/err.h>
@@ -42,6 +43,7 @@
 #include <iprt/formats/elf-i386.h>
 #include <iprt/formats/elf-amd64.h>
 #include "internal/ldr.h"
+#include "internal/dbgmod.h"
 
 
 
@@ -118,7 +120,7 @@ static const char *rtldrElfGetShdrType(uint32_t iType)
  * @param   phLdrMod    Where to store the handle.
  * @param   pErrInfo    Where to return extended error information. Optional.
  */
-int rtldrELFOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch, PRTLDRMOD phLdrMod, PRTERRINFO pErrInfo)
+DECLHIDDEN(int) rtldrELFOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH enmArch, PRTLDRMOD phLdrMod, PRTERRINFO pErrInfo)
 {
     const char *pszLogName = pReader->pfnLogName(pReader); NOREF(pszLogName);
 
