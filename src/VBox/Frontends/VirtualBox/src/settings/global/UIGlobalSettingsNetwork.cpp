@@ -21,6 +21,7 @@
 
 /* Qt includes: */
 # include <QHeaderView>
+# include <QMenu>
 
 /* GUI includes: */
 # include "VBoxGlobal.h"
@@ -58,6 +59,8 @@ struct UIDataSettingsGlobalNetwork
 /** Global settings: Network page: NAT network tree-widget item. */
 class UIItemNetworkNAT : public QITreeWidgetItem, public UIDataSettingsGlobalNetworkNAT
 {
+    Q_OBJECT;
+
 public:
 
     /** Constructs item. */
@@ -121,27 +124,27 @@ void UIItemNetworkNAT::updateFields()
     {
         /* Just use the old one: */
         setText(1, m_strName);
-        strToolTip += strHeader.arg(UIGlobalSettingsNetwork::tr("Network Name"), m_strName);
+        strToolTip += strHeader.arg(tr("Network Name"), m_strName);
     }
     /* If name was changed: */
     else
     {
         /* We should explain that: */
         const QString oldName = m_strName;
-        const QString newName = m_strNewName.isEmpty() ? UIGlobalSettingsNetwork::tr("[empty]") : m_strNewName;
-        setText(1, UIGlobalSettingsNetwork::tr("%1 (renamed from %2)").arg(newName, oldName));
-        strToolTip += strHeader.arg(UIGlobalSettingsNetwork::tr("Old Network Name"), m_strName);
-        strToolTip += strHeader.arg(UIGlobalSettingsNetwork::tr("New Network Name"), m_strNewName);
+        const QString newName = m_strNewName.isEmpty() ? tr("[empty]") : m_strNewName;
+        setText(1, tr("%1 (renamed from %2)").arg(newName, oldName));
+        strToolTip += strHeader.arg(tr("Old Network Name"), m_strName);
+        strToolTip += strHeader.arg(tr("New Network Name"), m_strNewName);
     }
 
     /* Other tool-tip information: */
-    strToolTip += strHeader.arg(UIGlobalSettingsNetwork::tr("Network CIDR"), m_strCIDR);
-    strToolTip += strHeader.arg(UIGlobalSettingsNetwork::tr("Supports DHCP"),
-                                m_fSupportsDHCP ? UIGlobalSettingsNetwork::tr("yes") : UIGlobalSettingsNetwork::tr("no"));
-    strToolTip += strHeader.arg(UIGlobalSettingsNetwork::tr("Supports IPv6"),
-                                m_fSupportsIPv6 ? UIGlobalSettingsNetwork::tr("yes") : UIGlobalSettingsNetwork::tr("no"));
+    strToolTip += strHeader.arg(tr("Network CIDR"), m_strCIDR);
+    strToolTip += strHeader.arg(tr("Supports DHCP"),
+                                m_fSupportsDHCP ? tr("yes") : tr("no"));
+    strToolTip += strHeader.arg(tr("Supports IPv6"),
+                                m_fSupportsIPv6 ? tr("yes") : tr("no"));
     if (m_fSupportsIPv6 && m_fAdvertiseDefaultIPv6Route)
-        strToolTip += strSubHeader.arg(UIGlobalSettingsNetwork::tr("Default IPv6 route"), UIGlobalSettingsNetwork::tr("yes"));
+        strToolTip += strSubHeader.arg(tr("Default IPv6 route"), tr("yes"));
 
     /* Assign tool-tip finally: */
     setToolTip(1, strToolTip);
@@ -163,7 +166,7 @@ bool UIItemNetworkNAT::validate(UIValidationMessage &message)
     if (m_strNewName.isEmpty())
     {
         /* Emptiness validation: */
-        message.second << UIGlobalSettingsNetwork::tr("No new name specified for the NAT network previously called <b>%1</b>.").arg(m_strName);
+        message.second << tr("No new name specified for the NAT network previously called <b>%1</b>.").arg(m_strName);
         fNameValid = false;
         fPass = false;
     }
@@ -173,9 +176,9 @@ bool UIItemNetworkNAT::validate(UIValidationMessage &message)
     {
         /* Emptiness validation: */
         if (fNameValid)
-            message.second << UIGlobalSettingsNetwork::tr("No CIDR specified for the NAT network <b>%1</b>.").arg(m_strNewName);
+            message.second << tr("No CIDR specified for the NAT network <b>%1</b>.").arg(m_strNewName);
         else
-            message.second << UIGlobalSettingsNetwork::tr("No CIDR specified for the NAT network previously called <b>%1</b>.").arg(m_strName);
+            message.second << tr("No CIDR specified for the NAT network previously called <b>%1</b>.").arg(m_strName);
         fPass = false;
     }
     else
@@ -186,10 +189,10 @@ bool UIItemNetworkNAT::validate(UIValidationMessage &message)
         if (RT_FAILURE(rc))
         {
             if (fNameValid)
-                message.second << UIGlobalSettingsNetwork::tr("Invalid CIDR specified (<i>%1</i>) for the NAT network <b>%2</b>.")
+                message.second << tr("Invalid CIDR specified (<i>%1</i>) for the NAT network <b>%2</b>.")
                                                               .arg(m_strCIDR, m_strNewName);
             else
-                message.second << UIGlobalSettingsNetwork::tr("Invalid CIDR specified (<i>%1</i>) for the NAT network previously called <b>%2</b>.")
+                message.second << tr("Invalid CIDR specified (<i>%1</i>) for the NAT network previously called <b>%2</b>.")
                                                               .arg(m_strCIDR, m_strName);
             fPass = false;
         }
@@ -527,8 +530,8 @@ void UIGlobalSettingsNetwork::prepareNATNetworkToolbar()
         m_pToolbarNetworkNAT->setOrientation(Qt::Vertical);
 
         /* Create' Add NAT Network' action: */
-        m_pActionAddNATNetwork = m_pToolbarNetworkNAT->addAction(UIIconPool::iconSet(":/add_host_iface_16px.png",
-                                                                                     ":/add_host_iface_disabled_16px.png"),
+        m_pActionAddNATNetwork = m_pToolbarNetworkNAT->addAction(UIIconPool::iconSet(":/host_iface_add_16px.png",
+                                                                                     ":/host_iface_add_disabled_16px.png"),
                                                                  QString(), this, SLOT(sltAddNATNetwork()));
         AssertPtrReturnVoid(m_pActionAddNATNetwork);
         {
@@ -537,8 +540,8 @@ void UIGlobalSettingsNetwork::prepareNATNetworkToolbar()
         }
 
         /* Create 'Remove NAT Network' action: */
-        m_pActionRemoveNATNetwork = m_pToolbarNetworkNAT->addAction(UIIconPool::iconSet(":/remove_host_iface_16px.png",
-                                                                                        ":/remove_host_iface_disabled_16px.png"),
+        m_pActionRemoveNATNetwork = m_pToolbarNetworkNAT->addAction(UIIconPool::iconSet(":/host_iface_remove_16px.png",
+                                                                                        ":/host_iface_remove_disabled_16px.png"),
                                                                     QString(), this, SLOT(sltRemoveNATNetwork()));
         AssertPtrReturnVoid(m_pActionRemoveNATNetwork);
         {
@@ -547,8 +550,8 @@ void UIGlobalSettingsNetwork::prepareNATNetworkToolbar()
         }
 
         /* Create 'Edit NAT Network' action: */
-        m_pActionEditNATNetwork = m_pToolbarNetworkNAT->addAction(UIIconPool::iconSet(":/edit_host_iface_16px.png",
-                                                                                      ":/edit_host_iface_disabled_16px.png"),
+        m_pActionEditNATNetwork = m_pToolbarNetworkNAT->addAction(UIIconPool::iconSet(":/host_iface_edit_16px.png",
+                                                                                      ":/host_iface_edit_disabled_16px.png"),
                                                                   QString(), this, SLOT(sltEditNATNetwork()));
         AssertPtrReturnVoid(m_pActionEditNATNetwork);
         {
@@ -1008,3 +1011,5 @@ bool UIGlobalSettingsNetwork::isNetworkCouldBeUpdated(const UISettingsCacheGloba
            ;
 }
 
+
+#include "UIGlobalSettingsNetwork.moc"

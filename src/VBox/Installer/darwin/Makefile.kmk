@@ -74,7 +74,7 @@ darwin-docs_SOURCES = \
 #
 # The packing.
 #
-PACKING += $(VBOX_PATH_DIST)/VirtualBox-$(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD)-r$(VBOX_SVN_REV).dmg
+PACKING += $(VBOX_PATH_DIST)/VirtualBox-$(VBOX_VERSION_STRING)-r$(VBOX_SVN_REV).dmg
 #OTHER_CLEAN = TODO
 
 
@@ -108,7 +108,7 @@ VBOX_ADD_MANUAL_fr_FR := $(filter $(VBOX_PATH_DIST)/VirtualBox.app/Contents/MacO
 #
 # The disk image.
 #
-$(VBOX_PATH_DIST)/VirtualBox-$(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD)-r$(VBOX_SVN_REV).dmg: \
+$(VBOX_PATH_DIST)/VirtualBox-$(VBOX_VERSION_STRING)-r$(VBOX_SVN_REV).dmg: \
 		$(VBOX_PATH_PACK_TMP)/DiskImage/VirtualBox.pkg \
 		$(VBOX_BRAND_DARWIN_DISKIMAGE_BG) \
 		$(VBOX_BRAND_DARWIN_DISKIMAGE_DS_STORE) \
@@ -153,9 +153,9 @@ endif
 	$(MKDIR) -m 1333  $(VBOX_PATH_PACK_TMP)/DiskImage/.Trashes
 	@# Change the owners.
 	sudo chown -R root:admin $(VBOX_PATH_PACK_TMP)/DiskImage
-	@# Create the image. We calculate the size our selves, adding 8MB for fudging (it's about 100-120MB atm).
+	@# Create the image. We calculate the size our selves, adding 16MB for fudging (min 13MB fudge needed on high sierra).
 	sudo hdiutil create -format UDBZ -volname "VirtualBox" -srcfolder "$(VBOX_PATH_PACK_TMP)/DiskImage" \
-		-size $(DOLLAR)((`/usr/bin/du -d 0 -k "$(VBOX_PATH_PACK_TMP)/DiskImage/" | /usr/bin/cut -f1` + 8192))k \
+		-size $(DOLLAR)((`sudo /usr/bin/du -sk "$(VBOX_PATH_PACK_TMP)/DiskImage/" | /usr/bin/cut -f1` + 16384))k \
 		"$@"
 	@# Change (back) the owner so it can be deleted by the user.
 	sudo chown "$(shell whoami)" "$@"
@@ -163,7 +163,7 @@ endif
 ifdef VBOX_SIGNING_MODE
  ifndef VBOX_WITHOUT_SIGNED_DMG
 	@# Sign the created dmg.
-	$(call VBOX_SIGN_FILE_FN,$@,org.virtualbox.dmg)
+	$(call VBOX_SIGN_DMG_FN,$@,org.virtualbox.dmg)
  endif
 endif
 
@@ -177,6 +177,7 @@ $(VBOX_PATH_PACK_TMP)/DiskImage/VirtualBox.pkg: \
 		$$(wildcard $(VBOX_PATH_DI_SRC)/VirtualBox_mpkg/* \
 		            $(VBOX_PATH_DI_SRC)/VirtualBox_mpkg/*.lproj/*) \
 		$(foreach f,$(VBOX_INSTALLER_ADD_LANGUAGES), $(VBOX_BRAND_$(f)_VIRTUALBOX_WELCOME_RTF)) \
+		$(if $(VBOX_WITH_FUSE_PACKING), $(VBOX_PATH_PACK_TMP)/Packages/OSXFuseCore.pkg) \
 		$(VBOX_DARWIN_INST_DEP_ON_MAKEFILE)
 	$(call MSG_TOOL,productbuild,,,$@)
 	@# Cleanup any previously failed attempts.
@@ -238,6 +239,12 @@ $(VBOX_PATH_PACK_TMP)/DiskImage/VirtualBox.pkg: \
 		--version $(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD) \
 		$(if $(VBOX_MACOSX_INSTALLER_SIGN),--sign "$(VBOX_MACOSX_INSTALLER_SIGN)",) \
 		$@
+ifdef VBOX_SIGNING_MODE
+ ifdef VBOX_WITH_CORP_CODE_SIGNING
+	@# Sign the created pkg.
+	$(call VBOX_SIGN_PKG_FN,$@,org.VirtualBox.mpkg.virtualbox)
+ endif
+endif
 	@# Cleanup.
 	sudo rm -Rf \
 		$(VBOX_PATH_PACK_TMP)/VirtualBox.dist.root \
@@ -324,6 +331,12 @@ endif
 		--ownership preserve \
 		$(if $(VBOX_MACOSX_INSTALLER_SIGN),--sign "$(VBOX_MACOSX_INSTALLER_SIGN)",) \
 		$@
+ifdef VBOX_SIGNING_MODE
+ ifdef VBOX_WITH_CORP_CODE_SIGNING
+	@# Sign the created pkg.
+	$(call VBOX_SIGN_PKG_FN,$@,org.virtualbox.pkg.vboxkexts)
+ endif
+endif
 	@# Cleanup
 	sudo chown -R "$(shell whoami)" \
 		$(VBOX_PATH_PACK_TMP)/VBoxKEXTs.pkg.root
@@ -393,11 +406,20 @@ ifdef VBOX_WITH_DEBUGGER_GUI
  	MacOS/DbgPlugInDiggers.dylib
 endif
 ifdef VBOX_WITH_HARDENING
- VBOX_DI_VBAPP_DYLIBS += \
- 	MacOS/VirtualBox.dylib \
- 	MacOS/VBoxNetDHCP.dylib \
-	MacOS/VBoxNetNAT.dylib \
- 	MacOS/VBoxHeadless.dylib
+ ifndef VBOX_GUI_WITH_SHARED_LIBRARY
+  VBOX_DI_VBAPP_DYLIBS += \
+  	MacOS/VirtualBox.dylib \
+  	MacOS/VBoxNetDHCP.dylib \
+  	MacOS/VBoxNetNAT.dylib \
+  	MacOS/VBoxHeadless.dylib
+ else
+  VBOX_DI_VBAPP_DYLIBS += \
+  	MacOS/VBoxGlobal.dylib \
+  	MacOS/VirtualBoxVM.dylib \
+  	MacOS/VBoxNetDHCP.dylib \
+  	MacOS/VBoxNetNAT.dylib \
+  	MacOS/VBoxHeadless.dylib
+ endif
 endif
 ifdef VBOX_WITH_HDDPARALLELS_INSTALL
  VBOX_DI_VBAPP_DYLIBS += \
@@ -465,18 +487,17 @@ VBOX_DI_VBAPP_PROGS = \
 
 VBOX_DI_VBAPP_UNIVERSAL_PROGS = \
 	MacOS/vmstarter \
-	$(if $(VBOX_WITH_VBOX_IMG)$(VBOX_WITH_TESTCASES),MacOS/vbox-img,)
+	$(if $(VBOX_WITH_VBOX_IMG)$(VBOX_WITH_TESTCASES),MacOS/vbox-img,) \
+	$(if $(VBOX_WITH_VBOXIMGMOUNT),MacOS/vboximg-mount,)
 
 VBOX_DI_VBAPP_OTHER_UNIVERSAL_BINS = \
 	MacOS/VMMR0.r0 \
-	MacOS/VBoxDDR0.r0 \
-	MacOS/VBoxDD2R0.r0
+	MacOS/VBoxDDR0.r0
 
 ifdef VBOX_WITH_RAW_MODE
  VBOX_DI_VBAPP_OTHER_BINS = \
 	MacOS/VMMRC.rc \
-	MacOS/VBoxDDRC.rc \
-	MacOS/VBoxDD2RC.rc
+	MacOS/VBoxDDRC.rc
 else
  VBOX_DI_VBAPP_OTHER_BINS =
 endif
@@ -764,9 +785,15 @@ endif
 	sudo chown -R root:admin $(VBOX_PATH_PACK_TMP)/VirtualBox.pkg.root
 	sudo chmod u+s $(VBOX_PATH_VBOX_APP_TMP)/Contents/MacOS/VBoxNetAdpCtl
 ifdef VBOX_WITH_HARDENING
+ ifndef VBOX_GUI_WITH_SHARED_LIBRARY
 	sudo chmod u+s \
 		$(foreach bin,VBoxHeadless VirtualBox VirtualBoxVM VBoxNetDHCP VBoxNetNAT,\
 			$(VBOX_PATH_VBOX_APP_TMP)/Contents/MacOS/$(bin))
+ else
+	sudo chmod u+s \
+		$(foreach bin,VBoxHeadless VirtualBoxVM VBoxNetDHCP VBoxNetNAT,\
+			$(VBOX_PATH_VBOX_APP_TMP)/Contents/MacOS/$(bin))
+ endif
 endif
 	@# Do keyword replacement in the package info and description files.
 	$(SED) \
@@ -781,10 +808,13 @@ endif
 		$(VBOX_PATH_DI_SRC)/VirtualBox/PkgBuildComponent.plist
 	@# Copy the resources.
 	$(INSTALL) -m 0755 $(VBOX_PATH_DI_SRC)/VirtualBox/preflight                         $(VBOX_PATH_PACK_TMP)/VirtualBox.pkg.res/
-ifdef VBOX_WITH_HARDENING
+if defined(VBOX_WITH_HARDENING) && !defined(VBOX_GUI_WITH_SHARED_LIBRARY)
 	$(INSTALL) -m 0755 $(VBOX_PATH_DI_SRC)/VirtualBox/postflight                        $(VBOX_PATH_PACK_TMP)/VirtualBox.pkg.res/
 else
-	$(SED) -s '/WITH_HARDENING/d' -o $(VBOX_PATH_PACK_TMP)/VirtualBox.pkg.res/postflight $(VBOX_PATH_DI_SRC)/VirtualBox/postflight
+	$(SED)	$(if-expr !defined(VBOX_WITH_HARDENING),-e '/WITH_HARDENING/d',) \
+		$(if-expr !defined(VBOX_GUI_WITH_SHARED_LIBRARY),-e '/WITH_SHARED_LIBRARY/d',-e '/WITHOUT_SHARED_LIBRARY/d') \
+		--output $(VBOX_PATH_PACK_TMP)/VirtualBox.pkg.res/postflight \
+		$(VBOX_PATH_DI_SRC)/VirtualBox/postflight
 	$(CHMOD) 0755 $(VBOX_PATH_PACK_TMP)/VirtualBox.pkg.res/postflight
 endif
 	@# Build the package.
@@ -799,6 +829,12 @@ endif
 		--preserve-xattr \
 		$(if $(VBOX_MACOSX_INSTALLER_SIGN),--sign "$(VBOX_MACOSX_INSTALLER_SIGN)",) \
 		$@
+ifdef VBOX_SIGNING_MODE
+ ifdef VBOX_WITH_CORP_CODE_SIGNING
+	@# Sign the created pkg.
+	$(call VBOX_SIGN_PKG_FN,$@,org.virtualbox.pkg.virtualbox)
+ endif
+endif
 	@# Cleanup
 	sudo chown -R "$(shell whoami)" \
 		$(VBOX_PATH_PACK_TMP)/VirtualBox.pkg.root
@@ -851,6 +887,10 @@ if defined(VBOX_WITH_VBOX_IMG) || defined(VBOX_WITH_TESTCASES)
 	$(APPEND) -tn $(VBOX_PATH_PACK_TMP)/VirtualBoxCLI.pkg.root/usr/local/bin/vbox-img \
 		'#!/bin/bash' 'exec /Applications/VirtualBox.app/Contents/MacOS/vbox-img "$$@"'
 endif
+if defined(VBOX_WITH_VBOXIMGMOUNT)
+	$(APPEND) -tn $(VBOX_PATH_PACK_TMP)/VirtualBoxCLI.pkg.root/usr/local/bin/vboximg-mount \
+		'#!/bin/bash' 'exec /Applications/VirtualBox.app/Contents/MacOS/vboximg-mount "$$@"'
+endif
 	$(APPEND) -tn $(VBOX_PATH_PACK_TMP)/VirtualBoxCLI.pkg.root/usr/local/bin/VBoxBugReport \
 		'#!/bin/bash' 'exec /Applications/VirtualBox.app/Contents/MacOS/VBoxBugReport "$$@"'
 	$(APPEND) -tn $(VBOX_PATH_PACK_TMP)/VirtualBoxCLI.pkg.root/usr/local/bin/VBoxBalloonCtrl \
@@ -874,6 +914,12 @@ endif
 		--ownership preserve \
 		$(if $(VBOX_MACOSX_INSTALLER_SIGN),--sign "$(VBOX_MACOSX_INSTALLER_SIGN)",) \
 		$@
+ifdef VBOX_SIGNING_MODE
+ ifdef VBOX_WITH_CORP_CODE_SIGNING
+	@# Sign the created pkg.
+	$(call VBOX_SIGN_PKG_FN,$@,org.virtualbox.pkg.virtualboxcli)
+ endif
+endif
 	@# Cleanup
 	sudo chown -R "$(shell whoami)" \
 		$(VBOX_PATH_PACK_TMP)/VirtualBoxCLI.pkg.root
@@ -881,6 +927,19 @@ endif
 		$(VBOX_PATH_PACK_TMP)/VirtualBoxCLI.pkg.root \
 		$(VBOX_PATH_PACK_TMP)/VirtualBoxCLI.pkg.desc \
 		$(VBOX_PATH_PACK_TMP)/VirtualBoxCLI.pkg.res
+
+ifdef VBOX_WITH_FUSE_PACKING
+#
+# The OS X fuse core package.
+#
+VBOX_PATH_FUSE_CORE_PKG ?= $(lastword $(sort $(wildcard $(KBUILD_DEVTOOLS_TRG)/osxfuse/v*)))/Core.pkg
+$(VBOX_PATH_PACK_TMP)/Packages/OSXFuseCore.pkg: \
+		$(VBOX_PATH_FUSE_CORE_PKG)
+	$(call MSG_TOOL,Preparing OS X Fuse core package,,,$@)
+	@# Cleanup any previously failed attempts.
+	sudo rm -Rf $@
+	pkgutil --flatten $(VBOX_PATH_FUSE_CORE_PKG) $@
+endif
 
 
 #
@@ -890,4 +949,4 @@ VBoxKEXTs.pkg:        $(VBOX_PATH_PACK_TMP)/Packages/VBoxKEXTs.pkg
 VirtualBoxCLI.pkg:    $(VBOX_PATH_PACK_TMP)/Packages/VirtualBoxCLI.pkg
 VirtualBox.pkg:       $(VBOX_PATH_PACK_TMP)/Packages/VirtualBox.pkg
 VirtualBox.mpkg:      $(VBOX_PATH_PACK_TMP)/DiskImage/VirtualBox.pkg
-VirtualBox.dmg:       $(VBOX_PATH_DIST)/VirtualBox-$(VBOX_VERSION_MAJOR).$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD)-r$(VBOX_SVN_REV).dmg
+VirtualBox.dmg:       $(VBOX_PATH_DIST)/VirtualBox-$(VBOX_VERSION_STRING)-r$(VBOX_SVN_REV).dmg

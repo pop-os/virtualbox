@@ -464,8 +464,9 @@ void UIKeyboardHandler::releaseAllPressedKeys(bool aReleaseHostKey /* = true */)
 /* Current keyboard state: */
 int UIKeyboardHandler::state() const
 {
-    return (m_fIsKeyboardCaptured ? UIViewStateType_KeyboardCaptured : 0) |
-           (m_bIsHostComboPressed ? UIViewStateType_HostKeyPressed : 0);
+    return (m_fIsKeyboardCaptured ? UIKeyboardStateType_KeyboardCaptured : 0) |
+           (m_bIsHostComboPressed ? UIKeyboardStateType_HostKeyPressed : 0) |
+           (m_fHostKeyComboPressInserted ? UIKeyboardStateType_HostKeyPressedInsertion : 0);
 }
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
@@ -964,6 +965,7 @@ UIKeyboardHandler::UIKeyboardHandler(UIMachineLogic *pMachineLogic)
     , m_bIsHostComboAlone(false)
     , m_bIsHostComboProcessed(false)
     , m_fPassCADtoGuest(false)
+    , m_fHostKeyComboPressInserted(false)
     , m_fDebuggerActive(false)
     , m_iKeyboardHookViewIndex(-1)
 #if defined(VBOX_WS_MAC)
@@ -1169,6 +1171,10 @@ bool UIKeyboardHandler::eventFilter(QObject *pWatchedObject, QEvent *pEvent)
             }
             case QEvent::FocusOut:
             {
+                /* If host key combo press has been inserted (with no release yet) insert a release now: */
+                if (m_fHostKeyComboPressInserted)
+                    machineLogic()->typeHostKeyComboPressRelease(false);
+
 #if defined(VBOX_WS_MAC)
 
                 /* If keyboard-hook is installed: */
@@ -1934,4 +1940,10 @@ UIMachineView* UIKeyboardHandler::isItListenedView(QObject *pWatchedObject) cons
         ++i;
     }
     return pResultView;
+}
+
+void UIKeyboardHandler::setHostKeyComboPressedFlag(bool bPressed)
+{
+    m_fHostKeyComboPressInserted = bPressed;
+    emit sigStateChange(state());
 }

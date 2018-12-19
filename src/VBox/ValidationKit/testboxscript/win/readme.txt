@@ -3,12 +3,15 @@ $Id: readme.txt $
 
 Preparations:
 
-1. Install Python 2.7.x from python.org to C:\Python27.  Matching bit count as
-   the host windows version.
+0. Make sure the computer name (what hostname prints) is the same as the DNS 
+   returns (sans domain) for the host IP.
+
+1. Install Python 2.7.x from python.org to C:\Python27 or Python 3.y.x to 
+   C:\Python3%y%,  where y >= 5.  Matching bit count as the host windows version.
 
 2. Install the win32 extension for python.
 
-3. Append C:\Python27 to the system PATH (tail).
+3. Append C:\Python27 or C:\Python3%y% to the system PATH (tail).
 
 4. Disable UAC.
 
@@ -93,7 +96,9 @@ Preparations:
    If it already exists (typical on W10), just OR 0xff into the existing value.
 
 8. Install firefox or chrome, download the latest testboxscript*.zip from
-   the build box.
+   the build box. If the testbox is very short on disk space, i.e. less than
+   15GB free disk space after installing Windows Updates, install ImDisk 2.0.9
+   or later from e.g. http://www.ltr-data.se/opencode.html/
 
 9. Create a user named "vbox" with password "password".  Must be an
    Administrator user!

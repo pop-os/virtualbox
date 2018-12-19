@@ -1,6 +1,6 @@
 /* $Id: UIEmptyFilePathSelector.cpp $ */
 /** @file
- * VBox Qt GUI - VirtualBox Qt extensions: UIEmptyFilePathSelector class implementation.
+ * VBox Qt GUI - UIEmptyFilePathSelector class implementation.
  */
 
 /*
@@ -52,10 +52,20 @@ UIEmptyFilePathSelector::UIEmptyFilePathSelector (QWidget *aParent /* = NULL */)
     , mHomeDir (QDir::current().absolutePath())
     , mIsModified (false)
 {
-    mMainLayout = new QHBoxLayout (this);
-    mMainLayout->setMargin (0);
+    setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
 
-    mSelectButton = new QIToolButton(this);
+    mMainLayout = new QHBoxLayout (this);
+    mMainLayout->setContentsMargins(0, 0, 0, 0);
+#ifdef VBOX_WS_MAC
+    mMainLayout->setSpacing(5);
+#endif
+
+    mSelectButton = new QToolButton(this);
+#ifdef VBOX_WS_MAC
+    mSelectButton->setStyleSheet("QToolButton { border: 0px none black; margin: 0px 0px 0px 0px; } QToolButton::menu-indicator {image: none;}");
+#else
+    mSelectButton->setAutoRaise(true);
+#endif
     mSelectButton->setIcon(UIIconPool::iconSet(":/select_file_16px.png", ":/select_file_disabled_16px.png"));
     connect(mSelectButton, SIGNAL(clicked()), this, SLOT(choose()));
     mMainLayout->addWidget(mSelectButton);

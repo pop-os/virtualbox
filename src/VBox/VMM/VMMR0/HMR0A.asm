@@ -253,39 +253,6 @@
 %%no_indirect_branch_barrier:
 %endmacro
 
-;;
-; Creates an indirect branch prediction and L1D barrier on CPUs that need and supports that.
-; @clobbers eax, edx, ecx
-; @param    1   How to address CPUMCTX.
-; @param    2   Which IBPB flag to test for (CPUMCTX_WSF_IBPB_ENTRY or CPUMCTX_WSF_IBPB_EXIT)
-; @param    3   Which FLUSH flag to test for (CPUMCTX_WSF_L1D_ENTRY)
-%macro INDIRECT_BRANCH_PREDICTION_AND_L1_CACHE_BARRIER 3
-    ; Only one test+jmp when disabled CPUs.
-    test    byte [%1 + CPUMCTX.fWorldSwitcher], (%2 | %3)
-    jz      %%no_barrier_needed
-
-    ; The eax:edx value is the same for both.
-    AssertCompile(MSR_IA32_PRED_CMD_F_IBPB == MSR_IA32_FLUSH_CMD_F_L1D)
-    mov     eax, MSR_IA32_PRED_CMD_F_IBPB
-    xor     edx, edx
-
-    ; Indirect branch barrier.
-    test    byte [%1 + CPUMCTX.fWorldSwitcher], %2
-    jz      %%no_indirect_branch_barrier
-    mov     ecx, MSR_IA32_PRED_CMD
-    wrmsr
-%%no_indirect_branch_barrier:
-
-    ; Level 1 data cache flush.
-    test    byte [%1 + CPUMCTX.fWorldSwitcher], %3
-    jz      %%no_cache_flush_barrier
-    mov     ecx, MSR_IA32_FLUSH_CMD
-    wrmsr
-%%no_cache_flush_barrier:
-
-%%no_barrier_needed:
-%endmacro
-
 
 ;*********************************************************************************************************************************
 ;*  External Symbols                                                                                                             *
@@ -731,10 +698,10 @@ ENDPROC VMXGetActivatedVmcs
 
 ;/**
 ; * Invalidate a page using INVEPT.
-; @param   enmFlush     msc:ecx  gcc:edi  x86:[esp+04]  Type of flush.
+; @param   enmTlbFlush  msc:ecx  gcc:edi  x86:[esp+04]  Type of flush.
 ; @param   pDescriptor  msc:edx  gcc:esi  x86:[esp+08]  Descriptor pointer.
 ; */
-;DECLASM(int) VMXR0InvEPT(VMX_FLUSH enmFlush, uint64_t *pDescriptor);
+;DECLASM(int) VMXR0InvEPT(VMXTLBFLUSHEPT enmTlbFlush, uint64_t *pDescriptor);
 BEGINPROC VMXR0InvEPT
 %ifdef RT_ARCH_AMD64
  %ifdef ASM_CALL64_GCC
@@ -768,10 +735,10 @@ ENDPROC VMXR0InvEPT
 
 ;/**
 ; * Invalidate a page using invvpid
-; @param   enmFlush     msc:ecx  gcc:edi  x86:[esp+04]  Type of flush
+; @param   enmTlbFlush  msc:ecx  gcc:edi  x86:[esp+04]  Type of flush
 ; @param   pDescriptor  msc:edx  gcc:esi  x86:[esp+08]  Descriptor pointer
 ; */
-;DECLASM(int) VMXR0InvVPID(VMX_FLUSH enmFlush, uint64_t *pDescriptor);
+;DECLASM(int) VMXR0InvVPID(VMXTLBFLUSHVPID enmTlbFlush, uint64_t *pDescriptor);
 BEGINPROC VMXR0InvVPID
 %ifdef RT_ARCH_AMD64
  %ifdef ASM_CALL64_GCC
@@ -1486,8 +1453,8 @@ ALIGN(16)
     ; Note: assumes success!
     ; Don't mess with ESP anymore!!!
 
-    ; Fight spectre and similar.
-    INDIRECT_BRANCH_PREDICTION_AND_L1_CACHE_BARRIER xSI, CPUMCTX_WSF_IBPB_ENTRY, CPUMCTX_WSF_L1D_ENTRY
+    ; Fight spectre.
+    INDIRECT_BRANCH_PREDICTION_BARRIER xSI, CPUMCTX_WSF_IBPB_ENTRY
 
     ; Load guest general purpose registers.
     mov     eax, [xSI + CPUMCTX.eax]
@@ -1795,8 +1762,8 @@ ALIGN(16)
     ; Note: assumes success!
     ; Don't mess with ESP anymore!!!
 
-    ; Fight spectre and similar.
-    INDIRECT_BRANCH_PREDICTION_AND_L1_CACHE_BARRIER xSI, CPUMCTX_WSF_IBPB_ENTRY, CPUMCTX_WSF_L1D_ENTRY
+    ; Fight spectre.
+    INDIRECT_BRANCH_PREDICTION_BARRIER xSI, CPUMCTX_WSF_IBPB_ENTRY
 
     ; Load guest general purpose registers.
     mov     rax, qword [xSI + CPUMCTX.eax]

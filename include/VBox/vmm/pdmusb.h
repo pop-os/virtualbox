@@ -1066,13 +1066,13 @@ typedef DECLCALLBACK(int) FNPDMVBOXUSBREGISTER(PCPDMUSBREGCB pCallbacks, uint32_
 VMMR3DECL(int)  PDMR3UsbCreateEmulatedDevice(PUVM pUVM, const char *pszDeviceName, PCFGMNODE pDeviceNode, PCRTUUID pUuid,
                                              const char *pszCaptureFilename);
 VMMR3DECL(int)  PDMR3UsbCreateProxyDevice(PUVM pUVM, PCRTUUID pUuid, const char *pszBackend, const char *pszAddress, void *pvBackend,
-                                          uint32_t iUsbVersion, uint32_t fMaskedIfs, const char *pszCaptureFilename);
+                                          VUSBSPEED enmSpeed, uint32_t fMaskedIfs, const char *pszCaptureFilename);
 VMMR3DECL(int)  PDMR3UsbDetachDevice(PUVM pUVM, PCRTUUID pUuid);
 VMMR3DECL(bool) PDMR3UsbHasHub(PUVM pUVM);
 VMMR3DECL(int)  PDMR3UsbDriverAttach(PUVM pUVM, const char *pszDevice, unsigned iDevIns, unsigned iLun, uint32_t fFlags,
                                      PPPDMIBASE ppBase);
 VMMR3DECL(int)  PDMR3UsbDriverDetach(PUVM pUVM, const char *pszDevice, unsigned iDevIns, unsigned iLun,
-                                     const char *pszDriver, unsigned iOccurance, uint32_t fFlags);
+                                     const char *pszDriver, unsigned iOccurrence, uint32_t fFlags);
 VMMR3DECL(int)  PDMR3UsbQueryLun(PUVM pUVM, const char *pszDevice, unsigned iInstance, unsigned iLun, PPDMIBASE *ppBase);
 VMMR3DECL(int)  PDMR3UsbQueryDriverOnLun(PUVM pUVM, const char *pszDevice, unsigned iInstance, unsigned iLun,
                                          const char *pszDriver, PPPDMIBASE ppBase);

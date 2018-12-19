@@ -1,4 +1,4 @@
-/* $Rev: 118839 $ */
+/* $Rev: 126386 $ */
 /** @file
  * VBoxDrv - The VirtualBox Support Driver - Linux specifics.
  */
@@ -144,9 +144,9 @@ static int force_async_tsc = 0;
  * Memory for the executable memory heap (in IPRT).
  */
 # ifdef DEBUG
-#  define EXEC_MEMORY_SIZE   6291456    /* 6 MB */
+#  define EXEC_MEMORY_SIZE   8388608    /* 8 MB */
 # else
-#  define EXEC_MEMORY_SIZE   1572864    /* 1.5 MB */
+#  define EXEC_MEMORY_SIZE   2097152    /* 2 MB */
 # endif
 extern uint8_t g_abExecMemory[EXEC_MEMORY_SIZE];
 # ifndef VBOX_WITH_TEXT_MODMEM_HACK
@@ -581,21 +581,18 @@ static int VBoxDrvLinuxIOCtl(struct inode *pInode, struct file *pFilp, unsigned 
      * Deal with the two high-speed IOCtl that takes it's arguments from
      * the session and iCmd, and only returns a VBox status code.
      */
+    AssertCompile(_IOC_NRSHIFT == 0 && _IOC_NRBITS == 8);
 #ifdef HAVE_UNLOCKED_IOCTL
-    if (RT_LIKELY(   (   uCmd == SUP_IOCTL_FAST_DO_RAW_RUN
-                      || uCmd == SUP_IOCTL_FAST_DO_HM_RUN
-                      || uCmd == SUP_IOCTL_FAST_DO_NOP)
-                  && pSession->fUnrestricted == true))
-        rc = supdrvIOCtlFast(uCmd, ulArg, &g_DevExt, pSession);
+    if (RT_LIKELY(   (unsigned int)(uCmd - SUP_IOCTL_FAST_DO_FIRST) < (unsigned int)32
+                  && pSession->fUnrestricted))
+        rc = supdrvIOCtlFast(uCmd - SUP_IOCTL_FAST_DO_FIRST, ulArg, &g_DevExt, pSession);
     else
         rc = VBoxDrvLinuxIOCtlSlow(pFilp, uCmd, ulArg, pSession);
 #else   /* !HAVE_UNLOCKED_IOCTL */
     unlock_kernel();
-    if (RT_LIKELY(   (   uCmd == SUP_IOCTL_FAST_DO_RAW_RUN
-                      || uCmd == SUP_IOCTL_FAST_DO_HM_RUN
-                      || uCmd == SUP_IOCTL_FAST_DO_NOP)
-                  && pSession->fUnrestricted == true))
-        rc = supdrvIOCtlFast(uCmd, ulArg, &g_DevExt, pSession);
+    if (RT_LIKELY(   (unsigned int)(uCmd - SUP_IOCTL_FAST_DO_FIRST) < (unsigned int)32
+                  && pSession->fUnrestricted))
+        rc = supdrvIOCtlFast(uCmd - SUP_IOCTL_FAST_DO_FIRST, ulArg, &g_DevExt, pSession);
     else
         rc = VBoxDrvLinuxIOCtlSlow(pFilp, uCmd, ulArg, pSession);
     lock_kernel();
@@ -848,9 +845,10 @@ int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
 }
 
 
-int  VBOXCALL   supdrvOSLdrValidatePointer(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, void *pv, const uint8_t *pbImageBits)
+int  VBOXCALL   supdrvOSLdrValidatePointer(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, void *pv,
+                                           const uint8_t *pbImageBits, const char *pszSymbol)
 {
-    NOREF(pDevExt); NOREF(pImage); NOREF(pv); NOREF(pbImageBits);
+    NOREF(pDevExt); NOREF(pImage); NOREF(pv); NOREF(pbImageBits); NOREF(pszSymbol);
     return VERR_NOT_SUPPORTED;
 }
 
@@ -1216,6 +1214,17 @@ void VBOXCALL   supdrvOSLdrNotifyUnloaded(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE
     Assert(pImage->pLnxModHack == NULL);
 #endif
     NOREF(pDevExt); NOREF(pImage);
+}
+
+
+int  VBOXCALL   supdrvOSLdrQuerySymbol(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage,
+                                       const char *pszSymbol, size_t cchSymbol, void **ppvSymbol)
+{
+#ifdef VBOX_WITH_NON_PROD_HACK_FOR_PERF_STACKS
+# error "implement me!"
+#endif
+    RT_NOREF(pDevExt, pImage, pszSymbol, cchSymbol, ppvSymbol);
+    return VERR_WRONG_ORDER;
 }
 
 

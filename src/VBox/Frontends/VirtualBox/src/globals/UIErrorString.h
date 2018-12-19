@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,6 +21,9 @@
 /* Qt includes: */
 #include <QString>
 
+/* GUI includes: */
+#include "UILibraryDefs.h"
+
 /* Other VBox includes: */
 #include <VBox/com/defs.h>
 
@@ -31,9 +34,8 @@ class COMResult;
 class CProgress;
 class CVirtualBoxErrorInfo;
 
-
 /** Namespace simplifying COM error formatting. */
-class UIErrorString
+class SHARED_LIBRARY_STUFF UIErrorString
 {
 public:
 

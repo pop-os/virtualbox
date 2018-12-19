@@ -1551,7 +1551,7 @@ static RTEXITCODE utsParseArgv(int argc, char **argv, bool *pfExit)
             }
 
             case 'V':
-                RTPrintf("$Revision: 125570 $\n");
+                RTPrintf("$Revision: 123672 $\n");
                 *pfExit = true;
                 return RTEXITCODE_SUCCESS;
 

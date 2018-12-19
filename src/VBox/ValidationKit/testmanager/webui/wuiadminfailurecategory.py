@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118412 $"
+__version__ = "$Revision: 120396 $"
 
 
 # Validation Kit imports.
@@ -46,7 +46,8 @@ class WuiFailureReasonCategoryLink(WuiTmLink):
                            sUrlBase = WuiAdmin.ksScriptName,
                            dParams = { WuiAdmin.ksParamAction: WuiAdmin.ksActionFailureCategoryDetails,
                                        FailureCategoryData.ksParam_idFailureCategory: idFailureCategory, },
-                           fBracketed = fBracketed);
+                           fBracketed = fBracketed,
+                           sTitle = sTitle);
         self.idFailureCategory = idFailureCategory;
 
 

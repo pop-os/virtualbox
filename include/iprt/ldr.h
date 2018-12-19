@@ -288,8 +288,10 @@ RTDECL(int) RTLdrLoadEx(const char *pszFilename, PRTLDRMOD phLdrMod, uint32_t fF
  *  Vista, and W2K8 requires KB2533623 to be installed to support this; not
  *  supported on XP, W2K3 or earlier.  Ignored on other platforms. */
 #define RTLDRLOAD_FLAGS_NT_SEARCH_DLL_LOAD_DIR  RT_BIT_32(2)
+/** Do not append default suffix.   */
+#define RTLDRLOAD_FLAGS_NO_SUFFIX               RT_BIT_32(3)
 /** The mask of valid flag bits. */
-#define RTLDRLOAD_FLAGS_VALID_MASK              UINT32_C(0x00000007)
+#define RTLDRLOAD_FLAGS_VALID_MASK              UINT32_C(0x0000000f)
 /** @} */
 
 /**
@@ -347,10 +349,16 @@ typedef enum RTLDRARCH
     RTLDRARCH_WHATEVER,
     /** The host architecture. */
     RTLDRARCH_HOST,
+    /** 16-bit x86. */
+    RTLDRARCH_X86_16,
     /** 32-bit x86. */
     RTLDRARCH_X86_32,
     /** AMD64 (64-bit x86 if you like). */
     RTLDRARCH_AMD64,
+    /** 32-bit ARM. */
+    RTLDRARCH_ARM32,
+    /** 64-bit ARM. */
+    RTLDRARCH_ARM64,
     /** End of the valid values. */
     RTLDRARCH_END,
     /** Make sure the type is a full 32-bit. */
@@ -358,6 +366,22 @@ typedef enum RTLDRARCH
 } RTLDRARCH;
 /** Pointer to a RTLDRARCH. */
 typedef RTLDRARCH *PRTLDRARCH;
+
+/**
+ * Translates a RTLDRARCH value to a string.
+ *
+ * @returns Name corresponding to @a enmArch
+ * @param   enmArch             The value to name.
+ */
+RTDECL(const char *) RTLdrArchName(RTLDRARCH enmArch);
+
+/**
+ * Returns the host architecture.
+ *
+ * @returns Host architecture or RTLDRARCH_WHATEVER if no match.
+ */
+RTDECL(RTLDRARCH) RTLdrGetHostArch(void);
+
 
 /** @name RTLDR_O_XXX - RTLdrOpen flags.
  * @{ */
@@ -398,16 +422,19 @@ RTDECL(int) RTLdrOpen(const char *pszFilename, uint32_t fFlags, RTLDRARCH enmArc
 RTDECL(int) RTLdrOpenEx(const char *pszFilename, uint32_t fFlags, RTLDRARCH enmArch, PRTLDRMOD phLdrMod, PRTERRINFO pErrInfo);
 
 /**
- * Opens a binary image file using kLdr.
+ * Open a binary image file allowing VFS chains in the filename.
  *
  * @returns iprt status code.
- * @param   pszFilename Image filename.
- * @param   phLdrMod    Where to store the handle to the loaded module.
+ * @param   pszFilename Image filename, VFS chain specifiers allowed.
  * @param   fFlags      Valid RTLDR_O_XXX combination.
  * @param   enmArch     CPU architecture specifier for the image to be loaded.
- * @remark  Primarily for testing the loader.
+ * @param   phLdrMod    Where to store the handle to the loader module.
+ * @param   poffError   Where to return the offset into @a pszFilename of an VFS
+ *                      chain element causing trouble.  Optional.
+ * @param   pErrInfo    Where to return extended error information.  Optional.
  */
-RTDECL(int) RTLdrOpenkLdr(const char *pszFilename, uint32_t fFlags, RTLDRARCH enmArch, PRTLDRMOD phLdrMod);
+RTDECL(int) RTLdrOpenVfsChain(const char *pszFilename, uint32_t fFlags, RTLDRARCH enmArch,
+                              PRTLDRMOD phLdrMod, uint32_t *poffError, PRTERRINFO pErrInfo);
 
 /**
  * Open part with reader.
@@ -443,8 +470,9 @@ typedef FNRTLDRRDRMEMREAD *PFNRTLDRRDRMEMREAD;
  *
  * @returns IPRT status code
  * @param   pvUser      The user parameter.
+ * @param   cbImage     The image size.
  */
-typedef DECLCALLBACK(void) FNRTLDRRDRMEMDTOR(void *pvUser);
+typedef DECLCALLBACK(void) FNRTLDRRDRMEMDTOR(void *pvUser, size_t cbImage);
 /** Pointer to a RTLdrOpenInMemory destructor callback. */
 typedef FNRTLDRRDRMEMDTOR *PFNRTLDRRDRMEMDTOR;
 
@@ -466,6 +494,7 @@ typedef FNRTLDRRDRMEMDTOR *PFNRTLDRRDRMEMDTOR;
  * @param   pvUser      The user argument or, if any of the callbacks are NULL,
  *                      a pointer to a memory block.
  * @param   phLdrMod    Where to return the module handle.
+ * @param   pErrInfo    Pointer to an error info buffer, optional.
  *
  * @remarks With the exception of invalid @a pfnDtor and/or @a pvUser
  *          parameters, the pfnDtor methods (or the default one if NULL) will
@@ -474,7 +503,7 @@ typedef FNRTLDRRDRMEMDTOR *PFNRTLDRRDRMEMDTOR;
  */
 RTDECL(int) RTLdrOpenInMemory(const char *pszName, uint32_t fFlags, RTLDRARCH enmArch, size_t cbImage,
                               PFNRTLDRRDRMEMREAD pfnRead, PFNRTLDRRDRMEMDTOR pfnDtor, void *pvUser,
-                              PRTLDRMOD phLdrMod);
+                              PRTLDRMOD phLdrMod, PRTERRINFO pErrInfo);
 
 /**
  * Closes a loader module handle.
@@ -668,10 +697,18 @@ RTDECL(int) RTLdrEnumSymbols(RTLDRMOD hLdrMod, unsigned fFlags, const void *pvBi
 /** @name RTLdrEnumSymbols flags.
  * @{ */
 /** Returns ALL kinds of symbols. The default is to only return public/exported symbols. */
-#define RTLDR_ENUM_SYMBOL_FLAGS_ALL     RT_BIT(1)
-/** Ignore forwarders (for use with RTLDR_ENUM_SYMBOL_FLAGS_ALL). */
-#define RTLDR_ENUM_SYMBOL_FLAGS_NO_FWD  RT_BIT(2)
+#define RTLDR_ENUM_SYMBOL_FLAGS_ALL             RT_BIT(1)
+/** Ignore forwarders rather than reporting them with RTLDR_ENUM_SYMBOL_FWD_ADDRESS as value. */
+#define RTLDR_ENUM_SYMBOL_FLAGS_NO_FWD          RT_BIT(2)
 /** @} */
+
+/** Special symbol for forwarder symbols, since they cannot be resolved with
+ * the current API. */
+#if (HC_ARCH_BITS == 64 || GC_ARCH_BITS == 64)
+# define RTLDR_ENUM_SYMBOL_FWD_ADDRESS          UINT64_C(0xff4242fffd4242fd)
+#else
+# define RTLDR_ENUM_SYMBOL_FWD_ADDRESS          UINT32_C(0xff4242fd)
+#endif
 
 
 /**
@@ -1033,6 +1070,15 @@ typedef enum RTLDRPROP
      * name table entry for LX.
      * Returns zero terminated string. */
     RTLDRPROP_INTERNAL_NAME,
+    /** The raw unwind table if available.
+     * For PE this means IMAGE_DIRECTORY_ENTRY_EXCEPTION content, for AMD64 this
+     * is the lookup table (IMAGE_RUNTIME_FUNCTION_ENTRY).
+     * Not implemented any others yet.  */
+    RTLDRPROP_UNWIND_TABLE,
+    /** Read unwind info at given RVA and up to buffer size.  The RVA is stored
+     * as uint32_t in the buffer when making the call.
+     * This is only implemented for PE.  */
+    RTLDRPROP_UNWIND_INFO,
 
     /** End of valid properties.  */
     RTLDRPROP_END,
@@ -1119,11 +1165,17 @@ typedef enum RTLDRSIGNATURETYPE
  * @param   enmSignature    The signature format.
  * @param   pvSignature     The signature data. Format given by @a enmSignature.
  * @param   cbSignature     The size of the buffer @a pvSignature points to.
+ * @param   pvExternalData  Pointer to the signed data, if external. NULL if the
+ *                          data is internal to the signature structure.
+ * @param   cbExternalData Size of the signed data, if external.  0 if
+ *                          internal to the signature structure.
  * @param   pErrInfo        Pointer to an error info buffer, optional.
  * @param   pvUser          User argument.
  *
  */
-typedef DECLCALLBACK(int) FNRTLDRVALIDATESIGNEDDATA(RTLDRMOD hLdrMod, RTLDRSIGNATURETYPE enmSignature, void const *pvSignature, size_t cbSignature,
+typedef DECLCALLBACK(int) FNRTLDRVALIDATESIGNEDDATA(RTLDRMOD hLdrMod, RTLDRSIGNATURETYPE enmSignature,
+                                                    void const *pvSignature, size_t cbSignature,
+                                                    void const *pvExternalData, size_t cbExternalData,
                                                     PRTERRINFO pErrInfo, void *pvUser);
 /** Pointer to a signature verification callback. */
 typedef FNRTLDRVALIDATESIGNEDDATA *PFNRTLDRVALIDATESIGNEDDATA;
@@ -1155,6 +1207,29 @@ RTDECL(int) RTLdrVerifySignature(RTLDRMOD hLdrMod, PFNRTLDRVALIDATESIGNEDDATA pf
  * @param   cbDigest        Size of the buffer @a pszDigest points at.
  */
 RTDECL(int) RTLdrHashImage(RTLDRMOD hLdrMod, RTDIGESTTYPE enmDigest, char *pszDigest, size_t cbDigest);
+
+/**
+ * Try use unwind information to unwind one frame.
+ *
+ * @returns IPRT status code.  Last informational status from stack reader callback.
+ * @retval  VERR_DBG_NO_UNWIND_INFO if the module contains no unwind information.
+ * @retval  VERR_DBG_UNWIND_INFO_NOT_FOUND if no unwind information was found
+ *          for the location given by iSeg:off.
+ *
+ * @param   hLdrMod         The module handle.
+ * @param   pvBits          Optional pointer to bits returned by
+ *                          RTLdrGetBits().  This can be utilized by some module
+ *                          interpreters to reduce memory consumption and file
+ *                          access.
+ * @param   iSeg            The segment number of the program counter.  UINT32_MAX if RVA.
+ * @param   off             The offset into @a iSeg.  Together with @a iSeg
+ *                          this corresponds to the RTDBGUNWINDSTATE::uPc
+ *                          value pointed to by @a pState.
+ * @param   pState          The unwind state to work.
+ *
+ * @sa      RTDbgModUnwindFrame
+ */
+RTDECL(int) RTLdrUnwindFrame(RTLDRMOD hLdrMod, void const *pvBits, uint32_t iSeg, RTLDRADDR off, PRTDBGUNWINDSTATE pState);
 
 RT_C_DECLS_END
 

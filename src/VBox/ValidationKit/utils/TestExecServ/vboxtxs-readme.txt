@@ -101,6 +101,15 @@ Windows Installation
 11. reboot / done
 12. Do test.
 
+NT 3.1 and 3.x tricks:
+- Make sure the file system is NTFS.  Observed issues converting 2GB partitions,
+  more success with smaller.
+- For NT3.1 PCNET drivers can be found on the net.  No DHCP, so NAT only with
+  IP 10.0.2.15, 10.0.2.2 as gateway, and 10.0.2.3 as DNS with --natdnsproxy1 on.
+- On NT3.1 you need to add SystemDrive=C: to the environment.
+- Need to perform registry edits manually.
+- Use startup folder instead of non-exising Windows/Run key.
+
 
 Testing the setup
 -----------------
@@ -108,8 +117,8 @@ Testing the setup
 1. Make sure the validationkit.iso is inserted.
 2. Boot / reboot the guest.
 3. Depending on the TXS transport options:
-      nat)   python testdrivers/tst-txsclient --reversed-setup
-      other) python testdrivers/tst-txsclient --hostname <guest-ip>
+      nat)   python testdriver/tst-txsclient.py --reversed-setup
+      other) python testdriver/tst-txsclient.py --hostname <guest-ip>
 
 
 

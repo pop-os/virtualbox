@@ -20,8 +20,9 @@
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-# include <QScrollBar>
 # include <QPushButton>
+# include <QScrollBar>
+# include <QVBoxLayout>
 
 /* GUI includes: */
 # include "UIVMInformationDialog.h"
@@ -37,9 +38,8 @@
 # include "VBoxGlobal.h"
 # include "VBoxUtils.h"
 # include "UIInformationConfiguration.h"
-# include "UIMachine.h"
-# include "UIVMItem.h"
 # include "UIInformationRuntime.h"
+# include "UIMachine.h"
 
 /* COM includes: */
 # include "COMEnums.h"
@@ -48,7 +48,6 @@
 # include "CSystemProperties.h"
 # include "CMachineDebugger.h"
 # include "CDisplay.h"
-# include "CGuest.h"
 # include "CStorageController.h"
 # include "CMediumAttachment.h"
 # include "CNetworkAdapter.h"
@@ -226,7 +225,7 @@ void UIVMInformationDialog::prepareTabWidget()
         /* Create Configuration Details tab: */
         UIInformationConfiguration *pInformationConfigurationWidget =
             new UIInformationConfiguration(this, m_pMachineWindow->machine(), m_pMachineWindow->console());
-        AssertPtrReturnVoid(pInformationConfigurationWidget);
+        if (pInformationConfigurationWidget)
         {
             m_tabs.insert(0, pInformationConfigurationWidget);
             m_pTabWidget->addTab(m_tabs.value(0), QString());
@@ -235,12 +234,11 @@ void UIVMInformationDialog::prepareTabWidget()
         /* Create Runtime Information tab: */
         UIInformationRuntime *pInformationRuntimeWidget =
             new UIInformationRuntime(this, m_pMachineWindow->machine(), m_pMachineWindow->console());
-        AssertPtrReturnVoid(pInformationRuntimeWidget);
+        if (pInformationRuntimeWidget)
         {
             m_tabs.insert(1, pInformationRuntimeWidget);
             m_pTabWidget->addTab(m_tabs.value(1), QString());
         }
-
         /* Set Runtime Information tab as default: */
         m_pTabWidget->setCurrentIndex(1);
 
@@ -301,4 +299,3 @@ void UIVMInformationDialog::cleanup()
     /* Save settings: */
     saveSettings();
 }
-

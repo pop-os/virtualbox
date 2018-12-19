@@ -34,12 +34,28 @@
 #define RTAIOMGR_MAGIC                  UINT32_C(0x18990223)
 /** Magic number for RTAIOMGRINTFILE::u32Magic. (Ephraim Kishon) */
 #define RTAIOMGRFILE_MAGIC              UINT32_C(0x19240823)
+/** Magic number for RTCRCIPHERINT::u32Magic. (Michael Wolff) */
+#define RTCRCIPHERINT_MAGIC             UINT32_C(0x19530827)
+/** Magic value for RTCRKEYINT::u32Magic. (Ronald Linn Rivest) */
+#define RTCRKEYINT_MAGIC                UINT32_C(0x19470506)
+/** Magic value for RTCRSSLINT::u32Magic. (Robert Upshur Woodward) */
+#define RTCRSSLINT_MAGIC                UINT32_C(0x19430326)
+/** Magic value for RTCRSSLSESSIONINT::u32Magic. (Carl Berstein) */
+#define RTCRSSLSESSIONINT_MAGIC         UINT32_C(0x19440214)
 /** Magic number for RTDBGMODINT::u32Magic. (Charles Lloyd) */
 #define RTDBGAS_MAGIC                   UINT32_C(0x19380315)
 /** Magic number for RTDBGCFGINT::u32Magic. (McCoy Tyner) */
 #define RTDBGCFG_MAGIC                  UINT32_C(0x19381211)
 /** Magic number for RTDBGMODINT::u32Magic. (Keith Jarrett) */
 #define RTDBGMOD_MAGIC                  UINT32_C(0x19450508)
+/** Magic number for RTDBGMODDEFERRED::u32Magic. (Chet Baker) */
+#define RTDBGMODDEFERRED_MAGIC          UINT32_C(0x19291223)
+/** Magic number for RTDBGMODDEFERRED::u32Magic after release. */
+#define RTDBGMODDEFERRED_MAGIC_DEAD     UINT32_C(0x19880513)
+/** Magic number for RTDBGMODLDR::u32Magic. (Gerry Mulligan) */
+#define RTDBGMODLDR_MAGIC               UINT32_C(0x19270406)
+/** Magic number for RTDBGMODLDR::u32Magic after close. */
+#define RTDBGMODLDR_MAGIC_DEAD          UINT32_C(0x19960120)
 /** Magic number for RTDBGMODVTIMG::u32Magic. (Jack DeJohnette) */
 #define RTDBGMODVTDBG_MAGIC             UINT32_C(0x19420809)
 /** Magic number for RTDBGMODVTIMG::u32Magic. (Cecil McBee) */
@@ -170,6 +186,14 @@
 #define RTSEMXROADS_MAGIC               UINT32_C(0x19350917)
 /** RTSEMXROADSINTERNAL::u32Magic value after RTSemXRoadsDestroy. */
 #define RTSEMXROADS_MAGIC_DEAD          UINT32_C(0x20011110)
+/** RTSERIALPORTINTERNAL::u32Magic value (Jules-Gabriel Verne). */
+#define RTSERIALPORT_MAGIC              UINT32_C(0x18280208)
+/** RTSERIALPORTINTERNAL::u32Magic value after RTSerialPortClose. */
+#define RTSERIALPORT_MAGIC_DEAD         UINT32_C(0x19050324)
+/** RTSHMEMINT::u32Magic value (Stephen William Hawking) */
+#define RTSHMEM_MAGIC                   UINT32_C(0x19420108)
+/** RTSHMEMINT::u32Magic value after RTShMemClose */
+#define RTSHMEM_MAGIC_DEAD              UINT32_C(0x20180314)
 /** The magic value for RTSOCKETINT::u32Magic. (Stanislaw Lem) */
 #define RTSOCKET_MAGIC                  UINT32_C(0x19210912)
 /** The magic value for RTSOCKETINT::u32Magic after destruction. */

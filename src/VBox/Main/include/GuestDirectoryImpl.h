@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,8 +18,9 @@
 #ifndef ____H_GUESTDIRECTORYIMPL
 #define ____H_GUESTDIRECTORYIMPL
 
-#include "GuestProcessImpl.h"
 #include "GuestDirectoryWrap.h"
+#include "GuestFsObjInfoImpl.h"
+#include "GuestProcessImpl.h"
 
 class GuestSession;
 
@@ -35,7 +36,7 @@ public:
      * @{ */
     DECLARE_EMPTY_CTOR_DTOR(GuestDirectory)
 
-    int     init(Console *pConsole, GuestSession *pSession, ULONG uDirID, const GuestDirectoryOpenInfo &openInfo);
+    int     init(Console *pConsole, GuestSession *pSession, ULONG aObjectID, const GuestDirectoryOpenInfo &openInfo);
     void    uninit(void);
 
     HRESULT FinalConstruct(void);
@@ -48,30 +49,35 @@ public:
     int            i_callbackDispatcher(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
     int            i_onRemove(void);
 
+    int            i_closeInternal(int *pGuestRc);
+    int            i_readInternal(ComObjPtr<GuestFsObjInfo> &fsObjInfo, int *pGuestRc);
+    /** @}  */
+
+public:
+    /** @name Public static internal methods.
+     * @{ */
     static Utf8Str i_guestErrorToString(int guestRc);
     static HRESULT i_setErrorExternal(VirtualBoxBase *pInterface, int guestRc);
     /** @}  */
 
 private:
 
-    /** @name Private Wrapped properties
+    /** Wrapped @name IGuestDirectory properties
      * @{ */
-    /** @}  */
     HRESULT getDirectoryName(com::Utf8Str &aDirectoryName);
     HRESULT getFilter(com::Utf8Str &aFilter);
-
-    /** @name Wrapped Private internal methods.
-     * @{ */
     /** @}  */
+
+    /** Wrapped @name IGuestDirectory methods.
+     * @{ */
     HRESULT close();
     HRESULT read(ComPtr<IFsObjInfo> &aObjInfo);
+    /** @}  */
 
     struct Data
     {
         /** The directory's open info. */
         GuestDirectoryOpenInfo     mOpenInfo;
-        /** The directory's ID. */
-        uint32_t                   mID;
         /** The process tool instance to use. */
         GuestProcessTool           mProcessTool;
     } mData;

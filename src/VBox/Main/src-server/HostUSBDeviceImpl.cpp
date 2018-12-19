@@ -473,16 +473,16 @@ HRESULT HostUSBDevice::i_requestCaptureForVM(SessionMachine *aMachine, bool aSet
     mMaskedIfs = aMaskedIfs;
     mCaptureFilename = aCaptureFilename;
     alock.release();
-    int rc = mUSBProxyBackend->captureDevice(this);
-    if (RT_FAILURE(rc))
+    int vrc = mUSBProxyBackend->captureDevice(this);
+    if (RT_FAILURE(vrc))
     {
         alock.acquire();
         i_failTransition(kHostUSBDeviceState_Invalid);
         mMachine.setNull();
-        if (rc == VERR_SHARING_VIOLATION)
-            return setError(E_FAIL,
-                            tr("USB device '%s' with UUID {%RTuuid} is in use by someone else"),
-                            mName, mId.raw());
+        if (vrc == VERR_SHARING_VIOLATION)
+            return setErrorBoth(E_FAIL, vrc,
+                                tr("USB device '%s' with UUID {%RTuuid} is in use by someone else"),
+                                mName, mId.raw());
         return E_FAIL;
     }
 
@@ -2544,9 +2544,7 @@ USBDeviceState_T HostUSBDevice::i_canonicalState() const
         case kHostUSBDeviceState_Capturing:
             Assert(   mPendingUniState == kHostUSBDeviceState_UsedByVM
                    || mPendingUniState == kHostUSBDeviceState_HeldByProxy);
-            return mPendingUniState == kHostUSBDeviceState_UsedByVM
-                ? (USBDeviceState_T)USBDeviceState_Captured
-                : (USBDeviceState_T)USBDeviceState_Held;
+            return mPendingUniState == kHostUSBDeviceState_UsedByVM ? USBDeviceState_Captured : USBDeviceState_Held;
             /* The cast ^^^^ is because xidl is using different enums for
                each of the values. *Very* nice idea... :-) */
 
@@ -2559,9 +2557,7 @@ USBDeviceState_T HostUSBDevice::i_canonicalState() const
         case kHostUSBDeviceState_ReleasingToHost:
             Assert(   mPrevUniState == kHostUSBDeviceState_UsedByVM
                    || mPrevUniState == kHostUSBDeviceState_HeldByProxy);
-            return mPrevUniState == kHostUSBDeviceState_UsedByVM
-                ? (USBDeviceState_T)USBDeviceState_Captured
-                : (USBDeviceState_T)USBDeviceState_Held;
+            return mPrevUniState == kHostUSBDeviceState_UsedByVM ? USBDeviceState_Captured : USBDeviceState_Held;
             /* The cast ^^^^ is because xidl is using different enums for
                each of the values. *Very* nice idea... :-) */
 

@@ -110,11 +110,9 @@ static DECLCALLBACK(int) svcUnload (void *)
     return rc;
 }
 
-static DECLCALLBACK(int) svcConnect (void *, uint32_t u32ClientID, void *pvClient)
+static DECLCALLBACK(int) svcConnect (void *, uint32_t u32ClientID, void *pvClient, uint32_t fRequestor, bool fRestoring)
 {
-    int rc = VINF_SUCCESS;
-
-    NOREF(pvClient);
+    RT_NOREF(pvClient, fRequestor, fRestoring);
 
     if (g_u32fCrHgcmDisabled)
     {
@@ -124,7 +122,7 @@ static DECLCALLBACK(int) svcConnect (void *, uint32_t u32ClientID, void *pvClien
 
     Log(("SHARED_CROPENGL svcConnect: u32ClientID = %d\n", u32ClientID));
 
-    rc = crVBoxServerAddClient(u32ClientID);
+    int rc = crVBoxServerAddClient(u32ClientID);
 
     return rc;
 }
@@ -200,11 +198,10 @@ static DECLCALLBACK(int) svcSaveState(void *, uint32_t u32ClientID, void *pvClie
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) svcLoadState(void *, uint32_t u32ClientID, void *pvClient, PSSMHANDLE pSSM)
+static DECLCALLBACK(int) svcLoadState(void *, uint32_t u32ClientID, void *pvClient, PSSMHANDLE pSSM, uint32_t uVersion)
 {
+    RT_NOREF(pvClient, uVersion);
     int rc = VINF_SUCCESS;
-
-    NOREF(pvClient);
 
     Log(("SHARED_CROPENGL svcLoadState: u32ClientID = %d\n", u32ClientID));
 
@@ -413,11 +410,11 @@ static void svcFreeBuffer(CRVBOXSVCBUFFER_t* pBuffer)
     RTMemFree(pBuffer);
 }
 
-static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID, void *pvClient, uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
+static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID, void *pvClient,
+                                   uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[], uint64_t tsArrival)
 {
+    RT_NOREF(pvClient, tsArrival);
     int rc = VINF_SUCCESS;
-
-    NOREF(pvClient);
 
     if (g_u32fCrHgcmDisabled)
     {
@@ -1549,6 +1546,7 @@ extern "C" DECLCALLBACK(DECLEXPORT(int)) VBoxHGCMSvcLoad (VBOXHGCMSVCFNTABLE *pt
             ptable->pfnHostCall   = svcHostCall;
             ptable->pfnSaveState  = svcSaveState;
             ptable->pfnLoadState  = svcLoadState;
+            ptable->pfnNotify     = NULL;
             ptable->pvService     = NULL;
 
             if (!crVBoxServerInit())

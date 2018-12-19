@@ -86,6 +86,11 @@
 /** Enables the fast I/O control code path. */
 #define VBOXDRV_WITH_FAST_IO
 
+/* Missing if we're compiling against older WDKs. */
+#ifndef NonPagedPoolNx
+# define NonPagedPoolNx     ((POOL_TYPE)512)
+#endif
+
 
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
@@ -320,6 +325,8 @@ RT_C_DECLS_END
 /*********************************************************************************************************************************
 *   Global Variables                                                                                                             *
 *********************************************************************************************************************************/
+/** The non-paged pool type to use, NonPagedPool or NonPagedPoolNx. */
+static POOL_TYPE      g_enmNonPagedPoolType = NonPagedPool;
 /** Pointer to the system device instance. */
 static PDEVICE_OBJECT g_pDevObjSys = NULL;
 /** Pointer to the user device instance. */
@@ -588,6 +595,14 @@ NTSTATUS _stdcall DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath)
 #endif
 
     /*
+     * Figure out if we can use NonPagedPoolNx or not.
+     */
+    ULONG ulMajorVersion, ulMinorVersion, ulBuildNumber;
+    PsGetVersion(&ulMajorVersion, &ulMinorVersion, &ulBuildNumber, NULL);
+    if (ulMajorVersion > 6 || (ulMajorVersion == 6 && ulMinorVersion >= 2)) /* >= 6.2 (W8)*/
+        g_enmNonPagedPoolType = NonPagedPoolNx;
+
+    /*
      * Query options first so any overflows on unpatched machines will do less
      * harm (see MS11-011 / 2393802 / 2011-03-18).
      *
@@ -595,7 +610,7 @@ NTSTATUS _stdcall DriverEntry(PDRIVER_OBJECT pDrvObj, PUNICODE_STRING pRegPath)
      * quite likely always is, so we have to make a copy here.
      */
     NTSTATUS rcNt;
-    PWSTR pwszCopy = (PWSTR)ExAllocatePoolWithTag(NonPagedPool, pRegPath->Length + sizeof(WCHAR), 'VBox');
+    PWSTR pwszCopy = (PWSTR)ExAllocatePoolWithTag(g_enmNonPagedPoolType, pRegPath->Length + sizeof(WCHAR), 'VBox');
     if (pwszCopy)
     {
         memcpy(pwszCopy, pRegPath->Buffer, pRegPath->Length);
@@ -1128,11 +1143,12 @@ static BOOLEAN _stdcall VBoxDrvNtFastIoDeviceControl(PFILE_OBJECT pFileObj, BOOL
          * Deal with the 2-3 high-speed IOCtl that takes their arguments from
          * the session and iCmd, and does not return anything.
          */
-        if (   uCmd == SUP_IOCTL_FAST_DO_RAW_RUN
-            || uCmd == SUP_IOCTL_FAST_DO_HM_RUN
-            || uCmd == SUP_IOCTL_FAST_DO_NOP)
+        if (   (uCmd & 3) == METHOD_NEITHER
+            && (uint32_t)((uCmd - SUP_IOCTL_FAST_DO_FIRST) >> 2) < (uint32_t)32)
         {
-            int rc = supdrvIOCtlFast(uCmd, (unsigned)(uintptr_t)pvOutput/* VMCPU id */, pDevExt, pSession);
+            int rc = supdrvIOCtlFast((uCmd - SUP_IOCTL_FAST_DO_FIRST) >> 2,
+                                     (unsigned)(uintptr_t)pvOutput/* VMCPU id */,
+                                     pDevExt, pSession);
             pIoStatus->Status      = RT_SUCCESS(rc) ? STATUS_SUCCESS : STATUS_INVALID_PARAMETER;
             pIoStatus->Information = 0; /* Could be used to pass rc if we liked. */
             supdrvSessionRelease(pSession);
@@ -1190,7 +1206,7 @@ static BOOLEAN _stdcall VBoxDrvNtFastIoDeviceControl(PFILE_OBJECT pFileObj, BOOL
                     && cbBuf < _1M*16)
                 {
                     /* Allocate a buffer and copy all the input into it. */
-                    PSUPREQHDR pHdr = (PSUPREQHDR)ExAllocatePoolWithTag(NonPagedPool, cbBuf, 'VBox');
+                    PSUPREQHDR pHdr = (PSUPREQHDR)ExAllocatePoolWithTag(g_enmNonPagedPoolType, cbBuf, 'VBox');
                     if (pHdr)
                     {
                         __try
@@ -1317,12 +1333,13 @@ NTSTATUS _stdcall VBoxDrvNtDeviceControl(PDEVICE_OBJECT pDevObj, PIRP pIrp)
         }
 #endif
 
-        ULONG ulCmd = pStack->Parameters.DeviceIoControl.IoControlCode;
-        if (   ulCmd == SUP_IOCTL_FAST_DO_RAW_RUN
-            || ulCmd == SUP_IOCTL_FAST_DO_HM_RUN
-            || ulCmd == SUP_IOCTL_FAST_DO_NOP)
+        ULONG uCmd = pStack->Parameters.DeviceIoControl.IoControlCode;
+        if (   (uCmd & 3) == METHOD_NEITHER
+            && (uint32_t)((uCmd - SUP_IOCTL_FAST_DO_FIRST) >> 2) < (uint32_t)32)
         {
-            int rc = supdrvIOCtlFast(ulCmd, (unsigned)(uintptr_t)pIrp->UserBuffer /* VMCPU id */, pDevExt, pSession);
+            int rc = supdrvIOCtlFast((uCmd - SUP_IOCTL_FAST_DO_FIRST) >> 2,
+                                     (unsigned)(uintptr_t)pIrp->UserBuffer /* VMCPU id */,
+                                     pDevExt, pSession);
 
             /* Complete the I/O request. */
             supdrvSessionRelease(pSession);
@@ -2005,7 +2022,7 @@ int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
             Log(("ImageAddress=%p SectionPointer=%p ImageLength=%#x cbImageBits=%#x rcNt=%#x '%ls'\n",
                  Info.ImageAddress, Info.SectionPointer, Info.ImageLength, pImage->cbImageBits, rcNt, Info.Name.Buffer));
 # ifdef DEBUG_bird
-            SUPR0Printf("ImageAddress=%p SectionPointer=%p ImageLength=%#x cbImageBits=%#x rcNt=%#x '%ws'\n",
+            SUPR0Printf("ImageAddress=%p SectionPointer=%p ImageLength=%#x cbImageBits=%#x rcNt=%#x '%ls'\n",
                         Info.ImageAddress, Info.SectionPointer, Info.ImageLength, pImage->cbImageBits, rcNt, Info.Name.Buffer);
 # endif
             if (pImage->cbImageBits == Info.ImageLength)
@@ -2080,15 +2097,170 @@ void VBOXCALL   supdrvOSLdrNotifyOpened(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE p
     NOREF(pDevExt); NOREF(pImage); NOREF(pszFilename);
 }
 
+
 void VBOXCALL   supdrvOSLdrNotifyUnloaded(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
 {
     NOREF(pDevExt); NOREF(pImage);
 }
 
-int  VBOXCALL   supdrvOSLdrValidatePointer(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, void *pv, const uint8_t *pbImageBits)
+
+/**
+ * Common worker for supdrvOSLdrQuerySymbol and supdrvOSLdrValidatePointer.
+ *
+ * @note    Similar code in rtR0DbgKrnlNtParseModule.
+ */
+static int supdrvOSLdrValidatePointerOrQuerySymbol(PSUPDRVLDRIMAGE pImage, void *pv, const char *pszSymbol,
+                                                   size_t cchSymbol, void **ppvSymbol)
 {
-    NOREF(pDevExt); NOREF(pImage); NOREF(pv); NOREF(pbImageBits);
+    AssertReturn(pImage->pvNtSectionObj, VERR_INVALID_STATE);
+    Assert(pszSymbol || !ppvSymbol);
+
+    /*
+     * Locate the export directory in the loaded image.
+     */
+    uint8_t const  *pbMapping      = (uint8_t const  *)pImage->pvImage;
+    uint32_t const  cbMapping      = pImage->cbImageBits;
+    uint32_t const  uRvaToValidate = (uint32_t)((uintptr_t)pv - (uintptr_t)pbMapping);
+    AssertReturn(uRvaToValidate < cbMapping || ppvSymbol, VERR_INTERNAL_ERROR_3);
+
+    uint32_t const  offNtHdrs = *(uint16_t *)pbMapping == IMAGE_DOS_SIGNATURE
+                              ? ((IMAGE_DOS_HEADER const *)pbMapping)->e_lfanew
+                              : 0;
+    AssertLogRelReturn(offNtHdrs + sizeof(IMAGE_NT_HEADERS) < cbMapping, VERR_INTERNAL_ERROR_5);
+
+    IMAGE_NT_HEADERS const *pNtHdrs = (IMAGE_NT_HEADERS const *)((uintptr_t)pbMapping + offNtHdrs);
+    AssertLogRelReturn(pNtHdrs->Signature == IMAGE_NT_SIGNATURE, VERR_INVALID_EXE_SIGNATURE);
+    AssertLogRelReturn(pNtHdrs->OptionalHeader.Magic == IMAGE_NT_OPTIONAL_HDR_MAGIC, VERR_BAD_EXE_FORMAT);
+    AssertLogRelReturn(pNtHdrs->OptionalHeader.NumberOfRvaAndSizes == IMAGE_NUMBEROF_DIRECTORY_ENTRIES, VERR_BAD_EXE_FORMAT);
+
+    uint32_t const offEndSectHdrs = offNtHdrs
+                                  + sizeof(*pNtHdrs)
+                                  + pNtHdrs->FileHeader.NumberOfSections * sizeof(IMAGE_SECTION_HEADER);
+    AssertReturn(offEndSectHdrs < cbMapping, VERR_BAD_EXE_FORMAT);
+
+    /*
+     * Find the export directory.
+     */
+    IMAGE_DATA_DIRECTORY ExpDir = pNtHdrs->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT];
+    if (!ExpDir.Size)
+    {
+        SUPR0Printf("SUPDrv: No exports in %s!\n", pImage->szName);
+        return ppvSymbol ? VERR_SYMBOL_NOT_FOUND : VERR_NOT_FOUND;
+    }
+    AssertReturn(   ExpDir.Size >= sizeof(IMAGE_EXPORT_DIRECTORY)
+                 && ExpDir.VirtualAddress >= offEndSectHdrs
+                 && ExpDir.VirtualAddress < cbMapping
+                 && ExpDir.VirtualAddress + ExpDir.Size <= cbMapping, VERR_BAD_EXE_FORMAT);
+
+    IMAGE_EXPORT_DIRECTORY const *pExpDir = (IMAGE_EXPORT_DIRECTORY const *)&pbMapping[ExpDir.VirtualAddress];
+
+    uint32_t const cNamedExports = pExpDir->NumberOfNames;
+    AssertReturn(cNamedExports              < _1M, VERR_BAD_EXE_FORMAT);
+    AssertReturn(pExpDir->NumberOfFunctions < _1M, VERR_BAD_EXE_FORMAT);
+    if (pExpDir->NumberOfFunctions == 0 || cNamedExports == 0)
+    {
+        SUPR0Printf("SUPDrv: No exports in %s!\n", pImage->szName);
+        return ppvSymbol ? VERR_SYMBOL_NOT_FOUND : VERR_NOT_FOUND;
+    }
+
+    uint32_t const cExports = RT_MAX(cNamedExports, pExpDir->NumberOfFunctions);
+
+    AssertReturn(   pExpDir->AddressOfFunctions >= offEndSectHdrs
+                 && pExpDir->AddressOfFunctions < cbMapping
+                 && pExpDir->AddressOfFunctions + cExports * sizeof(uint32_t) <= cbMapping,
+                 VERR_BAD_EXE_FORMAT);
+    uint32_t const * const paoffExports = (uint32_t const *)&pbMapping[pExpDir->AddressOfFunctions];
+
+    AssertReturn(   pExpDir->AddressOfNames >= offEndSectHdrs
+                 && pExpDir->AddressOfNames < cbMapping
+                 && pExpDir->AddressOfNames + cNamedExports * sizeof(uint32_t) <= cbMapping,
+                 VERR_BAD_EXE_FORMAT);
+    uint32_t const * const paoffNamedExports = (uint32_t const *)&pbMapping[pExpDir->AddressOfNames];
+
+    AssertReturn(   pExpDir->AddressOfNameOrdinals >= offEndSectHdrs
+                 && pExpDir->AddressOfNameOrdinals < cbMapping
+                 && pExpDir->AddressOfNameOrdinals + cNamedExports * sizeof(uint32_t) <= cbMapping,
+                 VERR_BAD_EXE_FORMAT);
+    uint16_t const * const pau16NameOrdinals = (uint16_t const *)&pbMapping[pExpDir->AddressOfNameOrdinals];
+
+    /*
+     * Validate the entrypoint RVA by scanning the export table.
+     */
+    uint32_t iExportOrdinal = UINT32_MAX;
+    if (!ppvSymbol)
+    {
+        for (uint32_t i = 0; i < cExports; i++)
+            if (paoffExports[i] == uRvaToValidate)
+            {
+                iExportOrdinal = i;
+                break;
+            }
+        if (iExportOrdinal == UINT32_MAX)
+        {
+            SUPR0Printf("SUPDrv: No export with rva %#x (%s) in %s!\n", uRvaToValidate, pszSymbol, pImage->szName);
+            return VERR_NOT_FOUND;
+        }
+    }
+
+    /*
+     * Can we validate the symbol name too or should we find a name?
+     * If so, just do a linear search.
+     */
+    if (pszSymbol && (RT_C_IS_UPPER(*pszSymbol) || ppvSymbol))
+    {
+        for (uint32_t i = 0; i < cNamedExports; i++)
+        {
+            uint32_t const     offName = paoffNamedExports[i];
+            AssertReturn(offName < cbMapping, VERR_BAD_EXE_FORMAT);
+            uint32_t const     cchMaxName = cbMapping - offName;
+            const char * const pszName    = (const char *)&pbMapping[offName];
+            const char * const pszEnd     = (const char *)memchr(pszName, '\0', cchMaxName);
+            AssertReturn(pszEnd, VERR_BAD_EXE_FORMAT);
+
+            if (   cchSymbol == (size_t)(pszEnd - pszName)
+                && memcmp(pszName, pszSymbol, cchSymbol) == 0)
+            {
+                if (ppvSymbol)
+                {
+                    iExportOrdinal = pau16NameOrdinals[i];
+                    if (   iExportOrdinal < cExports
+                        && paoffExports[iExportOrdinal] < cbMapping)
+                    {
+                        *ppvSymbol = (void *)(paoffExports[iExportOrdinal] + pbMapping);
+                        return VINF_SUCCESS;
+                    }
+                }
+                else if (pau16NameOrdinals[i] == iExportOrdinal)
+                    return VINF_SUCCESS;
+                else
+                    SUPR0Printf("SUPDrv: Different exports found for %s and rva %#x in %s: %#x vs %#x\n",
+                                pszSymbol, uRvaToValidate, pImage->szName, pau16NameOrdinals[i], iExportOrdinal);
+                return VERR_LDR_BAD_FIXUP;
+            }
+        }
+        if (!ppvSymbol)
+            SUPR0Printf("SUPDrv: No export named %s (%#x) in %s!\n", pszSymbol, uRvaToValidate, pImage->szName);
+        return VERR_SYMBOL_NOT_FOUND;
+    }
     return VINF_SUCCESS;
+}
+
+
+int  VBOXCALL   supdrvOSLdrValidatePointer(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, void *pv,
+                                           const uint8_t *pbImageBits, const char *pszSymbol)
+{
+    RT_NOREF(pDevExt, pbImageBits);
+    return supdrvOSLdrValidatePointerOrQuerySymbol(pImage, pv, pszSymbol, pszSymbol ? strlen(pszSymbol) : 0, NULL);
+}
+
+
+int  VBOXCALL   supdrvOSLdrQuerySymbol(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage,
+                                       const char *pszSymbol, size_t cchSymbol, void **ppvSymbol)
+{
+    RT_NOREF(pDevExt);
+    AssertReturn(ppvSymbol, VERR_INVALID_PARAMETER);
+    AssertReturn(pszSymbol, VERR_INVALID_PARAMETER);
+    return supdrvOSLdrValidatePointerOrQuerySymbol(pImage, NULL, pszSymbol, cchSymbol, ppvSymbol);
 }
 
 
@@ -2130,6 +2302,38 @@ static int supdrvNtCompare(PSUPDRVLDRIMAGE pImage, const uint8_t *pbImageBits, u
     return iDiff;
 }
 
+/** Image compare exclusion regions. */
+typedef struct SUPDRVNTEXCLREGIONS
+{
+    /** Number of regions.   */
+    uint32_t        cRegions;
+    /** The regions. */
+    struct SUPDRVNTEXCLREGION
+    {
+        uint32_t    uRva;
+        uint32_t    cb;
+    }               aRegions[16];
+} SUPDRVNTEXCLREGIONS;
+
+/**
+ * Adds an exclusion region to the collection.
+ */
+static bool supdrvNtAddExclRegion(SUPDRVNTEXCLREGIONS *pRegions, uint32_t uRvaRegion, uint32_t cbRegion)
+{
+    uint32_t const cRegions = pRegions->cRegions;
+    AssertReturn(cRegions + 1 <= RT_ELEMENTS(pRegions->aRegions), false);
+    uint32_t i = 0;
+    for (; i < cRegions; i++)
+        if (uRvaRegion < pRegions->aRegions[i].uRva)
+            break;
+    if (i != cRegions)
+        memmove(&pRegions->aRegions[i + 1], &pRegions->aRegions[i], (cRegions - i) * sizeof(pRegions->aRegions[0]));
+    pRegions->aRegions[i].uRva = uRvaRegion;
+    pRegions->aRegions[i].cb   = cbRegion;
+    pRegions->cRegions++;
+    return true;
+}
+
 
 int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const uint8_t *pbImageBits, PSUPLDRLOAD pReq)
 {
@@ -2144,8 +2348,7 @@ int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
 
         /*
          * On Windows 10 the ImageBase member of the optional header is sometimes
-         * updated with the actual load address and sometimes not.  Try compare
-         *
+         * updated with the actual load address and sometimes not.
          */
         uint32_t const  offNtHdrs = *(uint16_t *)pbImageBits == IMAGE_DOS_SIGNATURE
                                   ? ((IMAGE_DOS_HEADER const *)pbImageBits)->e_lfanew
@@ -2183,22 +2386,14 @@ int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
             &&  pNtHdrsIprt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].VirtualAddress < pImage->cbImageBits
             )
         {
-            struct MyRegion
-            {
-                uint32_t uRva;
-                uint32_t cb;
-            }           aExcludeRgns[16];
-            unsigned    cExcludeRgns = 0;
+            SUPDRVNTEXCLREGIONS ExcludeRegions;
+            ExcludeRegions.cRegions = 0;
 
             /* ImageBase: */
             if (   pNtHdrsNtLd->OptionalHeader.ImageBase != pNtHdrsIprt->OptionalHeader.ImageBase
                 && (   pNtHdrsNtLd->OptionalHeader.ImageBase == (uintptr_t)pImage->pvImage
                     || pNtHdrsIprt->OptionalHeader.ImageBase == (uintptr_t)pImage->pvImage) )
-            {
-                aExcludeRgns[cExcludeRgns].uRva = offImageBase;
-                aExcludeRgns[cExcludeRgns].cb   = cbImageBase;
-                cExcludeRgns++;
-            }
+                supdrvNtAddExclRegion(&ExcludeRegions, offImageBase, cbImageBase);
 
             /* Imports: */
             uint32_t    cImpsLeft    = pNtHdrsIprt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IMPORT].Size
@@ -2207,12 +2402,12 @@ int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
             AssertLogRelReturn(offImps + cImpsLeft * sizeof(IMAGE_IMPORT_DESCRIPTOR) <= pImage->cbImageBits, VERR_INTERNAL_ERROR_3);
             IMAGE_IMPORT_DESCRIPTOR const *pImp = (IMAGE_IMPORT_DESCRIPTOR const *)(pbImageBits + offImps);
             while (   cImpsLeft-- > 0
-                   && cExcludeRgns < RT_ELEMENTS(aExcludeRgns))
+                   && ExcludeRegions.cRegions < RT_ELEMENTS(ExcludeRegions.aRegions))
             {
                 uint32_t uRvaThunk = pImp->OriginalFirstThunk;
-                if (    uRvaThunk >  sizeof(IMAGE_NT_HEADERS)
-                    &&  uRvaThunk <= pImage->cbImageBits - sizeof(IMAGE_THUNK_DATA)
-                    &&  uRvaThunk != pImp->FirstThunk)
+                if (   uRvaThunk >  sizeof(IMAGE_NT_HEADERS)
+                    && uRvaThunk <= pImage->cbImageBits - sizeof(IMAGE_THUNK_DATA)
+                    && uRvaThunk != pImp->FirstThunk)
                 {
                     /* Find the size of the thunk table. */
                     IMAGE_THUNK_DATA const *paThunk    = (IMAGE_THUNK_DATA const *)(pbImageBits + uRvaThunk);
@@ -2220,18 +2415,30 @@ int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
                     uint32_t                cThunks    = 0;
                     while (cThunks < cMaxThunks && paThunk[cThunks].u1.Function != 0)
                         cThunks++;
-
-                    /* Ordered table insert. */
-                    unsigned i = 0;
-                    for (; i < cExcludeRgns; i++)
-                        if (uRvaThunk < aExcludeRgns[i].uRva)
-                            break;
-                    if (i != cExcludeRgns)
-                        memmove(&aExcludeRgns[i + 1], &aExcludeRgns[i], (cExcludeRgns - i) * sizeof(aExcludeRgns[0]));
-                    aExcludeRgns[i].uRva = uRvaThunk;
-                    aExcludeRgns[i].cb   = cThunks * sizeof(IMAGE_THUNK_DATA);
-                    cExcludeRgns++;
+                    supdrvNtAddExclRegion(&ExcludeRegions, uRvaThunk, cThunks * sizeof(IMAGE_THUNK_DATA));
                 }
+
+#if 0 /* Useful for VMMR0 hacking, not for production use.  See also SUPDrvLdr.cpp. */
+                /* Exclude the other thunk table if ntoskrnl.exe. */
+                uint32_t uRvaName = pImp->Name;
+                if (   uRvaName > sizeof(IMAGE_NT_HEADERS)
+                    && uRvaName < pImage->cbImageBits - sizeof("ntoskrnl.exe")
+                    && memcmp(&pbImageBits[uRvaName], RT_STR_TUPLE("ntoskrnl.exe")) == 0)
+                {
+                    uRvaThunk = pImp->FirstThunk;
+                    if (   uRvaThunk >  sizeof(IMAGE_NT_HEADERS)
+                        && uRvaThunk <= pImage->cbImageBits - sizeof(IMAGE_THUNK_DATA))
+                    {
+                        /* Find the size of the thunk table. */
+                        IMAGE_THUNK_DATA const *paThunk    = (IMAGE_THUNK_DATA const *)(pbImageBits + uRvaThunk);
+                        uint32_t                cMaxThunks = (pImage->cbImageBits - uRvaThunk) / sizeof(IMAGE_THUNK_DATA);
+                        uint32_t                cThunks    = 0;
+                        while (cThunks < cMaxThunks && paThunk[cThunks].u1.Function != 0)
+                            cThunks++;
+                        supdrvNtAddExclRegion(&ExcludeRegions, uRvaThunk, cThunks * sizeof(IMAGE_THUNK_DATA));
+                    }
+                }
+#endif
 
                 /* advance */
                 pImp++;
@@ -2242,11 +2449,11 @@ int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, c
              */
             int         iDiff    = 0;
             uint32_t    uRvaNext = 0;
-            for (unsigned i = 0; !iDiff && i < cExcludeRgns; i++)
+            for (unsigned i = 0; !iDiff && i < ExcludeRegions.cRegions; i++)
             {
-                if (uRvaNext < aExcludeRgns[i].uRva)
-                    iDiff = supdrvNtCompare(pImage, pbImageBits, uRvaNext, aExcludeRgns[i].uRva - uRvaNext, pReq);
-                uRvaNext = aExcludeRgns[i].uRva + aExcludeRgns[i].cb;
+                if (uRvaNext < ExcludeRegions.aRegions[i].uRva)
+                    iDiff = supdrvNtCompare(pImage, pbImageBits, uRvaNext, ExcludeRegions.aRegions[i].uRva - uRvaNext, pReq);
+                uRvaNext = ExcludeRegions.aRegions[i].uRva + ExcludeRegions.aRegions[i].cb;
             }
             if (!iDiff && uRvaNext < pImage->cbImageBits)
                 iDiff = supdrvNtCompare(pImage, pbImageBits, uRvaNext, pImage->cbImageBits - uRvaNext, pReq);
@@ -2557,6 +2764,230 @@ SUPR0DECL(int) SUPR0Printf(const char *pszFormat, ...)
 SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void)
 {
     return 0;
+}
+
+
+SUPR0DECL(int) SUPR0IoCtlSetupForHandle(PSUPDRVSESSION pSession, intptr_t hHandle, uint32_t fFlags, PSUPR0IOCTLCTX *ppCtx)
+{
+    /*
+     * Validate input.
+     */
+    AssertPtrReturn(ppCtx, VERR_INVALID_POINTER);
+    *ppCtx = NULL;
+    AssertReturn(SUP_IS_SESSION_VALID(pSession), VERR_INVALID_PARAMETER);
+    AssertReturn(!fFlags, VERR_INVALID_FLAGS);
+
+    /*
+     * Turn the partition handle into a file object and related device object
+     * so that we can issue direct I/O control calls to the pair later.
+     */
+    PFILE_OBJECT pFileObject = NULL;
+    OBJECT_HANDLE_INFORMATION HandleInfo = { 0, 0 };
+    NTSTATUS rcNt = ObReferenceObjectByHandle((HANDLE)hHandle, /*FILE_WRITE_DATA*/0, *IoFileObjectType,
+                                              UserMode, (void **)&pFileObject, &HandleInfo);
+    if (!NT_SUCCESS(rcNt))
+        return RTErrConvertFromNtStatus(rcNt);
+    AssertPtrReturn(pFileObject, VERR_INTERNAL_ERROR_3);
+
+    PDEVICE_OBJECT pDevObject = IoGetRelatedDeviceObject(pFileObject);
+    AssertMsgReturnStmt(RT_VALID_PTR(pDevObject), ("pDevObject=%p\n", pDevObject),
+                        ObDereferenceObject(pFileObject), VERR_INTERNAL_ERROR_2);
+
+    /*
+     * Allocate a context structure and fill it in.
+     */
+    PSUPR0IOCTLCTX pCtx = (PSUPR0IOCTLCTX)RTMemAllocZ(sizeof(*pCtx));
+    if (pCtx)
+    {
+        pCtx->u32Magic      = SUPR0IOCTLCTX_MAGIC;
+        pCtx->cRefs         = 1;
+        pCtx->pFileObject   = pFileObject;
+        pCtx->pDeviceObject = pDevObject;
+
+        PDRIVER_OBJECT pDrvObject = pDevObject->DriverObject;
+        if (   RT_VALID_PTR(pDrvObject->FastIoDispatch)
+            && RT_VALID_PTR(pDrvObject->FastIoDispatch->FastIoDeviceControl))
+            pCtx->pfnFastIoDeviceControl = pDrvObject->FastIoDispatch->FastIoDeviceControl;
+        else
+            pCtx->pfnFastIoDeviceControl = NULL;
+        *ppCtx = pCtx;
+        return VINF_SUCCESS;
+    }
+
+    ObDereferenceObject(pFileObject);
+    return VERR_NO_MEMORY;
+}
+
+
+/**
+ * I/O control destructor for NT.
+ *
+ * @param   pCtx    The context to destroy.
+ */
+static void supdrvNtIoCtlContextDestroy(PSUPR0IOCTLCTX pCtx)
+{
+    PFILE_OBJECT pFileObject = pCtx->pFileObject;
+    pCtx->pfnFastIoDeviceControl = NULL;
+    pCtx->pFileObject            = NULL;
+    pCtx->pDeviceObject          = NULL;
+    ASMAtomicWriteU32(&pCtx->u32Magic, ~SUPR0IOCTLCTX_MAGIC);
+
+    if (RT_VALID_PTR(pFileObject))
+        ObDereferenceObject(pFileObject);
+    RTMemFree(pCtx);
+}
+
+
+SUPR0DECL(int) SUPR0IoCtlCleanup(PSUPR0IOCTLCTX pCtx)
+{
+    if (pCtx != NULL)
+    {
+        AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
+        AssertReturn(pCtx->u32Magic == SUPR0IOCTLCTX_MAGIC, VERR_INVALID_PARAMETER);
+
+        uint32_t cRefs = ASMAtomicDecU32(&pCtx->cRefs);
+        Assert(cRefs < _4K);
+        if (cRefs == 0)
+            supdrvNtIoCtlContextDestroy(pCtx);
+    }
+    return VINF_SUCCESS;
+}
+
+
+SUPR0DECL(int)  SUPR0IoCtlPerform(PSUPR0IOCTLCTX pCtx, uintptr_t uFunction,
+                                  void *pvInput, RTR3PTR pvInputUser, size_t cbInput,
+                                  void *pvOutput, RTR3PTR pvOutputUser, size_t cbOutput,
+                                  int32_t *piNativeRc)
+{
+    AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
+    AssertReturn(pCtx->u32Magic == SUPR0IOCTLCTX_MAGIC, VERR_INVALID_PARAMETER);
+
+    /* Reference the context. */
+    uint32_t cRefs = ASMAtomicIncU32(&pCtx->cRefs);
+    Assert(cRefs > 1 && cRefs < _4K);
+
+    /*
+     * Try fast I/O control path first.
+     */
+    IO_STATUS_BLOCK Ios = RTNT_IO_STATUS_BLOCK_INITIALIZER;
+    if (pCtx->pfnFastIoDeviceControl)
+    {
+        /* Must pass user addresses here as that's what's being expected. */
+        BOOLEAN fHandled = pCtx->pfnFastIoDeviceControl(pCtx->pFileObject,
+                                                        TRUE /*Wait*/,
+                                                        (void *)pvInputUser,  (ULONG)cbInput,
+                                                        (void *)pvOutputUser, (ULONG)cbOutput,
+                                                        uFunction,
+                                                        &Ios,
+                                                        pCtx->pDeviceObject);
+        if (fHandled)
+        {
+            /* Relase the context. */
+            cRefs = ASMAtomicDecU32(&pCtx->cRefs);
+            Assert(cRefs < _4K);
+            if (cRefs == 0)
+                supdrvNtIoCtlContextDestroy(pCtx);
+
+            /* Set/convert status and return. */
+            if (piNativeRc)
+            {
+                *piNativeRc = Ios.Status;
+                return VINF_SUCCESS;
+            }
+            if (NT_SUCCESS(Ios.Status))
+                return VINF_SUCCESS;
+            return RTErrConvertFromNtStatus(Ios.Status);
+        }
+
+        /*
+         * Fall back on IRP if not handled.
+         *
+         * Note! Perhaps we should rather fail, because VID.SYS will crash getting
+         *       the partition ID with the code below.  It tries to zero the output
+         *       buffer as if it were as system buffer...
+         */
+        RTNT_IO_STATUS_BLOCK_REINIT(&Ios);
+    }
+
+    /*
+     * For directly accessed buffers we must supply user mode addresses or
+     * we'll fail ProbeForWrite validation.
+     */
+    switch (uFunction & 3)
+    {
+        case METHOD_BUFFERED:
+            /* For buffered accesses, we can supply kernel buffers. */
+            break;
+
+        case METHOD_IN_DIRECT:
+            pvInput  = (void *)pvInputUser;
+            break;
+
+        case METHOD_NEITHER:
+            pvInput  = (void *)pvInputUser;
+            RT_FALL_THRU();
+
+        case METHOD_OUT_DIRECT:
+            pvOutput = (void *)pvOutputUser;
+            break;
+    }
+
+    /*
+     * Build the request.
+     */
+    int rc;
+    KEVENT Event;
+    KeInitializeEvent(&Event, NotificationEvent, FALSE);
+
+    PIRP pIrp = IoBuildDeviceIoControlRequest(uFunction, pCtx->pDeviceObject,
+                                              pvInput, (ULONG)cbInput, pvOutput, (ULONG)cbOutput,
+                                              FALSE /* InternalDeviceControl */, &Event, &Ios);
+    if (pIrp)
+    {
+        IoGetNextIrpStackLocation(pIrp)->FileObject = pCtx->pFileObject;
+
+        /*
+         * Make the call.
+         */
+        NTSTATUS rcNt = IoCallDriver(pCtx->pDeviceObject, pIrp);
+        if (rcNt == STATUS_PENDING)
+        {
+            rcNt = KeWaitForSingleObject(&Event,            /* Object */
+                                         Executive,         /* WaitReason */
+                                         KernelMode,        /* WaitMode */
+                                         FALSE,             /* Alertable */
+                                         NULL);             /* TimeOut */
+            AssertMsg(rcNt == STATUS_SUCCESS, ("rcNt=%#x\n", rcNt));
+            rcNt = Ios.Status;
+        }
+        else if (NT_SUCCESS(rcNt) && Ios.Status != STATUS_SUCCESS)
+            rcNt = Ios.Status;
+
+        /* Set/convert return code. */
+        if (piNativeRc)
+        {
+            *piNativeRc = rcNt;
+            rc = VINF_SUCCESS;
+        }
+        else if (NT_SUCCESS(rcNt))
+            rc = VINF_SUCCESS;
+        else
+            rc = RTErrConvertFromNtStatus(rcNt);
+    }
+    else
+    {
+        if (piNativeRc)
+            *piNativeRc = STATUS_NO_MEMORY;
+        rc = VERR_NO_MEMORY;
+    }
+
+    /* Relase the context. */
+    cRefs = ASMAtomicDecU32(&pCtx->cRefs);
+    Assert(cRefs < _4K);
+    if (cRefs == 0)
+        supdrvNtIoCtlContextDestroy(pCtx);
+
+    return rc;
 }
 
 

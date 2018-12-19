@@ -1045,9 +1045,11 @@ RTDECL(int) RTLockValidatorClassCreateExV(PRTLOCKVALCLASS phClass, PCRTLOCKVALSR
      */
     size_t const       cbFile   = pSrcPos->pszFile ? strlen(pSrcPos->pszFile) + 1 : 0;
     size_t const     cbFunction = pSrcPos->pszFile ? strlen(pSrcPos->pszFunction) + 1 : 0;
-    RTLOCKVALCLASSINT *pThis    = (RTLOCKVALCLASSINT *)RTMemAllocVar(sizeof(*pThis) + cbFile + cbFunction + cbName);
+    RTLOCKVALCLASSINT *pThis    = (RTLOCKVALCLASSINT *)RTMemAllocVarTag(sizeof(*pThis) + cbFile + cbFunction + cbName,
+                                                                        "may-leak:RTLockValidatorClassCreateExV");
     if (!pThis)
         return VERR_NO_MEMORY;
+    RTMEM_MAY_LEAK(pThis);
 
     /*
      * Initialize the class data.
@@ -1431,6 +1433,7 @@ static int rtLockValidatorClassAddPriorClass(RTLOCKVALCLASSINT *pClass, RTLOCKVA
                         rc = VERR_NO_MEMORY;
                         break;
                     }
+                    RTMEM_MAY_LEAK(pNew);
                     pNew->pNext = NULL;
                     for (uint32_t i = 0; i < RT_ELEMENTS(pNew->aRefs); i++)
                     {

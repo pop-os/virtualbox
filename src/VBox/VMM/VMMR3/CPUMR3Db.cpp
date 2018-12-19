@@ -193,10 +193,14 @@ typedef struct CPUMDBENTRY
 #include "cpus/Intel_Core_i5_3570.h"
 #include "cpus/Intel_Core_i7_2635QM.h"
 #include "cpus/Intel_Xeon_X5482_3_20GHz.h"
+#include "cpus/Intel_Core2_X6800_2_93GHz.h"
+#include "cpus/Intel_Core2_T7600_2_33GHz.h"
+#include "cpus/Intel_Core_Duo_T2600_2_16GHz.h"
 #include "cpus/Intel_Pentium_M_processor_2_00GHz.h"
 #include "cpus/Intel_Pentium_4_3_00GHz.h"
 #include "cpus/Intel_Pentium_N3530_2_16GHz.h"
 #include "cpus/Intel_Atom_330_1_60GHz.h"
+#include "cpus/Intel_80486.h"
 #include "cpus/Intel_80386.h"
 #include "cpus/Intel_80286.h"
 #include "cpus/Intel_80186.h"
@@ -247,15 +251,28 @@ static CPUMDBENTRY const * const g_apCpumDbEntries[] =
 #ifdef VBOX_CPUDB_Intel_Atom_330_1_60GHz
     &g_Entry_Intel_Atom_330_1_60GHz,
 #endif
-#ifdef Intel_Pentium_M_processor_2_00GHz
+#ifdef VBOX_CPUDB_Intel_Pentium_M_processor_2_00GHz
     &g_Entry_Intel_Pentium_M_processor_2_00GHz,
 #endif
 #ifdef VBOX_CPUDB_Intel_Xeon_X5482_3_20GHz
     &g_Entry_Intel_Xeon_X5482_3_20GHz,
 #endif
+#ifdef VBOX_CPUDB_Intel_Core2_X6800_2_93GHz
+    &g_Entry_Intel_Core2_X6800_2_93GHz,
+#endif
+#ifdef VBOX_CPUDB_Intel_Core2_T7600_2_33GHz
+    &g_Entry_Intel_Core2_T7600_2_33GHz,
+#endif
+#ifdef VBOX_CPUDB_Intel_Core_Duo_T2600_2_16GHz
+    &g_Entry_Intel_Core_Duo_T2600_2_16GHz,
+#endif
 #ifdef VBOX_CPUDB_Intel_Pentium_4_3_00GHz
     &g_Entry_Intel_Pentium_4_3_00GHz,
 #endif
+#ifdef VBOX_CPUDB_Intel_Pentium_4_3_00GHz
+    &g_Entry_Intel_Pentium_4_3_00GHz,
+#endif
+/** @todo pentium, pentium mmx, pentium pro, pentium II, pentium III */
 #ifdef VBOX_CPUDB_Intel_80486
     &g_Entry_Intel_80486,
 #endif
@@ -572,54 +589,6 @@ int cpumR3MsrRangesInsert(PVM pVM, PCPUMMSRRANGE *ppaMsrRanges, uint32_t *pcMsrR
         }
     }
 
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Reconciles CPUID info with MSRs (selected ones).
- *
- * @returns VBox status code.
- * @param   pVM                 The cross context VM structure.
- */
-int cpumR3MsrReconcileWithCpuId(PVM pVM)
-{
-    PCCPUMMSRRANGE papToAdd[10];
-    uint32_t      cToAdd = 0;
-
-    /*
-     * The IA32_FLUSH_CMD MSR was introduced in MCUs for CVS-2018-3646 and associates.
-     */
-    if (pVM->cpum.s.GuestFeatures.fFlushCmd && !cpumLookupMsrRange(pVM, MSR_IA32_FLUSH_CMD))
-    {
-        static CPUMMSRRANGE const s_FlushCmd =
-        {
-            /*.uFirst =*/       MSR_IA32_FLUSH_CMD,
-            /*.uLast =*/        MSR_IA32_FLUSH_CMD,
-            /*.enmRdFn =*/      kCpumMsrRdFn_WriteOnly,
-            /*.enmWrFn =*/      kCpumMsrWrFn_Ia32FlushCmd,
-            /*.offCpumCpu =*/   UINT16_MAX,
-            /*.fReserved =*/    0,
-            /*.uValue =*/       0,
-            /*.fWrIgnMask =*/   0,
-            /*.fWrGpMask =*/    ~MSR_IA32_FLUSH_CMD_F_L1D,
-            /*.szName = */      "IA32_FLUSH_CMD"
-        };
-        papToAdd[cToAdd++] = &s_FlushCmd;
-    }
-
-    /*
-     * Do the adding.
-     */
-    for (uint32_t i = 0; i < cToAdd; i++)
-    {
-        PCCPUMMSRRANGE pRange = papToAdd[i];
-        LogRel(("CPUM: MSR/CPUID reconciliation insert: %#010x %s\n", pRange->uFirst, pRange->szName));
-        int rc = cpumR3MsrRangesInsert(NULL /* pVM */, &pVM->cpum.s.GuestInfo.paMsrRangesR3, &pVM->cpum.s.GuestInfo.cMsrRanges,
-                                       pRange);
-        if (RT_FAILURE(rc))
-            return rc;
-    }
     return VINF_SUCCESS;
 }
 
@@ -1052,7 +1021,7 @@ int cpumR3MsrRegStats(PVM pVM)
     STAM_REL_REG(pVM, &pCpum->cMsrReadsUnknown,         STAMTYPE_COUNTER,   "/CPUM/MSR-Totals/ReadsUnknown",
                  STAMUNIT_OCCURENCES, "RDMSR on unknown MSRs (raises #GP).");
     STAM_REL_REG(pVM, &pCpum->cMsrWrites,               STAMTYPE_COUNTER,   "/CPUM/MSR-Totals/Writes",
-                 STAMUNIT_OCCURENCES, "All RDMSRs making it to CPUM.");
+                 STAMUNIT_OCCURENCES, "All WRMSRs making it to CPUM.");
     STAM_REL_REG(pVM, &pCpum->cMsrWritesRaiseGp,        STAMTYPE_COUNTER,   "/CPUM/MSR-Totals/WritesRaisingGP",
                  STAMUNIT_OCCURENCES, "WRMSR raising #GPs, except unknown MSRs.");
     STAM_REL_REG(pVM, &pCpum->cMsrWritesToIgnoredBits,  STAMTYPE_COUNTER,   "/CPUM/MSR-Totals/WritesToIgnoredBits",

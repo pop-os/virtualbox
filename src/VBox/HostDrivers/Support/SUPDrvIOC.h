@@ -112,12 +112,22 @@
 # define SUP_CTL_CODE_NO_SIZE(uIOCtl)           ( (uIOCtl) & ~_IOC(0,0,0,IOCPARM_MASK) )
 #endif
 
+/** @name Fast path I/O control codes.
+ * @note These must run parallel to SUP_VMMR0_DO_XXX
+ * @note Implementations ASSUMES up to 32 I/O controls codes in the fast range.
+ * @{ */
 /** Fast path IOCtl: VMMR0_DO_RAW_RUN */
 #define SUP_IOCTL_FAST_DO_RAW_RUN               SUP_CTL_CODE_FAST(64)
 /** Fast path IOCtl: VMMR0_DO_HM_RUN */
 #define SUP_IOCTL_FAST_DO_HM_RUN                SUP_CTL_CODE_FAST(65)
 /** Just a NOP call for profiling the latency of a fast ioctl call to VMMR0. */
 #define SUP_IOCTL_FAST_DO_NOP                   SUP_CTL_CODE_FAST(66)
+/** Fast path IOCtl: VMMR0_DO_NEM_RUN */
+#define SUP_IOCTL_FAST_DO_NEM_RUN               SUP_CTL_CODE_FAST(67)
+/** First fast path IOCtl number. */
+#define SUP_IOCTL_FAST_DO_FIRST                 SUP_IOCTL_FAST_DO_RAW_RUN
+/** @} */
+
 
 #ifdef RT_OS_DARWIN
 /** Cookie used to fend off some unwanted clients to the IOService.  */
@@ -209,11 +219,11 @@ typedef SUPREQHDR *PSUPREQHDR;
  *  -# When increment the major number, execute all pending work.
  *
  * @todo Pending work on next major version change:
- *          - nothing.
+ *          - Move SUP_IOCTL_FAST_DO_NOP and SUP_VMMR0_DO_NEM_RUN after NEM.
  *
  * @remarks 0x002a0000 is used by 5.1. The next version number must be 0x002b0000.
  */
-#define SUPDRV_IOC_VERSION                              0x00290001
+#define SUPDRV_IOC_VERSION                              0x00290007
 
 /** SUP_IOCTL_COOKIE. */
 typedef struct SUPCOOKIE
@@ -1601,7 +1611,7 @@ typedef struct SUPGIPSETFLAGS
  *
  * @{
  */
-#define SUP_IOCTL_UCODE_REV                             SUP_CTL_CODE_SIZE(40, SUP_IOCTL_VT_CAPS_SIZE)
+#define SUP_IOCTL_UCODE_REV                             SUP_CTL_CODE_SIZE(40, SUP_IOCTL_UCODE_REV_SIZE)
 #define SUP_IOCTL_UCODE_REV_SIZE                        sizeof(SUPUCODEREV)
 #define SUP_IOCTL_UCODE_REV_SIZE_IN                     sizeof(SUPREQHDR)
 #define SUP_IOCTL_UCODE_REV_SIZE_OUT                    sizeof(SUPUCODEREV)

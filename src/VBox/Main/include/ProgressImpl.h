@@ -55,7 +55,7 @@ public:
                   VirtualBox *aParent,
 #endif
                   IUnknown *aInitiator,
-                  Utf8Str aDescription,
+                  const Utf8Str &aDescription,
                   BOOL aCancelable)
     {
         return init(
@@ -87,9 +87,9 @@ public:
                   VirtualBox *aParent,
 #endif
                   IUnknown *aInitiator,
-                  Utf8Str aDescription, BOOL aCancelable,
+                  const Utf8Str &aDescription, BOOL aCancelable,
                   ULONG cOperations,
-                  Utf8Str aFirstOperationDescription)
+                  const Utf8Str &aFirstOperationDescription)
     {
         return init(
 #if !defined(VBOX_COM_INPROC)
@@ -109,16 +109,16 @@ public:
                   VirtualBox *aParent,
 #endif
                   IUnknown *aInitiator,
-                  Utf8Str aDescription,
+                  const Utf8Str &aDescription,
                   BOOL aCancelable,
                   ULONG cOperations,
                   ULONG ulTotalOperationsWeight,
-                  Utf8Str aFirstOperationDescription,
+                  const Utf8Str &aFirstOperationDescription,
                   ULONG ulFirstOperationWeight);
 
     HRESULT init(BOOL aCancelable,
                  ULONG aOperationCount,
-                 Utf8Str aOperationDescription);
+                 const Utf8Str &aOperationDescription);
 
     void uninit();
 
@@ -135,10 +135,7 @@ public:
                               const char *pcszComponent,
                               const char *aText,
                               va_list va);
-    HRESULT i_notifyCompleteEI(HRESULT aResultCode,
-                               const ComPtr<IVirtualBoxErrorInfo> &aErrorInfo);
 
-    bool i_notifyPointOfNoReturn(void);
     bool i_setCancelCallback(void (*pfnCallback)(void *), void *pvUser);
 
     static DECLCALLBACK(int) i_iprtProgressCallback(unsigned uPercentage, void *pvUser);
@@ -206,14 +203,20 @@ private:
     HRESULT getEventSource(ComPtr<IEventSource> &aEventSource);
 
     // wrapped IProgress methods
-    HRESULT setCurrentOperationProgress(ULONG aPercent);
-    HRESULT setNextOperation(const com::Utf8Str &aNextOperationDescription,
-                             ULONG aNextOperationsWeight);
     HRESULT waitForCompletion(LONG aTimeout);
     HRESULT waitForOperationCompletion(ULONG aOperation,
                                        LONG aTimeout);
-    HRESULT waitForAsyncProgressCompletion(const ComPtr<IProgress> &aPProgressAsync);
     HRESULT cancel();
+
+    // wrapped IInternalProgressControl methods
+    HRESULT setCurrentOperationProgress(ULONG aPercent);
+    HRESULT waitForOtherProgressCompletion(const ComPtr<IProgress> &aProgressOther,
+                                           ULONG aTimeoutMS);
+    HRESULT setNextOperation(const com::Utf8Str &aNextOperationDescription,
+                             ULONG aNextOperationsWeight);
+    HRESULT notifyPointOfNoReturn();
+    HRESULT notifyComplete(LONG aResultCode,
+                           const ComPtr<IVirtualBoxErrorInfo> &aErrorInfo);
 
     // internal helper methods
     double i_calcTotalPercent();

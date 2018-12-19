@@ -235,10 +235,10 @@ struct SafeArrayTraits
 protected:
 
     /** Initializes memory for aElem. */
-    static void Init(T &aElem) { aElem = 0; }
+    static void Init(T &aElem) { aElem = (T)0; }
 
     /** Initializes memory occupied by aElem. */
-    static void Uninit(T &aElem) { aElem = 0; }
+    static void Uninit(T &aElem) { RT_NOREF(aElem); }
 
     /** Creates a deep copy of aFrom and stores it in aTo. */
     static void Copy(const T &aFrom, T &aTo) { aTo = aFrom; }
@@ -1620,9 +1620,8 @@ public:
             GUID guid;
             rc = SafeArrayGetIID(arg, &guid);
             AssertComRCReturnVoid(rc);
-            AssertMsgReturnVoid(InlineIsEqualGUID(COM_IIDOF(I), guid),
-                                ("Expected IID {%RTuuid}, got {%RTuuid}.\n",
-                                 &COM_IIDOF(I), &guid));
+            AssertMsgReturnVoid(InlineIsEqualGUID(COM_IIDOF(I), guid) || arg->rgsabound[0].cElements == 0 /* IDispatch if empty */,
+                                ("Expected IID {%RTuuid}, got {%RTuuid}.\n", &COM_IIDOF(I), &guid));
 
             rc = SafeArrayAccessData(arg, (void HUGEP **)&m.raw);
             AssertComRCReturnVoid(rc);

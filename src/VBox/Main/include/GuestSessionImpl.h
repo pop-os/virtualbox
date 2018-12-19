@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,226 +26,20 @@
 #include "GuestDirectoryImpl.h"
 #include "GuestFileImpl.h"
 #include "GuestFsObjInfoImpl.h"
-#include "ThreadTask.h"
+#include "GuestSessionImplTasks.h"
 
-#include <iprt/isofs.h> /* For UpdateAdditions. */
+#include <iprt/asm.h> /** @todo r=bird: Needed for ASMBitSet() in GuestSession::Data constructor.  Removed when
+                       *        that is moved into the class implementation file as it should be. */
+#include <deque>
 
-class Guest;
-class GuestSessionTaskInternalOpen;
-
-/**
- * Abstract base class for a lenghtly per-session operation which
- * runs in a Main worker thread.
- */
-class GuestSessionTask : public ThreadTask
-{
-public:
-
-    GuestSessionTask(GuestSession *pSession);
-
-    virtual ~GuestSessionTask(void);
-
-public:
-
-    virtual int Run(void) = 0;
-    void handler()
-    {
-        int vrc = Run();
-        NOREF(vrc);
-        /** @todo
-         *
-         * r=bird: what was your idea WRT to Run status code and async tasks?
-         *
-         */
-    }
-
-    int RunAsync(const Utf8Str &strDesc, ComObjPtr<Progress> &pProgress);
-
-    HRESULT Init(const Utf8Str &strTaskDesc)
-    {
-        HRESULT hr = S_OK;
-        setTaskDesc(strTaskDesc);
-        hr = createAndSetProgressObject();
-        return hr;
-    }
-
-    const ComObjPtr<Progress>& GetProgressObject() const {return mProgress;}
-
-protected:
-
-    int getGuestProperty(const ComObjPtr<Guest> &pGuest,
-                           const Utf8Str &strPath, Utf8Str &strValue);
-    int setProgress(ULONG uPercent);
-    int setProgressSuccess(void);
-    HRESULT setProgressErrorMsg(HRESULT hr, const Utf8Str &strMsg);
-    inline void setTaskDesc(const Utf8Str &strTaskDesc) throw()
-    {
-        mDesc = strTaskDesc;
-    }
-
-    HRESULT createAndSetProgressObject();
-protected:
-
-    Utf8Str                 mDesc;
-    GuestSession           *mSession;
-    /** Progress object for getting updated when running
-     *  asynchronously. Optional. */
-    ComObjPtr<Progress>     mProgress;
-};
-
-/**
- * Task for opening a guest session.
- */
-class SessionTaskOpen : public GuestSessionTask
-{
-public:
-
-    SessionTaskOpen(GuestSession *pSession,
-                    uint32_t uFlags,
-                    uint32_t uTimeoutMS);
-    virtual ~SessionTaskOpen(void);
-    int Run(void);
-
-protected:
-
-    /** Session creation flags. */
-    uint32_t mFlags;
-    /** Session creation timeout (in ms). */
-    uint32_t mTimeoutMS;
-};
-
-/**
- * Task for copying files from host to the guest.
- */
-class SessionTaskCopyTo : public GuestSessionTask
-{
-public:
-
-    SessionTaskCopyTo(GuestSession *pSession,
-                      const Utf8Str &strSource, const Utf8Str &strDest, uint32_t uFlags);
-    SessionTaskCopyTo(GuestSession *pSession,
-                      PRTFILE pSourceFile, size_t cbSourceOffset, uint64_t cbSourceSize,
-                      const Utf8Str &strDest, uint32_t uFlags);
-    virtual ~SessionTaskCopyTo(void);
-    int Run(void);
-
-protected:
-
-    Utf8Str  mSource;
-    PRTFILE  mSourceFile;
-    size_t   mSourceOffset;
-    uint64_t mSourceSize;
-    Utf8Str  mDest;
-    uint32_t mCopyFileFlags;
-};
-
-/**
- * Task for copying files from guest to the host.
- */
-class SessionTaskCopyFrom : public GuestSessionTask
-{
-public:
-
-    SessionTaskCopyFrom(GuestSession *pSession,
-                        const Utf8Str &strSource, const Utf8Str &strDest, uint32_t uFlags);
-    virtual ~SessionTaskCopyFrom(void);
-    int Run(void);
-
-protected:
-
-    Utf8Str  mSource;
-    Utf8Str  mDest;
-    uint32_t mFlags;
-};
-
-/**
- * Task for automatically updating the Guest Additions on the guest.
- */
-class SessionTaskUpdateAdditions : public GuestSessionTask
-{
-public:
-
-    SessionTaskUpdateAdditions(GuestSession *pSession,
-                               const Utf8Str &strSource, const ProcessArguments &aArguments,
-                               uint32_t uFlags);
-    virtual ~SessionTaskUpdateAdditions(void);
-    int Run(void);
-
-protected:
-
-    /**
-     * Suported OS types for automatic updating.
-     */
-    enum eOSType
-    {
-        eOSType_Unknown = 0,
-        eOSType_Windows = 1,
-        eOSType_Linux   = 2,
-        eOSType_Solaris = 3
-    };
-
-    /**
-     * Structure representing a file to
-     * get off the .ISO, copied to the guest.
-     */
-    struct InstallerFile
-    {
-        InstallerFile(const Utf8Str &aSource,
-                      const Utf8Str &aDest,
-                      uint32_t       aFlags = 0)
-            : strSource(aSource),
-              strDest(aDest),
-              fFlags(aFlags) { }
-
-        InstallerFile(const Utf8Str          &aSource,
-                      const Utf8Str          &aDest,
-                      uint32_t                aFlags,
-                      const GuestProcessStartupInfo &aStartupInfo)
-            : strSource(aSource),
-              strDest(aDest),
-              fFlags(aFlags),
-              mProcInfo(aStartupInfo)
-        {
-            mProcInfo.mExecutable = strDest;
-            if (mProcInfo.mName.isEmpty())
-                mProcInfo.mName = strDest;
-        }
-
-        /** Source file on .ISO. */
-        Utf8Str                 strSource;
-        /** Destination file on the guest. */
-        Utf8Str                 strDest;
-        /** File flags. */
-        uint32_t                fFlags;
-        /** Optional arguments if this file needs to be
-         *  executed. */
-        GuestProcessStartupInfo mProcInfo;
-    };
-
-    int i_addProcessArguments(ProcessArguments &aArgumentsDest,
-                              const ProcessArguments &aArgumentsSource);
-    int i_copyFileToGuest(GuestSession *pSession, PRTISOFSFILE pISO,
-                          Utf8Str const &strFileSource, const Utf8Str &strFileDest,
-                          bool fOptional, uint32_t *pcbSize);
-    int i_runFileOnGuest(GuestSession *pSession, GuestProcessStartupInfo &procInfo);
-
-    /** Files to handle. */
-    std::vector<InstallerFile> mFiles;
-    /** The (optionally) specified Guest Additions .ISO on the host
-     *  which will be used for the updating process. */
-    Utf8Str                    mSource;
-    /** (Optional) installer command line arguments. */
-    ProcessArguments           mArguments;
-    /** Update flags. */
-    uint32_t                   mFlags;
-};
+class GuestSessionTaskInternalOpen; /* Needed for i_startSessionThreadTask(). */
 
 /**
  * Guest session implementation.
  */
-class ATL_NO_VTABLE GuestSession :
-    public GuestSessionWrap,
-    public GuestBase
+class ATL_NO_VTABLE GuestSession
+    : public GuestSessionWrap
+    , public GuestBase
 {
 public:
     /** @name COM and internal init/term/mapping cruft.
@@ -277,6 +71,8 @@ private:
     HRESULT getPathStyle(PathStyle_T *aPathStyle);
     HRESULT getCurrentDirectory(com::Utf8Str &aCurrentDirectory);
     HRESULT setCurrentDirectory(const com::Utf8Str &aCurrentDirectory);
+    HRESULT getUserDocuments(com::Utf8Str &aUserDocuments);
+    HRESULT getUserHome(com::Utf8Str &aUserHome);
     HRESULT getDirectories(std::vector<ComPtr<IGuestDirectory> > &aDirectories);
     HRESULT getFiles(std::vector<ComPtr<IGuestFile> > &aFiles);
     HRESULT getEventSource(ComPtr<IEventSource> &aEventSource);
@@ -286,17 +82,28 @@ private:
      * @{ */
     HRESULT close();
 
+    HRESULT copyFromGuest(const std::vector<com::Utf8Str> &aSources,
+                          const std::vector<com::Utf8Str> &aFilters,
+                          const std::vector<com::Utf8Str> &aFlags,
+                          const com::Utf8Str &aDestination,
+                          ComPtr<IProgress> &aProgress);
+    HRESULT copyToGuest(const std::vector<com::Utf8Str> &aSources,
+                        const std::vector<com::Utf8Str> &aFilters,
+                        const std::vector<com::Utf8Str> &aFlags,
+                        const com::Utf8Str &aDestination,
+                        ComPtr<IProgress> &aProgress);
+
     HRESULT directoryCopy(const com::Utf8Str &aSource,
                           const com::Utf8Str &aDestination,
-                          const std::vector<DirectoryCopyFlags_T> &aFlags,
+                          const std::vector<DirectoryCopyFlag_T> &aFlags,
                           ComPtr<IProgress> &aProgress);
     HRESULT directoryCopyFromGuest(const com::Utf8Str &aSource,
                                    const com::Utf8Str &aDestination,
-                                   const std::vector<DirectoryCopyFlags_T> &aFlags,
+                                   const std::vector<DirectoryCopyFlag_T> &aFlags,
                                    ComPtr<IProgress> &aProgress);
     HRESULT directoryCopyToGuest(const com::Utf8Str &aSource,
                                  const com::Utf8Str &aDestination,
-                                 const std::vector<DirectoryCopyFlags_T> &aFlags,
+                                 const std::vector<DirectoryCopyFlag_T> &aFlags,
                                  ComPtr<IProgress> &aProgress);
     HRESULT directoryCreate(const com::Utf8Str &aPath,
                             ULONG aMode,
@@ -355,7 +162,7 @@ private:
                        FileOpenAction_T aOpenAction,
                        FileSharingMode_T aSharingMode,
                        ULONG aCreationMode,
-                       const std::vector<FileOpenExFlags_T> &aFlags,
+                       const std::vector<FileOpenExFlag_T> &aFlags,
                        ComPtr<IGuestFile> &aFile);
     HRESULT fileQuerySize(const com::Utf8Str &aPath,
                           BOOL aFollowSymlinks,
@@ -367,13 +174,23 @@ private:
                            BOOL aFollowSymlinks,
                            ComPtr<IGuestFsObjInfo> &aInfo);
     HRESULT fsObjRemove(const com::Utf8Str &aPath);
+    HRESULT fsObjRemoveArray(const std::vector<com::Utf8Str> &aPaths,
+                             ComPtr<IProgress> &aProgress);
     HRESULT fsObjRename(const com::Utf8Str &aOldPath,
                         const com::Utf8Str &aNewPath,
                         const std::vector<FsObjRenameFlag_T> &aFlags);
     HRESULT fsObjMove(const com::Utf8Str &aSource,
                       const com::Utf8Str &aDestination,
-                      const std::vector<FsObjMoveFlags_T> &aFlags,
+                      const std::vector<FsObjMoveFlag_T> &aFlags,
                       ComPtr<IProgress> &aProgress);
+    HRESULT fsObjMoveArray(const std::vector<com::Utf8Str> &aSource,
+                           const com::Utf8Str &aDestination,
+                           const std::vector<FsObjMoveFlag_T> &aFlags,
+                           ComPtr<IProgress> &aProgress);
+    HRESULT fsObjCopyArray(const std::vector<com::Utf8Str> &aSource,
+                           const com::Utf8Str &aDestination,
+                           const std::vector<FileCopyFlag_T> &aFlags,
+                           ComPtr<IProgress> &aProgress);
     HRESULT fsObjSetACL(const com::Utf8Str &aPath,
                         BOOL aFollowSymlinks,
                         const com::Utf8Str &aAcl,
@@ -418,32 +235,69 @@ private:
      *  To retrieve the process' guest PID use the Id() method of the IProcess interface. */
     typedef std::map <uint32_t, ComObjPtr<GuestProcess> > SessionProcesses;
 
+    /** Guest session object type enumeration. */
+    enum SESSIONOBJECTTYPE
+    {
+        /** Anonymous object. */
+        SESSIONOBJECTTYPE_ANONYMOUS  = 0,
+        /** Session object. */
+        SESSIONOBJECTTYPE_SESSION    = 1,
+        /** Directory object. */
+        SESSIONOBJECTTYPE_DIRECTORY  = 2,
+        /** File object. */
+        SESSIONOBJECTTYPE_FILE       = 3,
+        /** Process object. */
+        SESSIONOBJECTTYPE_PROCESS    = 4,
+        /** The usual 32-bit hack. */
+        SESSIONOBJECTTYPE_32BIT_HACK = 0x7fffffff
+    };
+
+    struct SessionObject
+    {
+        /** Creation timestamp (in ms).
+         * @note not used by anyone at the moment.  */
+        uint64_t          msBirth;
+        /** The object type. */
+        SESSIONOBJECTTYPE enmType;
+    };
+
+    /** Map containing all objects bound to a guest session.
+     *  The key specifies the (global) context ID. */
+    typedef std::map <uint32_t, SessionObject> SessionObjects;
+
 public:
     /** @name Public internal methods.
      * @todo r=bird: Most of these are public for no real reason...
      * @{ */
+    HRESULT                 i_copyFromGuest(const GuestSessionFsSourceSet &SourceSet, const com::Utf8Str &strDestination,
+                                            ComPtr<IProgress> &pProgress);
+    HRESULT                 i_copyToGuest(const GuestSessionFsSourceSet &SourceSet, const com::Utf8Str &strDestination,
+                                          ComPtr<IProgress> &pProgress);
     int                     i_closeSession(uint32_t uFlags, uint32_t uTimeoutMS, int *pGuestRc);
+    HRESULT                 i_directoryCopyFlagFromStr(const com::Utf8Str &strFlags, DirectoryCopyFlag_T *pfFlags);
     inline bool             i_directoryExists(uint32_t uDirID, ComObjPtr<GuestDirectory> *pDir);
-    int                     i_directoryRemoveFromList(GuestDirectory *pDirectory);
-    int                     i_directoryRemoveInternal(const Utf8Str &strPath, uint32_t uFlags, int *pGuestRc);
-    int                     i_directoryCreateInternal(const Utf8Str &strPath, uint32_t uMode, uint32_t uFlags, int *pGuestRc);
-    int                     i_objectCreateTempInternal(const Utf8Str &strTemplate, const Utf8Str &strPath, bool fDirectory,
-                                                       Utf8Str &strName, int *pGuestRc);
-    int                     i_directoryOpenInternal(const GuestDirectoryOpenInfo &openInfo,
-                                                    ComObjPtr<GuestDirectory> &pDirectory, int *pGuestRc);
-    int                     i_directoryQueryInfoInternal(const Utf8Str &strPath, bool fFollowSymlinks, GuestFsObjData &objData, int *pGuestRc);
-    int                     i_dispatchToDirectory(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
-    int                     i_dispatchToFile(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
+    int                     i_directoryUnregister(GuestDirectory *pDirectory);
+    int                     i_directoryRemove(const Utf8Str &strPath, uint32_t uFlags, int *pGuestRc);
+    int                     i_directoryCreate(const Utf8Str &strPath, uint32_t uMode, uint32_t uFlags, int *pGuestRc);
+    int                     i_directoryOpen(const GuestDirectoryOpenInfo &openInfo,
+                                            ComObjPtr<GuestDirectory> &pDirectory, int *pGuestRc);
+    int                     i_directoryQueryInfo(const Utf8Str &strPath, bool fFollowSymlinks, GuestFsObjData &objData, int *pGuestRc);
     int                     i_dispatchToObject(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
-    int                     i_dispatchToProcess(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
     int                     i_dispatchToThis(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
+    HRESULT                 i_fileCopyFlagFromStr(const com::Utf8Str &strFlags, FileCopyFlag_T *pfFlags);
     inline bool             i_fileExists(uint32_t uFileID, ComObjPtr<GuestFile> *pFile);
-    int                     i_fileRemoveFromList(GuestFile *pFile);
-    int                     i_fileRemoveInternal(const Utf8Str &strPath, int *pGuestRc);
-    int                     i_fileOpenInternal(const GuestFileOpenInfo &openInfo, ComObjPtr<GuestFile> &pFile, int *pGuestRc);
-    int                     i_fileQueryInfoInternal(const Utf8Str &strPath, bool fFollowSymlinks, GuestFsObjData &objData, int *pGuestRc);
-    int                     i_fileQuerySizeInternal(const Utf8Str &strPath, bool fFollowSymlinks, int64_t *pllSize, int *pGuestRc);
-    int                     i_fsQueryInfoInternal(const Utf8Str &strPath, bool fFollowSymlinks, GuestFsObjData &objData, int *pGuestRc);
+    int                     i_fileUnregister(GuestFile *pFile);
+    int                     i_fileRemove(const Utf8Str &strPath, int *pGuestRc);
+    int                     i_fileOpenEx(const com::Utf8Str &aPath, FileAccessMode_T aAccessMode, FileOpenAction_T aOpenAction,
+                                         FileSharingMode_T aSharingMode, ULONG aCreationMode,
+                                         const std::vector<FileOpenExFlag_T> &aFlags,
+                                         ComObjPtr<GuestFile> &pFile, int *prcGuest);
+    int                     i_fileOpen(const GuestFileOpenInfo &openInfo, ComObjPtr<GuestFile> &pFile, int *pGuestRc);
+    int                     i_fileQueryInfo(const Utf8Str &strPath, bool fFollowSymlinks, GuestFsObjData &objData, int *pGuestRc);
+    int                     i_fileQuerySize(const Utf8Str &strPath, bool fFollowSymlinks, int64_t *pllSize, int *pGuestRc);
+    int                     i_fsCreateTemp(const Utf8Str &strTemplate, const Utf8Str &strPath, bool fDirectory,
+                                           Utf8Str &strName, int *pGuestRc);
+    int                     i_fsQueryInfo(const Utf8Str &strPath, bool fFollowSymlinks, GuestFsObjData &objData, int *pGuestRc);
     const GuestCredentials &i_getCredentials(void);
     EventSource            *i_getEventSource(void) { return mEventSource; }
     Utf8Str                 i_getName(void);
@@ -452,18 +306,23 @@ public:
     HRESULT                 i_isReadyExternal(void);
     int                     i_onRemove(void);
     int                     i_onSessionStatusChange(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCbData);
-    int                     i_startSessionInternal(int *pGuestRc);
+    PathStyle_T             i_getPathStyle(void);
+    int                     i_startSession(int *pGuestRc);
     int                     i_startSessionAsync(void);
     static void             i_startSessionThreadTask(GuestSessionTaskInternalOpen *pTask);
     Guest                  *i_getParent(void) { return mParent; }
     uint32_t                i_getProtocolVersion(void) { return mData.mProtocolVersion; }
-    int                     i_pathRenameInternal(const Utf8Str &strSource, const Utf8Str &strDest, uint32_t uFlags,
-                                                 int *pGuestRc);
-    int                     i_processRemoveFromList(GuestProcess *pProcess);
-    int                     i_processCreateExInternal(GuestProcessStartupInfo &procInfo, ComObjPtr<GuestProcess> &pProgress);
+    int                     i_objectRegister(SESSIONOBJECTTYPE enmType, uint32_t *pidObject);
+    int                     i_objectUnregister(uint32_t uObjectID);
+    int                     i_pathRename(const Utf8Str &strSource, const Utf8Str &strDest, uint32_t uFlags, int *pGuestRc);
+    int                     i_pathUserDocuments(Utf8Str &strPath, int *prcGuest);
+    int                     i_pathUserHome(Utf8Str &strPath, int *prcGuest);
+    int                     i_processUnregister(GuestProcess *pProcess);
+    int                     i_processCreateEx(GuestProcessStartupInfo &procInfo, ComObjPtr<GuestProcess> &pProgress);
     inline bool             i_processExists(uint32_t uProcessID, ComObjPtr<GuestProcess> *pProcess);
     inline int              i_processGetByPID(ULONG uPID, ComObjPtr<GuestProcess> *pProcess);
-    int                     i_sendCommand(uint32_t uFunction, uint32_t uParms, PVBOXHGCMSVCPARM paParms);
+    int                     i_sendCommand(uint32_t uFunction, uint32_t uParms, PVBOXHGCMSVCPARM paParms,
+                                          uint64_t fDst = VBOX_GUESTCTRL_DST_SESSION);
     static HRESULT          i_setErrorExternal(VirtualBoxBase *pInterface, int guestRc);
     int                     i_setSessionStatus(GuestSessionStatus_T sessionStatus, int sessionRc);
     int                     i_signalWaiters(GuestSessionWaitResult_T enmWaitResult, int rc /*= VINF_SUCCESS */);
@@ -488,12 +347,21 @@ private:
      */
     const ComObjPtr<EventSource>    mEventSource;
 
+    /** @todo r=bird: One of the core points of the DATA sub-structures in Main is
+     * hinding implementation details and stuff that requires including iprt/asm.h.
+     * The way it's used here totally defeats that purpose.  You need to make it
+     * a pointer to a anynmous Data struct and define that structure in
+     * GuestSessionImpl.cpp and allocate it in the Init() function.
+     */
     struct Data
     {
         /** The session credentials. */
         GuestCredentials            mCredentials;
         /** The session's startup info. */
         GuestSessionStartupInfo     mSession;
+        /** The session's object ID.
+         *  Needed for registering wait events which are bound directly to this session. */
+        uint32_t                    mObjectID;
         /** The session's current status. */
         GuestSessionStatus_T        mStatus;
         /** The set of environment changes for the session for use when
@@ -509,22 +377,27 @@ private:
         SessionFiles                mFiles;
         /** Process objects bound to this session. */
         SessionProcesses            mProcesses;
+        /** Map of registered session objects (files, directories, ...). */
+        SessionObjects              mObjects;
         /** Guest control protocol version to be used.
          *  Guest Additions < VBox 4.3 have version 1,
          *  any newer version will have version 2. */
         uint32_t                    mProtocolVersion;
         /** Session timeout (in ms). */
         uint32_t                    mTimeout;
-        /** Total number of session objects (processes,
-         *  files, ...). */
-        uint32_t                    mNumObjects;
         /** The last returned session status
          *  returned from the guest side. */
         int                         mRC;
+        /** Object ID allocation bitmap; clear bits are free, set bits are busy. */
+        uint64_t                    bmObjectIds[VBOX_GUESTCTRL_MAX_OBJECTS / sizeof(uint64_t) / 8];
 
         Data(void)
             : mpBaseEnvironment(NULL)
-        { }
+        {
+            RT_ZERO(bmObjectIds);
+            ASMBitSet(&bmObjectIds, VBOX_GUESTCTRL_MAX_OBJECTS - 1);    /* Reserved for the session itself? */
+            ASMBitSet(&bmObjectIds, 0);                                 /* Let's reserve this too. */
+        }
         Data(const Data &rThat)
             : mCredentials(rThat.mCredentials)
             , mSession(rThat.mSession)
@@ -534,11 +407,13 @@ private:
             , mDirectories(rThat.mDirectories)
             , mFiles(rThat.mFiles)
             , mProcesses(rThat.mProcesses)
+            , mObjects(rThat.mObjects)
             , mProtocolVersion(rThat.mProtocolVersion)
             , mTimeout(rThat.mTimeout)
-            , mNumObjects(rThat.mNumObjects)
             , mRC(rThat.mRC)
-        { }
+        {
+            memcpy(&bmObjectIds, &rThat.bmObjectIds, sizeof(bmObjectIds));
+        }
         ~Data(void)
         {
             if (mpBaseEnvironment)

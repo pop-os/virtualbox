@@ -19,14 +19,15 @@
 # include <precomp.h>
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* Global includes: */
+/* Qt includes: */
 # include <QDialogButtonBox>
 # include <QLabel>
 # include <QPushButton>
 # include <QTextEdit>
 # include <QTextStream>
+# include <QVBoxLayout>
 
-/* Local includes: */
+/* GUI includes: */
 # include "UIWizardImportApp.h"
 # include "UIWizardImportAppPageBasic1.h"
 # include "UIWizardImportAppPageBasic2.h"
@@ -73,10 +74,10 @@ public:
         retranslateUi();
 
         /* Setup connections: */
-        connect(m_pButtonBox, SIGNAL(rejected()), this, SLOT(reject()));
-        connect(m_pButtonBox, SIGNAL(accepted()), this, SLOT(accept()));
-        connect(m_pPrintButton, SIGNAL(clicked()), this, SLOT(sltPrint()));
-        connect(m_pSaveButton, SIGNAL(clicked()), this, SLOT(sltSave()));
+        connect(m_pButtonBox, &QDialogButtonBox::rejected, this, &UIImportLicenseViewer::reject);
+        connect(m_pButtonBox, &QDialogButtonBox::accepted, this, &UIImportLicenseViewer::accept);
+        connect(m_pPrintButton, &QPushButton::clicked,     this, &UIImportLicenseViewer::sltPrint);
+        connect(m_pSaveButton,  &QPushButton::clicked,     this, &UIImportLicenseViewer::sltSave);
     }
 
     /* Content setter: */
@@ -148,10 +149,10 @@ UIWizardImportApp::UIWizardImportApp(QWidget *pParent, const QString &strFileNam
 {
 #ifndef VBOX_WS_MAC
     /* Assign watermark: */
-    assignWatermark(":/vmw_ovf_import.png");
+    assignWatermark(":/wizard_ovf_import.png");
 #else /* VBOX_WS_MAC */
     /* Assign background image: */
-    assignBackground(":/vmw_ovf_import_bg.png");
+    assignBackground(":/wizard_ovf_import_bg.png");
 #endif /* VBOX_WS_MAC */
 }
 

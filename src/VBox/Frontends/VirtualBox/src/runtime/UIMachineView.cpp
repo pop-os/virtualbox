@@ -27,6 +27,7 @@
 
 /* GUI includes: */
 # include "VBoxGlobal.h"
+# include "UIActionPoolRuntime.h"
 # include "UIDesktopWidgetWatchdog.h"
 # include "UIExtraDataManager.h"
 # include "UIMessageCenter.h"
@@ -246,17 +247,38 @@ void UIMachineView::destroy(UIMachineView *pMachineView)
 
 void UIMachineView::applyMachineViewScaleFactor()
 {
-    /* Take the scale-factor related attributes into account: */
-    const double dScaleFactor = gEDataManager->scaleFactor(vboxGlobal().managedVMUuid());
-    const bool fUseUnscaledHiDPIOutput = gEDataManager->useUnscaledHiDPIOutput(vboxGlobal().managedVMUuid());
+    /* Sanity check: */
+    if (!frameBuffer())
+        return;
+
+    /* Acquire selected scale-factor: */
+    double dScaleFactor = gEDataManager->scaleFactor(vboxGlobal().managedVMUuid(), m_uScreenId);
+
+    /* Take the device-pixel-ratio into account: */
+    frameBuffer()->setDevicePixelRatio(gpDesktop->devicePixelRatio(machineWindow()));
+    frameBuffer()->setDevicePixelRatioActual(gpDesktop->devicePixelRatioActual(machineWindow()));
+    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
+    const bool fUseUnscaledHiDPIOutput = dScaleFactor != dDevicePixelRatioActual;
+    dScaleFactor = fUseUnscaledHiDPIOutput ? dScaleFactor : 1.0;
+
+    /* Assign frame-buffer with new values: */
     frameBuffer()->setScaleFactor(dScaleFactor);
     frameBuffer()->setUseUnscaledHiDPIOutput(fUseUnscaledHiDPIOutput);
+
     /* Propagate the scale-factor related attributes to 3D service if necessary: */
     if (machine().GetAccelerate3DEnabled() && vboxGlobal().is3DAvailable())
     {
+        double dScaleFactorFor3D = dScaleFactor;
+#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
+        // WORKAROUND:
+        // On Windows and Linux opposing to macOS it's only Qt which can auto scale up,
+        // not 3D overlay itself, so for auto scale-up mode we have to take that into account.
+        if (!fUseUnscaledHiDPIOutput)
+            dScaleFactorFor3D *= frameBuffer()->devicePixelRatioActual();
+#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
         display().NotifyScaleFactorChange(m_uScreenId,
-                                          (uint32_t)(dScaleFactor * VBOX_OGL_SCALE_FACTOR_MULTIPLIER),
-                                          (uint32_t)(dScaleFactor * VBOX_OGL_SCALE_FACTOR_MULTIPLIER));
+                                          (uint32_t)(dScaleFactorFor3D * VBOX_OGL_SCALE_FACTOR_MULTIPLIER),
+                                          (uint32_t)(dScaleFactorFor3D * VBOX_OGL_SCALE_FACTOR_MULTIPLIER));
         display().NotifyHiDPIOutputPolicyChange(fUseUnscaledHiDPIOutput);
     }
 
@@ -295,6 +317,10 @@ void UIMachineView::sltPerformGuestResize(const QSize &toSize)
     LogRel(("GUI: UIMachineView::sltPerformGuestResize: "
             "Sending guest size-hint to screen %d as %dx%d if necessary\n",
             (int)screenId(), size.width(), size.height()));
+
+    /* Record the hint to extra data, needed for guests using VMSVGA: */
+    /* This should be done before the actual hint is sent in case the guest overrides it. */
+    storeGuestSizeHint(size);
 
     /* If auto-mount of guest-screens (auto-pilot) enabled: */
     if (gEDataManager->autoMountGuestScreensEnabled(vboxGlobal().managedVMUuid()))
@@ -356,7 +382,13 @@ void UIMachineView::sltHandleNotifyChange(int iWidth, int iHeight)
     if (visualStateType() == UIVisualStateType_Scale)
     {
         /* Assign new frame-buffer logical-size: */
-        frameBuffer()->setScaledSize(size());
+        QSize scaledSize = size();
+        const double dDevicePixelRatioFormal = frameBuffer()->devicePixelRatio();
+        const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
+        scaledSize *= dDevicePixelRatioFormal;
+        if (!frameBuffer()->useUnscaledHiDPIOutput())
+            scaledSize /= dDevicePixelRatioActual;
+        frameBuffer()->setScaledSize(scaledSize);
 
         /* Forget the last full-screen size: */
         uisession()->setLastFullScreenSize(screenId(), QSize(-1, -1));
@@ -405,7 +437,13 @@ void UIMachineView::sltHandleNotifyChange(int iWidth, int iHeight)
 
     /* If we are in normal or scaled mode and if GA are active,
      * remember the guest-screen size to be able to restore it when necessary: */
-    if (!isFullscreenOrSeamless() && uisession()->isGuestSupportsGraphics())
+    /* As machines with Linux/Solaris and VMSVGA are not able to tell us
+     * whether a resize was due to the system or user interaction we currently
+     * do not store hints for these systems except when we explicitly send them
+     * ourselves.  Windows guests should use VBoxVGA controllers, not VMSVGA. */
+    if (   !isFullscreenOrSeamless()
+        && uisession()->isGuestSupportsGraphics()
+        && (machine().GetGraphicsControllerType() != KGraphicsControllerType_VMSVGA))
         storeGuestSizeHint(QSize(iWidth, iHeight));
 
     LogRelFlow(("GUI: UIMachineView::sltHandleNotifyChange: Complete for Screen=%d, Size=%dx%d\n",
@@ -434,24 +472,27 @@ void UIMachineView::sltHandleNotifyUpdate(int iX, int iY, int iWidth, int iHeigh
                            (int)ceil((double)rect.height() * yScaleFactor) + 2));
     }
 
-    /* Shift has to be scaled by the backing-scale-factor
+    /* Shift has to be scaled by the device-pixel-ratio
      * but not scaled by the scale-factor. */
     rect.translate(-contentsX(), -contentsY());
 
-#ifdef VBOX_WS_MAC
-    /* Take the backing-scale-factor into account: */
-    if (frameBuffer()->useUnscaledHiDPIOutput())
+    /* Take the device-pixel-ratio into account: */
+    const double dDevicePixelRatioFormal = frameBuffer()->devicePixelRatio();
+    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
+    if (!frameBuffer()->useUnscaledHiDPIOutput() && dDevicePixelRatioActual != 1.0)
     {
-        const double dBackingScaleFactor = frameBuffer()->backingScaleFactor();
-        if (dBackingScaleFactor > 1.0)
-        {
-            rect.moveTo((int)floor((double)rect.x() / dBackingScaleFactor) - 1,
-                        (int)floor((double)rect.y() / dBackingScaleFactor) - 1);
-            rect.setSize(QSize((int)ceil((double)rect.width()  / dBackingScaleFactor) + 2,
-                               (int)ceil((double)rect.height() / dBackingScaleFactor) + 2));
-        }
+        rect.moveTo((int)floor((double)rect.x() * dDevicePixelRatioActual) - 1,
+                    (int)floor((double)rect.y() * dDevicePixelRatioActual) - 1);
+        rect.setSize(QSize((int)ceil((double)rect.width()  * dDevicePixelRatioActual) + 2,
+                           (int)ceil((double)rect.height() * dDevicePixelRatioActual) + 2));
     }
-#endif /* VBOX_WS_MAC */
+    if (dDevicePixelRatioFormal != 1.0)
+    {
+        rect.moveTo((int)floor((double)rect.x() / dDevicePixelRatioFormal) - 1,
+                    (int)floor((double)rect.y() / dDevicePixelRatioFormal) - 1);
+        rect.setSize(QSize((int)ceil((double)rect.width()  / dDevicePixelRatioFormal) + 2,
+                           (int)ceil((double)rect.height() / dDevicePixelRatioFormal) + 2));
+    }
 
     /* Limit the resulting part by the viewport rectangle: */
     rect &= viewport()->rect();
@@ -476,74 +517,38 @@ void UIMachineView::sltDesktopResized()
     setMaxGuestSize();
 }
 
-void UIMachineView::sltHandleScaleFactorChange(const QString &strMachineID)
+void UIMachineView::sltHandleScaleFactorChange(const QUuid &uMachineID)
 {
     /* Skip unrelated machine IDs: */
-    if (strMachineID != vboxGlobal().managedVMUuid())
+    if (uMachineID != vboxGlobal().managedVMUuid())
         return;
 
-    /* Take the scale-factor into account: */
-    const double dScaleFactor = gEDataManager->scaleFactor(vboxGlobal().managedVMUuid());
+    /* Acquire selected scale-factor: */
+    double dScaleFactor = gEDataManager->scaleFactor(vboxGlobal().managedVMUuid(), m_uScreenId);
+
+    /* Take the device-pixel-ratio into account: */
+    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
+    const bool fUseUnscaledHiDPIOutput = dScaleFactor != dDevicePixelRatioActual;
+    dScaleFactor = fUseUnscaledHiDPIOutput ? dScaleFactor : 1.0;
+
+    /* Assign frame-buffer with new values: */
     frameBuffer()->setScaleFactor(dScaleFactor);
-    /* Propagate the scale-factor to 3D service if necessary: */
-    if (machine().GetAccelerate3DEnabled() && vboxGlobal().is3DAvailable())
-    {
-        display().NotifyScaleFactorChange(m_uScreenId,
-                                          (uint32_t)(dScaleFactor * VBOX_OGL_SCALE_FACTOR_MULTIPLIER),
-                                          (uint32_t)(dScaleFactor * VBOX_OGL_SCALE_FACTOR_MULTIPLIER));
-    }
-
-    /* Handle scale attributes change: */
-    handleScaleChange();
-    /* Adjust guest-screen size: */
-    adjustGuestScreenSize();
-
-    /* Update scaled pause pixmap, if necessary: */
-    updateScaledPausePixmap();
-    viewport()->update();
-
-    /* Update console's display viewport and 3D overlay: */
-    updateViewport();
-}
-
-void UIMachineView::sltHandleScalingOptimizationChange(const QString &strMachineID)
-{
-    /* Skip unrelated machine IDs: */
-    if (strMachineID != vboxGlobal().managedVMUuid())
-        return;
-
-    /* Take the scaling-optimization type into account: */
-    frameBuffer()->setScalingOptimizationType(gEDataManager->scalingOptimizationType(vboxGlobal().managedVMUuid()));
-
-    /* Update viewport: */
-    viewport()->update();
-}
-
-void UIMachineView::sltHandleHiDPIOptimizationChange(const QString &strMachineID)
-{
-    /* Skip unrelated machine IDs: */
-    if (strMachineID != vboxGlobal().managedVMUuid())
-        return;
-
-    /* Take the HiDPI-optimization type into account: */
-    frameBuffer()->setHiDPIOptimizationType(gEDataManager->hiDPIOptimizationType(vboxGlobal().managedVMUuid()));
-
-    /* Update viewport: */
-    viewport()->update();
-}
-
-void UIMachineView::sltHandleUnscaledHiDPIOutputModeChange(const QString &strMachineID)
-{
-    /* Skip unrelated machine IDs: */
-    if (strMachineID != vboxGlobal().managedVMUuid())
-        return;
-
-    /* Take the unscaled HiDPI output mode into account: */
-    const bool fUseUnscaledHiDPIOutput = gEDataManager->useUnscaledHiDPIOutput(vboxGlobal().managedVMUuid());
     frameBuffer()->setUseUnscaledHiDPIOutput(fUseUnscaledHiDPIOutput);
-    /* Propagate the unscaled HiDPI output mode to 3D service if necessary: */
+
+    /* Propagate the scale-factor related attributes to 3D service if necessary: */
     if (machine().GetAccelerate3DEnabled() && vboxGlobal().is3DAvailable())
     {
+        double dScaleFactorFor3D = dScaleFactor;
+#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
+        // WORKAROUND:
+        // On Windows and Linux opposing to macOS it's only Qt which can auto scale up,
+        // not 3D overlay itself, so for auto scale-up mode we have to take that into account.
+        if (!fUseUnscaledHiDPIOutput)
+            dScaleFactorFor3D *= frameBuffer()->devicePixelRatioActual();
+#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
+        display().NotifyScaleFactorChange(m_uScreenId,
+                                          (uint32_t)(dScaleFactorFor3D * VBOX_OGL_SCALE_FACTOR_MULTIPLIER),
+                                          (uint32_t)(dScaleFactorFor3D * VBOX_OGL_SCALE_FACTOR_MULTIPLIER));
         display().NotifyHiDPIOutputPolicyChange(fUseUnscaledHiDPIOutput);
     }
 
@@ -558,6 +563,19 @@ void UIMachineView::sltHandleUnscaledHiDPIOutputModeChange(const QString &strMac
 
     /* Update console's display viewport and 3D overlay: */
     updateViewport();
+}
+
+void UIMachineView::sltHandleScalingOptimizationChange(const QUuid &uMachineID)
+{
+    /* Skip unrelated machine IDs: */
+    if (uMachineID != vboxGlobal().managedVMUuid())
+        return;
+
+    /* Take the scaling-optimization type into account: */
+    frameBuffer()->setScalingOptimizationType(gEDataManager->scalingOptimizationType(vboxGlobal().managedVMUuid()));
+
+    /* Update viewport: */
+    viewport()->update();
 }
 
 void UIMachineView::sltMachineStateChanged()
@@ -607,9 +625,8 @@ void UIMachineView::sltMachineStateChanged()
                     display().InvalidateAndUpdate();
                 }
             }
-            /* Reapply machine-view scale-factor if necessary: */
-            if (m_pFrameBuffer)
-                applyMachineViewScaleFactor();
+            /* Reapply machine-view scale-factor: */
+            applyMachineViewScaleFactor();
             break;
         }
         default:
@@ -630,9 +647,7 @@ UIMachineView::UIMachineView(  UIMachineWindow *pMachineWindow
     , m_uScreenId(uScreenId)
     , m_pFrameBuffer(0)
     , m_previousState(KMachineState_Null)
-#ifdef VBOX_WS_MAC
     , m_iHostScreenNumber(0)
-#endif /* VBOX_WS_MAC */
     , m_maxGuestSizePolicy(MaxGuestResolutionPolicy_Automatic)
     , m_u64MaxGuestSize(0)
 #ifdef VBOX_WITH_VIDEOHWACCEL
@@ -698,28 +713,38 @@ void UIMachineView::prepareFrameBuffer()
         m_pFrameBuffer->init(this);
 #endif /* !VBOX_WITH_VIDEOHWACCEL */
 
-        /* Take HiDPI optimization type into account: */
-        m_pFrameBuffer->setHiDPIOptimizationType(gEDataManager->hiDPIOptimizationType(vboxGlobal().managedVMUuid()));
-
         /* Take scaling optimization type into account: */
         m_pFrameBuffer->setScalingOptimizationType(gEDataManager->scalingOptimizationType(vboxGlobal().managedVMUuid()));
 
-#ifdef VBOX_WS_MAC
-        /* Take backing scale-factor into account: */
-        m_pFrameBuffer->setBackingScaleFactor(darwinBackingScaleFactor(machineWindow()));
-#endif /* VBOX_WS_MAC */
+        /* Acquire selected scale-factor: */
+        double dScaleFactor = gEDataManager->scaleFactor(vboxGlobal().managedVMUuid(), m_uScreenId);
 
-        /* Take the scale-factor related attributes into account: */
-        const double dScaleFactor = gEDataManager->scaleFactor(vboxGlobal().managedVMUuid());
-        const bool fUseUnscaledHiDPIOutput = gEDataManager->useUnscaledHiDPIOutput(vboxGlobal().managedVMUuid());
+        /* Take the device-pixel-ratio into account: */
+        const double dDevicePixelRatioFormal = gpDesktop->devicePixelRatio(machineWindow());
+        const double dDevicePixelRatioActual = gpDesktop->devicePixelRatioActual(machineWindow());
+        const bool fUseUnscaledHiDPIOutput = dScaleFactor != dDevicePixelRatioActual;
+        dScaleFactor = fUseUnscaledHiDPIOutput ? dScaleFactor : 1.0;
+
+        /* Assign frame-buffer with new values: */
+        m_pFrameBuffer->setDevicePixelRatio(dDevicePixelRatioFormal);
+        m_pFrameBuffer->setDevicePixelRatioActual(dDevicePixelRatioActual);
         m_pFrameBuffer->setScaleFactor(dScaleFactor);
         m_pFrameBuffer->setUseUnscaledHiDPIOutput(fUseUnscaledHiDPIOutput);
+
         /* Propagate the scale-factor related attributes to 3D service if necessary: */
         if (machine().GetAccelerate3DEnabled() && vboxGlobal().is3DAvailable())
         {
+            double dScaleFactorFor3D = dScaleFactor;
+#if defined(VBOX_WS_WIN) || defined(VBOX_WS_X11)
+            // WORKAROUND:
+            // On Windows and Linux opposing to macOS it's only Qt which can auto scale up,
+            // not 3D overlay itself, so for auto scale-up mode we have to take that into account.
+            if (!fUseUnscaledHiDPIOutput)
+                dScaleFactorFor3D *= dDevicePixelRatioActual;
+#endif /* VBOX_WS_WIN || VBOX_WS_X11 */
             display().NotifyScaleFactorChange(m_uScreenId,
-                                              (uint32_t)(dScaleFactor * VBOX_OGL_SCALE_FACTOR_MULTIPLIER),
-                                              (uint32_t)(dScaleFactor * VBOX_OGL_SCALE_FACTOR_MULTIPLIER));
+                                              (uint32_t)(dScaleFactorFor3D * VBOX_OGL_SCALE_FACTOR_MULTIPLIER),
+                                              (uint32_t)(dScaleFactorFor3D * VBOX_OGL_SCALE_FACTOR_MULTIPLIER));
             display().NotifyHiDPIOutputPolicyChange(fUseUnscaledHiDPIOutput);
         }
 
@@ -786,11 +811,10 @@ void UIMachineView::prepareCommon()
     setFocusPolicy(Qt::WheelFocus);
 
 #ifdef VBOX_WITH_DRAG_AND_DROP
-    /* Enable drag & drop. */
+    /* Enable drag & drop: */
     setAcceptDrops(true);
 
-    /* Create the drag and drop handler instance.
-     * At the moment we only support one instance per machine window. */
+    /* Create the drag and drop handler instance: */
     m_pDnDHandler = new UIDnDHandler(uisession(), this /* pParent */);
 #endif /* VBOX_WITH_DRAG_AND_DROP */
 }
@@ -817,17 +841,11 @@ void UIMachineView::prepareConnections()
     connect(gpDesktop, SIGNAL(sigHostScreenResized(int)), this,
             SLOT(sltDesktopResized()));
     /* Scale-factor change: */
-    connect(gEDataManager, SIGNAL(sigScaleFactorChange(const QString&)),
-            this, SLOT(sltHandleScaleFactorChange(const QString&)));
+    connect(gEDataManager, SIGNAL(sigScaleFactorChange(const QUuid &)),
+            this, SLOT(sltHandleScaleFactorChange(const QUuid &)));
     /* Scaling-optimization change: */
-    connect(gEDataManager, SIGNAL(sigScalingOptimizationTypeChange(const QString&)),
-            this, SLOT(sltHandleScalingOptimizationChange(const QString&)));
-    /* HiDPI-optimization change: */
-    connect(gEDataManager, SIGNAL(sigHiDPIOptimizationTypeChange(const QString&)),
-            this, SLOT(sltHandleHiDPIOptimizationChange(const QString&)));
-    /* Unscaled HiDPI output mode change: */
-    connect(gEDataManager, SIGNAL(sigUnscaledHiDPIOutputModeChange(const QString&)),
-            this, SLOT(sltHandleUnscaledHiDPIOutputModeChange(const QString&)));
+    connect(gEDataManager, SIGNAL(sigScalingOptimizationTypeChange(const QUuid &)),
+            this, SLOT(sltHandleScalingOptimizationChange(const QUuid &)));
 }
 
 void UIMachineView::prepareConsoleConnections()
@@ -1052,7 +1070,13 @@ void UIMachineView::handleScaleChange()
         if (visualStateType() == UIVisualStateType_Scale)
         {
             /* Assign new frame-buffer logical-size: */
-            frameBuffer()->setScaledSize(size());
+            QSize scaledSize = size();
+            const double dDevicePixelRatioFormal = frameBuffer()->devicePixelRatio();
+            const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
+            scaledSize *= dDevicePixelRatioFormal;
+            if (!frameBuffer()->useUnscaledHiDPIOutput())
+                scaledSize /= dDevicePixelRatioActual;
+            frameBuffer()->setScaledSize(scaledSize);
         }
         /* For other than 'scale' mode: */
         else
@@ -1113,18 +1137,21 @@ void UIMachineView::takePausePixmapLive()
         display().TakeScreenShot(screenId(), screenShot.bits(), screenShot.width(), screenShot.height(), KBitmapFormat_BGR0);
     }
 
+    /* Take the device-pixel-ratio into account: */
+    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
+    if (!frameBuffer()->useUnscaledHiDPIOutput() && dDevicePixelRatioActual != 1.0)
+        screenShot = screenShot.scaled(screenShot.size() * dDevicePixelRatioActual,
+                                       Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
+
     /* Dim screen-shot if it is Ok: */
     if (display().isOk() && !screenShot.isNull())
         dimImage(screenShot);
 
     /* Finally copy the screen-shot to pause-pixmap: */
     m_pausePixmap = QPixmap::fromImage(screenShot);
-#ifdef VBOX_WS_MAC
-    /* Adjust backing-scale-factor if necessary: */
-    const double dBackingScaleFactor = frameBuffer()->backingScaleFactor();
-    if (dBackingScaleFactor > 1.0 && frameBuffer()->useUnscaledHiDPIOutput())
-        m_pausePixmap.setDevicePixelRatio(dBackingScaleFactor);
-#endif /* VBOX_WS_MAC */
+
+    /* Take the device-pixel-ratio into account: */
+    m_pausePixmap.setDevicePixelRatio(frameBuffer()->devicePixelRatio());
 
     /* Update scaled pause pixmap: */
     updateScaledPausePixmap();
@@ -1145,8 +1172,16 @@ void UIMachineView::takePausePixmapSnapshot()
     BOOL fEnabled = true;
     machine().QuerySavedGuestScreenInfo(m_uScreenId, uGuestOriginX, uGuestOriginY, uGuestWidth, uGuestHeight, fEnabled);
 
+    /* Calculate effective size: */
+    QSize effectiveSize = uGuestWidth > 0 ? QSize(uGuestWidth, uGuestHeight) : guestScreenSizeHint();
+
+    /* Take the device-pixel-ratio into account: */
+    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
+    if (!frameBuffer()->useUnscaledHiDPIOutput() && dDevicePixelRatioActual != 1.0)
+        effectiveSize *= dDevicePixelRatioActual;
+
     /* Create a screen-shot on the basis of the screen-data we have in saved-state: */
-    QImage screenShot = QImage::fromData(screenData.data(), screenData.size(), "PNG").scaled(uGuestWidth > 0 ? QSize(uGuestWidth, uGuestHeight) : guestScreenSizeHint());
+    QImage screenShot = QImage::fromData(screenData.data(), screenData.size(), "PNG").scaled(effectiveSize);
 
     /* Dim screen-shot if it is Ok: */
     if (machine().isOk() && !screenShot.isNull())
@@ -1154,12 +1189,9 @@ void UIMachineView::takePausePixmapSnapshot()
 
     /* Finally copy the screen-shot to pause-pixmap: */
     m_pausePixmap = QPixmap::fromImage(screenShot);
-#ifdef VBOX_WS_MAC
-    /* Adjust backing-scale-factor if necessary: */
-    const double dBackingScaleFactor = frameBuffer()->backingScaleFactor();
-    if (dBackingScaleFactor > 1.0 && frameBuffer()->useUnscaledHiDPIOutput())
-        m_pausePixmap.setDevicePixelRatio(dBackingScaleFactor);
-#endif /* VBOX_WS_MAC */
+
+    /* Take the device-pixel-ratio into account: */
+    m_pausePixmap.setDevicePixelRatio(frameBuffer()->devicePixelRatio());
 
     /* Update scaled pause pixmap: */
     updateScaledPausePixmap();
@@ -1172,18 +1204,20 @@ void UIMachineView::updateScaledPausePixmap()
         return;
 
     /* Make sure scaled-size is not null: */
-    const QSize scaledSize = frameBuffer()->scaledSize();
+    QSize scaledSize = frameBuffer()->scaledSize();
     if (!scaledSize.isValid())
         return;
 
+    /* Take the device-pixel-ratio into account: */
+    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
+    if (!frameBuffer()->useUnscaledHiDPIOutput() && dDevicePixelRatioActual != 1.0)
+        scaledSize *= dDevicePixelRatioActual;
+
     /* Update pause pixmap finally: */
     m_pausePixmapScaled = pausePixmap().scaled(scaledSize, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
-#ifdef VBOX_WS_MAC
-    /* Adjust backing-scale-factor if necessary: */
-    const double dBackingScaleFactor = frameBuffer()->backingScaleFactor();
-    if (dBackingScaleFactor > 1.0 && frameBuffer()->useUnscaledHiDPIOutput())
-        m_pausePixmapScaled.setDevicePixelRatio(dBackingScaleFactor);
-#endif /* VBOX_WS_MAC */
+
+    /* Take the device-pixel-ratio into account: */
+    m_pausePixmapScaled.setDevicePixelRatio(frameBuffer()->devicePixelRatio());
 }
 
 void UIMachineView::updateSliders()
@@ -1206,20 +1240,16 @@ void UIMachineView::updateSliders()
     int xRange = frameBufferSize.width()  - curViewportSize.width();
     int yRange = frameBufferSize.height() - curViewportSize.height();
 
-#ifdef VBOX_WS_MAC
-    /* Due to Qt 4.x doesn't supports HiDPI directly
-     * we should take the backing-scale-factor into account.
-     * See also viewportToContents()... */
-    if (frameBuffer()->useUnscaledHiDPIOutput())
+    /* Take the device-pixel-ratio into account: */
+    const double dDevicePixelRatioFormal = frameBuffer()->devicePixelRatio();
+    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
+    xRange *= dDevicePixelRatioFormal;
+    yRange *= dDevicePixelRatioFormal;
+    if (!frameBuffer()->useUnscaledHiDPIOutput())
     {
-        const double dBackingScaleFactor = frameBuffer()->backingScaleFactor();
-        if (dBackingScaleFactor > 1.0)
-        {
-            xRange *= dBackingScaleFactor;
-            yRange *= dBackingScaleFactor;
-        }
+        xRange /= dDevicePixelRatioActual;
+        yRange /= dDevicePixelRatioActual;
     }
-#endif /* VBOX_WS_MAC */
 
     /* Configure scroll-bars: */
     horizontalScrollBar()->setRange(0, xRange);
@@ -1234,20 +1264,16 @@ QPoint UIMachineView::viewportToContents(const QPoint &vp) const
     int iContentsX = contentsX();
     int iContentsY = contentsY();
 
-#ifdef VBOX_WS_MAC
-    /* Due to Qt 4.x doesn't supports HiDPI directly
-     * we should take the backing-scale-factor into account.
-     * See also updateSliders()... */
-    if (frameBuffer()->useUnscaledHiDPIOutput())
+    /* Take the device-pixel-ratio into account: */
+    const double dDevicePixelRatioFormal = frameBuffer()->devicePixelRatio();
+    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
+    if (!frameBuffer()->useUnscaledHiDPIOutput())
     {
-        const double dBackingScaleFactor = frameBuffer()->backingScaleFactor();
-        if (dBackingScaleFactor > 1.0)
-        {
-            iContentsX /= dBackingScaleFactor;
-            iContentsY /= dBackingScaleFactor;
-        }
+        iContentsX *= dDevicePixelRatioActual;
+        iContentsY *= dDevicePixelRatioActual;
     }
-#endif /* VBOX_WS_MAC */
+    iContentsX /= dDevicePixelRatioFormal;
+    iContentsY /= dDevicePixelRatioFormal;
 
     /* Return point shifted according scroll-bars: */
     return QPoint(vp.x() + iContentsX, vp.y() + iContentsY);
@@ -1305,7 +1331,6 @@ void UIMachineView::scrollContentsBy(int dx, int dy)
     /* Update console's display viewport and 3D overlay: */
     updateViewport();
 }
-
 
 #ifdef VBOX_WS_MAC
 void UIMachineView::updateDockIcon()
@@ -1446,7 +1471,6 @@ bool UIMachineView::eventFilter(QObject *pWatched, QEvent *pEvent)
                 }
                 break;
             }
-#ifdef VBOX_WS_MAC
             case QEvent::Move:
             {
                 /* Get current host-screen number: */
@@ -1455,22 +1479,26 @@ bool UIMachineView::eventFilter(QObject *pWatched, QEvent *pEvent)
                 {
                     /* Recache current host screen: */
                     m_iHostScreenNumber = iCurrentHostScreenNumber;
-
-                    /* Update frame-buffer arguments: */
-                    if (m_pFrameBuffer)
+                    /* Reapply machine-view scale-factor if necessary: */
+                    applyMachineViewScaleFactor();
+                    /* For 'normal'/'scaled' visual state type: */
+                    if (   visualStateType() == UIVisualStateType_Normal
+                        || visualStateType() == UIVisualStateType_Scale)
                     {
-                        /* Update backing-scale-factor for underlying frame-buffer: */
-                        m_pFrameBuffer->setBackingScaleFactor(darwinBackingScaleFactor(machineWindow()));
-                        /* Perform frame-buffer rescaling: */
-                        m_pFrameBuffer->performRescale();
+                        /* Make sure action-pool is of 'runtime' type: */
+                        UIActionPoolRuntime *pActionPool = actionPool() && actionPool()->toRuntime() ? actionPool()->toRuntime() : 0;
+                        AssertPtr(pActionPool);
+                        if (pActionPool)
+                        {
+                            /* Inform action-pool about current guest-to-host screen mapping: */
+                            QMap<int, int> screenMap = pActionPool->hostScreenForGuestScreenMap();
+                            screenMap[m_uScreenId] = m_iHostScreenNumber;
+                            pActionPool->setHostScreenForGuestScreenMap(screenMap);
+                        }
                     }
-
-                    /* Update console's display viewport and 3D overlay: */
-                    updateViewport();
                 }
                 break;
             }
-#endif /* VBOX_WS_MAC */
             default:
                 break;
         }
@@ -1642,8 +1670,8 @@ int UIMachineView::dragCheckPending(void)
 #ifdef VBOX_WITH_DRAG_AND_DROP_GH
     else if (!m_fIsDraggingFromGuest)
     {
-        /** @todo Add guest->guest DnD functionality here by getting
-         *        the source of guest B (when copying from B to A). */
+        /// @todo Add guest->guest DnD functionality here by getting
+        //       the source of guest B (when copying from B to A).
         rc = m_pDnDHandler->dragCheckPending(screenId());
         if (RT_SUCCESS(rc))
             m_fIsDraggingFromGuest = true;
@@ -1669,8 +1697,8 @@ int UIMachineView::dragStart(void)
         rc = VERR_WRONG_ORDER;
     else
     {
-        /** @todo Add guest->guest DnD functionality here by getting
-         *        the source of guest B (when copying from B to A). */
+        /// @todo Add guest->guest DnD functionality here by getting
+        //       the source of guest B (when copying from B to A).
         rc = m_pDnDHandler->dragStart(screenId());
 
         m_fIsDraggingFromGuest = false;
@@ -1867,15 +1895,12 @@ QSize UIMachineView::scaledForward(QSize size) const
     if (dScaleFactor != 1.0)
         size = QSize((int)(size.width() * dScaleFactor), (int)(size.height() * dScaleFactor));
 
-#ifdef VBOX_WS_MAC
-    /* Take the backing-scale-factor into account: */
-    if (frameBuffer()->useUnscaledHiDPIOutput())
-    {
-        const double dBackingScaleFactor = frameBuffer()->backingScaleFactor();
-        if (dBackingScaleFactor > 1.0)
-            size = QSize(size.width() / dBackingScaleFactor, size.height() / dBackingScaleFactor);
-    }
-#endif /* VBOX_WS_MAC */
+    /* Take the device-pixel-ratio into account: */
+    const double dDevicePixelRatioFormal = frameBuffer()->devicePixelRatio();
+    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
+    if (!frameBuffer()->useUnscaledHiDPIOutput())
+        size = QSize(size.width() * dDevicePixelRatioActual, size.height() * dDevicePixelRatioActual);
+    size = QSize(size.width() / dDevicePixelRatioFormal, size.height() / dDevicePixelRatioFormal);
 
     /* Return result: */
     return size;
@@ -1883,15 +1908,12 @@ QSize UIMachineView::scaledForward(QSize size) const
 
 QSize UIMachineView::scaledBackward(QSize size) const
 {
-#ifdef VBOX_WS_MAC
-    /* Take the backing-scale-factor into account: */
-    if (frameBuffer()->useUnscaledHiDPIOutput())
-    {
-        const double dBackingScaleFactor = frameBuffer()->backingScaleFactor();
-        if (dBackingScaleFactor > 1.0)
-            size = QSize(size.width() * dBackingScaleFactor, size.height() * dBackingScaleFactor);
-    }
-#endif /* VBOX_WS_MAC */
+    /* Take the device-pixel-ratio into account: */
+    const double dDevicePixelRatioFormal = frameBuffer()->devicePixelRatio();
+    const double dDevicePixelRatioActual = frameBuffer()->devicePixelRatioActual();
+    size = QSize(size.width() * dDevicePixelRatioFormal, size.height() * dDevicePixelRatioFormal);
+    if (!frameBuffer()->useUnscaledHiDPIOutput())
+        size = QSize(size.width() / dDevicePixelRatioActual, size.height() / dDevicePixelRatioActual);
 
     /* Take the scale-factor into account: */
     const double dScaleFactor = frameBuffer()->scaleFactor();
@@ -1901,4 +1923,3 @@ QSize UIMachineView::scaledBackward(QSize size) const
     /* Return result: */
     return size;
 }
-

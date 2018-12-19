@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2014-2017 Oracle Corporation
+ * Copyright (C) 2014-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,27 +36,23 @@
 #include <VBox/GuestHost/DragAndDrop.h>
 
 DnDURIObject::DnDURIObject(void)
-    : m_Type(Unknown)
-    , m_fOpen(false)
-    , m_fMode(0)
-    , m_cbSize(0)
-    , m_cbProcessed(0)
+    : m_enmType(Type_Unknown)
+    , m_enmView(View_Unknown)
+    , m_fIsOpen(false)
 {
     RT_ZERO(u);
 }
 
-DnDURIObject::DnDURIObject(Type type,
-                           const RTCString &strSrcPath /* = 0 */,
-                           const RTCString &strDstPath /* = 0 */,
-                           uint32_t fMode  /* = 0 */, uint64_t cbSize  /* = 0 */)
-    : m_Type(type)
-    , m_strSrcPath(strSrcPath)
-    , m_strTgtPath(strDstPath)
-    , m_fOpen(false)
-    , m_fMode(fMode)
-    , m_cbSize(cbSize)
-    , m_cbProcessed(0)
+DnDURIObject::DnDURIObject(Type enmType,
+                           const RTCString &strSrcPathAbs /* = 0 */,
+                           const RTCString &strDstPathAbs /* = 0 */)
+    : m_enmType(enmType)
+    , m_enmView(View_Unknown)
+    , m_strSrcPathAbs(strSrcPathAbs)
+    , m_strTgtPathAbs(strDstPathAbs)
+    , m_fIsOpen(false)
 {
+    RT_ZERO(u);
 }
 
 DnDURIObject::~DnDURIObject(void)
@@ -64,49 +60,122 @@ DnDURIObject::~DnDURIObject(void)
     closeInternal();
 }
 
+/**
+ * Closes the object's internal handles (to files / ...).
+ *
+ */
 void DnDURIObject::closeInternal(void)
 {
     LogFlowThisFuncEnter();
 
-    if (!m_fOpen)
+    if (!m_fIsOpen)
         return;
 
-    switch (m_Type)
+    switch (m_enmType)
     {
-        case File:
+        case Type_File:
         {
-            RTFileClose(u.m_hFile);
-            u.m_hFile = NIL_RTFILE;
+            RTFileClose(u.File.hFile);
+            u.File.hFile = NIL_RTFILE;
+            RT_ZERO(u.File.objInfo);
             break;
         }
 
-        case Directory:
+        case Type_Directory:
+        {
+            RTDirClose(u.Dir.hDir);
+            u.Dir.hDir = NIL_RTDIR;
+            RT_ZERO(u.Dir.objInfo);
             break;
+        }
 
         default:
             break;
     }
 
-    m_fOpen = false;
+    m_fIsOpen = false;
 }
 
+/**
+ * Closes the object.
+ * This also closes the internal handles associated with the object (to files / ...).
+ */
 void DnDURIObject::Close(void)
 {
     closeInternal();
 }
 
+/**
+ * Returns the directory / file mode of the object.
+ *
+ * @return  File / directory mode.
+ */
+RTFMODE DnDURIObject::GetMode(void) const
+{
+    switch (m_enmType)
+    {
+        case Type_File:
+            return u.File.objInfo.Attr.fMode;
+
+        case Type_Directory:
+            return u.Dir.objInfo.Attr.fMode;
+
+        default:
+            break;
+    }
+
+    AssertFailed();
+    return 0;
+}
+
+/**
+ * Returns the bytes already processed (read / written).
+ *
+ * Note: Only applies if the object is of type DnDURIObject::Type_File.
+ *
+ * @return  Bytes already processed (read / written).
+ */
+uint64_t DnDURIObject::GetProcessed(void) const
+{
+    if (m_enmType == Type_File)
+        return u.File.cbProcessed;
+
+    return 0;
+}
+
+/**
+ * Returns the file's logical size (in bytes).
+ *
+ * Note: Only applies if the object is of type DnDURIObject::Type_File.
+ *
+ * @return  The file's logical size (in bytes).
+ */
+uint64_t DnDURIObject::GetSize(void) const
+{
+    if (m_enmType == Type_File)
+        return u.File.cbToProcess;
+
+    return 0;
+}
+
+/**
+ * Returns whether the processing of the object is complete or not.
+ * For file objects this means that all bytes have been processed.
+ *
+ * @return  True if complete, False if not.
+ */
 bool DnDURIObject::IsComplete(void) const
 {
     bool fComplete;
 
-    switch (m_Type)
+    switch (m_enmType)
     {
-        case File:
-            Assert(m_cbProcessed <= m_cbSize);
-            fComplete = m_cbProcessed == m_cbSize;
+        case Type_File:
+            Assert(u.File.cbProcessed <= u.File.cbToProcess);
+            fComplete = u.File.cbProcessed == u.File.cbToProcess;
             break;
 
-        case Directory:
+        case Type_Directory:
             fComplete = true;
             break;
 
@@ -118,32 +187,58 @@ bool DnDURIObject::IsComplete(void) const
     return fComplete;
 }
 
+/**
+ * Returns whether the object is in an open state or not.
+ */
 bool DnDURIObject::IsOpen(void) const
 {
-    return m_fOpen;
+    return m_fIsOpen;
 }
 
-int DnDURIObject::Open(Dest enmDest, uint64_t fOpen /* = 0 */, uint32_t fMode /* = 0 */)
+/**
+ * (Re-)Opens the object with a specific view, open and file mode.
+ *
+ * @return  IPRT status code.
+ * @param   enmView             View to use for opening the object.
+ * @param   fOpen               File open flags to use.
+ * @param   fMode               File mode to use.
+ */
+int DnDURIObject::Open(View enmView, uint64_t fOpen /* = 0 */, RTFMODE fMode /* = 0 */)
 {
-    return OpenEx(  enmDest == Source
-                  ? m_strSrcPath : m_strTgtPath
-                  , m_Type, enmDest, fOpen, fMode, 0 /* fFlags */);
+    return OpenEx(  enmView == View_Source
+                  ? m_strSrcPathAbs : m_strTgtPathAbs
+                  , enmView, fOpen, fMode, DNDURIOBJECT_FLAGS_NONE);
 }
 
-int DnDURIObject::OpenEx(const RTCString &strPath, Type enmType, Dest enmDest,
-                         uint64_t fOpen /* = 0 */, uint32_t fMode /* = 0 */, uint32_t fFlags /* = 0 */)
+/**
+ * Open the object with a specific file type, and, depending on the type, specifying additional parameters.
+ *
+ * @return  IPRT status code.
+ * @param   strPathAbs          Absolute path of the object (file / directory / ...).
+ * @param   enmView             View of the object.
+ * @param   fOpen               Open mode to use; only valid for file objects.
+ * @param   fMode               File mode to use; only valid for file objects.
+ * @param   fFlags              Additional DnD URI object flags.
+ */
+int DnDURIObject::OpenEx(const RTCString &strPathAbs, View enmView,
+                         uint64_t fOpen /* = 0 */, RTFMODE fMode /* = 0 */, DNDURIOBJECTFLAGS fFlags /* = DNDURIOBJECT_FLAGS_NONE */)
 {
-    Assert(fFlags == 0); RT_NOREF1(fFlags);
+    AssertReturn(!(fFlags & ~DNDURIOBJECT_FLAGS_VALID_MASK), VERR_INVALID_FLAGS);
+    RT_NOREF1(fFlags);
+
+    if (m_fIsOpen)
+        return VINF_SUCCESS;
+
     int rc = VINF_SUCCESS;
 
-    switch (enmDest)
+    switch (enmView)
     {
-        case Source:
-            m_strSrcPath = strPath;
+        case View_Source:
+            m_strSrcPathAbs = strPathAbs;
             break;
 
-        case Target:
-            m_strTgtPath = strPath;
+        case View_Target:
+            m_strTgtPathAbs = strPathAbs;
             break;
 
         default:
@@ -154,61 +249,50 @@ int DnDURIObject::OpenEx(const RTCString &strPath, Type enmType, Dest enmDest,
     if (   RT_SUCCESS(rc)
         && fOpen) /* Opening mode specified? */
     {
-        LogFlowThisFunc(("enmType=%RU32, strPath=%s, fOpen=0x%x, enmType=%RU32, enmDest=%RU32\n",
-                         enmType, strPath.c_str(), fOpen, enmType, enmDest));
-        switch (enmType)
+        LogFlowThisFunc(("strPath=%s, enmView=%RU32, fOpen=0x%x, fMode=0x%x, fFlags=0x%x\n",
+                         strPathAbs.c_str(), enmView, fOpen, fMode, fFlags));
+        switch (m_enmType)
         {
-            case File:
+            case Type_File:
             {
-                if (!m_fOpen)
+                /*
+                 * Open files on the source with RTFILE_O_DENY_WRITE to prevent races
+                 * where the OS writes to the file while the destination side transfers
+                 * it over.
+                 */
+                LogFlowThisFunc(("Opening ...\n"));
+                rc = RTFileOpen(&u.File.hFile, strPathAbs.c_str(), fOpen);
+                if (RT_SUCCESS(rc))
                 {
-                    /*
-                     * Open files on the source with RTFILE_O_DENY_WRITE to prevent races
-                     * where the OS writes to the file while the destination side transfers
-                     * it over.
-                     */
-                    LogFlowThisFunc(("Opening ...\n"));
-                    rc = RTFileOpen(&u.m_hFile, strPath.c_str(), fOpen);
-                    if (RT_SUCCESS(rc))
-                        rc = RTFileGetSize(u.m_hFile, &m_cbSize);
-
-                    if (RT_SUCCESS(rc))
+                    if (   (fOpen & RTFILE_O_WRITE) /* Only set the file mode on write. */
+                        &&  fMode                   /* Some file mode to set specified? */)
                     {
-                        if (   (fOpen & RTFILE_O_WRITE) /* Only set the file mode on write. */
-                            &&  fMode                   /* Some file mode to set specified? */)
-                        {
-                            rc = RTFileSetMode(u.m_hFile, fMode);
-                            if (RT_SUCCESS(rc))
-                                m_fMode = fMode;
-                        }
-                        else if (fOpen & RTFILE_O_READ)
-                        {
-#if 0 /** @todo Enable this as soon as RTFileGetMode is implemented. */
-                            rc = RTFileGetMode(u.m_hFile, &m_fMode);
-#else
-                            RTFSOBJINFO ObjInfo;
-                            rc = RTFileQueryInfo(u.m_hFile, &ObjInfo, RTFSOBJATTRADD_NOTHING);
-                            if (RT_SUCCESS(rc))
-                                m_fMode = ObjInfo.Attr.fMode;
-#endif
-                        }
+                        rc = RTFileSetMode(u.File.hFile, fMode);
                     }
-
-                    if (RT_SUCCESS(rc))
+                    else if (fOpen & RTFILE_O_READ)
                     {
-                        LogFlowThisFunc(("cbSize=%RU64, fMode=0x%x\n", m_cbSize, m_fMode));
-                        m_cbProcessed = 0;
+                        rc = queryInfoInternal(enmView);
                     }
                 }
-                else
-                    rc = VINF_SUCCESS;
+
+                if (RT_SUCCESS(rc))
+                {
+                    LogFlowThisFunc(("File cbObject=%RU64, fMode=0x%x\n",
+                                     u.File.objInfo.cbObject, u.File.objInfo.Attr.fMode));
+                    u.File.cbToProcess = u.File.objInfo.cbObject;
+                    u.File.cbProcessed = 0;
+                }
 
                 break;
             }
 
-            case Directory:
-                rc = VINF_SUCCESS;
+            case Type_Directory:
+            {
+                rc = RTDirOpen(&u.Dir.hDir, strPathAbs.c_str());
+                if (RT_SUCCESS(rc))
+                    rc = queryInfoInternal(enmView);
                 break;
+            }
 
             default:
                 rc = VERR_NOT_IMPLEMENTED;
@@ -218,23 +302,74 @@ int DnDURIObject::OpenEx(const RTCString &strPath, Type enmType, Dest enmDest,
 
     if (RT_SUCCESS(rc))
     {
-        m_Type  = enmType;
-        m_fOpen = true;
+        m_enmView = enmView;
+        m_fIsOpen = true;
     }
 
     LogFlowFuncLeaveRC(rc);
     return rc;
 }
 
+/**
+ * Queries information about the object using a specific view, internal version.
+ *
+ * @return  IPRT status code.
+ * @param   enmView             View to use for querying information.
+ */
+int DnDURIObject::queryInfoInternal(View enmView)
+{
+    RT_NOREF(enmView);
+
+    int rc;
+
+    switch (m_enmType)
+    {
+        case Type_File:
+            rc = RTFileQueryInfo(u.File.hFile, &u.File.objInfo, RTFSOBJATTRADD_NOTHING);
+            break;
+
+        case Type_Directory:
+            rc = RTDirQueryInfo(u.Dir.hDir, &u.Dir.objInfo, RTFSOBJATTRADD_NOTHING);
+            break;
+
+        default:
+            rc = VERR_NOT_IMPLEMENTED;
+            break;
+    }
+
+    return rc;
+}
+
+/**
+ * Queries information about the object using a specific view.
+ *
+ * @return  IPRT status code.
+ * @param   enmView             View to use for querying information.
+ */
+int DnDURIObject::QueryInfo(View enmView)
+{
+    return queryInfoInternal(enmView);
+}
+
+/**
+ * Rebases an absolute URI path from an old path base to a new path base.
+ * This function is needed in order to transform path from the source side to the target side.
+ *
+ * @return  IPRT status code.
+ * @param   strPathAbs          Absolute URI path to rebase.
+ * @param   strBaseOld          Old base path to rebase from.
+ * @param   strBaseNew          New base path to rebase to.
+ *
+ ** @todo Put this into an own class like DnDURIPath : public RTCString?
+ */
 /* static */
-/** @todo Put this into an own class like DnDURIPath : public RTCString? */
-int DnDURIObject::RebaseURIPath(RTCString &strPath,
+int DnDURIObject::RebaseURIPath(RTCString &strPathAbs,
                                 const RTCString &strBaseOld /* = "" */,
                                 const RTCString &strBaseNew /* = "" */)
 {
-    char *pszPath = RTUriFilePath(strPath.c_str());
+    char *pszPath = RTUriFilePath(strPathAbs.c_str());
     if (!pszPath) /* No URI? */
-         pszPath = RTStrDup(strPath.c_str());
+         pszPath = RTStrDup(strPathAbs.c_str());
 
     int rc;
 
@@ -260,9 +395,9 @@ int DnDURIObject::RebaseURIPath(RTCString &strPath,
                                                NULL /* pszQuery */, NULL /* pszFragment */);
                 if (pszPathURI)
                 {
-                    LogFlowFunc(("Rebasing \"%s\" to \"%s\"\n", strPath.c_str(), pszPathURI));
+                    LogFlowFunc(("Rebasing \"%s\" to \"%s\"\n", strPathAbs.c_str(), pszPathURI));
 
-                    strPath = RTCString(pszPathURI) + "\r\n";
+                    strPathAbs = RTCString(pszPathURI) + "\r\n";
                     RTStrFree(pszPathURI);
                 }
                 else
@@ -282,43 +417,48 @@ int DnDURIObject::RebaseURIPath(RTCString &strPath,
     return rc;
 }
 
+/**
+ * Reads data from the object. Only applies to files objects.
+ *
+ * @return  IPRT status code.
+ * @param   pvBuf               Buffer where to store the read data.
+ * @param   cbBuf               Size (in bytes) of the buffer.
+ * @param   pcbRead             Pointer where to store how many bytes were read. Optional.
+ */
 int DnDURIObject::Read(void *pvBuf, size_t cbBuf, uint32_t *pcbRead)
 {
     AssertPtrReturn(pvBuf, VERR_INVALID_POINTER);
     AssertReturn(cbBuf, VERR_INVALID_PARAMETER);
     /* pcbRead is optional. */
 
+    AssertMsgReturn(m_fIsOpen, ("Object not in open state\n"), VERR_INVALID_STATE);
+    AssertMsgReturn(m_enmView == View_Source, ("Cannot write to an object which is not in target view\n"),
+                    VERR_INVALID_STATE);
+
     size_t cbRead = 0;
 
     int rc;
-    switch (m_Type)
+    switch (m_enmType)
     {
-        case File:
+        case Type_File:
         {
-            rc = OpenEx(m_strSrcPath, File, Source,
-                        /* Use some sensible defaults. */
-                        RTFILE_O_OPEN | RTFILE_O_READ | RTFILE_O_DENY_WRITE, 0 /* fFlags */);
+            rc = RTFileRead(u.File.hFile, pvBuf, cbBuf, &cbRead);
             if (RT_SUCCESS(rc))
             {
-                rc = RTFileRead(u.m_hFile, pvBuf, cbBuf, &cbRead);
-                if (RT_SUCCESS(rc))
-                {
-                    m_cbProcessed += cbRead;
-                    Assert(m_cbProcessed <= m_cbSize);
+                u.File.cbProcessed += cbRead;
+                Assert(u.File.cbProcessed <= u.File.cbToProcess);
 
-                    /* End of file reached or error occurred? */
-                    if (   m_cbSize
-                        && m_cbProcessed == m_cbSize)
-                    {
-                        rc = VINF_EOF;
-                    }
+                /* End of file reached or error occurred? */
+                if (   u.File.cbToProcess
+                    && u.File.cbProcessed == u.File.cbToProcess)
+                {
+                    rc = VINF_EOF;
                 }
             }
-
             break;
         }
 
-        case Directory:
+        case Type_Directory:
         {
             rc = VINF_SUCCESS;
             break;
@@ -335,50 +475,77 @@ int DnDURIObject::Read(void *pvBuf, size_t cbBuf, uint32_t *pcbRead)
             *pcbRead = (uint32_t)cbRead;
     }
 
-    LogFlowFunc(("Returning strSourcePath=%s, cbRead=%zu, rc=%Rrc\n", m_strSrcPath.c_str(), cbRead, rc));
+    LogFlowFunc(("Returning strSourcePath=%s, cbRead=%zu, rc=%Rrc\n", m_strSrcPathAbs.c_str(), cbRead, rc));
     return rc;
 }
 
+/**
+ * Resets the object's state and closes all related handles.
+ */
 void DnDURIObject::Reset(void)
 {
     LogFlowThisFuncEnter();
 
     Close();
 
-    m_Type        = Unknown;
-    m_strSrcPath  = "";
-    m_strTgtPath  = "";
-    m_fMode       = 0;
-    m_cbSize      = 0;
-    m_cbProcessed = 0;
+    m_enmType       = Type_Unknown;
+    m_enmView       = View_Unknown;
+    m_strSrcPathAbs = "";
+    m_strTgtPathAbs = "";
+
+    RT_ZERO(u);
 }
 
+/**
+ * Sets the bytes to process by the object.
+ *
+ * Note: Only applies if the object is of type DnDURIObject::Type_File.
+ *
+ * @return  IPRT return code.
+ * @param   cbSize          Size (in bytes) to process.
+ */
+int DnDURIObject::SetSize(uint64_t cbSize)
+{
+    AssertReturn(m_enmType == Type_File, VERR_INVALID_PARAMETER);
+
+    /** @todo Implement sparse file support here. */
+
+    u.File.cbToProcess = cbSize;
+    return VINF_SUCCESS;
+}
+
+/**
+ * Writes data to an object. Only applies to file objects.
+ *
+ * @return  IPRT status code.
+ * @param   pvBuf               Buffer of data to write.
+ * @param   cbBuf               Size (in bytes) of data to write.
+ * @param   pcbWritten          Pointer where to store how many bytes were written. Optional.
+ */
 int DnDURIObject::Write(const void *pvBuf, size_t cbBuf, uint32_t *pcbWritten)
 {
     AssertPtrReturn(pvBuf, VERR_INVALID_POINTER);
     AssertReturn(cbBuf, VERR_INVALID_PARAMETER);
     /* pcbWritten is optional. */
 
+    AssertMsgReturn(m_fIsOpen, ("Object not in open state\n"), VERR_INVALID_STATE);
+    AssertMsgReturn(m_enmView == View_Target, ("Cannot write to an object which is not in target view\n"),
+                    VERR_INVALID_STATE);
+
     size_t cbWritten = 0;
 
     int rc;
-    switch (m_Type)
+    switch (m_enmType)
     {
-        case File:
+        case Type_File:
         {
-            rc = OpenEx(m_strTgtPath, File, Target,
-                        /* Use some sensible defaults. */
-                        RTFILE_O_OPEN_CREATE | RTFILE_O_DENY_WRITE | RTFILE_O_WRITE, 0 /* fFlags */);
+            rc = RTFileWrite(u.File.hFile, pvBuf, cbBuf, &cbWritten);
             if (RT_SUCCESS(rc))
-            {
-                rc = RTFileWrite(u.m_hFile, pvBuf, cbBuf, &cbWritten);
-                if (RT_SUCCESS(rc))
-                    m_cbProcessed += cbWritten;
-            }
+                u.File.cbProcessed += cbWritten;
             break;
         }
 
-        case Directory:
+        case Type_Directory:
         {
             rc = VINF_SUCCESS;
             break;
@@ -395,7 +562,7 @@ int DnDURIObject::Write(const void *pvBuf, size_t cbBuf, uint32_t *pcbWritten)
             *pcbWritten = (uint32_t)cbWritten;
     }
 
-    LogFlowThisFunc(("Returning strSourcePath=%s, cbWritten=%zu, rc=%Rrc\n", m_strSrcPath.c_str(), cbWritten, rc));
+    LogFlowThisFunc(("Returning strSourcePathAbs=%s, cbWritten=%zu, rc=%Rrc\n", m_strSrcPathAbs.c_str(), cbWritten, rc));
     return rc;
 }
 

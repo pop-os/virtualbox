@@ -33,6 +33,7 @@
 #include "internal/iprt.h"
 
 #include <iprt/assert.h>
+#include <iprt/dbg.h>
 #include <iprt/err.h>
 #include <iprt/log.h>
 #include <iprt/md5.h>
@@ -40,18 +41,24 @@
 #include <iprt/sha.h>
 #include <iprt/string.h>
 #include <iprt/formats/mz.h>
+#include <iprt/formats/mach-o.h>
 #include "internal/ldr.h"
 
-#ifdef LDR_ONLY_PE
+#if defined(LDR_ONLY_PE) || defined(LDR_ONLY_MACHO)
 # undef LDR_WITH_PE
-# undef LDR_WITH_KLDR
 # undef LDR_WITH_ELF
 # undef LDR_WITH_LX
 # undef LDR_WITH_LE
+# undef LDR_WITH_MACHO
 # undef LDR_WITH_NE
 # undef LDR_WITH_MZ
 # undef LDR_WITH_AOUT
-# define LDR_WITH_PE
+# ifdef LDR_ONLY_PE
+#  define LDR_WITH_PE
+# endif
+# ifdef LDR_ONLY_MACHO
+#  define LDR_WITH_MACHO
+# endif
 #endif
 
 
@@ -61,13 +68,7 @@ RTDECL(int) RTLdrOpenWithReader(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH
      * Resolve RTLDRARCH_HOST.
      */
     if (enmArch == RTLDRARCH_HOST)
-#if   defined(RT_ARCH_AMD64)
-        enmArch = RTLDRARCH_AMD64;
-#elif defined(RT_ARCH_X86)
-        enmArch = RTLDRARCH_X86_32;
-#else
-        enmArch = RTLDRARCH_WHATEVER;
-#endif
+        enmArch = RTLdrGetHostArch();
 
     /*
      * Read and verify the file signature.
@@ -81,16 +82,20 @@ RTDECL(int) RTLdrOpenWithReader(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH
     int rc = pReader->pfnRead(pReader, &uSign, sizeof(uSign), 0);
     if (RT_FAILURE(rc))
         return rc;
-#ifndef LDR_WITH_KLDR
     if (    uSign.au16[0] != IMAGE_DOS_SIGNATURE
         &&  uSign.u32     != IMAGE_NT_SIGNATURE
         &&  uSign.u32     != IMAGE_ELF_SIGNATURE
-        &&  uSign.au16[0] != IMAGE_LX_SIGNATURE)
+        &&  uSign.au16[0] != IMAGE_LX_SIGNATURE
+        &&  uSign.u32     != IMAGE_MACHO64_SIGNATURE
+        &&  uSign.u32     != IMAGE_MACHO64_SIGNATURE_OE
+        &&  uSign.u32     != IMAGE_MACHO32_SIGNATURE
+        &&  uSign.u32     != IMAGE_MACHO32_SIGNATURE_OE
+        &&  uSign.u32     != IMAGE_FAT_SIGNATURE
+        &&  uSign.u32     != IMAGE_FAT_SIGNATURE_OE )
     {
         Log(("rtldrOpenWithReader: %s: unknown magic %#x / '%.4s\n", pReader->pfnLogName(pReader), uSign.u32, &uSign.ach[0]));
         return VERR_INVALID_EXE_SIGNATURE;
     }
-#endif
     uint32_t offHdr = 0;
     if (uSign.au16[0] == IMAGE_DOS_SIGNATURE)
     {
@@ -131,6 +136,22 @@ RTDECL(int) RTLdrOpenWithReader(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH
 #else
         rc = VERR_ELF_EXE_NOT_SUPPORTED;
 #endif
+    else if (   uSign.u32 == IMAGE_MACHO64_SIGNATURE
+             || uSign.u32 == IMAGE_MACHO64_SIGNATURE_OE
+             || uSign.u32 == IMAGE_MACHO32_SIGNATURE
+             || uSign.u32 == IMAGE_MACHO32_SIGNATURE_OE)
+#if defined(LDR_WITH_MACHO)
+        rc = rtldrMachOOpen(pReader, fFlags, enmArch, offHdr, phMod, pErrInfo);
+#else
+        rc = VERR_INVALID_EXE_SIGNATURE;
+#endif
+    else if (   uSign.u32 == IMAGE_FAT_SIGNATURE
+             || uSign.u32 == IMAGE_FAT_SIGNATURE_OE)
+#if defined(LDR_WITH_MACHO)
+        rc = rtldrFatOpen(pReader, fFlags, enmArch, phMod, pErrInfo);
+#else
+        rc = VERR_INVALID_EXE_SIGNATURE;
+#endif
     else if (uSign.au16[0] == IMAGE_LX_SIGNATURE)
 #ifdef LDR_WITH_LX
         rc = rtldrLXOpen(pReader, fFlags, enmArch, offHdr, phMod, pErrInfo);
@@ -165,24 +186,9 @@ RTDECL(int) RTLdrOpenWithReader(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH
 #endif
     else
     {
-#ifndef LDR_WITH_KLDR
         Log(("rtldrOpenWithReader: %s: the format isn't implemented %#x / '%.4s\n", pReader->pfnLogName(pReader), uSign.u32, &uSign.ach[0]));
-#endif
         rc = VERR_INVALID_EXE_SIGNATURE;
     }
-
-#ifdef LDR_WITH_KLDR
-    /* Try kLdr if it's a format we don't recognize. */
-    if (rc <= VERR_INVALID_EXE_SIGNATURE && rc > VERR_BAD_EXE_FORMAT)
-    {
-        int rc2 = rtldrkLdrOpen(pReader, fFlags, enmArch, phMod, pErrInfo);
-        if (   RT_SUCCESS(rc2)
-            || (rc == VERR_INVALID_EXE_SIGNATURE && rc2 != VERR_MZ_EXE_NOT_SUPPORTED /* Quick fix for bad return code. */)
-            || rc2 >  VERR_INVALID_EXE_SIGNATURE
-            || rc2 <= VERR_BAD_EXE_FORMAT)
-            rc = rc2;
-    }
-#endif
 
     LogFlow(("rtldrOpenWithReader: %s: returns %Rrc *phMod=%p\n", pReader->pfnLogName(pReader), rc, *phMod));
     return rc;
@@ -615,6 +621,7 @@ RTDECL(int) RTLdrQueryPropEx(RTLDRMOD hLdrMod, RTLDRPROP enmProp, void *pvBits, 
         case RTLDRPROP_TIMESTAMP_SECONDS:
             *pcbRet = sizeof(int64_t);
             AssertReturn(cbBuf == sizeof(int32_t) || cbBuf == sizeof(int64_t), VERR_INVALID_PARAMETER);
+            *pcbRet = cbBuf;
             break;
         case RTLDRPROP_IS_SIGNED:
             *pcbRet = sizeof(bool);
@@ -640,6 +647,13 @@ RTDECL(int) RTLdrQueryPropEx(RTLDRMOD hLdrMod, RTLDRPROP enmProp, void *pvBits, 
             AssertReturn(cbBuf == sizeof(uint32_t) || cbBuf == sizeof(uint64_t), VERR_INVALID_PARAMETER);
             break;
         case RTLDRPROP_INTERNAL_NAME:
+        case RTLDRPROP_UNWIND_TABLE:
+            *pcbRet = 0;
+            break;
+
+        case RTLDRPROP_UNWIND_INFO:
+            AssertReturn(pvBuf, VERR_INVALID_POINTER);
+            AssertReturn(cbBuf >= sizeof(uint32_t), VERR_INVALID_PARAMETER);
             *pcbRet = 0;
             break;
 
@@ -706,6 +720,26 @@ RTDECL(int) RTLdrHashImage(RTLDRMOD hLdrMod, RTDIGESTTYPE enmDigest, char *pszDi
 RT_EXPORT_SYMBOL(RTLdrHashImage);
 
 
+RTDECL(int) RTLdrUnwindFrame(RTLDRMOD hLdrMod, void const *pvBits, uint32_t iSeg, RTLDRADDR off, PRTDBGUNWINDSTATE pState)
+{
+    /*
+     * Validate.
+     */
+    AssertMsgReturn(rtldrIsValid(hLdrMod), ("hLdrMod=%p\n", hLdrMod), VERR_INVALID_HANDLE);
+    PRTLDRMODINTERNAL pMod = (PRTLDRMODINTERNAL)hLdrMod;
+    AssertPtr(pState);
+    AssertReturn(pState->u32Magic == RTDBGUNWINDSTATE_MAGIC, VERR_INVALID_MAGIC);
+
+    /*
+     * Pass on the work.
+     */
+    if (pMod->pOps->pfnUnwindFrame)
+        return pMod->pOps->pfnUnwindFrame(pMod, pvBits, iSeg, off, pState);
+    return VERR_DBG_NO_UNWIND_INFO;
+}
+RT_EXPORT_SYMBOL(RTLdrUnwindFrame);
+
+
 /**
  * Internal method used by the IPRT debug bits.
  *
@@ -743,7 +777,7 @@ DECLHIDDEN(int) rtLdrReadAt(RTLDRMOD hLdrMod, void *pvBuf, uint32_t iDbgInfo, RT
  * @returns Name corresponding to @a enmArch
  * @param   enmArch             The value to name.
  */
-DECLHIDDEN(const char *) rtLdrArchName(RTLDRARCH enmArch)
+RTDECL(const char *) RTLdrArchName(RTLDRARCH enmArch)
 {
     switch (enmArch)
     {
@@ -751,7 +785,10 @@ DECLHIDDEN(const char *) rtLdrArchName(RTLDRARCH enmArch)
         case RTLDRARCH_WHATEVER:    return "WHATEVER";
         case RTLDRARCH_HOST:        return "HOST";
         case RTLDRARCH_AMD64:       return "AMD64";
+        case RTLDRARCH_X86_16:      return "X86_16";
         case RTLDRARCH_X86_32:      return "X86_32";
+        case RTLDRARCH_ARM32:       return "ARM32";
+        case RTLDRARCH_ARM64:       return "ARM64";
 
         case RTLDRARCH_END:
         case RTLDRARCH_32BIT_HACK:
@@ -759,3 +796,5 @@ DECLHIDDEN(const char *) rtLdrArchName(RTLDRARCH enmArch)
     }
     return "UNKNOWN";
 }
+RT_EXPORT_SYMBOL(RTLdrArchName);
+

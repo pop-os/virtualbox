@@ -20,19 +20,19 @@
 #else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-# include <QVBoxLayout>
 # include <QHBoxLayout>
+# include <QVBoxLayout>
 
 /* GUI includes: */
-# include "UIWizardFirstRunPageBasic.h"
-# include "UIWizardFirstRun.h"
-# include "UIIconPool.h"
-# include "VBoxGlobal.h"
-# include "UIMessageCenter.h"
-# include "VBoxMediaComboBox.h"
-# include "QIToolButton.h"
 # include "QIRichTextLabel.h"
+# include "QIToolButton.h"
+# include "VBoxGlobal.h"
+# include "UIIconPool.h"
+# include "UIMediaComboBox.h"
 # include "UIMedium.h"
+# include "UIMessageCenter.h"
+# include "UIWizardFirstRun.h"
+# include "UIWizardFirstRunPageBasic.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -45,23 +45,23 @@ UIWizardFirstRunPage::UIWizardFirstRunPage(bool fBootHardDiskWasSet)
 void UIWizardFirstRunPage::onOpenMediumWithFileOpenDialog()
 {
     /* Get opened vboxMedium id: */
-    QString strMediumId = vboxGlobal().openMediumWithFileOpenDialog(m_pMediaSelector->type(), thisImp());
+    QUuid uMediumId = vboxGlobal().openMediumWithFileOpenDialog(m_pMediaSelector->type(), thisImp());
     /* Update medium-combo if necessary: */
-    if (!strMediumId.isNull())
-        m_pMediaSelector->setCurrentItem(strMediumId);
+    if (!uMediumId.isNull())
+        m_pMediaSelector->setCurrentItem(uMediumId);
 }
 
-QString UIWizardFirstRunPage::id() const
+QUuid UIWizardFirstRunPage::id() const
 {
     return m_pMediaSelector->id();
 }
 
-void UIWizardFirstRunPage::setId(const QString &strId)
+void UIWizardFirstRunPage::setId(const QUuid &uId)
 {
-    m_pMediaSelector->setCurrentItem(strId);
+    m_pMediaSelector->setCurrentItem(uId);
 }
 
-UIWizardFirstRunPageBasic::UIWizardFirstRunPageBasic(const QString &strMachineId, bool fBootHardDiskWasSet)
+UIWizardFirstRunPageBasic::UIWizardFirstRunPageBasic(const QUuid &uMachineId, bool fBootHardDiskWasSet)
     : UIWizardFirstRunPage(fBootHardDiskWasSet)
 {
     /* Create widgets: */
@@ -70,10 +70,10 @@ UIWizardFirstRunPageBasic::UIWizardFirstRunPageBasic(const QString &strMachineId
         m_pLabel = new QIRichTextLabel(this);
         QHBoxLayout *pSourceDiskLayout = new QHBoxLayout;
         {
-            m_pMediaSelector = new VBoxMediaComboBox(this);
+            m_pMediaSelector = new UIMediaComboBox(this);
             {
-                m_pMediaSelector->setMachineId(strMachineId);
-                m_pMediaSelector->setType(UIMediumType_DVD);
+                m_pMediaSelector->setMachineId(uMachineId);
+                m_pMediaSelector->setType(UIMediumDeviceType_DVD);
                 m_pMediaSelector->repopulate();
             }
             m_pSelectMediaButton = new QIToolButton(this);
@@ -90,8 +90,10 @@ UIWizardFirstRunPageBasic::UIWizardFirstRunPageBasic(const QString &strMachineId
     }
 
     /* Setup connections: */
-    connect(m_pMediaSelector, SIGNAL(currentIndexChanged(int)), this, SIGNAL(completeChanged()));
-    connect(m_pSelectMediaButton, SIGNAL(clicked()), this, SLOT(sltOpenMediumWithFileOpenDialog()));
+    connect(m_pMediaSelector, static_cast<void(UIMediaComboBox::*)(int)>(&UIMediaComboBox::currentIndexChanged),
+            this, &UIWizardFirstRunPageBasic::completeChanged);
+    connect(m_pSelectMediaButton, &QIToolButton::clicked,
+            this, &UIWizardFirstRunPageBasic::sltOpenMediumWithFileOpenDialog);
 
     /* Register fields: */
     registerField("source", this, "source");

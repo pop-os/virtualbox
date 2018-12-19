@@ -103,6 +103,9 @@ public:
 
 protected:
 
+    /** Handles any Qt @a pEvent. */
+    virtual bool event(QEvent *pEvent) /* override */;
+
     /** Handles translation event. */
     virtual void retranslateUi() /* override */;
 
@@ -129,6 +132,8 @@ private:
 
     /** Prepares all. */
     void prepare();
+    /** Update pixmap. */
+    void updatePixmap();
 
     /** Holds the item ID. */
     const QUuid    m_uuid;
@@ -211,6 +216,26 @@ void UITabBarItem::setCurrent(bool fCurrent)
 
     /* And call for repaint: */
     update();
+}
+
+bool UITabBarItem::event(QEvent *pEvent)
+{
+    /* Handle know event types: */
+    switch (pEvent->type())
+    {
+        case QEvent::Show:
+        case QEvent::ScreenChangeInternal:
+        {
+            /* Update pixmap: */
+            updatePixmap();
+            break;
+        }
+        default:
+            break;
+    }
+
+    /* Call to base-class: */
+    return QIWithRetranslateUI<QWidget>::event(pEvent);
 }
 
 void UITabBarItem::retranslateUi()
@@ -551,7 +576,7 @@ void UITabBarItem::mouseMoveEvent(QMouseEvent *pEvent)
     pMimeData->setData(MimeType, uuid().toByteArray());
     pDrag->setMimeData(pMimeData);
     const int iMetric = QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize);
-    pDrag->setPixmap(m_pAction->icon().pixmap(iMetric, iMetric));
+    pDrag->setPixmap(m_pAction->icon().pixmap(window()->windowHandle(), QSize(iMetric, iMetric)));
     pDrag->exec();
 }
 
@@ -592,7 +617,7 @@ void UITabBarItem::prepare()
 
     /* Create main layout: */
     m_pLayout = new QHBoxLayout(this);
-    AssertPtrReturnVoid(m_pLayout);
+    if (m_pLayout)
     {
         /* Invent pixel metric: */
         const int iMetric = QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize);
@@ -618,16 +643,15 @@ void UITabBarItem::prepare()
 
         /* Create icon label: */
         m_pLabelIcon = new QLabel;
-        AssertPtrReturnVoid(m_pLabelIcon);
+        if (m_pLabelIcon)
         {
             /* Configure label: */
             m_pLabelIcon->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-            m_pLabelIcon->setPixmap(m_pAction->icon().pixmap(iMetric));
         }
 
         /* Create name label: */
         m_pLabelName = new QLabel;
-        AssertPtrReturnVoid(m_pLabelName);
+        if (m_pLabelName)
         {
             /* Configure label: */
             m_pLabelName->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
@@ -635,7 +659,7 @@ void UITabBarItem::prepare()
 
         /* Create close button: */
         m_pButtonClose = new QToolButton;
-        AssertPtrReturnVoid(m_pButtonClose);
+        if (m_pButtonClose)
         {
             /* Configure button: */
             m_pButtonClose->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
@@ -652,6 +676,7 @@ void UITabBarItem::prepare()
 #ifdef VBOX_WS_MAC
         /* Create stacked-layout: */
         m_pLayoutStacked = new QStackedLayout(m_pLayout);
+        if (m_pLayoutStacked)
         {
             m_pLayoutStacked->setAlignment(Qt::AlignCenter);
 
@@ -675,8 +700,18 @@ void UITabBarItem::prepare()
 #endif /* !VBOX_WS_MAC */
     }
 
+    /* Update pixmap: */
+    updatePixmap();
+
     /* Apply language settings: */
     retranslateUi();
+}
+
+void UITabBarItem::updatePixmap()
+{
+    /* Configure label icon: */
+    const int iMetric = QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize);
+    m_pLabelIcon->setPixmap(m_pAction->icon().pixmap(window()->windowHandle(), QSize(iMetric, iMetric)));
 }
 
 
@@ -684,8 +719,9 @@ void UITabBarItem::prepare()
 *   Class UITabBar implementation.                                                                                               *
 *********************************************************************************************************************************/
 
-UITabBar::UITabBar(QWidget *pParent /* = 0 */)
+UITabBar::UITabBar(Alignment enmAlignment, QWidget *pParent /* = 0 */)
     : QWidget(pParent)
+    , m_enmAlignment(enmAlignment)
     , m_pLayoutMain(0)
     , m_pLayoutTab(0)
     , m_pCurrentItem(0)
@@ -709,8 +745,17 @@ QUuid UITabBar::addTab(const QAction *pAction)
         connect(pItem, &UITabBarItem::sigCloseClicked,      this, &UITabBar::sltHandleChildClose);
         connect(pItem, &UITabBarItem::sigDragObjectDestroy, this, &UITabBar::sltHandleDragObjectDestroy);
         /* Add item into layout and list: */
-        m_pLayoutTab->insertWidget(0, pItem);
-        m_aItems.prepend(pItem);
+        switch (m_enmAlignment)
+        {
+            case Align_Left:
+                m_pLayoutTab->addWidget(pItem);
+                m_aItems.append(pItem);
+                break;
+            case Align_Right:
+                m_pLayoutTab->insertWidget(0, pItem);
+                m_aItems.prepend(pItem);
+                break;
+        }
         /* Update children styles: */
         updateChildrenStyles();
         /* Return unique ID: */
@@ -985,10 +1030,9 @@ void UITabBar::prepare()
         m_pLayoutMain->setSpacing(0);
         m_pLayoutMain->setContentsMargins(0, 0, 0, 0);
 
-        /// @todo Workout stretch at the and as well,
-        //       depending on which alignment is set.
-        /* Add strech into beginning: */
-        m_pLayoutMain->addStretch();
+        /* Add strech to beginning: */
+        if (m_enmAlignment == Align_Right)
+            m_pLayoutMain->addStretch();
 
         /* Create tab layout: */
         m_pLayoutTab = new QHBoxLayout;
@@ -997,6 +1041,10 @@ void UITabBar::prepare()
             /* Add into layout: */
             m_pLayoutMain->addLayout(m_pLayoutTab);
         }
+
+        /* Add strech to end: */
+        if (m_enmAlignment == Align_Left)
+            m_pLayoutMain->addStretch();
     }
 }
 

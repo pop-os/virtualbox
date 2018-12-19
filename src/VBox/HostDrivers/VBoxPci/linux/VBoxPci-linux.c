@@ -433,7 +433,8 @@ static int vboxPciLinuxDevDetachHostDriver(PVBOXRAWPCIINS pIns)
             return VERR_ACCESS_DENIED;
         }
         /** @todo RTStrCopy not exported. */
-        strncpy(pIns->szPrevDriver, currentDriver, sizeof(pIns->szPrevDriver));
+        strncpy(pIns->szPrevDriver, currentDriver, sizeof(pIns->szPrevDriver) - 1);
+        pIns->szPrevDriver[sizeof(pIns->szPrevDriver) - 1] = '\0';
     }
 
     PCI_DEV_PUT(pPciDev);
@@ -446,8 +447,10 @@ static int vboxPciLinuxDevDetachHostDriver(PVBOXRAWPCIINS pIns)
         struct file*       pFile;
         int                iCmdLen;
         const int          cMaxBuf = 128;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
         const struct cred *pOldCreds;
         struct cred       *pNewCreds;
+#endif
 
         /*
          * Now perform kernel analog of:
@@ -556,8 +559,10 @@ static int vboxPciLinuxDevReattachHostDriver(PVBOXRAWPCIINS pIns)
         struct file*       pFile;
         int                iCmdLen;
         const int          cMaxBuf = 128;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
         const struct cred *pOldCreds;
         struct cred       *pNewCreds;
+#endif
         uint8_t            uBus =   (pIns->HostPciAddress) >> 8;
         uint8_t            uDevFn = (pIns->HostPciAddress) & 0xff;
 

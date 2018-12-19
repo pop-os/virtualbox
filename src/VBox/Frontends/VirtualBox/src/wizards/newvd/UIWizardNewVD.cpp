@@ -49,10 +49,10 @@ UIWizardNewVD::UIWizardNewVD(QWidget *pParent,
 {
 #ifndef VBOX_WS_MAC
     /* Assign watermark: */
-    assignWatermark(":/vmw_new_harddisk.png");
+    assignWatermark(":/wizard_new_harddisk.png");
 #else /* VBOX_WS_MAC */
     /* Assign background image: */
-    assignBackground(":/vmw_new_harddisk_bg.png");
+    assignBackground(":/wizard_new_harddisk_bg.png");
 #endif /* VBOX_WS_MAC */
 }
 
@@ -109,7 +109,7 @@ bool UIWizardNewVD::createVirtualDisk()
     m_virtualDisk = virtualDisk;
 
     /* Inform VBoxGlobal about it: */
-    vboxGlobal().createMedium(UIMedium(m_virtualDisk, UIMediumType_HardDisk, KMediumState_Created));
+    vboxGlobal().createMedium(UIMedium(m_virtualDisk, UIMediumDeviceType_HardDisk, KMediumState_Created));
 
     return true;
 }
@@ -150,4 +150,3 @@ void UIWizardNewVD::prepare()
     /* Call to base-class: */
     UIWizard::prepare();
 }
-

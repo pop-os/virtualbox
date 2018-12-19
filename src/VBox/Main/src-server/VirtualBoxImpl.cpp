@@ -28,9 +28,11 @@
 #include <iprt/sha.h>
 #include <iprt/string.h>
 #include <iprt/stream.h>
+#include <iprt/system.h>
 #include <iprt/thread.h>
 #include <iprt/uuid.h>
 #include <iprt/cpp/xml.h>
+#include <iprt/ctype.h>
 
 #include <VBox/com/com.h>
 #include <VBox/com/array.h>
@@ -78,6 +80,8 @@
 
 #include "AutoCaller.h"
 #include "Logging.h"
+
+# include "CloudProviderManagerImpl.h"
 
 #include <QMTranslator.h>
 
@@ -168,6 +172,42 @@ protected:
 //
 ////////////////////////////////////////////////////////////////////////////////
 
+#if defined(RT_OS_WINDOWS) && defined(VBOXSVC_WITH_CLIENT_WATCHER)
+/**
+ * Client process watcher data.
+ */
+class WatchedClientProcess
+{
+public:
+    WatchedClientProcess(RTPROCESS a_pid, HANDLE a_hProcess) RT_NOEXCEPT
+        : m_pid(a_pid)
+        , m_cRefs(1)
+        , m_hProcess(a_hProcess)
+    {
+    }
+
+    ~WatchedClientProcess()
+    {
+        if (m_hProcess != NULL)
+        {
+            ::CloseHandle(m_hProcess);
+            m_hProcess = NULL;
+        }
+        m_pid = NIL_RTPROCESS;
+    }
+
+    /** The client PID.   */
+    RTPROCESS           m_pid;
+    /** Number of references to this structure. */
+    uint32_t volatile   m_cRefs;
+    /** Handle of the client process.
+     * Ideally, we've got full query privileges, but we'll settle for waiting.  */
+    HANDLE              m_hProcess;
+};
+typedef std::map<RTPROCESS, WatchedClientProcess *> WatchedClientProcessMap;
+#endif
+
+
 typedef ObjectsList<Medium> MediaOList;
 typedef ObjectsList<GuestOSType> GuestOSTypesOList;
 typedef ObjectsList<SharedFolder> SharedFoldersOList;
@@ -177,6 +217,7 @@ typedef ObjectsList<NATNetwork> NATNetworksOList;
 typedef std::map<Guid, ComPtr<IProgress> > ProgressMap;
 typedef std::map<Guid, ComObjPtr<Medium> > HardDiskMap;
 
+
 /**
  *  Main VirtualBox data structure.
  *  @note |const| members are persistent during lifetime so can be accessed
@@ -185,30 +226,36 @@ typedef std::map<Guid, ComObjPtr<Medium> > HardDiskMap;
 struct VirtualBox::Data
 {
     Data()
-        : pMainConfigFile(NULL),
-          uuidMediaRegistry("48024e5c-fdd9-470f-93af-ec29f7ea518c"),
-          uRegistryNeedsSaving(0),
-          lockMachines(LOCKCLASS_LISTOFMACHINES),
-          allMachines(lockMachines),
-          lockGuestOSTypes(LOCKCLASS_LISTOFOTHEROBJECTS),
-          allGuestOSTypes(lockGuestOSTypes),
-          lockMedia(LOCKCLASS_LISTOFMEDIA),
-          allHardDisks(lockMedia),
-          allDVDImages(lockMedia),
-          allFloppyImages(lockMedia),
-          lockSharedFolders(LOCKCLASS_LISTOFOTHEROBJECTS),
-          allSharedFolders(lockSharedFolders),
-          lockDHCPServers(LOCKCLASS_LISTOFOTHEROBJECTS),
-          allDHCPServers(lockDHCPServers),
-          lockNATNetworks(LOCKCLASS_LISTOFOTHEROBJECTS),
-          allNATNetworks(lockNATNetworks),
-          mtxProgressOperations(LOCKCLASS_PROGRESSLIST),
-          pClientWatcher(NULL),
-          threadAsyncEvent(NIL_RTTHREAD),
-          pAsyncEventQ(NULL),
-          pAutostartDb(NULL),
-          fSettingsCipherKeySet(false)
+        : pMainConfigFile(NULL)
+        , uuidMediaRegistry("48024e5c-fdd9-470f-93af-ec29f7ea518c")
+        , uRegistryNeedsSaving(0)
+        , lockMachines(LOCKCLASS_LISTOFMACHINES)
+        , allMachines(lockMachines)
+        , lockGuestOSTypes(LOCKCLASS_LISTOFOTHEROBJECTS)
+        , allGuestOSTypes(lockGuestOSTypes)
+        , lockMedia(LOCKCLASS_LISTOFMEDIA)
+        , allHardDisks(lockMedia)
+        , allDVDImages(lockMedia)
+        , allFloppyImages(lockMedia)
+        , lockSharedFolders(LOCKCLASS_LISTOFOTHEROBJECTS)
+        , allSharedFolders(lockSharedFolders)
+        , lockDHCPServers(LOCKCLASS_LISTOFOTHEROBJECTS)
+        , allDHCPServers(lockDHCPServers)
+        , lockNATNetworks(LOCKCLASS_LISTOFOTHEROBJECTS)
+        , allNATNetworks(lockNATNetworks)
+        , mtxProgressOperations(LOCKCLASS_PROGRESSLIST)
+        , pClientWatcher(NULL)
+        , threadAsyncEvent(NIL_RTTHREAD)
+        , pAsyncEventQ(NULL)
+        , pAutostartDb(NULL)
+        , fSettingsCipherKeySet(false)
+#if defined(RT_OS_WINDOWS) && defined(VBOXSVC_WITH_CLIENT_WATCHER)
+        , fWatcherIsReliable(RTSystemGetNtVersion() >= RTSYSTEM_MAKE_NT_VERSION(6, 0, 0))
+#endif
     {
+#if defined(RT_OS_WINDOWS) && defined(VBOXSVC_WITH_CLIENT_WATCHER)
+        RTCritSectRwInit(&WatcherCritSect);
+#endif
     }
 
     ~Data()
@@ -297,12 +344,26 @@ struct VirtualBox::Data
     const ComObjPtr<ExtPackManager>     ptrExtPackManager;
 #endif
 
+    /** The reference to the cloud provider manager singleton. */
+    const ComObjPtr<CloudProviderManager> pCloudProviderManager;
+
     /** The global autostart database for the user. */
     AutostartDb * const                 pAutostartDb;
 
     /** Settings secret */
     bool                                fSettingsCipherKeySet;
     uint8_t                             SettingsCipherKey[RTSHA512_HASH_SIZE];
+
+#if defined(RT_OS_WINDOWS) && defined(VBOXSVC_WITH_CLIENT_WATCHER)
+    /** Critical section protecting WatchedProcesses. */
+    RTCRITSECTRW                        WatcherCritSect;
+    /** Map of processes being watched, key is the PID. */
+    WatchedClientProcessMap             WatchedProcesses;
+    /** Set if the watcher is reliable, otherwise cleared.
+     * The watcher goes unreliable when we run out of memory, fail open a client
+     * process, or if the watcher thread gets messed up. */
+    bool                                fWatcherIsReliable;
+#endif
 };
 
 // constructor / destructor
@@ -400,9 +461,9 @@ HRESULT VirtualBox::init()
             char szHomeDir[RTPATH_MAX];
             int vrc = com::GetVBoxUserHomeDirectory(szHomeDir, sizeof(szHomeDir));
             if (RT_FAILURE(vrc))
-                throw setError(E_FAIL,
-                               tr("Could not create the VirtualBox home directory '%s' (%Rrc)"),
-                               szHomeDir, vrc);
+                throw setErrorBoth(E_FAIL, vrc,
+                                   tr("Could not create the VirtualBox home directory '%s' (%Rrc)"),
+                                   szHomeDir, vrc);
 
             unconst(m->strHomeDir) = szHomeDir;
         }
@@ -469,8 +530,9 @@ HRESULT VirtualBox::init()
 #endif
 
         /* create the system properties object, someone may need it too */
-        unconst(m->pSystemProperties).createObject();
-        rc = m->pSystemProperties->init(this);
+        rc = unconst(m->pSystemProperties).createObject();
+        if (SUCCEEDED(rc))
+            rc = m->pSystemProperties->init(this);
         ComAssertComRCThrowRC(rc);
 
         rc = m->pSystemProperties->i_loadSettings(m->pMainConfigFile->systemProperties);
@@ -542,6 +604,13 @@ HRESULT VirtualBox::init()
         /* events */
         if (SUCCEEDED(rc = unconst(m->pEventSource).createObject()))
             rc = m->pEventSource->init();
+        if (FAILED(rc)) throw rc;
+
+        /* cloud provider manager */
+        rc = unconst(m->pCloudProviderManager).createObject();
+        if (SUCCEEDED(rc))
+            rc = m->pCloudProviderManager->init();
+        ComAssertComRCThrowRC(rc);
         if (FAILED(rc)) throw rc;
     }
     catch (HRESULT err)
@@ -804,6 +873,12 @@ void VirtualBox::uninit()
      * some resources of the singletons which would prevent them from
      * uninitializing (as for example, mSystemProperties which owns
      * MediumFormat objects which Medium objects refer to) */
+    if (m->pCloudProviderManager)
+    {
+        m->pCloudProviderManager->uninit();
+        unconst(m->pCloudProviderManager).setNull();
+    }
+
     if (m->pSystemProperties)
     {
         m->pSystemProperties->uninit();
@@ -823,6 +898,14 @@ void VirtualBox::uninit()
         unconst(m->pPerformanceCollector).setNull();
     }
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
+
+#ifdef VBOX_WITH_EXTPACK
+    if (m->ptrExtPackManager)
+    {
+        m->ptrExtPackManager->uninit();
+        unconst(m->ptrExtPackManager).setNull();
+    }
+#endif
 
     LogFlowThisFunc(("Terminating the async event handler...\n"));
     if (m->threadAsyncEvent != NIL_RTTHREAD)
@@ -1234,6 +1317,12 @@ HRESULT VirtualBox::getGenericNetworkDrivers(std::vector<com::Utf8Str> &aGeneric
     return S_OK;
 }
 
+HRESULT VirtualBox::getCloudProviderManager(ComPtr<ICloudProviderManager> &aCloudProviderManager)
+{
+    HRESULT hrc = m->pCloudProviderManager.queryInterfaceTo(aCloudProviderManager.asOutParam());
+    return hrc;
+}
+
 HRESULT VirtualBox::checkFirmwarePresent(FirmwareType_T aFirmwareType,
                                          const com::Utf8Str &aVersion,
                                          com::Utf8Str &aUrl,
@@ -1516,7 +1605,6 @@ HRESULT VirtualBox::createMachine(const com::Utf8Str &aSettingsFile,
     LogFlowThisFuncEnter();
     LogFlowThisFunc(("aSettingsFile=\"%s\", aName=\"%s\", aOsTypeId =\"%s\", aCreateFlags=\"%s\"\n",
                      aSettingsFile.c_str(), aName.c_str(), aOsTypeId.c_str(), aFlags.c_str()));
-    /** @todo tighten checks on aId? */
 
     StringsList llGroups;
     HRESULT rc = i_convertMachineGroups(aGroups, &llGroups);
@@ -1595,16 +1683,14 @@ HRESULT VirtualBox::createMachine(const com::Utf8Str &aSettingsFile,
 
     ComObjPtr<GuestOSType> osType;
     if (!aOsTypeId.isEmpty())
-    {
-        rc = i_findGuestOSType(aOsTypeId, osType);
-        if (FAILED(rc)) return rc;
-    }
+        i_findGuestOSType(aOsTypeId, osType);
 
     /* initialize the machine object */
     rc = machine->init(this,
                        strSettingsFile,
-                       Utf8Str(aName),
+                       aName,
                        llGroups,
+                       aOsTypeId,
                        osType,
                        id,
                        fForceOverwrite,
@@ -1981,12 +2067,14 @@ HRESULT VirtualBox::getGuestOSType(const com::Utf8Str &aId,
 HRESULT VirtualBox::createSharedFolder(const com::Utf8Str &aName,
                                        const com::Utf8Str &aHostPath,
                                        BOOL aWritable,
-                                       BOOL aAutomount)
+                                       BOOL aAutomount,
+                                       const com::Utf8Str &aAutoMountPoint)
 {
     NOREF(aName);
     NOREF(aHostPath);
     NOREF(aWritable);
     NOREF(aAutomount);
+    NOREF(aAutoMountPoint);
 
     return setError(E_NOTIMPL, "Not yet implemented");
 }
@@ -2037,11 +2125,22 @@ HRESULT VirtualBox::getExtraData(const com::Utf8Str &aKey,
 HRESULT VirtualBox::setExtraData(const com::Utf8Str &aKey,
                                  const com::Utf8Str &aValue)
 {
-
     Utf8Str strKey(aKey);
     Utf8Str strValue(aValue);
     Utf8Str strOldValue;            // empty
     HRESULT rc = S_OK;
+
+    /* Because non-ASCII characters in aKey have caused problems in the settings
+     * they are rejected unless the key should be deleted. */
+    if (!strValue.isEmpty())
+    {
+        for (size_t i = 0; i < strKey.length(); ++i)
+        {
+            char ch = strKey[i];
+            if (!RTLocCIsPrint(ch))
+                return E_INVALIDARG;
+        }
+    }
 
     // locking note: we only hold the read lock briefly to look up the old value,
     // then release it and call the onExtraCanChange callbacks. There is a small
@@ -2630,7 +2729,7 @@ void VirtualBox::i_SVCHelperClientThreadTask(StartSVCHelperClientData *pTask)
                                        id.raw()).c_str());
         if (RT_FAILURE(vrc))
         {
-            rc = pTask->that->setError(E_FAIL, tr("Could not create the communication channel (%Rrc)"), vrc);
+            rc = pTask->that->setErrorBoth(E_FAIL, vrc, tr("Could not create the communication channel (%Rrc)"), vrc);
             break;
         }
 
@@ -2675,9 +2774,9 @@ void VirtualBox::i_SVCHelperClientThreadTask(StartSVCHelperClientData *pTask)
                 /* hide excessive details in case of a frequent error
                  * (pressing the Cancel button to close the Run As dialog) */
                 if (vrc2 == VERR_CANCELLED)
-                    rc = pTask->that->setError(E_FAIL, tr("Operation canceled by the user"));
+                    rc = pTask->that->setErrorBoth(E_FAIL, vrc, tr("Operation canceled by the user"));
                 else
-                    rc = pTask->that->setError(E_FAIL, tr("Could not launch a privileged process '%s' (%Rrc)"), exePath, vrc2);
+                    rc = pTask->that->setErrorBoth(E_FAIL, vrc, tr("Could not launch a privileged process '%s' (%Rrc)"), exePath, vrc2);
                 break;
             }
         }
@@ -2687,7 +2786,7 @@ void VirtualBox::i_SVCHelperClientThreadTask(StartSVCHelperClientData *pTask)
             vrc = RTProcCreate(exePath, args, RTENV_DEFAULT, 0, &pid);
             if (RT_FAILURE(vrc))
             {
-                rc = pTask->that->setError(E_FAIL, tr("Could not launch a process '%s' (%Rrc)"), exePath, vrc);
+                rc = pTask->that->setErrorBoth(E_FAIL, vrc, tr("Could not launch a process '%s' (%Rrc)"), exePath, vrc);
                 break;
             }
         }
@@ -2710,7 +2809,7 @@ void VirtualBox::i_SVCHelperClientThreadTask(StartSVCHelperClientData *pTask)
 
         if (SUCCEEDED(rc) && RT_FAILURE(vrc))
         {
-            rc = pTask->that->setError(E_FAIL, tr("Could not operate the communication channel (%Rrc)"), vrc);
+            rc = pTask->that->setErrorBoth(E_FAIL, vrc, tr("Could not operate the communication channel (%Rrc)"), vrc);
             break;
         }
     }
@@ -3723,6 +3822,11 @@ SystemProperties* VirtualBox::i_getSystemProperties() const
     return m->pSystemProperties;
 }
 
+CloudProviderManager *VirtualBox::i_getCloudProviderManager() const
+{
+    return m->pCloudProviderManager;
+}
+
 #ifdef VBOX_WITH_EXTPACK
 /**
  * Getter that SystemProperties and others can use to talk to the extension
@@ -4381,12 +4485,17 @@ HRESULT VirtualBox::i_registerMedium(const ComObjPtr<Medium> &pMedium,
     AutoCaller mediumCaller(pMedium);
     AssertComRCReturnRC(mediumCaller.rc());
 
+    bool fAddToGlobalRegistry = false;
     const char *pszDevType = NULL;
+    Guid regId;
     ObjectsList<Medium> *pall = NULL;
     DeviceType_T devType;
     {
         AutoReadLock mediumLock(pMedium COMMA_LOCKVAL_SRC_POS);
         devType = pMedium->i_getDeviceType();
+
+        if (!pMedium->i_getFirstRegistryMachineId(regId))
+            fAddToGlobalRegistry = true;
     }
     switch (devType)
     {
@@ -4461,6 +4570,13 @@ HRESULT VirtualBox::i_registerMedium(const ComObjPtr<Medium> &pMedium,
         // must not hold the media tree write lock any more
         Assert(!i_getMediaTreeLockHandle().isWriteLockOnCurrentThread());
         *ppMedium = pDupMedium;
+    }
+
+    if (fAddToGlobalRegistry)
+    {
+        AutoWriteLock mediumLock(pMedium COMMA_LOCKVAL_SRC_POS);
+        if (pMedium->i_addRegistry(m->uuidMediaRegistry))
+            i_markRegistryModified(m->uuidMediaRegistry);
     }
 
     // Restore the initial lock state, so that no unexpected lock changes are
@@ -4846,15 +4962,14 @@ HRESULT VirtualBox::i_ensureFilePathExists(const Utf8Str &strFileName, bool fCre
         {
             int vrc = RTDirCreateFullPath(strDir.c_str(), 0700);
             if (RT_FAILURE(vrc))
-                return i_setErrorStatic(VBOX_E_IPRT_ERROR,
-                                        Utf8StrFmt(tr("Could not create the directory '%s' (%Rrc)"),
-                                                   strDir.c_str(),
-                                                   vrc));
+                return i_setErrorStaticBoth(VBOX_E_IPRT_ERROR, vrc,
+                                            Utf8StrFmt(tr("Could not create the directory '%s' (%Rrc)"),
+                                                       strDir.c_str(),
+                                                       vrc));
         }
         else
-            return i_setErrorStatic(VBOX_E_IPRT_ERROR,
-                                    Utf8StrFmt(tr("Directory '%s' does not exist"),
-                                               strDir.c_str()));
+            return i_setErrorStaticBoth(VBOX_E_IPRT_ERROR, VERR_FILE_NOT_FOUND,
+                                        Utf8StrFmt(tr("Directory '%s' does not exist"), strDir.c_str()));
     }
 
     return S_OK;
@@ -5172,8 +5287,8 @@ HRESULT VirtualBox::createNATNetwork(const com::Utf8Str &aNetworkName,
 
     return rc;
 #else
-    NOREF(aName);
-    NOREF(aNatNetwork);
+    NOREF(aNetworkName);
+    NOREF(aNetwork);
     return E_NOTIMPL;
 #endif
 }
@@ -5208,8 +5323,8 @@ HRESULT VirtualBox::findNATNetworkByName(const com::Utf8Str &aNetworkName,
     found.queryInterfaceTo(aNetwork.asOutParam());
     return rc;
 #else
-    NOREF(aName);
     NOREF(aNetworkName);
+    NOREF(aNetwork);
     return E_NOTIMPL;
 #endif
 }
@@ -5490,5 +5605,172 @@ void VirtualBox::i_reportDriverVersions(void)
 {
 }
 #endif /* !RT_OS_WINDOWS */
+
+#if defined(RT_OS_WINDOWS) && defined(VBOXSVC_WITH_CLIENT_WATCHER)
+
+# include <psapi.h> /* for GetProcessImageFileNameW */
+
+/**
+ * Callout from the wrapper.
+ */
+void VirtualBox::i_callHook(const char *a_pszFunction)
+{
+    RT_NOREF(a_pszFunction);
+
+    /*
+     * Let'see figure out who is calling.
+     * Note! Requires Vista+, so skip this entirely on older systems.
+     */
+    if (RTSystemGetNtVersion() >= RTSYSTEM_MAKE_NT_VERSION(6, 0, 0))
+    {
+        RPC_CALL_ATTRIBUTES_V2_W CallAttribs = { RPC_CALL_ATTRIBUTES_VERSION, RPC_QUERY_CLIENT_PID | RPC_QUERY_IS_CLIENT_LOCAL };
+        RPC_STATUS rcRpc = RpcServerInqCallAttributesW(NULL, &CallAttribs);
+        if (   rcRpc == RPC_S_OK
+            && CallAttribs.ClientPID != 0)
+        {
+            RTPROCESS const pidClient = (RTPROCESS)(uintptr_t)CallAttribs.ClientPID;
+            if (pidClient != RTProcSelf())
+            {
+                /** @todo LogRel2 later: */
+                LogRel(("i_callHook: %Rfn [ClientPID=%#zx/%zu IsClientLocal=%d ProtocolSequence=%#x CallStatus=%#x CallType=%#x OpNum=%#x InterfaceUuid=%RTuuid]\n",
+                        a_pszFunction, CallAttribs.ClientPID, CallAttribs.ClientPID, CallAttribs.IsClientLocal,
+                        CallAttribs.ProtocolSequence, CallAttribs.CallStatus, CallAttribs.CallType, CallAttribs.OpNum,
+                        &CallAttribs.InterfaceUuid));
+
+                /*
+                 * Do we know this client PID already?
+                 */
+                RTCritSectRwEnterShared(&m->WatcherCritSect);
+                WatchedClientProcessMap::iterator It = m->WatchedProcesses.find(pidClient);
+                if (It != m->WatchedProcesses.end())
+                    RTCritSectRwLeaveShared(&m->WatcherCritSect); /* Known process, nothing to do. */
+                else
+                {
+                    /* This is a new client process, start watching it. */
+                    RTCritSectRwLeaveShared(&m->WatcherCritSect);
+                    i_watchClientProcess(pidClient, a_pszFunction);
+                }
+            }
+        }
+        else
+            LogRel(("i_callHook: %Rfn - rcRpc=%#x ClientPID=%#zx/%zu !! [IsClientLocal=%d ProtocolSequence=%#x CallStatus=%#x CallType=%#x OpNum=%#x InterfaceUuid=%RTuuid]\n",
+                    a_pszFunction, rcRpc, CallAttribs.ClientPID, CallAttribs.ClientPID, CallAttribs.IsClientLocal,
+                    CallAttribs.ProtocolSequence, CallAttribs.CallStatus, CallAttribs.CallType, CallAttribs.OpNum,
+                    &CallAttribs.InterfaceUuid));
+    }
+}
+
+
+/**
+ * Wathces @a a_pidClient for termination.
+ *
+ * @returns true if successfully enabled watching of it, false if not.
+ * @param   a_pidClient     The PID to watch.
+ * @param   a_pszFunction   The function we which we detected the client in.
+ */
+bool VirtualBox::i_watchClientProcess(RTPROCESS a_pidClient, const char *a_pszFunction)
+{
+    RT_NOREF_PV(a_pszFunction);
+
+    /*
+     * Open the client process.
+     */
+    HANDLE hClient = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_INFORMATION, FALSE /*fInherit*/, a_pidClient);
+    if (hClient == NULL)
+        hClient = OpenProcess(SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE , a_pidClient);
+    if (hClient == NULL)
+        hClient = OpenProcess(SYNCHRONIZE, FALSE , a_pidClient);
+    AssertLogRelMsgReturn(hClient != NULL, ("pidClient=%d (%#x) err=%d\n", a_pidClient, a_pidClient, GetLastError()),
+                          m->fWatcherIsReliable = false);
+
+    /*
+     * Create a new watcher structure and try add it to the map.
+     */
+    bool fRet = true;
+    WatchedClientProcess *pWatched = new (std::nothrow) WatchedClientProcess(a_pidClient, hClient);
+    if (pWatched)
+    {
+        RTCritSectRwEnterExcl(&m->WatcherCritSect);
+
+        WatchedClientProcessMap::iterator It = m->WatchedProcesses.find(a_pidClient);
+        if (It == m->WatchedProcesses.end())
+        {
+            try
+            {
+                m->WatchedProcesses.insert(WatchedClientProcessMap::value_type(a_pidClient, pWatched));
+            }
+            catch (std::bad_alloc &)
+            {
+                fRet = false;
+            }
+            if (fRet)
+            {
+                /*
+                 * Schedule it on a watcher thread.
+                 */
+                /** @todo later. */
+                RTCritSectRwLeaveExcl(&m->WatcherCritSect);
+            }
+            else
+            {
+                RTCritSectRwLeaveExcl(&m->WatcherCritSect);
+                delete pWatched;
+                LogRel(("VirtualBox::i_watchClientProcess: out of memory inserting into client map!\n"));
+            }
+        }
+        else
+        {
+            /*
+             * Someone raced us here, we lost.
+             */
+            RTCritSectRwLeaveExcl(&m->WatcherCritSect);
+            delete pWatched;
+        }
+    }
+    else
+    {
+        LogRel(("VirtualBox::i_watchClientProcess: out of memory!\n"));
+        CloseHandle(hClient);
+        m->fWatcherIsReliable = fRet = false;
+    }
+    return fRet;
+}
+
+
+/** Logs the RPC caller info to the release log. */
+/*static*/ void VirtualBox::i_logCaller(const char *a_pszFormat, ...)
+{
+    if (RTSystemGetNtVersion() >= RTSYSTEM_MAKE_NT_VERSION(6, 0, 0))
+    {
+        char szTmp[80];
+        va_list va;
+        va_start(va, a_pszFormat);
+        RTStrPrintfV(szTmp, sizeof(szTmp), a_pszFormat, va);
+        va_end(va);
+
+        RPC_CALL_ATTRIBUTES_V2_W CallAttribs = { RPC_CALL_ATTRIBUTES_VERSION, RPC_QUERY_CLIENT_PID | RPC_QUERY_IS_CLIENT_LOCAL };
+        RPC_STATUS rcRpc = RpcServerInqCallAttributesW(NULL, &CallAttribs);
+
+        RTUTF16 wszProcName[256];
+        wszProcName[0] = '\0';
+        if (rcRpc == 0 && CallAttribs.ClientPID != 0)
+        {
+            HANDLE hProcess = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, (DWORD)(uintptr_t)CallAttribs.ClientPID);
+            if (hProcess)
+            {
+                RT_ZERO(wszProcName);
+                GetProcessImageFileNameW(hProcess, wszProcName, RT_ELEMENTS(wszProcName) - 1);
+                CloseHandle(hProcess);
+            }
+        }
+        LogRel(("%s [rcRpc=%#x ClientPID=%#zx/%zu (%ls) IsClientLocal=%d ProtocolSequence=%#x CallStatus=%#x CallType=%#x OpNum=%#x InterfaceUuid=%RTuuid]\n",
+                szTmp, rcRpc, CallAttribs.ClientPID, CallAttribs.ClientPID, wszProcName, CallAttribs.IsClientLocal,
+                CallAttribs.ProtocolSequence, CallAttribs.CallStatus, CallAttribs.CallType, CallAttribs.OpNum,
+                &CallAttribs.InterfaceUuid));
+    }
+}
+
+#endif /* RT_OS_WINDOWS && VBOXSVC_WITH_CLIENT_WATCHER */
+
 
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

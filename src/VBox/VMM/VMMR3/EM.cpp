@@ -36,6 +36,7 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_EM
+#define VMCPU_INCL_CPUM_GST_CTX /* for CPUM_IMPORT_GUEST_STATE_RET */
 #include <VBox/vmm/em.h>
 #include <VBox/vmm/vmm.h>
 #include <VBox/vmm/patm.h>
@@ -43,6 +44,7 @@
 #include <VBox/vmm/selm.h>
 #include <VBox/vmm/trpm.h>
 #include <VBox/vmm/iem.h>
+#include <VBox/vmm/nem.h>
 #include <VBox/vmm/iom.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/pgm.h>
@@ -73,14 +75,6 @@
 
 
 /*********************************************************************************************************************************
-*   Defined Constants And Macros                                                                                                 *
-*********************************************************************************************************************************/
-#if 0 /* Disabled till after 2.1.0 when we've time to test it. */
-#define EM_NOTIFY_HM
-#endif
-
-
-/*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
 *********************************************************************************************************************************/
 static DECLCALLBACK(int) emR3Save(PVM pVM, PSSMHANDLE pSSM);
@@ -93,7 +87,6 @@ static VBOXSTRICTRC emR3Debug(PVM pVM, PVMCPU pVCpu, VBOXSTRICTRC rc);
 static int emR3RemStep(PVM pVM, PVMCPU pVCpu);
 #endif
 static int emR3RemExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone);
-int emR3HighPriorityPostForcedActions(PVM pVM, PVMCPU pVCpu, int rc);
 
 
 /**
@@ -147,8 +140,75 @@ VMMR3_INT_DECL(int) EMR3Init(PVM pVM)
         pVM->em.s.fGuruOnTripleFault = true;
     }
 
-    Log(("EMR3Init: fRecompileUser=%RTbool fRecompileSupervisor=%RTbool fRawRing1Enabled=%RTbool fIemExecutesAll=%RTbool fGuruOnTripleFault=%RTbool\n",
-         pVM->fRecompileUser, pVM->fRecompileSupervisor, pVM->fRawRing1Enabled, pVM->em.s.fIemExecutesAll, pVM->em.s.fGuruOnTripleFault));
+    LogRel(("EMR3Init: fRecompileUser=%RTbool fRecompileSupervisor=%RTbool fRawRing1Enabled=%RTbool fIemExecutesAll=%RTbool fGuruOnTripleFault=%RTbool\n",
+            pVM->fRecompileUser, pVM->fRecompileSupervisor, pVM->fRawRing1Enabled, pVM->em.s.fIemExecutesAll, pVM->em.s.fGuruOnTripleFault));
+
+    /** @cfgm{/EM/ExitOptimizationEnabled, bool, true}
+     * Whether to try correlate exit history in any context, detect hot spots and
+     * try optimize these using IEM if there are other exits close by.  This
+     * overrides the context specific settings. */
+    bool fExitOptimizationEnabled = true;
+    rc = CFGMR3QueryBoolDef(pCfgEM, "ExitOptimizationEnabled", &fExitOptimizationEnabled, true);
+    AssertLogRelRCReturn(rc, rc);
+
+    /** @cfgm{/EM/ExitOptimizationEnabledR0, bool, true}
+     * Whether to optimize exits in ring-0.  Setting this to false will also disable
+     * the /EM/ExitOptimizationEnabledR0PreemptDisabled setting.  Depending on preemption
+     * capabilities of the host kernel, this optimization may be unavailable. */
+    bool fExitOptimizationEnabledR0 = true;
+    rc = CFGMR3QueryBoolDef(pCfgEM, "ExitOptimizationEnabledR0", &fExitOptimizationEnabledR0, true);
+    AssertLogRelRCReturn(rc, rc);
+    fExitOptimizationEnabledR0 &= fExitOptimizationEnabled;
+
+    /** @cfgm{/EM/ExitOptimizationEnabledR0PreemptDisabled, bool, false}
+     * Whether to optimize exits in ring-0 when preemption is disable (or preemption
+     * hooks are in effect). */
+    /** @todo change the default to true here */
+    bool fExitOptimizationEnabledR0PreemptDisabled = true;
+    rc = CFGMR3QueryBoolDef(pCfgEM, "ExitOptimizationEnabledR0PreemptDisabled", &fExitOptimizationEnabledR0PreemptDisabled, false);
+    AssertLogRelRCReturn(rc, rc);
+    fExitOptimizationEnabledR0PreemptDisabled &= fExitOptimizationEnabledR0;
+
+    /** @cfgm{/EM/HistoryExecMaxInstructions, integer, 16, 65535, 8192}
+     * Maximum number of instruction to let EMHistoryExec execute in one go. */
+    uint16_t cHistoryExecMaxInstructions = 8192;
+    rc = CFGMR3QueryU16Def(pCfgEM, "HistoryExecMaxInstructions", &cHistoryExecMaxInstructions, cHistoryExecMaxInstructions);
+    AssertLogRelRCReturn(rc, rc);
+    if (cHistoryExecMaxInstructions < 16)
+        return VMSetError(pVM, VERR_OUT_OF_RANGE, RT_SRC_POS, "/EM/HistoryExecMaxInstructions value is too small, min 16");
+
+    /** @cfgm{/EM/HistoryProbeMaxInstructionsWithoutExit, integer, 2, 65535, 24 for HM, 32 for NEM}
+     * Maximum number of instruction between exits during probing. */
+    uint16_t cHistoryProbeMaxInstructionsWithoutExit = 24;
+#ifdef RT_OS_WINDOWS
+    if (VM_IS_NEM_ENABLED(pVM))
+        cHistoryProbeMaxInstructionsWithoutExit = 32;
+#endif
+    rc = CFGMR3QueryU16Def(pCfgEM, "HistoryProbeMaxInstructionsWithoutExit", &cHistoryProbeMaxInstructionsWithoutExit,
+                           cHistoryProbeMaxInstructionsWithoutExit);
+    AssertLogRelRCReturn(rc, rc);
+    if (cHistoryProbeMaxInstructionsWithoutExit < 2)
+        return VMSetError(pVM, VERR_OUT_OF_RANGE, RT_SRC_POS,
+                          "/EM/HistoryProbeMaxInstructionsWithoutExit value is too small, min 16");
+
+    /** @cfgm{/EM/HistoryProbMinInstructions, integer, 0, 65535, depends}
+     * The default is (/EM/HistoryProbeMaxInstructionsWithoutExit + 1) * 3. */
+    uint16_t cHistoryProbeMinInstructions = cHistoryProbeMaxInstructionsWithoutExit < 0x5554
+                                          ? (cHistoryProbeMaxInstructionsWithoutExit + 1) * 3 : 0xffff;
+    rc = CFGMR3QueryU16Def(pCfgEM, "HistoryProbMinInstructions", &cHistoryProbeMinInstructions,
+                           cHistoryProbeMinInstructions);
+    AssertLogRelRCReturn(rc, rc);
+
+    for (VMCPUID i = 0; i < pVM->cCpus; i++)
+    {
+        pVM->aCpus[i].em.s.fExitOptimizationEnabled                  = fExitOptimizationEnabled;
+        pVM->aCpus[i].em.s.fExitOptimizationEnabledR0                = fExitOptimizationEnabledR0;
+        pVM->aCpus[i].em.s.fExitOptimizationEnabledR0PreemptDisabled = fExitOptimizationEnabledR0PreemptDisabled;
+
+        pVM->aCpus[i].em.s.cHistoryExecMaxInstructions               = cHistoryExecMaxInstructions;
+        pVM->aCpus[i].em.s.cHistoryProbeMinInstructions              = cHistoryProbeMinInstructions;
+        pVM->aCpus[i].em.s.cHistoryProbeMaxInstructionsWithoutExit   = cHistoryProbeMaxInstructionsWithoutExit;
+    }
 
 #ifdef VBOX_WITH_REM
     /*
@@ -173,21 +233,19 @@ VMMR3_INT_DECL(int) EMR3Init(PVM pVM)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
-        pVCpu->em.s.enmState     = (i == 0) ? EMSTATE_NONE : EMSTATE_WAIT_SIPI;
-        pVCpu->em.s.enmPrevState = EMSTATE_NONE;
-        pVCpu->em.s.fForceRAW    = false;
+        pVCpu->em.s.enmState            = i == 0 ? EMSTATE_NONE : EMSTATE_WAIT_SIPI;
+        pVCpu->em.s.enmPrevState        = EMSTATE_NONE;
+        pVCpu->em.s.fForceRAW           = false;
+        pVCpu->em.s.u64TimeSliceStart   = 0; /* paranoia */
+        pVCpu->em.s.idxContinueExitRec  = UINT16_MAX;
 
-        pVCpu->em.s.pCtx         = CPUMQueryGuestCtxPtr(pVCpu);
 #ifdef VBOX_WITH_RAW_MODE
-        if (!HMIsEnabled(pVM))
+        if (VM_IS_RAW_MODE_ENABLED(pVM))
         {
             pVCpu->em.s.pPatmGCState = PATMR3QueryGCStateHC(pVM);
             AssertMsg(pVCpu->em.s.pPatmGCState, ("PATMR3QueryGCStateHC failed!\n"));
         }
 #endif
-
-        /* Force reset of the time slice. */
-        pVCpu->em.s.u64TimeSliceStart = 0;
 
 # define EM_REG_COUNTER(a, b, c) \
         rc = STAMR3RegisterF(pVM, a, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES, c, b, i); \
@@ -218,177 +276,7 @@ VMMR3_INT_DECL(int) EMR3Init(PVM pVM)
         pVCpu->em.s.pStatsR0 = MMHyperR3ToR0(pVM, pStats);
         pVCpu->em.s.pStatsRC = MMHyperR3ToRC(pVM, pStats);
 
-        EM_REG_PROFILE(&pStats->StatRZEmulate,               "/EM/CPU%d/RZ/Interpret",                   "Profiling of EMInterpretInstruction.");
-        EM_REG_PROFILE(&pStats->StatR3Emulate,               "/EM/CPU%d/R3/Interpret",                   "Profiling of EMInterpretInstruction.");
-
-        EM_REG_PROFILE(&pStats->StatRZInterpretSucceeded,    "/EM/CPU%d/RZ/Interpret/Success",           "The number of times an instruction was successfully interpreted.");
-        EM_REG_PROFILE(&pStats->StatR3InterpretSucceeded,    "/EM/CPU%d/R3/Interpret/Success",           "The number of times an instruction was successfully interpreted.");
-
-        EM_REG_COUNTER_USED(&pStats->StatRZAnd,                  "/EM/CPU%d/RZ/Interpret/Success/And",       "The number of times AND was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3And,                  "/EM/CPU%d/R3/Interpret/Success/And",       "The number of times AND was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZAdd,                  "/EM/CPU%d/RZ/Interpret/Success/Add",       "The number of times ADD was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Add,                  "/EM/CPU%d/R3/Interpret/Success/Add",       "The number of times ADD was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZAdc,                  "/EM/CPU%d/RZ/Interpret/Success/Adc",       "The number of times ADC was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Adc,                  "/EM/CPU%d/R3/Interpret/Success/Adc",       "The number of times ADC was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZSub,                  "/EM/CPU%d/RZ/Interpret/Success/Sub",       "The number of times SUB was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Sub,                  "/EM/CPU%d/R3/Interpret/Success/Sub",       "The number of times SUB was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZCpuId,                "/EM/CPU%d/RZ/Interpret/Success/CpuId",     "The number of times CPUID was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3CpuId,                "/EM/CPU%d/R3/Interpret/Success/CpuId",     "The number of times CPUID was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZDec,                  "/EM/CPU%d/RZ/Interpret/Success/Dec",       "The number of times DEC was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Dec,                  "/EM/CPU%d/R3/Interpret/Success/Dec",       "The number of times DEC was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZHlt,                  "/EM/CPU%d/RZ/Interpret/Success/Hlt",       "The number of times HLT was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Hlt,                  "/EM/CPU%d/R3/Interpret/Success/Hlt",       "The number of times HLT was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZInc,                  "/EM/CPU%d/RZ/Interpret/Success/Inc",       "The number of times INC was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Inc,                  "/EM/CPU%d/R3/Interpret/Success/Inc",       "The number of times INC was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZInvlPg,               "/EM/CPU%d/RZ/Interpret/Success/Invlpg",    "The number of times INVLPG was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3InvlPg,               "/EM/CPU%d/R3/Interpret/Success/Invlpg",    "The number of times INVLPG was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZIret,                 "/EM/CPU%d/RZ/Interpret/Success/Iret",      "The number of times IRET was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Iret,                 "/EM/CPU%d/R3/Interpret/Success/Iret",      "The number of times IRET was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZLLdt,                 "/EM/CPU%d/RZ/Interpret/Success/LLdt",      "The number of times LLDT was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3LLdt,                 "/EM/CPU%d/R3/Interpret/Success/LLdt",      "The number of times LLDT was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZLIdt,                 "/EM/CPU%d/RZ/Interpret/Success/LIdt",      "The number of times LIDT was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3LIdt,                 "/EM/CPU%d/R3/Interpret/Success/LIdt",      "The number of times LIDT was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZLGdt,                 "/EM/CPU%d/RZ/Interpret/Success/LGdt",      "The number of times LGDT was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3LGdt,                 "/EM/CPU%d/R3/Interpret/Success/LGdt",      "The number of times LGDT was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZMov,                  "/EM/CPU%d/RZ/Interpret/Success/Mov",       "The number of times MOV was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Mov,                  "/EM/CPU%d/R3/Interpret/Success/Mov",       "The number of times MOV was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZMovCRx,               "/EM/CPU%d/RZ/Interpret/Success/MovCRx",    "The number of times MOV CRx was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3MovCRx,               "/EM/CPU%d/R3/Interpret/Success/MovCRx",    "The number of times MOV CRx was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZMovDRx,               "/EM/CPU%d/RZ/Interpret/Success/MovDRx",    "The number of times MOV DRx was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3MovDRx,               "/EM/CPU%d/R3/Interpret/Success/MovDRx",    "The number of times MOV DRx was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZOr,                   "/EM/CPU%d/RZ/Interpret/Success/Or",        "The number of times OR was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Or,                   "/EM/CPU%d/R3/Interpret/Success/Or",        "The number of times OR was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZPop,                  "/EM/CPU%d/RZ/Interpret/Success/Pop",       "The number of times POP was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Pop,                  "/EM/CPU%d/R3/Interpret/Success/Pop",       "The number of times POP was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZRdtsc,                "/EM/CPU%d/RZ/Interpret/Success/Rdtsc",     "The number of times RDTSC was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Rdtsc,                "/EM/CPU%d/R3/Interpret/Success/Rdtsc",     "The number of times RDTSC was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZRdpmc,                "/EM/CPU%d/RZ/Interpret/Success/Rdpmc",     "The number of times RDPMC was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Rdpmc,                "/EM/CPU%d/R3/Interpret/Success/Rdpmc",     "The number of times RDPMC was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZSti,                  "/EM/CPU%d/RZ/Interpret/Success/Sti",       "The number of times STI was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Sti,                  "/EM/CPU%d/R3/Interpret/Success/Sti",       "The number of times STI was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZXchg,                 "/EM/CPU%d/RZ/Interpret/Success/Xchg",      "The number of times XCHG was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Xchg,                 "/EM/CPU%d/R3/Interpret/Success/Xchg",      "The number of times XCHG was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZXor,                  "/EM/CPU%d/RZ/Interpret/Success/Xor",       "The number of times XOR was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Xor,                  "/EM/CPU%d/R3/Interpret/Success/Xor",       "The number of times XOR was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZMonitor,              "/EM/CPU%d/RZ/Interpret/Success/Monitor",   "The number of times MONITOR was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Monitor,              "/EM/CPU%d/R3/Interpret/Success/Monitor",   "The number of times MONITOR was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZMWait,                "/EM/CPU%d/RZ/Interpret/Success/MWait",     "The number of times MWAIT was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3MWait,                "/EM/CPU%d/R3/Interpret/Success/MWait",     "The number of times MWAIT was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZBtr,                  "/EM/CPU%d/RZ/Interpret/Success/Btr",       "The number of times BTR was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Btr,                  "/EM/CPU%d/R3/Interpret/Success/Btr",       "The number of times BTR was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZBts,                  "/EM/CPU%d/RZ/Interpret/Success/Bts",       "The number of times BTS was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Bts,                  "/EM/CPU%d/R3/Interpret/Success/Bts",       "The number of times BTS was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZBtc,                  "/EM/CPU%d/RZ/Interpret/Success/Btc",       "The number of times BTC was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Btc,                  "/EM/CPU%d/R3/Interpret/Success/Btc",       "The number of times BTC was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZCmpXchg,              "/EM/CPU%d/RZ/Interpret/Success/CmpXchg",   "The number of times CMPXCHG was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3CmpXchg,              "/EM/CPU%d/R3/Interpret/Success/CmpXchg",   "The number of times CMPXCHG was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZCmpXchg8b,            "/EM/CPU%d/RZ/Interpret/Success/CmpXchg8b",   "The number of times CMPXCHG8B was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3CmpXchg8b,            "/EM/CPU%d/R3/Interpret/Success/CmpXchg8b",   "The number of times CMPXCHG8B was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZXAdd,                 "/EM/CPU%d/RZ/Interpret/Success/XAdd",      "The number of times XADD was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3XAdd,                 "/EM/CPU%d/R3/Interpret/Success/XAdd",      "The number of times XADD was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Rdmsr,                "/EM/CPU%d/R3/Interpret/Success/Rdmsr",      "The number of times RDMSR was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZRdmsr,                "/EM/CPU%d/RZ/Interpret/Success/Rdmsr",      "The number of times RDMSR was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Wrmsr,                "/EM/CPU%d/R3/Interpret/Success/Wrmsr",      "The number of times WRMSR was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZWrmsr,                "/EM/CPU%d/RZ/Interpret/Success/Wrmsr",      "The number of times WRMSR was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3StosWD,               "/EM/CPU%d/R3/Interpret/Success/Stoswd",     "The number of times STOSWD was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZStosWD,               "/EM/CPU%d/RZ/Interpret/Success/Stoswd",     "The number of times STOSWD was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZWbInvd,               "/EM/CPU%d/RZ/Interpret/Success/WbInvd",     "The number of times WBINVD was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3WbInvd,               "/EM/CPU%d/R3/Interpret/Success/WbInvd",     "The number of times WBINVD was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZLmsw,                 "/EM/CPU%d/RZ/Interpret/Success/Lmsw",       "The number of times LMSW was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Lmsw,                 "/EM/CPU%d/R3/Interpret/Success/Lmsw",       "The number of times LMSW was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZSmsw,                 "/EM/CPU%d/RZ/Interpret/Success/Smsw",       "The number of times SMSW was successfully interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3Smsw,                 "/EM/CPU%d/R3/Interpret/Success/Smsw",       "The number of times SMSW was successfully interpreted.");
-
-        EM_REG_COUNTER(&pStats->StatRZInterpretFailed,           "/EM/CPU%d/RZ/Interpret/Failed",            "The number of times an instruction was not interpreted.");
-        EM_REG_COUNTER(&pStats->StatR3InterpretFailed,           "/EM/CPU%d/R3/Interpret/Failed",            "The number of times an instruction was not interpreted.");
-
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedAnd,            "/EM/CPU%d/RZ/Interpret/Failed/And",        "The number of times AND was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedAnd,            "/EM/CPU%d/R3/Interpret/Failed/And",        "The number of times AND was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedCpuId,          "/EM/CPU%d/RZ/Interpret/Failed/CpuId",      "The number of times CPUID was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedCpuId,          "/EM/CPU%d/R3/Interpret/Failed/CpuId",      "The number of times CPUID was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedDec,            "/EM/CPU%d/RZ/Interpret/Failed/Dec",        "The number of times DEC was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedDec,            "/EM/CPU%d/R3/Interpret/Failed/Dec",        "The number of times DEC was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedHlt,            "/EM/CPU%d/RZ/Interpret/Failed/Hlt",        "The number of times HLT was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedHlt,            "/EM/CPU%d/R3/Interpret/Failed/Hlt",        "The number of times HLT was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedInc,            "/EM/CPU%d/RZ/Interpret/Failed/Inc",        "The number of times INC was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedInc,            "/EM/CPU%d/R3/Interpret/Failed/Inc",        "The number of times INC was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedInvlPg,         "/EM/CPU%d/RZ/Interpret/Failed/InvlPg",     "The number of times INVLPG was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedInvlPg,         "/EM/CPU%d/R3/Interpret/Failed/InvlPg",     "The number of times INVLPG was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedIret,           "/EM/CPU%d/RZ/Interpret/Failed/Iret",       "The number of times IRET was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedIret,           "/EM/CPU%d/R3/Interpret/Failed/Iret",       "The number of times IRET was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedLLdt,           "/EM/CPU%d/RZ/Interpret/Failed/LLdt",       "The number of times LLDT was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedLLdt,           "/EM/CPU%d/R3/Interpret/Failed/LLdt",       "The number of times LLDT was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedLIdt,           "/EM/CPU%d/RZ/Interpret/Failed/LIdt",       "The number of times LIDT was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedLIdt,           "/EM/CPU%d/R3/Interpret/Failed/LIdt",       "The number of times LIDT was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedLGdt,           "/EM/CPU%d/RZ/Interpret/Failed/LGdt",       "The number of times LGDT was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedLGdt,           "/EM/CPU%d/R3/Interpret/Failed/LGdt",       "The number of times LGDT was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedMov,            "/EM/CPU%d/RZ/Interpret/Failed/Mov",        "The number of times MOV was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedMov,            "/EM/CPU%d/R3/Interpret/Failed/Mov",        "The number of times MOV was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedMovCRx,         "/EM/CPU%d/RZ/Interpret/Failed/MovCRx",     "The number of times MOV CRx was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedMovCRx,         "/EM/CPU%d/R3/Interpret/Failed/MovCRx",     "The number of times MOV CRx was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedMovDRx,         "/EM/CPU%d/RZ/Interpret/Failed/MovDRx",     "The number of times MOV DRx was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedMovDRx,         "/EM/CPU%d/R3/Interpret/Failed/MovDRx",     "The number of times MOV DRx was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedOr,             "/EM/CPU%d/RZ/Interpret/Failed/Or",         "The number of times OR was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedOr,             "/EM/CPU%d/R3/Interpret/Failed/Or",         "The number of times OR was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedPop,            "/EM/CPU%d/RZ/Interpret/Failed/Pop",        "The number of times POP was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedPop,            "/EM/CPU%d/R3/Interpret/Failed/Pop",        "The number of times POP was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedSti,            "/EM/CPU%d/RZ/Interpret/Failed/Sti",        "The number of times STI was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedSti,            "/EM/CPU%d/R3/Interpret/Failed/Sti",        "The number of times STI was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedXchg,           "/EM/CPU%d/RZ/Interpret/Failed/Xchg",       "The number of times XCHG was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedXchg,           "/EM/CPU%d/R3/Interpret/Failed/Xchg",       "The number of times XCHG was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedXor,            "/EM/CPU%d/RZ/Interpret/Failed/Xor",        "The number of times XOR was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedXor,            "/EM/CPU%d/R3/Interpret/Failed/Xor",        "The number of times XOR was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedMonitor,        "/EM/CPU%d/RZ/Interpret/Failed/Monitor",    "The number of times MONITOR was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedMonitor,        "/EM/CPU%d/R3/Interpret/Failed/Monitor",    "The number of times MONITOR was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedMWait,          "/EM/CPU%d/RZ/Interpret/Failed/MWait",      "The number of times MWAIT was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedMWait,          "/EM/CPU%d/R3/Interpret/Failed/MWait",      "The number of times MWAIT was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedRdtsc,          "/EM/CPU%d/RZ/Interpret/Failed/Rdtsc",      "The number of times RDTSC was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedRdtsc,          "/EM/CPU%d/R3/Interpret/Failed/Rdtsc",      "The number of times RDTSC was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedRdpmc,          "/EM/CPU%d/RZ/Interpret/Failed/Rdpmc",      "The number of times RDPMC was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedRdpmc,          "/EM/CPU%d/R3/Interpret/Failed/Rdpmc",      "The number of times RDPMC was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedRdmsr,          "/EM/CPU%d/RZ/Interpret/Failed/Rdmsr",      "The number of times RDMSR was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedRdmsr,          "/EM/CPU%d/R3/Interpret/Failed/Rdmsr",      "The number of times RDMSR was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedWrmsr,          "/EM/CPU%d/RZ/Interpret/Failed/Wrmsr",      "The number of times WRMSR was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedWrmsr,          "/EM/CPU%d/R3/Interpret/Failed/Wrmsr",      "The number of times WRMSR was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedLmsw,           "/EM/CPU%d/RZ/Interpret/Failed/Lmsw",       "The number of times LMSW was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedLmsw,           "/EM/CPU%d/R3/Interpret/Failed/Lmsw",       "The number of times LMSW was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedSmsw,           "/EM/CPU%d/RZ/Interpret/Failed/Smsw",       "The number of times SMSW was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedSmsw,           "/EM/CPU%d/R3/Interpret/Failed/Smsw",       "The number of times SMSW was not interpreted.");
-
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedMisc,           "/EM/CPU%d/RZ/Interpret/Failed/Misc",       "The number of times some misc instruction was encountered.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedMisc,           "/EM/CPU%d/R3/Interpret/Failed/Misc",       "The number of times some misc instruction was encountered.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedAdd,            "/EM/CPU%d/RZ/Interpret/Failed/Add",        "The number of times ADD was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedAdd,            "/EM/CPU%d/R3/Interpret/Failed/Add",        "The number of times ADD was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedAdc,            "/EM/CPU%d/RZ/Interpret/Failed/Adc",        "The number of times ADC was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedAdc,            "/EM/CPU%d/R3/Interpret/Failed/Adc",        "The number of times ADC was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedBtr,            "/EM/CPU%d/RZ/Interpret/Failed/Btr",        "The number of times BTR was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedBtr,            "/EM/CPU%d/R3/Interpret/Failed/Btr",        "The number of times BTR was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedBts,            "/EM/CPU%d/RZ/Interpret/Failed/Bts",        "The number of times BTS was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedBts,            "/EM/CPU%d/R3/Interpret/Failed/Bts",        "The number of times BTS was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedBtc,            "/EM/CPU%d/RZ/Interpret/Failed/Btc",        "The number of times BTC was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedBtc,            "/EM/CPU%d/R3/Interpret/Failed/Btc",        "The number of times BTC was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedCli,            "/EM/CPU%d/RZ/Interpret/Failed/Cli",        "The number of times CLI was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedCli,            "/EM/CPU%d/R3/Interpret/Failed/Cli",        "The number of times CLI was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedCmpXchg,        "/EM/CPU%d/RZ/Interpret/Failed/CmpXchg",    "The number of times CMPXCHG was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedCmpXchg,        "/EM/CPU%d/R3/Interpret/Failed/CmpXchg",    "The number of times CMPXCHG was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedCmpXchg8b,      "/EM/CPU%d/RZ/Interpret/Failed/CmpXchg8b",  "The number of times CMPXCHG8B was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedCmpXchg8b,      "/EM/CPU%d/R3/Interpret/Failed/CmpXchg8b",  "The number of times CMPXCHG8B was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedXAdd,           "/EM/CPU%d/RZ/Interpret/Failed/XAdd",       "The number of times XADD was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedXAdd,           "/EM/CPU%d/R3/Interpret/Failed/XAdd",       "The number of times XADD was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedMovNTPS,        "/EM/CPU%d/RZ/Interpret/Failed/MovNTPS",    "The number of times MOVNTPS was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedMovNTPS,        "/EM/CPU%d/R3/Interpret/Failed/MovNTPS",    "The number of times MOVNTPS was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedStosWD,         "/EM/CPU%d/RZ/Interpret/Failed/StosWD",     "The number of times STOSWD was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedStosWD,         "/EM/CPU%d/R3/Interpret/Failed/StosWD",     "The number of times STOSWD was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedSub,            "/EM/CPU%d/RZ/Interpret/Failed/Sub",        "The number of times SUB was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedSub,            "/EM/CPU%d/R3/Interpret/Failed/Sub",        "The number of times SUB was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedWbInvd,         "/EM/CPU%d/RZ/Interpret/Failed/WbInvd",     "The number of times WBINVD was not interpreted.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedWbInvd,         "/EM/CPU%d/R3/Interpret/Failed/WbInvd",     "The number of times WBINVD was not interpreted.");
-
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedUserMode,       "/EM/CPU%d/RZ/Interpret/Failed/UserMode",   "The number of rejections because of CPL.");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedUserMode,       "/EM/CPU%d/R3/Interpret/Failed/UserMode",   "The number of rejections because of CPL.");
-        EM_REG_COUNTER_USED(&pStats->StatRZFailedPrefix,         "/EM/CPU%d/RZ/Interpret/Failed/Prefix",     "The number of rejections because of prefix .");
-        EM_REG_COUNTER_USED(&pStats->StatR3FailedPrefix,         "/EM/CPU%d/R3/Interpret/Failed/Prefix",     "The number of rejections because of prefix .");
-
+# if 1 /* rawmode only? */
         EM_REG_COUNTER_USED(&pStats->StatIoRestarted,            "/EM/CPU%d/R3/PrivInst/IoRestarted",        "I/O instructions restarted in ring-3.");
         EM_REG_COUNTER_USED(&pStats->StatIoIem,                  "/EM/CPU%d/R3/PrivInst/IoIem",              "I/O instructions end to IEM in ring-3.");
         EM_REG_COUNTER_USED(&pStats->StatCli,                    "/EM/CPU%d/R3/PrivInst/Cli",                "Number of cli instructions.");
@@ -415,36 +303,92 @@ VMMR3_INT_DECL(int) EMR3Init(PVM pVM)
         EM_REG_COUNTER_USED(&pStats->StatSysExit,                "/EM/CPU%d/R3/PrivInst/Sysexit",            "Number of sysexit instructions.");
         EM_REG_COUNTER_USED(&pStats->StatSysCall,                "/EM/CPU%d/R3/PrivInst/Syscall",            "Number of syscall instructions.");
         EM_REG_COUNTER_USED(&pStats->StatSysRet,                 "/EM/CPU%d/R3/PrivInst/Sysret",             "Number of sysret instructions.");
-
         EM_REG_COUNTER(&pVCpu->em.s.StatTotalClis,               "/EM/CPU%d/Cli/Total",                      "Total number of cli instructions executed.");
+#endif
         pVCpu->em.s.pCliStatTree = 0;
 
         /* these should be considered for release statistics. */
-        EM_REG_COUNTER(&pVCpu->em.s.StatIOEmu,      "/PROF/CPU%d/EM/Emulation/IO",      "Profiling of emR3RawExecuteIOInstruction.");
-        EM_REG_COUNTER(&pVCpu->em.s.StatPrivEmu,    "/PROF/CPU%d/EM/Emulation/Priv",    "Profiling of emR3RawPrivileged.");
-        EM_REG_PROFILE(&pVCpu->em.s.StatHmEntry,    "/PROF/CPU%d/EM/HmEnter",        "Profiling Hardware Accelerated Mode entry overhead.");
-        EM_REG_PROFILE(&pVCpu->em.s.StatHmExec,     "/PROF/CPU%d/EM/HmExec",         "Profiling Hardware Accelerated Mode execution.");
-        EM_REG_PROFILE(&pVCpu->em.s.StatIEMEmu,     "/PROF/CPU%d/EM/IEMEmuSingle",      "Profiling single instruction IEM execution.");
-        EM_REG_PROFILE(&pVCpu->em.s.StatIEMThenREM, "/PROF/CPU%d/EM/IEMThenRem",        "Profiling IEM-then-REM instruction execution (by IEM).");
-        EM_REG_PROFILE(&pVCpu->em.s.StatREMEmu,     "/PROF/CPU%d/EM/REMEmuSingle",      "Profiling single instruction REM execution.");
-        EM_REG_PROFILE(&pVCpu->em.s.StatREMExec,    "/PROF/CPU%d/EM/REMExec",           "Profiling REM execution.");
-        EM_REG_PROFILE(&pVCpu->em.s.StatREMSync,    "/PROF/CPU%d/EM/REMSync",           "Profiling REM context syncing.");
-        EM_REG_PROFILE(&pVCpu->em.s.StatRAWEntry,   "/PROF/CPU%d/EM/RAWEnter",          "Profiling Raw Mode entry overhead.");
-        EM_REG_PROFILE(&pVCpu->em.s.StatRAWExec,    "/PROF/CPU%d/EM/RAWExec",           "Profiling Raw Mode execution.");
-        EM_REG_PROFILE(&pVCpu->em.s.StatRAWTail,    "/PROF/CPU%d/EM/RAWTail",           "Profiling Raw Mode tail overhead.");
-
+        EM_REG_COUNTER(&pVCpu->em.s.StatIOEmu,              "/PROF/CPU%d/EM/Emulation/IO",      "Profiling of emR3RawExecuteIOInstruction.");
+        EM_REG_COUNTER(&pVCpu->em.s.StatPrivEmu,            "/PROF/CPU%d/EM/Emulation/Priv",    "Profiling of emR3RawPrivileged.");
+        EM_REG_PROFILE(&pVCpu->em.s.StatHMEntry,            "/PROF/CPU%d/EM/HMEnter",           "Profiling Hardware Accelerated Mode entry overhead.");
+        EM_REG_PROFILE(&pVCpu->em.s.StatHMExec,             "/PROF/CPU%d/EM/HMExec",            "Profiling Hardware Accelerated Mode execution.");
+        EM_REG_COUNTER(&pVCpu->em.s.StatHMExecuteCalled,    "/PROF/CPU%d/EM/HMExecuteCalled",   "Number of times enmR3HMExecute is called.");
+        EM_REG_PROFILE(&pVCpu->em.s.StatIEMEmu,             "/PROF/CPU%d/EM/IEMEmuSingle",      "Profiling single instruction IEM execution.");
+        EM_REG_PROFILE(&pVCpu->em.s.StatIEMThenREM,         "/PROF/CPU%d/EM/IEMThenRem",        "Profiling IEM-then-REM instruction execution (by IEM).");
+        EM_REG_PROFILE(&pVCpu->em.s.StatNEMEntry,           "/PROF/CPU%d/EM/NEMEnter",          "Profiling NEM entry overhead.");
+#endif /* VBOX_WITH_STATISTICS */
+        EM_REG_PROFILE(&pVCpu->em.s.StatNEMExec,            "/PROF/CPU%d/EM/NEMExec",           "Profiling NEM execution.");
+        EM_REG_COUNTER(&pVCpu->em.s.StatNEMExecuteCalled,   "/PROF/CPU%d/EM/NEMExecuteCalled",  "Number of times enmR3NEMExecute is called.");
+#ifdef VBOX_WITH_STATISTICS
+        EM_REG_PROFILE(&pVCpu->em.s.StatREMEmu,             "/PROF/CPU%d/EM/REMEmuSingle",      "Profiling single instruction REM execution.");
+        EM_REG_PROFILE(&pVCpu->em.s.StatREMExec,            "/PROF/CPU%d/EM/REMExec",           "Profiling REM execution.");
+        EM_REG_PROFILE(&pVCpu->em.s.StatREMSync,            "/PROF/CPU%d/EM/REMSync",           "Profiling REM context syncing.");
+        EM_REG_PROFILE(&pVCpu->em.s.StatRAWEntry,           "/PROF/CPU%d/EM/RAWEnter",          "Profiling Raw Mode entry overhead.");
+        EM_REG_PROFILE(&pVCpu->em.s.StatRAWExec,            "/PROF/CPU%d/EM/RAWExec",           "Profiling Raw Mode execution.");
+        EM_REG_PROFILE(&pVCpu->em.s.StatRAWTail,            "/PROF/CPU%d/EM/RAWTail",           "Profiling Raw Mode tail overhead.");
 #endif /* VBOX_WITH_STATISTICS */
 
-        EM_REG_COUNTER(&pVCpu->em.s.StatForcedActions,     "/PROF/CPU%d/EM/ForcedActions",     "Profiling forced action execution.");
-        EM_REG_COUNTER(&pVCpu->em.s.StatHalted,            "/PROF/CPU%d/EM/Halted",            "Profiling halted state (VMR3WaitHalted).");
-        EM_REG_PROFILE_ADV(&pVCpu->em.s.StatCapped,        "/PROF/CPU%d/EM/Capped",            "Profiling capped state (sleep).");
-        EM_REG_COUNTER(&pVCpu->em.s.StatREMTotal,          "/PROF/CPU%d/EM/REMTotal",          "Profiling emR3RemExecute (excluding FFs).");
-        EM_REG_COUNTER(&pVCpu->em.s.StatRAWTotal,          "/PROF/CPU%d/EM/RAWTotal",          "Profiling emR3RawExecute (excluding FFs).");
+        EM_REG_COUNTER(&pVCpu->em.s.StatForcedActions,      "/PROF/CPU%d/EM/ForcedActions",     "Profiling forced action execution.");
+        EM_REG_COUNTER(&pVCpu->em.s.StatHalted,             "/PROF/CPU%d/EM/Halted",            "Profiling halted state (VMR3WaitHalted).");
+        EM_REG_PROFILE_ADV(&pVCpu->em.s.StatCapped,         "/PROF/CPU%d/EM/Capped",            "Profiling capped state (sleep).");
+        EM_REG_COUNTER(&pVCpu->em.s.StatREMTotal,           "/PROF/CPU%d/EM/REMTotal",          "Profiling emR3RemExecute (excluding FFs).");
+        EM_REG_COUNTER(&pVCpu->em.s.StatRAWTotal,           "/PROF/CPU%d/EM/RAWTotal",          "Profiling emR3RawExecute (excluding FFs).");
 
-        EM_REG_PROFILE_ADV(&pVCpu->em.s.StatTotal,         "/PROF/CPU%d/EM/Total",             "Profiling EMR3ExecuteVM.");
+        EM_REG_PROFILE_ADV(&pVCpu->em.s.StatTotal,          "/PROF/CPU%d/EM/Total",             "Profiling EMR3ExecuteVM.");
+
+        rc = STAMR3RegisterF(pVM, &pVCpu->em.s.iNextExit, STAMTYPE_U64, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Number of recorded exits.", "/PROF/CPU%u/EM/RecordedExits", i);
+        AssertRC(rc);
+
+        /* History record statistics */
+        rc = STAMR3RegisterF(pVM, &pVCpu->em.s.cExitRecordUsed, STAMTYPE_U32, STAMVISIBILITY_ALWAYS, STAMUNIT_OCCURENCES,
+                             "Number of used hash table entries.", "/EM/CPU%u/ExitHashing/Used", i);
+        AssertRC(rc);
+
+        for (uint32_t iStep = 0; iStep < RT_ELEMENTS(pVCpu->em.s.aStatHistoryRecHits); iStep++)
+        {
+            rc = STAMR3RegisterF(pVM, &pVCpu->em.s.aStatHistoryRecHits[iStep], STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,
+                                 "Number of hits at this step.",             "/EM/CPU%u/ExitHashing/Step%02u-Hits", i, iStep);
+            AssertRC(rc);
+            rc = STAMR3RegisterF(pVM, &pVCpu->em.s.aStatHistoryRecTypeChanged[iStep], STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,
+                                 "Number of type changes at this step.",     "/EM/CPU%u/ExitHashing/Step%02u-TypeChanges", i, iStep);
+            AssertRC(rc);
+            rc = STAMR3RegisterF(pVM, &pVCpu->em.s.aStatHistoryRecTypeChanged[iStep], STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,
+                                 "Number of replacments at this step.",     "/EM/CPU%u/ExitHashing/Step%02u-Replacments", i, iStep);
+            AssertRC(rc);
+            rc = STAMR3RegisterF(pVM, &pVCpu->em.s.aStatHistoryRecNew[iStep], STAMTYPE_COUNTER, STAMVISIBILITY_USED, STAMUNIT_OCCURENCES,
+                                 "Number of new inserts at this step.",     "/EM/CPU%u/ExitHashing/Step%02u-NewInserts", i, iStep);
+            AssertRC(rc);
+        }
+
+        EM_REG_PROFILE(&pVCpu->em.s.StatHistoryExec,              "/EM/CPU%d/ExitOpt/Exec",              "Profiling normal EMHistoryExec operation.");
+        EM_REG_COUNTER(&pVCpu->em.s.StatHistoryExecSavedExits,    "/EM/CPU%d/ExitOpt/ExecSavedExit",     "Net number of saved exits.");
+        EM_REG_COUNTER(&pVCpu->em.s.StatHistoryExecInstructions,  "/EM/CPU%d/ExitOpt/ExecInstructions",  "Number of instructions executed during normal operation.");
+        EM_REG_PROFILE(&pVCpu->em.s.StatHistoryProbe,             "/EM/CPU%d/ExitOpt/Probe",             "Profiling EMHistoryExec when probing.");
+        EM_REG_COUNTER(&pVCpu->em.s.StatHistoryProbeInstructions, "/EM/CPU%d/ExitOpt/ProbeInstructions", "Number of instructions executed during probing.");
+        EM_REG_COUNTER(&pVCpu->em.s.StatHistoryProbedNormal,      "/EM/CPU%d/ExitOpt/ProbedNormal",      "Number of EMEXITACTION_NORMAL_PROBED results.");
+        EM_REG_COUNTER(&pVCpu->em.s.StatHistoryProbedExecWithMax, "/EM/CPU%d/ExitOpt/ProbedExecWithMax", "Number of EMEXITACTION_EXEC_WITH_MAX results.");
+        EM_REG_COUNTER(&pVCpu->em.s.StatHistoryProbedToRing3,     "/EM/CPU%d/ExitOpt/ProbedToRing3",     "Number of ring-3 probe continuations.");
     }
 
     emR3InitDbg(pVM);
+    return VINF_SUCCESS;
+}
+
+
+/**
+ * Called when a VM initialization stage is completed.
+ *
+ * @returns VBox status code.
+ * @param   pVM             The cross context VM structure.
+ * @param   enmWhat         The initialization state that was completed.
+ */
+VMMR3_INT_DECL(int) EMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
+{
+    if (enmWhat == VMINITCOMPLETED_RING0)
+        LogRel(("EM: Exit history optimizations: enabled=%RTbool enabled-r0=%RTbool enabled-r0-no-preemption=%RTbool\n",
+                pVM->aCpus[0].em.s.fExitOptimizationEnabled, pVM->aCpus[0].em.s.fExitOptimizationEnabledR0,
+                pVM->aCpus[0].em.s.fExitOptimizationEnabledR0PreemptDisabled));
     return VINF_SUCCESS;
 }
 
@@ -540,26 +484,19 @@ static DECLCALLBACK(int) emR3Save(PVM pVM, PSSMHANDLE pSSM)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
 
-        int rc = SSMR3PutBool(pSSM, pVCpu->em.s.fForceRAW);
-        AssertRCReturn(rc, rc);
+        SSMR3PutBool(pSSM, pVCpu->em.s.fForceRAW);
 
         Assert(pVCpu->em.s.enmState     == EMSTATE_SUSPENDED);
         Assert(pVCpu->em.s.enmPrevState != EMSTATE_SUSPENDED);
-        rc = SSMR3PutU32(pSSM, pVCpu->em.s.enmPrevState);
-        AssertRCReturn(rc, rc);
+        SSMR3PutU32(pSSM, pVCpu->em.s.enmPrevState);
 
         /* Save mwait state. */
-        rc = SSMR3PutU32(pSSM, pVCpu->em.s.MWait.fWait);
-        AssertRCReturn(rc, rc);
-        rc = SSMR3PutGCPtr(pSSM, pVCpu->em.s.MWait.uMWaitRAX);
-        AssertRCReturn(rc, rc);
-        rc = SSMR3PutGCPtr(pSSM, pVCpu->em.s.MWait.uMWaitRCX);
-        AssertRCReturn(rc, rc);
-        rc = SSMR3PutGCPtr(pSSM, pVCpu->em.s.MWait.uMonitorRAX);
-        AssertRCReturn(rc, rc);
-        rc = SSMR3PutGCPtr(pSSM, pVCpu->em.s.MWait.uMonitorRCX);
-        AssertRCReturn(rc, rc);
-        rc = SSMR3PutGCPtr(pSSM, pVCpu->em.s.MWait.uMonitorRDX);
+        SSMR3PutU32(pSSM, pVCpu->em.s.MWait.fWait);
+        SSMR3PutGCPtr(pSSM, pVCpu->em.s.MWait.uMWaitRAX);
+        SSMR3PutGCPtr(pSSM, pVCpu->em.s.MWait.uMWaitRCX);
+        SSMR3PutGCPtr(pSSM, pVCpu->em.s.MWait.uMonitorRAX);
+        SSMR3PutGCPtr(pSSM, pVCpu->em.s.MWait.uMonitorRCX);
+        int rc = SSMR3PutGCPtr(pSSM, pVCpu->em.s.MWait.uMonitorRDX);
         AssertRCReturn(rc, rc);
     }
     return VINF_SUCCESS;
@@ -659,7 +596,7 @@ static DECLCALLBACK(VBOXSTRICTRC) emR3SetExecutionPolicy(PVM pVM, PVMCPU pVCpu, 
                 pVM->fRecompileSupervisor = pArgs->fEnforce;
                 break;
             case EMEXECPOLICY_RECOMPILE_RING3:
-                pVM->fRecompileUser = pArgs->fEnforce;
+                pVM->fRecompileUser       = pArgs->fEnforce;
                 break;
             case EMEXECPOLICY_IEM_ALL:
                 pVM->em.s.fIemExecutesAll = pArgs->fEnforce;
@@ -667,15 +604,16 @@ static DECLCALLBACK(VBOXSTRICTRC) emR3SetExecutionPolicy(PVM pVM, PVMCPU pVCpu, 
             default:
                 AssertFailedReturn(VERR_INVALID_PARAMETER);
         }
-        Log(("emR3SetExecutionPolicy: fRecompileUser=%RTbool fRecompileSupervisor=%RTbool fIemExecutesAll=%RTbool\n",
-              pVM->fRecompileUser, pVM->fRecompileSupervisor, pVM->em.s.fIemExecutesAll));
+        LogRel(("emR3SetExecutionPolicy: fRecompileUser=%RTbool fRecompileSupervisor=%RTbool fIemExecutesAll=%RTbool\n",
+                pVM->fRecompileUser, pVM->fRecompileSupervisor, pVM->em.s.fIemExecutesAll));
     }
 
     /*
-     * Force rescheduling if in RAW, HM, IEM, or REM.
+     * Force rescheduling if in RAW, HM, NEM, IEM, or REM.
      */
     return    pVCpu->em.s.enmState == EMSTATE_RAW
            || pVCpu->em.s.enmState == EMSTATE_HM
+           || pVCpu->em.s.enmState == EMSTATE_NEM
            || pVCpu->em.s.enmState == EMSTATE_IEM
            || pVCpu->em.s.enmState == EMSTATE_REM
            || pVCpu->em.s.enmState == EMSTATE_IEM_THEN_REM
@@ -746,6 +684,27 @@ VMMR3DECL(int) EMR3QueryExecutionPolicy(PUVM pUVM, EMEXECPOLICY enmPolicy, bool 
 
 
 /**
+ * Queries the main execution engine of the VM.
+ *
+ * @returns VBox status code
+ * @param   pUVM                    The user mode VM handle.
+ * @param   pbMainExecutionEngine   Where to return the result, VM_EXEC_ENGINE_XXX.
+ */
+VMMR3DECL(int) EMR3QueryMainExecutionEngine(PUVM pUVM, uint8_t *pbMainExecutionEngine)
+{
+    AssertPtrReturn(pbMainExecutionEngine, VERR_INVALID_POINTER);
+    *pbMainExecutionEngine = VM_EXEC_ENGINE_NOT_SET;
+
+    UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
+    PVM pVM = pUVM->pVM;
+    VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
+
+    *pbMainExecutionEngine = pVM->bMainExecutionEngine;
+    return VINF_SUCCESS;
+}
+
+
+/**
  * Raise a fatal error.
  *
  * Safely terminate the VM with full state report and stuff. This function
@@ -788,10 +747,105 @@ static const char *emR3GetStateName(EMSTATE enmState)
         case EMSTATE_DEBUG_HYPER:       return "EMSTATE_DEBUG_HYPER";
         case EMSTATE_GURU_MEDITATION:   return "EMSTATE_GURU_MEDITATION";
         case EMSTATE_IEM_THEN_REM:      return "EMSTATE_IEM_THEN_REM";
+        case EMSTATE_NEM:               return "EMSTATE_NEM";
+        case EMSTATE_DEBUG_GUEST_NEM:   return "EMSTATE_DEBUG_GUEST_NEM";
         default:                        return "Unknown!";
     }
 }
 #endif /* LOG_ENABLED || VBOX_STRICT */
+
+
+/**
+ * Handle pending ring-3 I/O port write.
+ *
+ * This is in response to a VINF_EM_PENDING_R3_IOPORT_WRITE status code returned
+ * by EMRZSetPendingIoPortWrite() in ring-0 or raw-mode context.
+ *
+ * @returns Strict VBox status code.
+ * @param   pVM     The cross context VM structure.
+ * @param   pVCpu   The cross context virtual CPU structure.
+ */
+VBOXSTRICTRC emR3ExecutePendingIoPortWrite(PVM pVM, PVMCPU pVCpu)
+{
+    CPUM_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_RIP | CPUMCTX_EXTRN_RFLAGS);
+
+    /* Get and clear the pending data. */
+    RTIOPORT const uPort   = pVCpu->em.s.PendingIoPortAccess.uPort;
+    uint32_t const uValue  = pVCpu->em.s.PendingIoPortAccess.uValue;
+    uint8_t  const cbValue = pVCpu->em.s.PendingIoPortAccess.cbValue;
+    uint8_t  const cbInstr = pVCpu->em.s.PendingIoPortAccess.cbInstr;
+    pVCpu->em.s.PendingIoPortAccess.cbValue = 0;
+
+    /* Assert sanity. */
+    switch (cbValue)
+    {
+        case 1:     Assert(!(cbValue & UINT32_C(0xffffff00))); break;
+        case 2:     Assert(!(cbValue & UINT32_C(0xffff0000))); break;
+        case 4:     break;
+        default:    AssertMsgFailedReturn(("cbValue=%#x\n", cbValue), VERR_EM_INTERNAL_ERROR);
+    }
+    AssertReturn(cbInstr <= 15 && cbInstr >= 1, VERR_EM_INTERNAL_ERROR);
+
+    /* Do the work.*/
+    VBOXSTRICTRC rcStrict = IOMIOPortWrite(pVM, pVCpu, uPort, uValue, cbValue);
+    LogFlow(("EM/OUT: %#x, %#x LB %u -> %Rrc\n", uPort, uValue, cbValue, VBOXSTRICTRC_VAL(rcStrict) ));
+    if (IOM_SUCCESS(rcStrict))
+    {
+        pVCpu->cpum.GstCtx.rip += cbInstr;
+        pVCpu->cpum.GstCtx.rflags.Bits.u1RF = 0;
+    }
+    return rcStrict;
+}
+
+
+/**
+ * Handle pending ring-3 I/O port write.
+ *
+ * This is in response to a VINF_EM_PENDING_R3_IOPORT_WRITE status code returned
+ * by EMRZSetPendingIoPortRead() in ring-0 or raw-mode context.
+ *
+ * @returns Strict VBox status code.
+ * @param   pVM     The cross context VM structure.
+ * @param   pVCpu   The cross context virtual CPU structure.
+ */
+VBOXSTRICTRC emR3ExecutePendingIoPortRead(PVM pVM, PVMCPU pVCpu)
+{
+    CPUM_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_RIP | CPUMCTX_EXTRN_RFLAGS | CPUMCTX_EXTRN_RAX);
+
+    /* Get and clear the pending data. */
+    RTIOPORT const uPort   = pVCpu->em.s.PendingIoPortAccess.uPort;
+    uint8_t  const cbValue = pVCpu->em.s.PendingIoPortAccess.cbValue;
+    uint8_t  const cbInstr = pVCpu->em.s.PendingIoPortAccess.cbInstr;
+    pVCpu->em.s.PendingIoPortAccess.cbValue = 0;
+
+    /* Assert sanity. */
+    switch (cbValue)
+    {
+        case 1:     break;
+        case 2:     break;
+        case 4:     break;
+        default:    AssertMsgFailedReturn(("cbValue=%#x\n", cbValue), VERR_EM_INTERNAL_ERROR);
+    }
+    AssertReturn(pVCpu->em.s.PendingIoPortAccess.uValue == UINT32_C(0x52454144) /* READ*/, VERR_EM_INTERNAL_ERROR);
+    AssertReturn(cbInstr <= 15 && cbInstr >= 1, VERR_EM_INTERNAL_ERROR);
+
+    /* Do the work.*/
+    uint32_t uValue = 0;
+    VBOXSTRICTRC rcStrict = IOMIOPortRead(pVM, pVCpu, uPort, &uValue, cbValue);
+    LogFlow(("EM/IN: %#x LB %u -> %Rrc, %#x\n", uPort, cbValue, VBOXSTRICTRC_VAL(rcStrict), uValue ));
+    if (IOM_SUCCESS(rcStrict))
+    {
+        if (cbValue == 4)
+            pVCpu->cpum.GstCtx.rax = uValue;
+        else if (cbValue == 2)
+            pVCpu->cpum.GstCtx.ax = (uint16_t)uValue;
+        else
+            pVCpu->cpum.GstCtx.al = (uint8_t)uValue;
+        pVCpu->cpum.GstCtx.rip += cbInstr;
+        pVCpu->cpum.GstCtx.rflags.Bits.u1RF = 0;
+    }
+    return rcStrict;
+}
 
 
 /**
@@ -828,6 +882,8 @@ static VBOXSTRICTRC emR3Debug(PVM pVM, PVMCPU pVCpu, VBOXSTRICTRC rc)
 #endif
                 else if (pVCpu->em.s.enmState == EMSTATE_DEBUG_GUEST_HM)
                     rc = EMR3HmSingleInstruction(pVM, pVCpu, 0 /*fFlags*/);
+                else if (pVCpu->em.s.enmState == EMSTATE_DEBUG_GUEST_NEM)
+                    rc = VBOXSTRICTRC_TODO(emR3NemSingleInstruction(pVM, pVCpu, 0 /*fFlags*/));
 #ifdef VBOX_WITH_REM
                 else if (pVCpu->em.s.enmState == EMSTATE_DEBUG_GUEST_REM)
                     rc = emR3RemStep(pVM, pVCpu);
@@ -1070,18 +1126,17 @@ DECLINLINE(bool) emR3RemExecuteSyncBack(PVM pVM, PVMCPU pVCpu)
 static int emR3RemExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
 {
 #ifdef LOG_ENABLED
-    PCPUMCTX pCtx = pVCpu->em.s.pCtx;
     uint32_t cpl = CPUMGetGuestCPL(pVCpu);
 
-    if (pCtx->eflags.Bits.u1VM)
-        Log(("EMV86: %04X:%08X IF=%d\n", pCtx->cs.Sel, pCtx->eip, pCtx->eflags.Bits.u1IF));
+    if (pVCpu->cpum.GstCtx.eflags.Bits.u1VM)
+        Log(("EMV86: %04X:%08X IF=%d\n", pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.eip, pVCpu->cpum.GstCtx.eflags.Bits.u1IF));
     else
-        Log(("EMR%d: %04X:%08X ESP=%08X IF=%d CR0=%x eflags=%x\n", cpl, pCtx->cs.Sel, pCtx->eip, pCtx->esp, pCtx->eflags.Bits.u1IF, (uint32_t)pCtx->cr0, pCtx->eflags.u));
+        Log(("EMR%d: %04X:%08X ESP=%08X IF=%d CR0=%x eflags=%x\n", cpl, pVCpu->cpum.GstCtx.cs.Sel, pVCpu->cpum.GstCtx.eip, pVCpu->cpum.GstCtx.esp, pVCpu->cpum.GstCtx.eflags.Bits.u1IF, (uint32_t)pVCpu->cpum.GstCtx.cr0, pVCpu->cpum.GstCtx.eflags.u));
 #endif
     STAM_REL_PROFILE_ADV_START(&pVCpu->em.s.StatREMTotal, a);
 
 #if defined(VBOX_STRICT) && defined(DEBUG_bird)
-    AssertMsg(   VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL)
+    AssertMsg(   VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL)
               || !MMHyperIsInsideArea(pVM, CPUMGetGuestEIP(pVCpu)),  /** @todo @bugref{1419} - get flat address. */
               ("cs:eip=%RX16:%RX32\n", CPUMGetGuestCS(pVCpu), CPUMGetGuestEIP(pVCpu)));
 #endif
@@ -1131,8 +1186,8 @@ static int emR3RemExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
              * We might have missed the raising of VMREQ, TIMER and some other
              * important FFs while we were busy switching the state. So, check again.
              */
-            if (    VM_FF_IS_PENDING(pVM, VM_FF_REQUEST | VM_FF_PDM_QUEUES | VM_FF_DBGF | VM_FF_CHECK_VM_STATE | VM_FF_RESET)
-                ||  VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TIMER | VMCPU_FF_REQUEST))
+            if (    VM_FF_IS_ANY_SET(pVM, VM_FF_REQUEST | VM_FF_PDM_QUEUES | VM_FF_DBGF | VM_FF_CHECK_VM_STATE | VM_FF_RESET)
+                ||  VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_TIMER | VMCPU_FF_REQUEST))
             {
                 LogFlow(("emR3RemExecute: Skipping run, because FF is set. %#x\n", pVM->fGlobalForcedActions));
                 goto l_REMDoForcedActions;
@@ -1166,13 +1221,13 @@ static int emR3RemExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
          * Deal with high priority post execution FFs before doing anything
          * else.  Sync back the state and leave the lock to be on the safe side.
          */
-        if (    VM_FF_IS_PENDING(pVM, VM_FF_HIGH_PRIORITY_POST_MASK)
-            ||  VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_HIGH_PRIORITY_POST_MASK))
+        if (    VM_FF_IS_ANY_SET(pVM, VM_FF_HIGH_PRIORITY_POST_MASK)
+            ||  VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_HIGH_PRIORITY_POST_MASK))
         {
 #ifdef VBOX_WITH_REM
             fInREMState = emR3RemExecuteSyncBack(pVM, pVCpu);
 #endif
-            rc = emR3HighPriorityPostForcedActions(pVM, pVCpu, rc);
+            rc = VBOXSTRICTRC_TODO(emR3HighPriorityPostForcedActions(pVM, pVCpu, rc));
         }
 
         /*
@@ -1189,7 +1244,7 @@ static int emR3RemExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
                 if (   rc == VERR_IEM_ASPECT_NOT_IMPLEMENTED
                     || rc == VERR_IEM_INSTR_NOT_IMPLEMENTED)
                 {
-                    EMSTATE enmNewState = emR3Reschedule(pVM, pVCpu, pVCpu->em.s.pCtx);
+                    EMSTATE enmNewState = emR3Reschedule(pVM, pVCpu);
                     if (enmNewState != EMSTATE_REM && enmNewState != EMSTATE_IEM_THEN_REM)
                     {
                         rc = VINF_EM_RESCHEDULE;
@@ -1218,8 +1273,8 @@ static int emR3RemExecute(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
         TMTimerPollVoid(pVM, pVCpu);
 #endif
         AssertCompile(VMCPU_FF_ALL_REM_MASK & VMCPU_FF_TIMER);
-        if (    VM_FF_IS_PENDING(pVM, VM_FF_ALL_REM_MASK)
-            ||  VMCPU_FF_IS_PENDING(pVCpu,
+        if (    VM_FF_IS_ANY_SET(pVM, VM_FF_ALL_REM_MASK)
+            ||  VMCPU_FF_IS_ANY_SET(pVCpu,
                                      VMCPU_FF_ALL_REM_MASK
                                    & VM_WHEN_RAW_MODE(~(VMCPU_FF_CSAM_PENDING_ACTION | VMCPU_FF_CSAM_SCAN_PAGE), UINT32_MAX)) )
         {
@@ -1246,7 +1301,7 @@ l_REMDoForcedActions:
          */
         if (!(++cLoops & 7))
         {
-            EMSTATE enmCheck = emR3Reschedule(pVM, pVCpu, pVCpu->em.s.pCtx);
+            EMSTATE enmCheck = emR3Reschedule(pVM, pVCpu);
             if (   enmCheck != EMSTATE_REM
                 && enmCheck != EMSTATE_IEM_THEN_REM)
                 return VINF_EM_RESCHEDULE;
@@ -1283,7 +1338,7 @@ int emR3SingleStepExecRem(PVM pVM, PVMCPU pVCpu, uint32_t cIterations)
         DBGFR3PrgStep(pVCpu);
         DBGFR3_DISAS_INSTR_CUR_LOG(pVCpu, "RSS");
         emR3RemStep(pVM, pVCpu);
-        if (emR3Reschedule(pVM, pVCpu, pVCpu->em.s.pCtx) != EMSTATE_REM)
+        if (emR3Reschedule(pVM, pVCpu) != EMSTATE_REM)
             break;
     }
     Log(("Single step END:\n"));
@@ -1330,7 +1385,7 @@ static VBOXSTRICTRC emR3ExecuteIemThenRem(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
             return rcStrict;
         }
 
-        EMSTATE enmNewState = emR3Reschedule(pVM, pVCpu, pVCpu->em.s.pCtx);
+        EMSTATE enmNewState = emR3Reschedule(pVM, pVCpu);
         if (enmNewState != EMSTATE_REM && enmNewState != EMSTATE_IEM_THEN_REM)
         {
             LogFlow(("emR3ExecuteIemThenRem: -> %d (%s) after %u instructions\n",
@@ -1343,8 +1398,8 @@ static VBOXSTRICTRC emR3ExecuteIemThenRem(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
         /*
          * Check for pending actions.
          */
-        if (   VM_FF_IS_PENDING(pVM, VM_FF_ALL_REM_MASK)
-            || VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_ALL_REM_MASK & ~VMCPU_FF_UNHALT))
+        if (   VM_FF_IS_ANY_SET(pVM, VM_FF_ALL_REM_MASK)
+            || VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_ALL_REM_MASK & ~VMCPU_FF_UNHALT))
             return VINF_SUCCESS;
     }
 
@@ -1363,9 +1418,8 @@ static VBOXSTRICTRC emR3ExecuteIemThenRem(PVM pVM, PVMCPU pVCpu, bool *pfFFDone)
  * @returns new EM state
  * @param   pVM     The cross context VM structure.
  * @param   pVCpu   The cross context virtual CPU structure.
- * @param   pCtx    Pointer to the guest CPU context.
  */
-EMSTATE emR3Reschedule(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
+EMSTATE emR3Reschedule(PVM pVM, PVMCPU pVCpu)
 {
     /*
      * When forcing raw-mode execution, things are simple.
@@ -1389,21 +1443,25 @@ EMSTATE emR3Reschedule(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     /* !!! THIS MUST BE IN SYNC WITH remR3CanExecuteRaw !!! */
     /* !!! THIS MUST BE IN SYNC WITH remR3CanExecuteRaw !!! */
 
-    X86EFLAGS EFlags = pCtx->eflags;
-    if (HMIsEnabled(pVM))
+    X86EFLAGS EFlags = pVCpu->cpum.GstCtx.eflags;
+    if (!VM_IS_RAW_MODE_ENABLED(pVM))
     {
-        /*
-         * Hardware accelerated raw-mode:
-         */
-        if (   EMIsHwVirtExecutionEnabled(pVM)
-            && HMR3CanExecuteGuest(pVM, pCtx))
-            return EMSTATE_HM;
+        if (EMIsHwVirtExecutionEnabled(pVM))
+        {
+            if (VM_IS_HM_ENABLED(pVM))
+            {
+                if (HMCanExecuteGuest(pVCpu, &pVCpu->cpum.GstCtx))
+                    return EMSTATE_HM;
+            }
+            else if (NEMR3CanExecuteGuest(pVM, pVCpu))
+                return EMSTATE_NEM;
 
-        /*
-         * Note! Raw mode and hw accelerated mode are incompatible. The latter
-         *       turns off monitoring features essential for raw mode!
-         */
-        return EMSTATE_IEM_THEN_REM;
+            /*
+             * Note! Raw mode and hw accelerated mode are incompatible. The latter
+             *       turns off monitoring features essential for raw mode!
+             */
+            return EMSTATE_IEM_THEN_REM;
+        }
     }
 
     /*
@@ -1428,14 +1486,14 @@ EMSTATE emR3Reschedule(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 # endif
 
     /** @todo check up the X86_CR0_AM flag in respect to raw mode!!! We're probably not emulating it right! */
-    uint32_t u32CR0 = pCtx->cr0;
+    uint32_t u32CR0 = pVCpu->cpum.GstCtx.cr0;
     if ((u32CR0 & (X86_CR0_PG | X86_CR0_PE)) != (X86_CR0_PG | X86_CR0_PE))
     {
         //Log2(("raw mode refused: %s%s%s\n", (u32CR0 & X86_CR0_PG) ? "" : " !PG", (u32CR0 & X86_CR0_PE) ? "" : " !PE", (u32CR0 & X86_CR0_AM) ? "" : " !AM"));
         return EMSTATE_REM;
     }
 
-    if (pCtx->cr4 & X86_CR4_PAE)
+    if (pVCpu->cpum.GstCtx.cr4 & X86_CR4_PAE)
     {
         uint32_t u32Dummy, u32Features;
 
@@ -1444,8 +1502,8 @@ EMSTATE emR3Reschedule(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
             return EMSTATE_REM;
     }
 
-    unsigned uSS = pCtx->ss.Sel;
-    if (    pCtx->eflags.Bits.u1VM
+    unsigned uSS = pVCpu->cpum.GstCtx.ss.Sel;
+    if (    pVCpu->cpum.GstCtx.eflags.Bits.u1VM
         ||  (uSS & X86_SEL_RPL) == 3)
     {
         if (!EMIsRawRing3Enabled(pVM))
@@ -1486,8 +1544,8 @@ EMSTATE emR3Reschedule(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 
         // Let's start with pure 32 bits ring 0 code first
         /** @todo What's pure 32-bit mode? flat? */
-        if (    !(pCtx->ss.Attr.n.u1DefBig)
-            ||  !(pCtx->cs.Attr.n.u1DefBig))
+        if (    !(pVCpu->cpum.GstCtx.ss.Attr.n.u1DefBig)
+            ||  !(pVCpu->cpum.GstCtx.cs.Attr.n.u1DefBig))
         {
             Log2(("raw r0 mode refused: SS/CS not 32bit\n"));
             return EMSTATE_REM;
@@ -1501,11 +1559,11 @@ EMSTATE emR3Reschedule(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
         }
 
 # ifdef VBOX_WITH_RAW_MODE
-        if (PATMShouldUseRawMode(pVM, (RTGCPTR)pCtx->eip))
+        if (PATMShouldUseRawMode(pVM, (RTGCPTR)pVCpu->cpum.GstCtx.eip))
         {
             Log2(("raw r0 mode forced: patch code\n"));
 #  ifdef VBOX_WITH_SAFE_STR
-            Assert(pCtx->tr.Sel);
+            Assert(pVCpu->cpum.GstCtx.tr.Sel);
 #  endif
             return EMSTATE_RAW;
         }
@@ -1533,39 +1591,39 @@ EMSTATE emR3Reschedule(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
     /*
      * Stale hidden selectors means raw-mode is unsafe (being very careful).
      */
-    if (pCtx->cs.fFlags & CPUMSELREG_FLAGS_STALE)
+    if (pVCpu->cpum.GstCtx.cs.fFlags & CPUMSELREG_FLAGS_STALE)
     {
         Log2(("raw mode refused: stale CS\n"));
         return EMSTATE_REM;
     }
-    if (pCtx->ss.fFlags & CPUMSELREG_FLAGS_STALE)
+    if (pVCpu->cpum.GstCtx.ss.fFlags & CPUMSELREG_FLAGS_STALE)
     {
         Log2(("raw mode refused: stale SS\n"));
         return EMSTATE_REM;
     }
-    if (pCtx->ds.fFlags & CPUMSELREG_FLAGS_STALE)
+    if (pVCpu->cpum.GstCtx.ds.fFlags & CPUMSELREG_FLAGS_STALE)
     {
         Log2(("raw mode refused: stale DS\n"));
         return EMSTATE_REM;
     }
-    if (pCtx->es.fFlags & CPUMSELREG_FLAGS_STALE)
+    if (pVCpu->cpum.GstCtx.es.fFlags & CPUMSELREG_FLAGS_STALE)
     {
         Log2(("raw mode refused: stale ES\n"));
         return EMSTATE_REM;
     }
-    if (pCtx->fs.fFlags & CPUMSELREG_FLAGS_STALE)
+    if (pVCpu->cpum.GstCtx.fs.fFlags & CPUMSELREG_FLAGS_STALE)
     {
         Log2(("raw mode refused: stale FS\n"));
         return EMSTATE_REM;
     }
-    if (pCtx->gs.fFlags & CPUMSELREG_FLAGS_STALE)
+    if (pVCpu->cpum.GstCtx.gs.fFlags & CPUMSELREG_FLAGS_STALE)
     {
         Log2(("raw mode refused: stale GS\n"));
         return EMSTATE_REM;
     }
 
 # ifdef VBOX_WITH_SAFE_STR
-    if (pCtx->tr.Sel == 0)
+    if (pVCpu->cpum.GstCtx.tr.Sel == 0)
     {
         Log(("Raw mode refused -> TR=0\n"));
         return EMSTATE_REM;
@@ -1580,57 +1638,81 @@ EMSTATE emR3Reschedule(PVM pVM, PVMCPU pVCpu, PCPUMCTX pCtx)
 /**
  * Executes all high priority post execution force actions.
  *
- * @returns rc or a fatal status code.
+ * @returns Strict VBox status code.  Typically @a rc, but may be upgraded to
+ *          fatal error status code.
  *
  * @param   pVM         The cross context VM structure.
  * @param   pVCpu       The cross context virtual CPU structure.
- * @param   rc          The current rc.
+ * @param   rc          The current strict VBox status code rc.
  */
-int emR3HighPriorityPostForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
+VBOXSTRICTRC emR3HighPriorityPostForcedActions(PVM pVM, PVMCPU pVCpu, VBOXSTRICTRC rc)
 {
-    VBOXVMM_EM_FF_HIGH(pVCpu, pVM->fGlobalForcedActions, pVCpu->fLocalForcedActions, rc);
+    VBOXVMM_EM_FF_HIGH(pVCpu, pVM->fGlobalForcedActions, pVCpu->fLocalForcedActions, VBOXSTRICTRC_VAL(rc));
 
-    if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_PDM_CRITSECT))
+    if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_PDM_CRITSECT))
         PDMCritSectBothFF(pVCpu);
 
     /* Update CR3 (Nested Paging case for HM). */
-    if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_HM_UPDATE_CR3))
+    if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_HM_UPDATE_CR3))
     {
+        CPUM_IMPORT_EXTRN_RCSTRICT(pVCpu, CPUMCTX_EXTRN_CR0 | CPUMCTX_EXTRN_CR3 | CPUMCTX_EXTRN_CR4 | CPUMCTX_EXTRN_EFER, rc);
         int rc2 = PGMUpdateCR3(pVCpu, CPUMGetGuestCR3(pVCpu));
         if (RT_FAILURE(rc2))
             return rc2;
-        Assert(!VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_HM_UPDATE_CR3));
+        Assert(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_HM_UPDATE_CR3));
     }
 
     /* Update PAE PDPEs. This must be done *after* PGMUpdateCR3() and used only by the Nested Paging case for HM. */
-    if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_HM_UPDATE_PAE_PDPES))
+    if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_HM_UPDATE_PAE_PDPES))
     {
+        CPUM_IMPORT_EXTRN_RCSTRICT(pVCpu, CPUMCTX_EXTRN_CR0 | CPUMCTX_EXTRN_CR3 | CPUMCTX_EXTRN_CR4 | CPUMCTX_EXTRN_EFER, rc);
         if (CPUMIsGuestInPAEMode(pVCpu))
         {
             PX86PDPE pPdpes = HMGetPaePdpes(pVCpu);
             AssertPtr(pPdpes);
 
             PGMGstUpdatePaePdpes(pVCpu, pPdpes);
-            Assert(!VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_HM_UPDATE_PAE_PDPES));
+            Assert(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_HM_UPDATE_PAE_PDPES));
         }
         else
             VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_HM_UPDATE_PAE_PDPES);
     }
 
     /* IEM has pending work (typically memory write after INS instruction). */
-    if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_IEM))
-        rc = VBOXSTRICTRC_TODO(IEMR3ProcessForceFlag(pVM, pVCpu, rc));
+    if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_IEM))
+        rc = IEMR3ProcessForceFlag(pVM, pVCpu, rc);
 
     /* IOM has pending work (comitting an I/O or MMIO write). */
-    if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_IOM))
-        rc = VBOXSTRICTRC_TODO(IOMR3ProcessForceFlag(pVM, pVCpu, rc));
+    if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_IOM))
+    {
+        rc = IOMR3ProcessForceFlag(pVM, pVCpu, rc);
+        if (pVCpu->em.s.idxContinueExitRec >= RT_ELEMENTS(pVCpu->em.s.aExitRecords))
+        { /* half likely, or at least it's a line shorter. */ }
+        else if (rc == VINF_SUCCESS)
+            rc = VINF_EM_RESUME_R3_HISTORY_EXEC;
+        else
+            pVCpu->em.s.idxContinueExitRec = UINT16_MAX;
+    }
+
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
+        /*
+         * VMX Nested-guest APIC-write pending (can cause VM-exits).
+         * Takes priority over even SMI and INIT signals.
+         * See Intel spec. 29.4.3.2 "APIC-Write Emulation".
+         */
+        if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_VMX_APIC_WRITE))
+        {
+            rc = VBOXSTRICTRC_VAL(IEMExecVmxVmexitApicWrite(pVCpu));
+            Assert(rc != VINF_VMX_INTERCEPT_NOT_ACTIVE);
+        }
+#endif
 
 #ifdef VBOX_WITH_RAW_MODE
-    if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_CSAM_PENDING_ACTION))
+    if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_CSAM_PENDING_ACTION))
         CSAMR3DoPendingAction(pVM, pVCpu);
 #endif
 
-    if (VM_FF_IS_PENDING(pVM, VM_FF_PGM_NO_MEMORY))
+    if (VM_FF_IS_SET(pVM, VM_FF_PGM_NO_MEMORY))
     {
         if (    rc > VINF_EM_NO_MEMORY
             &&  rc <= VINF_EM_LAST)
@@ -1638,6 +1720,95 @@ int emR3HighPriorityPostForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
     }
 
     return rc;
+}
+
+
+/**
+ * Helper for emR3ForcedActions() for VMX interrupt-window VM-exits.
+ *
+ * @returns VBox status code.
+ * @param   pVCpu       The cross context virtual CPU structure.
+ */
+static int emR3VmxNstGstIntrWindowExit(PVMCPU pVCpu)
+{
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
+    Assert(CPUMIsGuestInVmxNonRootMode(&pVCpu->cpum.GstCtx));
+    if (CPUMIsGuestVmxProcCtlsSet(pVCpu, &pVCpu->cpum.GstCtx, VMX_PROC_CTLS_INT_WINDOW_EXIT))
+    {
+        CPUM_IMPORT_EXTRN_RET(pVCpu, IEM_CPUMCTX_EXTRN_VMX_VMEXIT_MASK);
+        VBOXSTRICTRC rcStrict = IEMExecVmxVmexitIntWindow(pVCpu);
+        if (RT_SUCCESS(rcStrict))
+        {
+            Assert(rcStrict != VINF_PGM_CHANGE_MODE);
+            Assert(rcStrict != VINF_VMX_VMEXIT);
+            return VBOXSTRICTRC_VAL(rcStrict);
+        }
+        AssertMsgFailed(("Interrupt-window Vm-exit failed! rc=%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
+        return VINF_EM_TRIPLE_FAULT;
+    }
+#else
+    RT_NOREF(pVCpu);
+#endif
+    return VINF_NO_CHANGE;
+}
+
+
+/**
+ * Helper for emR3ForcedActions() for SVM interrupt intercept.
+ *
+ * @returns VBox status code.
+ * @param   pVCpu       The cross context virtual CPU structure.
+ */
+static int emR3SvmNstGstIntrIntercept(PVMCPU pVCpu)
+{
+#ifdef VBOX_WITH_NESTED_HWVIRT_SVM
+    Assert(CPUMIsGuestInSvmNestedHwVirtMode(&pVCpu->cpum.GstCtx));
+    if (CPUMIsGuestSvmCtrlInterceptSet(pVCpu, &pVCpu->cpum.GstCtx, SVM_CTRL_INTERCEPT_INTR))
+    {
+        CPUM_IMPORT_EXTRN_RET(pVCpu, IEM_CPUMCTX_EXTRN_SVM_VMEXIT_MASK);
+        VBOXSTRICTRC rcStrict = IEMExecSvmVmexit(pVCpu, SVM_EXIT_INTR, 0, 0);
+        if (RT_SUCCESS(rcStrict))
+        {
+            Assert(rcStrict != VINF_PGM_CHANGE_MODE);
+            Assert(rcStrict != VINF_SVM_VMEXIT);
+            return VBOXSTRICTRC_VAL(rcStrict);
+        }
+        AssertMsgFailed(("INTR #VMEXIT failed! rc=%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
+        return VINF_EM_TRIPLE_FAULT;
+    }
+#else
+    NOREF(pVCpu);
+#endif
+    return VINF_NO_CHANGE;
+}
+
+
+/**
+ * Helper for emR3ForcedActions() for SVM virtual interrupt intercept.
+ *
+ * @returns VBox status code.
+ * @param   pVCpu       The cross context virtual CPU structure.
+ */
+static int emR3SvmNstGstVirtIntrIntercept(PVMCPU pVCpu)
+{
+#ifdef VBOX_WITH_NESTED_HWVIRT_SVM
+    if (CPUMIsGuestSvmCtrlInterceptSet(pVCpu, &pVCpu->cpum.GstCtx, SVM_CTRL_INTERCEPT_VINTR))
+    {
+        CPUM_IMPORT_EXTRN_RET(pVCpu, IEM_CPUMCTX_EXTRN_SVM_VMEXIT_MASK);
+        VBOXSTRICTRC rcStrict = IEMExecSvmVmexit(pVCpu, SVM_EXIT_VINTR, 0, 0);
+        if (RT_SUCCESS(rcStrict))
+        {
+            Assert(rcStrict != VINF_PGM_CHANGE_MODE);
+            Assert(rcStrict != VINF_SVM_VMEXIT);
+            return VBOXSTRICTRC_VAL(rcStrict);
+        }
+        AssertMsgFailed(("VINTR #VMEXIT failed! rc=%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
+        return VINF_EM_TRIPLE_FAULT;
+    }
+#else
+    NOREF(pVCpu);
+#endif
+    return VINF_NO_CHANGE;
 }
 
 
@@ -1680,14 +1851,15 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
     /*
      * Post execution chunk first.
      */
-    if (    VM_FF_IS_PENDING(pVM, VM_FF_NORMAL_PRIORITY_POST_MASK)
-        ||  (VMCPU_FF_NORMAL_PRIORITY_POST_MASK && VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_NORMAL_PRIORITY_POST_MASK)) )
+    if (    VM_FF_IS_ANY_SET(pVM, VM_FF_NORMAL_PRIORITY_POST_MASK)
+        ||  (VMCPU_FF_NORMAL_PRIORITY_POST_MASK && VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_NORMAL_PRIORITY_POST_MASK)) )
     {
         /*
          * EMT Rendezvous (must be serviced before termination).
          */
-        if (VM_FF_IS_PENDING(pVM, VM_FF_EMT_RENDEZVOUS))
+        if (VM_FF_IS_SET(pVM, VM_FF_EMT_RENDEZVOUS))
         {
+            CPUM_IMPORT_EXTRN_RCSTRICT(pVCpu, ~CPUMCTX_EXTRN_KEEPER_MASK, rc);
             rc2 = VMMR3EmtRendezvousFF(pVM, pVCpu);
             UPDATE_RC();
             /** @todo HACK ALERT! The following test is to make sure EM+TM
@@ -1706,7 +1878,7 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
         /*
          * State change request (cleared by vmR3SetStateLocked).
          */
-        if (VM_FF_IS_PENDING(pVM, VM_FF_CHECK_VM_STATE))
+        if (VM_FF_IS_SET(pVM, VM_FF_CHECK_VM_STATE))
         {
             VMSTATE enmState = VMR3GetState(pVM);
             switch (enmState)
@@ -1732,9 +1904,10 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
         /*
          * Debugger Facility polling.
          */
-        if (   VM_FF_IS_PENDING(pVM, VM_FF_DBGF)
-            || VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_DBGF) )
+        if (   VM_FF_IS_SET(pVM, VM_FF_DBGF)
+            || VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_DBGF) )
         {
+            CPUM_IMPORT_EXTRN_RCSTRICT(pVCpu, ~CPUMCTX_EXTRN_KEEPER_MASK, rc);
             rc2 = DBGFR3VMMForcedAction(pVM, pVCpu);
             UPDATE_RC();
         }
@@ -1744,6 +1917,7 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
          */
         if (VM_FF_TEST_AND_CLEAR(pVM, VM_FF_RESET))
         {
+            CPUM_IMPORT_EXTRN_RCSTRICT(pVCpu, ~CPUMCTX_EXTRN_KEEPER_MASK, rc);
             rc2 = VBOXSTRICTRC_TODO(VMR3ResetFF(pVM));
             UPDATE_RC();
         }
@@ -1752,15 +1926,13 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
         /*
          * CSAM page scanning.
          */
-        if (    !VM_FF_IS_PENDING(pVM, VM_FF_PGM_NO_MEMORY)
-            &&  VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_CSAM_SCAN_PAGE))
+        if (    !VM_FF_IS_SET(pVM, VM_FF_PGM_NO_MEMORY)
+            &&  VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_CSAM_SCAN_PAGE))
         {
-            PCPUMCTX pCtx = pVCpu->em.s.pCtx;
-
             /** @todo check for 16 or 32 bits code! (D bit in the code selector) */
             Log(("Forced action VMCPU_FF_CSAM_SCAN_PAGE\n"));
-
-            CSAMR3CheckCodeEx(pVM, pCtx, pCtx->eip);
+            CPUM_IMPORT_EXTRN_RCSTRICT(pVCpu, ~CPUMCTX_EXTRN_KEEPER_MASK, rc);
+            CSAMR3CheckCodeEx(pVM, &pVCpu->cpum.GstCtx, pVCpu->cpum.GstCtx.eip);
             VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_CSAM_SCAN_PAGE);
         }
 #endif
@@ -1768,7 +1940,7 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
         /*
          * Out of memory? Putting this after CSAM as it may in theory cause us to run out of memory.
          */
-        if (VM_FF_IS_PENDING(pVM, VM_FF_PGM_NO_MEMORY))
+        if (VM_FF_IS_SET(pVM, VM_FF_PGM_NO_MEMORY))
         {
             rc2 = PGMR3PhysAllocateHandyPages(pVM);
             UPDATE_RC();
@@ -1802,8 +1974,9 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
         /*
          * EMT Rendezvous (make sure they are handled before the requests).
          */
-        if (VM_FF_IS_PENDING(pVM, VM_FF_EMT_RENDEZVOUS))
+        if (VM_FF_IS_SET(pVM, VM_FF_EMT_RENDEZVOUS))
         {
+            CPUM_IMPORT_EXTRN_RCSTRICT(pVCpu, ~CPUMCTX_EXTRN_KEEPER_MASK, rc);
             rc2 = VMMR3EmtRendezvousFF(pVM, pVCpu);
             UPDATE_RC();
             /** @todo HACK ALERT! The following test is to make sure EM+TM
@@ -1824,6 +1997,7 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
          */
         if (VM_FF_IS_PENDING_EXCEPT(pVM, VM_FF_REQUEST, VM_FF_PGM_NO_MEMORY))
         {
+            CPUM_IMPORT_EXTRN_RCSTRICT(pVCpu, ~CPUMCTX_EXTRN_KEEPER_MASK, rc);
             rc2 = VMR3ReqProcessU(pVM->pUVM, VMCPUID_ANY, false /*fPriorityOnly*/);
             if (rc2 == VINF_EM_OFF || rc2 == VINF_EM_TERMINATE) /** @todo this shouldn't be necessary */
             {
@@ -1870,14 +2044,15 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
      * Normal priority then. (per-VCPU)
      * (Executed in no particular order.)
      */
-    if (    !VM_FF_IS_PENDING(pVM, VM_FF_PGM_NO_MEMORY)
-        &&  VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_NORMAL_PRIORITY_MASK))
+    if (    !VM_FF_IS_SET(pVM, VM_FF_PGM_NO_MEMORY)
+        &&  VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_NORMAL_PRIORITY_MASK))
     {
         /*
          * Requests from other threads.
          */
-        if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_REQUEST))
+        if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_REQUEST))
         {
+            CPUM_IMPORT_EXTRN_RCSTRICT(pVCpu, ~CPUMCTX_EXTRN_KEEPER_MASK, rc);
             rc2 = VMR3ReqProcessU(pVM->pUVM, pVCpu->idCpu, false /*fPriorityOnly*/);
             if (rc2 == VINF_EM_OFF || rc2 == VINF_EM_TERMINATE || rc2 == VINF_EM_RESET)
             {
@@ -1907,14 +2082,14 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
      * High priority pre execution chunk last.
      * (Executed in ascending priority order.)
      */
-    if (    VM_FF_IS_PENDING(pVM, VM_FF_HIGH_PRIORITY_PRE_MASK)
-        ||  VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_HIGH_PRIORITY_PRE_MASK))
+    if (    VM_FF_IS_ANY_SET(pVM, VM_FF_HIGH_PRIORITY_PRE_MASK)
+        ||  VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_HIGH_PRIORITY_PRE_MASK))
     {
         /*
          * Timers before interrupts.
          */
-        if (    VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_TIMER)
-            &&  !VM_FF_IS_PENDING(pVM, VM_FF_PGM_NO_MEMORY))
+        if (   VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_TIMER)
+            && !VM_FF_IS_SET(pVM, VM_FF_PGM_NO_MEMORY))
             TMR3TimerQueuesDo(pVM);
 
         /*
@@ -1935,9 +2110,10 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
          *       unlikely, but such timing sensitive problem are not as rare as
          *       you might think.
          */
-        if (    VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
-            &&  !VM_FF_IS_PENDING(pVM, VM_FF_PGM_NO_MEMORY))
+        if (   VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
+            && !VM_FF_IS_SET(pVM, VM_FF_PGM_NO_MEMORY))
         {
+            CPUM_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_RIP);
             if (CPUMGetGuestRIP(pVCpu) != EMGetInhibitInterruptsPC(pVCpu))
             {
                 Log(("Clearing VMCPU_FF_INHIBIT_INTERRUPTS at %RGv - successor %RGv\n", (RTGCPTR)CPUMGetGuestRIP(pVCpu), EMGetInhibitInterruptsPC(pVCpu)));
@@ -1947,118 +2123,137 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
                 Log(("Leaving VMCPU_FF_INHIBIT_INTERRUPTS set at %RGv\n", (RTGCPTR)CPUMGetGuestRIP(pVCpu)));
         }
 
+        /** @todo SMIs. If we implement SMIs, this is where they will have to be
+         *        delivered. */
+
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
+        /*
+         * VMX Nested-guest monitor-trap flag (MTF) VM-exit.
+         * Takes priority over "Traps on the previous instruction".
+         * See Intel spec. 6.9 "Priority Among Simultaneous Exceptions And Interrupts".
+         */
+        if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_VMX_MTF))
+        {
+            rc2 = VBOXSTRICTRC_VAL(IEMExecVmxVmexitMtf(pVCpu));
+            Assert(rc2 != VINF_VMX_INTERCEPT_NOT_ACTIVE);
+            UPDATE_RC();
+        }
+
+        /*
+         * VMX Nested-guest preemption timer VM-exit.
+         * Takes priority over non-maskable interrupts (NMIs).
+         */
+        if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_VMX_PREEMPT_TIMER))
+        {
+            rc2 = VBOXSTRICTRC_VAL(IEMExecVmxVmexitPreemptTimer(pVCpu));
+            if (rc2 == VINF_VMX_INTERCEPT_NOT_ACTIVE)
+                rc2 = VINF_SUCCESS;
+            UPDATE_RC();
+        }
+#endif
+
+        /*
+         * NMIs.
+         * NMIs take priority over external interrupts.
+         */
+        bool fWakeupPending = false;
+        if (    VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_NMI)
+            && !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS)
+            && !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
+        {
+            rc2 = TRPMAssertTrap(pVCpu, X86_XCPT_NMI, TRPM_TRAP);
+            if (rc2 == VINF_SUCCESS)
+            {
+                fWakeupPending = true;
+                if (pVM->em.s.fIemExecutesAll)
+                    rc2 = VINF_EM_RESCHEDULE;
+                else
+                {
+                    rc2 = HMR3IsActive(pVCpu)    ? VINF_EM_RESCHEDULE_HM
+                        : VM_IS_NEM_ENABLED(pVM) ? VINF_EM_RESCHEDULE
+                        :                          VINF_EM_RESCHEDULE_REM;
+                }
+            }
+            UPDATE_RC();
+        }
+
         /*
          * Interrupts.
          */
-        /** @todo this can be optimized a bit. later.   */
-        bool fWakeupPending = false;
-        if (    !VM_FF_IS_PENDING(pVM, VM_FF_PGM_NO_MEMORY)
-            &&  (!rc || rc >= VINF_EM_RESCHEDULE_HM))
+        if (   !VM_FF_IS_SET(pVM, VM_FF_PGM_NO_MEMORY)
+            && (!rc || rc >= VINF_EM_RESCHEDULE_HM)
+            && !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
+            && !TRPMHasTrap(pVCpu)) /* an interrupt could already be scheduled for dispatching in the recompiler. */
         {
-            if (   !VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS)
-                && !TRPMHasTrap(pVCpu)) /* an interrupt could already be scheduled for dispatching in the recompiler. */
-            {
-                bool     fIntrEnabled;
-                PCPUMCTX pCtx = pVCpu->em.s.pCtx;
+            Assert(!HMR3IsEventPending(pVCpu));
+            bool fGif = CPUMGetGuestGif(&pVCpu->cpum.GstCtx);
 #ifdef VBOX_WITH_RAW_MODE
-                /* We cannot just inspect EFLAGS when nested hw.virt is enabled (see e.g. CPUMCanSvmNstGstTakePhysIntr). */
-                fIntrEnabled = !PATMIsPatchGCAddr(pVM, pCtx->eip);
-#else
-                fIntrEnabled = true;
+            fGif &= !PATMIsPatchGCAddr(pVM, pVCpu->cpum.GstCtx.eip);
 #endif
-                /** @todo Can we centralize this under CPUMCanInjectInterrupt()? */
-#ifdef VBOX_WITH_NESTED_HWVIRT
-                fIntrEnabled &= pCtx->hwvirt.svm.fGif;
-                if (fIntrEnabled)
+            if (fGif)
+            {
+                /*
+                 * With VMX, virtual interrupts takes priority over physical interrupts.
+                 * With SVM, physical interrupts takes priority over virtual interrupts.
+                 */
+                if (   VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_NESTED_GUEST)
+                    && CPUMIsGuestInVmxNonRootMode(&pVCpu->cpum.GstCtx)
+                    && CPUMIsGuestVmxVirtIntrEnabled(pVCpu, &pVCpu->cpum.GstCtx))
                 {
-                    if (CPUMIsGuestInSvmNestedHwVirtMode(pCtx))
-                        fIntrEnabled = CPUMCanSvmNstGstTakePhysIntr(pCtx);
-                    else
-                        fIntrEnabled = pCtx->eflags.Bits.u1IF;
+                    /** @todo NSTVMX: virtual-interrupt delivery. */
+                    rc2 = VINF_NO_CHANGE;
                 }
-#else
-                fIntrEnabled &= pCtx->eflags.Bits.u1IF;
-#endif
-                if (fIntrEnabled)
+                else if (   VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC)
+                         && CPUMIsGuestPhysIntrEnabled(pVCpu))
                 {
-                    Assert(!HMR3IsEventPending(pVCpu));
+                    bool fInjected = false;
                     Assert(pVCpu->em.s.enmState != EMSTATE_WAIT_SIPI);
-                    if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC))
+
+                    if (CPUMIsGuestInVmxNonRootMode(&pVCpu->cpum.GstCtx))
+                        rc2 = emR3VmxNstGstIntrWindowExit(pVCpu);
+                    else if (CPUMIsGuestInSvmNestedHwVirtMode(&pVCpu->cpum.GstCtx))
+                        rc2 = emR3SvmNstGstIntrIntercept(pVCpu);
+                    else
+                        rc2 = VINF_NO_CHANGE;
+
+                    if (rc2 == VINF_NO_CHANGE)
                     {
-#ifdef VBOX_WITH_NESTED_HWVIRT
-                        if (CPUMIsGuestSvmCtrlInterceptSet(pCtx, SVM_CTRL_INTERCEPT_INTR))
-                        {
-                            VBOXSTRICTRC rcStrict = IEMExecSvmVmexit(pVCpu, SVM_EXIT_INTR, 0, 0);
-                            if (RT_SUCCESS(rcStrict))
-                                rc2 = VINF_EM_RESCHEDULE;
-                            else
-                            {
-                                AssertMsgFailed(("INTR #VMEXIT failed! rc=%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
-                                Log(("EM: SVM Nested-guest INTR #VMEXIT failed! rc=%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
-                                /** @todo should we call iemInitiateCpuShutdown? Should this
-                                 *        result in trapping triple-fault intercepts? */
-                                rc2 = VINF_EM_TRIPLE_FAULT;
-                            }
-                        }
-                        else
-#endif
-                        {
-                            /* Note: it's important to make sure the return code from TRPMR3InjectEvent isn't ignored! */
-                            /** @todo this really isn't nice, should properly handle this */
-                            rc2 = TRPMR3InjectEvent(pVM, pVCpu, TRPM_HARDWARE_INT);
-                            if (pVM->em.s.fIemExecutesAll && (   rc2 == VINF_EM_RESCHEDULE_REM
-                                                              || rc2 == VINF_EM_RESCHEDULE_HM
-                                                              || rc2 == VINF_EM_RESCHEDULE_RAW))
-                                rc2 = VINF_EM_RESCHEDULE;
-#ifdef VBOX_STRICT
-                            rcIrq = rc2;
-#endif
-                        }
-                        UPDATE_RC();
-                        /* Reschedule required: We must not miss the wakeup below! */
+                        CPUM_IMPORT_EXTRN_RET(pVCpu, IEM_CPUMCTX_EXTRN_XCPT_MASK);
+                        /** @todo this really isn't nice, should properly handle this */
+                        rc2 = TRPMR3InjectEvent(pVM, pVCpu, TRPM_HARDWARE_INT, &fInjected);
                         fWakeupPending = true;
-                    }
-#ifdef VBOX_WITH_NESTED_HWVIRT
-                    else if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_NESTED_GUEST))
-                    {
-                        /*
-                         * Check nested-guest virtual interrupts.
-                         */
-                        if (CPUMCanSvmNstGstTakeVirtIntr(pCtx))
+                        if (   pVM->em.s.fIemExecutesAll
+                            && (   rc2 == VINF_EM_RESCHEDULE_REM
+                                || rc2 == VINF_EM_RESCHEDULE_HM
+                                || rc2 == VINF_EM_RESCHEDULE_RAW))
                         {
-                            if (CPUMIsGuestSvmCtrlInterceptSet(pCtx, SVM_CTRL_INTERCEPT_VINTR))
-                            {
-                                VBOXSTRICTRC rcStrict = IEMExecSvmVmexit(pVCpu, SVM_EXIT_VINTR, 0, 0);
-                                if (RT_SUCCESS(rcStrict))
-                                    rc2 = VINF_EM_RESCHEDULE;
-                                else
-                                {
-                                    AssertMsgFailed(("VINTR #VMEXIT failed! rc=%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
-                                    Log(("EM: SVM Nested-guest VINTR #VMEXIT failed! rc=%Rrc\n", VBOXSTRICTRC_VAL(rcStrict)));
-                                    /** @todo should we call iemInitiateCpuShutdown? Should this
-                                     *        result in trapping triple-fault intercepts? */
-                                    rc2 = VINF_EM_TRIPLE_FAULT;
-                                }
-                            }
-                            else
-                            {
-                                /*
-                                 * Prepare the nested-guest interrupt for injection.
-                                 */
-                                VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_NESTED_GUEST);
-                                uint8_t uNstGstVector = CPUMGetSvmNstGstInterrupt(pCtx);
-                                TRPMAssertTrap(pVCpu, uNstGstVector, TRPM_HARDWARE_INT);
-                                Log(("EM: Asserting nested-guest virt. hardware intr: %#x\n", uNstGstVector));
-                                /** @todo reschedule to HM/REM later, when the HMR0 nested-guest execution is
-                                 *  done. For now just reschedule to IEM. */
-                                rc2 = VINF_EM_RESCHEDULE;
-                            }
-                            UPDATE_RC();
-                            /* Reschedule required: We must not miss the wakeup below! */
-                            fWakeupPending = true;
+                            rc2 = VINF_EM_RESCHEDULE;
                         }
                     }
-#endif  /* VBOX_WITH_NESTED_HWVIRT */
+#ifdef VBOX_STRICT
+                    if (fInjected)
+                        rcIrq = rc2;
+#endif
+                    UPDATE_RC();
+                }
+                else if (   VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INTERRUPT_NESTED_GUEST)
+                         && CPUMIsGuestInSvmNestedHwVirtMode(&pVCpu->cpum.GstCtx)
+                         && CPUMIsGuestSvmVirtIntrEnabled(pVCpu,  &pVCpu->cpum.GstCtx))
+                {
+                    rc2 = emR3SvmNstGstVirtIntrIntercept(pVCpu);
+                    if (rc2 == VINF_NO_CHANGE)
+                    {
+                        VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_INTERRUPT_NESTED_GUEST);
+                        uint8_t const uNstGstVector = CPUMGetGuestSvmVirtIntrVector(&pVCpu->cpum.GstCtx);
+                        AssertMsg(uNstGstVector > 0 && uNstGstVector <= X86_XCPT_LAST, ("Invalid VINTR %#x\n", uNstGstVector));
+                        TRPMAssertTrap(pVCpu, uNstGstVector, TRPM_HARDWARE_INT);
+                        Log(("EM: Asserting nested-guest virt. hardware intr: %#x\n", uNstGstVector));
+                        rc2 = VINF_EM_RESCHEDULE;
+#ifdef VBOX_STRICT
+                        rcIrq = rc2;
+#endif
+                    }
+                    UPDATE_RC();
                 }
             }
         }
@@ -2075,10 +2270,11 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
         /*
          * Debugger Facility request.
          */
-        if (   (   VM_FF_IS_PENDING(pVM, VM_FF_DBGF)
-                || VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_DBGF) )
-            && !VM_FF_IS_PENDING(pVM, VM_FF_PGM_NO_MEMORY) )
+        if (   (   VM_FF_IS_SET(pVM, VM_FF_DBGF)
+                || VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_DBGF) )
+            && !VM_FF_IS_SET(pVM, VM_FF_PGM_NO_MEMORY) )
         {
+            CPUM_IMPORT_EXTRN_RCSTRICT(pVCpu, ~CPUMCTX_EXTRN_KEEPER_MASK, rc);
             rc2 = DBGFR3VMMForcedAction(pVM, pVCpu);
             UPDATE_RC();
         }
@@ -2087,8 +2283,9 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
          * EMT Rendezvous (must be serviced before termination).
          */
         if (   !fWakeupPending /* don't miss the wakeup from EMSTATE_HALTED! */
-            && VM_FF_IS_PENDING(pVM, VM_FF_EMT_RENDEZVOUS))
+            && VM_FF_IS_SET(pVM, VM_FF_EMT_RENDEZVOUS))
         {
+            CPUM_IMPORT_EXTRN_RCSTRICT(pVCpu, ~CPUMCTX_EXTRN_KEEPER_MASK, rc);
             rc2 = VMMR3EmtRendezvousFF(pVM, pVCpu);
             UPDATE_RC();
             /** @todo HACK ALERT! The following test is to make sure EM+TM thinks the VM is
@@ -2107,7 +2304,7 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
          * State change request (cleared by vmR3SetStateLocked).
          */
         if (   !fWakeupPending /* don't miss the wakeup from EMSTATE_HALTED! */
-            && VM_FF_IS_PENDING(pVM, VM_FF_CHECK_VM_STATE))
+            && VM_FF_IS_SET(pVM, VM_FF_CHECK_VM_STATE))
         {
             VMSTATE enmState = VMR3GetState(pVM);
             switch (enmState)
@@ -2136,7 +2333,7 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
          * at the end rather than the start. Also, VM_FF_TERMINATE has higher priority
          * than us since we can terminate without allocating more memory.
          */
-        if (VM_FF_IS_PENDING(pVM, VM_FF_PGM_NO_MEMORY))
+        if (VM_FF_IS_SET(pVM, VM_FF_PGM_NO_MEMORY))
         {
             rc2 = PGMR3PhysAllocateHandyPages(pVM);
             UPDATE_RC();
@@ -2147,14 +2344,14 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
         /*
          * If the virtual sync clock is still stopped, make TM restart it.
          */
-        if (VM_FF_IS_PENDING(pVM, VM_FF_TM_VIRTUAL_SYNC))
+        if (VM_FF_IS_SET(pVM, VM_FF_TM_VIRTUAL_SYNC))
             TMR3VirtualSyncFF(pVM, pVCpu);
 
 #ifdef DEBUG
         /*
          * Debug, pause the VM.
          */
-        if (VM_FF_IS_PENDING(pVM, VM_FF_DEBUG_SUSPEND))
+        if (VM_FF_IS_SET(pVM, VM_FF_DEBUG_SUSPEND))
         {
             VM_FF_CLEAR(pVM, VM_FF_DEBUG_SUSPEND);
             Log(("emR3ForcedActions: returns VINF_EM_SUSPEND\n"));
@@ -2164,7 +2361,7 @@ int emR3ForcedActions(PVM pVM, PVMCPU pVCpu, int rc)
 
         /* check that we got them all  */
         AssertCompile(VM_FF_HIGH_PRIORITY_PRE_MASK == (VM_FF_TM_VIRTUAL_SYNC | VM_FF_DBGF | VM_FF_CHECK_VM_STATE | VM_FF_DEBUG_SUSPEND | VM_FF_PGM_NEED_HANDY_PAGES | VM_FF_PGM_NO_MEMORY | VM_FF_EMT_RENDEZVOUS));
-        AssertCompile(VMCPU_FF_HIGH_PRIORITY_PRE_MASK == (VMCPU_FF_TIMER | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_UPDATE_APIC | VMCPU_FF_INTERRUPT_PIC | VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL | VMCPU_FF_INHIBIT_INTERRUPTS | VMCPU_FF_DBGF | VM_WHEN_RAW_MODE(VMCPU_FF_SELM_SYNC_TSS | VMCPU_FF_TRPM_SYNC_IDT | VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT, 0)));
+        AssertCompile(VMCPU_FF_HIGH_PRIORITY_PRE_MASK == (VMCPU_FF_TIMER | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_UPDATE_APIC | VMCPU_FF_INTERRUPT_PIC | VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL | VMCPU_FF_INHIBIT_INTERRUPTS | VMCPU_FF_DBGF | VMCPU_FF_INTERRUPT_NESTED_GUEST | VMCPU_FF_VMX_MTF | VM_WHEN_RAW_MODE(VMCPU_FF_SELM_SYNC_TSS | VMCPU_FF_TRPM_SYNC_IDT | VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT, 0)));
     }
 
 #undef UPDATE_RC
@@ -2261,7 +2458,7 @@ VMMR3_INT_DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                  || pVCpu->em.s.enmPrevState == EMSTATE_HALTED))
             pVCpu->em.s.enmState = pVCpu->em.s.enmPrevState;
         else
-            pVCpu->em.s.enmState = emR3Reschedule(pVM, pVCpu, pVCpu->em.s.pCtx);
+            pVCpu->em.s.enmState = emR3Reschedule(pVM, pVCpu);
         pVCpu->em.s.cIemThenRemInstructions = 0;
         Log(("EMR3ExecuteVM: enmState=%s\n", emR3GetStateName(pVCpu->em.s.enmState)));
 
@@ -2280,8 +2477,8 @@ VMMR3_INT_DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                 && RT_SUCCESS(rc)
                 && rc != VINF_EM_TERMINATE
                 && rc != VINF_EM_OFF
-                && (   VM_FF_IS_PENDING(pVM, VM_FF_ALL_REM_MASK)
-                    || VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_ALL_REM_MASK & ~VMCPU_FF_UNHALT)))
+                && (   VM_FF_IS_ANY_SET(pVM, VM_FF_ALL_REM_MASK)
+                    || VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_ALL_REM_MASK & ~VMCPU_FF_UNHALT)))
             {
                 rc = emR3ForcedActions(pVM, pVCpu, rc);
                 VBOXVMM_EM_FF_ALL_RET(pVCpu, rc);
@@ -2309,20 +2506,42 @@ VMMR3_INT_DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                 /*
                  * Reschedule - to raw-mode execution.
                  */
+/** @todo r=bird: consider merging VINF_EM_RESCHEDULE_RAW with VINF_EM_RESCHEDULE_HM, they serve the same purpose here at least. */
                 case VINF_EM_RESCHEDULE_RAW:
-                    Log2(("EMR3ExecuteVM: VINF_EM_RESCHEDULE_RAW: %d -> %d (EMSTATE_RAW)\n", enmOldState, EMSTATE_RAW));
                     Assert(!pVM->em.s.fIemExecutesAll || pVCpu->em.s.enmState != EMSTATE_IEM);
-                    pVCpu->em.s.enmState = EMSTATE_RAW;
+                    if (VM_IS_RAW_MODE_ENABLED(pVM))
+                    {
+                        Log2(("EMR3ExecuteVM: VINF_EM_RESCHEDULE_RAW: %d -> %d (EMSTATE_RAW)\n", enmOldState, EMSTATE_RAW));
+                        pVCpu->em.s.enmState = EMSTATE_RAW;
+                    }
+                    else
+                    {
+                        AssertLogRelFailed();
+                        pVCpu->em.s.enmState = EMSTATE_NONE;
+                    }
                     break;
 
                 /*
-                 * Reschedule - to hardware accelerated raw-mode execution.
+                 * Reschedule - to HM or NEM.
                  */
                 case VINF_EM_RESCHEDULE_HM:
-                    Log2(("EMR3ExecuteVM: VINF_EM_RESCHEDULE_HM: %d -> %d (EMSTATE_HM)\n", enmOldState, EMSTATE_HM));
                     Assert(!pVM->em.s.fIemExecutesAll || pVCpu->em.s.enmState != EMSTATE_IEM);
                     Assert(!pVCpu->em.s.fForceRAW);
-                    pVCpu->em.s.enmState = EMSTATE_HM;
+                    if (VM_IS_HM_ENABLED(pVM))
+                    {
+                        Log2(("EMR3ExecuteVM: VINF_EM_RESCHEDULE_HM: %d -> %d (EMSTATE_HM)\n", enmOldState, EMSTATE_HM));
+                        pVCpu->em.s.enmState = EMSTATE_HM;
+                    }
+                    else if (VM_IS_NEM_ENABLED(pVM))
+                    {
+                        Log2(("EMR3ExecuteVM: VINF_EM_RESCHEDULE_HM: %d -> %d (EMSTATE_NEM)\n", enmOldState, EMSTATE_NEM));
+                        pVCpu->em.s.enmState = EMSTATE_NEM;
+                    }
+                    else
+                    {
+                        AssertLogRelFailed();
+                        pVCpu->em.s.enmState = EMSTATE_NONE;
+                    }
                     break;
 
                 /*
@@ -2330,7 +2549,7 @@ VMMR3_INT_DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                  */
                 case VINF_EM_RESCHEDULE_REM:
                     Assert(!pVM->em.s.fIemExecutesAll || pVCpu->em.s.enmState != EMSTATE_IEM);
-                    if (HMIsEnabled(pVM))
+                    if (!VM_IS_RAW_MODE_ENABLED(pVM))
                     {
                         Log2(("EMR3ExecuteVM: VINF_EM_RESCHEDULE_REM: %d -> %d (EMSTATE_IEM_THEN_REM)\n",
                               enmOldState, EMSTATE_IEM_THEN_REM));
@@ -2367,7 +2586,7 @@ VMMR3_INT_DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                  */
                 case VINF_EM_RESCHEDULE:
                 {
-                    EMSTATE enmState = emR3Reschedule(pVM, pVCpu, pVCpu->em.s.pCtx);
+                    EMSTATE enmState = emR3Reschedule(pVM, pVCpu);
                     Log2(("EMR3ExecuteVM: VINF_EM_RESCHEDULE: %d -> %d (%s)\n", enmOldState, enmState, emR3GetStateName(enmState)));
                     if (pVCpu->em.s.enmState != enmState && enmState == EMSTATE_IEM_THEN_REM)
                         pVCpu->em.s.cIemThenRemInstructions = 0;
@@ -2411,7 +2630,7 @@ VMMR3_INT_DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                 {
                     if (pVCpu->idCpu == 0)
                     {
-                        EMSTATE enmState = emR3Reschedule(pVM, pVCpu, pVCpu->em.s.pCtx);
+                        EMSTATE enmState = emR3Reschedule(pVM, pVCpu);
                         Log2(("EMR3ExecuteVM: VINF_EM_RESET: %d -> %d (%s)\n", enmOldState, enmState, emR3GetStateName(enmState)));
                         if (pVCpu->em.s.enmState != enmState && enmState == EMSTATE_IEM_THEN_REM)
                             pVCpu->em.s.cIemThenRemInstructions = 0;
@@ -2489,6 +2708,11 @@ VMMR3_INT_DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                         Log2(("EMR3ExecuteVM: %Rrc: %d -> %d\n", rc, enmOldState, EMSTATE_DEBUG_GUEST_HM));
                         pVCpu->em.s.enmState = EMSTATE_DEBUG_GUEST_HM;
                     }
+                    else if (enmOldState == EMSTATE_NEM)
+                    {
+                        Log2(("EMR3ExecuteVM: %Rrc: %d -> %d\n", rc, enmOldState, EMSTATE_DEBUG_GUEST_NEM));
+                        pVCpu->em.s.enmState = EMSTATE_DEBUG_GUEST_NEM;
+                    }
                     else if (enmOldState == EMSTATE_REM)
                     {
                         Log2(("EMR3ExecuteVM: %Rrc: %d -> %d\n", rc, enmOldState, EMSTATE_DEBUG_GUEST_REM));
@@ -2559,13 +2783,15 @@ VMMR3_INT_DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                 /* Clear MWait flags and the unhalt FF. */
                 if (   enmOldState == EMSTATE_HALTED
                     && (   (pVCpu->em.s.MWait.fWait & EMMWAIT_FLAG_ACTIVE)
-                        || VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_UNHALT))
+                        || VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_UNHALT))
                     && (   enmNewState == EMSTATE_RAW
                         || enmNewState == EMSTATE_HM
+                        || enmNewState == EMSTATE_NEM
                         || enmNewState == EMSTATE_REM
                         || enmNewState == EMSTATE_IEM_THEN_REM
                         || enmNewState == EMSTATE_DEBUG_GUEST_RAW
                         || enmNewState == EMSTATE_DEBUG_GUEST_HM
+                        || enmNewState == EMSTATE_DEBUG_GUEST_NEM
                         || enmNewState == EMSTATE_DEBUG_GUEST_IEM
                         || enmNewState == EMSTATE_DEBUG_GUEST_REM) )
                 {
@@ -2574,7 +2800,7 @@ VMMR3_INT_DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                         LogFlow(("EMR3ExecuteVM: Clearing MWAIT\n"));
                         pVCpu->em.s.MWait.fWait &= ~(EMMWAIT_FLAG_ACTIVE | EMMWAIT_FLAG_BREAKIRQIF0);
                     }
-                    if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_UNHALT))
+                    if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_UNHALT))
                     {
                         LogFlow(("EMR3ExecuteVM: Clearing UNHALT\n"));
                         VMCPU_FF_CLEAR(pVCpu, VMCPU_FF_UNHALT);
@@ -2609,6 +2835,13 @@ VMMR3_INT_DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                  */
                 case EMSTATE_HM:
                     rc = emR3HmExecute(pVM, pVCpu, &fFFDone);
+                    break;
+
+                /*
+                 * Execute hardware accelerated raw.
+                 */
+                case EMSTATE_NEM:
+                    rc = VBOXSTRICTRC_TODO(emR3NemExecute(pVM, pVCpu, &fFFDone));
                     break;
 
                 /*
@@ -2683,7 +2916,8 @@ VMMR3_INT_DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                             if (VMCPU_FF_TEST_AND_CLEAR(pVCpu, VMCPU_FF_UPDATE_APIC))
                                 APICUpdatePendingInterrupts(pVCpu);
 
-                            if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC
+                            if (VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC
+                                                         | VMCPU_FF_INTERRUPT_NESTED_GUEST
                                                          | VMCPU_FF_INTERRUPT_NMI  | VMCPU_FF_INTERRUPT_SMI | VMCPU_FF_UNHALT))
                             {
                                 Log(("EMR3ExecuteVM: Triggering reschedule on pending IRQ after MWAIT\n"));
@@ -2697,7 +2931,7 @@ VMMR3_INT_DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                         /* We're only interested in NMI/SMIs here which have their own FFs, so we don't need to
                            check VMCPU_FF_UPDATE_APIC here. */
                         if (   rc == VINF_SUCCESS
-                            && VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_NMI | VMCPU_FF_INTERRUPT_SMI | VMCPU_FF_UNHALT))
+                            && VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_INTERRUPT_NMI | VMCPU_FF_INTERRUPT_SMI | VMCPU_FF_UNHALT))
                         {
                             Log(("EMR3ExecuteVM: Triggering reschedule on pending NMI/SMI/UNHALT after HLT\n"));
                             rc = VINF_EM_RESCHEDULE;
@@ -2722,6 +2956,7 @@ VMMR3_INT_DECL(int) EMR3ExecuteVM(PVM pVM, PVMCPU pVCpu)
                  */
                 case EMSTATE_DEBUG_GUEST_RAW:
                 case EMSTATE_DEBUG_GUEST_HM:
+                case EMSTATE_DEBUG_GUEST_NEM:
                 case EMSTATE_DEBUG_GUEST_IEM:
                 case EMSTATE_DEBUG_GUEST_REM:
                     TMR3NotifySuspend(pVM, pVCpu);

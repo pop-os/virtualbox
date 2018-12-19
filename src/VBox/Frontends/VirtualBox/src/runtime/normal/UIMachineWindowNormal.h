@@ -58,8 +58,8 @@ private slots:
     void sltNetworkAdapterChange();
     /** Handles shared folder change event. */
     void sltSharedFolderChange();
-    /** Handles video capture change event. */
-    void sltVideoCaptureChange();
+    /** Handles recording change event. */
+    void sltRecordingChange();
     /** Handles CPU execution cap change event. */
     void sltCPUExecutionCapChange();
     /** Handles UISession initialized event. */
@@ -67,17 +67,17 @@ private slots:
 
 #ifndef RT_OS_DARWIN
     /** Handles menu-bar configuration-change. */
-    void sltHandleMenuBarConfigurationChange(const QString &strMachineID);
+    void sltHandleMenuBarConfigurationChange(const QUuid &uMachineID);
     /** Handles menu-bar context-menu-request. */
     void sltHandleMenuBarContextMenuRequest(const QPoint &position);
 #endif /* !RT_OS_DARWIN */
 
     /** Handles status-bar configuration-change. */
-    void sltHandleStatusBarConfigurationChange(const QString &strMachineID);
+    void sltHandleStatusBarConfigurationChange(const QUuid &uMachineID);
     /** Handles status-bar context-menu-request. */
     void sltHandleStatusBarContextMenuRequest(const QPoint &position);
     /** Handles status-bar indicator context-menu-request. */
-    void sltHandleIndicatorContextMenuRequest(IndicatorType indicatorType, const QPoint &position);
+    void sltHandleIndicatorContextMenuRequest(IndicatorType enmIndicatorType, const QPoint &indicatorPosition);
 
 #ifdef VBOX_WS_MAC
     /** Handles signal about some @a pAction hovered. */

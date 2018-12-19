@@ -79,8 +79,9 @@ typedef RTLDRRDRMEM *PRTLDRRDRMEM;
  * @callback_method_impl{FNRTLDRRDRMEMDTOR,
  *      Default destructor - pvUser points to the image memory block}
  */
-static DECLCALLBACK(void) rtldrRdrMemDefaultDtor(void *pvUser)
+static DECLCALLBACK(void) rtldrRdrMemDefaultDtor(void *pvUser, size_t cbImage)
 {
+    RT_NOREF(cbImage);
     RTMemFree(pvUser);
 }
 
@@ -201,7 +202,9 @@ static DECLCALLBACK(int) rtldrRdrMem_Unmap(PRTLDRREADER pReader, const void *pvB
 static DECLCALLBACK(int) rtldrRdrMem_Destroy(PRTLDRREADER pReader)
 {
     PRTLDRRDRMEM pThis = (PRTLDRRDRMEM)pReader;
-    pThis->pfnDtor(pThis->pvUser);
+    pThis->pfnDtor(pThis->pvUser, pThis->cbImage);
+    pThis->pfnDtor = NULL;
+    pThis->pvUser = NULL;
     RTMemFree(pThis);
     return VINF_SUCCESS;
 }
@@ -264,40 +267,34 @@ static int rtldrRdrMem_Create(PRTLDRREADER *ppReader, const char *pszName, size_
 
 RTDECL(int) RTLdrOpenInMemory(const char *pszName, uint32_t fFlags, RTLDRARCH enmArch, size_t cbImage,
                               PFNRTLDRRDRMEMREAD pfnRead, PFNRTLDRRDRMEMDTOR pfnDtor, void *pvUser,
-                              PRTLDRMOD phLdrMod)
+                              PRTLDRMOD phLdrMod, PRTERRINFO pErrInfo)
 {
-    LogFlow(("RTLdrOpenInMemory: pszName=%p:{%s} fFlags=%#x enmArch=%d cbImage=%#zx pfnRead=%p pfnDtor=%p pvUser=%p phLdrMod=%p\n",
-             pszName, pszName, fFlags, enmArch, cbImage, pfnRead, pfnDtor, pvUser, phLdrMod));
+    LogFlow(("RTLdrOpenInMemory: pszName=%p:{%s} fFlags=%#x enmArch=%d cbImage=%#zx pfnRead=%p pfnDtor=%p pvUser=%p phLdrMod=%p pErrInfo=%p\n",
+             pszName, pszName, fFlags, enmArch, cbImage, pfnRead, pfnDtor, pvUser, phLdrMod, pErrInfo));
 
     if (!pfnRead || !pfnDtor)
         AssertPtrReturn(pvUser, VERR_INVALID_POINTER);
     if (!pfnDtor)
         pfnDtor = rtldrRdrMemDefaultDtor;
     else
-        AssertPtrReturn(pfnRead, VERR_INVALID_POINTER);
+        AssertPtrReturn(pfnDtor, VERR_INVALID_POINTER);
 
     /* The rest of the validations will call the destructor. */
     AssertMsgReturnStmt(!(fFlags & ~RTLDR_O_VALID_MASK), ("%#x\n", fFlags),
-                        pfnDtor(pvUser), VERR_INVALID_PARAMETER);
+                        pfnDtor(pvUser, cbImage), VERR_INVALID_PARAMETER);
     AssertMsgReturnStmt(enmArch > RTLDRARCH_INVALID && enmArch < RTLDRARCH_END, ("%d\n", enmArch),
-                        pfnDtor(pvUser), VERR_INVALID_PARAMETER);
+                        pfnDtor(pvUser, cbImage), VERR_INVALID_PARAMETER);
     if (!pfnRead)
         pfnRead = rtldrRdrMemDefaultReader;
     else
-        AssertReturnStmt(RT_VALID_PTR(pfnRead), pfnDtor(pvUser), VERR_INVALID_POINTER);
-    AssertReturnStmt(cbImage > 0, pfnDtor(pvUser), VERR_INVALID_PARAMETER);
+        AssertReturnStmt(RT_VALID_PTR(pfnRead), pfnDtor(pvUser, cbImage), VERR_INVALID_POINTER);
+    AssertReturnStmt(cbImage > 0, pfnDtor(pvUser, cbImage), VERR_INVALID_PARAMETER);
 
     /*
      * Resolve RTLDRARCH_HOST.
      */
     if (enmArch == RTLDRARCH_HOST)
-#if   defined(RT_ARCH_AMD64)
-        enmArch = RTLDRARCH_AMD64;
-#elif defined(RT_ARCH_X86)
-        enmArch = RTLDRARCH_X86_32;
-#else
-        enmArch = RTLDRARCH_WHATEVER;
-#endif
+        enmArch = RTLdrGetHostArch();
 
     /*
      * Create file reader & invoke worker which identifies and calls the image interpreter.
@@ -306,7 +303,7 @@ RTDECL(int) RTLdrOpenInMemory(const char *pszName, uint32_t fFlags, RTLDRARCH en
     int rc = rtldrRdrMem_Create(&pReader, pszName, cbImage, pfnRead, pfnDtor, pvUser);
     if (RT_SUCCESS(rc))
     {
-        rc = RTLdrOpenWithReader(pReader, fFlags, enmArch, phLdrMod, NULL);
+        rc = RTLdrOpenWithReader(pReader, fFlags, enmArch, phLdrMod, pErrInfo);
         if (RT_SUCCESS(rc))
         {
             LogFlow(("RTLdrOpen: return %Rrc *phLdrMod=%p\n", rc, *phLdrMod));
@@ -316,7 +313,10 @@ RTDECL(int) RTLdrOpenInMemory(const char *pszName, uint32_t fFlags, RTLDRARCH en
         pReader->pfnDestroy(pReader);
     }
     else
-        pfnDtor(pvUser);
+    {
+        pfnDtor(pvUser, cbImage);
+        rc = RTErrInfoSetF(pErrInfo, rc, "rtldrRdrMem_Create failed: %Rrc", rc);
+    }
     *phLdrMod = NIL_RTLDRMOD;
 
     LogFlow(("RTLdrOpen: return %Rrc\n", rc));

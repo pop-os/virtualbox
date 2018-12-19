@@ -1,4 +1,4 @@
-/* $Id: */
+/* $Id: VMMDevHGCM.h $ */
 /** @file
  * VBoxDev - HGCM - Host-Guest Communication Manager, internal header.
  */
@@ -23,17 +23,23 @@
 RT_C_DECLS_BEGIN
 int vmmdevHGCMConnect(VMMDevState *pVMMDevState, const VMMDevHGCMConnect *pHGCMConnect, RTGCPHYS GCPtr);
 int vmmdevHGCMDisconnect(VMMDevState *pVMMDevState, const VMMDevHGCMDisconnect *pHGCMDisconnect, RTGCPHYS GCPtr);
-int vmmdevHGCMCall(VMMDevState *pVMMDevState, const VMMDevHGCMCall *pHGCMCall, uint32_t cbHGCMCall, RTGCPHYS GCPtr, VMMDevRequestType enmRequestType);
+int vmmdevHGCMCall(VMMDevState *pVMMDevState, const VMMDevHGCMCall *pHGCMCall, uint32_t cbHGCMCall, RTGCPHYS GCPtr,
+                   VMMDevRequestType enmRequestType, uint64_t tsArrival, PVMMDEVREQLOCK *ppLock);
 int vmmdevHGCMCancel(VMMDevState *pVMMDevState, const VMMDevHGCMCancel *pHGCMCancel, RTGCPHYS GCPtr);
 int vmmdevHGCMCancel2(VMMDevState *pVMMDevState, RTGCPHYS GCPtr);
 
-DECLCALLBACK(void) hgcmCompleted(PPDMIHGCMPORT pInterface, int32_t result, PVBOXHGCMCMD pCmdPtr);
+DECLCALLBACK(int)  hgcmCompleted(PPDMIHGCMPORT pInterface, int32_t result, PVBOXHGCMCMD pCmdPtr);
+DECLCALLBACK(bool) hgcmIsCmdRestored(PPDMIHGCMPORT pInterface, PVBOXHGCMCMD pCmd);
+DECLCALLBACK(bool) hgcmIsCmdCancelled(PPDMIHGCMPORT pInterface, PVBOXHGCMCMD pCmd);
+DECLCALLBACK(uint32_t) hgcmGetRequestor(PPDMIHGCMPORT pInterface, PVBOXHGCMCMD pCmd);
+DECLCALLBACK(uint64_t) hgcmGetVMMDevSessionId(PPDMIHGCMPORT pInterface);
 
 int vmmdevHGCMSaveState(VMMDevState *pVMMDevState, PSSMHANDLE pSSM);
 int vmmdevHGCMLoadState(VMMDevState *pVMMDevState, PSSMHANDLE pSSM, uint32_t u32Version);
 int vmmdevHGCMLoadStateDone(VMMDevState *pVMMDevState);
 
 void vmmdevHGCMDestroy(PVMMDEV pThis);
+int  vmmdevHGCMInit(PVMMDEV pThis);
 RT_C_DECLS_END
 
 #endif /* !___VMMDev_VMMDevHGCM_h */

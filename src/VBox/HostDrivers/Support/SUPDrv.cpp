@@ -38,7 +38,7 @@
 #include <iprt/asm-amd64-x86.h>
 #include <iprt/asm-math.h>
 #include <iprt/cpuset.h>
-#if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+#if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_WINDOWS)
 # include <iprt/dbg.h>
 #endif
 #include <iprt/handletable.h>
@@ -137,7 +137,7 @@ static int                  supdrvIOCtl_LdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVSE
 static int                  supdrvIOCtl_LdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPLDRLOAD pReq);
 static int                  supdrvIOCtl_LdrFree(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPLDRFREE pReq);
 static int                  supdrvIOCtl_LdrLockDown(PSUPDRVDEVEXT pDevExt);
-static int                  supdrvIOCtl_LdrGetSymbol(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPLDRGETSYMBOL pReq);
+static int                  supdrvIOCtl_LdrQuerySymbol(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPLDRGETSYMBOL pReq);
 static int                  supdrvIDC_LdrGetSymbol(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPDRVIDCREQGETSYM pReq);
 static int                  supdrvLdrSetVMMR0EPs(PSUPDRVDEVEXT pDevExt, void *pvVMMR0, void *pvVMMR0EntryFast, void *pvVMMR0EntryEx);
 static void                 supdrvLdrUnsetVMMR0EPs(PSUPDRVDEVEXT pDevExt);
@@ -202,6 +202,7 @@ static SUPFUNC g_aFunctions[] =
     { "SUPR0GetKernelFeatures",                 (void *)(uintptr_t)SUPR0GetKernelFeatures },
     { "SUPR0GetPagingMode",                     (void *)(uintptr_t)SUPR0GetPagingMode },
     { "SUPR0GetSvmUsability",                   (void *)(uintptr_t)SUPR0GetSvmUsability },
+    { "SUPR0GetVTSupport",                      (void *)(uintptr_t)SUPR0GetVTSupport },
     { "SUPR0GetVmxUsability",                   (void *)(uintptr_t)SUPR0GetVmxUsability },
     { "SUPR0GetRawModeUsability",               (void *)(uintptr_t)SUPR0GetRawModeUsability },
     { "SUPR0LockMem",                           (void *)(uintptr_t)SUPR0LockMem },
@@ -230,6 +231,11 @@ static SUPFUNC g_aFunctions[] =
     { "SUPR0TracerRegisterModule",              (void *)(uintptr_t)SUPR0TracerRegisterModule },
     { "SUPR0TracerUmodProbeFire",               (void *)(uintptr_t)SUPR0TracerUmodProbeFire },
     { "SUPR0UnlockMem",                         (void *)(uintptr_t)SUPR0UnlockMem },
+#ifdef RT_OS_WINDOWS
+    { "SUPR0IoCtlSetupForHandle",               (void *)(uintptr_t)SUPR0IoCtlSetupForHandle },  /* only-windows */
+    { "SUPR0IoCtlPerform",                      (void *)(uintptr_t)SUPR0IoCtlPerform },         /* only-windows */
+    { "SUPR0IoCtlCleanup",                      (void *)(uintptr_t)SUPR0IoCtlCleanup },         /* only-windows */
+#endif
     { "SUPSemEventClose",                       (void *)(uintptr_t)SUPSemEventClose },
     { "SUPSemEventCreate",                      (void *)(uintptr_t)SUPSemEventCreate },
     { "SUPSemEventGetResolution",               (void *)(uintptr_t)SUPSemEventGetResolution },
@@ -271,10 +277,12 @@ static SUPFUNC g_aFunctions[] =
     { "RTLogDefaultInstanceEx",                 (void *)(uintptr_t)RTLogDefaultInstanceEx },
     { "RTLogGetDefaultInstance",                (void *)(uintptr_t)RTLogGetDefaultInstance },
     { "RTLogGetDefaultInstanceEx",              (void *)(uintptr_t)RTLogGetDefaultInstanceEx },
+    { "SUPR0GetDefaultLogInstanceEx",           (void *)(uintptr_t)SUPR0GetDefaultLogInstanceEx },
     { "RTLogLoggerExV",                         (void *)(uintptr_t)RTLogLoggerExV },
     { "RTLogPrintfV",                           (void *)(uintptr_t)RTLogPrintfV },
     { "RTLogRelGetDefaultInstance",             (void *)(uintptr_t)RTLogRelGetDefaultInstance },
     { "RTLogRelGetDefaultInstanceEx",           (void *)(uintptr_t)RTLogRelGetDefaultInstanceEx },
+    { "SUPR0GetDefaultLogRelInstanceEx",        (void *)(uintptr_t)SUPR0GetDefaultLogRelInstanceEx },
     { "RTLogSetDefaultInstanceThread",          (void *)(uintptr_t)RTLogSetDefaultInstanceThread },
     { "RTMemAllocExTag",                        (void *)(uintptr_t)RTMemAllocExTag },
     { "RTMemAllocTag",                          (void *)(uintptr_t)RTMemAllocTag },
@@ -330,15 +338,15 @@ static SUPFUNC g_aFunctions[] =
     { "RTPowerNotificationRegister",            (void *)(uintptr_t)RTPowerNotificationRegister },
     { "RTProcSelf",                             (void *)(uintptr_t)RTProcSelf },
     { "RTR0AssertPanicSystem",                  (void *)(uintptr_t)RTR0AssertPanicSystem },
-#if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
-    { "RTR0DbgKrnlInfoOpen",                    (void *)(uintptr_t)RTR0DbgKrnlInfoOpen },          /* only-darwin, only-solaris */
-    { "RTR0DbgKrnlInfoQueryMember",             (void *)(uintptr_t)RTR0DbgKrnlInfoQueryMember },   /* only-darwin, only-solaris */
+#if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_WINDOWS)
+    { "RTR0DbgKrnlInfoOpen",                    (void *)(uintptr_t)RTR0DbgKrnlInfoOpen },          /* only-darwin, only-solaris, only-windows */
+    { "RTR0DbgKrnlInfoQueryMember",             (void *)(uintptr_t)RTR0DbgKrnlInfoQueryMember },   /* only-darwin, only-solaris, only-windows */
 # if defined(RT_OS_SOLARIS)
     { "RTR0DbgKrnlInfoQuerySize",               (void *)(uintptr_t)RTR0DbgKrnlInfoQuerySize },     /* only-solaris */
 # endif
-    { "RTR0DbgKrnlInfoQuerySymbol",             (void *)(uintptr_t)RTR0DbgKrnlInfoQuerySymbol },   /* only-darwin, only-solaris */
-    { "RTR0DbgKrnlInfoRelease",                 (void *)(uintptr_t)RTR0DbgKrnlInfoRelease },       /* only-darwin, only-solaris */
-    { "RTR0DbgKrnlInfoRetain",                  (void *)(uintptr_t)RTR0DbgKrnlInfoRetain },        /* only-darwin, only-solaris */
+    { "RTR0DbgKrnlInfoQuerySymbol",             (void *)(uintptr_t)RTR0DbgKrnlInfoQuerySymbol },   /* only-darwin, only-solaris, only-windows */
+    { "RTR0DbgKrnlInfoRelease",                 (void *)(uintptr_t)RTR0DbgKrnlInfoRelease },       /* only-darwin, only-solaris, only-windows */
+    { "RTR0DbgKrnlInfoRetain",                  (void *)(uintptr_t)RTR0DbgKrnlInfoRetain },        /* only-darwin, only-solaris, only-windows */
 #endif
     { "RTR0MemAreKrnlAndUsrDifferent",          (void *)(uintptr_t)RTR0MemAreKrnlAndUsrDifferent },
     { "RTR0MemKernelIsValidAddr",               (void *)(uintptr_t)RTR0MemKernelIsValidAddr },
@@ -1442,12 +1450,12 @@ static DECLCALLBACK(void) supdrvSessionObjHandleDelete(RTHANDLETABLE hHandleTabl
  * Fast path I/O Control worker.
  *
  * @returns VBox status code that should be passed down to ring-3 unchanged.
- * @param   uIOCtl      Function number.
+ * @param   uOperation  SUP_VMMR0_DO_XXX (not the I/O control number!).
  * @param   idCpu       VMCPU id.
  * @param   pDevExt     Device extention.
  * @param   pSession    Session data.
  */
-int VBOXCALL supdrvIOCtlFast(uintptr_t uIOCtl, VMCPUID idCpu, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession)
+int VBOXCALL supdrvIOCtlFast(uintptr_t uOperation, VMCPUID idCpu, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession)
 {
     /*
      * Validate input and check that the VM has a session.
@@ -1463,22 +1471,9 @@ int VBOXCALL supdrvIOCtlFast(uintptr_t uIOCtl, VMCPUID idCpu, PSUPDRVDEVEXT pDev
             if (RT_LIKELY(pDevExt->pfnVMMR0EntryFast))
             {
                 /*
-                 * Do the call.
+                 * Make the call.
                  */
-                switch (uIOCtl)
-                {
-                    case SUP_IOCTL_FAST_DO_RAW_RUN:
-                        pDevExt->pfnVMMR0EntryFast(pGVM, pVM, idCpu, SUP_VMMR0_DO_RAW_RUN);
-                        break;
-                    case SUP_IOCTL_FAST_DO_HM_RUN:
-                        pDevExt->pfnVMMR0EntryFast(pGVM, pVM, idCpu, SUP_VMMR0_DO_HM_RUN);
-                        break;
-                    case SUP_IOCTL_FAST_DO_NOP:
-                        pDevExt->pfnVMMR0EntryFast(pGVM, pVM, idCpu, SUP_VMMR0_DO_NOP);
-                        break;
-                    default:
-                        return VERR_INTERNAL_ERROR;
-                }
+                pDevExt->pfnVMMR0EntryFast(pGVM, pVM, idCpu, uOperation);
                 return VINF_SUCCESS;
             }
 
@@ -1808,7 +1803,7 @@ static int supdrvIOCtlInnerUnrestricted(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt,
             REQ_CHECK_EXPR(SUP_IOCTL_LDR_GET_SYMBOL, RTStrEnd(pReq->u.In.szSymbol, sizeof(pReq->u.In.szSymbol)));
 
             /* execute */
-            pReq->Hdr.rc = supdrvIOCtl_LdrGetSymbol(pDevExt, pSession, pReq);
+            pReq->Hdr.rc = supdrvIOCtl_LdrQuerySymbol(pDevExt, pSession, pReq);
             return 0;
         }
 
@@ -3182,6 +3177,22 @@ SUPR0DECL(int) SUPR0SetSessionVM(PSUPDRVSESSION pSession, PGVM pGVM, PVM pVM)
 }
 
 
+/** @copydoc RTLogGetDefaultInstanceEx
+ * @remarks To allow overriding RTLogGetDefaultInstanceEx locally. */
+SUPR0DECL(struct RTLOGGER *) SUPR0GetDefaultLogInstanceEx(uint32_t fFlagsAndGroup)
+{
+    return RTLogGetDefaultInstanceEx(fFlagsAndGroup);
+}
+
+
+/** @copydoc RTLogRelGetDefaultInstanceEx
+ * @remarks To allow overriding RTLogRelGetDefaultInstanceEx locally. */
+SUPR0DECL(struct RTLOGGER *) SUPR0GetDefaultLogRelInstanceEx(uint32_t fFlagsAndGroup)
+{
+    return RTLogRelGetDefaultInstanceEx(fFlagsAndGroup);
+}
+
+
 /**
  * Lock pages.
  *
@@ -4090,6 +4101,69 @@ SUPR0DECL(int) SUPR0GetRawModeUsability(void)
 }
 
 
+/**
+ * Gets AMD-V and VT-x support for the calling CPU.
+ *
+ * @returns VBox status code.
+ * @param   pfCaps          Where to store whether VT-x (SUPVTCAPS_VT_X) or AMD-V
+ *                          (SUPVTCAPS_AMD_V) is supported.
+ */
+SUPR0DECL(int) SUPR0GetVTSupport(uint32_t *pfCaps)
+{
+    Assert(pfCaps);
+    *pfCaps = 0;
+
+    /* Check if the CPU even supports CPUID (extremely ancient CPUs). */
+    if (ASMHasCpuId())
+    {
+        /* Check the range of standard CPUID leafs. */
+        uint32_t uMaxLeaf, uVendorEbx, uVendorEcx, uVendorEdx;
+        ASMCpuId(0, &uMaxLeaf, &uVendorEbx, &uVendorEcx, &uVendorEdx);
+        if (ASMIsValidStdRange(uMaxLeaf))
+        {
+            /* Query the standard CPUID leaf. */
+            uint32_t fFeatEcx, fFeatEdx, uDummy;
+            ASMCpuId(1, &uDummy, &uDummy, &fFeatEcx, &fFeatEdx);
+
+            /* Check if the vendor is Intel (or compatible). */
+            if (   ASMIsIntelCpuEx(uVendorEbx, uVendorEcx, uVendorEdx)
+                || ASMIsViaCentaurCpuEx(uVendorEbx, uVendorEcx, uVendorEdx))
+            {
+                /* Check VT-x support. In addition, VirtualBox requires MSR and FXSAVE/FXRSTOR to function. */
+                if (   (fFeatEcx & X86_CPUID_FEATURE_ECX_VMX)
+                    && (fFeatEdx & X86_CPUID_FEATURE_EDX_MSR)
+                    && (fFeatEdx & X86_CPUID_FEATURE_EDX_FXSR))
+                {
+                    *pfCaps = SUPVTCAPS_VT_X;
+                    return VINF_SUCCESS;
+                }
+                return VERR_VMX_NO_VMX;
+            }
+
+            /* Check if the vendor is AMD (or compatible). */
+            if (ASMIsAmdCpuEx(uVendorEbx, uVendorEcx, uVendorEdx))
+            {
+                uint32_t fExtFeatEcx, uExtMaxId;
+                ASMCpuId(0x80000000, &uExtMaxId, &uDummy, &uDummy, &uDummy);
+                ASMCpuId(0x80000001, &uDummy, &uDummy, &fExtFeatEcx, &uDummy);
+
+                /* Check AMD-V support. In addition, VirtualBox requires MSR and FXSAVE/FXRSTOR to function. */
+                if (   ASMIsValidExtRange(uExtMaxId)
+                    && uExtMaxId >= 0x8000000a
+                    && (fExtFeatEcx & X86_CPUID_AMD_FEATURE_ECX_SVM)
+                    && (fFeatEdx    & X86_CPUID_FEATURE_EDX_MSR)
+                    && (fFeatEdx    & X86_CPUID_FEATURE_EDX_FXSR))
+                {
+                    *pfCaps = SUPVTCAPS_AMD_V;
+                    return VINF_SUCCESS;
+                }
+                return VERR_SVM_NO_SVM;
+            }
+        }
+    }
+    return VERR_UNSUPPORTED_CPU;
+}
+
 
 /**
  * Checks if Intel VT-x feature is usable on this CPU.
@@ -4290,86 +4364,61 @@ int VBOXCALL supdrvQueryVTCapsInternal(uint32_t *pfCaps)
      * Input validation.
      */
     AssertPtrReturn(pfCaps, VERR_INVALID_POINTER);
-
     *pfCaps = 0;
+
     /* We may modify MSRs and re-read them, disable preemption so we make sure we don't migrate CPUs. */
     RTThreadPreemptDisable(&PreemptState);
-    if (ASMHasCpuId())
+
+    /* Check if VT-x/AMD-V is supported. */
+    rc = SUPR0GetVTSupport(pfCaps);
+    if (RT_SUCCESS(rc))
     {
-        uint32_t fFeaturesECX, fFeaturesEDX, uDummy;
-        uint32_t uMaxId, uVendorEBX, uVendorECX, uVendorEDX;
-
-        ASMCpuId(0, &uMaxId, &uVendorEBX, &uVendorECX, &uVendorEDX);
-        ASMCpuId(1, &uDummy, &uDummy, &fFeaturesECX, &fFeaturesEDX);
-
-        if (   ASMIsValidStdRange(uMaxId)
-            && (   ASMIsIntelCpuEx(     uVendorEBX, uVendorECX, uVendorEDX)
-                || ASMIsViaCentaurCpuEx(uVendorEBX, uVendorECX, uVendorEDX) )
-           )
+        /* Check if VT-x is supported. */
+        if (*pfCaps & SUPVTCAPS_VT_X)
         {
-            if (    (fFeaturesECX & X86_CPUID_FEATURE_ECX_VMX)
-                 && (fFeaturesEDX & X86_CPUID_FEATURE_EDX_MSR)
-                 && (fFeaturesEDX & X86_CPUID_FEATURE_EDX_FXSR)
-               )
+            /* Check if VT-x is usable. */
+            rc = SUPR0GetVmxUsability(&fIsSmxModeAmbiguous);
+            if (RT_SUCCESS(rc))
             {
-                rc = SUPR0GetVmxUsability(&fIsSmxModeAmbiguous);
-                if (rc == VINF_SUCCESS)
+                /* Query some basic VT-x capabilities (mainly required by our GUI). */
+                VMXCTLSMSR vtCaps;
+                vtCaps.u = ASMRdMsr(MSR_IA32_VMX_PROCBASED_CTLS);
+                if (vtCaps.n.allowed1 & VMX_PROC_CTLS_USE_SECONDARY_CTLS)
                 {
-                    VMXCAPABILITY vtCaps;
-
-                    *pfCaps |= SUPVTCAPS_VT_X;
-
-                    vtCaps.u = ASMRdMsr(MSR_IA32_VMX_PROCBASED_CTLS);
-                    if (vtCaps.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC_USE_SECONDARY_EXEC_CTRL)
-                    {
-                        vtCaps.u = ASMRdMsr(MSR_IA32_VMX_PROCBASED_CTLS2);
-                        if (vtCaps.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC2_EPT)
-                            *pfCaps |= SUPVTCAPS_NESTED_PAGING;
-                        if (vtCaps.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC2_UNRESTRICTED_GUEST)
-                            *pfCaps |= SUPVTCAPS_VTX_UNRESTRICTED_GUEST;
-                    }
-                }
-            }
-            else
-                rc = VERR_VMX_NO_VMX;
-        }
-        else if (   ASMIsAmdCpuEx(uVendorEBX, uVendorECX, uVendorEDX)
-                 && ASMIsValidStdRange(uMaxId))
-        {
-            uint32_t fExtFeaturesEcx, uExtMaxId;
-            ASMCpuId(0x80000000, &uExtMaxId, &uDummy, &uDummy, &uDummy);
-            ASMCpuId(0x80000001, &uDummy, &uDummy, &fExtFeaturesEcx, &uDummy);
-
-            /* Check if SVM is available. */
-            if (   ASMIsValidExtRange(uExtMaxId)
-                && uExtMaxId >= 0x8000000a
-                && (fExtFeaturesEcx & X86_CPUID_AMD_FEATURE_ECX_SVM)
-                && (fFeaturesEDX    & X86_CPUID_FEATURE_EDX_MSR)
-                && (fFeaturesEDX    & X86_CPUID_FEATURE_EDX_FXSR)
-               )
-            {
-                rc = SUPR0GetSvmUsability(false /* fInitSvm */);
-                if (RT_SUCCESS(rc))
-                {
-                    uint32_t fSvmFeatures;
-                    *pfCaps |= SUPVTCAPS_AMD_V;
-
-                    /* Query AMD-V features. */
-                    ASMCpuId(0x8000000a, &uDummy, &uDummy, &uDummy, &fSvmFeatures);
-                    if (fSvmFeatures & X86_CPUID_SVM_FEATURE_EDX_NESTED_PAGING)
+                    vtCaps.u = ASMRdMsr(MSR_IA32_VMX_PROCBASED_CTLS2);
+                    if (vtCaps.n.allowed1 & VMX_PROC_CTLS2_EPT)
                         *pfCaps |= SUPVTCAPS_NESTED_PAGING;
+                    if (vtCaps.n.allowed1 & VMX_PROC_CTLS2_UNRESTRICTED_GUEST)
+                        *pfCaps |= SUPVTCAPS_VTX_UNRESTRICTED_GUEST;
                 }
             }
-            else
-                rc = VERR_SVM_NO_SVM;
+        }
+        /* Check if AMD-V is supported. */
+        else if (*pfCaps & SUPVTCAPS_AMD_V)
+        {
+            /* Check is SVM is usable. */
+            rc = SUPR0GetSvmUsability(false /* fInitSvm */);
+            if (RT_SUCCESS(rc))
+            {
+                /* Query some basic AMD-V capabilities (mainly required by our GUI). */
+                uint32_t uDummy, fSvmFeatures;
+                ASMCpuId(0x8000000a, &uDummy, &uDummy, &uDummy, &fSvmFeatures);
+                if (fSvmFeatures & X86_CPUID_SVM_FEATURE_EDX_NESTED_PAGING)
+                    *pfCaps |= SUPVTCAPS_NESTED_PAGING;
+            }
         }
     }
 
+    /* Restore preemption. */
     RTThreadPreemptRestore(&PreemptState);
+
+    /* After restoring preemption, if we may be in SMX mode, print a warning as it's difficult to debug such problems. */
     if (fIsSmxModeAmbiguous)
         SUPR0Printf(("WARNING! CR4 hints SMX mode but your CPU is too secretive. Proceeding anyway... We wish you good luck!\n"));
+
     return rc;
 }
+
 
 /**
  * Queries the AMD-V and VT-x capabilities of the calling CPU.
@@ -4971,34 +5020,37 @@ static int supdrvIOCtl_LdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
  * Worker that validates a pointer to an image entrypoint.
  *
  * @returns IPRT status code.
- * @param   pDevExt     The device globals.
- * @param   pImage      The loader image.
- * @param   pv          The pointer into the image.
- * @param   fMayBeNull  Whether it may be NULL.
- * @param   pszWhat     What is this entrypoint? (for logging)
- * @param   pbImageBits The image bits prepared by ring-3.
+ * @param   pDevExt         The device globals.
+ * @param   pImage          The loader image.
+ * @param   pv              The pointer into the image.
+ * @param   fMayBeNull      Whether it may be NULL.
+ * @param   fCheckNative    Whether to check with the native loaders.
+ * @param   pszSymbol       The entrypoint name or log name.  If the symbol
+ *                          capitalized it signifies a specific symbol, otherwise it
+ *                          for logging.
+ * @param   pbImageBits     The image bits prepared by ring-3.
  *
  * @remarks Will leave the lock on failure.
  */
-static int supdrvLdrValidatePointer(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, void *pv,
-                                    bool fMayBeNull, const uint8_t *pbImageBits, const char *pszWhat)
+static int supdrvLdrValidatePointer(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, void *pv, bool fMayBeNull,
+                                    bool fCheckNative, const uint8_t *pbImageBits, const char *pszSymbol)
 {
     if (!fMayBeNull || pv)
     {
         if ((uintptr_t)pv - (uintptr_t)pImage->pvImage >= pImage->cbImageBits)
         {
             supdrvLdrUnlock(pDevExt);
-            Log(("Out of range (%p LB %#x): %s=%p\n", pImage->pvImage, pImage->cbImageBits, pszWhat, pv));
+            Log(("Out of range (%p LB %#x): %s=%p\n", pImage->pvImage, pImage->cbImageBits, pszSymbol, pv));
             return VERR_INVALID_PARAMETER;
         }
 
-        if (pImage->fNative)
+        if (pImage->fNative && fCheckNative)
         {
-            int rc = supdrvOSLdrValidatePointer(pDevExt, pImage, pv, pbImageBits);
+            int rc = supdrvOSLdrValidatePointer(pDevExt, pImage, pv, pbImageBits, pszSymbol);
             if (RT_FAILURE(rc))
             {
                 supdrvLdrUnlock(pDevExt);
-                Log(("Bad entry point address: %s=%p (rc=%Rrc)\n", pszWhat, pv, rc)); NOREF(pszWhat);
+                Log(("Bad entry point address: %s=%p (rc=%Rrc)\n", pszSymbol, pv, rc));
                 return rc;
             }
         }
@@ -5097,17 +5149,17 @@ static int supdrvIOCtl_LdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
             break;
 
         case SUPLDRLOADEP_VMMR0:
-            rc = supdrvLdrValidatePointer(    pDevExt, pImage, pReq->u.In.EP.VMMR0.pvVMMR0,          false, pReq->u.In.abImage, "pvVMMR0");
+            rc = supdrvLdrValidatePointer(    pDevExt, pImage, pReq->u.In.EP.VMMR0.pvVMMR0,          false, false, pReq->u.In.abImage, "pvVMMR0");
             if (RT_SUCCESS(rc))
-                rc = supdrvLdrValidatePointer(pDevExt, pImage, pReq->u.In.EP.VMMR0.pvVMMR0EntryFast, false, pReq->u.In.abImage, "pvVMMR0EntryFast");
+                rc = supdrvLdrValidatePointer(pDevExt, pImage, pReq->u.In.EP.VMMR0.pvVMMR0EntryFast, false,  true, pReq->u.In.abImage, "VMMR0EntryFast");
             if (RT_SUCCESS(rc))
-                rc = supdrvLdrValidatePointer(pDevExt, pImage, pReq->u.In.EP.VMMR0.pvVMMR0EntryEx,   false, pReq->u.In.abImage, "pvVMMR0EntryEx");
+                rc = supdrvLdrValidatePointer(pDevExt, pImage, pReq->u.In.EP.VMMR0.pvVMMR0EntryEx,   false,  true, pReq->u.In.abImage, "VMMR0EntryEx");
             if (RT_FAILURE(rc))
                 return supdrvLdrLoadError(rc, pReq, "Invalid VMMR0 pointer");
             break;
 
         case SUPLDRLOADEP_SERVICE:
-            rc = supdrvLdrValidatePointer(pDevExt, pImage, pReq->u.In.EP.Service.pfnServiceReq, false, pReq->u.In.abImage, "pfnServiceReq");
+            rc = supdrvLdrValidatePointer(pDevExt, pImage, pReq->u.In.EP.Service.pfnServiceReq, false,  true, pReq->u.In.abImage, "pfnServiceReq");
             if (RT_FAILURE(rc))
                 return supdrvLdrLoadError(rc, pReq, "Invalid pfnServiceReq pointer: %p", pReq->u.In.EP.Service.pfnServiceReq);
             if (    pReq->u.In.EP.Service.apvReserved[0] != NIL_RTR0PTR
@@ -5129,39 +5181,42 @@ static int supdrvIOCtl_LdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, P
             return supdrvLdrLoadError(VERR_INVALID_PARAMETER, pReq, "Invalid eEPType=%d", pReq->u.In.eEPType);
     }
 
-    rc = supdrvLdrValidatePointer(pDevExt, pImage, pReq->u.In.pfnModuleInit, true, pReq->u.In.abImage, "pfnModuleInit");
+    rc = supdrvLdrValidatePointer(pDevExt, pImage, pReq->u.In.pfnModuleInit, true, true, pReq->u.In.abImage, "ModuleInit");
     if (RT_FAILURE(rc))
         return supdrvLdrLoadError(rc, pReq, "Invalid pfnModuleInit pointer: %p", pReq->u.In.pfnModuleInit);
-    rc = supdrvLdrValidatePointer(pDevExt, pImage, pReq->u.In.pfnModuleTerm, true, pReq->u.In.abImage, "pfnModuleTerm");
+    rc = supdrvLdrValidatePointer(pDevExt, pImage, pReq->u.In.pfnModuleTerm, true, true, pReq->u.In.abImage, "ModuleTerm");
     if (RT_FAILURE(rc))
         return supdrvLdrLoadError(rc, pReq, "Invalid pfnModuleTerm pointer: %p", pReq->u.In.pfnModuleTerm);
     SUPDRV_CHECK_SMAP_CHECK(pDevExt, RT_NOTHING);
 
     /*
-     * Allocate and copy the tables.
+     * Allocate and copy the tables if non-native.
      * (No need to do try/except as this is a buffered request.)
      */
-    pImage->cbStrTab = pReq->u.In.cbStrTab;
-    if (pImage->cbStrTab)
+    if (!pImage->fNative)
     {
-        pImage->pachStrTab = (char *)RTMemAlloc(pImage->cbStrTab);
-        if (pImage->pachStrTab)
-            memcpy(pImage->pachStrTab, &pReq->u.In.abImage[pReq->u.In.offStrTab], pImage->cbStrTab);
-        else
-            rc = supdrvLdrLoadError(VERR_NO_MEMORY, pReq, "Out of memory for string table: %#x", pImage->cbStrTab);
-        SUPDRV_CHECK_SMAP_CHECK(pDevExt, RT_NOTHING);
-    }
+        pImage->cbStrTab = pReq->u.In.cbStrTab;
+        if (pImage->cbStrTab)
+        {
+            pImage->pachStrTab = (char *)RTMemAlloc(pImage->cbStrTab);
+            if (pImage->pachStrTab)
+                memcpy(pImage->pachStrTab, &pReq->u.In.abImage[pReq->u.In.offStrTab], pImage->cbStrTab);
+            else
+                rc = supdrvLdrLoadError(VERR_NO_MEMORY, pReq, "Out of memory for string table: %#x", pImage->cbStrTab);
+            SUPDRV_CHECK_SMAP_CHECK(pDevExt, RT_NOTHING);
+        }
 
-    pImage->cSymbols = pReq->u.In.cSymbols;
-    if (RT_SUCCESS(rc) && pImage->cSymbols)
-    {
-        size_t  cbSymbols = pImage->cSymbols * sizeof(SUPLDRSYM);
-        pImage->paSymbols = (PSUPLDRSYM)RTMemAlloc(cbSymbols);
-        if (pImage->paSymbols)
-            memcpy(pImage->paSymbols, &pReq->u.In.abImage[pReq->u.In.offSymbols], cbSymbols);
-        else
-            rc = supdrvLdrLoadError(VERR_NO_MEMORY, pReq, "Out of memory for symbol table: %#x", cbSymbols);
-        SUPDRV_CHECK_SMAP_CHECK(pDevExt, RT_NOTHING);
+        pImage->cSymbols = pReq->u.In.cSymbols;
+        if (RT_SUCCESS(rc) && pImage->cSymbols)
+        {
+            size_t  cbSymbols = pImage->cSymbols * sizeof(SUPLDRSYM);
+            pImage->paSymbols = (PSUPLDRSYM)RTMemAlloc(cbSymbols);
+            if (pImage->paSymbols)
+                memcpy(pImage->paSymbols, &pReq->u.In.abImage[pReq->u.In.offSymbols], cbSymbols);
+            else
+                rc = supdrvLdrLoadError(VERR_NO_MEMORY, pReq, "Out of memory for symbol table: %#x", cbSymbols);
+            SUPDRV_CHECK_SMAP_CHECK(pDevExt, RT_NOTHING);
+        }
     }
 
     /*
@@ -5387,14 +5442,14 @@ static int supdrvIOCtl_LdrLockDown(PSUPDRVDEVEXT pDevExt)
 
 
 /**
- * Gets the address of a symbol in an open image.
+ * Queries the address of a symbol in an open image.
  *
  * @returns IPRT status code.
  * @param   pDevExt     Device globals.
  * @param   pSession    Session data.
  * @param   pReq        The request buffer.
  */
-static int supdrvIOCtl_LdrGetSymbol(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPLDRGETSYMBOL pReq)
+static int supdrvIOCtl_LdrQuerySymbol(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession, PSUPLDRGETSYMBOL pReq)
 {
     PSUPDRVLDRIMAGE pImage;
     PSUPDRVLDRUSAGE pUsage;
@@ -5404,7 +5459,7 @@ static int supdrvIOCtl_LdrGetSymbol(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSessi
     const size_t    cbSymbol = strlen(pReq->u.In.szSymbol) + 1;
     void           *pvSymbol = NULL;
     int             rc = VERR_SYMBOL_NOT_FOUND;
-    Log3(("supdrvIOCtl_LdrGetSymbol: pvImageBase=%p szSymbol=\"%s\"\n", pReq->u.In.pvImageBase, pReq->u.In.szSymbol));
+    Log3(("supdrvIOCtl_LdrQuerySymbol: pvImageBase=%p szSymbol=\"%s\"\n", pReq->u.In.pvImageBase, pReq->u.In.szSymbol));
 
     /*
      * Find the ldr image.
@@ -5429,21 +5484,26 @@ static int supdrvIOCtl_LdrGetSymbol(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSessi
     }
 
     /*
-     * Search the symbol strings.
+     * Search the image exports / symbol strings.
      *
      * Note! The int32_t is for native loading on solaris where the data
      *       and text segments are in very different places.
      */
-    pchStrings = pImage->pachStrTab;
-    paSyms     = pImage->paSymbols;
-    for (i = 0; i < pImage->cSymbols; i++)
+    if (pImage->fNative)
+        rc = supdrvOSLdrQuerySymbol(pDevExt, pImage, pReq->u.In.szSymbol, cbSymbol - 1, &pvSymbol);
+    else
     {
-        if (    paSyms[i].offName + cbSymbol <= pImage->cbStrTab
-            &&  !memcmp(pchStrings + paSyms[i].offName, pReq->u.In.szSymbol, cbSymbol))
+        pchStrings = pImage->pachStrTab;
+        paSyms     = pImage->paSymbols;
+        for (i = 0; i < pImage->cSymbols; i++)
         {
-            pvSymbol = (uint8_t *)pImage->pvImage + (int32_t)paSyms[i].offSymbol;
-            rc = VINF_SUCCESS;
-            break;
+            if (    paSyms[i].offName + cbSymbol <= pImage->cbStrTab
+                &&  !memcmp(pchStrings + paSyms[i].offName, pReq->u.In.szSymbol, cbSymbol))
+            {
+                pvSymbol = (uint8_t *)pImage->pvImage + (int32_t)paSyms[i].offSymbol;
+                rc = VINF_SUCCESS;
+                break;
+            }
         }
     }
     supdrvLdrUnlock(pDevExt);
@@ -5515,21 +5575,31 @@ static int supdrvIDC_LdrGetSymbol(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession
         if (pImage && pImage->uState == SUP_IOCTL_LDR_LOAD)
         {
             /*
-             * Search the symbol strings.
+             * Search the image exports / symbol strings.
              */
-            const char *pchStrings = pImage->pachStrTab;
-            PCSUPLDRSYM paSyms     = pImage->paSymbols;
-            for (i = 0; i < pImage->cSymbols; i++)
+            if (pImage->fNative)
             {
-                if (    paSyms[i].offName + cbSymbol <= pImage->cbStrTab
-                    &&  !memcmp(pchStrings + paSyms[i].offName, pszSymbol, cbSymbol))
-                {
-                    /*
-                     * Found it! Calc the symbol address and add a reference to the module.
-                     */
-                    pReq->u.Out.pfnSymbol = (PFNRT)((uintptr_t)pImage->pvImage + (int32_t)paSyms[i].offSymbol);
+                rc = supdrvOSLdrQuerySymbol(pDevExt, pImage, pszSymbol, cbSymbol - 1, (void **)&pReq->u.Out.pfnSymbol);
+                if (RT_SUCCESS(rc))
                     rc = supdrvLdrAddUsage(pSession, pImage);
-                    break;
+            }
+            else
+            {
+                const char *pchStrings = pImage->pachStrTab;
+                PCSUPLDRSYM paSyms     = pImage->paSymbols;
+                rc = VERR_SYMBOL_NOT_FOUND;
+                for (i = 0; i < pImage->cSymbols; i++)
+                {
+                    if (    paSyms[i].offName + cbSymbol <= pImage->cbStrTab
+                        &&  !memcmp(pchStrings + paSyms[i].offName, pszSymbol, cbSymbol))
+                    {
+                        /*
+                         * Found it! Calc the symbol address and add a reference to the module.
+                         */
+                        pReq->u.Out.pfnSymbol = (PFNRT)((uintptr_t)pImage->pvImage + (int32_t)paSyms[i].offSymbol);
+                        rc = supdrvLdrAddUsage(pSession, pImage);
+                        break;
+                    }
                 }
             }
         }
@@ -5539,6 +5609,33 @@ static int supdrvIDC_LdrGetSymbol(PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession
         supdrvLdrUnlock(pDevExt);
     }
     return rc;
+}
+
+
+/**
+ * Looks up a symbol in g_aFunctions
+ *
+ * @returns VINF_SUCCESS on success, VERR_SYMBOL_NOT_FOUND on failure.
+ * @param   pszSymbol   The symbol to look up.
+ * @param   puValue     Where to return the value.
+ */
+int VBOXCALL supdrvLdrGetExportedSymbol(const char *pszSymbol, uintptr_t *puValue)
+{
+    uint32_t i;
+    for (i = 0; i < RT_ELEMENTS(g_aFunctions); i++)
+        if (!strcmp(g_aFunctions[i].szName, pszSymbol))
+        {
+            *puValue = (uintptr_t)g_aFunctions[i].pfn;
+            return VINF_SUCCESS;
+        }
+
+    if (!strcmp(pszSymbol, "g_SUPGlobalInfoPage"))
+    {
+        *puValue = (uintptr_t)g_pSUPGlobalInfoPage;
+        return VINF_SUCCESS;
+    }
+
+    return VERR_SYMBOL_NOT_FOUND;
 }
 
 

@@ -23,6 +23,7 @@
 # include <VBox/types.h>
 # include <VBox/vmm/stam.h>
 # include <iprt/x86.h>
+# include <VBox/vmm/pgm.h>
 #else
 # pragma D depends_on library x86.d
 # pragma D depends_on library cpumctx.d
@@ -116,7 +117,9 @@ typedef uint64_t STAMCOUNTER;
 /** @name CPUM Saved State Version.
  * @{ */
 /** The current saved state version. */
-#define CPUM_SAVED_STATE_VERSION                CPUM_SAVED_STATE_VERSION_XSAVE
+#define CPUM_SAVED_STATE_VERSION                CPUM_SAVED_STATE_VERSION_HWVIRT_SVM
+/** The saved state version including SVM hardware virtualization state. */
+#define CPUM_SAVED_STATE_VERSION_HWVIRT_SVM     18
 /** The saved state version including XSAVE state. */
 #define CPUM_SAVED_STATE_VERSION_XSAVE          17
 /** The saved state version with good CPUID leaf count. */
@@ -417,7 +420,6 @@ typedef struct CPUM
     /** Guest CPU info. */
     CPUMINFO                GuestInfo;
 
-
     /** The standard set of CpuId leaves. */
     CPUMCPUID               aGuestCpuIdPatmStd[6];
     /** The extended set of CpuId leaves. */
@@ -438,7 +440,7 @@ typedef struct CPUM
 } CPUM;
 #ifndef VBOX_FOR_DTRACE_LIB
 AssertCompileMemberOffset(CPUM, HostFeatures, 64);
-AssertCompileMemberOffset(CPUM, GuestFeatures, 96);
+AssertCompileMemberOffset(CPUM, GuestFeatures, 112);
 #endif
 /** Pointer to the CPUM instance data residing in the shared VM structure. */
 typedef CPUM *PCPUM;
@@ -536,7 +538,6 @@ DECLCALLBACK(void)  cpumR3CpuIdInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char *psz
 
 int                 cpumR3DbGetCpuInfo(const char *pszName, PCPUMINFO pInfo);
 int                 cpumR3MsrRangesInsert(PVM pVM, PCPUMMSRRANGE *ppaMsrRanges, uint32_t *pcMsrRanges, PCCPUMMSRRANGE pNewRange);
-int                 cpumR3MsrReconcileWithCpuId(PVM pVM);
 int                 cpumR3MsrApplyFudge(PVM pVM);
 int                 cpumR3MsrRegStats(PVM pVM);
 int                 cpumR3MsrStrictInitChecks(void);

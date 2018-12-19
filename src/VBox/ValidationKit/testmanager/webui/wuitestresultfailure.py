@@ -26,7 +26,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 118412 $"
+__version__ = "$Revision: 120396 $"
 
 # Validation Kit imports.
 from testmanager.webui.wuicontentbase           import WuiFormContentBase, WuiContentBase, WuiTmLink;
@@ -47,7 +47,8 @@ class WuiTestResultFailureDetailsLink(WuiTmLink):
                            sUrlBase = WuiMain.ksScriptName,
                            dParams = { WuiMain.ksParamAction: WuiMain.ksActionTestResultFailureDetails,
                                        TestResultFailureData.ksParam_idTestResult: idTestResult, },
-                           fBracketed = fBracketed);
+                           fBracketed = fBracketed,
+                           sTitle = sTitle);
         self.idTestResult = idTestResult;
 
 

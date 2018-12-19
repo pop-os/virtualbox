@@ -1,10 +1,10 @@
 /* $Id: QIArrowButtonSwitch.cpp $ */
 /** @file
- * VBox Qt GUI - QIArrowButtonSwitch class implementation.
+ * VBox Qt GUI - Qt extensions: QIArrowButtonSwitch class implementation.
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -74,4 +74,3 @@ void QIArrowButtonSwitch::keyPressEvent(QKeyEvent *pEvent)
     /* Call to base-class: */
     QIRichToolButton::keyPressEvent(pEvent);
 }
-

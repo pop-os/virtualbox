@@ -47,9 +47,9 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  #
  LIBRARIES += ServicesR0
  DLLS      += VBoxDDU VBoxDD VBoxDD2
- SYSMODS   += VBoxDDR0 VBoxDD2R0
+ SYSMODS   += VBoxDDR0
  ifdef VBOX_WITH_RAW_MODE
-  SYSMODS   += VBoxDDRC VBoxDD2RC
+  SYSMODS   += VBoxDDRC
  endif
 
 
@@ -127,7 +127,8 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	$(if $(VBOX_WITH_HGCM),VBOX_WITH_HGCM,) \
  	$(if $(VBOX_BIOS_DMI_FALLBACK),VBOX_BIOS_DMI_FALLBACK,) \
  	VBOX_WITH_DMI_CHASSIS \
- 	VBOX_WITH_DMI_OEMSTRINGS
+ 	VBOX_WITH_DMI_OEMSTRINGS \
+	$(if $(VBOX_WITH_NEW_LPC_DEVICE),VBOX_WITH_NEW_LPC_DEVICE,)
  VBoxDD_DEFS.win         = _WIN32_WINNT=0x0510
  ifeq ($(KBUILD_TARGET_ARCH),x86)
   VBoxDD_DEFS.darwin     = VBOX_WITH_2X_4GB_ADDR_SPACE
@@ -156,6 +157,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	PC/DevPcBios.cpp \
  	PC/DevFwCommon.cpp \
  	PC/DevPcArch.cpp \
+	$(if $(VBOX_WITH_NEW_LPC_DEVICE),PC/DevLpc-new.cpp,) \
 	GIMDev/GIMDev.cpp \
 	GIMDev/DrvUDP.cpp \
  	VMMDev/VMMDev.cpp \
@@ -166,7 +168,6 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	PC/DevHPET.cpp \
  	PC/DevIoApic.cpp \
  	Storage/DevFdc.cpp \
- 	Serial/DevSerial.cpp \
  	Parallel/DevParallel.cpp \
 	\
  	Input/DrvKeyboardQueue.cpp \
@@ -175,7 +176,11 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	Network/DrvDedicatedNic.cpp \
  	PC/DrvACPI.cpp \
  	PC/DrvAcpiCpu.cpp \
+ 	Serial/DevSerial.cpp \
+ 	Serial/DevOxPcie958.cpp \
+ 	Serial/UartCore.cpp \
  	Serial/DrvChar.cpp \
+ 	Serial/DrvHostSerial.cpp \
  	Serial/DrvNamedPipe.cpp \
  	Serial/DrvTCP.cpp \
  	Serial/DrvRawFile.cpp \
@@ -194,6 +199,7 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  ifn1of ($(KBUILD_TARGET), darwin freebsd os2 solaris)
   VBoxDD_SOURCES += Storage/DrvHostFloppy.cpp
  endif
+
 
  ifn1of ($(KBUILD_TARGET), darwin)
   VBoxDD_SOURCES += Storage/HBDMgmt-generic.cpp
@@ -271,6 +277,11 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   VBoxDD_SOURCES        += Graphics/DevVGA-SVGA.cpp
  endif
  ifdef VBOX_WITH_VMSVGA3D
+  if1of ($(KBUILD_TARGET), linux win)
+# Dynamically load 3D library (opengl32, libGL).
+# This is a temporary solution. In future the 3D backend will be in a separate library.
+VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD = 1
+  endif
   VBoxDD_DEFS           += VBOX_WITH_VMSVGA3D
   VBoxDD_SOURCES        += \
   	Graphics/DevVGA-SVGA3d.cpp \
@@ -299,8 +310,14 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
 	$(QUIET)$(RM) -f -- "$@"
 	$(VBOX_DEF_2_LAZY_LOAD) --explicit-load-function --library VBoxSVGA3DObjC --output "$@" $(filter %.def, $^)
 
-   VBoxDD_LIBS.linux    += GL X11
+   ifdef VBOX_WITH_VMSVGA3D_DYNAMIC_LOAD
+   VBoxDD_DEFS          += VMSVGA3D_DYNAMIC_LOAD
+   VBoxDD_SOURCES       += \
+   	Graphics/DevVGA-SVGA3d-glLdr.cpp
+   else
+   VBoxDD_LIBS.linux    += X11 GL
    VBoxDD_LIBS.win      += $(PATH_SDK_$(VBOX_WINPSDK)_LIB)/Opengl32.lib
+   endif
    VBoxDD_LDFLAGS.darwin += -framework OpenGL
    VBoxDD_DEFS.darwin    += VBOX_VMSVGA3D_DUAL_OPENGL_PROFILE
    if 0 # Use the OpenGL 3.2 Core profile (see also VBoxSVGA3D_DEFS.darwin and VBoxSVGA3DObjC_DEFS.darwin).
@@ -722,22 +739,15 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
 
  # --- OS specific driver hacks. ---
 
- ifeq ($(KBUILD_TARGET),darwin)
-  VBoxDD_SOURCES.darwin += Serial/DrvHostSerial.cpp
- endif # darwin
-
  ifeq ($(KBUILD_TARGET),freebsd)
-  VBoxDD_SOURCES += Serial/DrvHostSerial.cpp
   VBoxDD_SOURCES.freebsd += Network/DrvTAP.cpp
  endif # freebsd
 
  VBoxDD_SOURCES.linux += \
  	Network/DrvTAP.cpp \
- 	Parallel/DrvHostParallel.cpp \
- 	Serial/DrvHostSerial.cpp
+ 	Parallel/DrvHostParallel.cpp
 
  ifeq ($(KBUILD_TARGET),solaris)
-  VBoxDD_SOURCES.solaris += Serial/DrvHostSerial.cpp
   ifdef VBOX_WITH_SUID_WRAPPER
    VBoxDD_DEFS += VBOX_WITH_SUID_WRAPPER
   endif
@@ -745,7 +755,6 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
 
  VBoxDD_DEFS.win += VBOX_WITH_WIN_PARPORT_SUP
  VBoxDD_SOURCES.win += \
-	Serial/DrvHostSerial.cpp \
 	Parallel/DrvHostParallel.cpp
 
  ifdef VBOX_WITH_VIRTUALKD
@@ -760,7 +769,6 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
    VBoxDD_DEFS.win += VBOX_NETFLT_ONDEMAND_BIND
   endif
  endif
-
 
  # --- Final bits, mostly libraries for order dependant linkers. ---
 
@@ -904,11 +912,15 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
   	PC/DevPit-i8254.cpp \
   	PC/DevPIC.cpp \
   	PC/DevRTC.cpp \
+ 	PC/DevDMA.cpp \
   	PC/DevHPET.cpp \
   	Storage/DevATA.cpp \
   	Network/DevPCNet.cpp \
   	Serial/DevSerial.cpp \
+  	Serial/DevOxPcie958.cpp \
+  	Serial/UartCore.cpp \
   	Parallel/DevParallel.cpp \
+  	VMMDev/VMMDev.cpp \
   	VMMDev/VMMDevTesting.cpp
 
   VBoxDDRC_DEFS         += $(VBOX_AUDIO_DEFS)
@@ -1027,13 +1039,14 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  VBoxDD2_TEMPLATE        = VBoxR3DllWarnNoPic
  VBoxDD2_DEFS            = \
 	IN_VBOXDD2 \
-	$(if $(VBOX_WITH_PXE_ROM),VBOX_WITH_PXE_ROM,)
+	$(if $(VBOX_WITH_PXE_ROM),VBOX_WITH_PXE_ROM,) \
+       $(if $(VBOX_WITH_NEW_LPC_DEVICE),VBOX_WITH_NEW_LPC_DEVICE,)
  VBoxDD2_INCS           := \
 	build \
  	$(PATH_SUB_CURRENT)
  VBoxDD2_SOURCES         = \
- 	build/VBoxDD2.cpp  \
- 	PC/DevLPC.cpp
+ 	build/VBoxDD2.cpp \
+ 	$(if $(VBOX_WITH_NEW_LPC_DEVICE),,PC/DevLPC.cpp)
  VBoxDD2_LIBS            = \
  	$(PATH_STAGE_LIB)/PcBiosBin$(VBOX_SUFF_LIB) \
  	$(PATH_STAGE_LIB)/VgaBiosBin$(VBOX_SUFF_LIB) \
@@ -1073,11 +1086,15 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  	PC/DevPit-i8254.cpp \
  	PC/DevPIC.cpp \
  	PC/DevRTC.cpp \
+ 	PC/DevDMA.cpp \
  	PC/DevHPET.cpp \
  	Storage/DevATA.cpp \
  	Network/DevPCNet.cpp \
  	Serial/DevSerial.cpp \
+  	Serial/DevOxPcie958.cpp \
+  	Serial/UartCore.cpp \
  	Parallel/DevParallel.cpp \
+  	VMMDev/VMMDev.cpp \
  	VMMDev/VMMDevTesting.cpp \
  	Network/DrvIntNet.cpp \
  	Network/DrvDedicatedNic.cpp
@@ -1192,39 +1209,6 @@ if !defined(VBOX_ONLY_EXTPACKS)         # Goes on almost to the end of the file.
  endif
 
  $(call VBOX_SET_VER_INFO_R0,VBoxDDR0,VirtualBox VMM Devices and Drivers$(COMMA) ring-0) # (last!)
-
-
- ifdef VBOX_WITH_RAW_MODE
-  #
-  # VBoxDD2RC (LGPL sysmod)
-  #
-  VBoxDD2RC_TEMPLATE       = VBoxRc
-  VBoxDD2RC_INCS           = build
-  VBoxDD2RC_SOURCES        = \
- 	build/VBoxDD2R0.cpp # Dummy to prevent linking errors.
-  if1of ($(VBOX_LDR_FMT32), pe lx)
-   VBoxDD2RC_LIBS          = \
-   	$(PATH_STAGE_LIB)/VMMRCBuiltin$(VBOX_SUFF_LIB) \
-   	$(PATH_STAGE_LIB)/VMMRCImp$(VBOX_SUFF_LIB)
-  endif
-  $(call VBOX_SET_VER_INFO_RC,VBoxDD2RC,VirtualBox VMM Devices and Drivers 2$(COMMA) raw-mode)
- endif
-
-
- #
- # VBoxDD2R0 (LGPL sysmod)
- #
- VBoxDD2R0_TEMPLATE       = VBoxR0
- VBoxDD2R0_DEFS           = IN_RT_R0
- VBoxDD2R0_INCS           = build
- VBoxDD2R0_SOURCES        = \
- 	build/VBoxDD2R0.cpp
- if1of ($(VBOX_LDR_FMT), pe lx)
-  VBoxDD2R0_LIBS          = \
-  	$(PATH_STAGE_LIB)/VMMR0Imp$(VBOX_SUFF_LIB) \
-  	$(PATH_STAGE_LIB)/SUPR0$(VBOX_SUFF_LIB)
- endif
- $(call VBOX_SET_VER_INFO_R0,VBoxDD2R0,VirtualBox VMM Devices and Drivers 2$(COMMA) ring-0) # (last!)
 
 
  #

@@ -29,6 +29,7 @@
 # include "QIStyledItemDelegate.h"
 # include "QITableView.h"
 # include "QIWidgetValidator.h"
+# include "VBoxGlobal.h"
 # include "UIActionPool.h"
 # include "UIGlobalSettingsInput.h"
 # include "UIHostComboEditor.h"
@@ -89,17 +90,20 @@ public:
 
     /** Constructs table row on the basis of passed arguments.
       * @param  pParent             Brings the row this cell belongs too.
-      * @param  strKey              Brings the unique key inentifying held sequence.
+      * @param  strKey              Brings the unique key identifying held sequence.
+      * @param  strScope            Brings the scope of the held sequence.
       * @param  strDescription      Brings the deescription for the held sequence.
       * @param  strCurrentSequence  Brings the current held sequence.
       * @param  strDefaultSequence  Brings the default held sequence. */
     UIDataShortcutRow(QITableView *pParent,
-                       const QString &strKey,
-                       const QString &strDescription,
-                       const QString &strCurrentSequence,
-                       const QString &strDefaultSequence)
+                      const QString &strKey,
+                      const QString &strScope,
+                      const QString &strDescription,
+                      const QString &strCurrentSequence,
+                      const QString &strDefaultSequence)
         : QITableViewRow(pParent)
         , m_strKey(strKey)
+        , m_strScope(strScope)
         , m_strDescription(strDescription)
         , m_strCurrentSequence(strCurrentSequence)
         , m_strDefaultSequence(strDefaultSequence)
@@ -112,6 +116,7 @@ public:
     UIDataShortcutRow(const UIDataShortcutRow &other)
         : QITableViewRow(other.table())
         , m_strKey(other.key())
+        , m_strScope(other.scope())
         , m_strDescription(other.description())
         , m_strCurrentSequence(other.currentSequence())
         , m_strDefaultSequence(other.defaultSequence())
@@ -133,6 +138,7 @@ public:
         /* Reassign variables: */
         setTable(other.table());
         m_strKey = other.key();
+        m_strScope = other.scope();
         m_strDescription = other.description();
         m_strCurrentSequence = other.currentSequence();
         m_strDefaultSequence = other.defaultSequence();
@@ -151,12 +157,15 @@ public:
         /* Compare by the key and the current sequence: */
         return true
                && (m_strKey == other.key())
+               && (m_strScope == other.scope())
                && (m_strCurrentSequence == other.currentSequence())
                ;
     }
 
     /** Returns the key. */
     QString key() const { return m_strKey; }
+    /** Returns the scope. */
+    QString scope() const { return m_strScope; }
     /** Returns the description. */
     QString description() const { return m_strDescription; }
     /** Returns the current sequence. */
@@ -209,6 +218,8 @@ private:
 
     /** Holds the key. */
     QString m_strKey;
+    /** Holds the scope. */
+    QString m_strScope;
     /** Holds the description. */
     QString m_strDescription;
     /** Holds the current sequence. */
@@ -470,7 +481,7 @@ void UIHotKeyTableModel::load(const UIShortcutCache &shortcuts)
     foreach (const UIDataShortcutRow &item, shortcuts)
     {
         /* Filter out unnecessary shortcuts: */
-        if ((m_type == UIActionPoolType_Selector && item.key().startsWith(GUI_Input_MachineShortcuts)) ||
+        if ((m_type == UIActionPoolType_Manager && item.key().startsWith(GUI_Input_MachineShortcuts)) ||
             (m_type == UIActionPoolType_Runtime && item.key().startsWith(GUI_Input_SelectorShortcuts)))
             continue;
         /* Load shortcut cache item into model: */
@@ -502,8 +513,15 @@ bool UIHotKeyTableModel::isAllShortcutsUnique()
     /* Enumerate all the sequences: */
     QMap<QString, QString> usedSequences;
     foreach (const UIDataShortcutRow &item, m_shortcuts)
-        if (!item.currentSequence().isEmpty())
-            usedSequences.insertMulti(item.currentSequence(), item.key());
+    {
+        QString strKey = item.currentSequence();
+        if (!strKey.isEmpty())
+        {
+            const QString strScope = item.scope();
+            strKey = strScope.isNull() ? strKey : QString("%1: %2").arg(strScope, strKey);
+            usedSequences.insertMulti(strKey, item.key());
+        }
+    }
     /* Enumerate all the duplicated sequences: */
     QSet<QString> duplicatedSequences;
     foreach (const QString &strKey, usedSequences.keys())
@@ -593,8 +611,10 @@ QVariant UIHotKeyTableModel::data(const QModelIndex &index, int iRole /* = Qt::D
             {
                 case UIHotKeyColumnIndex_Description:
                 {
-                    /* Return shortcut description: */
-                    return m_filteredShortcuts[iIndex].description();
+                    /* Return shortcut scope and description: */
+                    const QString strScope = m_filteredShortcuts[iIndex].scope();
+                    const QString strDescription = m_filteredShortcuts[iIndex].description();
+                    return strScope.isNull() ? strDescription : tr("%1: %2", "scope: description").arg(strScope, strDescription);
                 }
                 case UIHotKeyColumnIndex_Sequence:
                 {
@@ -718,7 +738,7 @@ void UIHotKeyTableModel::sort(int iColumn, Qt::SortOrder order /* = Qt::Ascendin
     /* Sort whole the list: */
     qStableSort(m_shortcuts.begin(), m_shortcuts.end(), UIShortcutCacheItemFunctor(iColumn, order));
     /* Make sure host-combo item is always the first one: */
-    UIDataShortcutRow fakeHostComboItem(0, UIHostCombo::hostComboCacheKey(), QString(), QString(), QString());
+    UIDataShortcutRow fakeHostComboItem(0, UIHostCombo::hostComboCacheKey(), QString(), QString(), QString(), QString());
     int iIndexOfHostComboItem = UIFunctorFindShortcut(UIFunctorFindShortcut::Base)(m_shortcuts, fakeHostComboItem);
     if (iIndexOfHostComboItem != -1)
     {
@@ -752,8 +772,9 @@ void UIHotKeyTableModel::applyFilter()
         /* Check if the description matches the filter: */
         foreach (const UIDataShortcutRow &item, m_shortcuts)
         {
-            /* If neither description nor sequence matches the filter, skip item: */
-            if (!item.description().contains(m_strFilter, Qt::CaseInsensitive) &&
+            /* If neither scope nor description or sequence matches the filter, skip item: */
+            if (!item.scope().contains(m_strFilter, Qt::CaseInsensitive) &&
+                !item.description().contains(m_strFilter, Qt::CaseInsensitive) &&
                 !item.currentSequence().contains(m_strFilter, Qt::CaseInsensitive))
                 continue;
             /* Add that item: */
@@ -887,7 +908,12 @@ void UIGlobalSettingsInput::loadToCacheFrom(QVariant &data)
     UIDataSettingsGlobalInput oldInputData;
 
     /* Gather old input data: */
-    oldInputData.shortcuts() << UIDataShortcutRow(m_pMachineTable, UIHostCombo::hostComboCacheKey(), tr("Host Key Combination"),  gEDataManager->hostKeyCombination(), QString());
+    oldInputData.shortcuts() << UIDataShortcutRow(m_pMachineTable,
+                                                  UIHostCombo::hostComboCacheKey(),
+                                                  QString(),
+                                                  tr("Host Key Combination"),
+                                                  gEDataManager->hostKeyCombination(),
+                                                  QString());
     const QMap<QString, UIShortcut> &shortcuts = gShortcutPool->shortcuts();
     const QList<QString> shortcutKeys = shortcuts.keys();
     foreach (const QString &strShortcutKey, shortcutKeys)
@@ -896,9 +922,12 @@ void UIGlobalSettingsInput::loadToCacheFrom(QVariant &data)
         QITableView *pParent = strShortcutKey.startsWith(GUI_Input_MachineShortcuts) ? m_pMachineTable :
                                strShortcutKey.startsWith(GUI_Input_SelectorShortcuts) ? m_pSelectorTable : 0;
         AssertPtr(pParent);
-        oldInputData.shortcuts() << UIDataShortcutRow(pParent, strShortcutKey, VBoxGlobal::removeAccelMark(shortcut.description()),
-                                                 shortcut.sequence().toString(QKeySequence::NativeText),
-                                                 shortcut.defaultSequence().toString(QKeySequence::NativeText));
+        oldInputData.shortcuts() << UIDataShortcutRow(pParent,
+                                                      strShortcutKey,
+                                                      shortcut.scope(),
+                                                      VBoxGlobal::removeAccelMark(shortcut.description()),
+                                                      shortcut.sequence().toString(QKeySequence::NativeText),
+                                                      shortcut.defaultSequence().toString(QKeySequence::NativeText));
     }
     oldInputData.setAutoCapture(gEDataManager->autoCaptureEnabled());
 
@@ -1059,7 +1088,7 @@ void UIGlobalSettingsInput::prepareTabSelector()
             }
 
             /* Create Selector UI model: */
-            m_pSelectorModel = new UIHotKeyTableModel(this, UIActionPoolType_Selector);
+            m_pSelectorModel = new UIHotKeyTableModel(this, UIActionPoolType_Manager);
 
             /* Create Selector UI table: */
             m_pSelectorTable = new UIHotKeyTable(pSelectorTab, m_pSelectorModel, "m_pSelectorTable");
@@ -1154,7 +1183,7 @@ bool UIGlobalSettingsInput::saveInputData()
         const UIDataSettingsGlobalInput &newInputData = m_pCache->data();
 
         /* Save new host-combo shortcut from the cache: */
-        const UIDataShortcutRow fakeHostComboItem(0, UIHostCombo::hostComboCacheKey(), QString(), QString(), QString());
+        const UIDataShortcutRow fakeHostComboItem(0, UIHostCombo::hostComboCacheKey(), QString(), QString(), QString(), QString());
         const int iHostComboItemBase = UIFunctorFindShortcut(UIFunctorFindShortcut::Base)(oldInputData.shortcuts(), fakeHostComboItem);
         const int iHostComboItemData = UIFunctorFindShortcut(UIFunctorFindShortcut::Base)(newInputData.shortcuts(), fakeHostComboItem);
         const QString strHostComboBase = iHostComboItemBase != -1 ? oldInputData.shortcuts().at(iHostComboItemBase).currentSequence() : QString();

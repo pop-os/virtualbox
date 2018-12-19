@@ -28,6 +28,8 @@
 
 #ifdef _MSC_VER
 _CRTIMP int __cdecl strncmp
+#elif defined(__WATCOMC__)
+_WCRTLINK int std::strncmp
 #else
 int strncmp
 #endif

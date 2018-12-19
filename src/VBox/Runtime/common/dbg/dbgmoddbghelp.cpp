@@ -56,6 +56,7 @@ typedef struct RTDBGMODBGHELPARGS
     RTDBGMOD        hCnt;
     PRTDBGMODINT    pMod;
     uint64_t        uModAddr;
+    RTLDRADDR       uNextRva;
 
     /** UTF-8 version of the previous file name. */
     char           *pszPrev;
@@ -64,6 +65,14 @@ typedef struct RTDBGMODBGHELPARGS
     /** Number of bytes pwszPrev points to. */
     size_t          cbPrevUtf16Alloc;
 } RTDBGMODBGHELPARGS;
+
+
+/** @interface_method_impl{RTDBGMODVTDBG,pfnUnwindFrame} */
+static DECLCALLBACK(int) rtDbgModDbgHelp_UnwindFrame(PRTDBGMODINT pMod, RTDBGSEGIDX iSeg, RTUINTPTR off, PRTDBGUNWINDSTATE pState)
+{
+    RT_NOREF(pMod, iSeg, off, pState);
+    return VERR_DBG_NO_UNWIND_INFO;
+}
 
 
 
@@ -358,8 +367,8 @@ static int rtDbgModDbgHelpCopySymbols(PRTDBGMODINT pMod, RTDBGMOD hCnt, HANDLE h
 }
 
 
-/** @callback_method_impl{FNRTLDRENUMSEGS, Copies the PE segments over into
- *                       the container.} */
+/** @callback_method_impl{FNRTLDRENUMSEGS,
+ * Copies the PE segments over into the container.} */
 static DECLCALLBACK(int) rtDbgModDbgHelpAddSegmentsCallback(RTLDRMOD hLdrMod, PCRTLDRSEG pSeg, void *pvUser)
 {
     RTDBGMODBGHELPARGS *pArgs = (RTDBGMODBGHELPARGS *)pvUser;
@@ -371,11 +380,18 @@ static DECLCALLBACK(int) rtDbgModDbgHelpAddSegmentsCallback(RTLDRMOD hLdrMod, PC
     Assert(pSeg->cchName > 0);
     Assert(!pSeg->pszName[pSeg->cchName]);
 
-    if (!pSeg->RVA)
+    RTLDRADDR cb   = RT_MAX(pSeg->cb, pSeg->cbMapped);
+    RTLDRADDR uRva = pSeg->RVA;
+    if (!uRva)
         pArgs->uModAddr = pSeg->LinkAddress;
+    else if (uRva == NIL_RTLDRADDR)
+    {
+        cb   = 0;
+        uRva = pArgs->uNextRva;
+    }
+    pArgs->uNextRva = uRva + cb;
 
-    RTLDRADDR cb = RT_MAX(pSeg->cb, pSeg->cbMapped);
-    return RTDbgModSegmentAdd(pArgs->hCnt, pSeg->RVA, cb, pSeg->pszName, 0 /*fFlags*/, NULL);
+    return RTDbgModSegmentAdd(pArgs->hCnt, uRva, cb, pSeg->pszName, 0 /*fFlags*/, NULL);
 }
 
 
@@ -448,6 +464,8 @@ static DECLCALLBACK(int) rtDbgModDbgHelp_TryOpen(PRTDBGMODINT pMod, RTLDRARCH en
                     else
                     {
                         rc = RTErrConvertFromWin32(GetLastError());
+                        if (RT_SUCCESS_NP(rc))
+                            rc = VERR_DBG_NO_MATCHING_INTERPRETER;
                         LogFlow(("rtDbgModDbgHelp_TryOpen: Error loading the module '%s' at %#llx: %Rrc (%u)\n",
                                  pMod->pszDbgFile, (uint64_t)uImageBase, rc, GetLastError()));
                     }
@@ -461,6 +479,8 @@ static DECLCALLBACK(int) rtDbgModDbgHelp_TryOpen(PRTDBGMODINT pMod, RTLDRARCH en
             else
             {
                 rc = RTErrConvertFromWin32(GetLastError());
+                if (RT_SUCCESS_NP(rc))
+                    rc = VERR_DBG_NO_MATCHING_INTERPRETER;
                 LogFlow(("rtDbgModDbgHelp_TryOpen: SymInitialize failed: %Rrc (%u)\n", rc, GetLastError()));
             }
         }
@@ -497,6 +517,8 @@ DECL_HIDDEN_CONST(RTDBGMODVTDBG) const g_rtDbgModVtDbgDbgHelp =
     /*.pfnLineCount = */        rtDbgModDbgHelp_LineCount,
     /*.pfnLineByOrdinal = */    rtDbgModDbgHelp_LineByOrdinal,
     /*.pfnLineByAddr = */       rtDbgModDbgHelp_LineByAddr,
+
+    /*.pfnUnwindFrame = */      rtDbgModDbgHelp_UnwindFrame,
 
     /*.u32EndMagic = */         RTDBGMODVTDBG_MAGIC
 };

@@ -719,7 +719,7 @@ DECLINLINE(int) RT_IPRT_FORMAT_ATTR(2, 3) DBGCCmdHlpPrintf(PDBGCCMDHLP pCmdHlp, 
  *                      well as the debugger ones.
  * @param   ...         Arguments specified in the format string.
  */
-DECLINLINE(int) RT_IPRT_FORMAT_ATTR(2, 3) DBGCCmdHlpPrintfEx(PDBGCCMDHLP pCmdHlp, size_t *pcbWritten,
+DECLINLINE(int) RT_IPRT_FORMAT_ATTR(3, 4) DBGCCmdHlpPrintfEx(PDBGCCMDHLP pCmdHlp, size_t *pcbWritten,
                                                              const char *pszFormat, ...)
 {
     va_list va;
@@ -730,6 +730,28 @@ DECLINLINE(int) RT_IPRT_FORMAT_ATTR(2, 3) DBGCCmdHlpPrintfEx(PDBGCCMDHLP pCmdHlp
     va_end(va);
 
     return rc;
+}
+
+/**
+ * Command helper for writing formatted text to the debug console.
+ *
+ * @returns Number of bytes written.
+ * @param   pCmdHlp     Pointer to the command callback structure.
+ * @param   pszFormat   The format string.  This may use all IPRT extensions as
+ *                      well as the debugger ones.
+ * @param   ...         Arguments specified in the format string.
+ */
+DECLINLINE(size_t) RT_IPRT_FORMAT_ATTR(2, 3) DBGCCmdHlpPrintfLen(PDBGCCMDHLP pCmdHlp, const char *pszFormat, ...)
+{
+    va_list va;
+    int     rc;
+    size_t  cbWritten = 0;
+
+    va_start(va, pszFormat);
+    rc = pCmdHlp->pfnPrintfV(pCmdHlp, &cbWritten, pszFormat, va);
+    va_end(va);
+
+    return RT_SUCCESS(rc) ? cbWritten : 0;
 }
 
 /**

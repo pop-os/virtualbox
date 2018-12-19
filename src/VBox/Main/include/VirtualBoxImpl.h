@@ -26,6 +26,10 @@
 # include "win/resource.h"
 #endif
 
+//#ifdef DEBUG_bird
+//# define VBOXSVC_WITH_CLIENT_WATCHER
+//#endif
+
 namespace com
 {
     class Event;
@@ -39,6 +43,7 @@ class Host;
 class SystemProperties;
 class DHCPServer;
 class PerformanceCollector;
+class CloudProviderManager;
 #ifdef VBOX_WITH_EXTPACK
 class ExtPackManager;
 #endif
@@ -215,20 +220,21 @@ public:
 
     const Guid &i_getGlobalRegistryId() const;
 
-    const ComObjPtr<Host>& i_host() const;
-    SystemProperties* i_getSystemProperties() const;
+    const ComObjPtr<Host> &i_host() const;
+    SystemProperties *i_getSystemProperties() const;
+    CloudProviderManager *i_getCloudProviderManager() const;
 #ifdef VBOX_WITH_EXTPACK
-    ExtPackManager* i_getExtPackManager() const;
+    ExtPackManager *i_getExtPackManager() const;
 #endif
 #ifdef VBOX_WITH_RESOURCE_USAGE_API
-    const ComObjPtr<PerformanceCollector>& i_performanceCollector() const;
+    const ComObjPtr<PerformanceCollector> &i_performanceCollector() const;
 #endif /* VBOX_WITH_RESOURCE_USAGE_API */
 
     void i_getDefaultMachineFolder(Utf8Str &str) const;
     void i_getDefaultHardDiskFormat(Utf8Str &str) const;
 
     /** Returns the VirtualBox home directory */
-    const Utf8Str& i_homeDir() const;
+    const Utf8Str &i_homeDir() const;
     int i_calculateFullPath(const Utf8Str &strPath, Utf8Str &aResult);
     void i_copyPathRelativeToConfig(const Utf8Str &strSource, Utf8Str &strTarget);
     HRESULT i_registerMedium(const ComObjPtr<Medium> &pMedium, ComObjPtr<Medium> *ppMedium,
@@ -288,6 +294,7 @@ private:
     HRESULT getExtensionPackManager(ComPtr<IExtPackManager> &aExtensionPackManager);
     HRESULT getInternalNetworks(std::vector<com::Utf8Str> &aInternalNetworks);
     HRESULT getGenericNetworkDrivers(std::vector<com::Utf8Str> &aGenericNetworkDrivers);
+    HRESULT getCloudProviderManager(ComPtr<ICloudProviderManager> &aCloudProviderManager);
 
    // wrapped IVirtualBox methods
     HRESULT composeMachineFilename(const com::Utf8Str &aName,
@@ -327,7 +334,8 @@ private:
     HRESULT createSharedFolder(const com::Utf8Str &aName,
                                const com::Utf8Str &aHostPath,
                                BOOL aWritable,
-                               BOOL aAutomount);
+                               BOOL aAutomount,
+                               const com::Utf8Str &aAutoMountPoint);
     HRESULT removeSharedFolder(const com::Utf8Str &aName);
     HRESULT getExtraDataKeys(std::vector<com::Utf8Str> &aKeys);
     HRESULT getExtraData(const com::Utf8Str &aKey,
@@ -351,10 +359,9 @@ private:
                                  com::Utf8Str &aFile,
                                  BOOL *aResult);
 
-    static HRESULT i_setErrorStatic(HRESULT aResultCode,
-                                    const Utf8Str &aText)
+    static HRESULT i_setErrorStaticBoth(HRESULT aResultCode, int vrc, const Utf8Str &aText)
     {
-        return setErrorInternal(aResultCode, getStaticClassIID(), getStaticComponentName(), aText, false, true);
+        return setErrorInternal(aResultCode, getStaticClassIID(), getStaticComponentName(), aText, false, true, vrc);
     }
 
     HRESULT i_registerMachine(Machine *aMachine);
@@ -400,6 +407,15 @@ private:
     static void i_SVCHelperClientThreadTask(StartSVCHelperClientData *pTask);
 #endif
 
+#if defined(RT_OS_WINDOWS) && defined(VBOXSVC_WITH_CLIENT_WATCHER)
+protected:
+    void i_callHook(const char *a_pszFunction) RT_OVERRIDE;
+    bool i_watchClientProcess(RTPROCESS a_pidClient, const char *a_pszFunction);
+public:
+    static void i_logCaller(const char *a_pszFormat, ...);
+private:
+
+#endif
 };
 
 ////////////////////////////////////////////////////////////////////////////////

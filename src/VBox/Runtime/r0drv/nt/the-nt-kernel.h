@@ -72,22 +72,12 @@ RT_C_DECLS_END
  * When targeting NT4 we have to undo some of the nice macros
  * installed by the later DDKs.
  */
-#ifdef IPRT_TARGET_NT4
-# undef ExAllocatePoolWithTag
-# define ExAllocatePoolWithTag(a,b,c) ExAllocatePool(a,b)
-# undef ExAllocatePoolWithQuotaTag
-# define ExAllocatePoolWithQuotaTag(a,b,c) ExAllocatePoolWithQuota(a,b)
-# undef ExAllocatePool
-  NTKERNELAPI PVOID NTAPI ExAllocatePool(IN POOL_TYPE PoolType, IN SIZE_T NumberOfBytes);
-# undef ExFreePool
-  NTKERNELAPI VOID NTAPI ExFreePool(IN PVOID P);
-# undef NonPagedPoolNx
-# define NonPagedPoolNx NonPagedPool
-#endif /* IPRT_TARGET_NT4 */
+#undef ExAllocatePool
+#undef ExFreePool
 
 /** @def IPRT_NT_POOL_TAG
  * Tag to use with the NT Pool APIs.
- * In memory and in the various windbg tool it appears in the reverse order of
+ * In memory and in the various windbg tools it appears in the reverse order of
  * what it is given as here, so it'll read "IPRT".
  */
 #define IPRT_NT_POOL_TAG    'TRPI'

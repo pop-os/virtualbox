@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2017 Oracle Corporation
+ * Copyright (C) 2016-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,7 +21,9 @@
 
 /* GUI includes: */
 # include "QIMainWindow.h"
-# include "VBoxGlobal.h"
+# ifdef VBOX_WS_X11
+#  include "VBoxGlobal.h"
+# endif
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -33,17 +35,16 @@ QIMainWindow::QIMainWindow(QWidget *pParent /* = 0 */, Qt::WindowFlags enmFlags 
 
 void QIMainWindow::restoreGeometry()
 {
-#ifdef VBOX_WS_MAC
-    /* Use the old approach for OSX: */
+#if defined(VBOX_WS_MAC) || defined(VBOX_WS_WIN)
+    /* Use the old approach for OSX/Win: */
     move(m_geometry.topLeft());
     resize(m_geometry.size());
-#else /* VBOX_WS_MAC */
-    /* Use the new approach for Windows/X11: */
+#elif defined(VBOX_WS_X11)
+    /* Use the new approach for X11: */
     VBoxGlobal::setTopLevelGeometry(this, m_geometry);
-#endif /* !VBOX_WS_MAC */
+#endif /* VBOX_WS_X11 */
 
     /* Maximize (if necessary): */
     if (shouldBeMaximized())
         showMaximized();
 }
-

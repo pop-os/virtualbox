@@ -20,12 +20,12 @@
 #else /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
+# include <QApplication>
 # include <QMessageBox>
 
 /* GUI includes: */
 # include "VBoxGlobal.h"
-# include "UIMachine.h"
-# include "UISelectorWindow.h"
+# include "UIStarter.h"
 # include "UIModalWindowManager.h"
 # ifdef VBOX_WS_MAC
 #  include "VBoxUtils.h"
@@ -38,15 +38,16 @@
 # include <VBox/version.h>
 # ifdef VBOX_WITH_HARDENING
 #  include <VBox/sup.h>
-# else /* !VBOX_WITH_HARDENING */
+# endif
+# if !defined(VBOX_WITH_HARDENING) || defined(VBOX_GUI_WITH_SHARED_LIBRARY) && !defined(VBOX_RUNTIME_UI)
 #  include <iprt/initterm.h>
 #  ifdef VBOX_WS_MAC
 #   include <iprt/asm.h>
-#  endif /* VBOX_WS_MAC */
-# endif /* !VBOX_WITH_HARDENING */
+#  endif
+# endif
 # ifdef VBOX_WS_X11
 #  include <iprt/env.h>
-# endif /* VBOX_WS_X11 */
+# endif
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -269,57 +270,130 @@ static void QtMessageOutput(QtMsgType type, const QMessageLogContext &context, c
 /** Shows all available command line parameters. */
 static void ShowHelp()
 {
-    RTPrintf(VBOX_PRODUCT " Manager %s\n"
-            "(C) 2005-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
-            "All rights reserved.\n"
-            "\n"
-            "Usage:\n"
-            "  --startvm <vmname|UUID>    start a VM by specifying its UUID or name\n"
-            "  --separate                 start a separate VM process\n"
-            "  --normal                   keep normal (windowed) mode during startup\n"
-            "  --fullscreen               switch to fullscreen mode during startup\n"
-            "  --seamless                 switch to seamless mode during startup\n"
-            "  --scale                    switch to scale mode during startup\n"
-            "  --no-startvm-errormsgbox   do not show a message box for VM start errors\n"
-            "  --restore-current          restore the current snapshot before starting\n"
-            "  --no-aggressive-caching    delays caching media info in VM processes\n"
-            "  --fda <image|none>         Mount the specified floppy image\n"
-            "  --dvd <image|none>         Mount the specified DVD image\n"
+#if !defined(VBOX_GUI_WITH_SHARED_LIBRARY) || !defined(VBOX_RUNTIME_UI)
+    static const char s_szTitle[] = VBOX_PRODUCT " VM Selector";
+#else
+    static const char s_szTitle[] = VBOX_PRODUCT " VM Runner";
+#endif
+    static const char s_szUsage[] =
+#if !defined(VBOX_GUI_WITH_SHARED_LIBRARY) || defined(VBOX_RUNTIME_UI)
+        "Options:\n"
+        "  --startvm <vmname|UUID>    start a VM by specifying its UUID or name\n"
+        "  --separate                 start a separate VM process\n"
+        "  --normal                   keep normal (windowed) mode during startup\n"
+        "  --fullscreen               switch to fullscreen mode during startup\n"
+        "  --seamless                 switch to seamless mode during startup\n"
+        "  --scale                    switch to scale mode during startup\n"
+        "  --no-startvm-errormsgbox   do not show a message box for VM start errors\n"
+        "  --restore-current          restore the current snapshot before starting\n"
+        "  --no-aggressive-caching    delays caching media info in VM processes\n"
+        "  --fda <image|none>         Mount the specified floppy image\n"
+        "  --dvd <image|none>         Mount the specified DVD image\n"
 # ifdef VBOX_GUI_WITH_PIDFILE
-            "  --pidfile <file>           create a pidfile file when a VM is up and running\n"
+        "  --pidfile <file>           create a pidfile file when a VM is up and running\n"
 # endif /* VBOX_GUI_WITH_PIDFILE */
 # ifdef VBOX_WITH_DEBUGGER_GUI
-            "  --dbg                      enable the GUI debug menu\n"
-            "  --debug                    like --dbg and show debug windows at VM startup\n"
-            "  --debug-command-line       like --dbg and show command line window at VM startup\n"
-            "  --debug-statistics         like --dbg and show statistics window at VM startup\n"
-            "  --no-debug                 disable the GUI debug menu and debug windows\n"
-            "  --start-paused             start the VM in the paused state\n"
-            "  --start-running            start the VM running (for overriding --debug*)\n"
-            "\n"
+        "  --dbg                      enable the GUI debug menu\n"
+        "  --debug                    like --dbg and show debug windows at VM startup\n"
+        "  --debug-command-line       like --dbg and show command line window at VM startup\n"
+        "  --debug-statistics         like --dbg and show statistics window at VM startup\n"
+        "  --no-debug                 disable the GUI debug menu and debug windows\n"
+        "  --start-paused             start the VM in the paused state\n"
+        "  --start-running            start the VM running (for overriding --debug*)\n"
 # endif /* VBOX_WITH_DEBUGGER_GUI */
-            "Expert options:\n"
-            "  --disable-patm             disable code patching (ignored by AMD-V/VT-x)\n"
-            "  --disable-csam             disable code scanning (ignored by AMD-V/VT-x)\n"
-            "  --recompile-supervisor     recompiled execution of supervisor code (*)\n"
-            "  --recompile-user           recompiled execution of user code (*)\n"
-            "  --recompile-all            recompiled execution of all code, with disabled\n"
-            "                             code patching and scanning\n"
-            "  --execute-all-in-iem       For debugging the interpreted execution mode.\n"
-            "  --warp-pct <pct>           time warp factor, 100%% (= 1.0) = normal speed\n"
-            "  (*) For AMD-V/VT-x setups the effect is --recompile-all.\n"
-            "\n"
+        "\n"
+        "Expert options:\n"
+        "  --disable-patm             disable code patching (ignored by AMD-V/VT-x)\n"
+        "  --disable-csam             disable code scanning (ignored by AMD-V/VT-x)\n"
+        "  --recompile-supervisor     recompiled execution of supervisor code (*)\n"
+        "  --recompile-user           recompiled execution of user code (*)\n"
+        "  --recompile-all            recompiled execution of all code, with disabled\n"
+        "                             code patching and scanning\n"
+        "  --execute-all-in-iem       For debugging the interpreted execution mode.\n"
+        "  --warp-pct <pct>           time warp factor, 100%% (= 1.0) = normal speed\n"
+        "  (*) For AMD-V/VT-x setups the effect is --recompile-all.\n"
+        "\n"
 # ifdef VBOX_WITH_DEBUGGER_GUI
-            "The following environment (and extra data) variables are evaluated:\n"
-            "  VBOX_GUI_DBG_ENABLED (GUI/Dbg/Enabled)\n"
-            "                             enable the GUI debug menu if set\n"
-            "  VBOX_GUI_DBG_AUTO_SHOW (GUI/Dbg/AutoShow)\n"
-            "                             show debug windows at VM startup\n"
-            "  VBOX_GUI_NO_DEBUGGER       disable the GUI debug menu and debug windows\n"
+        "The following environment (and extra data) variables are evaluated:\n"
+        "  VBOX_GUI_DBG_ENABLED (GUI/Dbg/Enabled)\n"
+        "                             enable the GUI debug menu if set\n"
+        "  VBOX_GUI_DBG_AUTO_SHOW (GUI/Dbg/AutoShow)\n"
+        "                             show debug windows at VM startup\n"
+        "  VBOX_GUI_NO_DEBUGGER\n"
+        "                             disable the GUI debug menu and debug windows\n"
 # endif /* VBOX_WITH_DEBUGGER_GUI */
-            "\n",
-            RTBldCfgVersion());
-    /** @todo Show this as a dialog on windows. */
+#else
+        "No special options.\n"
+        "\n"
+        "If you are looking for --startvm and related options, you need to use VirtualBoxVM.\n"
+#endif
+        ;
+
+    RTPrintf("%s v%s\n"
+             "(C) 2005-" VBOX_C_YEAR " " VBOX_VENDOR "\n"
+             "All rights reserved.\n"
+             "\n"
+             "%s",
+             s_szTitle, RTBldCfgVersion(), s_szUsage);
+
+#ifdef RT_OS_WINDOWS
+    /* Show message box. Modify the option list a little
+     * to better make it fit in the upcoming dialog. */
+    char szTitleWithVersion[sizeof(s_szTitle) + 128];
+    char szMsg[sizeof(s_szUsage) + 128];
+    char *pszDst = szMsg;
+    size_t offSrc = 0;
+    while (offSrc < sizeof(s_szUsage) - 1U)
+    {
+        char ch;
+        if (   s_szUsage[offSrc]     == ' '
+            && s_szUsage[offSrc + 1] == ' '
+            && (   (ch = s_szUsage[offSrc + 2]) == '-' /* option line */
+                || ch == 'V' /* env.var. line */))
+        {
+            /* Split option lines: */
+            if (ch == '-')
+            {
+                offSrc += 2;
+                size_t cchOption = 0;
+                while (   s_szUsage[offSrc + cchOption] != ' '
+                       || s_szUsage[offSrc + cchOption + 1] != ' ')
+                    ++cchOption;
+
+                memcpy(pszDst, &s_szUsage[offSrc], cchOption);
+                offSrc += cchOption + 2;
+                pszDst += cchOption;
+            }
+            /* Change environment variable indentation: */
+            else
+            {
+                offSrc += 2;
+                size_t cchLine = 0;
+                while ((ch = s_szUsage[offSrc + cchLine]) != '\n' && ch != '\0')
+                    ++cchLine;
+
+                memcpy(pszDst, &s_szUsage[offSrc], cchLine);
+                offSrc += cchLine + 1;
+                pszDst += cchLine;
+            }
+            *pszDst++ = '\n';
+            *pszDst++ = '\t';
+
+            while (s_szUsage[offSrc] == ' ')
+                ++offSrc;
+        }
+
+        /* Copy up to and including end of line: */
+        while ((ch = s_szUsage[offSrc++]) != '\n' && ch != '\0')
+            *pszDst++ = ch;
+        *pszDst++ = ch;
+    }
+    *pszDst = '\0';
+
+    RTStrPrintf(szTitleWithVersion, sizeof(szTitleWithVersion), "%s v%s - Command Line Options", s_szTitle, RTBldCfgVersion());
+    MessageBoxExA(NULL /*hwndOwner*/, szMsg, szTitleWithVersion, MB_OK | MB_ICONINFORMATION,
+                  MAKELANGID(LANG_NEUTRAL, SUBLANG_NEUTRAL));
+#endif
 }
 
 extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
@@ -397,6 +471,12 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
         /* Install Qt console message handler: */
         qInstallMessageHandler(QtMessageOutput);
 
+        /* Enable HiDPI support: */
+        QApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
+#if (!defined(DEBUG_bird) || defined(RT_OS_DARWIN))
+        QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
+#endif
+
         /* Create application: */
         QApplication a(argc, argv);
 
@@ -411,9 +491,6 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
 #endif /* VBOX_WS_WIN */
 
 #ifdef VBOX_WS_MAC
-        /* Enable HiDPI icons: */
-        a.setAttribute(Qt::AA_UseHighDpiPixmaps);
-
         /* Disable menu icons on MacOS X host: */
         ::darwinDisableIconsInMenus();
 #endif /* VBOX_WS_MAC */
@@ -457,8 +534,20 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
         /* Create modal-window manager: */
         UIModalWindowManager::create();
 
-        /* Create global UI instance: */
+        /* Create UI starter: */
+        UIStarter::create();
+#ifndef VBOX_GUI_WITH_SHARED_LIBRARY
+        /* Create global app instance: */
         VBoxGlobal::create();
+#else
+# ifndef VBOX_RUNTIME_UI
+        /* Create global app instance for Selector UI: */
+        VBoxGlobal::create(VBoxGlobal::UIType_SelectorUI);
+# else
+        /* Create global app instance for Runtime UI: */
+        VBoxGlobal::create(VBoxGlobal::UIType_RuntimeUI);
+# endif
+#endif
 
         /* Simulate try-catch block: */
         do
@@ -467,27 +556,39 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
             if (!vboxGlobal().isValid())
                 break;
 
+            /* Init link between UI starter and global app instance: */
+            gStarter->init();
+
             /* Exit if VBoxGlobal pre-processed arguments: */
             if (vboxGlobal().processArgs())
                 break;
 
-            /* For Runtime UI: */
-            if (vboxGlobal().isVMConsoleProcess())
-            {
-                /* Prevent application from exiting when all window(s) closed: */
-                qApp->setQuitOnLastWindowClosed(false);
-            }
+            // WORKAROUND:
+            // Initially we wanted to make that workaround for Runtime UI only,
+            // because only there we had a strict handling for proper application quit
+            // procedure.  But it appeared on X11 (as usually due to an async nature) there
+            // can happen situations that Qt application is checking whether at least one
+            // window is already shown and if not - exits prematurely _before_ it is actually
+            // shown.  That can happen for example if window is not yet shown because blocked
+            // by startup error message-box which is not treated as real window by some
+            // reason.  So we are making application exit manual everywhere.
+            qApp->setQuitOnLastWindowClosed(false);
 
-            /* Request to Show UI _after_ QApplication started: */
-            QMetaObject::invokeMethod(&vboxGlobal(), "showUI", Qt::QueuedConnection);
+            /* Request to Start UI _after_ QApplication executed: */
+            QMetaObject::invokeMethod(gStarter, "sltStartUI", Qt::QueuedConnection);
 
             /* Start application: */
             iResultCode = a.exec();
+
+            /* Break link between UI starter and global app instance: */
+            gStarter->deinit();
         }
         while (0);
 
-        /* Destroy global UI instance: */
+        /* Destroy global app instance: */
         VBoxGlobal::destroy();
+        /* Destroy UI starter: */
+        UIStarter::destroy();
 
         /* Destroy modal-window manager: */
         UIModalWindowManager::destroy();
@@ -502,7 +603,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char ** /*envp*/)
     return iResultCode;
 }
 
-#ifndef VBOX_WITH_HARDENING
+#if !defined(VBOX_WITH_HARDENING) || (defined(VBOX_GUI_WITH_SHARED_LIBRARY) && !defined(VBOX_RUNTIME_UI))
 
 int main(int argc, char **argv, char **envp)
 {
@@ -512,8 +613,9 @@ int main(int argc, char **argv, char **envp)
         return 1;
 # endif /* VBOX_WS_X11 */
 
-    /* Initialize VBox Runtime.
-     * Initialize the SUPLib as well only if we are really about to start a VM.
+    /* Initialize VBox Runtime: */
+# if !defined(VBOX_GUI_WITH_SHARED_LIBRARY) || defined(VBOX_RUNTIME_UI)
+    /* Initialize the SUPLib as well only if we are really about to start a VM.
      * Don't do this if we are only starting the selector window or a separate VM process. */
     bool fStartVM = false;
     bool fSeparateProcess = false;
@@ -524,18 +626,16 @@ int main(int argc, char **argv, char **envp)
          * otherwise there will be weird error messages. */
         if (   !::strcmp(argv[i], "--startvm")
             || !::strcmp(argv[i], "-startvm"))
-        {
             fStartVM = true;
-        }
         else if (   !::strcmp(argv[i], "--separate")
                  || !::strcmp(argv[i], "-separate"))
-        {
             fSeparateProcess = true;
-        }
     }
 
     uint32_t fFlags = fStartVM && !fSeparateProcess ? RTR3INIT_FLAGS_SUPLIB : 0;
-
+#else
+    uint32_t fFlags = 0;
+#endif
     int rc = RTR3InitExe(argc, &argv, fFlags);
 
     /* Initialization failed: */
@@ -548,7 +648,7 @@ int main(int argc, char **argv, char **envp)
 
 # ifdef Q_OS_SOLARIS
         a.setStyle("fusion");
-# endif /* Q_OS_SOLARIS */
+# endif
 
         /* Prepare the error-message: */
         QString strTitle = QApplication::tr("VirtualBox - Runtime Error");
@@ -560,24 +660,24 @@ int main(int argc, char **argv, char **envp)
                 strText += QApplication::tr("<b>Cannot access the kernel driver!</b><br/><br/>");
 # ifdef RT_OS_LINUX
                 strText += g_QStrHintLinuxNoDriver;
-# else /* RT_OS_LINUX */
+# else
                 strText += g_QStrHintOtherNoDriver;
-# endif /* !RT_OS_LINUX */
+# endif
                 break;
 # ifdef RT_OS_LINUX
             case VERR_NO_MEMORY:
                 strText += g_QStrHintLinuxNoMemory;
                 break;
-# endif /* RT_OS_LINUX */
+# endif
             case VERR_VM_DRIVER_NOT_ACCESSIBLE:
                 strText += QApplication::tr("Kernel driver not accessible");
                 break;
             case VERR_VM_DRIVER_VERSION_MISMATCH:
 # ifdef RT_OS_LINUX
                 strText += g_QStrHintLinuxWrongDriverVersion;
-# else /* RT_OS_LINUX */
+# else
                 strText += g_QStrHintOtherWrongDriverVersion;
-# endif /* !RT_OS_LINUX */
+# endif
                 break;
             default:
                 strText += QApplication::tr("Unknown error %2 during initialization of the Runtime").arg(rc);
@@ -593,12 +693,13 @@ int main(int argc, char **argv, char **envp)
         return 1;
     }
 
-    /* Actual main function: */
+    /* Call to actual main function: */
     return TrustedMain(argc, argv, envp);
 }
 
-#else  /* VBOX_WITH_HARDENING */
+#endif /* !VBOX_WITH_HARDENING || (VBOX_GUI_WITH_SHARED_LIBRARY && !VBOX_RUNTIME_UI) */
 
+#ifdef VBOX_WITH_HARDENING
 
 /**
  * Special entrypoint used by the hardening code when something goes south.
@@ -717,4 +818,3 @@ extern "C" DECLEXPORT(void) TrustedError(const char *pszWhere, SUPINITOP enmWhat
 }
 
 #endif /* VBOX_WITH_HARDENING */
-

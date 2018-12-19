@@ -206,7 +206,7 @@ int main(int argc, char **argv)
                          , RTPathFilename(argv[0]));
                 return RTEXITCODE_SUCCESS;
             case 'V':
-                RTPrintf("$Revision: 123657 $\n");
+                RTPrintf("$Revision: 121464 $\n");
                 return RTEXITCODE_SUCCESS;
 
             case 'i':

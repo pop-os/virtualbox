@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,8 @@
 # include <QTextEdit>
 
 /* GUI includes: */
-# include "UIPopupPaneDetails.h"
 # include "UIAnimationFramework.h"
+# include "UIPopupPaneDetails.h"
 
 #endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
@@ -105,14 +105,6 @@ void UIPopupPaneDetails::layoutContent()
     }
 }
 
-void UIPopupPaneDetails::updateVisibility()
-{
-    if (m_fFocused && !m_strText.isEmpty())
-        show();
-    else
-        hide();
-}
-
 void UIPopupPaneDetails::sltHandleProposalForWidth(int iWidth)
 {
     /* Make sure the desired-width has changed: */
@@ -188,6 +180,7 @@ void UIPopupPaneDetails::prepareContent()
 {
     /* Create text-editor: */
     m_pTextEdit = new QTextEdit(this);
+    if (m_pTextEdit)
     {
         /* Configure text-editor: */
         m_pTextEdit->setFont(tuneFont(m_pTextEdit->font()));
@@ -218,7 +211,7 @@ void UIPopupPaneDetails::updateSizeHint()
     {
         int iNewHeight = m_iMaximumPaneHeight;
         QTextDocument *pTextDocument = m_pTextEdit->document();
-        if(pTextDocument)
+        if (pTextDocument)
         {
             /* Adjust text-edit size: */
             pTextDocument->adjustSize();
@@ -242,6 +235,14 @@ void UIPopupPaneDetails::updateSizeHint()
 
     /* Notify parent popup-pane: */
     emit sigSizeHintChanged();
+}
+
+void UIPopupPaneDetails::updateVisibility()
+{
+    if (m_fFocused && !m_strText.isEmpty())
+        show();
+    else
+        hide();
 }
 
 /* static */

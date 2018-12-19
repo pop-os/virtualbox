@@ -152,6 +152,7 @@ typedef struct DBGFINFO
 #endif /* IN_RING3 */
 
 
+#ifdef IN_RING3
 /**
  * Guest OS digger instance.
  */
@@ -166,10 +167,11 @@ typedef struct DBGFOS
     /** The instance data (variable size). */
     uint8_t                     abData[16];
 } DBGFOS;
+#endif
 /** Pointer to guest OS digger instance. */
-typedef DBGFOS *PDBGFOS;
+typedef struct DBGFOS *PDBGFOS;
 /** Pointer to const guest OS digger instance. */
-typedef DBGFOS const *PCDBGFOS;
+typedef struct DBGFOS const *PCDBGFOS;
 
 
 /**
@@ -299,6 +301,30 @@ typedef struct DBGF
     DBGFBPSEARCHOPT             PortIo;
     /** INT3 breakpoint search optimizations. */
     DBGFBPSEARCHOPT             Int3;
+
+    /**
+     * Bug check data.
+     * @note This will not be reset on reset.
+     */
+    struct
+    {
+        /** The ID of the CPU reporting it. */
+        VMCPUID                 idCpu;
+        /** The event associated with the bug check (gives source).
+         * This is set to DBGFEVENT_END if no BSOD data here. */
+        DBGFEVENTTYPE           enmEvent;
+        /** The total reset count at the time (VMGetResetCount). */
+        uint32_t                uResetNo;
+        /** Explicit padding. */
+        uint32_t                uPadding;
+        /** When it was reported (TMVirtualGet). */
+        uint64_t                uTimestamp;
+        /** The bug check number.
+         * @note This is really just 32-bit wide, see KeBugCheckEx.  */
+        uint64_t                uBugCheck;
+        /** The bug check parameters. */
+        uint64_t                auParameters[4];
+    } BugCheck;
 } DBGF;
 AssertCompileMemberAlignment(DBGF, DbgEvent, 8);
 AssertCompileMemberAlignment(DBGF, aHwBreakpoints, 8);
@@ -472,6 +498,7 @@ typedef struct DBGFUSERPERVMCPU
 } DBGFUSERPERVMCPU;
 
 
+#ifdef IN_RING3
 int  dbgfR3AsInit(PUVM pUVM);
 void dbgfR3AsTerm(PUVM pUVM);
 void dbgfR3AsRelocate(PUVM pUVM, RTGCUINTPTR offDelta);
@@ -479,7 +506,10 @@ int  dbgfR3BpInit(PVM pVM);
 int  dbgfR3InfoInit(PUVM pUVM);
 int  dbgfR3InfoTerm(PUVM pUVM);
 int  dbgfR3OSInit(PUVM pUVM);
-void dbgfR3OSTerm(PUVM pUVM);
+void dbgfR3OSTermPart1(PUVM pUVM);
+void dbgfR3OSTermPart2(PUVM pUVM);
+int  dbgfR3OSStackUnwindAssist(PUVM pUVM, VMCPUID idCpu, PDBGFSTACKFRAME pFrame, PRTDBGUNWINDSTATE pState,
+                               PCCPUMCTX pInitialCtx, RTDBGAS hAs, uint64_t *puScratch);
 int  dbgfR3RegInit(PUVM pUVM);
 void dbgfR3RegTerm(PUVM pUVM);
 int  dbgfR3TraceInit(PVM pVM);
@@ -489,10 +519,8 @@ DECLHIDDEN(int)  dbgfR3TypeInit(PUVM pUVM);
 DECLHIDDEN(void) dbgfR3TypeTerm(PUVM pUVM);
 int  dbgfR3PlugInInit(PUVM pUVM);
 void dbgfR3PlugInTerm(PUVM pUVM);
+int  dbgfR3BugCheckInit(PVM pVM);
 
-
-
-#ifdef IN_RING3
 /**
  * DBGF disassembler state (substate of DISSTATE).
  */
@@ -514,7 +542,7 @@ typedef DBGFDISSTATE *PDBGFDISSTATE;
 DECLHIDDEN(int) dbgfR3DisasInstrStateEx(PUVM pUVM, VMCPUID idCpu, PDBGFADDRESS pAddr, uint32_t fFlags,
                                         char *pszOutput, uint32_t cbOutput, PDBGFDISSTATE pDisState);
 
-#endif
+#endif /* IN_RING3 */
 
 /** @} */
 

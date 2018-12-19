@@ -48,11 +48,11 @@ Implements \1 method \link \1::\2 \2 \endlink @copydoc \1::\2 "
 
 # Callback method implementation macros.
 ALIASES                += \
-    callback_method_impl{1}="Implements the callback \link \1 \1  \endlink @copydoc \1 "
-ALIASES                += \
     callback_method_impl{2}="\2. \
 \
 Implements the callback \link \1 \1 \endlink "
+ALIASES                += \
+    callback_method_impl{1}="Implements the callback \link \1 \1  \endlink @copydoc \1 "
 
 # The following is for Global Configuration options.
 ALIASES                += \
@@ -580,6 +580,8 @@ PREDEFINED += \
     DECLHIDDEN(type)=type \
     DECL_HIDDEN_CONST(type)=type \
     DECLASM(type)=type \
+    RT_ASM_DECL_PRAGMA_WATCOM(type)=type \
+    RT_ASM_DECL_PRAGMA_WATCOM_386(type)=type \
     DECLNORETURN(type)=type \
     VBOXCALL= \
     RTCALL= \
@@ -751,7 +753,8 @@ PREDEFINED          += \
     RT_GCC_EXTENSION= \
     "CPUM_STRUCT_NM(n)=" \
     "CPUM_UNION_NM(n)=" \
-    "DECL_NO_RETURN(type)=type"
+    "DECL_NO_RETURN(type)=type" \
+    VBOX_WITH_HGCM
 
 EXPAND_AS_DEFINED      = \
     RCPTRTYPE \

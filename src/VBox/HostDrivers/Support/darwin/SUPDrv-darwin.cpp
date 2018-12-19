@@ -33,17 +33,24 @@
 
 #include "../SUPDrvInternal.h"
 #include <VBox/version.h>
+#include <iprt/assert.h>
 #include <iprt/asm.h>
 #include <iprt/asm-amd64-x86.h>
+#include <iprt/ctype.h>
+#include <iprt/dbg.h>
 #include <iprt/initterm.h>
-#include <iprt/assert.h>
+#include <iprt/file.h>
+#include <iprt/ldr.h>
+#include <iprt/mem.h>
+#include <iprt/power.h>
+#include <iprt/process.h>
 #include <iprt/spinlock.h>
 #include <iprt/semaphore.h>
-#include <iprt/process.h>
-#include <iprt/alloc.h>
-#include <iprt/power.h>
-#include <iprt/dbg.h>
 #include <iprt/x86.h>
+#include <iprt/crypto/applecodesign.h>
+#include <iprt/crypto/store.h>
+#include <iprt/crypto/pkcs7.h>
+#include <iprt/crypto/x509.h>
 #include <VBox/err.h>
 #include <VBox/log.h>
 
@@ -70,11 +77,6 @@ RT_C_DECLS_BEGIN
 RT_C_DECLS_END
 #endif
 
-/* Temporary debugging - very temporary... */
-#define VBOX_PROC_SELFNAME_LEN  (20)
-#define VBOX_RETRIEVE_CUR_PROC_NAME(_name)  char _name[VBOX_PROC_SELFNAME_LEN]; \
-                                            proc_selfname(pszProcName, VBOX_PROC_SELFNAME_LEN)
-
 
 /*********************************************************************************************************************************
 *   Defined Constants And Macros                                                                                                 *
@@ -86,6 +88,13 @@ RT_C_DECLS_END
 #define DEVICE_NAME_USR     "vboxdrvu"
 
 
+/** @name For debugging/whatever, now permanent.
+ * @{  */
+#define VBOX_PROC_SELFNAME_LEN              31
+#define VBOX_RETRIEVE_CUR_PROC_NAME(a_Name) char a_Name[VBOX_PROC_SELFNAME_LEN + 1]; \
+                                            proc_selfname(a_Name, VBOX_PROC_SELFNAME_LEN)
+/** @} */
+
 
 /*********************************************************************************************************************************
 *   Internal Functions                                                                                                           *
@@ -93,6 +102,10 @@ RT_C_DECLS_END
 RT_C_DECLS_BEGIN
 static kern_return_t    VBoxDrvDarwinStart(struct kmod_info *pKModInfo, void *pvData);
 static kern_return_t    VBoxDrvDarwinStop(struct kmod_info *pKModInfo, void *pvData);
+#ifdef VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION
+static int              supdrvDarwinInitCertStores(PSUPDRVDEVEXT pDevExt);
+static void             supdrvDarwinDestroyCertStores(PSUPDRVDEVEXT pDevExt);
+#endif
 
 static int              VBoxDrvDarwinOpen(dev_t Dev, int fFlags, int fDevType, struct proc *pProcess);
 static int              VBoxDrvDarwinClose(dev_t Dev, int fFlags, int fDevType, struct proc *pProcess);
@@ -217,22 +230,22 @@ static struct cdevsw    g_DevCW =
 };
 
 /** Major device number. */
-static int              g_iMajorDeviceNo = -1;
+static int                  g_iMajorDeviceNo = -1;
 /** Registered devfs device handle for the system device. */
-static void            *g_hDevFsDeviceSys = NULL;
+static void                *g_hDevFsDeviceSys = NULL;
 /** Registered devfs device handle for the user device. */
-static void            *g_hDevFsDeviceUsr = NULL;
+static void                *g_hDevFsDeviceUsr = NULL;
 
 /** Spinlock protecting g_apSessionHashTab. */
-static RTSPINLOCK       g_Spinlock = NIL_RTSPINLOCK;
+static RTSPINLOCK           g_Spinlock = NIL_RTSPINLOCK;
 /** Hash table */
-static PSUPDRVSESSION   g_apSessionHashTab[19];
+static PSUPDRVSESSION       g_apSessionHashTab[19];
 /** Calculates the index into g_apSessionHashTab.*/
-#define SESSION_HASH(pid)     ((pid) % RT_ELEMENTS(g_apSessionHashTab))
+#define SESSION_HASH(pid)   ((pid) % RT_ELEMENTS(g_apSessionHashTab))
 /** The number of open sessions. */
-static int32_t volatile g_cSessions = 0;
+static int32_t volatile     g_cSessions = 0;
 /** The notifier handle for the sleep callback handler. */
-static IONotifier      *g_pSleepNotifier = NULL;
+static IONotifier          *g_pSleepNotifier = NULL;
 
 /** Pointer to vmx_suspend(). */
 static PFNRT            g_pfnVmxSuspend = NULL;
@@ -257,7 +270,6 @@ static int             (*g_pfnWrMsr64Carefully)(uint32_t uMsr, uint64_t uValue) 
 static kern_return_t    VBoxDrvDarwinStart(struct kmod_info *pKModInfo, void *pvData)
 {
     RT_NOREF(pKModInfo, pvData);
-    int rc;
 #ifdef DEBUG
     printf("VBoxDrvDarwinStart\n");
 #endif
@@ -265,7 +277,7 @@ static kern_return_t    VBoxDrvDarwinStart(struct kmod_info *pKModInfo, void *pv
     /*
      * Initialize IPRT.
      */
-    rc = RTR0Init(0);
+    int rc = RTR0Init(0);
     if (RT_SUCCESS(rc))
     {
         /*
@@ -274,6 +286,10 @@ static kern_return_t    VBoxDrvDarwinStart(struct kmod_info *pKModInfo, void *pv
         rc = supdrvInitDevExt(&g_DevExt, sizeof(SUPDRVSESSION));
         if (RT_SUCCESS(rc))
         {
+#ifdef VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION
+            supdrvDarwinInitCertStores(&g_DevExt);
+#endif
+
             /*
              * Initialize the session hash table.
              */
@@ -337,6 +353,9 @@ static kern_return_t    VBoxDrvDarwinStart(struct kmod_info *pKModInfo, void *pv
                     else
                         LogRel(("VBoxDrv: cdevsw_add failed (%d)\n", g_iMajorDeviceNo));
                 }
+#ifdef VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION
+                supdrvDarwinDestroyCertStores(&g_DevExt);
+#endif
                 RTSpinlockDestroy(g_Spinlock);
                 g_Spinlock = NIL_RTSPINLOCK;
             }
@@ -420,6 +439,64 @@ static int vboxdrvDarwinResolveSymbols(void)
 }
 
 
+#ifdef VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION
+
+/**
+ * Initalizes the certificate stores (code signing) in the device extension.
+ */
+static int supdrvDarwinInitCertStores(PSUPDRVDEVEXT pDevExt)
+{
+    pDevExt->hAdditionalStore = NIL_RTCRSTORE;
+
+    pDevExt->hRootStore       = NIL_RTCRSTORE;
+    int rc = RTCrStoreCreateInMem(&pDevExt->hRootStore, g_cSUPTrustedTAs + 1);
+    if (RT_SUCCESS(rc))
+    {
+        for (uint32_t i = 0; i < g_cSUPTrustedTAs; i++)
+        {
+            int rc2 = RTCrStoreCertAddEncoded(pDevExt->hRootStore, RTCRCERTCTX_F_ENC_TAF_DER,
+                                              g_aSUPTrustedTAs[i].pch, g_aSUPTrustedTAs[i].cb, NULL);
+            if (RT_FAILURE(rc2) && RT_SUCCESS(rc))
+            {
+                printf("VBoxDrv: Error loading g_aSUPTrustedTAs[%u]: %d\n", i, rc);
+                rc = rc2;
+            }
+        }
+
+        /* We implicitly trust the build certificate. */
+        int rc2 = RTCrStoreCertAddEncoded(pDevExt->hRootStore, RTCRCERTCTX_F_ENC_X509_DER,
+                                          g_abSUPBuildCert, g_cbSUPBuildCert, NULL);
+        if (RT_FAILURE(rc2) && RT_SUCCESS(rc))
+        {
+            printf("VBoxDrv: Error loading g_cbSUPBuildCert: %d\n", rc);
+            rc = rc2;
+        }
+    }
+    return rc;
+}
+
+
+/**
+ * Releases the certificate stores in the device extension.
+ */
+static void supdrvDarwinDestroyCertStores(PSUPDRVDEVEXT pDevExt)
+{
+    if (pDevExt->hRootStore != NIL_RTCRSTORE)
+    {
+        uint32_t cRefs = RTCrStoreRelease(pDevExt->hRootStore);
+        Assert(cRefs == 0); RT_NOREF(cRefs);
+        pDevExt->hRootStore = NIL_RTCRSTORE;
+    }
+    if (pDevExt->hAdditionalStore != NIL_RTCRSTORE)
+    {
+        uint32_t cRefs = RTCrStoreRelease(pDevExt->hAdditionalStore);
+        Assert(cRefs == 0); RT_NOREF(cRefs);
+        pDevExt->hAdditionalStore = NIL_RTCRSTORE;
+    }
+}
+
+#endif /* VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION */
+
 /**
  * Stop the kernel module.
  */
@@ -456,6 +533,10 @@ static kern_return_t    VBoxDrvDarwinStop(struct kmod_info *pKModInfo, void *pvD
     rc = RTSpinlockDestroy(g_Spinlock);
     AssertRC(rc);
     g_Spinlock = NIL_RTSPINLOCK;
+
+#ifdef VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION
+    supdrvDarwinDestroyCertStores(&g_DevExt);
+#endif
 
     RTR0TermForced();
 
@@ -632,11 +713,10 @@ static int VBoxDrvDarwinIOCtl(dev_t Dev, u_long iCmd, caddr_t pData, int fFlags,
      * the session and iCmd, and only returns a VBox status code.
      */
     int rc;
-    if (   (    iCmd == SUP_IOCTL_FAST_DO_RAW_RUN
-            ||  iCmd == SUP_IOCTL_FAST_DO_HM_RUN
-            ||  iCmd == SUP_IOCTL_FAST_DO_NOP)
+    AssertCompile((SUP_IOCTL_FAST_DO_FIRST & 0xff) == (SUP_IOCTL_FLAG | 64));
+    if (   (uintptr_t)(iCmd - SUP_IOCTL_FAST_DO_FIRST) < (uintptr_t)32
         && fUnrestricted)
-        rc = supdrvIOCtlFast(iCmd, *(uint32_t *)pData, &g_DevExt, pSession);
+        rc = supdrvIOCtlFast(iCmd - SUP_IOCTL_FAST_DO_FIRST, *(uint32_t *)pData, &g_DevExt, pSession);
     else
         rc = VBoxDrvDarwinIOCtlSlow(pSession, iCmd, pData, pProcess);
 
@@ -937,9 +1017,11 @@ bool VBOXCALL   supdrvOSObjCanAccess(PSUPDRVOBJ pObj, PSUPDRVSESSION pSession, c
 /**
  * Callback for blah blah blah.
  */
-IOReturn VBoxDrvDarwinSleepHandler(void * /* pvTarget */, void *pvRefCon, UInt32 uMessageType, IOService * /* pProvider */, void * /* pvMessageArgument */, vm_size_t /* argSize */)
+IOReturn VBoxDrvDarwinSleepHandler(void * /* pvTarget */, void *pvRefCon, UInt32 uMessageType,
+                                   IOService *pProvider, void *pvMsgArg, vm_size_t cbMsgArg)
 {
-    LogFlow(("VBoxDrv: Got sleep/wake notice. Message type was %X\n", (uint)uMessageType));
+    RT_NOREF(pProvider, pvMsgArg, cbMsgArg);
+    LogFlow(("VBoxDrv: Got sleep/wake notice. Message type was %x\n", uMessageType));
 
     if (uMessageType == kIOMessageSystemWillSleep)
         RTPowerSignalEvent(RTPOWEREVENT_SUSPEND);
@@ -1143,30 +1225,410 @@ bool VBOXCALL supdrvOSAreTscDeltasInSync(void)
 }
 
 
-int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const char *pszFilename)
+#ifdef VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION
+
+/**
+ * @callback_method_impl{FNRTLDRIMPORT}
+ */
+static DECLCALLBACK(int) supdrvDarwinLdrOpenImportCallback(RTLDRMOD hLdrMod, const char *pszModule, const char *pszSymbol,
+                                                           unsigned uSymbol, PRTLDRADDR pValue, void *pvUser)
 {
-    NOREF(pDevExt); NOREF(pImage); NOREF(pszFilename);
-    return VERR_NOT_SUPPORTED;
+    PSUPDRVDEVEXT pDevExt = (PSUPDRVDEVEXT)pvUser;
+
+    /*
+     * First consult the VMMR0 module if there is one fully loaded.
+     * This is necessary as VMMR0 may overload assertion and logger symbols.
+     */
+    if (pDevExt->pvVMMR0)
+        for (PSUPDRVLDRIMAGE pImage = pDevExt->pLdrImages; pImage; pImage = pImage->pNext)
+            if (pImage->pvImage == pDevExt->pvVMMR0)
+            {
+                if (   pImage->uState == SUP_IOCTL_LDR_LOAD
+                    && pImage->hLdrMod != NIL_RTLDRMOD)
+                {
+                    int rc = RTLdrGetSymbolEx(pImage->hLdrMod, pImage->pvImage, (uintptr_t)pImage->pvImage,
+                                              UINT32_MAX, pszSymbol, pValue);
+                    if (RT_SUCCESS(rc))
+                        return VINF_SUCCESS;
+                }
+                break;
+            }
+
+    /*
+     * Then we consult the SUPDrv export table.
+     */
+    uintptr_t uValue = 0;
+    int rc = supdrvLdrGetExportedSymbol(pszSymbol, &uValue);
+    if (RT_SUCCESS(rc))
+    {
+        *pValue = uValue;
+        return VINF_SUCCESS;
+    }
+
+    /*
+     * Failed.
+     */
+    printf("VBoxDrv: Unable to resolve symbol '%s'.\n", pszSymbol);
+    RT_NOREF(hLdrMod, pszModule, uSymbol);
+    return VERR_SYMBOL_NOT_FOUND;
 }
 
 
-int  VBOXCALL   supdrvOSLdrValidatePointer(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, void *pv, const uint8_t *pbImageBits)
+/**
+ * @callback_method_impl{FNRTCRPKCS7VERIFYCERTCALLBACK,
+ *      Verify that the signing certificate is sane.}
+ */
+static DECLCALLBACK(int) supdrvDarwinLdrOpenVerifyCertificatCallback(PCRTCRX509CERTIFICATE pCert, RTCRX509CERTPATHS hCertPaths,
+                                                                     uint32_t fFlags, void *pvUser, PRTERRINFO pErrInfo)
 {
-    NOREF(pDevExt); NOREF(pImage); NOREF(pv); NOREF(pbImageBits);
+    RT_NOREF(pvUser); //PSUPDRVDEVEXT pDevExt = (PSUPDRVDEVEXT)pvUser;
+# ifdef DEBUG_bird
+    printf("supdrvDarwinLdrOpenVerifyCertificatCallback: pCert=%p hCertPaths=%p\n", pCert, hCertPaths);
+# endif
+
+# if 0
+    /*
+     * Test signing certificates normally doesn't have all the necessary
+     * features required below.  So, treat them as special cases.
+     */
+    if (   hCertPaths == NIL_RTCRX509CERTPATHS
+        && RTCrX509Name_Compare(&pCert->TbsCertificate.Issuer, &pCert->TbsCertificate.Subject) == 0)
+    {
+        RTMsgInfo("Test signed.\n");
+        return VINF_SUCCESS;
+    }
+# endif
+
+    /*
+     * Standard code signing capabilites required.
+     */
+    int rc = RTCrPkcs7VerifyCertCallbackCodeSigning(pCert, hCertPaths, fFlags, NULL, pErrInfo);
+    if (   RT_SUCCESS(rc)
+        && (fFlags & RTCRPKCS7VCC_F_SIGNED_DATA))
+    {
+        uint32_t cDevIdApp  = 0;
+        uint32_t cDevIdKext = 0;
+        for (uint32_t i = 0; i < pCert->TbsCertificate.T3.Extensions.cItems; i++)
+        {
+            PCRTCRX509EXTENSION pExt = pCert->TbsCertificate.T3.Extensions.papItems[i];
+            if (RTAsn1ObjId_CompareWithString(&pExt->ExtnId, RTCR_APPLE_CS_DEVID_APPLICATION_OID) == 0)
+            {
+                cDevIdApp++;
+                if (!pExt->Critical.fValue)
+                    rc = RTErrInfoSetF(pErrInfo, VERR_GENERAL_FAILURE,
+                                       "Dev ID Application certificate extension is not flagged critical");
+            }
+            else if (RTAsn1ObjId_CompareWithString(&pExt->ExtnId, RTCR_APPLE_CS_DEVID_KEXT_OID) == 0)
+            {
+                cDevIdKext++;
+                if (!pExt->Critical.fValue)
+                    rc = RTErrInfoSetF(pErrInfo, VERR_GENERAL_FAILURE,
+                                       "Dev ID kext certificate extension is not flagged critical");
+            }
+        }
+        if (cDevIdApp == 0)
+            rc = RTErrInfoSetF(pErrInfo, VERR_GENERAL_FAILURE,
+                               "Certificate is missing the 'Dev ID Application' extension");
+        if (cDevIdKext == 0)
+            rc = RTErrInfoSetF(pErrInfo, VERR_GENERAL_FAILURE,
+                               "Certificate is missing the 'Dev ID kext' extension");
+    }
+
+    return rc;
+}
+
+
+/**
+ * @callback_method_impl{FNRTLDRVALIDATESIGNEDDATA}
+ */
+static DECLCALLBACK(int) supdrvDarwinLdrOpenVerifyCallback(RTLDRMOD hLdrMod, RTLDRSIGNATURETYPE enmSignature,
+                                                           void const *pvSignature, size_t cbSignature,
+                                                           void const *pvExternalData, size_t cbExternalData,
+                                                           PRTERRINFO pErrInfo, void *pvUser)
+{
+    PSUPDRVDEVEXT pDevExt = (PSUPDRVDEVEXT)pvUser;
+    RT_NOREF_PV(hLdrMod); RT_NOREF_PV(cbSignature);
+
+    switch (enmSignature)
+    {
+        case RTLDRSIGNATURETYPE_PKCS7_SIGNED_DATA:
+            if (pvExternalData)
+            {
+                PCRTCRPKCS7CONTENTINFO pContentInfo = (PCRTCRPKCS7CONTENTINFO)pvSignature;
+                RTTIMESPEC             ValidationTime;
+                RTTimeNow(&ValidationTime);
+
+                return RTCrPkcs7VerifySignedDataWithExternalData(pContentInfo,
+                                                                 RTCRPKCS7VERIFY_SD_F_COUNTER_SIGNATURE_SIGNING_TIME_ONLY
+                                                                 | RTCRPKCS7VERIFY_SD_F_ALWAYS_USE_SIGNING_TIME_IF_PRESENT
+                                                                 | RTCRPKCS7VERIFY_SD_F_ALWAYS_USE_MS_TIMESTAMP_IF_PRESENT,
+                                                                 pDevExt->hAdditionalStore, pDevExt->hRootStore, &ValidationTime,
+                                                                 supdrvDarwinLdrOpenVerifyCertificatCallback, pDevExt,
+                                                                 pvExternalData, cbExternalData, pErrInfo);
+            }
+            return RTErrInfoSetF(pErrInfo, VERR_NOT_SUPPORTED, "Expected external data with signature!");
+
+        default:
+            return RTErrInfoSetF(pErrInfo, VERR_NOT_SUPPORTED, "Unsupported signature type: %d", enmSignature);
+    }
+}
+
+#endif /* VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION */
+
+int  VBOXCALL   supdrvOSLdrOpen(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const char *pszFilename)
+{
+#ifdef VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION
+    /*
+     * Initialize our members.
+     */
+    pImage->hLdrMod   = NIL_RTLDRMOD;
+    pImage->hMemAlloc = NIL_RTR0MEMOBJ;
+
+    /*
+     * We have to double buffer the file to be avoid a potential race between
+     * validation and actual image loading.  This could be eliminated later by
+     * baking the image validation into the RTLdrGetBits operation.
+     *
+     * Note! After calling RTLdrOpenInMemory, pvFile is owned by the loader and will be
+     *       freed via the RTFileReadAllFree callback when the loader module is closed.
+     */
+    void     *pvFile = NULL;
+    size_t    cbFile = 0;
+    int rc = RTFileReadAllEx(pszFilename, 0, _32M, RTFILE_RDALL_O_DENY_WRITE, &pvFile, &cbFile);
+    if (RT_SUCCESS(rc))
+    {
+        PRTERRINFOSTATIC pErrInfo = (PRTERRINFOSTATIC)RTMemTmpAlloc(sizeof(RTERRINFOSTATIC));
+        RTLDRMOD         hLdrMod = NIL_RTLDRMOD;
+        rc = RTLdrOpenInMemory(pszFilename, 0 /*fFlags*/, RTLDRARCH_HOST, cbFile,
+                               NULL /*pfnRead*/, RTFileReadAllFree, pvFile,
+                               &hLdrMod, pErrInfo ? RTErrInfoInitStatic(pErrInfo) : NULL);
+        if (RT_SUCCESS(rc))
+        {
+            /*
+             * Validate the image.
+             */
+            rc = RTLdrVerifySignature(hLdrMod, supdrvDarwinLdrOpenVerifyCallback, pDevExt,
+                                      pErrInfo ? RTErrInfoInitStatic(pErrInfo) : NULL);
+            if (RT_SUCCESS(rc))
+            {
+                /*
+                 * Allocate memory for the object and load it into it.
+                 */
+                size_t cbImage = RTLdrSize(hLdrMod);
+                if (cbImage == pImage->cbImageBits)
+                {
+                    RTR0MEMOBJ hMemAlloc;
+                    rc = RTR0MemObjAllocPage(&hMemAlloc, cbImage, true /*fExecutable*/);
+                    if (RT_SUCCESS(rc))
+                    {
+                        void *pvImageBits = RTR0MemObjAddress(hMemAlloc);
+                        rc = RTLdrGetBits(hLdrMod, pvImageBits, (uintptr_t)pvImageBits,
+                                          supdrvDarwinLdrOpenImportCallback, pDevExt);
+                        if (RT_SUCCESS(rc))
+                        {
+                            /*
+                             * Commit.
+                             */
+                            pImage->hMemAlloc   = hMemAlloc;
+                            pImage->hLdrMod     = hLdrMod;
+                            pImage->pvImage     = pvImageBits;
+                            RTMemTmpFree(pErrInfo);
+                            /** @todo Call RTLdrDone. */
+                            return VINF_SUCCESS;
+                        }
+
+                        RTR0MemObjFree(hMemAlloc, true /*fFreeMappings*/);
+                    }
+                    else
+                        printf("VBoxDrv: Failed to allocate %u bytes for %s: %d\n", (unsigned)cbImage, pszFilename, rc);
+                }
+                else
+                {
+                    printf("VBoxDrv: Image size mismatch for %s: %#x, ring-3 says %#x\n",
+                           pszFilename, (unsigned)cbImage, (unsigned)pImage->cbImageBits);
+                    rc = VERR_LDR_MISMATCH_NATIVE;
+                }
+            }
+            else if (pErrInfo && RTErrInfoIsSet(&pErrInfo->Core))
+                printf("VBoxDrv: RTLdrOpenInMemory(%s) failed: %d - %s\n", pszFilename, rc, pErrInfo->Core.pszMsg);
+            else
+                printf("VBoxDrv: RTLdrOpenInMemory(%s) failed: %d\n", pszFilename, rc);
+            RTLdrClose(hLdrMod);
+        }
+        else if (pErrInfo && RTErrInfoIsSet(&pErrInfo->Core))
+            printf("VBoxDrv: RTLdrOpenInMemory(%s) failed: %d - %s\n", pszFilename, rc, pErrInfo->Core.pszMsg);
+        else
+            printf("VBoxDrv: RTLdrOpenInMemory(%s) failed: %d\n", pszFilename, rc);
+        RTMemTmpFree(pErrInfo);
+    }
+    return rc;
+#else  /* !VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION */
+    NOREF(pDevExt); NOREF(pImage); NOREF(pszFilename);
     return VERR_NOT_SUPPORTED;
+#endif /* !VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION */
+}
+
+
+#ifdef VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION
+/**
+ *  @callback_method_impl{FNRTLDRENUMSYMS,
+ *      Worker for supdrvOSLdrValidatePointer.
+ */
+static DECLCALLBACK(int) supdrvDarwinLdrValidatePointerCallback(RTLDRMOD hLdrMod, const char *pszSymbol, unsigned uSymbol,
+                                                                RTLDRADDR Value, void *pvUser)
+{
+    RT_NOREF(hLdrMod, pszSymbol, uSymbol);
+    if (Value == (uintptr_t)pvUser)
+        return VINF_CALLBACK_RETURN;
+    return VINF_SUCCESS;
+}
+#endif
+
+
+int  VBOXCALL   supdrvOSLdrValidatePointer(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, void *pv,
+                                           const uint8_t *pbImageBits, const char *pszSymbol)
+{
+#ifdef VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION
+    AssertReturn(pImage->hLdrMod != NIL_RTLDRMOD, VERR_INVALID_STATE);
+
+    /*
+     * If we've got a symbol name, just to a lookup and compare addresses.
+     */
+    int rc;
+    if (RT_C_IS_UPPER(*pszSymbol))
+    {
+        RTLDRADDR uValueFound;
+        rc = RTLdrGetSymbolEx(pImage->hLdrMod, pImage->pvImage, (uintptr_t)pImage->pvImage, UINT32_MAX, pszSymbol, &uValueFound);
+        if (RT_SUCCESS(rc))
+        {
+            if (uValueFound == (uintptr_t)pv)
+                rc = VINF_SUCCESS;
+            else
+            {
+                SUPR0Printf("SUPDrv: Different exports found for %s in %s: %RTptr, expected %p\n",
+                            pszSymbol, pImage->szName, (RTUINTPTR)uValueFound, pv);
+                rc = VERR_LDR_BAD_FIXUP;
+            }
+        }
+        else
+            SUPR0Printf("SUPDrv: No export named %s (%p) in %s!\n", pszSymbol, pv, pImage->szName);
+    }
+    /*
+     * Otherwise do a symbol enumeration and look for the entrypoint.
+     */
+    else
+    {
+        rc = RTLdrEnumSymbols(pImage->hLdrMod, 0 /*fFlags*/, pImage->pvImage, (uintptr_t)pImage->pvImage,
+                              supdrvDarwinLdrValidatePointerCallback, pv);
+        if (rc == VINF_CALLBACK_RETURN)
+            rc = VINF_SUCCESS;
+        else if (RT_SUCCESS(rc))
+        {
+            SUPR0Printf("SUPDrv: No export with address %p (%s) in %s!\n", pv, pszSymbol, pImage->szName);
+            rc = VERR_NOT_FOUND;
+        }
+        else
+            SUPR0Printf("SUPDrv: RTLdrEnumSymbols failed on %s: %Rrc\n", pImage->szName, rc);
+    }
+    RT_NOREF(pDevExt, pbImageBits);
+    return rc;
+#else
+    NOREF(pDevExt); NOREF(pImage); NOREF(pv); NOREF(pbImageBits); NOREF(pszSymbol);
+    return VERR_NOT_SUPPORTED;
+#endif
+}
+
+
+int  VBOXCALL   supdrvOSLdrQuerySymbol(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage,
+                                       const char *pszSymbol, size_t cchSymbol, void **ppvSymbol)
+{
+#ifdef VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION
+    /*
+     * Just hand the problem to RTLdrGetSymbolEx.
+     */
+    RTLDRADDR uValueFound;
+    int rc = RTLdrGetSymbolEx(pImage->hLdrMod, pImage->pvImage, (uintptr_t)pImage->pvImage, UINT32_MAX, pszSymbol, &uValueFound);
+    if (RT_SUCCESS(rc))
+    {
+        *ppvSymbol = (void *)(uintptr_t)uValueFound;
+        return VINF_SUCCESS;
+    }
+    RT_NOREF(pDevExt, cchSymbol);
+    return rc;
+
+#else
+    RT_NOREF(pDevExt, pImage, pszSymbol, cchSymbol, ppvSymbol);
+    return VERR_WRONG_ORDER;
+#endif
 }
 
 
 int  VBOXCALL   supdrvOSLdrLoad(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage, const uint8_t *pbImageBits, PSUPLDRLOAD pReq)
 {
+#ifdef VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION
+    /* State paranoia. */
+    AssertReturn(pImage->hLdrMod != NIL_RTLDRMOD, VERR_INVALID_STATE);
+    AssertReturn(pImage->hMemAlloc != NIL_RTR0MEMOBJ, VERR_INVALID_STATE);
+    AssertReturn(pImage->pvImage, VERR_INVALID_STATE);
+
+    /*
+     * We should get an identical match with ring-3 here, so the code here is
+     * trivial in comparision to SUPDrv-win.cpp.
+     */
+    if (!memcmp(pImage->pvImage, pbImageBits, pImage->cbImageBits))
+        return VINF_SUCCESS;
+
+    /*
+     * Try show what when wrong (code is copied from supdrvNtCompare).
+     */
+    uint32_t        cbLeft       = pImage->cbImageBits;
+    const uint8_t  *pbNativeBits = (const uint8_t *)pImage->pvImage;
+    for (size_t off = 0; cbLeft > 0; off++, cbLeft--)
+        if (pbNativeBits[off] != pbImageBits[off])
+        {
+            /* Note! We need to copy image bits into a temporary stack buffer here as we'd
+                     otherwise risk overwriting them while formatting the error message. */
+            uint8_t abBytes[64];
+            memcpy(abBytes, &pbImageBits[off], RT_MIN(64, cbLeft));
+            supdrvLdrLoadError(VERR_LDR_MISMATCH_NATIVE, pReq,
+                               "Mismatch at %#x (%p) of %s loaded at %p:\n"
+                               "ring-0: %.*Rhxs\n"
+                               "ring-3: %.*Rhxs",
+                               off, &pbNativeBits[off], pImage->szName, pImage->pvImage,
+                               RT_MIN(64, cbLeft), &pbNativeBits[off],
+                               RT_MIN(64, cbLeft), &abBytes[0]);
+            printf("SUPDrv: %s\n", pReq->u.Out.szError);
+            break;
+        }
+
+    RT_NOREF(pDevExt);
+    return VERR_LDR_MISMATCH_NATIVE;
+
+#else
     NOREF(pDevExt); NOREF(pImage); NOREF(pbImageBits); NOREF(pReq);
     return VERR_NOT_SUPPORTED;
+#endif
 }
 
 
 void VBOXCALL   supdrvOSLdrUnload(PSUPDRVDEVEXT pDevExt, PSUPDRVLDRIMAGE pImage)
 {
+#ifdef VBOX_WITH_DARWIN_R0_DARWIN_IMAGE_VERIFICATION
+    if (pImage->hLdrMod != NIL_RTLDRMOD)
+    {
+        int rc = RTLdrClose(pImage->hLdrMod);
+        AssertRC(rc);
+        pImage->hLdrMod = NIL_RTLDRMOD;
+    }
+    if (pImage->hMemAlloc != NIL_RTR0MEMOBJ)
+    {
+        RTR0MemObjFree(pImage->hMemAlloc, true /*fFreeMappings*/);
+        pImage->hMemAlloc = NIL_RTR0MEMOBJ;
+    }
+    NOREF(pDevExt);
+#else
     NOREF(pDevExt); NOREF(pImage);
+#endif
 }
 
 
@@ -1543,6 +2005,10 @@ SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void)
  *
  * org_virtualbox_SupDrv
  *
+ * - IOService diff resync -
+ * - IOService diff resync -
+ * - IOService diff resync -
+ *
  */
 
 
@@ -1551,7 +2017,7 @@ SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void)
  */
 bool org_virtualbox_SupDrv::init(OSDictionary *pDictionary)
 {
-    LogFlow(("org_virtualbox_SupDrv::init([%p], %p)\n", this, pDictionary));
+    LogFlow(("IOService::init([%p], %p)\n", this, pDictionary));
     if (IOService::init(pDictionary))
     {
         /* init members. */
@@ -1577,7 +2043,7 @@ void org_virtualbox_SupDrv::free(void)
  */
 IOService *org_virtualbox_SupDrv::probe(IOService *pProvider, SInt32 *pi32Score)
 {
-    LogFlow(("org_virtualbox_SupDrv::probe([%p])\n", this));
+    LogFlow(("IOService::probe([%p])\n", this));
     return IOService::probe(pProvider, pi32Score);
 }
 
@@ -1649,11 +2115,10 @@ bool org_virtualbox_SupDrvClient::initWithTask(task_t OwningTask, void *pvSecuri
     if (!OwningTask)
         return false;
 
-    VBOX_RETRIEVE_CUR_PROC_NAME(pszProcName);
-
     if (u32Type != SUP_DARWIN_IOSERVICE_COOKIE)
     {
-        LogRelMax(10,("org_virtualbox_SupDrvClient::initWithTask: Bad cookie %#x (%s)\n", u32Type, pszProcName));
+        VBOX_RETRIEVE_CUR_PROC_NAME(szProcName);
+        LogRelMax(10,("org_virtualbox_SupDrvClient::initWithTask: Bad cookie %#x (%s)\n", u32Type, szProcName));
         return false;
     }
 
@@ -1842,8 +2307,7 @@ IOReturn org_virtualbox_SupDrvClient::clientClose(void)
  */
 IOReturn org_virtualbox_SupDrvClient::clientDied(void)
 {
-    LogFlow(("org_virtualbox_SupDrvClient::clientDied([%p]) m_Task=%p R0Process=%p Process=%d\n",
-             this, m_Task, RTR0ProcHandleSelf(), RTProcSelf()));
+    LogFlow(("IOService::clientDied([%p]) m_Task=%p R0Process=%p Process=%d\n", this, m_Task, RTR0ProcHandleSelf(), RTProcSelf()));
 
     /* IOUserClient::clientDied() calls clientClose, so we'll just do the work there. */
     return IOUserClient::clientDied();
@@ -1855,7 +2319,7 @@ IOReturn org_virtualbox_SupDrvClient::clientDied(void)
  */
 bool org_virtualbox_SupDrvClient::terminate(IOOptionBits fOptions)
 {
-    LogFlow(("org_virtualbox_SupDrvClient::terminate([%p], %#x)\n", this, fOptions));
+    LogFlow(("IOService::terminate([%p], %#x)\n", this, fOptions));
     return IOUserClient::terminate(fOptions);
 }
 
@@ -1865,7 +2329,7 @@ bool org_virtualbox_SupDrvClient::terminate(IOOptionBits fOptions)
  */
 bool org_virtualbox_SupDrvClient::finalize(IOOptionBits fOptions)
 {
-    LogFlow(("org_virtualbox_SupDrvClient::finalize([%p], %#x)\n", this, fOptions));
+    LogFlow(("IOService::finalize([%p], %#x)\n", this, fOptions));
     return IOUserClient::finalize(fOptions);
 }
 
@@ -1875,7 +2339,7 @@ bool org_virtualbox_SupDrvClient::finalize(IOOptionBits fOptions)
  */
 void org_virtualbox_SupDrvClient::stop(IOService *pProvider)
 {
-    LogFlow(("org_virtualbox_SupDrvClient::stop([%p])\n", this));
+    LogFlow(("IOService::stop([%p])\n", this));
     IOUserClient::stop(pProvider);
 }
 

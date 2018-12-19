@@ -27,6 +27,10 @@
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/em.h>
+#ifndef IN_RC
+# include <VBox/vmm/nem.h>
+# include <VBox/vmm/hm.h>
+#endif
 #if defined(VBOX_WITH_RAW_MODE) && !defined(IN_RING0)
 # include <VBox/vmm/selm.h>
 #endif
@@ -41,7 +45,7 @@
 #include <iprt/asm.h>
 #include <iprt/asm-amd64-x86.h>
 #ifdef IN_RING3
-#include <iprt/thread.h>
+# include <iprt/thread.h>
 #endif
 
 /** Disable stack frame pointer generation here. */
@@ -79,6 +83,17 @@ AssertCompile2MemberOffsets(VM, cpum.s.GuestFeatures, cpum.ro.GuestFeatures);
     Assert(CPUMSELREG_ARE_HIDDEN_PARTS_VALID(a_pVCpu, a_pSReg));
 #endif
 
+/** @def CPUM_INT_ASSERT_NOT_EXTRN
+ * Macro for asserting that @a a_fNotExtrn are present.
+ *
+ * @param   a_pVCpu         The cross context virtual CPU structure of the calling EMT.
+ * @param   a_fNotExtrn     Mask of CPUMCTX_EXTRN_XXX bits to check.
+ */
+#define CPUM_INT_ASSERT_NOT_EXTRN(a_pVCpu, a_fNotExtrn) \
+    AssertMsg(!((a_pVCpu)->cpum.s.Guest.fExtrn & (a_fNotExtrn)), \
+              ("%#RX64; a_fNotExtrn=%#RX64\n", (a_pVCpu)->cpum.s.Guest.fExtrn, (a_fNotExtrn)))
+
+
 
 
 #ifdef VBOX_WITH_RAW_MODE_NOT_R0
@@ -92,7 +107,7 @@ AssertCompile2MemberOffsets(VM, cpum.s.GuestFeatures, cpum.ro.GuestFeatures);
 static void cpumGuestLazyLoadHiddenSelectorReg(PVMCPU pVCpu, PCPUMSELREG pSReg)
 {
     Assert(!CPUMSELREG_ARE_HIDDEN_PARTS_VALID(pVCpu, pSReg));
-    Assert(!HMIsEnabled(pVCpu->CTX_SUFF(pVM)));
+    Assert(VM_IS_RAW_MODE_ENABLED(pVCpu->CTX_SUFF(pVM)));
     Assert((uintptr_t)(pSReg - &pVCpu->cpum.s.Guest.es) < X86_SREG_COUNT);
 
     if (pVCpu->cpum.s.Guest.eflags.Bits.u1VM)
@@ -576,34 +591,53 @@ VMMDECL(PCPUMCTX) CPUMQueryGuestCtxPtr(PVMCPU pVCpu)
     return &pVCpu->cpum.s.Guest;
 }
 
+
+/**
+ * Queries the pointer to the internal CPUMCTXMSRS structure.
+ *
+ * This is for NEM only.
+ *
+ * @returns The CPUMCTX pointer.
+ * @param   pVCpu       The cross context virtual CPU structure.
+ */
+VMM_INT_DECL(PCPUMCTXMSRS) CPUMQueryGuestCtxMsrsPtr(PVMCPU pVCpu)
+{
+    return &pVCpu->cpum.s.GuestMsrs;
+}
+
+
 VMMDECL(int) CPUMSetGuestGDTR(PVMCPU pVCpu, uint64_t GCPtrBase, uint16_t cbLimit)
 {
 #ifdef VBOX_WITH_RAW_MODE_NOT_R0
-    if (!HMIsEnabled(pVCpu->CTX_SUFF(pVM)))
+    if (VM_IS_RAW_MODE_ENABLED(pVCpu->CTX_SUFF(pVM)))
         VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT);
 #endif
     pVCpu->cpum.s.Guest.gdtr.cbGdt = cbLimit;
     pVCpu->cpum.s.Guest.gdtr.pGdt  = GCPtrBase;
+    pVCpu->cpum.s.Guest.fExtrn &= ~CPUMCTX_EXTRN_GDTR;
     pVCpu->cpum.s.fChanged |= CPUM_CHANGED_GDTR;
     return VINF_SUCCESS; /* formality, consider it void. */
 }
 
+
 VMMDECL(int) CPUMSetGuestIDTR(PVMCPU pVCpu, uint64_t GCPtrBase, uint16_t cbLimit)
 {
 #ifdef VBOX_WITH_RAW_MODE_NOT_R0
-    if (!HMIsEnabled(pVCpu->CTX_SUFF(pVM)))
+    if (VM_IS_RAW_MODE_ENABLED(pVCpu->CTX_SUFF(pVM)))
         VMCPU_FF_SET(pVCpu, VMCPU_FF_TRPM_SYNC_IDT);
 #endif
     pVCpu->cpum.s.Guest.idtr.cbIdt = cbLimit;
     pVCpu->cpum.s.Guest.idtr.pIdt  = GCPtrBase;
+    pVCpu->cpum.s.Guest.fExtrn &= ~CPUMCTX_EXTRN_IDTR;
     pVCpu->cpum.s.fChanged |= CPUM_CHANGED_IDTR;
     return VINF_SUCCESS; /* formality, consider it void. */
 }
 
+
 VMMDECL(int) CPUMSetGuestTR(PVMCPU pVCpu, uint16_t tr)
 {
 #ifdef VBOX_WITH_RAW_MODE_NOT_R0
-    if (!HMIsEnabled(pVCpu->CTX_SUFF(pVM)))
+    if (VM_IS_RAW_MODE_ENABLED(pVCpu->CTX_SUFF(pVM)))
         VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS);
 #endif
     pVCpu->cpum.s.Guest.tr.Sel  = tr;
@@ -611,12 +645,13 @@ VMMDECL(int) CPUMSetGuestTR(PVMCPU pVCpu, uint16_t tr)
     return VINF_SUCCESS; /* formality, consider it void. */
 }
 
+
 VMMDECL(int) CPUMSetGuestLDTR(PVMCPU pVCpu, uint16_t ldtr)
 {
 #ifdef VBOX_WITH_RAW_MODE_NOT_R0
     if (   (   ldtr != 0
             || pVCpu->cpum.s.Guest.ldtr.Sel != 0)
-        && !HMIsEnabled(pVCpu->CTX_SUFF(pVM)))
+        && VM_IS_RAW_MODE_ENABLED(pVCpu->CTX_SUFF(pVM)))
         VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_LDT);
 #endif
     pVCpu->cpum.s.Guest.ldtr.Sel      = ldtr;
@@ -713,6 +748,7 @@ VMMDECL(int) CPUMSetGuestCR0(PVMCPU pVCpu, uint64_t cr0)
         cr0 |= X86_CR0_ET;
 
     pVCpu->cpum.s.Guest.cr0 = cr0;
+    pVCpu->cpum.s.Guest.fExtrn &= ~CPUMCTX_EXTRN_CR0;
     return VINF_SUCCESS;
 }
 
@@ -720,6 +756,7 @@ VMMDECL(int) CPUMSetGuestCR0(PVMCPU pVCpu, uint64_t cr0)
 VMMDECL(int) CPUMSetGuestCR2(PVMCPU pVCpu, uint64_t cr2)
 {
     pVCpu->cpum.s.Guest.cr2 = cr2;
+    pVCpu->cpum.s.Guest.fExtrn &= ~CPUMCTX_EXTRN_CR2;
     return VINF_SUCCESS;
 }
 
@@ -728,6 +765,7 @@ VMMDECL(int) CPUMSetGuestCR3(PVMCPU pVCpu, uint64_t cr3)
 {
     pVCpu->cpum.s.Guest.cr3 = cr3;
     pVCpu->cpum.s.fChanged |= CPUM_CHANGED_CR3;
+    pVCpu->cpum.s.Guest.fExtrn &= ~CPUMCTX_EXTRN_CR3;
     return VINF_SUCCESS;
 }
 
@@ -742,6 +780,7 @@ VMMDECL(int) CPUMSetGuestCR4(PVMCPU pVCpu, uint64_t cr4)
 
     pVCpu->cpum.s.fChanged |= CPUM_CHANGED_CR4;
     pVCpu->cpum.s.Guest.cr4 = cr4;
+    pVCpu->cpum.s.Guest.fExtrn &= ~CPUMCTX_EXTRN_CR4;
     return VINF_SUCCESS;
 }
 
@@ -749,6 +788,7 @@ VMMDECL(int) CPUMSetGuestCR4(PVMCPU pVCpu, uint64_t cr4)
 VMMDECL(int) CPUMSetGuestEFlags(PVMCPU pVCpu, uint32_t eflags)
 {
     pVCpu->cpum.s.Guest.eflags.u32 = eflags;
+    pVCpu->cpum.s.Guest.fExtrn &= ~CPUMCTX_EXTRN_RFLAGS;
     return VINF_SUCCESS;
 }
 
@@ -861,11 +901,13 @@ VMMDECL(int) CPUMSetGuestGS(PVMCPU pVCpu, uint16_t gs)
 VMMDECL(void) CPUMSetGuestEFER(PVMCPU pVCpu, uint64_t val)
 {
     pVCpu->cpum.s.Guest.msrEFER = val;
+    pVCpu->cpum.s.Guest.fExtrn &= ~CPUMCTX_EXTRN_EFER;
 }
 
 
 VMMDECL(RTGCPTR) CPUMGetGuestIDTR(PVMCPU pVCpu, uint16_t *pcbLimit)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_IDTR);
     if (pcbLimit)
         *pcbLimit = pVCpu->cpum.s.Guest.idtr.cbIdt;
     return pVCpu->cpum.s.Guest.idtr.pIdt;
@@ -874,6 +916,7 @@ VMMDECL(RTGCPTR) CPUMGetGuestIDTR(PVMCPU pVCpu, uint16_t *pcbLimit)
 
 VMMDECL(RTSEL) CPUMGetGuestTR(PVMCPU pVCpu, PCPUMSELREGHID pHidden)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_TR);
     if (pHidden)
         *pHidden = pVCpu->cpum.s.Guest.tr;
     return pVCpu->cpum.s.Guest.tr.Sel;
@@ -882,45 +925,52 @@ VMMDECL(RTSEL) CPUMGetGuestTR(PVMCPU pVCpu, PCPUMSELREGHID pHidden)
 
 VMMDECL(RTSEL) CPUMGetGuestCS(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CS);
     return pVCpu->cpum.s.Guest.cs.Sel;
 }
 
 
 VMMDECL(RTSEL) CPUMGetGuestDS(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_DS);
     return pVCpu->cpum.s.Guest.ds.Sel;
 }
 
 
 VMMDECL(RTSEL) CPUMGetGuestES(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_ES);
     return pVCpu->cpum.s.Guest.es.Sel;
 }
 
 
 VMMDECL(RTSEL) CPUMGetGuestFS(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_FS);
     return pVCpu->cpum.s.Guest.fs.Sel;
 }
 
 
 VMMDECL(RTSEL) CPUMGetGuestGS(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_GS);
     return pVCpu->cpum.s.Guest.gs.Sel;
 }
 
 
 VMMDECL(RTSEL) CPUMGetGuestSS(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_SS);
     return pVCpu->cpum.s.Guest.ss.Sel;
 }
 
 
 VMMDECL(uint64_t)   CPUMGetGuestFlatPC(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_RIP | CPUMCTX_EXTRN_CS | CPUMCTX_EXTRN_EFER);
     CPUMSELREG_LAZY_LOAD_HIDDEN_PARTS(pVCpu, &pVCpu->cpum.s.Guest.cs);
     if (   !CPUMIsGuestInLongMode(pVCpu)
-        || pVCpu->cpum.s.Guest.cs.Attr.n.u1Long)
+        || !pVCpu->cpum.s.Guest.cs.Attr.n.u1Long)
         return pVCpu->cpum.s.Guest.eip + (uint32_t)pVCpu->cpum.s.Guest.cs.u64Base;
     return pVCpu->cpum.s.Guest.rip + pVCpu->cpum.s.Guest.cs.u64Base;
 }
@@ -928,9 +978,10 @@ VMMDECL(uint64_t)   CPUMGetGuestFlatPC(PVMCPU pVCpu)
 
 VMMDECL(uint64_t)   CPUMGetGuestFlatSP(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_RSP | CPUMCTX_EXTRN_SS | CPUMCTX_EXTRN_CS | CPUMCTX_EXTRN_EFER);
     CPUMSELREG_LAZY_LOAD_HIDDEN_PARTS(pVCpu, &pVCpu->cpum.s.Guest.ss);
     if (   !CPUMIsGuestInLongMode(pVCpu)
-        || pVCpu->cpum.s.Guest.ss.Attr.n.u1Long)
+        || !pVCpu->cpum.s.Guest.cs.Attr.n.u1Long)
         return pVCpu->cpum.s.Guest.eip + (uint32_t)pVCpu->cpum.s.Guest.ss.u64Base;
     return pVCpu->cpum.s.Guest.rip + pVCpu->cpum.s.Guest.ss.u64Base;
 }
@@ -938,12 +989,14 @@ VMMDECL(uint64_t)   CPUMGetGuestFlatSP(PVMCPU pVCpu)
 
 VMMDECL(RTSEL) CPUMGetGuestLDTR(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_LDTR);
     return pVCpu->cpum.s.Guest.ldtr.Sel;
 }
 
 
 VMMDECL(RTSEL) CPUMGetGuestLdtrEx(PVMCPU pVCpu, uint64_t *pGCPtrBase, uint32_t *pcbLimit)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_LDTR);
     *pGCPtrBase = pVCpu->cpum.s.Guest.ldtr.u64Base;
     *pcbLimit   = pVCpu->cpum.s.Guest.ldtr.u32Limit;
     return pVCpu->cpum.s.Guest.ldtr.Sel;
@@ -952,24 +1005,28 @@ VMMDECL(RTSEL) CPUMGetGuestLdtrEx(PVMCPU pVCpu, uint64_t *pGCPtrBase, uint32_t *
 
 VMMDECL(uint64_t) CPUMGetGuestCR0(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR0);
     return pVCpu->cpum.s.Guest.cr0;
 }
 
 
 VMMDECL(uint64_t) CPUMGetGuestCR2(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR2);
     return pVCpu->cpum.s.Guest.cr2;
 }
 
 
 VMMDECL(uint64_t) CPUMGetGuestCR3(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR3);
     return pVCpu->cpum.s.Guest.cr3;
 }
 
 
 VMMDECL(uint64_t) CPUMGetGuestCR4(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR4);
     return pVCpu->cpum.s.Guest.cr4;
 }
 
@@ -986,72 +1043,84 @@ VMMDECL(uint64_t) CPUMGetGuestCR8(PVMCPU pVCpu)
 
 VMMDECL(void) CPUMGetGuestGDTR(PVMCPU pVCpu, PVBOXGDTR pGDTR)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_GDTR);
     *pGDTR = pVCpu->cpum.s.Guest.gdtr;
 }
 
 
 VMMDECL(uint32_t) CPUMGetGuestEIP(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_RIP);
     return pVCpu->cpum.s.Guest.eip;
 }
 
 
 VMMDECL(uint64_t) CPUMGetGuestRIP(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_RIP);
     return pVCpu->cpum.s.Guest.rip;
 }
 
 
 VMMDECL(uint32_t) CPUMGetGuestEAX(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_RAX);
     return pVCpu->cpum.s.Guest.eax;
 }
 
 
 VMMDECL(uint32_t) CPUMGetGuestEBX(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_RBX);
     return pVCpu->cpum.s.Guest.ebx;
 }
 
 
 VMMDECL(uint32_t) CPUMGetGuestECX(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_RCX);
     return pVCpu->cpum.s.Guest.ecx;
 }
 
 
 VMMDECL(uint32_t) CPUMGetGuestEDX(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_RDX);
     return pVCpu->cpum.s.Guest.edx;
 }
 
 
 VMMDECL(uint32_t) CPUMGetGuestESI(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_RSI);
     return pVCpu->cpum.s.Guest.esi;
 }
 
 
 VMMDECL(uint32_t) CPUMGetGuestEDI(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_RDI);
     return pVCpu->cpum.s.Guest.edi;
 }
 
 
 VMMDECL(uint32_t) CPUMGetGuestESP(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_RSP);
     return pVCpu->cpum.s.Guest.esp;
 }
 
 
 VMMDECL(uint32_t) CPUMGetGuestEBP(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_RBP);
     return pVCpu->cpum.s.Guest.ebp;
 }
 
 
 VMMDECL(uint32_t) CPUMGetGuestEFlags(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_RFLAGS);
     return pVCpu->cpum.s.Guest.eflags.u32;
 }
 
@@ -1061,23 +1130,28 @@ VMMDECL(int) CPUMGetGuestCRx(PVMCPU pVCpu, unsigned iReg, uint64_t *pValue)
     switch (iReg)
     {
         case DISCREG_CR0:
+            CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR0);
             *pValue = pVCpu->cpum.s.Guest.cr0;
             break;
 
         case DISCREG_CR2:
+            CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR2);
             *pValue = pVCpu->cpum.s.Guest.cr2;
             break;
 
         case DISCREG_CR3:
+            CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR3);
             *pValue = pVCpu->cpum.s.Guest.cr3;
             break;
 
         case DISCREG_CR4:
+            CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR4);
             *pValue = pVCpu->cpum.s.Guest.cr4;
             break;
 
         case DISCREG_CR8:
         {
+            CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_APIC_TPR);
             uint8_t u8Tpr;
             int rc = APICGetTpr(pVCpu, &u8Tpr, NULL /* pfPending */, NULL /* pu8PendingIrq */);
             if (RT_FAILURE(rc))
@@ -1099,42 +1173,49 @@ VMMDECL(int) CPUMGetGuestCRx(PVMCPU pVCpu, unsigned iReg, uint64_t *pValue)
 
 VMMDECL(uint64_t) CPUMGetGuestDR0(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_DR0_DR3);
     return pVCpu->cpum.s.Guest.dr[0];
 }
 
 
 VMMDECL(uint64_t) CPUMGetGuestDR1(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_DR0_DR3);
     return pVCpu->cpum.s.Guest.dr[1];
 }
 
 
 VMMDECL(uint64_t) CPUMGetGuestDR2(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_DR0_DR3);
     return pVCpu->cpum.s.Guest.dr[2];
 }
 
 
 VMMDECL(uint64_t) CPUMGetGuestDR3(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_DR0_DR3);
     return pVCpu->cpum.s.Guest.dr[3];
 }
 
 
 VMMDECL(uint64_t) CPUMGetGuestDR6(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_DR6);
     return pVCpu->cpum.s.Guest.dr[6];
 }
 
 
 VMMDECL(uint64_t) CPUMGetGuestDR7(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_DR7);
     return pVCpu->cpum.s.Guest.dr[7];
 }
 
 
 VMMDECL(int) CPUMGetGuestDRx(PVMCPU pVCpu, uint32_t iReg, uint64_t *pValue)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_DR_MASK);
     AssertReturn(iReg <= DISDREG_DR7, VERR_INVALID_PARAMETER);
     /* DR4 is an alias for DR6, and DR5 is an alias for DR7. */
     if (iReg == 4 || iReg == 5)
@@ -1146,6 +1227,7 @@ VMMDECL(int) CPUMGetGuestDRx(PVMCPU pVCpu, uint32_t iReg, uint64_t *pValue)
 
 VMMDECL(uint64_t) CPUMGetGuestEFER(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_EFER);
     return pVCpu->cpum.s.Guest.msrEFER;
 }
 
@@ -1488,6 +1570,7 @@ VMMDECL(int) CPUMSetGuestDR3(PVMCPU pVCpu, uint64_t uDr3)
 VMMDECL(int) CPUMSetGuestDR6(PVMCPU pVCpu, uint64_t uDr6)
 {
     pVCpu->cpum.s.Guest.dr[6] = uDr6;
+    pVCpu->cpum.s.Guest.fExtrn &= ~CPUMCTX_EXTRN_DR6;
     return VINF_SUCCESS; /* No need to recalc. */
 }
 
@@ -1495,6 +1578,7 @@ VMMDECL(int) CPUMSetGuestDR6(PVMCPU pVCpu, uint64_t uDr6)
 VMMDECL(int) CPUMSetGuestDR7(PVMCPU pVCpu, uint64_t uDr7)
 {
     pVCpu->cpum.s.Guest.dr[7] = uDr7;
+    pVCpu->cpum.s.Guest.fExtrn &= ~CPUMCTX_EXTRN_DR7;
     return CPUMRecalcHyperDRx(pVCpu, 7, false);
 }
 
@@ -1556,6 +1640,7 @@ VMMDECL(int) CPUMRecalcHyperDRx(PVMCPU pVCpu, uint8_t iGstReg, bool fForceHyper)
      * stuff if they're cleared like we have to for the guest DR7.
      */
     RTGCUINTREG uGstDr7 = CPUMGetGuestDR7(pVCpu);
+    /** @todo This isn't correct. BPs work without setting LE and GE under AMD-V.  They are also documented as unsupported by P6+. */
     if (!(uGstDr7 & (X86_DR7_LE | X86_DR7_GE)))
         uGstDr7 = 0;
     else if (!(uGstDr7 & X86_DR7_LE))
@@ -1569,13 +1654,14 @@ VMMDECL(int) CPUMRecalcHyperDRx(PVMCPU pVCpu, uint8_t iGstReg, bool fForceHyper)
     if (!fForceHyper && (pVCpu->cpum.s.fUseFlags & CPUM_USED_DEBUG_REGS_HYPER))
         fForceHyper = true;
 #endif
-    if (( HMIsEnabled(pVCpu->CTX_SUFF(pVM)) && !fForceHyper ? uDbgfDr7 : (uGstDr7 | uDbgfDr7)) & X86_DR7_ENABLED_MASK)
+    if (  (!VM_IS_RAW_MODE_ENABLED(pVCpu->CTX_SUFF(pVM)) && !fForceHyper ? uDbgfDr7 : (uGstDr7 | uDbgfDr7))
+        & X86_DR7_ENABLED_MASK)
     {
         Assert(!CPUMIsGuestDebugStateActive(pVCpu));
 #ifdef IN_RC
-        bool const fHmEnabled = false;
+        bool const fRawModeEnabled = true;
 #elif defined(IN_RING3)
-        bool const fHmEnabled = HMIsEnabled(pVM);
+        bool const fRawModeEnabled = VM_IS_RAW_MODE_ENABLED(pVM);
 #endif
 
         /*
@@ -1596,7 +1682,7 @@ VMMDECL(int) CPUMRecalcHyperDRx(PVMCPU pVCpu, uint8_t iGstReg, bool fForceHyper)
         {
             uNewDr0 = CPUMGetGuestDR0(pVCpu);
 #ifndef IN_RING0
-            if (fHmEnabled && MMHyperIsInsideArea(pVM, uNewDr0))
+            if (fRawModeEnabled && MMHyperIsInsideArea(pVM, uNewDr0))
                 uNewDr0 = 0;
             else
 #endif
@@ -1616,7 +1702,7 @@ VMMDECL(int) CPUMRecalcHyperDRx(PVMCPU pVCpu, uint8_t iGstReg, bool fForceHyper)
         {
             uNewDr1 = CPUMGetGuestDR1(pVCpu);
 #ifndef IN_RING0
-            if (fHmEnabled && MMHyperIsInsideArea(pVM, uNewDr1))
+            if (fRawModeEnabled && MMHyperIsInsideArea(pVM, uNewDr1))
                 uNewDr1 = 0;
             else
 #endif
@@ -1636,7 +1722,7 @@ VMMDECL(int) CPUMRecalcHyperDRx(PVMCPU pVCpu, uint8_t iGstReg, bool fForceHyper)
         {
             uNewDr2 = CPUMGetGuestDR2(pVCpu);
 #ifndef IN_RING0
-            if (fHmEnabled && MMHyperIsInsideArea(pVM, uNewDr2))
+            if (fRawModeEnabled && MMHyperIsInsideArea(pVM, uNewDr2))
                 uNewDr2 = 0;
             else
 #endif
@@ -1656,7 +1742,7 @@ VMMDECL(int) CPUMRecalcHyperDRx(PVMCPU pVCpu, uint8_t iGstReg, bool fForceHyper)
         {
             uNewDr3 = CPUMGetGuestDR3(pVCpu);
 #ifndef IN_RING0
-            if (fHmEnabled && MMHyperIsInsideArea(pVM, uNewDr3))
+            if (fRawModeEnabled && MMHyperIsInsideArea(pVM, uNewDr3))
                 uNewDr3 = 0;
             else
 #endif
@@ -1789,6 +1875,7 @@ VMMDECL(int) CPUMRecalcHyperDRx(PVMCPU pVCpu, uint8_t iGstReg, bool fForceHyper)
  */
 VMM_INT_DECL(int)   CPUMSetGuestXcr0(PVMCPU pVCpu, uint64_t uNewValue)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_XCRx);
     if (   (uNewValue & ~pVCpu->CTX_SUFF(pVM)->cpum.s.fXStateGuestMask) == 0
         /* The X87 bit cannot be cleared. */
         && (uNewValue & XSAVE_C_X87)
@@ -1839,6 +1926,7 @@ VMM_INT_DECL(int)   CPUMSetGuestXcr0(PVMCPU pVCpu, uint64_t uNewValue)
  */
 VMMDECL(bool) CPUMIsGuestNXEnabled(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_EFER);
     return !!(pVCpu->cpum.s.Guest.msrEFER & MSR_K6_EFER_NXE);
 }
 
@@ -1851,6 +1939,7 @@ VMMDECL(bool) CPUMIsGuestNXEnabled(PVMCPU pVCpu)
  */
 VMMDECL(bool) CPUMIsGuestPageSizeExtEnabled(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR4);
     /* PAE or AMD64 implies support for big pages regardless of CR4.PSE */
     return !!(pVCpu->cpum.s.Guest.cr4 & (X86_CR4_PSE | X86_CR4_PAE));
 }
@@ -1864,6 +1953,7 @@ VMMDECL(bool) CPUMIsGuestPageSizeExtEnabled(PVMCPU pVCpu)
  */
 VMMDECL(bool) CPUMIsGuestPagingEnabled(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR0);
     return !!(pVCpu->cpum.s.Guest.cr0 & X86_CR0_PG);
 }
 
@@ -1876,6 +1966,7 @@ VMMDECL(bool) CPUMIsGuestPagingEnabled(PVMCPU pVCpu)
  */
 VMMDECL(bool) CPUMIsGuestR0WriteProtEnabled(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR0);
     return !!(pVCpu->cpum.s.Guest.cr0 & X86_CR0_WP);
 }
 
@@ -1888,6 +1979,7 @@ VMMDECL(bool) CPUMIsGuestR0WriteProtEnabled(PVMCPU pVCpu)
  */
 VMMDECL(bool) CPUMIsGuestInRealMode(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR0);
     return !(pVCpu->cpum.s.Guest.cr0 & X86_CR0_PE);
 }
 
@@ -1900,6 +1992,7 @@ VMMDECL(bool) CPUMIsGuestInRealMode(PVMCPU pVCpu)
  */
 VMMDECL(bool) CPUMIsGuestInRealOrV86Mode(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR0 | CPUMCTX_EXTRN_RFLAGS);
     return !(pVCpu->cpum.s.Guest.cr0 & X86_CR0_PE)
         || pVCpu->cpum.s.Guest.eflags.Bits.u1VM; /** @todo verify that this cannot be set in long mode. */
 }
@@ -1913,6 +2006,7 @@ VMMDECL(bool) CPUMIsGuestInRealOrV86Mode(PVMCPU pVCpu)
  */
 VMMDECL(bool) CPUMIsGuestInProtectedMode(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR0);
     return !!(pVCpu->cpum.s.Guest.cr0 & X86_CR0_PE);
 }
 
@@ -1925,6 +2019,7 @@ VMMDECL(bool) CPUMIsGuestInProtectedMode(PVMCPU pVCpu)
  */
 VMMDECL(bool) CPUMIsGuestInPagedProtectedMode(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR0);
     return (pVCpu->cpum.s.Guest.cr0 & (X86_CR0_PE | X86_CR0_PG)) == (X86_CR0_PE | X86_CR0_PG);
 }
 
@@ -1937,6 +2032,7 @@ VMMDECL(bool) CPUMIsGuestInPagedProtectedMode(PVMCPU pVCpu)
  */
 VMMDECL(bool) CPUMIsGuestInLongMode(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_EFER);
     return (pVCpu->cpum.s.Guest.msrEFER & MSR_K6_EFER_LMA) == MSR_K6_EFER_LMA;
 }
 
@@ -1949,6 +2045,7 @@ VMMDECL(bool) CPUMIsGuestInLongMode(PVMCPU pVCpu)
  */
 VMMDECL(bool) CPUMIsGuestInPAEMode(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR4 | CPUMCTX_EXTRN_CR0 | CPUMCTX_EXTRN_EFER);
     /* Intel mentions EFER.LMA and EFER.LME in different parts of their spec. We shall use EFER.LMA rather
        than EFER.LME as it reflects if the CPU has entered paging with EFER.LME set.  */
     return (pVCpu->cpum.s.Guest.cr4 & X86_CR4_PAE)
@@ -1965,6 +2062,7 @@ VMMDECL(bool) CPUMIsGuestInPAEMode(PVMCPU pVCpu)
  */
 VMMDECL(bool) CPUMIsGuestIn64BitCode(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CS | CPUMCTX_EXTRN_EFER);
     if (!CPUMIsGuestInLongMode(pVCpu))
         return false;
     CPUMSELREG_LAZY_LOAD_HIDDEN_PARTS(pVCpu, &pVCpu->cpum.s.Guest.cs);
@@ -2417,6 +2515,7 @@ VMMDECL(uint32_t) CPUMGetGuestCPL(PVMCPU pVCpu)
      *         we're in 64-bit mode.  The intel dev box doesn't allow this, on
      *         RPL = CPL.  Weird.
      */
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR0 | CPUMCTX_EXTRN_RFLAGS | CPUMCTX_EXTRN_SS);
     uint32_t uCpl;
     if (pVCpu->cpum.s.Guest.cr0 & X86_CR0_PE)
     {
@@ -2464,6 +2563,7 @@ VMMDECL(uint32_t) CPUMGetGuestCPL(PVMCPU pVCpu)
  */
 VMMDECL(CPUMMODE) CPUMGetGuestMode(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR0 | CPUMCTX_EXTRN_EFER);
     CPUMMODE enmMode;
     if (!(pVCpu->cpum.s.Guest.cr0 & X86_CR0_PE))
         enmMode = CPUMMODE_REAL;
@@ -2484,6 +2584,8 @@ VMMDECL(CPUMMODE) CPUMGetGuestMode(PVMCPU pVCpu)
  */
 VMMDECL(uint32_t)       CPUMGetGuestCodeBits(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR0 | CPUMCTX_EXTRN_EFER | CPUMCTX_EXTRN_RFLAGS | CPUMCTX_EXTRN_CS);
+
     if (!(pVCpu->cpum.s.Guest.cr0 & X86_CR0_PE))
         return 16;
 
@@ -2507,6 +2609,8 @@ VMMDECL(uint32_t)       CPUMGetGuestCodeBits(PVMCPU pVCpu)
 
 VMMDECL(DISCPUMODE)     CPUMGetGuestDisMode(PVMCPU pVCpu)
 {
+    CPUM_INT_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR0 | CPUMCTX_EXTRN_EFER | CPUMCTX_EXTRN_RFLAGS | CPUMCTX_EXTRN_CS);
+
     if (!(pVCpu->cpum.s.Guest.cr0 & X86_CR0_PE))
         return DISCPUMODE_16BIT;
 
@@ -2544,27 +2648,206 @@ VMMDECL(uint32_t) CPUMGetGuestMxCsrMask(PVM pVM)
 
 
 /**
- * Checks whether the SVM nested-guest is in a state to receive physical (APIC)
+ * Returns whether the guest has physical interrupts enabled.
+ *
+ * @returns @c true if interrupts are enabled, @c false otherwise.
+ * @param   pVCpu       The cross context virtual CPU structure.
+ *
+ * @remarks Warning! This function does -not- take into account the global-interrupt
+ *          flag (GIF).
+ */
+VMM_INT_DECL(bool) CPUMIsGuestPhysIntrEnabled(PVMCPU pVCpu)
+{
+    if (!CPUMIsGuestInNestedHwvirtMode(&pVCpu->cpum.s.Guest))
+    {
+#ifdef VBOX_WITH_RAW_MODE_NOT_R0
+        uint32_t const fEFlags = !pVCpu->cpum.s.fRawEntered ? pVCpu->cpum.s.Guest.eflags.u : CPUMRawGetEFlags(pVCpu);
+#else
+        uint32_t const fEFlags = pVCpu->cpum.s.Guest.eflags.u;
+#endif
+        return RT_BOOL(fEFlags & X86_EFL_IF);
+    }
+
+    if (CPUMIsGuestInVmxNonRootMode(&pVCpu->cpum.s.Guest))
+        return CPUMIsGuestVmxPhysIntrEnabled(pVCpu, &pVCpu->cpum.s.Guest);
+
+    Assert(CPUMIsGuestInSvmNestedHwVirtMode(&pVCpu->cpum.s.Guest));
+    return CPUMIsGuestSvmPhysIntrEnabled(pVCpu, &pVCpu->cpum.s.Guest);
+}
+
+
+/**
+ * Returns whether the nested-guest has virtual interrupts enabled.
+ *
+ * @returns @c true if interrupts are enabled, @c false otherwise.
+ * @param   pVCpu       The cross context virtual CPU structure.
+ *
+ * @remarks Warning! This function does -not- take into account the global-interrupt
+ *          flag (GIF).
+ */
+VMM_INT_DECL(bool) CPUMIsGuestVirtIntrEnabled(PVMCPU pVCpu)
+{
+    Assert(CPUMIsGuestInNestedHwvirtMode(&pVCpu->cpum.s.Guest));
+
+    if (CPUMIsGuestInVmxNonRootMode(&pVCpu->cpum.s.Guest))
+        return CPUMIsGuestVmxVirtIntrEnabled(pVCpu, &pVCpu->cpum.s.Guest);
+
+    Assert(CPUMIsGuestInSvmNestedHwVirtMode(&pVCpu->cpum.s.Guest));
+    return CPUMIsGuestSvmVirtIntrEnabled(pVCpu, &pVCpu->cpum.s.Guest);
+}
+
+
+/**
+ * Calculates the interruptiblity of the guest.
+ *
+ * @returns Interruptibility level.
+ * @param   pVCpu               The cross context virtual CPU structure.
+ */
+VMM_INT_DECL(CPUMINTERRUPTIBILITY) CPUMGetGuestInterruptibility(PVMCPU pVCpu)
+{
+#if 1
+    /* Global-interrupt flag blocks pretty much everything we care about here. */
+    if (CPUMGetGuestGif(&pVCpu->cpum.s.Guest))
+    {
+        /*
+         * Physical interrupts are primarily blocked using EFLAGS. However, we cannot access
+         * it directly here. If and how EFLAGS are used depends on the context (nested-guest
+         * or raw-mode). Hence we use the function below which handles the details.
+         */
+        if (    CPUMIsGuestPhysIntrEnabled(pVCpu)
+            && !VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_BLOCK_NMIS | VMCPU_FF_INHIBIT_INTERRUPTS))
+        {
+            if (   !CPUMIsGuestInNestedHwvirtMode(&pVCpu->cpum.s.Guest)
+                ||  CPUMIsGuestVirtIntrEnabled(pVCpu))
+                return CPUMINTERRUPTIBILITY_UNRESTRAINED;
+
+            /* Physical interrupts are enabled, but nested-guest virtual interrupts are disabled. */
+            return CPUMINTERRUPTIBILITY_VIRT_INT_DISABLED;
+        }
+
+        /*
+         * Blocking the delivery of NMIs during an interrupt shadow is CPU implementation
+         * specific. Therefore, in practice, we can't deliver an NMI in an interrupt shadow.
+         * However, there is some uncertainity regarding the converse, i.e. whether
+         * NMI-blocking until IRET blocks delivery of physical interrupts.
+         *
+         * See Intel spec. 25.4.1 "Event Blocking".
+         */
+        if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
+            return CPUMINTERRUPTIBILITY_NMI_INHIBIT;
+
+        if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
+            return CPUMINTERRUPTIBILITY_INT_INHIBITED;
+
+        return CPUMINTERRUPTIBILITY_INT_DISABLED;
+    }
+    return CPUMINTERRUPTIBILITY_GLOBAL_INHIBIT;
+#else
+    if (pVCpu->cpum.s.Guest.rflags.Bits.u1IF)
+    {
+        if (pVCpu->cpum.s.Guest.hwvirt.fGif)
+        {
+            if (!VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_BLOCK_NMIS | VMCPU_FF_INHIBIT_INTERRUPTS))
+                return CPUMINTERRUPTIBILITY_UNRESTRAINED;
+
+            /** @todo does blocking NMIs mean interrupts are also inhibited? */
+            if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS))
+            {
+                if (!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
+                    return CPUMINTERRUPTIBILITY_INT_INHIBITED;
+                return CPUMINTERRUPTIBILITY_NMI_INHIBIT;
+            }
+            AssertFailed();
+            return CPUMINTERRUPTIBILITY_NMI_INHIBIT;
+        }
+        return CPUMINTERRUPTIBILITY_GLOBAL_INHIBIT;
+    }
+    else
+    {
+        if (pVCpu->cpum.s.Guest.hwvirt.fGif)
+        {
+            if (VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_BLOCK_NMIS))
+                return CPUMINTERRUPTIBILITY_NMI_INHIBIT;
+            return CPUMINTERRUPTIBILITY_INT_DISABLED;
+        }
+        return CPUMINTERRUPTIBILITY_GLOBAL_INHIBIT;
+    }
+#endif
+}
+
+
+/**
+ * Checks whether the VMX nested-guest is in a state to receive physical (APIC)
  * interrupts.
  *
  * @returns VBox status code.
  * @retval  true if it's ready, false otherwise.
  *
- * @param   pCtx        The guest-CPU context.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ * @param   pCtx    The guest-CPU context.
  */
-VMM_INT_DECL(bool) CPUMCanSvmNstGstTakePhysIntr(PCCPUMCTX pCtx)
+VMM_INT_DECL(bool) CPUMIsGuestVmxPhysIntrEnabled(PVMCPU pVCpu, PCCPUMCTX pCtx)
 {
 #ifdef IN_RC
-    RT_NOREF(pCtx);
+    RT_NOREF2(pVCpu, pCtx);
+    AssertReleaseFailedReturn(false);
+#else
+    RT_NOREF(pVCpu);
+    Assert(CPUMIsGuestInVmxNonRootMode(pCtx));
+
+    return RT_BOOL(pCtx->eflags.u & X86_EFL_IF);
+#endif
+}
+
+
+/**
+ * Checks whether the VMX nested-guest is in a state to receive virtual interrupts
+ * (those injected with the "virtual-interrupt delivery" feature).
+ *
+ * @returns VBox status code.
+ * @retval  true if it's ready, false otherwise.
+ *
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ * @param   pCtx    The guest-CPU context.
+ */
+VMM_INT_DECL(bool) CPUMIsGuestVmxVirtIntrEnabled(PVMCPU pVCpu, PCCPUMCTX pCtx)
+{
+#ifdef IN_RC
+    RT_NOREF2(pVCpu, pCtx);
+    AssertReleaseFailedReturn(false);
+#else
+    RT_NOREF2(pVCpu, pCtx);
+    Assert(CPUMIsGuestInVmxNonRootMode(pCtx));
+
+    if (   (pCtx->eflags.u & X86_EFL_IF)
+        && !CPUMIsGuestVmxProcCtlsSet(pVCpu, pCtx, VMX_PROC_CTLS_INT_WINDOW_EXIT))
+        return true;
+    return false;
+#endif
+}
+
+
+/**
+ * Checks whether the SVM nested-guest has physical interrupts enabled.
+ *
+ * @returns true if interrupts are enabled, false otherwise.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ * @param   pCtx    The guest-CPU context.
+ *
+ * @remarks This does -not- take into account the global-interrupt flag.
+ */
+VMM_INT_DECL(bool) CPUMIsGuestSvmPhysIntrEnabled(PVMCPU pVCpu, PCCPUMCTX pCtx)
+{
+    /** @todo Optimization: Avoid this function call and use a pointer to the
+     *        relevant eflags instead (setup during VMRUN instruction emulation). */
+#ifdef IN_RC
+    RT_NOREF2(pVCpu, pCtx);
     AssertReleaseFailedReturn(false);
 #else
     Assert(CPUMIsGuestInSvmNestedHwVirtMode(pCtx));
-    Assert(pCtx->hwvirt.svm.fGif);
-    Assert(!pCtx->hwvirt.svm.fHMCachedVmcb);
 
-    PCSVMVMCBCTRL pVmcbCtrl = &pCtx->hwvirt.svm.CTX_SUFF(pVmcb)->ctrl;
     X86EFLAGS fEFlags;
-    if (pVmcbCtrl->IntCtrl.n.u1VIntrMasking)
+    if (CPUMIsGuestSvmVirtIntrMasking(pVCpu, pCtx))
         fEFlags.u = pCtx->hwvirt.svm.HostState.rflags.u;
     else
         fEFlags.u = pCtx->eflags.u;
@@ -2575,45 +2858,48 @@ VMM_INT_DECL(bool) CPUMCanSvmNstGstTakePhysIntr(PCCPUMCTX pCtx)
 
 
 /**
- * Checks whether the SVM nested-guest is in a state to receive virtual
- * (injected by VMRUN) interrupts.
+ * Checks whether the SVM nested-guest is in a state to receive virtual (setup
+ * for injection by VMRUN instruction) interrupts.
  *
  * @returns VBox status code.
  * @retval  true if it's ready, false otherwise.
  *
- * @param   pCtx        The guest-CPU context.
+ * @param   pVCpu   The cross context virtual CPU structure of the calling EMT.
+ * @param   pCtx    The guest-CPU context.
  */
-VMM_INT_DECL(bool) CPUMCanSvmNstGstTakeVirtIntr(PCCPUMCTX pCtx)
+VMM_INT_DECL(bool) CPUMIsGuestSvmVirtIntrEnabled(PVMCPU pVCpu, PCCPUMCTX pCtx)
 {
 #ifdef IN_RC
-    RT_NOREF(pCtx);
+    RT_NOREF2(pVCpu, pCtx);
     AssertReleaseFailedReturn(false);
 #else
     Assert(CPUMIsGuestInSvmNestedHwVirtMode(pCtx));
 
-    PCSVMVMCBCTRL pVmcbCtrl = &pCtx->hwvirt.svm.CTX_SUFF(pVmcb)->ctrl;
-    if (   !pVmcbCtrl->IntCtrl.n.u1IgnoreTPR
-        &&  pVmcbCtrl->IntCtrl.n.u4VIntrPrio <= pVmcbCtrl->IntCtrl.n.u8VTPR)
+    PCSVMVMCBCTRL pVmcbCtrl    = &pCtx->hwvirt.svm.CTX_SUFF(pVmcb)->ctrl;
+    PCSVMINTCTRL  pVmcbIntCtrl = &pVmcbCtrl->IntCtrl;
+    Assert(!pVmcbIntCtrl->n.u1VGifEnable);      /* We don't support passing virtual-GIF feature to the guest yet. */
+    if (   !pVmcbIntCtrl->n.u1IgnoreTPR
+        &&  pVmcbIntCtrl->n.u4VIntrPrio <= pVmcbIntCtrl->n.u8VTPR)
         return false;
 
-    if (!pCtx->rflags.Bits.u1IF)
-        return false;
+    X86EFLAGS fEFlags;
+    if (CPUMIsGuestSvmVirtIntrMasking(pVCpu, pCtx))
+        fEFlags.u = pCtx->eflags.u;
+    else
+        fEFlags.u = pCtx->hwvirt.svm.HostState.rflags.u;
 
-    if (!pCtx->hwvirt.svm.fGif)
-        return false;
-
-    return true;
+    return fEFlags.Bits.u1IF;
 #endif
 }
 
 
 /**
- * Gets the pending SVM nested-guest interrupt.
+ * Gets the pending SVM nested-guest interruptvector.
  *
  * @returns The nested-guest interrupt to inject.
  * @param   pCtx            The guest-CPU context.
  */
-VMM_INT_DECL(uint8_t) CPUMGetSvmNstGstInterrupt(PCCPUMCTX pCtx)
+VMM_INT_DECL(uint8_t) CPUMGetGuestSvmVirtIntrVector(PCCPUMCTX pCtx)
 {
 #ifdef IN_RC
     RT_NOREF(pCtx);
@@ -2643,7 +2929,7 @@ VMM_INT_DECL(void) CPUMSvmVmExitRestoreHostState(PVMCPU pVCpu, PCPUMCTX pCtx)
     pCtx->ds         = pHostState->ds;
     pCtx->gdtr       = pHostState->gdtr;
     pCtx->idtr       = pHostState->idtr;
-    CPUMSetGuestMsrEferNoCheck(pVCpu, pCtx->msrEFER, pHostState->uEferMsr);
+    CPUMSetGuestEferMsrNoChecks(pVCpu, pCtx->msrEFER, pHostState->uEferMsr);
     CPUMSetGuestCR0(pVCpu, pHostState->uCr0 | X86_CR0_PE);
     pCtx->cr3        = pHostState->uCr3;
     CPUMSetGuestCR4(pVCpu, pHostState->uCr4);
@@ -2687,5 +2973,90 @@ VMM_INT_DECL(void) CPUMSvmVmRunSaveHostState(PCPUMCTX pCtx, uint8_t cbInstr)
     pHostState->uRip     = pCtx->rip + cbInstr;
     pHostState->uRsp     = pCtx->rsp;
     pHostState->uRax     = pCtx->rax;
+}
+
+
+/**
+ * Applies the TSC offset of a nested-guest if any and returns the new TSC
+ * value for the guest (or nested-guest).
+ *
+ * @returns The TSC offset after applying any nested-guest TSC offset.
+ * @param   pVCpu       The cross context virtual CPU structure of the calling EMT.
+ * @param   uTicks      The guest TSC.
+ *
+ * @sa      HMSvmNstGstApplyTscOffset.
+ */
+VMM_INT_DECL(uint64_t) CPUMApplyNestedGuestTscOffset(PVMCPU pVCpu, uint64_t uTicks)
+{
+#ifndef IN_RC
+    PCCPUMCTX pCtx = &pVCpu->cpum.s.Guest;
+    if (CPUMIsGuestInVmxNonRootMode(pCtx))
+    {
+        PCVMXVVMCS pVmcs = pCtx->hwvirt.vmx.CTX_SUFF(pVmcs);
+        if (pVmcs->u32ProcCtls & VMX_PROC_CTLS_USE_TSC_OFFSETTING)
+            return uTicks + pVmcs->u64TscOffset.u;
+        return uTicks;
+    }
+
+    if (CPUMIsGuestInSvmNestedHwVirtMode(pCtx))
+    {
+        if (!HMHasGuestSvmVmcbCached(pVCpu))
+        {
+            PCSVMVMCB pVmcb = pCtx->hwvirt.svm.CTX_SUFF(pVmcb);
+            return uTicks + pVmcb->ctrl.u64TSCOffset;
+        }
+        return HMSvmNstGstApplyTscOffset(pVCpu, uTicks);
+    }
+#else
+    RT_NOREF(pVCpu);
+#endif
+    return uTicks;
+}
+
+
+/**
+ * Used to dynamically imports state residing in NEM or HM.
+ *
+ * This is a worker for the CPUM_IMPORT_EXTRN_RET() macro and various IEM ones.
+ *
+ * @returns VBox status code.
+ * @param   pVCpu           The cross context virtual CPU structure of the calling thread.
+ * @param   fExtrnImport    The fields to import.
+ * @thread  EMT(pVCpu)
+ */
+VMM_INT_DECL(int) CPUMImportGuestStateOnDemand(PVMCPU pVCpu, uint64_t fExtrnImport)
+{
+    VMCPU_ASSERT_EMT(pVCpu);
+    if (pVCpu->cpum.s.Guest.fExtrn & fExtrnImport)
+    {
+#ifndef IN_RC
+        switch (pVCpu->cpum.s.Guest.fExtrn & CPUMCTX_EXTRN_KEEPER_MASK)
+        {
+            case CPUMCTX_EXTRN_KEEPER_NEM:
+            {
+                int rc = NEMImportStateOnDemand(pVCpu, fExtrnImport);
+                Assert(rc == VINF_SUCCESS || RT_FAILURE_NP(rc));
+                return rc;
+            }
+
+            case CPUMCTX_EXTRN_KEEPER_HM:
+            {
+#ifdef IN_RING0
+                int rc = HMR0ImportStateOnDemand(pVCpu, fExtrnImport);
+                Assert(rc == VINF_SUCCESS || RT_FAILURE_NP(rc));
+                return rc;
+#else
+                AssertLogRelMsgFailed(("TODO Fetch HM state: %#RX64 vs %#RX64\n", pVCpu->cpum.s.Guest.fExtrn, fExtrnImport));
+                return VINF_SUCCESS;
+#endif
+            }
+            default:
+                AssertLogRelMsgFailedReturn(("%#RX64 vs %#RX64\n", pVCpu->cpum.s.Guest.fExtrn, fExtrnImport), VERR_CPUM_IPE_2);
+        }
+#else
+        AssertLogRelMsgFailedReturn(("%#RX64 vs %#RX64\n", pVCpu->cpum.s.Guest.fExtrn, fExtrnImport), VERR_CPUM_IPE_2);
+#endif
+    }
+    return VINF_SUCCESS;
 }
 

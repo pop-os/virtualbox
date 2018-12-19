@@ -40,10 +40,10 @@ UIWizardFirstRun::UIWizardFirstRun(QWidget *pParent, const CMachine &machine)
 {
 #ifndef VBOX_WS_MAC
     /* Assign watermark: */
-    assignWatermark(":/vmw_first_run.png");
+    assignWatermark(":/wizard_first_run.png");
 #else /* VBOX_WS_MAC */
     /* Assign background image: */
-    assignBackground(":/vmw_first_run_bg.png");
+    assignBackground(":/wizard_first_run_bg.png");
 #endif /* VBOX_WS_MAC */
 }
 
@@ -84,8 +84,8 @@ bool UIWizardFirstRun::insertMedium()
     // already opened for the VM which being cached in this wizard.
 
     /* Get chosen 'dvd' medium to mount: */
-    const QString strMediumId = field("id").toString();
-    const UIMedium guiMedium = vboxGlobal().medium(strMediumId);
+    const QUuid uMediumId = field("id").toUuid();
+    const UIMedium guiMedium = vboxGlobal().medium(uMediumId);
     const CMedium comMedium = guiMedium.medium();
 
     /* Mount medium to the predefined port/device: */

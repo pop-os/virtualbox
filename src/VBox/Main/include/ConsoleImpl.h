@@ -23,6 +23,9 @@
 #include "EventImpl.h"
 #include "SecretKeyStore.h"
 #include "ConsoleWrap.h"
+#ifdef VBOX_WITH_RECORDING
+# include "Recording.h"
+#endif
 
 class Guest;
 class Keyboard;
@@ -36,7 +39,7 @@ class SharedFolder;
 class VRDEServerInfo;
 class EmulatedUSB;
 class AudioVRDE;
-#ifdef VBOX_WITH_AUDIO_VIDEOREC
+#ifdef VBOX_WITH_AUDIO_RECORDING
 class AudioVideoRec;
 #endif
 class Nvram;
@@ -134,12 +137,23 @@ public:
     Mouse *i_getMouse() const { return mMouse; }
     Display *i_getDisplay() const { return mDisplay; }
     MachineDebugger *i_getMachineDebugger() const { return mDebugger; }
-#ifdef VBOX_WITH_VRDE_AUDIO
+#ifdef VBOX_WITH_AUDIO_VRDE
     AudioVRDE *i_getAudioVRDE() const { return mAudioVRDE; }
 #endif
-#ifdef VBOX_WITH_AUDIO_VIDEOREC
-    AudioVideoRec *i_getAudioVideoRec() const { return mAudioVideoRec; }
-    HRESULT i_audioVideoRecSendAudio(const void *pvData, size_t cbData, uint64_t uDurationMs);
+#ifdef VBOX_WITH_RECORDING
+    int i_recordingCreate(void);
+    void i_recordingDestroy(void);
+    int i_recordingEnable(BOOL fEnable, util::AutoWriteLock *pAutoLock);
+    int i_recordingGetSettings(settings::RecordingSettings &Settings);
+    int i_recordingStart(util::AutoWriteLock *pAutoLock = NULL);
+    int i_recordingStop(util::AutoWriteLock *pAutoLock = NULL);
+# ifdef VBOX_WITH_AUDIO_RECORDING
+    AudioVideoRec *i_recordingGetAudioDrv(void) const { return Recording.mAudioRec; }
+# endif
+    RecordingContext *i_recordingGetContext(void) const { return Recording.mpCtx; }
+# ifdef VBOX_WITH_AUDIO_RECORDING
+    HRESULT i_recordingSendAudio(const void *pvData, size_t cbData, uint64_t uDurationMs);
+# endif
 #endif
 
     const ComPtr<IMachine> &i_machine() const { return mMachine; }
@@ -168,7 +182,7 @@ public:
     HRESULT i_onClipboardModeChange(ClipboardMode_T aClipboardMode);
     HRESULT i_onDnDModeChange(DnDMode_T aDnDMode);
     HRESULT i_onVRDEServerChange(BOOL aRestart);
-    HRESULT i_onVideoCaptureChange();
+    HRESULT i_onRecordingChange(BOOL fEnable);
     HRESULT i_onUSBControllerChange();
     HRESULT i_onSharedFolderChange(BOOL aGlobal);
     HRESULT i_onUSBDeviceAttach(IUSBDevice *aDevice, IVirtualBoxErrorInfo *aError, ULONG aMaskedIfs,
@@ -199,10 +213,6 @@ public:
     EventSource *i_getEventSource() { return mEventSource; }
 #ifdef VBOX_WITH_USB_CARDREADER
     UsbCardReader *i_getUsbCardReader() { return mUsbCardReader; }
-#endif
-
-#ifdef VBOX_WITH_VIDEOREC
-    int i_videoCaptureEnable(BOOL fEnable, util::AutoWriteLock *pAutoLock);
 #endif
 
     int i_VRDPClientLogon(uint32_t u32ClientId, const char *pszUser, const char *pszPassword, const char *pszDomain);
@@ -260,6 +270,7 @@ public:
     static const PDMDRVREG DrvStatusReg;
 
     static HRESULT i_setErrorStatic(HRESULT aResultCode, const char *pcsz, ...);
+    static HRESULT i_setErrorStaticBoth(HRESULT aResultCode, int vrc, const char *pcsz, ...);
     HRESULT i_setInvalidMachineStateError();
 
     static const char *i_storageControllerTypeToStr(StorageControllerType_T enmCtrlType);
@@ -279,9 +290,9 @@ public:
      * Sets the disk encryption keys.
      *
      * @returns COM status code.
-     * @þaram   strCfg    The config for the disks.
+     * @param   strCfg    The config for the disks.
      *
-     * @note: One line in the config string contains all required data for one disk.
+     * @note  One line in the config string contains all required data for one disk.
      *        The format for one disk is some sort of comma separated value using
      *        key=value pairs.
      *        There are two keys defined at the moment:
@@ -290,6 +301,14 @@ public:
      *            - dek: The data encryption key in base64 encoding
      */
     HRESULT i_setDiskEncryptionKeys(const Utf8Str &strCfg);
+
+
+#ifdef VBOX_WITH_GUEST_PROPS
+    // VMMDev needs:
+    HRESULT                     i_pullGuestProperties(ComSafeArrayOut(BSTR, names), ComSafeArrayOut(BSTR, values),
+                                                      ComSafeArrayOut(LONG64, timestamps), ComSafeArrayOut(BSTR, flags));
+    static DECLCALLBACK(int)    i_doGuestPropNotification(void *pvExtension, uint32_t, void *pvParms, uint32_t cbParms);
+#endif
 
 private:
 
@@ -334,7 +353,8 @@ private:
     HRESULT createSharedFolder(const com::Utf8Str &aName,
                                const com::Utf8Str &aHostPath,
                                BOOL aWritable,
-                               BOOL aAutomount);
+                               BOOL aAutomount,
+                               const com::Utf8Str &aAutoMountPoint);
     HRESULT removeSharedFolder(const com::Utf8Str &aName);
     HRESULT teleport(const com::Utf8Str &aHostname,
                      ULONG aTcpport,
@@ -541,22 +561,26 @@ public:
 
         SharedFolderData(const Utf8Str &aHostPath,
                          bool aWritable,
-                         bool aAutoMount)
-           : m_strHostPath(aHostPath),
-             m_fWritable(aWritable),
-             m_fAutoMount(aAutoMount)
+                         bool aAutoMount,
+                         const Utf8Str &aAutoMountPoint)
+            : m_strHostPath(aHostPath)
+            , m_fWritable(aWritable)
+            , m_fAutoMount(aAutoMount)
+            , m_strAutoMountPoint(aAutoMountPoint)
         { }
 
         // copy constructor
         SharedFolderData(const SharedFolderData& aThat)
-           : m_strHostPath(aThat.m_strHostPath),
-             m_fWritable(aThat.m_fWritable),
-             m_fAutoMount(aThat.m_fAutoMount)
+            : m_strHostPath(aThat.m_strHostPath)
+            , m_fWritable(aThat.m_fWritable)
+            , m_fAutoMount(aThat.m_fAutoMount)
+            , m_strAutoMountPoint(aThat.m_strAutoMountPoint)
         { }
 
         Utf8Str m_strHostPath;
         bool m_fWritable;
         bool m_fAutoMount;
+        Utf8Str m_strAutoMountPoint;
     };
 
     /**
@@ -721,9 +745,7 @@ private:
                         INetworkAdapter *aNetworkAdapter, PCFGMNODE pCfg,
                         PCFGMNODE pLunL0, PCFGMNODE pInst,
                         bool fAttachDetach, bool fIgnoreConnectFailure);
-
-    static DECLCALLBACK(int) i_configGuestProperties(void *pvConsole, PUVM pUVM);
-    static DECLCALLBACK(int) i_configGuestControl(void *pvConsole);
+    int i_configSerialPort(PCFGMNODE pInst, PortMode_T ePortMode, const char *pszPath, bool fServer);
     static DECLCALLBACK(void) i_vmstateChangeCallback(PUVM pUVM, VMSTATE enmState, VMSTATE enmOldState, void *pvUser);
     static DECLCALLBACK(int) i_unplugCpu(Console *pThis, PUVM pUVM, VMCPUID idCpu);
     static DECLCALLBACK(int) i_plugCpu(Console *pThis, PUVM pUVM, VMCPUID idCpu);
@@ -736,6 +758,8 @@ private:
     static DECLCALLBACK(int) i_changeNetworkAttachment(Console *pThis, PUVM pUVM, const char *pszDevice,
                                                        unsigned uInstance, unsigned uLun,
                                                        INetworkAdapter *aNetworkAdapter);
+    static DECLCALLBACK(int) i_changeSerialPortAttachment(Console *pThis, PUVM pUVM,
+                                                          ISerialPort *pSerialPort);
 
     void i_changeClipboardMode(ClipboardMode_T aClipboardMode);
     int i_changeDnDMode(DnDMode_T aDnDMode);
@@ -746,7 +770,8 @@ private:
 
     static DECLCALLBACK(int) i_usbAttachCallback(Console *that, PUVM pUVM, IUSBDevice *aHostDevice, PCRTUUID aUuid,
                                                  const char *aBackend, const char *aAddress, void *pvRemoteBackend,
-                                                 USHORT aPortVersion, ULONG aMaskedIfs, const char *pszCaptureFilename);
+                                                 USBConnectionSpeed_T enmSpeed, ULONG aMaskedIfs,
+                                                 const char *pszCaptureFilename);
     static DECLCALLBACK(int) i_usbDetachCallback(Console *that, PUVM pUVM, PCRTUUID aUuid);
 #endif
 
@@ -809,7 +834,6 @@ private:
     volatile  bool mcGuestCredentialsProvided;
 
     static const char *sSSMConsoleUnit;
-    static uint32_t sSSMConsoleVer;
 
     HRESULT i_loadDataFromSavedState();
     int i_loadStateFileExecInternal(PSSMHANDLE pSSM, uint32_t u32Version);
@@ -818,7 +842,6 @@ private:
     static DECLCALLBACK(int)    i_loadStateFileExec(PSSMHANDLE pSSM, void *pvUser, uint32_t uVersion, uint32_t uPass);
 
 #ifdef VBOX_WITH_GUEST_PROPS
-    static DECLCALLBACK(int)    i_doGuestPropNotification(void *pvExtension, uint32_t, void *pvParms, uint32_t cbParms);
     HRESULT                     i_doEnumerateGuestProperties(const Utf8Str &aPatterns,
                                                              std::vector<Utf8Str> &aNames,
                                                              std::vector<Utf8Str> &aValues,
@@ -934,10 +957,6 @@ private:
 
     VMMDev *                    m_pVMMDev;
     AudioVRDE * const           mAudioVRDE;
-#ifdef VBOX_WITH_AUDIO_VIDEOREC
-    /** The video recording audio backend. */
-    AudioVideoRec * const       mAudioVideoRec;
-#endif
     Nvram   * const             mNvram;
 #ifdef VBOX_WITH_USB_CARDREADER
     UsbCardReader * const       mUsbCardReader;
@@ -981,6 +1000,9 @@ private:
     /** Number of disks which have the key in the map. */
     unsigned               m_cDisksPwProvided;
 
+    /** Current active port modes of the supported serial ports. */
+    PortMode_T             m_aeSerialPortMode[4];
+
     /** Pointer to the key consumer -> provider (that's us) callbacks. */
     struct MYPDMISECKEY : public PDMISECKEY
     {
@@ -1019,6 +1041,25 @@ private:
     ComPtr<IProgress> mptrCancelableProgress;
 
     ComPtr<IEventListener> mVmListener;
+
+#ifdef VBOX_WITH_RECORDING
+    struct Recording
+    {
+        Recording()
+            : mpCtx(NULL)
+# ifdef VBOX_WITH_AUDIO_RECORDING
+            , mAudioRec(NULL)
+# endif
+        { }
+
+        /** The recording context. */
+        RecordingContext     *mpCtx;
+# ifdef VBOX_WITH_AUDIO_RECORDING
+        /** Pointer to capturing audio backend. */
+        AudioVideoRec * const mAudioRec;
+# endif
+    } Recording;
+#endif /* VBOX_WITH_RECORDING */
 
     friend class VMTask;
     friend class ConsoleVRDPServer;

@@ -27,17 +27,16 @@ class UIActionPool;
 struct UIDataSettingsMachineInterface;
 typedef UISettingsCache<UIDataSettingsMachineInterface> UISettingsCacheMachineInterface;
 
-
 /** Machine settings: User Interface page. */
-class UIMachineSettingsInterface : public UISettingsPageMachine,
-                                   public Ui::UIMachineSettingsInterface
+class SHARED_LIBRARY_STUFF UIMachineSettingsInterface : public UISettingsPageMachine,
+                                                        public Ui::UIMachineSettingsInterface
 {
     Q_OBJECT;
 
 public:
 
     /** Constructs User Interface settings page. */
-    UIMachineSettingsInterface(const QString strMachineId);
+    UIMachineSettingsInterface(const QUuid &uMachineId);
     /** Destructs User Interface settings page. */
     ~UIMachineSettingsInterface();
 
@@ -83,7 +82,7 @@ private:
     bool saveMiniToolbarData();
 
     /** Holds the machine ID copy. */
-    const QString  m_strMachineId;
+    const QUuid    m_uMachineId;
     /** Holds the action-pool instance. */
     UIActionPool  *m_pActionPool;
 
@@ -92,4 +91,3 @@ private:
 };
 
 #endif /* !___UIMachineSettingsInterface_h___ */
-

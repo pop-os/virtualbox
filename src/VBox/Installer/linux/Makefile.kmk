@@ -183,34 +183,28 @@ VBOX_LNX_STRIP_BIN = \
 
 # Do not remove relocation information of these binaries
 VBOX_LNX_STRIP_OBJ = \
-	VBoxDD2R0.r0 \
 	VBoxDDR0.r0 \
 	VMMR0.r0
 ifdef VBOX_NO_LINUX_RUN_INSTALLER
  VBOX_LNX_STRIP_OBJ += \
-	VBoxDD2R0.debug \
 	VBoxDDR0.debug \
 	VMMR0.debug
 else
  VBOX_LNX_DBG_BIN = \
-	VBoxDD2R0.debug \
 	VBoxDDR0.debug \
 	VMMR0.debug
 endif
 
 ifdef VBOX_WITH_RAW_MODE
  VBOX_LNX_STRIP_OBJ += \
-	VBoxDD2RC.rc \
 	VBoxDDRC.rc \
 	VMMRC.rc
  ifdef VBOX_NO_LINUX_RUN_INSTALLER
   VBOX_LNX_STRIP_OBJ += \
-	VBoxDD2RC.debug \
 	VBoxDDRC.debug \
 	VMMRC.debug
  else
   VBOX_LNX_DBG_BIN += \
-	VBoxDD2RC.debug \
 	VBoxDDRC.debug \
 	VMMRC.debug
  endif
@@ -253,8 +247,13 @@ ifdef VBOX_WITH_QTGUI
  VBOX_LNX_STRIP_BIN += \
  	VBoxKeyboard.so \
  	VirtualBox \
- 	$(if $(VBOX_WITH_HARDENING),VirtualBox.so) \
+ 	$(if $(VBOX_GUI_WITH_SHARED_LIBRARY),VirtualBoxVM) \
+ 	$(if $(VBOX_GUI_WITH_SHARED_LIBRARY),VBoxGlobal.so) \
  	$(if $(VBOX_WITH_DEBUGGER_GUI),VBoxDbg.so DbgPlugInDiggers.so)
+ ifdef VBOX_WITH_HARDENING
+  VBOX_LNX_STRIP_BIN += \
+ 	$(if $(VBOX_GUI_WITH_SHARED_LIBRARY),VirtualBoxVM.so,VirtualBox.so)
+ endif
  VBOX_LNX_NO_STRIP += \
  	virtualbox.desktop \
  	virtualbox.xml \

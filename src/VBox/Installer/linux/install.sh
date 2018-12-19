@@ -168,21 +168,21 @@ do
     fi
     shift
     case "$1" in
-        install)
+        install|--install)
             ACTION="install"
             ;;
 
-        uninstall)
+        uninstall|--uninstall)
             ACTION="uninstall"
             ;;
 
-        force)
+        force|--force)
             FORCE_UPGRADE=1
             ;;
-        license_accepted_unconditionally)
+        license_accepted_unconditionally|--license_accepted_unconditionally)
             # Legacy option
             ;;
-        no_module)
+        no_module|--no_module)
             BUILD_MODULE=""
             ;;
         *)
@@ -277,7 +277,11 @@ if [ "$ACTION" = "install" ]; then
     #                 create symlinks for working around unsupported $ORIGIN/.. in VBoxC.so (setuid),
     #                 and finally make sure the directory is only writable by the user (paranoid).
     if [ -n "$HARDENED" ]; then
-        test -e $INSTALLATION_DIR/VirtualBox     && chmod 4511 $INSTALLATION_DIR/VirtualBox
+        if [ -f $INSTALLATION_DIR/VirtualBoxVM ]; then
+            test -e $INSTALLATION_DIR/VirtualBoxVM   && chmod 4511 $INSTALLATION_DIR/VirtualBoxVM
+        else
+            test -e $INSTALLATION_DIR/VirtualBox     && chmod 4511 $INSTALLATION_DIR/VirtualBox
+        fi
         test -e $INSTALLATION_DIR/VBoxSDL        && chmod 4511 $INSTALLATION_DIR/VBoxSDL
         test -e $INSTALLATION_DIR/VBoxHeadless   && chmod 4511 $INSTALLATION_DIR/VBoxHeadless
         test -e $INSTALLATION_DIR/VBoxNetDHCP    && chmod 4511 $INSTALLATION_DIR/VBoxNetDHCP

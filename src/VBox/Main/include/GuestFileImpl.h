@@ -55,6 +55,7 @@ public:
     int             i_onGuestDisconnected(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, PVBOXGUESTCTRLHOSTCALLBACK pSvcCbData);
     int             i_onRemove(void);
     int             i_openFile(uint32_t uTimeoutMS, int *pGuestRc);
+    int             i_queryInfo(GuestFsObjData &objData, int *prcGuest);
     int             i_readData(uint32_t uSize, uint32_t uTimeoutMS, void* pvData, uint32_t cbData, uint32_t* pcbRead);
     int             i_readDataAt(uint64_t uOffset, uint32_t uSize, uint32_t uTimeoutMS,
                                  void* pvData, size_t cbData, size_t* pcbRead);
@@ -79,7 +80,7 @@ private:
     HRESULT getInitialSize(LONG64 *aInitialSize);
     HRESULT getOffset(LONG64 *aOffset);
     HRESULT getStatus(FileStatus_T *aStatus);
-    HRESULT getFileName(com::Utf8Str &aFileName);
+    HRESULT getFilename(com::Utf8Str &aFilename);
     HRESULT getAccessMode(FileAccessMode_T *aAccessMode);
     HRESULT getOpenAction(FileOpenAction_T *aOpenAction);
     /** @}  */
@@ -122,8 +123,6 @@ private:
         GuestFileOpenInfo       mOpenInfo;
         /** The file's initial size on open. */
         uint64_t                mInitialSize;
-        /** The file's ID. */
-        uint32_t                mID;
         /** The current file status. */
         FileStatus_T            mStatus;
         /** The last returned process status

@@ -776,7 +776,7 @@ DECLINLINE(const char *) SUPGetGIPTscDeltaModeName(PSUPGLOBALINFOPAGE pGip)
     {
         case SUPGIPUSETSCDELTA_NOT_APPLICABLE:   return "Not Applicable";
         case SUPGIPUSETSCDELTA_ZERO_CLAIMED:     return "Zero Claimed";
-        case SUPGIPUSETSCDELTA_PRACTICALLY_ZERO: return "Pratically Zero";
+        case SUPGIPUSETSCDELTA_PRACTICALLY_ZERO: return "Practically Zero";
         case SUPGIPUSETSCDELTA_ROUGHLY_ZERO:     return "Roughly Zero";
         case SUPGIPUSETSCDELTA_NOT_ZERO:         return "Not Zero";
         default:                                 return "???";
@@ -809,9 +809,11 @@ typedef SUPVMMR0REQHDR *PSUPVMMR0REQHDR;
 #define SUP_VMMR0_DO_HM_RUN     1
 /** @see VMMR0_DO_NOP */
 #define SUP_VMMR0_DO_NOP        2
+/** @see VMMR0_DO_NEM_RUN */
+#define SUP_VMMR0_DO_NEM_RUN    3
 /** @} */
 
-/** SUPR3QueryVTCaps capability flags
+/** SUPR3QueryVTCaps capability flags.
  * @{
  */
 /** AMD-V support. */
@@ -1642,8 +1644,9 @@ SUPR3DECL(int) SUPR3HardenedLdrLoadPlugIn(const char *pszFilename, PRTLDRMOD phL
  * Check if the host kernel can run in VMX root mode.
  *
  * @returns VINF_SUCCESS if supported, error code indicating why if not.
+ * @param   ppszWhy         Where to return an explanatory message on failure.
  */
-SUPR3DECL(int) SUPR3QueryVTxSupported(void);
+SUPR3DECL(int) SUPR3QueryVTxSupported(const char **ppszWhy);
 
 /**
  * Return VT-x/AMD-V capabilities.
@@ -1654,6 +1657,16 @@ SUPR3DECL(int) SUPR3QueryVTxSupported(void);
  *       when accessing certain vboxdrv functions.
  */
 SUPR3DECL(int) SUPR3QueryVTCaps(uint32_t *pfCaps);
+
+/**
+ * Check if NEM is supported when no VT-x/AMD-V is indicated by the CPU.
+ *
+ * This is really only for the windows case where we're running in a root
+ * partition and isn't allowed to use the hardware directly.
+ *
+ * @returns True if NEM API support, false if not.
+ */
+SUPR3DECL(bool) SUPR3IsNemSupportedWhenNoVtxOrAmdV(void);
 
 /**
  * Open the tracer.
@@ -1905,6 +1918,7 @@ SUPR0DECL(int) SUPR0PageMapKernel(PSUPDRVSESSION pSession, RTR3PTR pvR3, uint32_
 SUPR0DECL(int) SUPR0PageProtect(PSUPDRVSESSION pSession, RTR3PTR pvR3, RTR0PTR pvR0, uint32_t offSub, uint32_t cbSub, uint32_t fProt);
 SUPR0DECL(int) SUPR0PageFree(PSUPDRVSESSION pSession, RTR3PTR pvR3);
 SUPR0DECL(int) SUPR0GipMap(PSUPDRVSESSION pSession, PRTR3PTR ppGipR3, PRTHCPHYS pHCPhysGip);
+SUPR0DECL(int) SUPR0GetVTSupport(uint32_t *pfCaps);
 SUPR0DECL(int) SUPR0GetSvmUsability(bool fInitSvm);
 SUPR0DECL(int) SUPR0GetVmxUsability(bool *pfIsSmxModeAmbiguous);
 SUPR0DECL(int) SUPR0GetRawModeUsability(void);
@@ -1925,6 +1939,60 @@ SUPR0DECL(int) SUPR0TscDeltaMeasureBySetIndex(PSUPDRVSESSION pSession, uint32_t 
 
 SUPR0DECL(void) SUPR0BadContext(PSUPDRVSESSION pSession, const char *pszFile, uint32_t uLine, const char *pszExpr);
 
+/** Context structure returned by SUPR0IoCtlSetup for use with
+ * SUPR0IoCtlPerform and cleaned up by SUPR0IoCtlCleanup. */
+typedef struct SUPR0IOCTLCTX *PSUPR0IOCTLCTX;
+
+/**
+ * Sets up a I/O control context for the given handle.
+ *
+ * @returns VBox status code.
+ * @param   pSession        The support driver session.
+ * @param   hHandle         The handle.
+ * @param   fFlags          Flag, MBZ.
+ * @param   ppCtx           Where the context is returned.
+ */
+SUPR0DECL(int) SUPR0IoCtlSetupForHandle(PSUPDRVSESSION pSession, intptr_t hHandle, uint32_t fFlags, PSUPR0IOCTLCTX *ppCtx);
+
+/**
+ * Cleans up the I/O control context when done.
+ *
+ * This won't close the handle passed to SUPR0IoCtlSetupForHandle.
+ *
+ * @returns VBox status code.
+ * @param   pCtx            The I/O control context to cleanup.
+ */
+SUPR0DECL(int) SUPR0IoCtlCleanup(PSUPR0IOCTLCTX pCtx);
+
+/**
+ * Performs an I/O control operation.
+ *
+ * @returns VBox status code.
+ * @param   pCtx            The I/O control context returned by
+ *                          SUPR0IoCtlSetupForHandle.
+ * @param   uFunction       The I/O control function to perform.
+ * @param   pvInput         Pointer to input buffer (ring-0).
+ * @param   pvInputUser     Ring-3 pointer corresponding to @a pvInput.
+ * @param   cbInput         The amount of input.  If zero, both input pointers
+ *                          are expected to be NULL.
+ * @param   pvOutput        Pointer to output buffer (ring-0).
+ * @param   pvOutputUser    Ring-3 pointer corresponding to @a pvInput.
+ * @param   cbOutput        The amount of input.  If zero, both input pointers
+ *                          are expected to be NULL.
+ * @param   piNativeRc      Where to return the native return code.   When
+ *                          specified the VBox status code will typically be
+ *                          VINF_SUCCESS and the caller have to consult this for
+ *                          the actual result of the operation.  (This saves
+ *                          pointless status code conversion.)  Optional.
+ *
+ * @note    On unix systems where there is only one set of buffers possible,
+ *          pass the same pointers as input and output.
+ */
+SUPR0DECL(int)  SUPR0IoCtlPerform(PSUPR0IOCTLCTX pCtx, uintptr_t uFunction,
+                                  void *pvInput, RTR3PTR pvInputUser, size_t cbInput,
+                                  void *pvOutput, RTR3PTR pvOutputUser, size_t cbOutput,
+                                  int32_t *piNativeRc);
+
 /**
  * Writes to the debugger and/or kernel log.
  *
@@ -1943,6 +2011,13 @@ SUPR0DECL(int)  SUPR0Printf(const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(1, 2
  * @returns Combination of SUPKERNELFEATURES_XXX flags.
  */
 SUPR0DECL(uint32_t) SUPR0GetKernelFeatures(void);
+
+/** @copydoc RTLogGetDefaultInstanceEx
+ * @remarks To allow overriding RTLogGetDefaultInstanceEx locally. */
+SUPR0DECL(struct RTLOGGER *) SUPR0GetDefaultLogInstanceEx(uint32_t fFlagsAndGroup);
+/** @copydoc RTLogRelGetDefaultInstanceEx
+ * @remarks To allow overriding RTLogRelGetDefaultInstanceEx locally. */
+SUPR0DECL(struct RTLOGGER *) SUPR0GetDefaultLogRelInstanceEx(uint32_t fFlagsAndGroup);
 
 
 /** @name Absolute symbols
@@ -2357,6 +2432,11 @@ extern unsigned const               g_cSUPNtKernelRootTAs;
 extern SUPTAENTRY const             g_aSUPTimestampTAs[];
 /** Number of entries in g_aSUPTimestampTAs. */
 extern unsigned const               g_cSUPTimestampTAs;
+
+/** Root certificates trusted by Apple code signing. */
+extern SUPTAENTRY const             g_aSUPAppleRootTAs[];
+/** Number of entries in g_cSUPAppleRootTAs. */
+extern unsigned const               g_cSUPAppleRootTAs;
 
 /** TAs we trust (the build certificate, Oracle VirtualBox). */
 extern SUPTAENTRY const             g_aSUPTrustedTAs[];

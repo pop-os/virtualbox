@@ -40,6 +40,9 @@
 --filter-out-files /testcase/tstRTLdrMachORelocs-1.S
 --filter-out-files /testcase/tstRTLdrMachORelocs-1.disas
 
+# Small C and ASM header, no copyright or license text for now.
+/r3/win/vcc100-kernel32-fakes.h: --external-copyright --no-update-license
+
 # external code
 /r0drv/freebsd/alloc-r0drv-freebsd.c           : --external-copyright
 /r0drv/freebsd/assert-r0drv-freebsd.c          : --external-copyright
@@ -88,10 +91,13 @@
 /r0drv/os2/timerA-r0drv-os2.asm                : --external-copyright
 
 /r3/os2/time-os2.cpp                           : --external-copyright
+/r3/os2/RTTimeSet-os2.cpp                      : --external-copyright
 /r0drv/os2/os2imports.imp                      : --external-copyright --treat-as .def
 
 /r3/win/VBoxRT-msvcp100-win32.def              : --external-copyright
 /r3/win/VBoxRT-msvcr100-win32.def              : --external-copyright
+
+/common/ldr/ldrLX.cpp                          : --external-copyright
 
 /common/math/x86/fenv-x86.c                    : --external-copyright --no-convert-tabs
 
