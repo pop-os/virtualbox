@@ -2,11 +2,11 @@ Description: Silently enable the host I/O cache when the image is on an ext4/XFS
  No need to warn users about it.
 Author: Felix Geyer <fgeyer@debian.org>
 
-diff --git a/src/VBox/Main/src-client/ConsoleImpl2.cpp b/src/VBox/Main/src-client/ConsoleImpl2.cpp
-index 61dbf0a59..cfb76fc48 100644
---- a/src/VBox/Main/src-client/ConsoleImpl2.cpp
-+++ b/src/VBox/Main/src-client/ConsoleImpl2.cpp
-@@ -4085,34 +4085,12 @@ int Console::i_checkMediumLocation(IMedium *pMedium, bool *pfUseHostIOCache)
+Index: virtualbox/src/VBox/Main/src-client/ConsoleImpl2.cpp
+===================================================================
+--- virtualbox.orig/src/VBox/Main/src-client/ConsoleImpl2.cpp
++++ virtualbox/src/VBox/Main/src-client/ConsoleImpl2.cpp
+@@ -4093,34 +4093,12 @@
              if (   enmFsTypeFile == RTFSTYPE_EXT4
                  || enmFsTypeFile == RTFSTYPE_XFS)
              {

@@ -48,7 +48,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/main.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/main.cpp
 +++ virtualbox/src/VBox/Frontends/VirtualBox/src/main.cpp
-@@ -98,9 +98,9 @@
+@@ -87,9 +87,9 @@
  
  QString g_QStrHintLinuxNoDriver = QApplication::tr(
      "The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or "
@@ -61,7 +61,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/main.cpp
      "as root."
      );
  
-@@ -115,7 +115,7 @@
+@@ -104,7 +104,7 @@
      "The VirtualBox kernel modules do not match this version of "
      "VirtualBox. The installation of VirtualBox was apparently not "
      "successful. Executing<br/><br/>"

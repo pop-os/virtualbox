@@ -2,8 +2,10 @@ Description: Revert http://www.virtualbox.org/changeset/36310
  The libvdeplug.so symlink is only shipped in the -dev package.
 Author: Felix Geyer <fgeyer@debian.org>
 
---- a/include/VBox/VDEPlugSymDefs.h
-+++ b/include/VBox/VDEPlugSymDefs.h
+Index: virtualbox/include/VBox/VDEPlugSymDefs.h
+===================================================================
+--- virtualbox.orig/include/VBox/VDEPlugSymDefs.h
++++ virtualbox/include/VBox/VDEPlugSymDefs.h
 @@ -1,5 +1,5 @@
  /** @file
 - * Symbols from libvdeplug.so to be loaded at runtime for DrvVDE.cpp
@@ -11,8 +13,8 @@ Author: Felix Geyer <fgeyer@debian.org>
   */
  
  /*
-@@ -43,7 +43,7 @@ struct vde_open_args
- };
+@@ -24,7 +24,7 @@
+  */
  
  /** The file name of the DBus library */
 -#define VBOX_LIB_VDE_PLUG_NAME "libvdeplug.so"

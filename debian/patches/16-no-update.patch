@@ -2,11 +2,11 @@ Description: Disable "Check for Updates" action.
 Bug-Ubuntu: https://bugs.launchpad.net/bugs/272212
 Author: Daniel Hahler <ubuntu@thequod.de>, Felix Geyer <fgeyer@debian.org>, Gianfranco Costamagna <locutusofborg@debian.org>
 
-diff --git a/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp b/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
-index 23e76d11b..e47ec2d29 100644
---- a/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
-+++ b/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
-@@ -1044,7 +1044,7 @@ protected:
+Index: virtualbox/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
+===================================================================
+--- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
++++ virtualbox/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
+@@ -1038,7 +1038,7 @@
      /** Returns whether action is allowed. */
      virtual bool isAllowed() const /* override */
      {
@@ -15,11 +15,11 @@ index 23e76d11b..e47ec2d29 100644
      }
  
      /** Returns shortcut extra-data ID. */
-diff --git a/doc/manual/en_US/user_Introduction.xml b/doc/manual/en_US/user_Introduction.xml
-index 33eac2cef..a1abf85d3 100644
---- a/doc/manual/en_US/user_Introduction.xml
-+++ b/doc/manual/en_US/user_Introduction.xml
-@@ -3350,14 +3350,14 @@
+Index: virtualbox/doc/manual/en_US/user_Introduction.xml
+===================================================================
+--- virtualbox.orig/doc/manual/en_US/user_Introduction.xml
++++ virtualbox/doc/manual/en_US/user_Introduction.xml
+@@ -3390,14 +3390,14 @@
            <xref linkend="specialcharacters"/>.
          </para>
        </listitem>
