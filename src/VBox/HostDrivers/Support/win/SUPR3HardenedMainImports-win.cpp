@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,10 +33,9 @@
 #include <VBox/sup.h>
 #include <VBox/err.h>
 #include <iprt/ctype.h>
+#include <iprt/string.h>
 #include <iprt/initterm.h>
 #include <iprt/param.h>
-#include <iprt/string.h>
-#include <iprt/utf16.h>
 
 #include "SUPLibInternal.h"
 #include "SUPHardenedVerify-win.h"
@@ -108,8 +107,6 @@ typedef SUPHNTIMPSYSCALL const *PCSUPHNTIMPSYSCALL;
  *
  * This contains both static (like name & imports) and runtime information (like
  * load and export table locations).
- *
- * @sa RTDBGNTKRNLMODINFO
  */
 typedef struct SUPHNTIMPDLL
 {
@@ -292,7 +289,6 @@ static void supR3HardenedFindOrLoadModule(PSUPHNTIMPDLL pDll)
 }
 
 
-/** @sa rtR0DbgKrnlNtParseModule  */
 static void supR3HardenedParseModule(PSUPHNTIMPDLL pDll)
 {
     /*
@@ -377,7 +373,6 @@ static void supR3HardenedParseModule(PSUPHNTIMPDLL pDll)
 }
 
 
-/** @sa rtR0DbgKrnlInfoLookupSymbol */
 static const char *supR3HardenedResolveImport(PSUPHNTIMPDLL pDll, PCSUPHNTIMPFUNC pImport, bool fReportErrors)
 {
     /*

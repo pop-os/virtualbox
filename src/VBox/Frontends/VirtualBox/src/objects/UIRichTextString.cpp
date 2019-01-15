@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015-2019 Oracle Corporation
+ * Copyright (C) 2015-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,30 +15,35 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QApplication>
-#include <QPalette>
+# include <QApplication>
+# include <QPalette>
 
 /* GUI includes: */
-#include "UIRichTextString.h"
+# include "UIRichTextString.h"
 
 /* Other VBox includes: */
-#include "iprt/assert.h"
+# include "iprt/assert.h"
 
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-const QString UIRichTextString::s_strAny = QString("[\\s\\S]*");
-const QMap<UIRichTextString::Type, QString> UIRichTextString::s_patterns = populatePatterns();
-const QMap<UIRichTextString::Type, bool> UIRichTextString::s_doPatternHasMeta = populatePatternHasMeta();
+const QString UIRichTextString::m_sstrAny = QString("[\\s\\S]*");
+const QMap<UIRichTextString::Type, QString> UIRichTextString::m_sPatterns = populatePatterns();
+const QMap<UIRichTextString::Type, bool> UIRichTextString::m_sPatternHasMeta = populatePatternHasMeta();
 
-UIRichTextString::UIRichTextString(Type enmType /* = Type_None */)
-    : m_enmType(enmType)
+UIRichTextString::UIRichTextString(Type type /* = Type_None */)
+    : m_type(type)
     , m_strString(QString())
     , m_strStringMeta(QString())
 {
 }
 
-UIRichTextString::UIRichTextString(const QString &strString, Type enmType /* = Type_None */, const QString &strStringMeta /* = QString() */)
-    : m_enmType(enmType)
+UIRichTextString::UIRichTextString(const QString &strString, Type type /* = Type_None */, const QString &strStringMeta /* = QString() */)
+    : m_type(type)
     , m_strString(strString)
     , m_strStringMeta(strStringMeta)
 {
@@ -76,7 +81,7 @@ QList<QTextLayout::FormatRange> UIRichTextString::formatRanges(int iShift /* = 0
     QTextLayout::FormatRange range;
     range.start = iShift;
     range.length = toString().size();
-    range.format = textCharFormat(m_enmType);
+    range.format = textCharFormat(m_type);
     /* Enable anchor if present: */
     if (!m_strAnchor.isNull())
     {
@@ -114,10 +119,10 @@ void UIRichTextString::parse()
         m_strAnchor = m_strStringMeta;
 
     /* Parse the passed QString with all the known patterns: */
-    foreach (const Type &enmPattern, s_patterns.keys())
+    foreach (const Type &enmPattern, m_sPatterns.keys())
     {
         /* Get the current pattern: */
-        const QString strPattern = s_patterns.value(enmPattern);
+        const QString strPattern = m_sPatterns.value(enmPattern);
 
         /* Recursively parse the string: */
         int iMaxLevel = 0;
@@ -142,7 +147,7 @@ void UIRichTextString::parse()
                     /* Cut the found string: */
                     m_strString.remove(iPosition, regExp.cap(0).size());
                     /* And paste that string as our child: */
-                    const bool fPatterHasMeta = s_doPatternHasMeta.value(enmPattern);
+                    const bool fPatterHasMeta = m_sPatternHasMeta.value(enmPattern);
                     const QString strSubString = !fPatterHasMeta ? regExp.cap(1) : regExp.cap(2);
                     const QString strSubMeta   = !fPatterHasMeta ? QString()     : regExp.cap(1);
                     m_strings.insert(iPosition, new UIRichTextString(strSubString, enmPattern, strSubMeta));
@@ -177,11 +182,11 @@ QMap<UIRichTextString::Type, bool> UIRichTextString::populatePatternHasMeta()
 int UIRichTextString::searchForMaxLevel(const QString &strString, const QString &strPattern,
                                         const QString &strCurrentPattern, int iCurrentLevel /* = 0 */)
 {
-    QRegExp regExp(strCurrentPattern.arg(s_strAny));
+    QRegExp regExp(strCurrentPattern.arg(m_sstrAny));
     regExp.setMinimal(true);
     if (regExp.indexIn(strString) != -1)
         return searchForMaxLevel(strString, strPattern,
-                                 strCurrentPattern.arg(s_strAny + strPattern + s_strAny),
+                                 strCurrentPattern.arg(m_sstrAny + strPattern + m_sstrAny),
                                  iCurrentLevel + 1);
     return iCurrentLevel;
 }
@@ -192,16 +197,16 @@ QString UIRichTextString::composeFullPattern(const QString &strPattern,
 {
     if (iCurrentLevel > 1)
         return composeFullPattern(strPattern,
-                                  strCurrentPattern.arg(s_strAny + strPattern + s_strAny),
+                                  strCurrentPattern.arg(m_sstrAny + strPattern + m_sstrAny),
                                   iCurrentLevel - 1);
-    return strCurrentPattern.arg(s_strAny);
+    return strCurrentPattern.arg(m_sstrAny);
 }
 
 /* static */
-QTextCharFormat UIRichTextString::textCharFormat(Type enmType)
+QTextCharFormat UIRichTextString::textCharFormat(Type type)
 {
     QTextCharFormat format;
-    switch (enmType)
+    switch (type)
     {
         case Type_Anchor:
         {
@@ -227,3 +232,4 @@ QTextCharFormat UIRichTextString::textCharFormat(Type enmType)
     }
     return format;
 }
+

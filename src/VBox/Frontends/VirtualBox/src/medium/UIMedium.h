@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,18 +15,14 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_medium_UIMedium_h
-#define FEQT_INCLUDED_SRC_medium_UIMedium_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIMedium_h___
+#define ___UIMedium_h___
 
 /* Qt includes: */
 #include <QMap>
 #include <QPixmap>
 
 /* GUI includes: */
-#include "UILibraryDefs.h"
 #include "UIMediumDefs.h"
 
 /* COM includes: */
@@ -74,15 +70,15 @@ struct NoDiffsCache
   * Unless explicitly stated otherwise, this argument, when set to @c true,
   * will cause the corresponding property of this object's root medium to be returned instead
   * of its own one. This is useful when hard drive medium is reflected in the user-friendly
-  * "don't show diffs" mode. For non-hard drive media, the value of this argument is irrelevant
+  * "don't show diffs" mode. For non-hard drive mediums, the value of this argument is irrelevant
   * because the root object for such medium is the medium itself.
   *
   * Note that this class "abuses" the KMediumState_NotCreated state value to indicate that the
   * accessibility check of the given medium (see #blockAndQueryState()) has not been done yet
   * and therefore some parameters such as #size() are meaningless because they can be read only
   * from the accessible medium. The real KMediumState_NotCreated state is not necessary because
-  * this class is only used with created (existing) media. */
-class SHARED_LIBRARY_STUFF UIMedium
+  * this class is only used with created (existing) mediums. */
+class UIMedium
 {
 public:
 
@@ -92,13 +88,13 @@ public:
 
     /** Lazy wrapping constructor.
       * Creates the UIMedium associated with the given @a medium of the given @a type. */
-    UIMedium(const CMedium &medium, UIMediumDeviceType type);
+    UIMedium(const CMedium &medium, UIMediumType type);
 
     /** Wrapping constructor with known medium state.
       * Similarly to the previous one it creates the UIMedium associated with the
       * given @a medium of the given @a type but sets the UIMedium @a state to passed one.
       * Suitable when the medium state is known such as right after the medium creation. */
-    UIMedium(const CMedium &medium, UIMediumDeviceType type, KMediumState state);
+    UIMedium(const CMedium &medium, UIMediumType type, KMediumState state);
 
     /** Copy constructor.
       * Creates the UIMedium on the basis of the passed @a other one. */
@@ -119,7 +115,7 @@ public:
     void refresh();
 
     /** Returns the type of UIMedium object. */
-    UIMediumDeviceType type() const { return m_type; }
+    UIMediumType type() const { return m_type; }
 
     /** Returns the CMedium wrapped by this UIMedium object. */
     const CMedium& medium() const { return m_medium; }
@@ -128,8 +124,8 @@ public:
       * @note   Also make sure wrapped CMedium is NULL object if his ID == #nullID(). */
     bool isNull() const
     {
-        AssertReturn(m_uId != nullID() || m_medium.isNull(), true);
-        return m_uId == nullID();
+        AssertReturn(m_strId != nullID() || m_medium.isNull(), true);
+        return m_strId == nullID();
     }
 
     /** Returns the medium state.
@@ -157,20 +153,20 @@ public:
     QString lastAccessError() const { return m_strLastAccessError; }
 
     /** Returns the medium ID. */
-    QUuid id() const { return m_uId; }
+    QString id() const { return m_strId; }
 
     /** Returns the medium root ID. */
-    QUuid rootID() const { return m_uRootId; }
+    QString rootID() const { return m_strRootId; }
     /** Returns the medium parent ID. */
-    QUuid parentID() const { return m_uParentId; }
+    QString parentID() const { return m_strParentId; }
 
     /** Updates medium parent. */
     void updateParentID();
 
     /** Returns the medium cache key. */
-    QUuid key() const { return m_uKey; }
-    /** Defines the medium cache @a uKey. */
-    void setKey(const QUuid &uKey) { m_uKey = uKey; }
+    QString key() const { return m_strKey; }
+    /** Defines the medium cache @a strKey. */
+    void setKey(const QString &strKey) { m_strKey = strKey; }
 
     /** Returns the medium name.
       * @param fNoDiffs @c true to enable user-friendly "don't show diffs" mode.
@@ -308,19 +304,19 @@ public:
     bool isUsed() const { return !m_strUsage.isNull(); }
 
     /** Returns whether this medium is attached to the given machine in the current state. */
-    bool isAttachedInCurStateTo(const QUuid &uMachineId) const { return m_curStateMachineIds.indexOf(uMachineId) >= 0; }
+    bool isAttachedInCurStateTo(const QString &strMachineId) const { return m_curStateMachineIds.indexOf(strMachineId) >= 0; }
 
     /** Returns a vector of IDs of all machines this medium is attached to. */
-    const QList<QUuid>& machineIds() const { return m_machineIds; }
+    const QList<QString>& machineIds() const { return m_machineIds; }
     /** Returns a vector of IDs of all machines this medium is attached to
       * in their current state (i.e. excluding snapshots). */
-    const QList<QUuid>& curStateMachineIds() const { return m_curStateMachineIds; }
+    const QList<QString>& curStateMachineIds() const { return m_curStateMachineIds; }
 
     /** Returns NULL medium ID. */
-    static QUuid nullID();
+    static QString nullID();
 
-    /** Returns passed @a uID if it's valid or #nullID() overwise. */
-    static QUuid normalizedID(const QUuid &uID);
+    /** Returns passed @a strID if it's valid or #nullID() overwise. */
+    static QString normalizedID(const QString &strID);
 
     /** Determines if passed @a medium is attached to hidden machines only. */
     static bool isMediumAttachedToHiddenMachinesOnly(const UIMedium &medium);
@@ -340,7 +336,7 @@ private:
     static QString mediumTypeToString(const CMedium &comMedium);
 
     /** Holds the type of UIMedium object. */
-    UIMediumDeviceType m_type;
+    UIMediumType m_type;
 
     /** Holds the CMedium wrapped by this UIMedium object. */
     CMedium m_medium;
@@ -353,14 +349,14 @@ private:
     QString m_strLastAccessError;
 
     /** Holds the medium ID. */
-    QUuid m_uId;
+    QString m_strId;
     /** Holds the medium root ID. */
-    QUuid m_uRootId;
+    QString m_strRootId;
     /** Holds the medium parent ID. */
-    QUuid m_uParentId;
+    QString m_strParentId;
 
     /** Holds the medium cache key. */
-    QUuid m_uKey;
+    QString m_strKey;
 
     /** Holds the medium name. */
     QString m_strName;
@@ -399,10 +395,10 @@ private:
     /** Holds the medium tool-tip. */
     QString m_strToolTip;
     /** Holds the vector of IDs of all machines this medium is attached to. */
-    QList<QUuid> m_machineIds;
+    QList<QString> m_machineIds;
     /** Hodls the vector of IDs of all machines this medium is attached to
       * in their current state (i.e. excluding snapshots). */
-    QList<QUuid> m_curStateMachineIds;
+    QList<QString> m_curStateMachineIds;
 
     /** Holds the medium cache for "don't show diffs" mode. */
     NoDiffsCache m_noDiffs;
@@ -421,7 +417,7 @@ private:
     bool m_fEncrypted                : 1;
 
     /** Holds the NULL medium ID. */
-    static QUuid m_uNullID;
+    static QString m_sstrNullID;
     /** Holds the medium tool-tip table template. */
     static QString m_sstrTable;
     /** Holds the medium tool-tip table row template. */
@@ -429,6 +425,6 @@ private:
 };
 Q_DECLARE_METATYPE(UIMedium);
 
-typedef QMap<QUuid, UIMedium> UIMediumMap;
+typedef QMap<QString, UIMedium> UIMediumMap;
 
-#endif /* !FEQT_INCLUDED_SRC_medium_UIMedium_h */
+#endif /* !___UIMedium_h___ */

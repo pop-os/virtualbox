@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_INCLUDED_SRC_NAT_winpoll_h
-#define VBOX_INCLUDED_SRC_NAT_winpoll_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef _WINPOLL_H_
+#define _WINPOLL_H_
 # include <iprt/cdefs.h>
 /**
  * WinSock2 has definition for POLL* and pollfd, but it defined for _WIN32_WINNT > 0x0600
@@ -50,4 +47,4 @@ struct pollfd {
 RT_C_DECLS_BEGIN
 int RTWinPoll(struct pollfd *pFds, unsigned int nfds, int timeout, int *pNready);
 RT_C_DECLS_END
-#endif /* !VBOX_INCLUDED_SRC_NAT_winpoll_h */
+#endif

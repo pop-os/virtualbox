@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,18 +15,24 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QHBoxLayout>
-#include <QVBoxLayout>
+# include <QVBoxLayout>
+# include <QHBoxLayout>
 
 /* GUI includes: */
-#include "QIRichTextLabel.h"
-#include "QIToolButton.h"
-#include "UIIconPool.h"
-#include "UIMediaComboBox.h"
-#include "UIMedium.h"
-#include "UIWizardCloneVD.h"
-#include "UIWizardCloneVDPageBasic1.h"
+# include "UIWizardCloneVDPageBasic1.h"
+# include "UIWizardCloneVD.h"
+# include "UIIconPool.h"
+# include "QIRichTextLabel.h"
+# include "VBoxMediaComboBox.h"
+# include "QIToolButton.h"
+# include "UIMedium.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 UIWizardCloneVDPage1::UIWizardCloneVDPage1()
@@ -36,13 +42,13 @@ UIWizardCloneVDPage1::UIWizardCloneVDPage1()
 void UIWizardCloneVDPage1::onHandleOpenSourceDiskClick()
 {
     /* Get current virtual-disk medium type: */
-    const UIMediumDeviceType enmMediumType = UIMediumDefs::mediumTypeToLocal(sourceVirtualDisk().GetDeviceType());
+    const UIMediumType enmMediumType = UIMediumDefs::mediumTypeToLocal(sourceVirtualDisk().GetDeviceType());
     /* Get source virtual-disk using file-open dialog: */
-    QUuid uMediumId = vboxGlobal().openMediumWithFileOpenDialog(enmMediumType, thisImp());
-    if (!uMediumId.isNull())
+    QString strMediumId = vboxGlobal().openMediumWithFileOpenDialog(enmMediumType, thisImp());
+    if (!strMediumId.isNull())
     {
         /* Update medium-combo if necessary: */
-        m_pSourceDiskSelector->setCurrentItem(uMediumId);
+        m_pSourceDiskSelector->setCurrentItem(strMediumId);
         /* Focus on virtual-disk combo: */
         m_pSourceDiskSelector->setFocus();
     }
@@ -66,7 +72,7 @@ UIWizardCloneVDPageBasic1::UIWizardCloneVDPageBasic1(const CMedium &comSourceVir
         m_pLabel = new QIRichTextLabel(this);
         QHBoxLayout *pSourceDiskLayout = new QHBoxLayout;
         {
-            m_pSourceDiskSelector = new UIMediaComboBox(this);
+            m_pSourceDiskSelector = new VBoxMediaComboBox(this);
             {
                 m_pSourceDiskSelector->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Fixed);
                 m_pSourceDiskSelector->setType(UIMediumDefs::mediumTypeToLocal(enmDeviceType));
@@ -87,10 +93,8 @@ UIWizardCloneVDPageBasic1::UIWizardCloneVDPageBasic1(const CMedium &comSourceVir
     }
 
     /* Setup connections: */
-    connect(m_pSourceDiskSelector, static_cast<void(UIMediaComboBox::*)(int)>(&UIMediaComboBox::currentIndexChanged),
-            this, &UIWizardCloneVDPageBasic1::completeChanged);
-    connect(m_pSourceDiskOpenButton, &QIToolButton::clicked,
-            this, &UIWizardCloneVDPageBasic1::sltHandleOpenSourceDiskClick);
+    connect(m_pSourceDiskSelector, SIGNAL(currentIndexChanged(int)), this, SIGNAL(completeChanged()));
+    connect(m_pSourceDiskOpenButton, SIGNAL(clicked()), this, SLOT(sltHandleOpenSourceDiskClick()));
 
     /* Register classes: */
     qRegisterMetaType<CMedium>();

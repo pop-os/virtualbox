@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,6 +35,7 @@
 #include <iprt/ctype.h>
 #include <iprt/dir.h>
 #include <iprt/env.h>
+#include <VBox/err.h>
 #include <iprt/file.h>
 #include <iprt/sha.h>
 #include <iprt/initterm.h>
@@ -130,13 +131,15 @@ RTEXITCODE handleUnregisterVM(HandlerArg *a)
                 {
                     if (RT_C_IS_PRINT(c))
                         return errorSyntax(USAGE_UNREGISTERVM, "Invalid option -%c", c);
-                    return errorSyntax(USAGE_UNREGISTERVM, "Invalid option case %i", c);
+                    else
+                        return errorSyntax(USAGE_UNREGISTERVM, "Invalid option case %i", c);
                 }
-                if (c == VERR_GETOPT_UNKNOWN_OPTION)
+                else if (c == VERR_GETOPT_UNKNOWN_OPTION)
                     return errorSyntax(USAGE_UNREGISTERVM, "unknown option: %s\n", ValueUnion.psz);
-                if (ValueUnion.pDef)
+                else if (ValueUnion.pDef)
                     return errorSyntax(USAGE_UNREGISTERVM, "%s: %Rrs", ValueUnion.pDef->pszLong, c);
-                return errorSyntax(USAGE_UNREGISTERVM, "error: %Rrs", c);
+                else
+                    return errorSyntax(USAGE_UNREGISTERVM, "error: %Rrs", c);
         }
     }
 
@@ -191,8 +194,6 @@ static const RTGETOPTDEF g_aCreateVMOptions[] =
     { "-uuid",            'u', RTGETOPT_REQ_UUID },
     { "--register",       'r', RTGETOPT_REQ_NOTHING },
     { "-register",        'r', RTGETOPT_REQ_NOTHING },
-    { "--default",        'd', RTGETOPT_REQ_NOTHING },
-    { "-default",         'd', RTGETOPT_REQ_NOTHING },
 };
 
 RTEXITCODE handleCreateVM(HandlerArg *a)
@@ -203,9 +204,6 @@ RTEXITCODE handleCreateVM(HandlerArg *a)
     Bstr bstrOsTypeId;
     Bstr bstrUuid;
     bool fRegister = false;
-    bool fDefault = false;
-    /* TBD. Now not used */
-    Bstr bstrDefaultFlags;
     com::SafeArray<BSTR> groups;
 
     int c;
@@ -240,10 +238,6 @@ RTEXITCODE handleCreateVM(HandlerArg *a)
 
             case 'r':   // --register
                 fRegister = true;
-                break;
-
-            case 'd':   // --default
-                fDefault = true;
                 break;
 
             default:
@@ -284,12 +278,6 @@ RTEXITCODE handleCreateVM(HandlerArg *a)
         {
             CHECK_ERROR_BREAK(a->virtualBox, RegisterMachine(machine));
         }
-        if (fDefault)
-        {
-            /* ApplyDefaults assumes the machine is already registered */
-            CHECK_ERROR_BREAK(machine, ApplyDefaults(bstrDefaultFlags.raw()));
-            CHECK_ERROR_BREAK(machine, SaveSettings());
-        }
         Bstr uuid;
         CHECK_ERROR_BREAK(machine, COMGETTER(Id)(uuid.asOutParam()));
         Bstr settingsFile;
@@ -303,117 +291,6 @@ RTEXITCODE handleCreateVM(HandlerArg *a)
     while (0);
 
     return SUCCEEDED(rc) ? RTEXITCODE_SUCCESS : RTEXITCODE_FAILURE;
-}
-
-static const RTGETOPTDEF g_aMoveVMOptions[] =
-{
-    { "--type",           't', RTGETOPT_REQ_STRING },
-    { "--folder",         'f', RTGETOPT_REQ_STRING },
-};
-
-RTEXITCODE handleMoveVM(HandlerArg *a)
-{
-    HRESULT                        rc;
-    const char                    *pszSrcName      = NULL;
-    const char                    *pszTargetFolder = NULL;
-    const char                    *pszType         = NULL;
-
-    int c;
-    int vrc = VINF_SUCCESS;
-    RTGETOPTUNION ValueUnion;
-    RTGETOPTSTATE GetState;
-
-    // start at 0 because main() has hacked both the argc and argv given to us
-    RTGetOptInit(&GetState, a->argc, a->argv, g_aMoveVMOptions, RT_ELEMENTS(g_aMoveVMOptions),
-                 0, RTGETOPTINIT_FLAGS_NO_STD_OPTS);
-    while ((c = RTGetOpt(&GetState, &ValueUnion)))
-    {
-        switch (c)
-        {
-            case 't':   // --type
-                pszType = ValueUnion.psz;
-                break;
-
-            case 'f':   // --target folder
-
-                char szPath[RTPATH_MAX];
-                pszTargetFolder = ValueUnion.psz;
-
-                vrc = RTPathAbs(pszTargetFolder, szPath, sizeof(szPath));
-                if (RT_FAILURE(vrc))
-                    return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTPathAbs(%s,,) failed with rc=%Rrc", pszTargetFolder, vrc);
-                break;
-
-            case VINF_GETOPT_NOT_OPTION:
-                if (!pszSrcName)
-                    pszSrcName = ValueUnion.psz;
-                else
-                    return errorSyntax(USAGE_MOVEVM, "Invalid parameter '%s'", ValueUnion.psz);
-                break;
-
-            default:
-                return errorGetOpt(USAGE_MOVEVM, c, &ValueUnion);
-        }
-    }
-
-
-    if (!pszType)
-    {
-        pszType = "basic";
-    }
-
-    /* Check for required options */
-    if (!pszSrcName)
-        return errorSyntax(USAGE_MOVEVM, "VM name required");
-
-    /* Get the machine object */
-    ComPtr<IMachine> srcMachine;
-    CHECK_ERROR_RET(a->virtualBox, FindMachine(Bstr(pszSrcName).raw(),
-                                               srcMachine.asOutParam()),
-                    RTEXITCODE_FAILURE);
-
-    if (srcMachine)
-    {
-        /* Start the moving */
-        ComPtr<IProgress> progress;
-
-        /* we have to open a session for this task */
-        CHECK_ERROR_RET(srcMachine, LockMachine(a->session, LockType_Write), RTEXITCODE_FAILURE);
-        ComPtr<IMachine> sessionMachine;
-
-        CHECK_ERROR_RET(a->session, COMGETTER(Machine)(sessionMachine.asOutParam()), RTEXITCODE_FAILURE);
-        CHECK_ERROR_RET(sessionMachine, MoveTo(Bstr(pszTargetFolder).raw(),
-                               Bstr(pszType).raw(),
-                               progress.asOutParam()), RTEXITCODE_FAILURE);
-        rc = showProgress(progress);
-        CHECK_PROGRESS_ERROR_RET(progress, ("Move VM failed"), RTEXITCODE_FAILURE);
-
-        sessionMachine.setNull();
-        CHECK_ERROR_RET(a->session, UnlockMachine(), RTEXITCODE_FAILURE);
-
-//        do
-//        {
-//            /* we have to open a session for this task */
-//            CHECK_ERROR_BREAK(srcMachine, LockMachine(a->session, LockType_Write));
-//            ComPtr<IMachine> sessionMachine;
-//            do
-//            {
-//                CHECK_ERROR_BREAK(a->session, COMGETTER(Machine)(sessionMachine.asOutParam()));
-//                CHECK_ERROR_BREAK(sessionMachine, MoveTo(Bstr(pszTargetFolder).raw(),
-//                                       Bstr(pszType).raw(),
-//                                       progress.asOutParam()));
-//                rc = showProgress(progress);
-//                CHECK_PROGRESS_ERROR_RET(progress, ("Move VM failed"), RTEXITCODE_FAILURE);
-////              CHECK_ERROR_BREAK(sessionMachine, SaveSettings());
-//            } while (0);
-//
-//            sessionMachine.setNull();
-//            CHECK_ERROR_BREAK(a->session, UnlockMachine());
-//        } while (0);
-        RTPrintf("Machine has been successfully moved into %s\n", pszTargetFolder);
-    }
-
-    return RTEXITCODE_SUCCESS;
 }
 
 static const RTGETOPTDEF g_aCloneVMOptions[] =
@@ -464,9 +341,6 @@ static int parseCloneOptions(const char *psz, com::SafeArray<CloneOptions_T> *op
             else if (   !RTStrNICmp(psz, "Link", len)
                      || !RTStrNICmp(psz, "Linked", len))
                 options->push_back(CloneOptions_Link);
-            else if (   !RTStrNICmp(psz, "KeepHwUUIDs", len)
-                     || !RTStrNICmp(psz, "KeepHwUUID", len))
-                options->push_back(CloneOptions_KeepHwUUIDs);
             else
                 rc = VERR_PARSE_ERROR;
         }
@@ -832,14 +706,14 @@ RTEXITCODE handleGetExtraData(HandlerArg *a)
 {
     HRESULT rc = S_OK;
 
-    if (a->argc > 2 || a->argc < 1)
+    if (a->argc != 2)
         return errorSyntax(USAGE_GETEXTRADATA, "Incorrect number of parameters");
 
     /* global data? */
     if (!strcmp(a->argv[0], "global"))
     {
         /* enumeration? */
-        if (a->argc < 2 || !strcmp(a->argv[1], "enumerate"))
+        if (!strcmp(a->argv[1], "enumerate"))
         {
             SafeArray<BSTR> aKeys;
             CHECK_ERROR(a->virtualBox, GetExtraDataKeys(ComSafeArrayAsOutParam(aKeys)));
@@ -875,7 +749,7 @@ RTEXITCODE handleGetExtraData(HandlerArg *a)
         if (machine)
         {
             /* enumeration? */
-            if (a->argc < 2 || !strcmp(a->argv[1], "enumerate"))
+            if (!strcmp(a->argv[1], "enumerate"))
             {
                 SafeArray<BSTR> aKeys;
                 CHECK_ERROR(machine, GetExtraDataKeys(ComSafeArrayAsOutParam(aKeys)));
@@ -1043,24 +917,6 @@ RTEXITCODE handleSetProperty(HandlerArg *a)
             bstrLoggingLevel.setNull();
         CHECK_ERROR(systemProperties, COMSETTER(LoggingLevel)(bstrLoggingLevel.raw()));
     }
-    else if (!strcmp(a->argv[0], "proxymode"))
-    {
-        ProxyMode_T enmProxyMode;
-        if (!RTStrICmpAscii(a->argv[1], "system"))
-            enmProxyMode = ProxyMode_System;
-        else if (!RTStrICmpAscii(a->argv[1], "noproxy"))
-            enmProxyMode = ProxyMode_NoProxy;
-        else if (!RTStrICmpAscii(a->argv[1], "manual"))
-            enmProxyMode = ProxyMode_Manual;
-        else
-            return errorArgument("Unknown proxy mode: '%s'", a->argv[1]);
-        CHECK_ERROR(systemProperties, COMSETTER(ProxyMode)(enmProxyMode));
-    }
-    else if (!strcmp(a->argv[0], "proxyurl"))
-    {
-        Bstr bstrProxyUrl(a->argv[1]);
-        CHECK_ERROR(systemProperties, COMSETTER(ProxyURL)(bstrProxyUrl.raw()));
-    }
     else
         return errorSyntax(USAGE_SETPROPERTY, "Invalid parameter '%s'", a->argv[0]);
 
@@ -1092,7 +948,6 @@ RTEXITCODE handleSharedFolder(HandlerArg *a)
         bool fTransient = false;
         bool fWritable = true;
         bool fAutoMount = false;
-        const char *pszAutoMountPoint = "";
 
         for (int i = 2; i < a->argc; i++)
         {
@@ -1127,13 +982,6 @@ RTEXITCODE handleSharedFolder(HandlerArg *a)
             {
                 fAutoMount = true;
             }
-            else if (!strcmp(a->argv[i], "--auto-mount-point"))
-            {
-                if (a->argc <= i + 1 || !*a->argv[i+1])
-                    return errorArgument("Missing argument to '%s'", a->argv[i]);
-                i++;
-                pszAutoMountPoint = a->argv[i];
-            }
             else
                 return errorSyntax(USAGE_SHAREDFOLDER_ADD, "Invalid parameter '%s'", Utf8Str(a->argv[i]).c_str());
         }
@@ -1164,8 +1012,9 @@ RTEXITCODE handleSharedFolder(HandlerArg *a)
                 return RTMsgErrorExit(RTEXITCODE_FAILURE,
                                       "Machine '%s' is not currently running.\n", pszMachineName);
 
-            CHECK_ERROR(console, CreateSharedFolder(Bstr(name).raw(), Bstr(hostpath).raw(),
-                                                    fWritable, fAutoMount, Bstr(pszAutoMountPoint).raw()));
+            CHECK_ERROR(console, CreateSharedFolder(Bstr(name).raw(),
+                                                    Bstr(hostpath).raw(),
+                                                    fWritable, fAutoMount));
             a->session->UnlockMachine();
         }
         else
@@ -1177,8 +1026,9 @@ RTEXITCODE handleSharedFolder(HandlerArg *a)
             ComPtr<IMachine> sessionMachine;
             a->session->COMGETTER(Machine)(sessionMachine.asOutParam());
 
-            CHECK_ERROR(sessionMachine, CreateSharedFolder(Bstr(name).raw(), Bstr(hostpath).raw(),
-                                                           fWritable, fAutoMount, Bstr(pszAutoMountPoint).raw()));
+            CHECK_ERROR(sessionMachine, CreateSharedFolder(Bstr(name).raw(),
+                                                           Bstr(hostpath).raw(),
+                                                           fWritable, fAutoMount));
             if (SUCCEEDED(rc))
                 CHECK_ERROR(sessionMachine, SaveSettings());
 

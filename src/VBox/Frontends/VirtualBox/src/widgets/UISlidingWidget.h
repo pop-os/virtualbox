@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,17 +15,14 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_widgets_UISlidingWidget_h
-#define FEQT_INCLUDED_SRC_widgets_UISlidingWidget_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UISlidingWidget_h___
+#define ___UISlidingWidget_h___
 
 /* Qt includes: */
 #include <QWidget>
 
 /* Forward declarations: */
-class QBoxLayout;
+class QHBoxLayout;
 class QRect;
 class QWidget;
 class UIAnimation;
@@ -49,18 +46,8 @@ signals:
 
 public:
 
-    /** Sliding state. */
-    enum State
-    {
-        State_Start,
-        State_GoingForward,
-        State_Final,
-        State_GoingBackward
-    };
-
-    /** Constructs sliding widget passing @a pParent to the base-class.
-      * @param  enmOrientation  Brings the widget orientation. */
-    UISlidingWidget(Qt::Orientation enmOrientation, QWidget *pParent = 0);
+    /** Constructs sliding widget passing @a pParent to the base-class. */
+    UISlidingWidget(QWidget *pParent = 0);
 
     /** Holds the minimum widget size. */
     virtual QSize minimumSizeHint() const /* pverride */;
@@ -68,13 +55,10 @@ public:
     /** Defines @a pWidget1 and @a pWidget2. */
     void setWidgets(QWidget *pWidget1, QWidget *pWidget2);
 
-    /** Returns sliding state. */
-    State state() const { return m_enmState; }
-
     /** Moves animation forward. */
-    void moveForward() { m_enmState = State_GoingForward; emit sigForward(); }
+    void moveForward() { emit sigForward(); }
     /** Moves animation backward. */
-    void moveBackward() { m_enmState = State_GoingBackward; emit sigBackward(); }
+    void moveBackward() { emit sigBackward(); }
 
 protected:
 
@@ -87,9 +71,9 @@ protected:
 private slots:
 
     /** Marks state as start. */
-    void sltSetStateToStart() { m_enmState = State_Start; }
+    void sltSetStateToStart() { m_fStateIsFinal = false; }
     /** Marks state as final. */
-    void sltSetStateToFinal() { m_enmState = State_Final; }
+    void sltSetStateToFinal() { m_fStateIsFinal = true; }
 
 private:
 
@@ -108,11 +92,8 @@ private:
     /** Returns sub-window final-geometry. */
     QRect finalWidgetGeometry() const { return m_finalWidgetGeometry; }
 
-    /** Holds the widget orientation. */
-    Qt::Orientation  m_enmOrientation;
-
     /** Holds whether we are in animation final state. */
-    State        m_enmState;
+    bool         m_fStateIsFinal;
     /** Holds the shift left/right animation instance. */
     UIAnimation *m_pAnimation;
     /** Holds sub-window start-geometry. */
@@ -123,12 +104,12 @@ private:
     /** Holds the private sliding widget instance. */
     QWidget     *m_pWidget;
     /** Holds the widget layout instance. */
-    QBoxLayout  *m_pLayout;
+    QHBoxLayout *m_pLayout;
     /** Holds the 1st widget reference. */
     QWidget     *m_pWidget1;
     /** Holds the 2nd widget reference. */
     QWidget     *m_pWidget2;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_widgets_UISlidingWidget_h */
+#endif /* !___UISlidingWidget_h___ */
 

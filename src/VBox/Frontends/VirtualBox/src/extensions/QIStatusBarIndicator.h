@@ -1,10 +1,10 @@
 /* $Id: QIStatusBarIndicator.h $ */
 /** @file
- * VBox Qt GUI - Qt extensions: QIStatusBarIndicator interface declaration.
+ * VBox Qt GUI - QIStatusBarIndicator interface declaration.
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,30 +15,19 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_extensions_QIStatusBarIndicator_h
-#define FEQT_INCLUDED_SRC_extensions_QIStatusBarIndicator_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___QIStatusBarIndicators_h___
+#define ___QIStatusBarIndicators_h___
 
 /* Qt includes: */
-#include <QIcon>
-#include <QMap>
 #include <QWidget>
-
-/* GUI includes: */
-#include "UILibraryDefs.h"
+#include <QMap>
+#include <QIcon>
 
 /* Forward declarations: */
-class QIcon;
 class QLabel;
-class QSize;
-class QString;
-class QWidget;
-
 
 /** QWidget extension used as status-bar indicator. */
-class SHARED_LIBRARY_STUFF QIStatusBarIndicator : public QWidget
+class QIStatusBarIndicator : public QWidget
 {
     Q_OBJECT;
 
@@ -51,7 +40,7 @@ signals:
 
 public:
 
-    /** Constructs status-bar indicator passing @a pParent to the base-class. */
+    /** Constructor, passes @a pParent to the QWidget constructor. */
     QIStatusBarIndicator(QWidget *pParent = 0);
 
     /** Returns size-hint. */
@@ -60,28 +49,28 @@ public:
 protected:
 
 #ifdef VBOX_WS_MAC
-    /** Handles mouse-press @a pEvent. */
-    virtual void mousePressEvent(QMouseEvent *pEvent) /* override */;
+    /** Mac OS X: Mouse-press-event handler.
+      *           Make the left button also show the context-menu to make things
+      *           simpler for users with single mouse button mice (laptops++). */
+    virtual void mousePressEvent(QMouseEvent *pEvent);
 #endif /* VBOX_WS_MAC */
-    /** Handles mouse-double-click @a pEvent. */
-    virtual void mouseDoubleClickEvent(QMouseEvent *pEvent) /* override */;
-
-    /** Handles context-menu @a pEvent. */
-    virtual void contextMenuEvent(QContextMenuEvent *pEvent) /* override */;
+    /** Mouse-double-click-event handler. */
+    virtual void mouseDoubleClickEvent(QMouseEvent *pEvent);
+    /** Context-menu-event handler. */
+    virtual void contextMenuEvent(QContextMenuEvent *pEvent);
 
     /** Holds currently cached size. */
     QSize m_size;
 };
 
-
 /** QIStatusBarIndicator extension used as status-bar state indicator. */
-class SHARED_LIBRARY_STUFF QIStateStatusBarIndicator : public QIStatusBarIndicator
+class QIStateStatusBarIndicator : public QIStatusBarIndicator
 {
     Q_OBJECT;
 
 public:
 
-    /** Constructs state status-bar indicator passing @a pParent to the base-class. */
+    /** Constructor, passes @a pParent to the QIStatusBarIndicator constructor. */
     QIStateStatusBarIndicator(QWidget *pParent = 0);
 
     /** Returns current state. */
@@ -101,10 +90,10 @@ public slots:
 
 protected:
 
-    /** Handles paint @a pEvent. */
-    virtual void paintEvent(QPaintEvent *pEvent) /* override */;
+    /** Paint-event handler. */
+    virtual void paintEvent(QPaintEvent *pEvent);
 
-    /** Draws contents using passed @a pPainter. */
+    /** Draw-contents routine. */
     virtual void drawContents(QPainter *pPainter);
 
 private:
@@ -115,15 +104,14 @@ private:
     QMap<int, QIcon> m_icons;
 };
 
-
 /** QIStatusBarIndicator extension used as status-bar state indicator. */
-class SHARED_LIBRARY_STUFF QITextStatusBarIndicator : public QIStatusBarIndicator
+class QITextStatusBarIndicator : public QIStatusBarIndicator
 {
     Q_OBJECT;
 
 public:
 
-    /** Constructs text status-bar indicator passing @a pParent to the base-class. */
+    /** Constructor, passes @a pParent to the QIStatusBarIndicator constructor. */
     QITextStatusBarIndicator(QWidget *pParent = 0);
 
     /** Returns text. */
@@ -137,5 +125,4 @@ private:
     QLabel *m_pLabel;
 };
 
-
-#endif /* !FEQT_INCLUDED_SRC_extensions_QIStatusBarIndicator_h */
+#endif /* !___QIStatusBarIndicators_h___ */

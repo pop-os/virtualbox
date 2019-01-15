@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_INCLUDED_SRC_Audio_DevHDA_h
-#define VBOX_INCLUDED_SRC_Audio_DevHDA_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef DEV_HDA_H
+#define DEV_HDA_H
 
 #include <iprt/path.h>
 
@@ -179,6 +176,13 @@ typedef struct HDASTATE
 #endif
     /** Last updated wall clock (WALCLK) counter. */
     uint64_t                           u64WalClk;
+#ifdef VBOX_STRICT
+    /** Wall clock (WALCLK) stale count.
+     *  This indicates the number of set wall clock
+     *  values which did not actually move the counter forward (stale). */
+    uint8_t                            u8WalClkStaleCnt;
+    uint8_t                            au8Padding2[7];
+#endif
     /** Response Interrupt Count (RINTCNT). */
     uint16_t                           u16RespIntCnt;
     /** Position adjustment (in audio frames).
@@ -194,15 +198,7 @@ typedef struct HDASTATE
     uint16_t                           cPosAdjustFrames;
     /** Whether the position adjustment is enabled or not. */
     bool                               fPosAdjustEnabled;
-#ifdef VBOX_STRICT
-    /** Wall clock (WALCLK) stale count.
-     *  This indicates the number of set wall clock
-     *  values which did not actually move the counter forward (stale). */
-    uint8_t                            u8WalClkStaleCnt;
-    uint8_t                            Padding1[2];
-#else
     uint8_t                            Padding1[3];
-#endif
     /** Current IRQ level. */
     uint8_t                            u8IRQL;
     /** The device timer Hz rate. Defaults to HDA_TIMER_HZ_DEFAULT. */
@@ -218,5 +214,5 @@ typedef struct HDASTATE
 /** Value for HDASTATE:uAlignmentCheckMagic. */
 #define HDASTATE_ALIGNMENT_CHECK_MAGIC  UINT64_C(0x1298afb75893e059)
 
-#endif /* !VBOX_INCLUDED_SRC_Audio_DevHDA_h */
+#endif /* !DEV_HDA_H */
 

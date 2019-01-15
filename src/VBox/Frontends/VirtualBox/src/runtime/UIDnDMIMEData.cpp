@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,20 +15,24 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#define LOG_GROUP LOG_GROUP_GUEST_DND
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Qt includes: */
-#include <QFileInfo>
-#include <QMimeData>
-#include <QStringList>
-#include <QUrl>
+# include <QFileInfo>
+# include <QMimeData>
+# include <QStringList>
+# include <QUrl>
 
 /* GUI includes: */
-#include "UIDnDMIMEData.h"
+# include "UIDnDMIMEData.h"
 
-/* Other VBox includes: */
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+#undef LOG_GROUP
+#define LOG_GROUP LOG_GROUP_GUEST_DND
 #include <VBox/log.h>
-#include <iprt/errcore.h>
 
 
 UIDnDMIMEData::UIDnDMIMEData(UIDnDHandler *pDnDHandler,

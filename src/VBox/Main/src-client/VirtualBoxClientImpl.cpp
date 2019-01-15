@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,7 +31,6 @@
 #include <iprt/cpp/utils.h>
 #include <iprt/utf16.h>
 #ifdef RT_OS_WINDOWS
-# include <iprt/err.h>
 # include <iprt/ldr.h>
 # include <msi.h>
 # include <WbemIdl.h>
@@ -78,7 +77,7 @@ HRESULT VirtualBoxClient::init()
 #if defined(RT_OS_WINDOWS) && defined(VBOX_WITH_SDS)
     // setup COM Security to enable impersonation
     // This works for console VirtualBox clients, GUI has own security settings
-    //  For GUI VirtualBox it will be second call so can return TOO_LATE error
+    //  For GUI Virtual Box it will be second call so can return TOO_LATE error
     HRESULT hrGUICoInitializeSecurity = CoInitializeSecurity(NULL,
                                                              -1,
                                                              NULL,
@@ -145,7 +144,7 @@ HRESULT VirtualBoxClient::init()
         if (RT_FAILURE(vrc))
         {
             mData.m_SemEvWatcher = NIL_RTSEMEVENT;
-            AssertRCStmt(vrc, throw setErrorBoth(VBOX_E_IPRT_ERROR, vrc, tr("Failed to create semaphore (rc=%Rrc)"), vrc));
+            AssertRCStmt(vrc, throw setError(VBOX_E_IPRT_ERROR, tr("Failed to create semaphore (rc=%Rrc)"), vrc));
         }
 
         vrc = RTThreadCreate(&mData.m_ThreadWatcher, SVCWatcherThread, this, 0,
@@ -154,7 +153,7 @@ HRESULT VirtualBoxClient::init()
         {
             RTSemEventDestroy(mData.m_SemEvWatcher);
             mData.m_SemEvWatcher = NIL_RTSEMEVENT;
-            AssertRCStmt(vrc, throw setErrorBoth(VBOX_E_IPRT_ERROR, vrc,  tr("Failed to create watcher thread (rc=%Rrc)"), vrc));
+            AssertRCStmt(vrc, throw setError(VBOX_E_IPRT_ERROR,  tr("Failed to create watcher thread (rc=%Rrc)"), vrc));
         }
     }
     catch (HRESULT err)
@@ -206,21 +205,14 @@ HRESULT VirtualBoxClient::i_investigateVirtualBoxObjectCreationFailure(HRESULT h
         if (RTUtf16Cmp(wszBuffer, L"LocalSystem") != 0)
             return setError(hrcCaller,
                             tr("VBoxSDS is misconfigured to run under the '%ls' account instead of the SYSTEM one.\n"
-                               "Reinstall VirtualBox to fix it.  Alternatively you can fix it using the Windows Service Control "
-                               "Manager or by running 'qc config VBoxSDS obj=LocalSystem' on a command line."), wszBuffer);
+                               "You can fix this by using the Windows Service Control Manager or by running\n"
+                               "'qc config VBoxSDS obj=LocalSystem' on a command line."),  wszBuffer);
         if (uStartType == SERVICE_DISABLED)
             return setError(hrcCaller,
                             tr("The VBoxSDS windows service is disabled.\n"
-                               "Reinstall VirtualBox to fix it.  Alternatively try reenable the service by setting it to "
-                               " 'Manual' startup type in the Windows Service management console, or by runing "
-                               "'sc config VBoxSDS start=demand' on the command line."));
+                               "To reenable the service, set it to 'Manual' startup type in the Windows Service\n"
+                               "management console, or run 'sc config VBoxSDS start=demand' on a command line"));
     }
-    else if (vrc == VERR_NOT_FOUND)
-        return setError(hrcCaller,
-                        tr("The VBoxSDS windows service was not found.\n"
-                           "Reinstall VirtualBox to fix it.  Alternatively you can try start VirtualBox as Administrator, this "
-                           "should automatically reinstall the service, or you can run "
-                           "'VBoxSDS.exe --regservice' command from an elevated Administrator command line."));
     else
         LogRelFunc(("VirtualBoxClient::i_getServiceAccount failed: %Rrc\n", vrc));
 # endif
@@ -430,8 +422,8 @@ int VirtualBoxClient::i_getServiceAccountAndStartType(const wchar_t *pwszService
                     {
                         int dwError = GetLastError();
                         vrc = RTErrConvertFromWin32(dwError);
-                        LogRel(("Error: Failed querying '%ls' service config: %Rwc (%u) -> %Rrc; cbNeeded=%d cbNeeded2=%d\n",
-                                pwszServiceName, dwError, dwError, vrc, cbNeeded, cbNeeded2));
+                        LogRel(("Error: Failed querying service config: %Rwc (%u) -> %Rrc; cbNeeded=%d cbNeeded2=%d\n",
+                                dwError, dwError, vrc, cbNeeded, cbNeeded2));
                     }
                     RTMemTmpFree(pSc);
                 }
@@ -452,7 +444,7 @@ int VirtualBoxClient::i_getServiceAccountAndStartType(const wchar_t *pwszService
         {
             int dwError = GetLastError();
             vrc = RTErrConvertFromWin32(dwError);
-            LogRel(("Error: Could not open service '%ls': %Rwc (%u) -> %Rrc\n", pwszServiceName, dwError, dwError, vrc));
+            LogRel(("Error: Could not open service: %Rwc (%u) -> %Rrc\n", dwError, dwError, vrc));
         }
         CloseServiceHandle(hSCManager);
     }

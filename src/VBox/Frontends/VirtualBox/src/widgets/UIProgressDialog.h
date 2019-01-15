@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,16 +15,12 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_widgets_UIProgressDialog_h
-#define FEQT_INCLUDED_SRC_widgets_UIProgressDialog_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIProgressDialog_h___
+#define ___UIProgressDialog_h___
 
 /* GUI includes: */
 #include "QIDialog.h"
 #include "QIWithRetranslateUI.h"
-#include "UILibraryDefs.h"
 
 /* Forward declarations: */
 class QLabel;
@@ -41,7 +37,7 @@ class CProgress;
   *    IProgress::waitForCompletion() and w/o blocking the UI thread in any other way for too long).
   * @note The CProgress instance is passed as a non-const reference to the constructor (to memorize COM errors if they happen),
   *       and therefore must not be destroyed before the created UIProgressDialog instance is destroyed. */
-class SHARED_LIBRARY_STUFF UIProgressDialog : public QIWithRetranslateUI2<QIDialog>
+class UIProgressDialog : public QIWithRetranslateUI2<QIDialog>
 {
     Q_OBJECT;
 
@@ -90,10 +86,10 @@ protected:
 
 private slots:
 
-    /** Handles percentage changed event for progress with @a uProgressId to @a iPercent. */
-    void sltHandleProgressPercentageChange(const QUuid &uProgressId, const int iPercent);
-    /** Handles task completed event for progress with @a uProgressId. */
-    void sltHandleProgressTaskComplete(const QUuid &uProgressId);
+    /** Handles percentage changed event for progress with @a strProgressId to @a iPercent. */
+    void sltHandleProgressPercentageChange(QString strProgressId, int iPercent);
+    /** Handles task completed event for progress with @a strProgressId. */
+    void sltHandleProgressTaskComplete(QString strProgressId);
 
     /** Handles window stack changed signal. */
     void sltHandleWindowStackChange();
@@ -173,7 +169,7 @@ private:
   *       (to memorize COM errors if they happen), and therefore must not be destroyed
   *       before the created UIProgress instance is destroyed.
   * @todo To be moved to separate files. */
-class SHARED_LIBRARY_STUFF UIProgress : public QObject
+class UIProgress : public QObject
 {
     Q_OBJECT;
 
@@ -214,9 +210,8 @@ private:
     bool         m_fEnded;
 
     /** Holds the personal event-loop instance. */
-    QPointer<QEventLoop>  m_pEventLoop;
+    QPointer<QEventLoop> m_pEventLoop;
 };
 
-
-#endif /* !FEQT_INCLUDED_SRC_widgets_UIProgressDialog_h */
+#endif /* !___UIProgressDialog_h___ */
 

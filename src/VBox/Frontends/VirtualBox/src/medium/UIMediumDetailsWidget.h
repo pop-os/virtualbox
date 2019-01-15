@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_medium_UIMediumDetailsWidget_h
-#define FEQT_INCLUDED_SRC_medium_UIMediumDetailsWidget_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIMediumDetailsWidget_h___
+#define ___UIMediumDetailsWidget_h___
 
 /* Qt includes: */
 #include <QWidget>
@@ -122,7 +119,7 @@ struct UIDataMedium
     /** Constructs data. */
     UIDataMedium()
         : m_fValid(false)
-        , m_enmType(UIMediumDeviceType_Invalid)
+        , m_enmType(UIMediumType_Invalid)
         , m_enmVariant(KMediumVariant_Max)
         , m_fHasChildren(false)
         , m_options(UIDataMediumOptions())
@@ -130,7 +127,7 @@ struct UIDataMedium
     {}
 
     /** Constructs data with passed @enmType. */
-    UIDataMedium(UIMediumDeviceType enmType)
+    UIDataMedium(UIMediumType enmType)
         : m_fValid(false)
         , m_enmType(enmType)
         , m_enmVariant(KMediumVariant_Max)
@@ -160,7 +157,7 @@ struct UIDataMedium
     /** Holds whether data is valid. */
     bool m_fValid;
     /** Holds the medium type. */
-    UIMediumDeviceType m_enmType;
+    UIMediumType m_enmType;
     /** Holds the medium variant. */
     KMediumVariant m_enmVariant;
     /** Holds whether medium has children. */
@@ -197,7 +194,7 @@ public:
     UIMediumDetailsWidget(UIMediumManagerWidget *pParent, EmbedTo enmEmbedding);
 
     /** Defines the raised details @a enmType. */
-    void setCurrentType(UIMediumDeviceType enmType);
+    void setCurrentType(UIMediumType enmType);
 
     /** Returns the medium data. */
     const UIDataMedium &data() const { return m_newData; }
@@ -248,7 +245,7 @@ private:
         /** Prepares 'Details' tab. */
         void prepareTabDetails();
         /** Prepares information-container. */
-        void prepareInformationContainer(UIMediumDeviceType enmType, int cFields);
+        void prepareInformationContainer(UIMediumType enmType, int cFields);
     /** @} */
 
     /** @name Loading stuff.
@@ -275,11 +272,11 @@ private:
     /** @name Details stuff.
       * @{ */
         /** Returns information-container for passed medium @a enmType. */
-        QWidget *infoContainer(UIMediumDeviceType enmType) const;
+        QWidget *infoContainer(UIMediumType enmType) const;
         /** Returns information-label for passed medium @a enmType and @a iIndex. */
-        QLabel *infoLabel(UIMediumDeviceType enmType, int iIndex) const;
+        QLabel *infoLabel(UIMediumType enmType, int iIndex) const;
         /** Returns information-field for passed medium @a enmType and @a iIndex. */
-        QILabel *infoField(UIMediumDeviceType enmType, int iIndex) const;
+        QILabel *infoField(UIMediumType enmType, int iIndex) const;
     /** @} */
 
     /** @name General variables.
@@ -345,13 +342,13 @@ private:
         QStackedLayout *m_pLayoutDetails;
 
         /** Holds the map of information-container instances. */
-        QMap<UIMediumDeviceType, QWidget*>          m_aContainers;
+        QMap<UIMediumType, QWidget*>          m_aContainers;
         /** Holds the map of information-container label instances. */
-        QMap<UIMediumDeviceType, QList<QLabel*> >   m_aLabels;
+        QMap<UIMediumType, QList<QLabel*> >   m_aLabels;
         /** Holds the information-container field instances. */
-        QMap<UIMediumDeviceType, QList<QILabel*> >  m_aFields;
+        QMap<UIMediumType, QList<QILabel*> >  m_aFields;
     /** @} */
 };
 
-#endif /* !FEQT_INCLUDED_SRC_medium_UIMediumDetailsWidget_h */
+#endif /* !___UIMediumDetailsWidget_h___ */
 

@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,11 +27,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef VBOX_INCLUDED_com_errorprint_h
-#define VBOX_INCLUDED_com_errorprint_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBox_com_errorprint_h
+#define ___VBox_com_errorprint_h
 
 #include <VBox/com/ErrorInfo.h>
 
@@ -220,17 +217,6 @@ void GlueHandleComErrorProgress(ComPtr<IProgress> progress, const char *pcszCont
  * @sa CHECK_ERROR2_BREAK, CHECK_ERROR2_EX
  */
 #define CHECK_ERROR2I_BREAK(iface, method)          CHECK_ERROR2_EX(HRESULT, hrcCheck, iface, method, break)
-/**
- * Simplified version of CHECK_ERROR2_EX that executes the |stmt;break|
- * statements after error reporting and that uses an internal variable
- * |hrcCheck| for holding the result.
- *
- * @param   iface       The interface pointer (can be a smart pointer object).
- * @param   method      The method to invoke together with the parameters.
- * @param   stmt        Statement to be executed after reporting failures.
- * @sa CHECK_ERROR2_BREAK, CHECK_ERROR2_EX
- */
-#define CHECK_ERROR2I_BREAK_STMT(iface, method, stmt) CHECK_ERROR2_EX(HRESULT, hrcCheck, iface, method, stmt; break)
 
 
 /**
@@ -377,5 +363,5 @@ void GlueHandleComErrorProgress(ComPtr<IProgress> progress, const char *pcszCont
 
 /** @} */
 
-#endif /* !VBOX_INCLUDED_com_errorprint_h */
+#endif
 

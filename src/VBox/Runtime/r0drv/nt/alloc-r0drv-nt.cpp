@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -33,7 +33,7 @@
 #include <iprt/mem.h>
 
 #include <iprt/assert.h>
-#include <iprt/errcore.h>
+#include <iprt/err.h>
 #include "r0drv/alloc-r0drv.h"
 #include "internal-r0drv-nt.h"
 
@@ -45,16 +45,14 @@ DECLHIDDEN(int) rtR0MemAllocEx(size_t cb, uint32_t fFlags, PRTMEMHDR *ppHdr)
 {
     if (!(fFlags & RTMEMHDR_FLAG_ANY_CTX))
     {
-        PRTMEMHDR pHdr;
-        if (g_pfnrtExAllocatePoolWithTag)
-        {
-            if (!(fFlags & RTMEMHDR_FLAG_EXEC) && g_uRtNtVersion >= RTNT_MAKE_VERSION(8,0))
-                pHdr = (PRTMEMHDR)g_pfnrtExAllocatePoolWithTag(NonPagedPoolNx, cb + sizeof(*pHdr), IPRT_NT_POOL_TAG);
-            else
-                pHdr = (PRTMEMHDR)g_pfnrtExAllocatePoolWithTag(NonPagedPool, cb + sizeof(*pHdr), IPRT_NT_POOL_TAG);
-        }
-        else
-            pHdr = (PRTMEMHDR)ExAllocatePool(NonPagedPool, cb + sizeof(*pHdr));
+#if 1 /* This allegedly makes the driver verifier happier... */
+        POOL_TYPE enmPoolType = NonPagedPool;
+        if (!(fFlags & RTMEMHDR_FLAG_EXEC) && g_uRtNtVersion >= RTNT_MAKE_VERSION(8,0))
+            enmPoolType = NonPagedPoolNx;
+        PRTMEMHDR pHdr = (PRTMEMHDR)ExAllocatePoolWithTag(enmPoolType, cb + sizeof(*pHdr), IPRT_NT_POOL_TAG);
+#else
+        PRTMEMHDR pHdr = (PRTMEMHDR)ExAllocatePoolWithTag(NonPagedPool, cb + sizeof(*pHdr), IPRT_NT_POOL_TAG);
+#endif
         if (pHdr)
         {
             pHdr->u32Magic  = RTMEMHDR_MAGIC;
@@ -76,10 +74,7 @@ DECLHIDDEN(int) rtR0MemAllocEx(size_t cb, uint32_t fFlags, PRTMEMHDR *ppHdr)
 DECLHIDDEN(void) rtR0MemFree(PRTMEMHDR pHdr)
 {
     pHdr->u32Magic += 1;
-    if (g_pfnrtExFreePoolWithTag)
-        g_pfnrtExFreePoolWithTag(pHdr, IPRT_NT_POOL_TAG);
-    else
-        ExFreePool(pHdr);
+    ExFreePool(pHdr);
 }
 
 

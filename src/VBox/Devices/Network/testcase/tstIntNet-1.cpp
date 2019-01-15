@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,7 +24,7 @@
 #include <VBox/vmm/pdmnetinline.h>
 #include <VBox/sup.h>
 #include <VBox/vmm/vmm.h>
-#include <iprt/errcore.h>
+#include <VBox/err.h>
 #include <iprt/initterm.h>
 #include <iprt/alloc.h>
 #include <iprt/path.h>
@@ -607,10 +607,9 @@ static void doPacketSniffing(INTNETIFHANDLE hIf, PSUPDRVSESSION pSession, PINTNE
  *
  * @returns VBox status code.
  *
- * @param   pszName     The buffer where to put the name.
- * @param   cbName      The buffer length.
+ * @param   pszName     The buffer of IFNAMSIZ+1 length where to put the name.
  */
-static int getDefaultIfaceName(char *pszName, size_t cbName)
+static int getDefaultIfaceName(char *pszName)
 {
     FILE *fp = fopen("/proc/net/route", "r");
     char szBuf[1024];
@@ -634,8 +633,9 @@ static int getDefaultIfaceName(char *pszName, size_t cbName)
             if (uAddr == 0 && uMask == 0)
             {
                 fclose(fp);
-                szIfName[sizeof(szIfName) - 1] = '\0';
-                return RTStrCopy(pszName, cbName, szIfName);
+                strncpy(pszName, szIfName, 16);
+                pszName[16] = 0;
+                return VINF_SUCCESS;
             }
         }
         fclose(fp);
@@ -683,7 +683,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
      * Try to update the default interface by consulting the routing table.
      * If we fail we still have our reasonable default.
      */
-    getDefaultIfaceName(szIf, sizeof(szIf));
+    getDefaultIfaceName(szIf);
     const char *pszIf = szIf;
 #elif defined(RT_OS_SOLARIS)
     const char* pszIf = "rge0";
@@ -808,7 +808,7 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
                 return 1;
 
             case 'V':
-                RTPrintf("$Revision: 127855 $\n");
+                RTPrintf("$Revision: 118839 $\n");
                 return 0;
 
             default:
@@ -861,8 +861,8 @@ extern "C" DECLEXPORT(int) TrustedMain(int argc, char **argv, char **envp)
     OpenReq.Hdr.u32Magic = SUPVMMR0REQHDR_MAGIC;
     OpenReq.Hdr.cbReq = sizeof(OpenReq);
     OpenReq.pSession = pSession;
-    RTStrCopy(OpenReq.szNetwork, sizeof(OpenReq.szNetwork), pszNetwork);
-    RTStrCopy(OpenReq.szTrunk, sizeof(OpenReq.szTrunk), pszIf);
+    strncpy(OpenReq.szNetwork, pszNetwork, sizeof(OpenReq.szNetwork));
+    strncpy(OpenReq.szTrunk, pszIf, sizeof(OpenReq.szTrunk));
     OpenReq.enmTrunkType = *pszIf ? kIntNetTrunkType_NetFlt : kIntNetTrunkType_WhateverNone;
     OpenReq.fFlags = fMacSharing ? INTNET_OPEN_FLAGS_SHARED_MAC_ON_WIRE : 0;
     OpenReq.cbSend = cbSend;

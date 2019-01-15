@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -86,7 +86,6 @@
 #include <iprt/system.h>
 #include <iprt/thread.h>
 
-#include <VBox/err.h>
 #include <VBox/log.h>
 
 #include "VBoxServiceInternal.h"
@@ -307,7 +306,7 @@ int VGSvcLogCreate(const char *pszLogFile)
 {
     /* Create release logger (stdout + file). */
     static const char * const s_apszGroups[] = VBOX_LOGGROUP_NAMES;
-    RTUINT fFlags = RTLOGFLAGS_PREFIX_THREAD | RTLOGFLAGS_PREFIX_TIME;
+    RTUINT fFlags = RTLOGFLAGS_PREFIX_THREAD | RTLOGFLAGS_PREFIX_TIME_PROG;
 #if defined(RT_OS_WINDOWS) || defined(RT_OS_OS2)
     fFlags |= RTLOGFLAGS_USECRLF;
 #endif
@@ -532,7 +531,7 @@ int VGSvcArgUInt32(int argc, char **argv, const char *psz, int *pi, uint32_t *pu
 static int vgsvcArgString(int argc, char **argv, const char *psz, int *pi, char *pszBuf, size_t cbBuf)
 {
     AssertPtrReturn(pszBuf, VERR_INVALID_POINTER);
-    AssertReturn(cbBuf, VERR_INVALID_PARAMETER);
+    AssertPtrReturn(cbBuf, VERR_INVALID_PARAMETER);
 
     if (*psz == ':' || *psz == '=')
         psz++;
@@ -674,9 +673,9 @@ int VGSvcStartServices(void)
                     VGSvcReportStatus(VBoxGuestFacilityStatus_Failed);
                     return rc;
                 }
-
                 g_aServices[j].fEnabled = false;
                 VGSvcVerbose(0, "Service '%s' was disabled because of missing functionality\n", g_aServices[j].pDesc->pszName);
+
             }
         }
 
@@ -844,10 +843,6 @@ void VGSvcMainWait(void)
      *
      * The annoying EINTR/ERESTART loop is for the benefit of Solaris where
      * sigwait returns when we receive a SIGCHLD.  Kind of makes sense since
-     * the signal has to be delivered...  Anyway, darwin (10.9.5) has a much
-     * worse way of dealing with SIGCHLD, apparently it'll just return any
-     * of the signals we're waiting on when SIGCHLD becomes pending on this
-     * thread. So, we wait for SIGCHLD here and ignores it.
      */
     sigset_t signalMask;
     sigemptyset(&signalMask);
@@ -856,7 +851,6 @@ void VGSvcMainWait(void)
     sigaddset(&signalMask, SIGQUIT);
     sigaddset(&signalMask, SIGABRT);
     sigaddset(&signalMask, SIGTERM);
-    sigaddset(&signalMask, SIGCHLD);
     pthread_sigmask(SIG_BLOCK, &signalMask, NULL);
 
     int iSignal;
@@ -869,7 +863,6 @@ void VGSvcMainWait(void)
 # ifdef ERESTART
            || rc == ERESTART
 # endif
-           || iSignal == SIGCHLD
           );
 
     VGSvcVerbose(3, "VGSvcMainWait: Received signal %d (rc=%d)\n", iSignal, rc);
@@ -888,9 +881,6 @@ int main(int argc, char **argv)
     if (RT_FAILURE(rc))
         return RTMsgInitFailure(rc);
     g_pszProgName = RTPathFilename(argv[0]);
-#ifdef RT_OS_WINDOWS
-    VGSvcWinResolveApis();
-#endif
 #ifdef DEBUG
     rc = RTCritSectInit(&g_csLog);
     AssertRC(rc);
@@ -1085,7 +1075,7 @@ int main(int argc, char **argv)
                 case 'l':
                 {
                     rc = vgsvcArgString(argc, argv, psz + 1, &i,
-                                        g_szLogFile, sizeof(g_szLogFile));
+                                              g_szLogFile, sizeof(g_szLogFile));
                     if (rc)
                         return rc;
                     psz = NULL;
@@ -1095,7 +1085,7 @@ int main(int argc, char **argv)
                 case 'p':
                 {
                     rc = vgsvcArgString(argc, argv, psz + 1, &i,
-                                        g_szPidFile, sizeof(g_szPidFile));
+                                              g_szPidFile, sizeof(g_szPidFile));
                     if (rc)
                         return rc;
                     psz = NULL;

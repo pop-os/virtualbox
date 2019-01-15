@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,13 +20,12 @@
 # include <paths.h>
 #endif
 
-#include <iprt/errcore.h>
+#include <VBox/err.h>
 #include <VBox/vmm/pdmdrv.h>
 #include <iprt/assert.h>
 #include <iprt/file.h>
 
 #ifdef RT_OS_WINDOWS
-# include <iprt/utf16.h>
 # include <Winnls.h>
 # define _WINSOCK2API_
 # include <iprt/win/iphlpapi.h>

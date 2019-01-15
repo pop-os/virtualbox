@@ -1,10 +1,10 @@
 /* $Id: QISplitter.cpp $ */
 /** @file
- * VBox Qt GUI - Qt extensions: QISplitter class implementation.
+ * VBox Qt GUI - VirtualBox Qt extensions: QISplitter class implementation.
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,268 +15,161 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QApplication>
-#include <QEvent>
-#include <QPainter>
-#include <QPaintEvent>
+# include <QApplication>
+# include <QEvent>
+# include <QPainter>
+# include <QPaintEvent>
 
 /* GUI includes: */
-#include "QISplitter.h"
-#include "VBoxGlobal.h"
+# include "QISplitter.h"
+# include "VBoxGlobal.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
-/** QSplitterHandle subclass representing flat line. */
-class QIFlatSplitterHandle : public QSplitterHandle
+/* A simple shaded line: */
+class QIShadeSplitterHandle: public QSplitterHandle
 {
     Q_OBJECT;
 
 public:
 
-    /** Constructs flat splitter handle passing @a enmOrientation and @a pParent to the base-class. */
-    QIFlatSplitterHandle(Qt::Orientation enmOrientation, QISplitter *pParent);
+    QIShadeSplitterHandle(Qt::Orientation orientation, QISplitter *pParent)
+        : QSplitterHandle(orientation, pParent)
+    {
+        QPalette pal = qApp->palette();
+        QColor windowColor = pal.color(QPalette::Active, QPalette::Window);
+        QColor darkColor = pal.color(QPalette::Active, QPalette::Dark);
+        m_color1 = windowColor;
+        m_color2 = windowColor;
+        m_color = darkColor;
+    }
 
-    /** Defines @a color. */
-    void configureColor(const QColor &color);
-
-protected:
-
-    /** Handles paint @a pEvent. */
-    virtual void paintEvent(QPaintEvent *pEvent) /* override */;
-
-private:
-
-    /** Holds the main color. */
-    QColor m_color;
-};
-
-
-/** QSplitterHandle subclass representing shaded line. */
-class QIShadeSplitterHandle : public QSplitterHandle
-{
-    Q_OBJECT;
-
-public:
-
-    /** Constructs shaded splitter handle passing @a enmOrientation and @a pParent to the base-class. */
-    QIShadeSplitterHandle(Qt::Orientation enmOrientation, QISplitter *pParent);
-
-    /** Defines colors to passed @a color1 and @a color2. */
-    void configureColors(const QColor &color1, const QColor &color2);
+    void configureColors(const QColor &color1, const QColor &color2)
+    {
+        m_color1 = color1;
+        m_color2 = color2;
+        update();
+    }
 
 protected:
 
-    /** Handles paint @a pEvent. */
-    virtual void paintEvent(QPaintEvent *pEvent) /* override */;
+    void paintEvent(QPaintEvent *pEvent)
+    {
+        QPainter painter(this);
+        QLinearGradient gradient;
+        QGradientStop point1(0, m_color1);
+        QGradientStop point2(0.5, m_color);
+        QGradientStop point3(1, m_color2);
+        QGradientStops stops;
+        stops << point1 << point2 << point3;
+        gradient.setStops(stops);
+        if (orientation() == Qt::Horizontal)
+        {
+            gradient.setStart(rect().left() + 1, 0);
+            gradient.setFinalStop(rect().right(), 0);
+        }
+        else
+        {
+            gradient.setStart(0, rect().top() + 1);
+            gradient.setFinalStop(0, rect().bottom());
+        }
+        painter.fillRect(pEvent->rect(), gradient);
+    }
 
 private:
 
-    /** Holds the main color. */
     QColor m_color;
-    /** Holds the color1. */
     QColor m_color1;
-    /** Holds the color2. */
     QColor m_color2;
 };
 
-
-#ifdef VBOX_WS_MAC
-/** QSplitterHandle subclass representing shaded line for macOS. */
-class QIDarwinSplitterHandle : public QSplitterHandle
+#ifdef RT_OS_DARWIN
+/* The Mac OS X version. */
+class QIDarwinSplitterHandle: public QSplitterHandle
 {
     Q_OBJECT;
 
 public:
 
-    /** Constructs shaded splitter handle passing @a enmOrientation and @a pParent to the base-class. */
-    QIDarwinSplitterHandle(Qt::Orientation enmOrientation, QISplitter *pParent);
+    QIDarwinSplitterHandle(Qt::Orientation orientation, QISplitter *pParent)
+        : QSplitterHandle(orientation, pParent)
+    {}
 
-    /** Returns size-hint. */
-    QSize sizeHint() const;
+    QSize sizeHint() const
+    {
+        QSize parent = QSplitterHandle::sizeHint();
+        if (orientation() == Qt::Vertical)
+            return parent + QSize(0, 3);
+        else
+            return QSize(1, parent.height());
+    }
 
 protected:
 
-    /** Handles paint @a pEvent. */
-    virtual void paintEvent(QPaintEvent *pEvent) /* override */;
+    void paintEvent(QPaintEvent*)
+    {
+        QPainter painter(this);
+
+        QColor topColor(145, 145, 145);
+        QColor bottomColor(142, 142, 142);
+        QColor gradientStart(252, 252, 252);
+        QColor gradientStop(223, 223, 223);
+
+        if (orientation() == Qt::Vertical)
+        {
+            painter.setPen(topColor);
+            painter.drawLine(0, 0, width(), 0);
+            painter.setPen(bottomColor);
+            painter.drawLine(0, height() - 1, width(), height() - 1);
+
+            QLinearGradient linearGrad(QPointF(0, 0), QPointF(0, height() -3));
+            linearGrad.setColorAt(0, gradientStart);
+            linearGrad.setColorAt(1, gradientStop);
+            painter.fillRect(QRect(QPoint(0,1), size() - QSize(0, 2)), QBrush(linearGrad));
+        }
+        else
+        {
+            painter.setPen(topColor);
+            painter.drawLine(0, 0, 0, height());
+        }
+    }
 };
-#endif /* VBOX_WS_MAC */
-
-
-/*********************************************************************************************************************************
-*   Class QIFlatSplitterHandle implementation.                                                                                   *
-*********************************************************************************************************************************/
-
-QIFlatSplitterHandle::QIFlatSplitterHandle(Qt::Orientation enmOrientation, QISplitter *pParent)
-    : QSplitterHandle(enmOrientation, pParent)
-{
-}
-
-void QIFlatSplitterHandle::configureColor(const QColor &color)
-{
-    m_color = color;
-    update();
-}
-
-void QIFlatSplitterHandle::paintEvent(QPaintEvent *pEvent)
-{
-    QPainter painter(this);
-    painter.fillRect(pEvent->rect(), m_color);
-}
-
-
-/*********************************************************************************************************************************
-*   Class QIShadeSplitterHandle implementation.                                                                                  *
-*********************************************************************************************************************************/
-
-QIShadeSplitterHandle::QIShadeSplitterHandle(Qt::Orientation enmOrientation, QISplitter *pParent)
-    : QSplitterHandle(enmOrientation, pParent)
-{
-    QPalette pal = qApp->palette();
-    QColor windowColor = pal.color(QPalette::Active, QPalette::Window);
-    QColor darkColor = pal.color(QPalette::Active, QPalette::Dark);
-    m_color1 = windowColor;
-    m_color2 = windowColor;
-    m_color = darkColor;
-}
-
-void QIShadeSplitterHandle::configureColors(const QColor &color1, const QColor &color2)
-{
-    m_color1 = color1;
-    m_color2 = color2;
-    update();
-}
-
-void QIShadeSplitterHandle::paintEvent(QPaintEvent *pEvent)
-{
-    QPainter painter(this);
-    QLinearGradient gradient;
-    QGradientStop point1(0, m_color1);
-    QGradientStop point2(0.5, m_color);
-    QGradientStop point3(1, m_color2);
-    QGradientStops stops;
-    stops << point1 << point2 << point3;
-    gradient.setStops(stops);
-    if (orientation() == Qt::Horizontal)
-    {
-        gradient.setStart(rect().left() + 1, 0);
-        gradient.setFinalStop(rect().right(), 0);
-    }
-    else
-    {
-        gradient.setStart(0, rect().top() + 1);
-        gradient.setFinalStop(0, rect().bottom());
-    }
-    painter.fillRect(pEvent->rect(), gradient);
-}
-
-
-/*********************************************************************************************************************************
-*   Class QIDarwinSplitterHandle implementation.                                                                                 *
-*********************************************************************************************************************************/
-
-#ifdef VBOX_WS_MAC
-
-QIDarwinSplitterHandle::QIDarwinSplitterHandle(Qt::Orientation enmOrientation, QISplitter *pParent)
-    : QSplitterHandle(enmOrientation, pParent)
-{
-}
-
-QSize QIDarwinSplitterHandle::sizeHint() const
-{
-    QSize parent = QSplitterHandle::sizeHint();
-    if (orientation() == Qt::Vertical)
-        return parent + QSize(0, 3);
-    else
-        return QSize(1, parent.height());
-}
-
-void QIDarwinSplitterHandle::paintEvent(QPaintEvent *)
-{
-    QPainter painter(this);
-
-    QColor topColor(145, 145, 145);
-    QColor bottomColor(142, 142, 142);
-    QColor gradientStart(252, 252, 252);
-    QColor gradientStop(223, 223, 223);
-
-    if (orientation() == Qt::Vertical)
-    {
-        painter.setPen(topColor);
-        painter.drawLine(0, 0, width(), 0);
-        painter.setPen(bottomColor);
-        painter.drawLine(0, height() - 1, width(), height() - 1);
-
-        QLinearGradient linearGrad(QPointF(0, 0), QPointF(0, height() -3));
-        linearGrad.setColorAt(0, gradientStart);
-        linearGrad.setColorAt(1, gradientStop);
-        painter.fillRect(QRect(QPoint(0,1), size() - QSize(0, 2)), QBrush(linearGrad));
-    }
-    else
-    {
-        painter.setPen(topColor);
-        painter.drawLine(0, 0, 0, height());
-    }
-}
-
-#endif /* VBOX_WS_MAC */
-
-
-/*********************************************************************************************************************************
-*   Class QISplitter  implementation.                                                                                            *
-*********************************************************************************************************************************/
+#endif /* RT_OS_DARWIN */
 
 QISplitter::QISplitter(QWidget *pParent /* = 0 */)
     : QSplitter(pParent)
-    , m_enmType(Shade)
     , m_fPolished(false)
+    , m_type(Shade)
 #ifdef VBOX_WS_MAC
     , m_fHandleGrabbed(false)
-#endif
+#endif /* VBOX_WS_MAC */
 {
     qApp->installEventFilter(this);
 }
 
-QISplitter::QISplitter(Qt::Orientation enmOrientation, Type enmType, QWidget *pParent /* = 0 */)
-    : QSplitter(enmOrientation, pParent)
-    , m_enmType(enmType)
+QISplitter::QISplitter(Qt::Orientation orientation, QWidget *pParent /* = 0 */)
+    : QSplitter(orientation, pParent)
     , m_fPolished(false)
+    , m_type(Shade)
 #ifdef VBOX_WS_MAC
     , m_fHandleGrabbed(false)
-#endif
+#endif /* VBOX_WS_MAC */
 {
-    qApp->installEventFilter(this);
-}
-
-void QISplitter::configureColor(const QColor &color)
-{
-    m_color = color;
-    for (int i = 1; i < count(); ++i)
-    {
-        QIFlatSplitterHandle *pHandle = qobject_cast<QIFlatSplitterHandle*>(handle(i));
-        if (pHandle && m_color.isValid())
-            pHandle->configureColor(m_color);
-    }
-}
-
-void QISplitter::configureColors(const QColor &color1, const QColor &color2)
-{
-    m_color1 = color1; m_color2 = color2;
-    for (int i = 1; i < count(); ++i)
-    {
-        QIShadeSplitterHandle *pHandle = qobject_cast<QIShadeSplitterHandle*>(handle(i));
-        if (pHandle && m_color1.isValid() && m_color2.isValid())
-            pHandle->configureColors(m_color1, m_color2);
-    }
+    qApp->installEventFilter (this);
 }
 
 bool QISplitter::eventFilter(QObject *pWatched, QEvent *pEvent)
 {
-    /* Handles events for handle: */
     if (pWatched == handle(1))
     {
         switch (pEvent->type())
         {
-            /* Restore default position on double-click: */
             case QEvent::MouseButtonDblClick:
                 restoreState(m_baseState);
                 break;
@@ -284,14 +177,12 @@ bool QISplitter::eventFilter(QObject *pWatched, QEvent *pEvent)
                 break;
         }
     }
-
 #ifdef VBOX_WS_MAC
-    // WORKAROUND:
-    // Special handling on the Mac. Cause there the horizontal handle is only 1
-    // pixel wide, its hard to catch. Therefor we make some invisible area
-    // around the handle and forwarding the mouse events to the handle, if the
-    // user presses the left mouse button.
-    else if (   m_enmType == Native
+    /* Special handling on the Mac. Cause there the horizontal handle is only 1
+     * pixel wide, its hard to catch. Therefor we make some invisible area
+     * around the handle and forwarding the mouse events to the handle, if the
+     * user presses the left mouse button. */
+    else if (   m_type == Native
              && orientation() == Qt::Horizontal
              && count() > 1
              && qApp->activeWindow() == window())
@@ -319,7 +210,8 @@ bool QISplitter::eventFilter(QObject *pWatched, QEvent *pEvent)
                         bool fMarginHit = QRect(pHandle->mapToGlobal(QPoint(0, 0)), pHandle->size()).adjusted(-margin, 0, margin, 0).contains(pMouseEvent->globalPos());
                         if (pEvent->type() == QEvent::MouseButtonPress)
                         {
-                            /* If we have a handle position hit and the left button is pressed, start the grabbing. */
+                            /* If we have a handle position hit and the left
+                             * button is pressed, start the grabbing. */
                             if (   fMarginHit
                                 && pMouseEvent->buttons().testFlag(Qt::LeftButton))
                             {
@@ -329,9 +221,10 @@ bool QISplitter::eventFilter(QObject *pWatched, QEvent *pEvent)
                                 return true;
                             }
                         }
-                        else if (pEvent->type() == QEvent::MouseMove)
+                        else if(pEvent->type() == QEvent::MouseMove)
                         {
-                            /* If we are in the near of the handle or currently dragging, forward the mouse event. */
+                            /* If we are in the near of the handle or currently
+                             * dragging, forward the mouse event. */
                             if (   fMarginHit
                                 || (   m_fHandleGrabbed
                                     && pMouseEvent->buttons().testFlag(Qt::LeftButton)))
@@ -364,53 +257,37 @@ bool QISplitter::eventFilter(QObject *pWatched, QEvent *pEvent)
     }
 #endif /* VBOX_WS_MAC */
 
-    /* Call to base-class: */
     return QSplitter::eventFilter(pWatched, pEvent);
 }
 
 void QISplitter::showEvent(QShowEvent *pEvent)
 {
-    /* Remember default position: */
     if (!m_fPolished)
     {
         m_fPolished = true;
         m_baseState = saveState();
     }
 
-    /* Call to base-class: */
     return QSplitter::showEvent(pEvent);
 }
 
-QSplitterHandle *QISplitter::createHandle()
+QSplitterHandle* QISplitter::createHandle()
 {
-    /* Create native handle: */
-    switch (m_enmType)
+    if (m_type == Native)
     {
-        case Flat:
-        {
-            QIFlatSplitterHandle *pHandle = new QIFlatSplitterHandle(orientation(), this);
-            if (m_color.isValid())
-                pHandle->configureColor(m_color);
-            return pHandle;
-        }
-        case Shade:
-        {
-            QIShadeSplitterHandle *pHandle = new QIShadeSplitterHandle(orientation(), this);
-            if (m_color1.isValid() && m_color2.isValid())
-                pHandle->configureColors(m_color1, m_color2);
-            return pHandle;
-        }
-        case Native:
-        {
-#ifdef VBOX_WS_MAC
-            return new QIDarwinSplitterHandle(orientation(), this);
-#else
-            return new QSplitterHandle(orientation(), this);
-#endif
-        }
+#ifdef RT_OS_DARWIN
+        return new QIDarwinSplitterHandle(orientation(), this);
+#else /* RT_OS_DARWIN */
+        return new QSplitterHandle(orientation(), this);
+#endif /* RT_OS_DARWIN */
     }
-    return 0;
+    else
+    {
+        QIShadeSplitterHandle *pHandle = new QIShadeSplitterHandle(orientation(), this);
+        if (m_color1.isValid() && m_color2.isValid())
+            pHandle->configureColors(m_color1, m_color2);
+        return pHandle;
+    }
 }
-
 
 #include "QISplitter.moc"

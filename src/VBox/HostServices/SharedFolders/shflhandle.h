@@ -1,10 +1,11 @@
-/* $Id: shflhandle.h $ */
 /** @file
- * Shared Folders Host Service - Handles helper functions header.
+ *
+ * Shared Folders:
+ * Handles helper functions header.
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +16,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_INCLUDED_SRC_SharedFolders_shflhandle_h
-#define VBOX_INCLUDED_SRC_SharedFolders_shflhandle_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __SHFLHANDLE__H
+#define __SHFLHANDLE__H
 
 #include "shfl.h"
 #include <VBox/shflsvc.h>
@@ -77,4 +75,4 @@ SHFLFILEHANDLE *vbsfQueryDirHandle(PSHFLCLIENTDATA pClient, SHFLHANDLE handle);
 uint32_t        vbsfQueryHandleType(PSHFLCLIENTDATA pClient,
                                     SHFLHANDLE handle);
 
-#endif /* !VBOX_INCLUDED_SRC_SharedFolders_shflhandle_h */
+#endif /* __SHFLHANDLE__H */

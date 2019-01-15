@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsInterface_h
-#define FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsInterface_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIMachineSettingsInterface_h___
+#define ___UIMachineSettingsInterface_h___
 
 /* GUI includes: */
 #include "UISettingsPage.h"
@@ -30,16 +27,17 @@ class UIActionPool;
 struct UIDataSettingsMachineInterface;
 typedef UISettingsCache<UIDataSettingsMachineInterface> UISettingsCacheMachineInterface;
 
+
 /** Machine settings: User Interface page. */
-class SHARED_LIBRARY_STUFF UIMachineSettingsInterface : public UISettingsPageMachine,
-                                                        public Ui::UIMachineSettingsInterface
+class UIMachineSettingsInterface : public UISettingsPageMachine,
+                                   public Ui::UIMachineSettingsInterface
 {
     Q_OBJECT;
 
 public:
 
     /** Constructs User Interface settings page. */
-    UIMachineSettingsInterface(const QUuid &uMachineId);
+    UIMachineSettingsInterface(const QString strMachineId);
     /** Destructs User Interface settings page. */
     ~UIMachineSettingsInterface();
 
@@ -85,7 +83,7 @@ private:
     bool saveMiniToolbarData();
 
     /** Holds the machine ID copy. */
-    const QUuid    m_uMachineId;
+    const QString  m_strMachineId;
     /** Holds the action-pool instance. */
     UIActionPool  *m_pActionPool;
 
@@ -93,4 +91,5 @@ private:
     UISettingsCacheMachineInterface *m_pCache;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsInterface_h */
+#endif /* !___UIMachineSettingsInterface_h___ */
+

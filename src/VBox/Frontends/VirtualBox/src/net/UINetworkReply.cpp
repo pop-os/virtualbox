@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,26 +15,35 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QDir>
-#include <QFile>
-#include <QThread>
-#include <QRegExp>
-#include <QVector>
-#include <QVariant>
+# include <QDir>
+# include <QFile>
+# include <QThread>
+# include <QRegExp>
+# include <QVector>
+# include <QVariant>
 
 /* GUI includes: */
-#include "UINetworkReply.h"
-#include "UINetworkManager.h"
-#include "UIExtraDataManager.h"
-#ifndef VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS
-# include "VBoxGlobal.h"
-# include "VBoxUtils.h"
-# include "CSystemProperties.h"
-#endif
+# include "UINetworkReply.h"
+# include "UINetworkManager.h"
+# include "UIExtraDataManager.h"
+# ifndef VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS
+#  include "VBoxGlobal.h"
+#  include "VBoxUtils.h"
+# else /* VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS */
+#  include <VBox/log.h>
+# endif /* VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS */
 
 /* Other VBox includes: */
-#include <iprt/initterm.h>
+# include <iprt/initterm.h>
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+/* Other VBox includes: */
 #include <iprt/crypto/pem.h>
 #include <iprt/crypto/store.h>
 #include <iprt/err.h>
@@ -43,7 +52,6 @@
 #include <iprt/sha.h>
 #include <iprt/string.h>
 #include <iprt/zip.h>
-#include <VBox/log.h>
 
 
 /** QThread extension
@@ -375,16 +383,19 @@ int UINetworkReplyPrivateThread::applyProxyRules()
     m_strContext = tr("During proxy configuration");
 
 #ifndef VBOX_GUI_IN_TST_SSL_CERT_DOWNLOADS
+    /* Get the proxy-manager: */
+    UIProxyManager proxyManager(gEDataManager->proxySettings());
+
     /* If the specific proxy settings are enabled, we'll use them
      * unless user disabled that functionality manually. */
-    const CSystemProperties comProperties = vboxGlobal().virtualBox().GetSystemProperties();
-    const KProxyMode enmProxyMode = comProperties.GetProxyMode();
-    AssertReturn(comProperties.isOk(), VERR_INTERNAL_ERROR_3);
-    switch (enmProxyMode)
+    switch (proxyManager.proxyState())
     {
-        case KProxyMode_Manual:
-            return RTHttpSetProxyByUrl(m_hHttp, comProperties.GetProxyURL().toUtf8().constData());
-        case KProxyMode_NoProxy:
+        case UIProxyManager::ProxyState_Enabled:
+            return RTHttpSetProxy(m_hHttp,
+                                  proxyManager.proxyHost().toUtf8().constData(),
+                                  proxyManager.proxyPort().toUInt(),
+                                  NULL /* pszProxyUser */, NULL /* pszProxyPwd */);
+        case UIProxyManager::ProxyState_Disabled:
             return VINF_SUCCESS;
         default:
             break;

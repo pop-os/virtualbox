@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,15 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_time_h
-#define IPRT_INCLUDED_time_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_time_h
+#define ___iprt_time_h
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
-#include <iprt/assertcompile.h>
 
 RT_C_DECLS_BEGIN
 
@@ -597,6 +593,7 @@ RTDECL(PRTTIMESPEC) RTTimeSpecFromString(PRTTIMESPEC pTime, const char *pszStrin
 /**
  * Exploded time.
  */
+#pragma pack(1)
 typedef struct RTTIME
 {
     /** The year number. */
@@ -620,12 +617,10 @@ typedef struct RTTIME
     uint32_t    u32Nanosecond;
     /** Flags, of the RTTIME_FLAGS_* \#defines. */
     uint32_t    fFlags;
-    /** UCT time offset in minutes (-840-840).  Positive for timezones east of
-     * UTC, negative for zones to the west.  Same as what RTTimeLocalDeltaNano
-     * & RTTimeLocalDeltaNanoFor returns, just different unit. */
+    /** UCT time offset in minutes (-840-840). */
     int32_t     offUTC;
 } RTTIME;
-AssertCompileSize(RTTIME, 24);
+#pragma pack()
 /** Pointer to a exploded time structure. */
 typedef RTTIME *PRTTIME;
 /** Pointer to a const exploded time structure. */
@@ -733,7 +728,7 @@ RTDECL(PRTTIME) RTTimeNormalize(PRTTIME pTime);
 RTDECL(PRTTIMESPEC) RTTimeLocalNow(PRTTIMESPEC pTime);
 
 /**
- * Gets the current delta between UTC and local time.
+ * Gets the delta between UTC and local time.
  *
  * @code
  *      RTTIMESPEC LocalTime;
@@ -743,20 +738,6 @@ RTDECL(PRTTIMESPEC) RTTimeLocalNow(PRTTIMESPEC pTime);
  * @returns Returns the nanosecond delta between UTC and local time.
  */
 RTDECL(int64_t) RTTimeLocalDeltaNano(void);
-
-/**
- * Gets the delta between UTC and local time at the given time.
- *
- * @code
- *      RTTIMESPEC LocalTime;
- *      RTTimeNow(&LocalTime);
- *      RTTimeSpecAddNano(&LocalTime, RTTimeLocalDeltaNanoFor(&LocalTime));
- * @endcode
- *
- * @param   pTimeSpec   The time spec giving the time to get the delta for.
- * @returns Returns the nanosecond delta between UTC and local time.
- */
-RTDECL(int64_t) RTTimeLocalDeltaNanoFor(PCRTTIMESPEC pTimeSpec);
 
 /**
  * Explodes a time spec to the localized timezone.
@@ -1207,5 +1188,5 @@ RTDECL(int) RTTimeZoneGetCurrent(char *pszName, size_t cbName);
 
 RT_C_DECLS_END
 
-#endif /* !IPRT_INCLUDED_time_h */
+#endif
 

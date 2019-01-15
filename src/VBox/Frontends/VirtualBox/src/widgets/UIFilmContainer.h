@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,59 +15,85 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_widgets_UIFilmContainer_h
-#define FEQT_INCLUDED_SRC_widgets_UIFilmContainer_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __UIFilmContainer_h__
+#define __UIFilmContainer_h__
 
 /* Qt includes: */
 #include <QWidget>
 
 /* GUI includes: */
 #include "QIWithRetranslateUI.h"
-#include "UILibraryDefs.h"
 
 /* Other VBox includes: */
 #include <VBox/com/com.h>
 
 /* Forward declarations: */
-class QCheckBox;
-class QScrollArea;
 class QVBoxLayout;
+class QScrollArea;
 class UIFilm;
+class QCheckBox;
 
-/** QWidget subclass providing GUI with QScrollArea-based container for UIFilm widgets.
-  * @todo Rename to something more suitable like UIScreenThumbnailContainer. */
-class SHARED_LIBRARY_STUFF UIFilmContainer : public QWidget
+/* Transparent QScrollArea container for UIFilm widgets: */
+class UIFilmContainer : public QWidget
 {
     Q_OBJECT;
 
 public:
 
-    /** Constructs film-container passing @a pParent to the base-class. */
+    /* Constructor: */
     UIFilmContainer(QWidget *pParent = 0);
 
-    /** Returns the film-container check-box values. */
+    /* API: Value stuff: */
     QVector<BOOL> value() const;
-    /** Defines the film-container check-box @a values. */
-    void setValue(const QVector<BOOL> &values);
+    void setValue(const QVector<BOOL> &value);
 
 private:
 
-    /** Prepares all. */
+    /* Helpers: Prepare stuff: */
     void prepare();
-    /** Prepares layout. */
     void prepareLayout();
-    /** Prepares scroller. */
     void prepareScroller();
 
-    /** Holds the main layout intance. */
-    QVBoxLayout    *m_pMainLayout;
-    /** Holds the scroller intance. */
-    QScrollArea    *m_pScroller;
-    /** Holds the list of film widgets. */
-    QList<UIFilm*>  m_widgets;
+    /* Variables: */
+    QVBoxLayout *m_pMainLayout;
+    QScrollArea *m_pScroller;
+    QList<UIFilm*> m_widgets;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_widgets_UIFilmContainer_h */
+/* QWidget item prototype for UIFilmContainer: */
+class UIFilm : public QIWithRetranslateUI<QWidget>
+{
+    Q_OBJECT;
+
+public:
+
+    /* Constructor: */
+    UIFilm(int iScreenIndex, BOOL fEnabled, QWidget *pParent = 0);
+
+    /* API: Check-box stuff: */
+    bool checked() const;
+
+private:
+
+    /* Handler: Translate stuff: */
+    void retranslateUi();
+
+    /* Helpers: Prepare stuff: */
+    void prepare();
+    void prepareLayout();
+    void prepareCheckBox();
+
+    /* Helper: Layout stuff: */
+    QSize minimumSizeHint() const;
+
+    /* Handler: Paint stuff: */
+    void paintEvent(QPaintEvent *pEvent);
+
+    /* Variables: */
+    int m_iScreenIndex;
+    BOOL m_fWasEnabled;
+    QVBoxLayout *m_pMainLayout;
+    QCheckBox *m_pCheckBox;
+};
+
+#endif /* __UIFilmContainer_h__ */

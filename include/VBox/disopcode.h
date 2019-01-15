@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef VBOX_INCLUDED_disopcode_h
-#define VBOX_INCLUDED_disopcode_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBox_disopcode_h
+#define ___VBox_disopcode_h
 
 #include <iprt/assert.h>
 
@@ -1059,7 +1056,7 @@ enum OP_PARM
 #define OP_PARM_Vx              (OP_PARM_V+OP_PARM_x)
 #define OP_PARM_Vy              (OP_PARM_V+OP_PARM_y)
 #define OP_PARM_Wq              (OP_PARM_W+OP_PARM_q)
-/*#define OP_PARM_Ws              (OP_PARM_W+OP_PARM_s) - wtf? Same as lgdt (OP_PARM_Ms)?*/
+//#define OP_PARM_Ws              (OP_PARM_W+OP_PARM_s) - wtf? Same as lgdt (OP_PARM_Ms)?
 #define OP_PARM_Wx              (OP_PARM_W+OP_PARM_x)
 #define OP_PARM_Xb              (OP_PARM_X+OP_PARM_b)
 #define OP_PARM_Xv              (OP_PARM_X+OP_PARM_v)
@@ -1143,5 +1140,5 @@ enum OP_PARM
 
 /** @} */
 
-#endif /* !VBOX_INCLUDED_disopcode_h */
+#endif
 

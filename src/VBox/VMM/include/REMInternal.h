@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VMM_INCLUDED_SRC_include_REMInternal_h
-#define VMM_INCLUDED_SRC_include_REMInternal_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___REMInternal_h
+#define ___REMInternal_h
 
 #include <VBox/types.h>
 #include <VBox/vmm/cpum.h>
@@ -284,5 +281,5 @@ void remR3ProfileStop(int statcode);
 
 /** @} */
 
-#endif /* !VMM_INCLUDED_SRC_include_REMInternal_h */
+#endif
 

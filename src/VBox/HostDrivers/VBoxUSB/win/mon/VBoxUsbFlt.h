@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,11 +24,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef VBOX_INCLUDED_SRC_VBoxUSB_win_mon_VBoxUsbFlt_h
-#define VBOX_INCLUDED_SRC_VBoxUSB_win_mon_VBoxUsbFlt_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___win_mon_VBoxUsbFlt_h___
+#define ___win_mon_VBoxUsbFlt_h___
 
 #include "VBoxUsbMon.h"
 #include <VBoxUSBFilterMgr.h>
@@ -64,5 +61,5 @@ NTSTATUS VBoxUsbFltPdoAddCompleted(PDEVICE_OBJECT pPdo);
 NTSTATUS VBoxUsbFltPdoRemove(PDEVICE_OBJECT pPdo);
 BOOLEAN VBoxUsbFltPdoIsFiltered(PDEVICE_OBJECT pPdo);
 
-#endif /* !VBOX_INCLUDED_SRC_VBoxUSB_win_mon_VBoxUsbFlt_h */
+#endif
 

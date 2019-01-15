@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -153,7 +153,6 @@ SUPR3_DEFS          = \
 	$(if $(VBOX_WITH_MAIN),VBOX_WITH_MAIN,) \
 	$(if $(VBOX_WITH_RAW_MODE),VBOX_WITH_RAW_MODE,) \
 	$(if $(VBOX_WITH_REM),VBOX_WITH_REM,) \
-	$(if $(VBOX_GUI_WITH_SHARED_LIBRARY),VBOX_GUI_WITH_SHARED_LIBRARY) \
 	VBOX_PERMIT_MORE \
 	VBOX_PERMIT_EVEN_MORE
 SUPR3_INCS         := $(PATH_SUB_CURRENT)
@@ -199,7 +198,6 @@ SUPR3HardenedStatic_DEFS    += \
 	$(if $(VBOX_WITH_REM),VBOX_WITH_REM,) \
 	$(if $(VBOX_WITHOUT_DEBUGGER_CHECKS),VBOX_WITHOUT_DEBUGGER_CHECKS,) \
 	$(if $(VBOX_PERMIT_VISUAL_STUDIO_PROFILING),VBOX_PERMIT_VISUAL_STUDIO_PROFILING,) \
-	$(if $(VBOX_GUI_WITH_SHARED_LIBRARY),VBOX_GUI_WITH_SHARED_LIBRARY) \
 	VBOX_PERMIT_MORE \
 	VBOX_PERMIT_EVEN_MORE
 ifdef VBOX_WITH_VISTA_NO_SP
@@ -234,8 +232,7 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
   	IPRT_NO_CRT \
  	RT_WITH_NOCRT_ALIASES \
  	LOG_DISABLED \
- 	IPRT_NO_ERROR_DATA \
-       IPRT_WITHOUT_DIGEST_MD4
+ 	IPRT_NO_ERROR_DATA
  SUPR3HardenedStatic_DEFS.win += LDR_ONLY_PE __STRALIGN_H_
 
  SUPR3HardenedStatic_INCS += $(PATH_ROOT)/include/iprt/nocrt  $(VBOX_PATH_RUNTIME_SRC)/include
@@ -248,7 +245,6 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
 	$(VBOX_PATH_RUNTIME_SRC)/common/asn1/asn1-basics.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/asn1/asn1-cursor.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/asn1/asn1-default-allocator.cpp \
-	$(VBOX_PATH_RUNTIME_SRC)/common/asn1/asn1-safer-allocator.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/asn1/asn1-dump.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/asn1/asn1-encode.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/asn1/asn1-ut-bitstring.cpp \
@@ -273,7 +269,6 @@ if "$(KBUILD_TARGET)" == "win" && defined(VBOX_WITH_HARDENING) ## @todo some of 
 	$(VBOX_PATH_RUNTIME_SRC)/common/asn1/asn1-ut-time-decode.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/crypto/digest-core.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/crypto/digest-builtin.cpp \
-	$(VBOX_PATH_RUNTIME_SRC)/common/crypto/key.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/crypto/pkcs7-asn1-decoder.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/crypto/pkcs7-core.cpp \
 	$(VBOX_PATH_RUNTIME_SRC)/common/crypto/pkcs7-init.cpp \
@@ -642,9 +637,6 @@ if1of ($(KBUILD_TARGET), darwin freebsd solaris win)
  if ($(VBOX_VERSION_BUILD) % 2) == 1
   VBoxDrv_DEFS           += VBOX_WITH_EFLAGS_AC_SET_IN_VBOXDRV IPRT_WITH_EFLAGS_AC_PRESERVING
  endif
- ifdef VBOX_GUI_WITH_SHARED_LIBRARY
-  VBoxDrv_DEFS           += VBOX_GUI_WITH_SHARED_LIBRARY
- endif
 
  VBoxDrv_INCS             = . $(VBoxDrv_0_OUTDIR)
  VBoxDrv_INCS.darwin      = ./darwin
@@ -770,11 +762,6 @@ if1of ($(KBUILD_TARGET), linux freebsd)
 		--output $@ $<
 	%$(QUIET2)$(APPEND) -t '$(PATH_TARGET)/vboxdrv-src-1.dep' \
 		'Support/$(KBUILD_TARGET)/Makefile_VBOX_HARDENED=$(VBOX_WITH_HARDENING)'
-
- #
- # Build test for the linux host kernel modules.
- #
- $(evalcall2 VBOX_LINUX_KMOD_TEST_BUILD_RULE_FN,vboxdrv-src,,save_symvers)
 endif # linux freebsd
 
 

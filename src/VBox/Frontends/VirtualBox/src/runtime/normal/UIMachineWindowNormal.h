@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_runtime_normal_UIMachineWindowNormal_h
-#define FEQT_INCLUDED_SRC_runtime_normal_UIMachineWindowNormal_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIMachineWindowNormal_h___
+#define ___UIMachineWindowNormal_h___
 
 /* GUI includes: */
 #include "UIMachineWindow.h"
@@ -61,8 +58,8 @@ private slots:
     void sltNetworkAdapterChange();
     /** Handles shared folder change event. */
     void sltSharedFolderChange();
-    /** Handles recording change event. */
-    void sltRecordingChange();
+    /** Handles video capture change event. */
+    void sltVideoCaptureChange();
     /** Handles CPU execution cap change event. */
     void sltCPUExecutionCapChange();
     /** Handles UISession initialized event. */
@@ -70,17 +67,17 @@ private slots:
 
 #ifndef RT_OS_DARWIN
     /** Handles menu-bar configuration-change. */
-    void sltHandleMenuBarConfigurationChange(const QUuid &uMachineID);
+    void sltHandleMenuBarConfigurationChange(const QString &strMachineID);
     /** Handles menu-bar context-menu-request. */
     void sltHandleMenuBarContextMenuRequest(const QPoint &position);
 #endif /* !RT_OS_DARWIN */
 
     /** Handles status-bar configuration-change. */
-    void sltHandleStatusBarConfigurationChange(const QUuid &uMachineID);
+    void sltHandleStatusBarConfigurationChange(const QString &strMachineID);
     /** Handles status-bar context-menu-request. */
     void sltHandleStatusBarContextMenuRequest(const QPoint &position);
     /** Handles status-bar indicator context-menu-request. */
-    void sltHandleIndicatorContextMenuRequest(IndicatorType enmIndicatorType, const QPoint &indicatorPosition);
+    void sltHandleIndicatorContextMenuRequest(IndicatorType indicatorType, const QPoint &position);
 
 #ifdef VBOX_WS_MAC
     /** Handles signal about some @a pAction hovered. */
@@ -143,5 +140,5 @@ private:
     friend class UIMachineWindow;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_runtime_normal_UIMachineWindowNormal_h */
+#endif /* !___UIMachineWindowNormal_h___ */
 

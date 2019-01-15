@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,14 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* GUI includes: */
-#include "UIDefs.h"
+# include "UIDefs.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 /* File name definitions: */
@@ -27,3 +33,5 @@ const char* UIDefs::GUI_ExtPackName = "Oracle VM VirtualBox Extension Pack";
 QStringList UIDefs::VBoxFileExts = QStringList() << "xml" << "vbox";
 QStringList UIDefs::VBoxExtPackFileExts = QStringList() << "vbox-extpack";
 QStringList UIDefs::OVFFileExts = QStringList() << "ovf" << "ova";
+QStringList UIDefs::OPCFileExts = QStringList() << "tar.gz";
+

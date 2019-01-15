@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,25 +15,31 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#ifndef VBOX_WS_MAC
-# include <QTimer>
-#endif
+# ifndef VBOX_WS_MAC
+#  include <QTimer>
+# endif /* !VBOX_WS_MAC */
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
-#include "UIDesktopWidgetWatchdog.h"
-#include "UIMessageCenter.h"
-#include "UISession.h"
-#include "UIActionPoolRuntime.h"
-#include "UIMachineLogicScale.h"
-#include "UIMachineWindow.h"
-#include "UIShortcutPool.h"
-#ifndef VBOX_WS_MAC
-# include "QIMenu.h"
-#else
-# include "VBoxUtils.h"
-#endif
+# include "VBoxGlobal.h"
+# include "UIDesktopWidgetWatchdog.h"
+# include "UIMessageCenter.h"
+# include "UISession.h"
+# include "UIActionPoolRuntime.h"
+# include "UIMachineLogicScale.h"
+# include "UIMachineWindow.h"
+# include "UIShortcutPool.h"
+# ifndef VBOX_WS_MAC
+#  include "QIMenu.h"
+# else  /* VBOX_WS_MAC */
+#  include "VBoxUtils.h"
+# endif /* VBOX_WS_MAC */
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 UIMachineLogicScale::UIMachineLogicScale(QObject *pParent, UISession *pSession)
@@ -90,7 +96,7 @@ void UIMachineLogicScale::prepareActionGroups()
     /* Call to base-class: */
     UIMachineLogic::prepareActionGroups();
 
-    /* Restrict 'Adjust Window', 'Guest Autoresize', 'Status Bar', 'Resize' and 'Rescale' actions for 'View' menu: */
+    /* Restrict 'Adjust Window', 'Guest Autoresize', 'Status Bar' and 'Resize' actions for 'View' menu: */
     actionPool()->toRuntime()->setRestrictionForMenuView(UIActionRestrictionLevel_Logic,
                                                          (UIExtraDataMetaDefs::RuntimeMenuViewActionType)
                                                          (UIExtraDataMetaDefs::RuntimeMenuViewActionType_AdjustWindow |
@@ -98,7 +104,7 @@ void UIMachineLogicScale::prepareActionGroups()
                                                           UIExtraDataMetaDefs::RuntimeMenuViewActionType_MenuBar |
                                                           UIExtraDataMetaDefs::RuntimeMenuViewActionType_StatusBar |
                                                           UIExtraDataMetaDefs::RuntimeMenuViewActionType_Resize |
-                                                          UIExtraDataMetaDefs::RuntimeMenuViewActionType_Rescale));
+                                                          UIExtraDataMetaDefs::RuntimeMenuViewActionType_ScaleFactor));
 
     /* Take care of view-action toggle state: */
     UIAction *pActionScale = actionPool()->action(UIActionIndexRT_M_View_T_Scale);

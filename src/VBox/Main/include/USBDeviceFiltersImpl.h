@@ -1,10 +1,12 @@
 /* $Id: USBDeviceFiltersImpl.h $ */
+
 /** @file
+ *
  * VBox USBDeviceFilters COM Class declaration.
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +17,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef MAIN_INCLUDED_USBDeviceFiltersImpl_h
-#define MAIN_INCLUDED_USBDeviceFiltersImpl_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ____H_USBDEVICEFILTERSIMPL
+#define ____H_USBDEVICEFILTERSIMPL
 
 #include "USBDeviceFiltersWrap.h"
 
@@ -83,5 +82,5 @@ private:
     Data *m;
 };
 
-#endif /* !MAIN_INCLUDED_USBDeviceFiltersImpl_h */
+#endif //!____H_USBDEVICEFILTERSIMPL
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

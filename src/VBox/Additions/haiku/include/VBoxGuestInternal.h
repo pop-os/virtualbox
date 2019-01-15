@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,11 +44,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef GA_INCLUDED_HAIKU_VBoxGuestInternal_h
-#define GA_INCLUDED_HAIKU_VBoxGuestInternal_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBoxGuestInternal_h_
+#define ___VBoxGuestInternal_h_
 
 /** The MIME signature of the VBoxGuest application. */
 #define VBOX_GUEST_APP_SIG                       "application/x-vnd.Oracle-VBoxGuest"
@@ -60,5 +57,5 @@
 /** The code used for messages sent by and to the system tray. */
 #define VBOX_GUEST_APP_ACTION                    'vbox'
 
-#endif /* !GA_INCLUDED_HAIKU_VBoxGuestInternal_h */
+#endif /* ___VBoxGuestInternal_h_ */
 

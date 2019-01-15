@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -69,60 +69,12 @@ typedef struct VMMR3FATALDUMPINFOHLP
     /** Whether we're still recording the summary or not. */
     bool        fRecSummary;
     /** Buffer for the summary. */
-    char        szSummary[4096 - 2];
+    char        szSummary[4096-2];
     /** The current summary offset. */
     size_t      offSummary;
-    /** Standard error buffer.   */
-    char        achStdErrBuf[4096 - 8];
-    /** Standard error buffer offset. */
-    size_t      offStdErrBuf;
 } VMMR3FATALDUMPINFOHLP, *PVMMR3FATALDUMPINFOHLP;
 /** Pointer to a VMMR3FATALDUMPINFOHLP structure. */
 typedef const VMMR3FATALDUMPINFOHLP *PCVMMR3FATALDUMPINFOHLP;
-
-
-/**
- * Flushes the content of achStdErrBuf, setting offStdErrBuf to zero.
- *
- * @param   pHlp        The instance to flush.
- */
-static void vmmR3FatalDumpInfoHlpFlushStdErr(PVMMR3FATALDUMPINFOHLP pHlp)
-{
-    size_t cch = pHlp->offStdErrBuf;
-    if (cch)
-    {
-        RTStrmWrite(g_pStdErr, pHlp->achStdErrBuf, cch);
-        pHlp->offStdErrBuf = 0;
-    }
-}
-
-/**
- * @callback_method_impl{FNRTSTROUTPUT, For buffering stderr output.}
- */
-static DECLCALLBACK(size_t) vmmR3FatalDumpInfoHlp_BufferedStdErrOutput(void *pvArg, const char *pachChars, size_t cbChars)
-{
-    PVMMR3FATALDUMPINFOHLP pHlp = (PVMMR3FATALDUMPINFOHLP)pvArg;
-    if (cbChars)
-    {
-        size_t offBuf = pHlp->offStdErrBuf;
-        if (cbChars < sizeof(pHlp->achStdErrBuf) - offBuf)
-        { /* likely */ }
-        else
-        {
-            vmmR3FatalDumpInfoHlpFlushStdErr(pHlp);
-            if (cbChars < sizeof(pHlp->achStdErrBuf))
-                offBuf = 0;
-            else
-            {
-                RTStrmWrite(g_pStdErr, pachChars, cbChars);
-                return cbChars;
-            }
-        }
-        memcpy(&pHlp->achStdErrBuf[offBuf], pachChars, cbChars);
-        pHlp->offStdErrBuf = offBuf + cbChars;
-    }
-    return cbChars;
-}
 
 
 /**
@@ -139,6 +91,7 @@ static DECLCALLBACK(void) vmmR3FatalDumpInfoHlp_pfnPrintf(PCDBGFINFOHLP pHlp, co
     pHlp->pfnPrintfV(pHlp, pszFormat, args);
     va_end(args);
 }
+
 
 /**
  * Print formatted string.
@@ -169,8 +122,7 @@ static DECLCALLBACK(void) vmmR3FatalDumpInfoHlp_pfnPrintfV(PCDBGFINFOHLP pHlp, c
     {
         va_list args2;
         va_copy(args2, args);
-        RTStrFormatV(vmmR3FatalDumpInfoHlp_BufferedStdErrOutput, pMyHlp, NULL, NULL, pszFormat, args2);
-        //RTStrmPrintfV(g_pStdErr, pszFormat, args2);
+        RTStrmPrintfV(g_pStdErr, pszFormat, args);
         va_end(args2);
     }
     if (pMyHlp->fRecSummary)
@@ -240,7 +192,6 @@ static void vmmR3FatalDumpInfoHlpInit(PVMMR3FATALDUMPINFOHLP pHlp)
 #ifdef DEBUG_sandervl
     pHlp->fStdErr = false; /* takes too long to display here */
 #endif
-    pHlp->offStdErrBuf = 0;
 
     /*
      * Init the summary recording.
@@ -270,9 +221,6 @@ static void vmmR3FatalDumpInfoHlpDelete(PVMMR3FATALDUMPINFOHLP pHlp)
         pHlp->pLogger->fFlags     = pHlp->fLoggerFlags;
         pHlp->pLogger->fDestFlags = pHlp->fLoggerDestFlags;
     }
-
-    if (pHlp->fStdErr)
-        vmmR3FatalDumpInfoHlpFlushStdErr(pHlp);
 }
 
 
@@ -310,7 +258,6 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
      * Continue according to context.
      */
     bool fDoneHyper = false;
-    bool fDoneImport = false;
     switch (rcErr)
     {
         /*
@@ -357,7 +304,7 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
             RTGCUINTPTR     uCR2       = 0xdeadface;
             uint8_t         cbInstr    = UINT8_MAX;
             int rc2 = TRPMQueryTrapAll(pVCpu, &u8TrapNo, &enmType, &uErrorCode, &uCR2, &cbInstr);
-            if (VM_IS_RAW_MODE_ENABLED(pVM))
+            if (!HMIsEnabled(pVM))
             {
                 if (RT_SUCCESS(rc2))
                     pHlp->pfnPrintf(pHlp,
@@ -376,7 +323,7 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
             /*
              * Dump the relevant hypervisor registers and stack.
              */
-            if (!VM_IS_RAW_MODE_ENABLED(pVM))
+            if (HMIsEnabled(pVM))
             {
                 if (   rcErr == VERR_VMM_RING0_ASSERTION /* fInRing3Call has already been cleared here. */
                     || pVCpu->vmm.s.CallRing3JmpBufR0.fInRing3Call)
@@ -451,13 +398,28 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
 #endif
 
                     /* Callstack. */
-                    DBGFADDRESS AddrPc, AddrBp, AddrSp;
+                    DBGFADDRESS pc;
+                    pc.fFlags    = DBGFADDRESS_FLAGS_RING0 | DBGFADDRESS_FLAGS_VALID;
+#if HC_ARCH_BITS == 64
+                    pc.FlatPtr   = pc.off = pVCpu->vmm.s.CallRing3JmpBufR0.rip;
+#else
+                    pc.FlatPtr   = pc.off = pVCpu->vmm.s.CallRing3JmpBufR0.eip;
+#endif
+                    pc.Sel       = DBGF_SEL_FLAT;
+
+                    DBGFADDRESS ebp;
+                    ebp.fFlags   = DBGFADDRESS_FLAGS_RING0 | DBGFADDRESS_FLAGS_VALID;
+                    ebp.FlatPtr  = ebp.off = pVCpu->vmm.s.CallRing3JmpBufR0.SavedEbp;
+                    ebp.Sel      = DBGF_SEL_FLAT;
+
+                    DBGFADDRESS esp;
+                    esp.fFlags   = DBGFADDRESS_FLAGS_RING0 | DBGFADDRESS_FLAGS_VALID;
+                    esp.Sel      = DBGF_SEL_FLAT;
+                    esp.FlatPtr  = esp.off = pVCpu->vmm.s.CallRing3JmpBufR0.SavedEsp;
+
                     PCDBGFSTACKFRAME pFirstFrame;
-                    rc2 = DBGFR3StackWalkBeginEx(pVM->pUVM, pVCpu->idCpu, DBGFCODETYPE_RING0,
-                                                 DBGFR3AddrFromHostR0(&AddrBp, pVCpu->vmm.s.CallRing3JmpBufR0.SavedEbp),
-                                                 DBGFR3AddrFromHostR0(&AddrSp, pVCpu->vmm.s.CallRing3JmpBufR0.SpResume),
-                                                 DBGFR3AddrFromHostR0(&AddrPc, pVCpu->vmm.s.CallRing3JmpBufR0.SavedEipForUnwind),
-                                                 RTDBGRETURNTYPE_INVALID, &pFirstFrame);
+                    rc2 = DBGFR3StackWalkBeginEx(pVM->pUVM, pVCpu->idCpu, DBGFCODETYPE_RING0, &ebp, &esp, &pc,
+                                                 DBGFRETURNTYPE_INVALID, &pFirstFrame);
                     if (RT_SUCCESS(rc2))
                     {
                         pHlp->pfnPrintf(pHlp,
@@ -506,18 +468,6 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
                             if (pFrame->pLinePC)
                                 pHlp->pfnPrintf(pHlp, " [%s @ 0i%d]", pFrame->pLinePC->szFilename, pFrame->pLinePC->uLineNo);
                             pHlp->pfnPrintf(pHlp, "\n");
-                            for (uint32_t iReg = 0; iReg < pFrame->cSureRegs; iReg++)
-                            {
-                                const char *pszName = pFrame->paSureRegs[iReg].pszName;
-                                if (!pszName)
-                                    pszName = DBGFR3RegCpuName(pVM->pUVM, pFrame->paSureRegs[iReg].enmReg,
-                                                               pFrame->paSureRegs[iReg].enmType);
-                                char szValue[1024];
-                                szValue[0] = '\0';
-                                DBGFR3RegFormatValue(szValue, sizeof(szValue), &pFrame->paSureRegs[iReg].Value,
-                                                     pFrame->paSureRegs[iReg].enmType, false);
-                                pHlp->pfnPrintf(pHlp, "     %-3s=%s\n", pszName, szValue);
-                            }
                         }
                         DBGFR3StackWalkEnd(pFirstFrame);
                     }
@@ -549,8 +499,7 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
                             DBGFR3AddrFromFlat(pVM->pUVM, &Addr, uAddr);
                             RTGCINTPTR   offDisp = 0;
                             PRTDBGSYMBOL pSym  = DBGFR3AsSymbolByAddrA(pVM->pUVM, DBGF_AS_R0, &Addr,
-                                                                       RTDBGSYMADDR_FLAGS_LESS_OR_EQUAL | RTDBGSYMADDR_FLAGS_SKIP_ABS_IN_DEFERRED,
-                                                                       &offDisp, NULL);
+                                                                       RTDBGSYMADDR_FLAGS_LESS_OR_EQUAL, &offDisp, NULL);
                             RTGCINTPTR   offLineDisp;
                             PRTDBGLINE   pLine = DBGFR3AsLineByAddrA(pVM->pUVM, DBGF_AS_R0, &Addr, &offLineDisp, NULL);
                             if (pLine || pSym)
@@ -702,9 +651,6 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
         case VERR_PATM_IPE_TRAP_IN_PATCH_CODE:
         case VERR_EM_GUEST_CPU_HANG:
         {
-            CPUMImportGuestStateOnDemand(pVCpu, CPUMCTX_EXTRN_ABSOLUTELY_ALL);
-            fDoneImport = true;
-
             DBGFR3Info(pVM->pUVM, "cpumguest", NULL, pHlp);
             DBGFR3Info(pVM->pUVM, "cpumguestinstr", NULL, pHlp);
             DBGFR3Info(pVM->pUVM, "cpumguesthwvirt", NULL, pHlp);
@@ -723,8 +669,6 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
     /*
      * Generic info dumper loop.
      */
-    if (!fDoneImport)
-        CPUMImportGuestStateOnDemand(pVCpu, CPUMCTX_EXTRN_ABSOLUTELY_ALL);
     static struct
     {
         const char *pszInfo;
@@ -760,7 +704,7 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
     DBGFR3InfoMulti(pVM,
                     "*",
                     "mappings|hma|cpum|cpumguest|cpumguesthwvirt|cpumguestinstr|cpumhyper|cpumhost|mode|cpuid"
-                    "|pgmpd|pgmcr3|timers|activetimers|handlers|help|exithistory",
+                    "|pgmpd|pgmcr3|timers|activetimers|handlers|help",
                     "!!\n"
                     "!! {%s}\n"
                     "!!\n",
@@ -775,7 +719,6 @@ VMMR3DECL(void) VMMR3FatalDump(PVM pVM, PVMCPU pVCpu, int rcErr)
     /*
      * Repeat the summary to stderr so we don't have to scroll half a mile up.
      */
-    vmmR3FatalDumpInfoHlpFlushStdErr(&Hlp);
     if (Hlp.szSummary[0])
         RTStrmPrintf(g_pStdErr,
                      "%s"

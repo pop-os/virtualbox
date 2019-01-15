@@ -31,9 +31,6 @@
 
 #ifndef _SVGA_REG_H_
 #define _SVGA_REG_H_
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
 
 /*
  * PCI device IDs.
@@ -1555,4 +1552,4 @@ struct {
 }
 SVGAFifoCmdRemapGMR2;
 
-#endif /* !_SVGA_REG_H_ */
+#endif

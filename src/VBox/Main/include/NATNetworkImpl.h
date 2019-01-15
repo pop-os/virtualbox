@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,12 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef MAIN_INCLUDED_NATNetworkImpl_h
-#define MAIN_INCLUDED_NATNetworkImpl_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
-
+#ifndef ____H_H_NATNETWORKIMPL
+#define ____H_H_NATNETWORKIMPL
 #include "VBoxEvents.h"
 #include "NATNetworkWrap.h"
 
@@ -120,12 +116,8 @@ private:
 
     void i_getPortForwardRulesFromMap(std::vector<Utf8Str> &aPortForwardRules, settings::NATRulesMap &aRules);
 
-    void i_updateDnsOptions();
-    void i_updateDomainNameOption(ComPtr<IHost> &host);
-    void i_updateDomainNameServerOption(ComPtr<IHost> &host);
-
     struct Data;
     Data *m;
 };
 
-#endif /* !MAIN_INCLUDED_NATNetworkImpl_h */
+#endif // !____H_H_NATNETWORKIMPL

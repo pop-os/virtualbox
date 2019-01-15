@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -584,7 +584,7 @@ static bool omfWriter_LNamesAddN(POMFWRITER pThis, const char *pchName, size_t c
 {
     /* See if we've already got that name in the list. */
     uint16_t idxName;
-    if (pidxName) /* If pidxName is NULL, we assume the caller might just be passing stuff thru. */
+    if (pidxName) /* If pidxName is NULL, we assume the caller migth just be passing stuff thru. */
     {
         idxName = omfWriter_LNamesLookupN(pThis, pchName, cchName);
         if (idxName != UINT16_MAX)
@@ -5472,7 +5472,7 @@ int main(int argc, char **argv)
                         break;
 
                     case 'V':
-                        printf("%s\n", "$Revision: 127855 $");
+                        printf("%s\n", "$Revision: 125570 $");
                         return 0;
 
                     case '?':

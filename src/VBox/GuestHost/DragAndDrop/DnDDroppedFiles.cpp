@@ -1,10 +1,10 @@
 /* $Id: DnDDroppedFiles.cpp $ */
 /** @file
- * DnD - Directory handling.
+ * DnD: Directory handling.
  */
 
 /*
- * Copyright (C) 2014-2019 Oracle Corporation
+ * Copyright (C) 2014-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,24 +19,25 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#define LOG_GROUP LOG_GROUP_GUEST_DND
-#include <VBox/GuestHost/DragAndDrop.h>
 
 #include <iprt/assert.h>
 #include <iprt/dir.h>
-#include <iprt/err.h>
-#include <iprt/file.h>
 #include <iprt/path.h>
 #include <iprt/string.h>
 
+#include <VBox/GuestHost/DragAndDrop.h>
 
+#ifdef LOG_GROUP
+ #undef LOG_GROUP
+#endif
+#define LOG_GROUP LOG_GROUP_GUEST_DND
 #include <VBox/log.h>
 
 DnDDroppedFiles::DnDDroppedFiles(void)
     : m_fOpen(0)
     , m_hDir(NULL) { }
 
-DnDDroppedFiles::DnDDroppedFiles(const char *pszPath, DNDURIDROPPEDFILEFLAGS fFlags /* = DNDURIDROPPEDFILE_FLAGS_NONE */)
+DnDDroppedFiles::DnDDroppedFiles(const char *pszPath, uint32_t fFlags)
     : m_fOpen(0)
     , m_hDir(NULL)
 {
@@ -99,7 +100,7 @@ bool DnDDroppedFiles::IsOpen(void) const
     return (this->m_hDir != NULL);
 }
 
-int DnDDroppedFiles::OpenEx(const char *pszPath, DNDURIDROPPEDFILEFLAGS fFlags /* = DNDURIDROPPEDFILE_FLAGS_NONE */)
+int DnDDroppedFiles::OpenEx(const char *pszPath, uint32_t fFlags)
 {
     AssertPtrReturn(pszPath, VERR_INVALID_POINTER);
     AssertReturn(fFlags == 0, VERR_INVALID_PARAMETER); /* Flags not supported yet. */
@@ -166,7 +167,7 @@ int DnDDroppedFiles::OpenEx(const char *pszPath, DNDURIDROPPEDFILEFLAGS fFlags /
     return rc;
 }
 
-int DnDDroppedFiles::OpenTemp(DNDURIDROPPEDFILEFLAGS fFlags /* = DNDURIDROPPEDFILE_FLAGS_NONE */)
+int DnDDroppedFiles::OpenTemp(uint32_t fFlags)
 {
     AssertReturn(fFlags == 0, VERR_INVALID_PARAMETER); /* Flags not supported yet. */
 

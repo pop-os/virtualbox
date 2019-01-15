@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef VBOX_INCLUDED_vd_common_h
-#define VBOX_INCLUDED_vd_common_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __vd_common_h__
+#define __vd_common_h__
 
 #include <VBox/types.h>
 
@@ -63,4 +60,4 @@
           && ((uVerMagic1) & UINT32_C(0xfffffff0)) == ((uVerMagic2) & UINT32_C(0xfffffff0)) ) \
     )
 
-#endif /* !VBOX_INCLUDED_vd_common_h */
+#endif

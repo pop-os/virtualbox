@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -28,11 +28,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef VBOX_INCLUDED_Graphics_VBoxVideo_h
-#define VBOX_INCLUDED_Graphics_VBoxVideo_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBox_Graphics_VBoxVideo_h
+#define ___VBox_Graphics_VBoxVideo_h
 
 #include "VBoxVideoIPRT.h"
 
@@ -912,8 +909,6 @@ typedef struct VBVABUFFER
 #define VBVA_INFO_HEAP    4
 #define VBVA_FLUSH        5
 #define VBVA_INFO_SCREEN  6
-/** Enables or disables VBVA.  Enabling VBVA without disabling it before
- * causes a complete screen update. */
 #define VBVA_ENABLE       7
 #define VBVA_MOUSE_POINTER_SHAPE 8
 #ifdef VBOX_WITH_VIDEOHWACCEL
@@ -1290,11 +1285,8 @@ typedef struct VBVAREPORTINPUTMAPPING
 } VBVAREPORTINPUTMAPPING;
 
 /** Report the guest cursor position and query the host one.  The host may wish
- *  to use the guest information to re-position its own cursor, particularly
- *  when the cursor is captured and the guest does not support switching to a
- *  software cursor.  After every mode switch the guest must signal that it
- *  supports sending position information by sending an event with
- *  @a fReportPosition set to false.
+ *  to use the guest information to re-position its own cursor (though this is
+ *  currently unlikely).
  *  @see VBVA_CURSOR_POSITION */
 typedef struct VBVACURSORPOSITION
 {
@@ -2125,5 +2117,5 @@ typedef struct VBOXVDMAVBVACMD
 #pragma pack()
 #endif
 
-#endif /* !VBOX_INCLUDED_Graphics_VBoxVideo_h */
+#endif
 

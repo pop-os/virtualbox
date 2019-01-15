@@ -55,7 +55,6 @@
 # endif
 # include <fcntl.h>
 # include <stdlib.h>
-# include <iprt/err.h>
 
 #endif /* VBOX */
 

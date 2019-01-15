@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -4851,23 +4851,24 @@ static DECLCALLBACK(int) lsilogicR3LoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM,
 
         if (uVersion > LSILOGIC_SAVED_STATE_VERSION_PRE_DIAG_MEM)
         {
+            uint32_t cMemRegions = 0;
 
             /* Save diagnostic memory register and data regions. */
-            SSMR3GetU32(pSSM, &pThis->u32DiagMemAddr);
-            uint32_t cMemRegions = 0;
-            rc = SSMR3GetU32(pSSM, &cMemRegions);
-            AssertLogRelReturn(rc, rc);
+            SSMR3GetU32   (pSSM, &pThis->u32DiagMemAddr);
+            SSMR3GetU32   (pSSM, &cMemRegions);
 
             while (cMemRegions)
             {
                 uint32_t u32AddrStart = 0;
-                SSMR3GetU32(pSSM, &u32AddrStart);
                 uint32_t u32AddrEnd = 0;
-                rc = SSMR3GetU32(pSSM, &u32AddrEnd);
-                AssertLogRelReturn(rc, rc);
+                uint32_t cRegion = 0;
+                PLSILOGICMEMREGN pRegion = NULL;
 
-                uint32_t         cRegion = u32AddrEnd - u32AddrStart + 1;
-                PLSILOGICMEMREGN pRegion = (PLSILOGICMEMREGN)RTMemAllocZ(RT_UOFFSETOF_DYN(LSILOGICMEMREGN, au32Data[cRegion]));
+                SSMR3GetU32(pSSM, &u32AddrStart);
+                SSMR3GetU32(pSSM, &u32AddrEnd);
+
+                cRegion = u32AddrEnd - u32AddrStart + 1;
+                pRegion = (PLSILOGICMEMREGN)RTMemAllocZ(RT_UOFFSETOF_DYN(LSILOGICMEMREGN, au32Data[cRegion]));
                 if (pRegion)
                 {
                     pRegion->u32AddrStart = u32AddrStart;

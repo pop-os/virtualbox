@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,19 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_platform_UIDesktopServices_h
-#define FEQT_INCLUDED_SRC_platform_UIDesktopServices_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
-
-/* Qt includes */
-#include <QUuid>
-
-#ifdef VBOX_GUI_WITH_SHARED_LIBRARY
-/** Name of the executable (image) used to start VMs. */
-# define VBOX_GUI_VMRUNNER_IMAGE "VirtualBoxVM"
-#endif
+#ifndef ___UIDesktopServices_h___
+#define ___UIDesktopServices_h___
 
 /* Qt forward declarations */
 class QString;
@@ -35,9 +24,9 @@ class QString;
 class UIDesktopServices
 {
 public:
-    static bool createMachineShortcut(const QString &strSrcFile, const QString &strDstPath, const QString &strName, const QUuid &uUuid);
+    static bool createMachineShortcut(const QString &strSrcFile, const QString &strDstPath, const QString &strName, const QString &strUuid);
     static bool openInFileManager(const QString &strFile);
 };
 
-#endif /* !FEQT_INCLUDED_SRC_platform_UIDesktopServices_h */
+#endif /* !___UIDesktopServices_h___ */
 

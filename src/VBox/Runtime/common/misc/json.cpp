@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,20 +28,14 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#include <iprt/json.h>
-#include "internal/iprt.h"
-
 #include <iprt/asm.h>
 #include <iprt/assert.h>
+#include <iprt/cdefs.h>
 #include <iprt/ctype.h>
-#include <iprt/err.h>
+#include <iprt/json.h>
 #include <iprt/mem.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
-#include <iprt/utf16.h>
-
-#include <stdlib.h> /* strtod() */
-#include <errno.h>  /* errno */
 
 
 /*********************************************************************************************************************************
@@ -84,9 +78,7 @@ typedef enum RTJSONTOKENCLASS
     RTJSONTOKENCLASS_VALUE_SEPARATOR,
     /** String */
     RTJSONTOKENCLASS_STRING,
-    /** Integer number. */
-    RTJSONTOKENCLASS_INTEGER,
-    /** Floating point number. */
+    /** Number. */
     RTJSONTOKENCLASS_NUMBER,
     /** null keyword. */
     RTJSONTOKENCLASS_NULL,
@@ -124,9 +116,7 @@ typedef struct RTJSONTOKEN
         struct
         {
             int64_t         i64Num;
-        } Integer;
-        /** Floating point number. */
-        double              rdNum;
+        } Number;
     } Class;
 } RTJSONTOKEN;
 /** Pointer to a JSON token. */
@@ -157,12 +147,12 @@ typedef struct RTJSONTOKENIZER
     /** Read callback. */
     PFNRTJSONTOKENIZERREAD  pfnRead;
     /** Opaque user data. */
-    void                   *pvUser;
+    void                    *pvUser;
     /** Current offset into the input stream. */
     size_t                  offInput;
     /** Number of valid bytes in the input buffer. */
     size_t                  cbBuf;
-    /** Current offset into the input buffer. */
+    /* Current offset into the input buffer. */
     size_t                  offBuf;
     /** Input cache buffer. */
     char                    achBuf[512];
@@ -176,10 +166,6 @@ typedef struct RTJSONTOKENIZER
     PRTJSONTOKEN            pTokenCurr;
     /** The next token in the input stream (used for peeking). */
     PRTJSONTOKEN            pTokenNext;
-    /** The tokenizer error state. */
-    int                     rcTok;
-    /** Where to return extended error information.*/
-    PRTERRINFO              pErrInfo;
 } RTJSONTOKENIZER;
 /** Pointer to a JSON tokenizer. */
 typedef RTJSONTOKENIZER *PRTJSONTOKENIZER;
@@ -210,9 +196,7 @@ typedef struct RTJSONVALINT
         {
             /** Signed 64-bit integer. */
             int64_t         i64Num;
-        } Integer;
-        /** Floating point number . */
-        double              rdNum;
+        } Number;
         /** Array type. */
         struct
         {
@@ -266,10 +250,11 @@ typedef RTJSONREADERARGS *PRTJSONREADERARGS;
 
 
 /*********************************************************************************************************************************
-*   Internal Functions                                                                                                           *
+*   Global variables                                                                                                             *
 *********************************************************************************************************************************/
-static int rtJsonParseValue(PRTJSONTOKENIZER pTokenizer, PRTJSONTOKEN pToken, PRTJSONVALINT *ppJsonVal);
 
+static int rtJsonParseValue(PRTJSONTOKENIZER pTokenizer, PRTJSONTOKEN pToken,
+                            PRTJSONVALINT *ppJsonVal, PRTERRINFO pErrInfo);
 
 /**
  * Fill the input buffer from the input stream.
@@ -367,9 +352,9 @@ DECLINLINE(void) rtJsonTokenizerSkipCh(PRTJSONTOKENIZER pTokenizer)
  */
 DECLINLINE(char) rtJsonTokenizerPeekCh(PRTJSONTOKENIZER pTokenizer)
 {
-    return   !rtJsonTokenizerIsEos(pTokenizer)
-           ? pTokenizer->achBuf[pTokenizer->offBuf + 1] /** @todo Read out of bounds */
-           : '\0';
+    return   rtJsonTokenizerIsEos(pTokenizer)
+           ? '\0'
+           : pTokenizer->achBuf[pTokenizer->offBuf + 1]; /** @todo Read out of bounds */
 }
 
 /**
@@ -383,10 +368,10 @@ DECLINLINE(char) rtJsonTokenizerGetCh(PRTJSONTOKENIZER pTokenizer)
 {
     char ch;
 
-    if (!rtJsonTokenizerIsEos(pTokenizer))
-        ch = pTokenizer->achBuf[pTokenizer->offBuf];
-    else
+    if (rtJsonTokenizerIsEos(pTokenizer))
         ch = '\0';
+    else
+        ch = pTokenizer->achBuf[pTokenizer->offBuf];
 
     return ch;
 }
@@ -487,8 +472,7 @@ static int rtJsonTokenizerGetLiteral(PRTJSONTOKENIZER pTokenizer, PRTJSONTOKEN p
     else
     {
         pToken->enmClass = RTJSONTOKENCLASS_INVALID;
-        rc = RTErrInfoSetF(pTokenizer->pErrInfo, VERR_JSON_MALFORMED, "malformed literal '%.6s' (line %zu col %zu)",
-                           &szLiteral[0], pTokenizer->Pos.iLine, pTokenizer->Pos.iChStart);
+        rc = VERR_JSON_MALFORMED;
     }
 
     pToken->Pos.iChEnd += cchLiteral;
@@ -507,16 +491,9 @@ static int rtJsonTokenizerGetNumber(PRTJSONTOKENIZER pTokenizer, PRTJSONTOKEN pT
     size_t cchNum = 0;
     char   szTmp[128]; /* Everything larger is not possible to display in signed 64bit. */
 
-    pToken->enmClass = RTJSONTOKENCLASS_INTEGER;
+    pToken->enmClass = RTJSONTOKENCLASS_NUMBER;
 
     char ch = rtJsonTokenizerGetCh(pTokenizer);
-    if (ch == '-')
-    {
-        szTmp[cchNum++] = '-';
-        rtJsonTokenizerSkipCh(pTokenizer);
-        ch = rtJsonTokenizerGetCh(pTokenizer);
-    }
-
     while (   RT_C_IS_DIGIT(ch)
            && cchNum < sizeof(szTmp) - 1)
     {
@@ -529,67 +506,13 @@ static int rtJsonTokenizerGetNumber(PRTJSONTOKENIZER pTokenizer, PRTJSONTOKEN pT
     int rc = VINF_SUCCESS;
     if (RT_C_IS_DIGIT(ch) && cchNum >= sizeof(szTmp) - 1)
         rc = VERR_NUMBER_TOO_BIG;
-    else if (ch != '.')
+    else
     {
         szTmp[cchNum] = '\0';
-        rc = RTStrToInt64Ex(&szTmp[0], NULL, 10, &pToken->Class.Integer.i64Num);
+        rc = RTStrToInt64Ex(&szTmp[0], NULL, 0, &pToken->Class.Number.i64Num);
         Assert(RT_SUCCESS(rc) || rc == VWRN_NUMBER_TOO_BIG);
         if (rc == VWRN_NUMBER_TOO_BIG)
             rc = VERR_NUMBER_TOO_BIG;
-    }
-    else
-    {
-        /*
-         * A floating point value.
-         */
-        pToken->enmClass = RTJSONTOKENCLASS_NUMBER;
-        rtJsonTokenizerSkipCh(pTokenizer);
-        szTmp[cchNum++] = '.';
-
-        ch = rtJsonTokenizerGetCh(pTokenizer);
-        while (   RT_C_IS_DIGIT(ch)
-               && cchNum < sizeof(szTmp) - 1)
-        {
-            szTmp[cchNum++] = ch;
-            rtJsonTokenizerSkipCh(pTokenizer);
-            ch = rtJsonTokenizerGetCh(pTokenizer);
-        }
-        if (   (ch == 'e' || ch == 'E')
-            && cchNum < sizeof(szTmp) - 2)
-        {
-            szTmp[cchNum++] = 'e';
-            rtJsonTokenizerSkipCh(pTokenizer);
-            ch = rtJsonTokenizerGetCh(pTokenizer);
-            if (ch == '+' || ch == '-')
-            {
-                szTmp[cchNum++] = ch;
-                rtJsonTokenizerSkipCh(pTokenizer);
-                ch = rtJsonTokenizerGetCh(pTokenizer);
-            }
-            while (   RT_C_IS_DIGIT(ch)
-                   && cchNum < sizeof(szTmp) - 1)
-            {
-                szTmp[cchNum++] = ch;
-                rtJsonTokenizerSkipCh(pTokenizer);
-                ch = rtJsonTokenizerGetCh(pTokenizer);
-            }
-        }
-        if (cchNum < sizeof(szTmp) - 1)
-        {
-            szTmp[cchNum] = '\0';
-
-            /** @todo Not sure if strtod does the 100% right thing here... */
-            errno = 0;
-            char *pszNext = NULL;
-            pToken->Class.rdNum = strtod(szTmp, &pszNext);
-            if (errno == 0)
-            {
-                rc = VINF_SUCCESS;
-                Assert(!pszNext || *pszNext == '\0');
-            }
-            else
-                rc = RTErrConvertFromErrno(errno);
-        }
     }
 
     return rc;
@@ -604,9 +527,10 @@ static int rtJsonTokenizerGetNumber(PRTJSONTOKENIZER pTokenizer, PRTJSONTOKEN pT
  */
 static int rtJsonTokenizerGetString(PRTJSONTOKENIZER pTokenizer, PRTJSONTOKEN pToken)
 {
-    size_t cchStrMax = 64;
-    char *pszDecoded = (char *)RTStrAlloc(cchStrMax);
-    AssertReturn(pszDecoded, VERR_NO_STR_MEMORY);
+    int rc = VINF_SUCCESS;
+    size_t cchStr = 0;
+    char szTmp[_4K];
+    RT_ZERO(szTmp);
 
     Assert(rtJsonTokenizerGetCh(pTokenizer) == '\"');
     rtJsonTokenizerSkipCh(pTokenizer); /* Skip " */
@@ -614,17 +538,12 @@ static int rtJsonTokenizerGetString(PRTJSONTOKENIZER pTokenizer, PRTJSONTOKEN pT
     pToken->enmClass = RTJSONTOKENCLASS_STRING;
     pToken->Pos      = pTokenizer->Pos;
 
-    size_t cchStr = 0;
     char ch = rtJsonTokenizerGetCh(pTokenizer);
     while (   ch != '\"'
-           && ch != '\0')
+           && ch != '\0'
+           && cchStr < sizeof(szTmp) - 1)
     {
-        if (ch != '\\')
-        {
-            pszDecoded[cchStr++] = ch;
-            rtJsonTokenizerSkipCh(pTokenizer);
-        }
-        else
+        if (ch == '\\')
         {
             /* Escape sequence, check the next character  */
             rtJsonTokenizerSkipCh(pTokenizer);
@@ -632,184 +551,52 @@ static int rtJsonTokenizerGetString(PRTJSONTOKENIZER pTokenizer, PRTJSONTOKEN pT
             switch (chNext)
             {
                 case '\"':
-                    pszDecoded[cchStr++] = '\"';
-                    rtJsonTokenizerSkipCh(pTokenizer);
+                    szTmp[cchStr] = '\"';
                     break;
                 case '\\':
-                    pszDecoded[cchStr++] = '\\';
-                    rtJsonTokenizerSkipCh(pTokenizer);
+                    szTmp[cchStr] = '\\';
                     break;
                 case '/':
-                    pszDecoded[cchStr++] = '/';
-                    rtJsonTokenizerSkipCh(pTokenizer);
+                    szTmp[cchStr] = '/';
                     break;
-                case 'b':
-                    pszDecoded[cchStr++] = '\b';
-                    rtJsonTokenizerSkipCh(pTokenizer);
+                case '\b':
+                    szTmp[cchStr] = '\b';
                     break;
-                case 'n':
-                    pszDecoded[cchStr++] = '\n';
-                    rtJsonTokenizerSkipCh(pTokenizer);
+                case '\n':
+                    szTmp[cchStr] = '\n';
                     break;
-                case 'f':
-                    pszDecoded[cchStr++] = '\f';
-                    rtJsonTokenizerSkipCh(pTokenizer);
+                case '\f':
+                    szTmp[cchStr] = '\f';
                     break;
-                case 'r':
-                    pszDecoded[cchStr++] = '\r';
-                    rtJsonTokenizerSkipCh(pTokenizer);
+                case '\r':
+                    szTmp[cchStr] = '\r';
                     break;
-                case 't':
-                    pszDecoded[cchStr++] = '\t';
-                    rtJsonTokenizerSkipCh(pTokenizer);
+                case '\t':
+                    szTmp[cchStr] = '\t';
                     break;
                 case 'u':
-                {
-                    /* \uXXXX */
-                    int rc = VERR_JSON_INVALID_UTF16_ESCAPE_SEQUENCE;
-                    rtJsonTokenizerSkipCh(pTokenizer);
-                    char chX1 = rtJsonTokenizerGetCh(pTokenizer);
-                    if (RT_C_IS_XDIGIT(chX1))
-                    {
-                        rtJsonTokenizerSkipCh(pTokenizer);
-                        char chX2 = rtJsonTokenizerGetCh(pTokenizer);
-                        if (RT_C_IS_XDIGIT(chX2))
-                        {
-                            rtJsonTokenizerSkipCh(pTokenizer);
-                            char chX3 = rtJsonTokenizerGetCh(pTokenizer);
-                            if (RT_C_IS_XDIGIT(chX3))
-                            {
-                                rtJsonTokenizerSkipCh(pTokenizer);
-                                char chX4 = rtJsonTokenizerGetCh(pTokenizer);
-                                if (RT_C_IS_XDIGIT(chX4))
-                                {
-                                    rtJsonTokenizerSkipCh(pTokenizer);
-
-                                    RTUNICP uc = ((RTUTF16)(chX1 <= '9' ? chX1 - '0' : (chX1 & 7) + 9) << 12)
-                                               | ((RTUTF16)(chX2 <= '9' ? chX2 - '0' : (chX2 & 7) + 9) <<  8)
-                                               | ((RTUTF16)(chX3 <= '9' ? chX3 - '0' : (chX3 & 7) + 9) <<  4)
-                                               | ((RTUTF16)(chX4 <= '9' ? chX4 - '0' : (chX4 & 7) + 9));
-                                    if (   !RTUtf16IsHighSurrogate((RTUTF16)uc)
-                                        && !RTUtf16IsLowSurrogate((RTUTF16)uc))
-                                        rc = VINF_SUCCESS;
-                                    else if (RTUtf16IsHighSurrogate((RTUTF16)uc))
-                                    {
-                                        /* The must be a low surrogate pair following the high one: */
-                                        rc = VINF_SUCCESS;
-                                        ch = rtJsonTokenizerGetCh(pTokenizer);
-                                        if (ch == '\\')
-                                            rtJsonTokenizerSkipCh(pTokenizer);
-                                        else
-                                            rc = VERR_JSON_MISSING_SURROGATE_PAIR;
-                                        ch = rtJsonTokenizerGetCh(pTokenizer);
-                                        if (ch == 'u')
-                                            rtJsonTokenizerSkipCh(pTokenizer);
-                                        else
-                                            rc = VERR_JSON_MISSING_SURROGATE_PAIR;
-                                        chX1 = rtJsonTokenizerGetCh(pTokenizer);
-                                        if (RT_C_IS_XDIGIT(chX1))
-                                            rtJsonTokenizerSkipCh(pTokenizer);
-                                        else if (RT_SUCCESS_NP(rc))
-                                            rc = VERR_JSON_INVALID_UTF16_ESCAPE_SEQUENCE;
-                                        chX2 = rtJsonTokenizerGetCh(pTokenizer);
-                                        if (RT_C_IS_XDIGIT(chX2))
-                                            rtJsonTokenizerSkipCh(pTokenizer);
-                                        else if (RT_SUCCESS_NP(rc))
-                                            rc = VERR_JSON_INVALID_UTF16_ESCAPE_SEQUENCE;
-                                        chX3 = rtJsonTokenizerGetCh(pTokenizer);
-                                        if (RT_C_IS_XDIGIT(chX3))
-                                            rtJsonTokenizerSkipCh(pTokenizer);
-                                        else if (RT_SUCCESS_NP(rc))
-                                            rc = VERR_JSON_INVALID_UTF16_ESCAPE_SEQUENCE;
-                                        chX4 = rtJsonTokenizerGetCh(pTokenizer);
-                                        if (RT_C_IS_XDIGIT(chX4))
-                                            rtJsonTokenizerSkipCh(pTokenizer);
-                                        else if (RT_SUCCESS_NP(rc))
-                                            rc = VERR_JSON_INVALID_UTF16_ESCAPE_SEQUENCE;
-                                        if (RT_SUCCESS(rc))
-                                        {
-                                            RTUTF16 wc2 = ((RTUTF16)(chX1 <= '9' ? chX1 - '0' : (chX1 & 7) + 9) << 12)
-                                                        | ((RTUTF16)(chX2 <= '9' ? chX2 - '0' : (chX2 & 7) + 9) <<  8)
-                                                        | ((RTUTF16)(chX3 <= '9' ? chX3 - '0' : (chX3 & 7) + 9) <<  4)
-                                                        | ((RTUTF16)(chX4 <= '9' ? chX4 - '0' : (chX4 & 7) + 9));
-                                            if (RTUtf16IsLowSurrogate(wc2))
-                                                uc = 0x10000 + (((uc & 0x3ff) << 10) | (wc2 & 0x3ff));
-                                            else
-                                                rc = VERR_JSON_BAD_SURROGATE_PAIR_SEQUENCE;
-                                        }
-                                    }
-                                    else
-                                        rc = VERR_JSON_BAD_SURROGATE_PAIR_SEQUENCE;
-                                    if (RT_SUCCESS(rc))
-                                    {
-                                        if (   uc != 0
-                                            && uc != 0xfffe
-                                            && uc != 0xffff)
-                                        {
-                                            Assert(cchStr + RTStrCpSize(uc) < cchStrMax);
-                                            char *pszNext = RTStrPutCp(&pszDecoded[cchStr], uc);
-                                            Assert((size_t)(pszNext - &pszDecoded[cchStr]) == RTStrCpSize(uc));
-                                            cchStr += pszNext - &pszDecoded[cchStr];
-                                            break;
-                                        }
-                                        rc = RTErrInfoSetF(pTokenizer->pErrInfo, VERR_JSON_INVALID_CODEPOINT,
-                                                           "Invalid \\u code point: %#x (line %zu col %zu)",
-                                                           uc, pTokenizer->Pos.iLine, pTokenizer->Pos.iChStart);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    RTStrFree(pszDecoded);
-                    if (rc == VERR_JSON_INVALID_UTF16_ESCAPE_SEQUENCE)
-                        rc = RTErrInfoSetF(pTokenizer->pErrInfo, rc, "Invalid \\u escape sequence (line %zu col %zu)",
-                                           pTokenizer->Pos.iLine, pTokenizer->Pos.iChStart);
-                    else if (rc == VERR_JSON_MISSING_SURROGATE_PAIR)
-                        rc = RTErrInfoSetF(pTokenizer->pErrInfo, rc, "Missing UTF-16 surrogate pair (line %zu col %zu)",
-                                           pTokenizer->Pos.iLine, pTokenizer->Pos.iChStart);
-                    else if (rc == VERR_JSON_BAD_SURROGATE_PAIR_SEQUENCE)
-                        rc = RTErrInfoSetF(pTokenizer->pErrInfo, rc, "Invalid UTF-16 surrogate pair (line %zu col %zu)",
-                                           pTokenizer->Pos.iLine, pTokenizer->Pos.iChStart);
-                    return rc;
-                }
-
+                    rc = VERR_NOT_SUPPORTED;
+                    break;
                 default:
-                    RTStrFree(pszDecoded);
-                    return RTErrInfoSetF(pTokenizer->pErrInfo, VERR_JSON_MALFORMED, "bad escape sequence (line %zu col %zu)",
-                                         pTokenizer->Pos.iLine, pTokenizer->Pos.iChStart);
+                    rc = VERR_JSON_MALFORMED;
             }
         }
-
-
-        if (cchStr < cchStrMax - 4)
-        { /* likely */ }
         else
-        {
-            /* Increase string space. */
-            size_t cchStrMaxNew =  cchStrMax < _4K ? cchStrMax * 2 : cchStrMax + _4K;
-            int rc = RTStrRealloc(&pszDecoded, cchStrMaxNew);
-            if (RT_SUCCESS(rc))
-                cchStrMax = cchStrMaxNew;
-            else
-            {
-                RTStrFree(pszDecoded);
-                return rc;
-            }
-        }
+            szTmp[cchStr] = ch;
+        cchStr++;
+        rtJsonTokenizerSkipCh(pTokenizer);
         ch = rtJsonTokenizerGetCh(pTokenizer);
     }
 
-    if (ch == '\"')
+    if (rtJsonTokenizerGetCh(pTokenizer) == '\"')
         rtJsonTokenizerSkipCh(pTokenizer); /* Skip closing " */
 
-    Assert(cchStr < cchStrMax);
-    pszDecoded[cchStr] = '\0';
-    if (cchStrMax - cchStr >= cchStrMax / 2)
-        RTStrRealloc(&pszDecoded, cchStr + 1);
-    pToken->Class.String.pszStr = pszDecoded;
-
-    pToken->Pos.iChEnd = pTokenizer->Pos.iChEnd;
-    return VINF_SUCCESS;
+    pToken->Class.String.pszStr = RTStrDupN(&szTmp[0], cchStr);
+    if (pToken->Class.String.pszStr)
+        pToken->Pos.iChEnd += cchStr;
+    else
+        rc = VERR_NO_STR_MEMORY;
+    return rc;
 }
 
 /**
@@ -845,7 +632,7 @@ static int rtJsonTokenizerReadNextToken(PRTJSONTOKENIZER pTokenizer, PRTJSONTOKE
     char ch = rtJsonTokenizerGetCh(pTokenizer);
     if (RT_C_IS_ALPHA(ch))
         rc = rtJsonTokenizerGetLiteral(pTokenizer, pToken);
-    else if (RT_C_IS_DIGIT(ch) || ch == '-')
+    else if (RT_C_IS_DIGIT(ch))
         rc = rtJsonTokenizerGetNumber(pTokenizer, pToken);
     else if (ch == '\"')
         rc = rtJsonTokenizerGetString(pTokenizer, pToken);
@@ -884,12 +671,8 @@ static int rtJsonTokenizerReadNextToken(PRTJSONTOKENIZER pTokenizer, PRTJSONTOKE
     else
     {
         pToken->enmClass = RTJSONTOKENCLASS_INVALID;
-        rc = RTErrInfoSetF(pTokenizer->pErrInfo, VERR_JSON_MALFORMED, "bad token '%c' (line %zu col %zu)",
-                           ch, pTokenizer->Pos.iLine, pTokenizer->Pos.iChStart);
+        rc = VERR_JSON_MALFORMED;
     }
-
-    if (RT_FAILURE(rc))
-        pTokenizer->rcTok = rc;
 
     return rc;
 }
@@ -901,9 +684,8 @@ static int rtJsonTokenizerReadNextToken(PRTJSONTOKENIZER pTokenizer, PRTJSONTOKE
  * @param   pTokenizer      The tokenizer state to initialize.
  * @param   pfnRead         Read callback for the input stream.
  * @param   pvUser          Opaque user data to pass to the callback.
- * @param   pErrInfo        Where to return extended error info.
  */
-static int rtJsonTokenizerInit(PRTJSONTOKENIZER pTokenizer, PFNRTJSONTOKENIZERREAD pfnRead, void *pvUser, PRTERRINFO pErrInfo)
+static int rtJsonTokenizerInit(PRTJSONTOKENIZER pTokenizer, PFNRTJSONTOKENIZERREAD pfnRead, void *pvUser)
 {
     pTokenizer->pfnRead      = pfnRead;
     pTokenizer->pvUser       = pvUser;
@@ -915,8 +697,6 @@ static int rtJsonTokenizerInit(PRTJSONTOKENIZER pTokenizer, PFNRTJSONTOKENIZERRE
     pTokenizer->Pos.iChEnd   = 1;
     pTokenizer->pTokenCurr   = &pTokenizer->Token1;
     pTokenizer->pTokenNext   = &pTokenizer->Token2;
-    pTokenizer->rcTok        = VINF_SUCCESS;
-    pTokenizer->pErrInfo     = pErrInfo;
 
     RT_ZERO(pTokenizer->achBuf);
 
@@ -952,13 +732,8 @@ static void rtJsonTokenizerDestroy(PRTJSONTOKENIZER pTokenizer)
  */
 DECLINLINE(int) rtJsonTokenizerGetToken(PRTJSONTOKENIZER pTokenizer, PRTJSONTOKEN *ppToken)
 {
-    if (RT_SUCCESS(pTokenizer->rcTok))
-    {
-        *ppToken = pTokenizer->pTokenCurr;
-        return VINF_SUCCESS;
-    }
-
-    return pTokenizer->rcTok;
+    *ppToken = pTokenizer->pTokenCurr;
+    return VINF_SUCCESS;
 }
 
 /**
@@ -989,13 +764,12 @@ static bool rtJsonTokenizerConsumeIfMatched(PRTJSONTOKENIZER pTokenizer, RTJSONT
 {
     PRTJSONTOKEN pToken = NULL;
     int rc = rtJsonTokenizerGetToken(pTokenizer, &pToken);
-    if (RT_SUCCESS(rc))
+    AssertRC(rc);
+
+    if (pToken->enmClass == enmClass)
     {
-        if (pToken->enmClass == enmClass)
-        {
-            rtJsonTokenizerConsume(pTokenizer);
-            return true;
-        }
+        rtJsonTokenizerConsume(pTokenizer);
+        return true;
     }
 
     return false;
@@ -1028,7 +802,6 @@ static void rtJsonValDestroy(PRTJSONVALINT pThis)
         case RTJSONVALTYPE_STRING:
             RTStrFree(pThis->Type.String.pszStr);
             break;
-        case RTJSONVALTYPE_INTEGER:
         case RTJSONVALTYPE_NUMBER:
         case RTJSONVALTYPE_NULL:
         case RTJSONVALTYPE_TRUE:
@@ -1065,8 +838,9 @@ static PRTJSONVALINT rtJsonValueCreate(RTJSONVALTYPE enmType)
  * @returns IPRT status code.
  * @param   pTokenizer      The tokenizer to use.
  * @param   pJsonVal        The JSON array value to fill in.
+ * @param   pErrInfo        Where to store extended error info. Optional.
  */
-static int rtJsonParseArray(PRTJSONTOKENIZER pTokenizer, PRTJSONVALINT pJsonVal)
+static int rtJsonParseArray(PRTJSONTOKENIZER pTokenizer, PRTJSONVALINT pJsonVal, PRTERRINFO pErrInfo)
 {
     int rc = VINF_SUCCESS;
     PRTJSONTOKEN pToken = NULL;
@@ -1080,7 +854,7 @@ static int rtJsonParseArray(PRTJSONTOKENIZER pTokenizer, PRTJSONVALINT pJsonVal)
            && pToken->enmClass != RTJSONTOKENCLASS_EOS)
     {
         PRTJSONVALINT pVal = NULL;
-        rc = rtJsonParseValue(pTokenizer, pToken, &pVal);
+        rc = rtJsonParseValue(pTokenizer, pToken, &pVal, pErrInfo);
         if (RT_SUCCESS(rc))
         {
             if (cItems == cItemsMax)
@@ -1107,8 +881,7 @@ static int rtJsonParseArray(PRTJSONTOKENIZER pTokenizer, PRTJSONVALINT pJsonVal)
         if (   RT_SUCCESS(rc)
             && !fSkippedSep
             && pToken->enmClass != RTJSONTOKENCLASS_END_ARRAY)
-            rc = RTErrInfoSetF(pTokenizer->pErrInfo, VERR_JSON_MALFORMED, "expected end of array (#1) (line %zu col %zu)",
-                               pTokenizer->Pos.iLine, pTokenizer->Pos.iChStart);
+            rc = VERR_JSON_MALFORMED;
     }
 
     if (RT_SUCCESS(rc))
@@ -1120,8 +893,7 @@ static int rtJsonParseArray(PRTJSONTOKENIZER pTokenizer, PRTJSONVALINT pJsonVal)
             pJsonVal->Type.Array.papItems = papItems;
         }
         else
-            rc = RTErrInfoSetF(pTokenizer->pErrInfo, VERR_JSON_MALFORMED, "expected end of array (#2) (line %zu col %zu)",
-                               pTokenizer->Pos.iLine, pTokenizer->Pos.iChStart);
+            rc = VERR_JSON_MALFORMED;
     }
 
     if (RT_FAILURE(rc))
@@ -1140,8 +912,9 @@ static int rtJsonParseArray(PRTJSONTOKENIZER pTokenizer, PRTJSONVALINT pJsonVal)
  * @returns IPRT status code.
  * @param   pTokenizer      The tokenizer to use.
  * @param   pJsonVal        The JSON object value to fill in.
+ * @param   pErrInfo        Where to store extended error info. Optional.
  */
-static int rtJsonParseObject(PRTJSONTOKENIZER pTokenizer, PRTJSONVALINT pJsonVal)
+static int rtJsonParseObject(PRTJSONTOKENIZER pTokenizer, PRTJSONVALINT pJsonVal, PRTERRINFO pErrInfo)
 {
     int rc = VINF_SUCCESS;
     PRTJSONTOKEN pToken = NULL;
@@ -1154,7 +927,7 @@ static int rtJsonParseObject(PRTJSONTOKENIZER pTokenizer, PRTJSONVALINT pJsonVal
     while (   RT_SUCCESS(rc)
            && pToken->enmClass == RTJSONTOKENCLASS_STRING)
     {
-        char *pszName = pToken->Class.String.pszStr; /* We can consume this string as it was allocated. */
+        char *pszName = pToken->Class.String.pszStr;
 
         rtJsonTokenizerConsume(pTokenizer);
         if (rtJsonTokenizerConsumeIfMatched(pTokenizer, RTJSONTOKENCLASS_NAME_SEPARATOR))
@@ -1162,14 +935,14 @@ static int rtJsonParseObject(PRTJSONTOKENIZER pTokenizer, PRTJSONVALINT pJsonVal
             PRTJSONVALINT pVal = NULL;
             rc = rtJsonTokenizerGetToken(pTokenizer, &pToken);
             if (RT_SUCCESS(rc))
-                rc = rtJsonParseValue(pTokenizer, pToken, &pVal);
+                rc = rtJsonParseValue(pTokenizer, pToken, &pVal, pErrInfo);
             if (RT_SUCCESS(rc))
             {
                 if (cMembers == cMembersMax)
                 {
                     cMembersMax += 10;
                     PRTJSONVALINT *papValuesNew = (PRTJSONVALINT *)RTMemRealloc(papValues, cMembersMax * sizeof(PRTJSONVALINT));
-                    char **papszNamesNew =  (char **)RTMemRealloc(papszNames, cMembersMax * sizeof(char *));
+                    char **papszNamesNew =  (char **)RTMemRealloc(papValues, cMembersMax * sizeof(char *));
                     if (RT_UNLIKELY(!papValuesNew || !papszNamesNew))
                     {
                         if (papValuesNew)
@@ -1196,13 +969,11 @@ static int rtJsonParseObject(PRTJSONTOKENIZER pTokenizer, PRTJSONVALINT pJsonVal
                 if (   RT_SUCCESS(rc)
                     && !fSkippedSep
                     && pToken->enmClass != RTJSONTOKENCLASS_END_OBJECT)
-                    rc = RTErrInfoSetF(pTokenizer->pErrInfo, VERR_JSON_MALFORMED, "expected end of object (#1) (line %zu col %zu)",
-                                       pTokenizer->Pos.iLine, pTokenizer->Pos.iChStart);
+                    rc = VERR_JSON_MALFORMED;
             }
         }
         else
-            rc = RTErrInfoSetF(pTokenizer->pErrInfo, VERR_JSON_MALFORMED, "expected name separator (line %zu col %zu)",
-                               pTokenizer->Pos.iLine, pTokenizer->Pos.iChStart);
+            rc = VERR_JSON_MALFORMED;
     }
 
     if (RT_SUCCESS(rc))
@@ -1215,8 +986,7 @@ static int rtJsonParseObject(PRTJSONTOKENIZER pTokenizer, PRTJSONVALINT pJsonVal
             pJsonVal->Type.Object.papszNames = papszNames;
         }
         else
-            rc = RTErrInfoSetF(pTokenizer->pErrInfo, VERR_JSON_MALFORMED, "expected end of object (#2) (line %zu col %zu)",
-                               pTokenizer->Pos.iLine, pTokenizer->Pos.iChStart);
+            rc = VERR_JSON_MALFORMED;
     }
 
     if (RT_FAILURE(rc))
@@ -1240,8 +1010,10 @@ static int rtJsonParseObject(PRTJSONTOKENIZER pTokenizer, PRTJSONVALINT pJsonVal
  * @param   pTokenizer      The tokenizer to use.
  * @param   pToken          The token to parse.
  * @param   ppJsonVal       Where to store the pointer to the JSON value on success.
+ * @param   pErrInfo        Where to store extended error info. Optional.
  */
-static int rtJsonParseValue(PRTJSONTOKENIZER pTokenizer, PRTJSONTOKEN pToken, PRTJSONVALINT *ppJsonVal)
+static int rtJsonParseValue(PRTJSONTOKENIZER pTokenizer, PRTJSONTOKEN pToken,
+                            PRTJSONVALINT *ppJsonVal, PRTERRINFO pErrInfo)
 {
     int rc = VINF_SUCCESS;
     PRTJSONVALINT pVal = NULL;
@@ -1252,13 +1024,13 @@ static int rtJsonParseValue(PRTJSONTOKENIZER pTokenizer, PRTJSONTOKEN pToken, PR
             rtJsonTokenizerConsume(pTokenizer);
             pVal = rtJsonValueCreate(RTJSONVALTYPE_ARRAY);
             if (RT_LIKELY(pVal))
-                rc = rtJsonParseArray(pTokenizer, pVal);
+                rc = rtJsonParseArray(pTokenizer, pVal, pErrInfo);
             break;
         case RTJSONTOKENCLASS_BEGIN_OBJECT:
             rtJsonTokenizerConsume(pTokenizer);
             pVal = rtJsonValueCreate(RTJSONVALTYPE_OBJECT);
             if (RT_LIKELY(pVal))
-                rc = rtJsonParseObject(pTokenizer, pVal);
+                rc = rtJsonParseObject(pTokenizer, pVal, pErrInfo);
             break;
         case RTJSONTOKENCLASS_STRING:
             pVal = rtJsonValueCreate(RTJSONVALTYPE_STRING);
@@ -1266,16 +1038,10 @@ static int rtJsonParseValue(PRTJSONTOKENIZER pTokenizer, PRTJSONTOKEN pToken, PR
                 pVal->Type.String.pszStr = pToken->Class.String.pszStr;
             rtJsonTokenizerConsume(pTokenizer);
             break;
-        case RTJSONTOKENCLASS_INTEGER:
-            pVal = rtJsonValueCreate(RTJSONVALTYPE_INTEGER);
-            if (RT_LIKELY(pVal))
-                pVal->Type.Integer.i64Num = pToken->Class.Integer.i64Num;
-            rtJsonTokenizerConsume(pTokenizer);
-            break;
         case RTJSONTOKENCLASS_NUMBER:
             pVal = rtJsonValueCreate(RTJSONVALTYPE_NUMBER);
             if (RT_LIKELY(pVal))
-                pVal->Type.rdNum = pToken->Class.rdNum;
+                pVal->Type.Number.i64Num = pToken->Class.Number.i64Num;
             rtJsonTokenizerConsume(pTokenizer);
             break;
         case RTJSONTOKENCLASS_NULL:
@@ -1290,34 +1056,14 @@ static int rtJsonParseValue(PRTJSONTOKENIZER pTokenizer, PRTJSONTOKEN pToken, PR
             rtJsonTokenizerConsume(pTokenizer);
             pVal = rtJsonValueCreate(RTJSONVALTYPE_TRUE);
             break;
-
-        case RTJSONTOKENCLASS_INVALID:
-            Assert(!pTokenizer->pErrInfo || RTErrInfoIsSet(pTokenizer->pErrInfo));
-            rc = VERR_JSON_MALFORMED;
-            break;
         case RTJSONTOKENCLASS_END_ARRAY:
-            rc = RTErrInfoSetF(pTokenizer->pErrInfo, VERR_JSON_MALFORMED, "unexpected '}' (line %zu col %zu)",
-                               pTokenizer->Pos.iLine, pTokenizer->Pos.iChStart);
-            break;
         case RTJSONTOKENCLASS_END_OBJECT:
-            rc = RTErrInfoSetF(pTokenizer->pErrInfo, VERR_JSON_MALFORMED, "unexpected ']' (line %zu col %zu)",
-                               pTokenizer->Pos.iLine, pTokenizer->Pos.iChStart);
-            break;
         case RTJSONTOKENCLASS_NAME_SEPARATOR:
-            rc = RTErrInfoSetF(pTokenizer->pErrInfo, VERR_JSON_MALFORMED, "unexpected ':' (line %zu col %zu)",
-                               pTokenizer->Pos.iLine, pTokenizer->Pos.iChStart);
-            break;
         case RTJSONTOKENCLASS_VALUE_SEPARATOR:
-            rc = RTErrInfoSetF(pTokenizer->pErrInfo, VERR_JSON_MALFORMED, "unexpected ',' (line %zu col %zu)",
-                               pTokenizer->Pos.iLine, pTokenizer->Pos.iChStart);
-            break;
         case RTJSONTOKENCLASS_EOS:
-            rc = RTErrInfoSetF(pTokenizer->pErrInfo, VERR_JSON_MALFORMED, "expected end of object (#1) (line %zu col %zu)",
-                               pTokenizer->Pos.iLine, pTokenizer->Pos.iChStart);
-            break;
         default:
-            rc = RTErrInfoSetF(pTokenizer->pErrInfo, VERR_JSON_MALFORMED, "Unexpected token class %d (line %zu col %zu)",
-                               pToken->enmClass, pTokenizer->Pos.iLine, pTokenizer->Pos.iChStart);
+            /** @todo Error info */
+            rc = VERR_JSON_MALFORMED;
             break;
     }
 
@@ -1340,13 +1086,15 @@ static int rtJsonParseValue(PRTJSONTOKENIZER pTokenizer, PRTJSONTOKEN pToken, PR
  * @returns IPRT status code.
  * @param   pTokenizer      The tokenizer state.
  * @param   ppJsonVal       Where to store the root JSON value on success.
+ * @param   pErrInfo        Where to store extended error info. Optional.
  */
-static int rtJsonParse(PRTJSONTOKENIZER pTokenizer, PRTJSONVALINT *ppJsonVal)
+static int rtJsonParse(PRTJSONTOKENIZER pTokenizer, PRTJSONVALINT *ppJsonVal,
+                       PRTERRINFO pErrInfo)
 {
     PRTJSONTOKEN pToken = NULL;
     int rc = rtJsonTokenizerGetToken(pTokenizer, &pToken);
     if (RT_SUCCESS(rc))
-        rc = rtJsonParseValue(pTokenizer, pToken, ppJsonVal);
+        rc = rtJsonParseValue(pTokenizer, pToken, ppJsonVal, pErrInfo);
 
     return rc;
 }
@@ -1407,7 +1155,8 @@ static DECLCALLBACK(int) rtJsonTokenizerParseFromFile(void *pvUser, size_t offIn
     return rc;
 }
 
-RTDECL(int) RTJsonParseFromBuf(PRTJSONVAL phJsonVal, const uint8_t *pbBuf, size_t cbBuf, PRTERRINFO pErrInfo)
+RTDECL(int) RTJsonParseFromBuf(PRTJSONVAL phJsonVal, const uint8_t *pbBuf, size_t cbBuf,
+                               PRTERRINFO pErrInfo)
 {
     AssertPtrReturn(phJsonVal, VERR_INVALID_POINTER);
     AssertPtrReturn(pbBuf, VERR_INVALID_POINTER);
@@ -1418,10 +1167,10 @@ RTDECL(int) RTJsonParseFromBuf(PRTJSONVAL phJsonVal, const uint8_t *pbBuf, size_
     Args.cbData  = cbBuf;
     Args.u.pbBuf = pbBuf;
 
-    int rc = rtJsonTokenizerInit(&Tokenizer, rtJsonTokenizerParseFromBuf, &Args, pErrInfo);
+    int rc = rtJsonTokenizerInit(&Tokenizer, rtJsonTokenizerParseFromBuf, &Args);
     if (RT_SUCCESS(rc))
     {
-        rc = rtJsonParse(&Tokenizer, phJsonVal);
+        rc = rtJsonParse(&Tokenizer, phJsonVal, pErrInfo);
         rtJsonTokenizerDestroy(&Tokenizer);
     }
 
@@ -1433,15 +1182,11 @@ RTDECL(int) RTJsonParseFromString(PRTJSONVAL phJsonVal, const char *pszStr, PRTE
     AssertPtrReturn(phJsonVal, VERR_INVALID_POINTER);
     AssertPtrReturn(pszStr, VERR_INVALID_POINTER);
 
-    /** @todo r=bird: The rtJsonTokenizerParseFromString function does
-     *        strlen() on the whole pszStr for each read.  For larger strings (
-     *        longer than sizeof(Tokenizer.achBuf)) it would be good to join
-     *        forces with RTJsonParseFromBuf. */
     RTJSONTOKENIZER Tokenizer;
-    int rc = rtJsonTokenizerInit(&Tokenizer, rtJsonTokenizerParseFromString, (void *)pszStr, pErrInfo);
+    int rc = rtJsonTokenizerInit(&Tokenizer, rtJsonTokenizerParseFromString, (void *)pszStr);
     if (RT_SUCCESS(rc))
     {
-        rc = rtJsonParse(&Tokenizer, phJsonVal);
+        rc = rtJsonParse(&Tokenizer, phJsonVal, pErrInfo);
         rtJsonTokenizerDestroy(&Tokenizer);
     }
 
@@ -1462,10 +1207,10 @@ RTDECL(int) RTJsonParseFromFile(PRTJSONVAL phJsonVal, const char *pszFilename, P
     {
         RTJSONTOKENIZER Tokenizer;
 
-        rc = rtJsonTokenizerInit(&Tokenizer, rtJsonTokenizerParseFromFile, &Args, pErrInfo);
+        rc = rtJsonTokenizerInit(&Tokenizer, rtJsonTokenizerParseFromFile, &Args);
         if (RT_SUCCESS(rc))
         {
-            rc = rtJsonParse(&Tokenizer, phJsonVal);
+            rc = rtJsonParse(&Tokenizer, phJsonVal, pErrInfo);
             rtJsonTokenizerDestroy(&Tokenizer);
         }
         RTStrmClose(Args.u.hStream);
@@ -1501,69 +1246,29 @@ RTDECL(uint32_t) RTJsonValueRelease(RTJSONVAL hJsonVal)
 RTDECL(RTJSONVALTYPE) RTJsonValueGetType(RTJSONVAL hJsonVal)
 {
     PRTJSONVALINT pThis = hJsonVal;
-    AssertPtrReturn(pThis, RTJSONVALTYPE_INVALID);
-
     if (pThis == NIL_RTJSONVAL)
         return RTJSONVALTYPE_INVALID;
+    AssertPtrReturn(pThis, RTJSONVALTYPE_INVALID);
 
     return pThis->enmType;
 }
 
-
-RTDECL(const char *) RTJsonValueTypeName(RTJSONVALTYPE enmType)
-{
-    switch (enmType)
-    {
-        case RTJSONVALTYPE_INVALID: return "invalid";
-        case RTJSONVALTYPE_OBJECT:  return "object";
-        case RTJSONVALTYPE_ARRAY:   return "array";
-        case RTJSONVALTYPE_STRING:  return "string";
-        case RTJSONVALTYPE_INTEGER: return "integer";
-        case RTJSONVALTYPE_NUMBER:  return "number";
-        case RTJSONVALTYPE_NULL:    return "null";
-        case RTJSONVALTYPE_TRUE:    return "true";
-        case RTJSONVALTYPE_FALSE:   return "false";
-        default:                    return "???";
-    }
-}
-
-
-#define RTJSON_ASSERT_VALID_HANDLE_AND_TYPE_RETURN(pJson, enmExpectedType, ret) do { \
-        AssertPtrReturn((pJson), (ret));  \
-        AssertReturn((pJson) != NIL_RTJSONVAL, (ret)); \
-        AssertReturn((pJson)->enmType == (enmExpectedType), (ret)); \
-    } while (0)
-
-#define RTJSON_TYPECHECK_RETURN(pJson, enmExpectedType) do {\
-        if ((pJson)->enmType == (enmExpectedType)) { /*likely*/ } \
-        else { /*AssertFailed();*/ return VERR_JSON_VALUE_INVALID_TYPE; } \
-    } while (0)
-
-
-#define RTJSON_TYPECHECK_CONTAINER_RETURN(pJson) do { \
-        if (   (pJson)->enmType == RTJSONVALTYPE_ARRAY  \
-            || (pJson)->enmType == RTJSONVALTYPE_OBJECT) \
-        { /* likely */ } \
-        else { /*AssertFailed();*/ return VERR_JSON_VALUE_INVALID_TYPE;} \
-    } while (0)
-
-
 RTDECL(const char *) RTJsonValueGetString(RTJSONVAL hJsonVal)
 {
     PRTJSONVALINT pThis = hJsonVal;
-    RTJSON_ASSERT_VALID_HANDLE_AND_TYPE_RETURN(pThis, RTJSONVALTYPE_STRING, NULL);
+    AssertReturn(pThis != NIL_RTJSONVAL, NULL);
+    AssertReturn(pThis->enmType == RTJSONVALTYPE_STRING, NULL);
 
     return pThis->Type.String.pszStr;
 }
 
-
 RTDECL(int) RTJsonValueQueryString(RTJSONVAL hJsonVal, const char **ppszStr)
 {
     PRTJSONVALINT pThis = hJsonVal;
-    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertPtrReturn(ppszStr, VERR_INVALID_POINTER);
+    AssertReturn(pThis != NIL_RTJSONVAL, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->enmType == RTJSONVALTYPE_STRING, VERR_JSON_VALUE_INVALID_TYPE);
 
-    RTJSON_TYPECHECK_RETURN(pThis, RTJSONVALTYPE_STRING);
     *ppszStr = pThis->Type.String.pszStr;
     return VINF_SUCCESS;
 }
@@ -1571,33 +1276,21 @@ RTDECL(int) RTJsonValueQueryString(RTJSONVAL hJsonVal, const char **ppszStr)
 RTDECL(int) RTJsonValueQueryInteger(RTJSONVAL hJsonVal, int64_t *pi64Num)
 {
     PRTJSONVALINT pThis = hJsonVal;
-    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertPtrReturn(pi64Num, VERR_INVALID_POINTER);
+    AssertReturn(pThis != NIL_RTJSONVAL, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->enmType == RTJSONVALTYPE_NUMBER, VERR_JSON_VALUE_INVALID_TYPE);
 
-    RTJSON_TYPECHECK_RETURN(pThis, RTJSONVALTYPE_INTEGER);
-    *pi64Num = pThis->Type.Integer.i64Num;
-    return VINF_SUCCESS;
-}
-
-RTDECL(int) RTJsonValueQueryNumber(RTJSONVAL hJsonVal, double *prdNum)
-{
-    PRTJSONVALINT pThis = hJsonVal;
-    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
-    AssertPtrReturn(prdNum, VERR_INVALID_POINTER);
-
-    RTJSON_TYPECHECK_RETURN(pThis, RTJSONVALTYPE_NUMBER);
-    *prdNum = pThis->Type.rdNum;
+    *pi64Num = pThis->Type.Number.i64Num;
     return VINF_SUCCESS;
 }
 
 RTDECL(int) RTJsonValueQueryByName(RTJSONVAL hJsonVal, const char *pszName, PRTJSONVAL phJsonVal)
 {
     PRTJSONVALINT pThis = hJsonVal;
-    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertPtrReturn(pszName, VERR_INVALID_POINTER);
     AssertPtrReturn(phJsonVal, VERR_INVALID_POINTER);
-
-    RTJSON_TYPECHECK_RETURN(pThis, RTJSONVALTYPE_OBJECT);
+    AssertReturn(pThis != NIL_RTJSONVAL, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->enmType == RTJSONVALTYPE_OBJECT, VERR_JSON_VALUE_INVALID_TYPE);
 
     int rc = VERR_NOT_FOUND;
     for (unsigned i = 0; i < pThis->Type.Object.cMembers; i++)
@@ -1621,19 +1314,6 @@ RTDECL(int) RTJsonValueQueryIntegerByName(RTJSONVAL hJsonVal, const char *pszNam
     if (RT_SUCCESS(rc))
     {
         rc = RTJsonValueQueryInteger(hJsonValNum, pi64Num);
-        RTJsonValueRelease(hJsonValNum);
-    }
-
-    return rc;
-}
-
-RTDECL(int) RTJsonValueQueryNumberByName(RTJSONVAL hJsonVal, const char *pszName, double *prdNum)
-{
-    RTJSONVAL hJsonValNum = NIL_RTJSONVAL;
-    int rc = RTJsonValueQueryByName(hJsonVal, pszName, &hJsonValNum);
-    if (RT_SUCCESS(rc))
-    {
-        rc = RTJsonValueQueryNumber(hJsonValNum, prdNum);
         RTJsonValueRelease(hJsonValNum);
     }
 
@@ -1684,7 +1364,8 @@ RTDECL(int) RTJsonValueQueryBooleanByName(RTJSONVAL hJsonVal, const char *pszNam
 RTDECL(unsigned) RTJsonValueGetArraySize(RTJSONVAL hJsonVal)
 {
     PRTJSONVALINT pThis = hJsonVal;
-    RTJSON_ASSERT_VALID_HANDLE_AND_TYPE_RETURN(pThis, RTJSONVALTYPE_ARRAY, 0);
+    AssertReturn(pThis != NIL_RTJSONVAL, 0);
+    AssertReturn(pThis->enmType == RTJSONVALTYPE_ARRAY, 0);
 
     return pThis->Type.Array.cItems;
 }
@@ -1692,10 +1373,10 @@ RTDECL(unsigned) RTJsonValueGetArraySize(RTJSONVAL hJsonVal)
 RTDECL(int) RTJsonValueQueryArraySize(RTJSONVAL hJsonVal, unsigned *pcItems)
 {
     PRTJSONVALINT pThis = hJsonVal;
-    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertPtrReturn(pcItems, VERR_INVALID_POINTER);
+    AssertReturn(pThis != NIL_RTJSONVAL, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->enmType == RTJSONVALTYPE_ARRAY, VERR_JSON_VALUE_INVALID_TYPE);
 
-    RTJSON_TYPECHECK_RETURN(pThis, RTJSONVALTYPE_ARRAY);
     *pcItems = pThis->Type.Array.cItems;
     return VINF_SUCCESS;
 }
@@ -1703,71 +1384,39 @@ RTDECL(int) RTJsonValueQueryArraySize(RTJSONVAL hJsonVal, unsigned *pcItems)
 RTDECL(int) RTJsonValueQueryByIndex(RTJSONVAL hJsonVal, unsigned idx, PRTJSONVAL phJsonVal)
 {
     PRTJSONVALINT pThis = hJsonVal;
-    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertPtrReturn(phJsonVal, VERR_INVALID_POINTER);
-
-    RTJSON_TYPECHECK_RETURN(pThis, RTJSONVALTYPE_ARRAY);
-    if (RT_UNLIKELY(idx >= pThis->Type.Array.cItems))
-        return VERR_OUT_OF_RANGE;
+    AssertReturn(pThis != NIL_RTJSONVAL, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->enmType == RTJSONVALTYPE_ARRAY, VERR_JSON_VALUE_INVALID_TYPE);
+    AssertReturn(idx < pThis->Type.Array.cItems, VERR_OUT_OF_RANGE);
 
     RTJsonValueRetain(pThis->Type.Array.papItems[idx]);
     *phJsonVal = pThis->Type.Array.papItems[idx];
     return VINF_SUCCESS;
 }
 
-static int rtJsonIteratorBeginWorker(PRTJSONVALINT pThis, PRTJSONIT phJsonIt)
-{
-    PRTJSONITINT pIt = (PRTJSONITINT)RTMemTmpAllocZ(sizeof(RTJSONITINT));
-    if (pIt)
-    {
-        RTJsonValueRetain(pThis);
-        pIt->pJsonVal = pThis;
-        pIt->idxCur = 0;
-
-        *phJsonIt = pIt;
-        return VINF_SUCCESS;
-    }
-    return VERR_NO_MEMORY;
-}
-
 RTDECL(int) RTJsonIteratorBegin(RTJSONVAL hJsonVal, PRTJSONIT phJsonIt)
 {
     PRTJSONVALINT pThis = hJsonVal;
-    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertPtrReturn(phJsonIt, VERR_INVALID_POINTER);
-    RTJSON_TYPECHECK_CONTAINER_RETURN(pThis);
+    AssertReturn(pThis != NIL_RTJSONVAL, VERR_INVALID_HANDLE);
+    AssertReturn(pThis->enmType == RTJSONVALTYPE_ARRAY || pThis->enmType == RTJSONVALTYPE_OBJECT,
+                 VERR_JSON_VALUE_INVALID_TYPE);
 
-    return rtJsonIteratorBeginWorker(pThis, phJsonIt);
-}
+    PRTJSONITINT pIt = (PRTJSONITINT)RTMemTmpAllocZ(sizeof(RTJSONITINT));
+    if (RT_UNLIKELY(!pIt))
+        return VERR_NO_MEMORY;
 
-RTDECL(int) RTJsonIteratorBeginArray(RTJSONVAL hJsonVal, PRTJSONIT phJsonIt)
-{
-    PRTJSONVALINT pThis = hJsonVal;
-    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
-    AssertPtrReturn(phJsonIt, VERR_INVALID_POINTER);
-    RTJSON_TYPECHECK_RETURN(pThis, RTJSONVALTYPE_ARRAY);
+    RTJsonValueRetain(hJsonVal);
+    pIt->pJsonVal = pThis;
+    pIt->idxCur = 0;
+    *phJsonIt = pIt;
 
-    if (pThis->Type.Array.cItems > 0)
-        return rtJsonIteratorBeginWorker(pThis, phJsonIt);
-    return VERR_JSON_IS_EMPTY;
-}
-
-RTDECL(int) RTJsonIteratorBeginObject(RTJSONVAL hJsonVal, PRTJSONIT phJsonIt)
-{
-    PRTJSONVALINT pThis = hJsonVal;
-    AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
-    AssertPtrReturn(phJsonIt, VERR_INVALID_POINTER);
-    RTJSON_TYPECHECK_RETURN(pThis, RTJSONVALTYPE_OBJECT);
-
-    if (pThis->Type.Object.cMembers > 0)
-        return rtJsonIteratorBeginWorker(pThis, phJsonIt);
-    return VERR_JSON_IS_EMPTY;
+    return VINF_SUCCESS;
 }
 
 RTDECL(int) RTJsonIteratorQueryValue(RTJSONIT hJsonIt, PRTJSONVAL phJsonVal, const char **ppszName)
 {
     PRTJSONITINT pIt = hJsonIt;
-    AssertPtrReturn(pIt, VERR_INVALID_HANDLE);
     AssertReturn(pIt != NIL_RTJSONIT, VERR_INVALID_HANDLE);
     AssertPtrReturn(phJsonVal, VERR_INVALID_POINTER);
 
@@ -1808,7 +1457,6 @@ RTDECL(int) RTJsonIteratorQueryValue(RTJSONIT hJsonIt, PRTJSONVAL phJsonVal, con
 RTDECL(int) RTJsonIteratorNext(RTJSONIT hJsonIt)
 {
     PRTJSONITINT pIt = hJsonIt;
-    AssertPtrReturn(pIt, VERR_INVALID_HANDLE);
     AssertReturn(pIt != NIL_RTJSONIT, VERR_INVALID_HANDLE);
 
     int rc = VINF_SUCCESS;
@@ -1838,11 +1486,11 @@ RTDECL(int) RTJsonIteratorNext(RTJSONIT hJsonIt)
 RTDECL(void) RTJsonIteratorFree(RTJSONIT hJsonIt)
 {
     PRTJSONITINT pThis = hJsonIt;
-    AssertPtrReturnVoid(pThis);
-
     if (pThis == NIL_RTJSONIT)
         return;
+    AssertPtrReturnVoid(pThis);
 
     RTJsonValueRelease(pThis->pJsonVal);
     RTMemTmpFree(pThis);
 }
+

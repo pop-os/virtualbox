@@ -1,14 +1,10 @@
 /* $Id: pemfile.cpp $ */
 /** @file
  * IPRT - Crypto - PEM file reader / writer.
- *
- * See RFC-1341 for the original ideas for the format, but keep in mind
- * that the format was hijacked and put to different uses.  We're aiming at
- * dealing with the different uses rather than anything email related here.
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,12 +31,10 @@
 #include "internal/iprt.h"
 #include <iprt/crypto/pem.h>
 
-#include <iprt/asm.h>
 #include <iprt/base64.h>
 #include <iprt/ctype.h>
 #include <iprt/err.h>
 #include <iprt/mem.h>
-#include <iprt/memsafer.h>
 #include <iprt/file.h>
 #include <iprt/string.h>
 
@@ -49,7 +43,7 @@
 /**
  * Looks for a PEM-like marker.
  *
- * @returns true if found, false if not.
+ * @returns true if found, fasle if not.
  * @param   pbContent           Start of the content to search thru.
  * @param   cbContent           The size of the content to search.
  * @param   offStart            The offset into pbContent to start searching.
@@ -188,7 +182,6 @@ static bool rtCrPemFindMarker(uint8_t const *pbContent, size_t cbContent, size_t
                             }
                             break;
                         }
-                        pWord++;
                     } /* for each word in marker. */
                 } /* for each marker. */
             }
@@ -225,139 +218,6 @@ static bool rtCrPemFindMarkerSection(uint8_t const *pbContent, size_t cbContent,
 }
 
 
-/**
- * Parses any fields the message may contain.
- *
- * @retval  VINF_SUCCESS
- * @retval  VERR_NO_MEMORY
- * @retval  VERR_CR_MALFORMED_PEM_HEADER
- *
- * @param   pSection        The current section, where we will attach a list of
- *                          fields to the pFieldHead member.
- * @param   pbContent       The content of the PEM message being parsed.
- * @param   cbContent       The length of the PEM message.
- * @param   pcbFields       Where to return the length of the header fields we found.
- */
-static int rtCrPemProcessFields(PRTCRPEMSECTION pSection, uint8_t const *pbContent, size_t cbContent, size_t *pcbFields)
-{
-    uint8_t const * const pbContentStart = pbContent;
-
-    /*
-     * Work the encapulated header protion field by field.
-     *
-     * This is optional, so currently we don't throw errors here but leave that
-     * to when we work the text portion with the base64 decoder.  Also, as a reader
-     * we don't go all pedanic on confirming to specification (RFC-1421), especially
-     * given that it's used for crypto certificates, keys and the like not email. :-)
-     */
-    PCRTCRPEMFIELD *ppNext = &pSection->pFieldHead;
-    while (cbContent > 0)
-    {
-        /* Just look for a colon first. */
-        const uint8_t *pbColon = (const uint8_t *)memchr(pbContent, ':', cbContent);
-        if (!pbColon)
-            break;
-        size_t offColon = pbColon - pbContent;
-
-        /* Check that the colon is within the first line. */
-        if (!memchr(pbContent, '\n', cbContent - offColon))
-            return VERR_CR_MALFORMED_PEM_HEADER;
-
-        /* Skip leading spaces (there shouldn't be any, but just in case). */
-        while (RT_C_IS_BLANK(*pbContent) && /*paranoia:*/ offColon > 0)
-        {
-            offColon--;
-            cbContent--;
-            pbContent++;
-        }
-
-        /* There shouldn't be any spaces before the colon, but just in case */
-        size_t cchName = offColon;
-        while (cchName > 0 && RT_C_IS_BLANK(pbContent[cchName - 1]))
-            cchName--;
-
-        /* Skip leading value spaces (there typically is at least one). */
-        size_t offValue = offColon + 1;
-        while (offValue < cbContent && RT_C_IS_BLANK(pbContent[offValue]))
-            offValue++;
-
-        /* Find the newline the field value ends with and where the next iteration should start later on. */
-        size_t         cbLeft;
-        uint8_t const *pbNext = (uint8_t const *)memchr(&pbContent[offValue], '\n', cbContent - offValue);
-        while (   pbNext
-               && (cbLeft = pbNext - pbContent) < cbContent
-               && RT_C_IS_BLANK(pbNext[1]) /* next line must start with a space or tab */)
-            pbNext = (uint8_t const *)memchr(&pbNext[1], '\n', cbLeft - 1);
-
-        size_t cchValue;
-        if (pbNext)
-        {
-            cchValue = pbNext - &pbContent[offValue];
-            if (cchValue > 0 && pbNext[-1] == '\r')
-                cchValue--;
-            pbNext++;
-        }
-        else
-        {
-            cchValue = cbContent - offValue;
-            pbNext = &pbContent[cbContent];
-        }
-
-        /* Strip trailing spaces. */
-        while (cchValue > 0 && RT_C_IS_BLANK(pbContent[offValue + cchValue - 1]))
-            cchValue--;
-
-        /*
-         * Allocate a field instance.
-         *
-         * Note! We don't consider field data sensitive at the moment.  This
-         *       mainly because the fields are chiefly used to indicate the
-         *       encryption parameters to the body.
-         */
-        PRTCRPEMFIELD pNewField = (PRTCRPEMFIELD)RTMemAllocZVar(sizeof(*pNewField) + cchName + 1 + cchValue + 1);
-        if (!pNewField)
-            return VERR_NO_MEMORY;
-        pNewField->cchName         = cchName;
-        pNewField->cchValue        = cchValue;
-        memcpy(pNewField->szName, pbContent, cchName);
-        pNewField->szName[cchName] = '\0';
-        char *pszDst = (char *)memcpy(&pNewField->szName[cchName + 1], &pbContent[offValue], cchValue);
-        pNewField->pszValue        = pszDst;
-        pszDst[cchValue]           = '\0';
-        pNewField->pNext           = NULL;
-
-        *ppNext = pNewField;
-        ppNext = &pNewField->pNext;
-
-        /*
-         * Advance past the field.
-         */
-        cbContent -= pbNext - pbContent;
-        pbContent  = pbNext;
-    }
-
-    /*
-     * Skip blank line(s) before the body.
-     */
-    while (cbContent >= 1)
-    {
-        size_t cbSkip;
-        if (pbContent[0] == '\n')
-            cbSkip = 1;
-        else if (   pbContent[0] == '\r'
-                 && cbContent >= 2
-                 && pbContent[1] == '\n')
-            cbSkip = 2;
-        else
-            break;
-        pbContent += cbSkip;
-        cbContent -= cbSkip;
-    }
-
-    *pcbFields = pbContent - pbContentStart;
-    return VINF_SUCCESS;
-}
-
 
 /**
  * Does the decoding of a PEM-like data blob after it has been located.
@@ -365,20 +225,18 @@ static int rtCrPemProcessFields(PRTCRPEMSECTION pSection, uint8_t const *pbConte
  * @returns IPRT status ocde
  * @param   pbContent           The start of the PEM-like content (text).
  * @param   cbContent           The max size of the PEM-like content.
- * @param   fSensitive          Set if the safer allocator should be used.
  * @param   ppvDecoded          Where to return a heap block containing the
  *                              decoded content.
  * @param   pcbDecoded          Where to return the size of the decoded content.
  */
-static int rtCrPemDecodeBase64(uint8_t const *pbContent, size_t cbContent, bool fSensitive,
-                               void **ppvDecoded, size_t *pcbDecoded)
+static int rtCrPemDecodeBase64(uint8_t const *pbContent, size_t cbContent, void **ppvDecoded, size_t *pcbDecoded)
 {
     ssize_t cbDecoded = RTBase64DecodedSizeEx((const char *)pbContent, cbContent, NULL);
     if (cbDecoded < 0)
         return VERR_INVALID_BASE64_ENCODING;
 
     *pcbDecoded = cbDecoded;
-    void *pvDecoded = !fSensitive ? RTMemAlloc(cbDecoded) : RTMemSaferAllocZ(cbDecoded);
+    void *pvDecoded = RTMemAlloc(cbDecoded);
     if (!pvDecoded)
         return VERR_NO_MEMORY;
 
@@ -391,13 +249,9 @@ static int rtCrPemDecodeBase64(uint8_t const *pbContent, size_t cbContent, bool 
             *ppvDecoded = pvDecoded;
             return VINF_SUCCESS;
         }
-
         rc = VERR_INTERNAL_ERROR_3;
     }
-    if (!fSensitive)
-        RTMemFree(pvDecoded);
-    else
-        RTMemSaferFree(pvDecoded, cbDecoded);
+    RTMemFree(pvDecoded);
     return rc;
 }
 
@@ -454,33 +308,22 @@ RTDECL(int) RTCrPemFreeSections(PCRTCRPEMSECTION pSectionHead)
     {
         PRTCRPEMSECTION pFree = (PRTCRPEMSECTION)pSectionHead;
         pSectionHead = pSectionHead->pNext;
-        ASMCompilerBarrier(); /* paranoia */
+
+        Assert(pFree->pMarker || !pFree->pszPreamble);
 
         if (pFree->pbData)
         {
-            if (!pFree->fSensitive)
-                RTMemFree(pFree->pbData);
-            else
-                RTMemSaferFree(pFree->pbData, pFree->cbData);
+            RTMemFree(pFree->pbData);
             pFree->pbData = NULL;
             pFree->cbData = 0;
         }
 
-        PRTCRPEMFIELD pField = (PRTCRPEMFIELD)pFree->pFieldHead;
-        if (pField)
+        if (pFree->pszPreamble)
         {
-            pFree->pFieldHead = NULL;
-            do
-            {
-                PRTCRPEMFIELD pFreeField = pField;
-                pField = (PRTCRPEMFIELD)pField->pNext;
-                ASMCompilerBarrier(); /* paranoia */
-
-                pFreeField->pszValue = NULL;
-                RTMemFree(pFreeField);
-            } while (pField);
+            RTMemFree(pFree->pszPreamble);
+            pFree->pszPreamble = NULL;
+            pFree->cchPreamble = 0;
         }
-
         RTMemFree(pFree);
     }
     return VINF_SUCCESS;
@@ -510,8 +353,6 @@ RTDECL(int) RTCrPemParseContent(void const *pvContent, size_t cbContent, uint32_
     PRTCRPEMSECTION pSection = (PRTCRPEMSECTION)RTMemAllocZ(sizeof(*pSection));
     if (pSection)
     {
-        bool const fSensitive = RT_BOOL(fFlags & RTCRPEMREADFILE_F_SENSITIVE);
-
         /*
          * Try locate the first section.
          */
@@ -529,20 +370,15 @@ RTDECL(int) RTCrPemParseContent(void const *pvContent, size_t cbContent, uint32_
                 pSection->pMarker       = pMatch;
                 //pSection->pbData      = NULL;
                 //pSection->cbData      = 0;
-                //pSection->pFieldHead  = NULL;
-                pSection->fSensitive    = fSensitive;
+                //pSection->pszPreamble = NULL;
+                //pSection->cchPreamble = 0;
 
                 *ppNext = pSection;
                 ppNext = &pSection->pNext;
 
-                /*
-                 * Decode the section.
-                 */
-                size_t cbFields = 0;
-                int rc2 = rtCrPemProcessFields(pSection, pbContent + offBegin, offEnd - offBegin, &cbFields);
-                offBegin += cbFields;
-                if (RT_SUCCESS(rc2))
-                    rc2 = rtCrPemDecodeBase64(pbContent + offBegin, offEnd - offBegin, fSensitive,
+                /* Decode the section. */
+                /** @todo copy the preamble as well. */
+                int rc2 = rtCrPemDecodeBase64(pbContent + offBegin, offEnd - offBegin,
                                               (void **)&pSection->pbData, &pSection->cbData);
                 if (RT_FAILURE(rc2))
                 {
@@ -558,9 +394,7 @@ RTDECL(int) RTCrPemParseContent(void const *pvContent, size_t cbContent, uint32_
                     }
                 }
 
-                /*
-                 * More sections?
-                 */
+                /* More sections? */
                 if (   offResume + 12 >= cbContent
                     || offResume      >= cbContent
                     || !rtCrPemFindMarkerSection(pbContent, cbContent, offResume, paMarkers, cMarkers,
@@ -589,17 +423,10 @@ RTDECL(int) RTCrPemParseContent(void const *pvContent, size_t cbContent, uint32_
                  */
                 //pSection->pNext       = NULL;
                 //pSection->pMarker     = NULL;
-                //pSection->pFieldHead  = NULL;
+                pSection->pbData        = (uint8_t *)RTMemDup(pbContent, cbContent);
                 pSection->cbData        = cbContent;
-                pSection->fSensitive    = fSensitive;
-                if (!fSensitive)
-                    pSection->pbData    = (uint8_t *)RTMemDup(pbContent, cbContent);
-                else
-                {
-                    pSection->pbData    = (uint8_t *)RTMemSaferAllocZ(cbContent);
-                    if (pSection->pbData)
-                        memcpy(pSection->pbData, pbContent, cbContent);
-                }
+                //pSection->pszPreamble = NULL;
+                //pSection->cchPreamble = 0;
                 if (pSection->pbData)
                 {
                     *ppSectionHead = pSection;
@@ -632,8 +459,6 @@ RTDECL(int) RTCrPemReadFile(const char *pszFilename, uint32_t fFlags, PCRTCRPEMM
     if (RT_SUCCESS(rc))
     {
         rc = RTCrPemParseContent(pvContent, cbContent, fFlags, paMarkers, cMarkers, ppSectionHead, pErrInfo);
-        if (fFlags & RTCRPEMREADFILE_F_SENSITIVE)
-            RTMemWipeThoroughly(pvContent, cbContent, 3);
         RTFileReadAllFree(pvContent, cbContent);
     }
     else

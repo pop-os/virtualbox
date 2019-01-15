@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef MAIN_INCLUDED_MachineImplCloneVM_h
-#define MAIN_INCLUDED_MachineImplCloneVM_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ____H_MACHINEIMPLCLONEVM
+#define ____H_MACHINEIMPLCLONEVM
 
 #include "MachineImpl.h"
 #include "ProgressImpl.h"
@@ -46,6 +43,6 @@ protected:
     friend struct MachineCloneVMPrivate;
 };
 
-#endif /* !MAIN_INCLUDED_MachineImplCloneVM_h */
+#endif // ____H_MACHINEIMPLCLONEVM
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */
 

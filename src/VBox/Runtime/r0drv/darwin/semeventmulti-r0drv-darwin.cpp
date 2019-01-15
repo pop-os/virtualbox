@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -174,7 +174,6 @@ RTDECL(int)  RTSemEventMultiDestroy(RTSEMEVENTMULTI hEventMultiSem)
     RT_ASSERT_INTS_ON();
     IPRT_DARWIN_SAVE_EFL_AC();
 
-    RTCCUINTREG const fIntSaved = ASMIntDisableFlags();
     lck_spin_lock(pThis->pSpinlock);
 
     ASMAtomicWriteU32(&pThis->u32Magic, ~RTSEMEVENTMULTI_MAGIC); /* make the handle invalid */
@@ -186,7 +185,6 @@ RTDECL(int)  RTSemEventMultiDestroy(RTSEMEVENTMULTI hEventMultiSem)
     }
 
     lck_spin_unlock(pThis->pSpinlock);
-    ASMSetFlags(fIntSaved);
     rtR0SemEventMultiDarwinRelease(pThis);
 
     IPRT_DARWIN_RESTORE_EFL_AC();
@@ -200,18 +198,9 @@ RTDECL(int)  RTSemEventMultiSignal(RTSEMEVENTMULTI hEventMultiSem)
     AssertPtrReturn(pThis, VERR_INVALID_HANDLE);
     AssertMsgReturn(pThis->u32Magic == RTSEMEVENTMULTI_MAGIC, ("pThis=%p u32Magic=%#x\n", pThis, pThis->u32Magic), VERR_INVALID_HANDLE);
     RT_ASSERT_PREEMPT_CPUID_VAR();
-
-    /*
-     * Coming here with interrupts disabled should be okay.  The thread_wakeup_prim KPI is used
-     * by the interrupt handler IOFilterInterruptEventSource::disableInterruptOccurred() via
-     * signalWorkAvailable().  The only problem is if we have to destroy the event structure,
-     * as RTMemFree does not work with interrupts disabled (IOFree/kfree takes zone mutex).
-     */
-    //RT_ASSERT_INTS_ON(); - we may be called from interrupt context, which seems to be perfectly fine if we disable interrupts.
-
+    RT_ASSERT_INTS_ON();
     IPRT_DARWIN_SAVE_EFL_AC();
 
-    RTCCUINTREG const fIntSaved = ASMIntDisableFlags();
     rtR0SemEventMultiDarwinRetain(pThis);
     lck_spin_lock(pThis->pSpinlock);
 
@@ -233,11 +222,9 @@ RTDECL(int)  RTSemEventMultiSignal(RTSEMEVENTMULTI hEventMultiSem)
     }
 
     lck_spin_unlock(pThis->pSpinlock);
-    ASMSetFlags(fIntSaved);
     rtR0SemEventMultiDarwinRelease(pThis);
 
     RT_ASSERT_PREEMPT_CPUID();
-    AssertMsg((fSavedEfl & X86_EFL_IF) == (ASMGetFlags() & X86_EFL_IF), ("fSavedEfl=%#x cur=%#x\n",(uint32_t)fSavedEfl, ASMGetFlags()));
     IPRT_DARWIN_RESTORE_EFL_AC();
     return VINF_SUCCESS;
 }
@@ -252,14 +239,12 @@ RTDECL(int)  RTSemEventMultiReset(RTSEMEVENTMULTI hEventMultiSem)
     RT_ASSERT_INTS_ON();
     IPRT_DARWIN_SAVE_EFL_AC();
 
-    RTCCUINTREG const fIntSaved = ASMIntDisableFlags();
     rtR0SemEventMultiDarwinRetain(pThis);
     lck_spin_lock(pThis->pSpinlock);
 
     ASMAtomicAndU32(&pThis->fStateAndGen, ~RTSEMEVENTMULTIDARWIN_STATE_MASK);
 
     lck_spin_unlock(pThis->pSpinlock);
-    ASMSetFlags(fIntSaved);
     rtR0SemEventMultiDarwinRelease(pThis);
 
     RT_ASSERT_PREEMPT_CPUID();
@@ -292,7 +277,6 @@ static int rtR0SemEventMultiDarwinWait(PRTSEMEVENTMULTIINTERNAL pThis, uint32_t 
         RT_ASSERT_PREEMPTIBLE();
     IPRT_DARWIN_SAVE_EFL_AC();
 
-    RTCCUINTREG const fIntSaved = ASMIntDisableFlags();
     rtR0SemEventMultiDarwinRetain(pThis);
     lck_spin_lock(pThis->pSpinlock);
 
@@ -414,7 +398,6 @@ static int rtR0SemEventMultiDarwinWait(PRTSEMEVENTMULTIINTERNAL pThis, uint32_t 
     }
 
     lck_spin_unlock(pThis->pSpinlock);
-    ASMSetFlags(fIntSaved);
     rtR0SemEventMultiDarwinRelease(pThis);
 
     IPRT_DARWIN_RESTORE_EFL_AC();

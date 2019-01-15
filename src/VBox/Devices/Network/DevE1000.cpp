@@ -14,7 +14,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1393,7 +1393,7 @@ static const struct E1kRegMap_st
     { 0x00400, 0x00004, 0x017FFFFA, 0x017FFFFA, e1kRegReadDefault      , e1kRegWriteDefault      , "TCTL"    , "Transmit Control" },
     { 0x00410, 0x00004, 0x3FFFFFFF, 0x3FFFFFFF, e1kRegReadDefault      , e1kRegWriteDefault      , "TIPG"    , "Transmit IPG" },
     { 0x00458, 0x00004, 0x0000FFFF, 0x0000FFFF, e1kRegReadDefault      , e1kRegWriteDefault      , "AIFS"    , "Adaptive IFS Throttle - AIT" },
-    { 0x00e00, 0x00004, 0xCFCFCFCF, 0xCFCFCFCF, e1kRegReadDefault      , e1kRegWriteDefault      , "LEDCTL"  , "LED Control" },
+    { 0x00e00, 0x00004, 0xFFFFFFFF, 0xFFFFFFFF, e1kRegReadUnimplemented, e1kRegWriteUnimplemented, "LEDCTL"  , "LED Control" },
     { 0x01000, 0x00004, 0xFFFF007F, 0x0000007F, e1kRegReadDefault      , e1kRegWritePBA          , "PBA"     , "Packet Buffer Allocation" },
     { 0x02160, 0x00004, 0xFFFFFFFF, 0xFFFFFFFF, e1kRegReadUnimplemented, e1kRegWriteUnimplemented, "FCRTL"   , "Flow Control Receive Threshold Low" },
     { 0x02168, 0x00004, 0xFFFFFFFF, 0xFFFFFFFF, e1kRegReadUnimplemented, e1kRegWriteUnimplemented, "FCRTH"   , "Flow Control Receive Threshold High" },
@@ -1651,10 +1651,6 @@ static void e1kHardReset(PE1KSTATE pThis)
     Assert(GET_BITS(RCTL, BSIZE) == 0);
     pThis->u16RxBSize = 2048;
 
-    uint16_t u16LedCtl = 0x0602; /* LED0/LINK_UP#, LED2/LINK100# */
-    pThis->eeprom.readWord(0x2F, &u16LedCtl); /* Read LEDCTL defaults from EEPROM */
-    LEDCTL = 0x07008300 | (((uint32_t)u16LedCtl & 0xCF00) << 8) | (u16LedCtl & 0xCF); /* Only LED0 and LED2 defaults come from EEPROM */
-
     /* Reset promiscuous mode */
     if (pThis->pDrvR3)
         pThis->pDrvR3->pfnSetPromiscuousMode(pThis->pDrvR3, false);
@@ -1786,101 +1782,7 @@ DECLINLINE(int) e1kGetDescType(E1KTXDESC *pDesc)
 }
 
 
-#ifdef E1K_WITH_RXD_CACHE
-/**
- * Return the number of RX descriptor that belong to the hardware.
- *
- * @returns the number of available descriptors in RX ring.
- * @param   pThis       The device state structure.
- * @thread  ???
- */
-DECLINLINE(uint32_t) e1kGetRxLen(PE1KSTATE pThis)
-{
-    /**
-     *  Make sure RDT won't change during computation. EMT may modify RDT at
-     *  any moment.
-     */
-    uint32_t rdt = RDT;
-    return (RDH > rdt ? RDLEN/sizeof(E1KRXDESC) : 0) + rdt - RDH;
-}
-
-DECLINLINE(unsigned) e1kRxDInCache(PE1KSTATE pThis)
-{
-    return pThis->nRxDFetched > pThis->iRxDCurrent ?
-        pThis->nRxDFetched - pThis->iRxDCurrent : 0;
-}
-
-DECLINLINE(unsigned) e1kRxDIsCacheEmpty(PE1KSTATE pThis)
-{
-    return pThis->iRxDCurrent >= pThis->nRxDFetched;
-}
-
-/**
- * Load receive descriptors from guest memory. The caller needs to be in Rx
- * critical section.
- *
- * We need two physical reads in case the tail wrapped around the end of RX
- * descriptor ring.
- *
- * @returns the actual number of descriptors fetched.
- * @param   pThis       The device state structure.
- * @param   pDesc       Pointer to descriptor union.
- * @param   addr        Physical address in guest context.
- * @thread  EMT, RX
- */
-DECLINLINE(unsigned) e1kRxDPrefetch(PE1KSTATE pThis)
-{
-    /* We've already loaded pThis->nRxDFetched descriptors past RDH. */
-    unsigned nDescsAvailable    = e1kGetRxLen(pThis) - e1kRxDInCache(pThis);
-    unsigned nDescsToFetch      = RT_MIN(nDescsAvailable, E1K_RXD_CACHE_SIZE - pThis->nRxDFetched);
-    unsigned nDescsTotal        = RDLEN / sizeof(E1KRXDESC);
-    Assert(nDescsTotal != 0);
-    if (nDescsTotal == 0)
-        return 0;
-    unsigned nFirstNotLoaded    = (RDH + e1kRxDInCache(pThis)) % nDescsTotal;
-    unsigned nDescsInSingleRead = RT_MIN(nDescsToFetch, nDescsTotal - nFirstNotLoaded);
-    E1kLog3(("%s e1kRxDPrefetch: nDescsAvailable=%u nDescsToFetch=%u "
-             "nDescsTotal=%u nFirstNotLoaded=0x%x nDescsInSingleRead=%u\n",
-             pThis->szPrf, nDescsAvailable, nDescsToFetch, nDescsTotal,
-             nFirstNotLoaded, nDescsInSingleRead));
-    if (nDescsToFetch == 0)
-        return 0;
-    E1KRXDESC* pFirstEmptyDesc = &pThis->aRxDescriptors[pThis->nRxDFetched];
-    PDMDevHlpPhysRead(pThis->CTX_SUFF(pDevIns),
-                      ((uint64_t)RDBAH << 32) + RDBAL + nFirstNotLoaded * sizeof(E1KRXDESC),
-                      pFirstEmptyDesc, nDescsInSingleRead * sizeof(E1KRXDESC));
-    // uint64_t addrBase = ((uint64_t)RDBAH << 32) + RDBAL;
-    // unsigned i, j;
-    // for (i = pThis->nRxDFetched; i < pThis->nRxDFetched + nDescsInSingleRead; ++i)
-    // {
-    //     pThis->aRxDescAddr[i] = addrBase + (nFirstNotLoaded + i - pThis->nRxDFetched) * sizeof(E1KRXDESC);
-    //     E1kLog3(("%s aRxDescAddr[%d] = %p\n", pThis->szPrf, i, pThis->aRxDescAddr[i]));
-    // }
-    E1kLog3(("%s Fetched %u RX descriptors at %08x%08x(0x%x), RDLEN=%08x, RDH=%08x, RDT=%08x\n",
-             pThis->szPrf, nDescsInSingleRead,
-             RDBAH, RDBAL + RDH * sizeof(E1KRXDESC),
-             nFirstNotLoaded, RDLEN, RDH, RDT));
-    if (nDescsToFetch > nDescsInSingleRead)
-    {
-        PDMDevHlpPhysRead(pThis->CTX_SUFF(pDevIns),
-                          ((uint64_t)RDBAH << 32) + RDBAL,
-                          pFirstEmptyDesc + nDescsInSingleRead,
-                          (nDescsToFetch - nDescsInSingleRead) * sizeof(E1KRXDESC));
-        // Assert(i == pThis->nRxDFetched  + nDescsInSingleRead);
-        // for (j = 0; i < pThis->nRxDFetched + nDescsToFetch; ++i, ++j)
-        // {
-        //     pThis->aRxDescAddr[i] = addrBase + j * sizeof(E1KRXDESC);
-        //     E1kLog3(("%s aRxDescAddr[%d] = %p\n", pThis->szPrf, i, pThis->aRxDescAddr[i]));
-        // }
-        E1kLog3(("%s Fetched %u RX descriptors at %08x%08x\n",
-                 pThis->szPrf, nDescsToFetch - nDescsInSingleRead,
-                 RDBAH, RDBAL));
-    }
-    pThis->nRxDFetched += nDescsToFetch;
-    return nDescsToFetch;
-}
-
-# ifdef IN_RING3 /* currently only used in ring-3 due to stack space requirements of the caller */
+#if defined(E1K_WITH_RXD_CACHE) && defined(IN_RING3) /* currently only used in ring-3 due to stack space requirements of the caller */
 /**
  * Dump receive descriptor to debug log.
  *
@@ -1910,8 +1812,7 @@ static void e1kPrintRDesc(PE1KSTATE pThis, E1KRXDESC *pDesc)
              E1K_SPEC_VLAN(pDesc->status.u16Special),
              E1K_SPEC_PRI(pDesc->status.u16Special)));
 }
-# endif /* IN_RING3 */
-#endif /* E1K_WITH_RXD_CACHE */
+#endif /* E1K_WITH_RXD_CACHE && IN_RING3 */
 
 /**
  * Dump transmit descriptor to debug log.
@@ -2103,26 +2004,6 @@ DECLINLINE(void) e1kAdvanceRDH(PE1KSTATE pThis)
     //e1kCsEnter(pThis, RT_SRC_POS);
     if (++RDH * sizeof(E1KRXDESC) >= RDLEN)
         RDH = 0;
-#ifdef E1K_WITH_RXD_CACHE
-    /*
-     * We need to fetch descriptors now as the guest may advance RDT all the way
-     * to RDH as soon as we generate RXDMT0 interrupt. This is mostly to provide
-     * compatibility with Phar Lap ETS, see @bugref(7346). Note that we do not
-     * check if the receiver is enabled. It must be, otherwise we won't get here
-     * in the first place.
-     *
-     * Note that we should have moved both RDH and iRxDCurrent by now.
-     */
-    if (e1kRxDIsCacheEmpty(pThis))
-    {
-        /* Cache is empty, reset it and check if we can fetch more. */
-        pThis->iRxDCurrent = pThis->nRxDFetched = 0;
-        E1kLog3(("%s e1kAdvanceRDH: Rx cache is empty, RDH=%x RDT=%x "
-                 "iRxDCurrent=%x nRxDFetched=%x\n",
-                 pThis->szPrf, RDH, RDT, pThis->iRxDCurrent, pThis->nRxDFetched));
-        e1kRxDPrefetch(pThis);
-    }
-#endif /* E1K_WITH_RXD_CACHE */
     /*
      * Compute current receive queue length and fire RXDMT0 interrupt
      * if we are low on receive buffers
@@ -2151,6 +2032,99 @@ DECLINLINE(void) e1kAdvanceRDH(PE1KSTATE pThis)
 #endif /* IN_RING3 */
 
 #ifdef E1K_WITH_RXD_CACHE
+
+/**
+ * Return the number of RX descriptor that belong to the hardware.
+ *
+ * @returns the number of available descriptors in RX ring.
+ * @param   pThis       The device state structure.
+ * @thread  ???
+ */
+DECLINLINE(uint32_t) e1kGetRxLen(PE1KSTATE pThis)
+{
+    /**
+     *  Make sure RDT won't change during computation. EMT may modify RDT at
+     *  any moment.
+     */
+    uint32_t rdt = RDT;
+    return (RDH > rdt ? RDLEN/sizeof(E1KRXDESC) : 0) + rdt - RDH;
+}
+
+DECLINLINE(unsigned) e1kRxDInCache(PE1KSTATE pThis)
+{
+    return pThis->nRxDFetched > pThis->iRxDCurrent ?
+        pThis->nRxDFetched - pThis->iRxDCurrent : 0;
+}
+
+DECLINLINE(unsigned) e1kRxDIsCacheEmpty(PE1KSTATE pThis)
+{
+    return pThis->iRxDCurrent >= pThis->nRxDFetched;
+}
+
+/**
+ * Load receive descriptors from guest memory. The caller needs to be in Rx
+ * critical section.
+ *
+ * We need two physical reads in case the tail wrapped around the end of RX
+ * descriptor ring.
+ *
+ * @returns the actual number of descriptors fetched.
+ * @param   pThis       The device state structure.
+ * @param   pDesc       Pointer to descriptor union.
+ * @param   addr        Physical address in guest context.
+ * @thread  EMT, RX
+ */
+DECLINLINE(unsigned) e1kRxDPrefetch(PE1KSTATE pThis)
+{
+    /* We've already loaded pThis->nRxDFetched descriptors past RDH. */
+    unsigned nDescsAvailable    = e1kGetRxLen(pThis) - e1kRxDInCache(pThis);
+    unsigned nDescsToFetch      = RT_MIN(nDescsAvailable, E1K_RXD_CACHE_SIZE - pThis->nRxDFetched);
+    unsigned nDescsTotal        = RDLEN / sizeof(E1KRXDESC);
+    Assert(nDescsTotal != 0);
+    if (nDescsTotal == 0)
+        return 0;
+    unsigned nFirstNotLoaded    = (RDH + e1kRxDInCache(pThis)) % nDescsTotal;
+    unsigned nDescsInSingleRead = RT_MIN(nDescsToFetch, nDescsTotal - nFirstNotLoaded);
+    E1kLog3(("%s e1kRxDPrefetch: nDescsAvailable=%u nDescsToFetch=%u "
+             "nDescsTotal=%u nFirstNotLoaded=0x%x nDescsInSingleRead=%u\n",
+             pThis->szPrf, nDescsAvailable, nDescsToFetch, nDescsTotal,
+             nFirstNotLoaded, nDescsInSingleRead));
+    if (nDescsToFetch == 0)
+        return 0;
+    E1KRXDESC* pFirstEmptyDesc = &pThis->aRxDescriptors[pThis->nRxDFetched];
+    PDMDevHlpPhysRead(pThis->CTX_SUFF(pDevIns),
+                      ((uint64_t)RDBAH << 32) + RDBAL + nFirstNotLoaded * sizeof(E1KRXDESC),
+                      pFirstEmptyDesc, nDescsInSingleRead * sizeof(E1KRXDESC));
+    // uint64_t addrBase = ((uint64_t)RDBAH << 32) + RDBAL;
+    // unsigned i, j;
+    // for (i = pThis->nRxDFetched; i < pThis->nRxDFetched + nDescsInSingleRead; ++i)
+    // {
+    //     pThis->aRxDescAddr[i] = addrBase + (nFirstNotLoaded + i - pThis->nRxDFetched) * sizeof(E1KRXDESC);
+    //     E1kLog3(("%s aRxDescAddr[%d] = %p\n", pThis->szPrf, i, pThis->aRxDescAddr[i]));
+    // }
+    E1kLog3(("%s Fetched %u RX descriptors at %08x%08x(0x%x), RDLEN=%08x, RDH=%08x, RDT=%08x\n",
+             pThis->szPrf, nDescsInSingleRead,
+             RDBAH, RDBAL + RDH * sizeof(E1KRXDESC),
+             nFirstNotLoaded, RDLEN, RDH, RDT));
+    if (nDescsToFetch > nDescsInSingleRead)
+    {
+        PDMDevHlpPhysRead(pThis->CTX_SUFF(pDevIns),
+                          ((uint64_t)RDBAH << 32) + RDBAL,
+                          pFirstEmptyDesc + nDescsInSingleRead,
+                          (nDescsToFetch - nDescsInSingleRead) * sizeof(E1KRXDESC));
+        // Assert(i == pThis->nRxDFetched  + nDescsInSingleRead);
+        // for (j = 0; i < pThis->nRxDFetched + nDescsToFetch; ++i, ++j)
+        // {
+        //     pThis->aRxDescAddr[i] = addrBase + j * sizeof(E1KRXDESC);
+        //     E1kLog3(("%s aRxDescAddr[%d] = %p\n", pThis->szPrf, i, pThis->aRxDescAddr[i]));
+        // }
+        E1kLog3(("%s Fetched %u RX descriptors at %08x%08x\n",
+                 pThis->szPrf, nDescsToFetch - nDescsInSingleRead,
+                 RDBAH, RDBAL));
+    }
+    pThis->nRxDFetched += nDescsToFetch;
+    return nDescsToFetch;
+}
 
 # ifdef IN_RING3 /* currently only used in ring-3 due to stack space requirements of the caller */
 
@@ -2200,12 +2174,8 @@ DECLINLINE(void) e1kRxDPut(PE1KSTATE pThis, E1KRXDESC* pDesc)
     PDMDevHlpPCIPhysWrite(pThis->CTX_SUFF(pDevIns),
                           e1kDescAddr(RDBAH, RDBAL, RDH),
                           pDesc, sizeof(E1KRXDESC));
-    /*
-     * We need to print the descriptor before advancing RDH as it may fetch new
-     * descriptors into the cache.
-     */
-    e1kPrintRDesc(pThis, pDesc);
     e1kAdvanceRDH(pThis);
+    e1kPrintRDesc(pThis, pDesc);
 }
 
 /**
@@ -2226,7 +2196,7 @@ static DECLCALLBACK(void) e1kStoreRxFragment(PE1KSTATE pThis, E1KRXDESC *pDesc, 
     STAM_PROFILE_ADV_STOP(&pThis->StatReceiveStore, a);
 }
 
-# endif /* IN_RING3 */
+# endif
 
 #else /* !E1K_WITH_RXD_CACHE */
 
@@ -3213,7 +3183,6 @@ static int e1kRegWriteRDT(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint
     if (RT_LIKELY(rc == VINF_SUCCESS))
     {
         E1kLog(("%s e1kRegWriteRDT\n",  pThis->szPrf));
-#ifndef E1K_WITH_RXD_CACHE
         /*
          * Some drivers advance RDT too far, so that it equals RDH. This
          * somehow manages to work with real hardware but not with this
@@ -3228,7 +3197,6 @@ static int e1kRegWriteRDT(PE1KSTATE pThis, uint32_t offset, uint32_t index, uint
             else
                 value = RDH - 1;
         }
-#endif /* !E1K_WITH_RXD_CACHE */
         rc = e1kRegWriteDefault(pThis, offset, index, value);
 #ifdef E1K_WITH_RXD_CACHE
         /*
@@ -5042,7 +5010,7 @@ DECLINLINE(void) e1kUpdateTxContext(PE1KSTATE pThis, E1KTXDESC *pDesc)
         if (RT_UNLIKELY(cbMaxSegmentSize > E1K_MAX_TX_PKT_SIZE))
         {
             pThis->contextTSE.dw3.u16MSS = E1K_MAX_TX_PKT_SIZE - pThis->contextTSE.dw3.u8HDRLEN - 4; /*VTAG*/
-            LogRelMax(10, ("%s: Transmit packet is too large: %u > %u(max). Adjusted MSS to %u.\n",
+            LogRelMax(10, ("%s Transmit packet is too large: %u > %u(max). Adjusted MSS to %u.\n",
                            pThis->szPrf, cbMaxSegmentSize, E1K_MAX_TX_PKT_SIZE, pThis->contextTSE.dw3.u16MSS));
         }
         pThis->u32PayRemain = pThis->contextTSE.dw2.u20PAYLEN;
@@ -5278,17 +5246,17 @@ static void e1kDumpTxDCache(PE1KSTATE pThis)
 {
     unsigned i, cDescs = TDLEN / sizeof(E1KTXDESC);
     uint32_t tdh = TDH;
-    LogRel(("E1000: -- Transmit Descriptors (%d total) --\n", cDescs));
+    LogRel(("-- Transmit Descriptors (%d total) --\n", cDescs));
     for (i = 0; i < cDescs; ++i)
     {
         E1KTXDESC desc;
         PDMDevHlpPhysRead(pThis->CTX_SUFF(pDevIns), e1kDescAddr(TDBAH, TDBAL, i),
                           &desc, sizeof(desc));
         if (i == tdh)
-            LogRel(("E1000: >>> "));
-        LogRel(("E1000: %RGp: %R[e1ktxd]\n", e1kDescAddr(TDBAH, TDBAL, i), &desc));
+            LogRel((">>> "));
+        LogRel(("%RGp: %R[e1ktxd]\n", e1kDescAddr(TDBAH, TDBAL, i), &desc));
     }
-    LogRel(("E1000: -- Transmit Descriptors in Cache (at %d (TDH %d)/ fetched %d / max %d) --\n",
+    LogRel(("-- Transmit Descriptors in Cache (at %d (TDH %d)/ fetched %d / max %d) --\n",
             pThis->iTxDCurrent, TDH, pThis->nTxDFetched, E1K_TXD_CACHE_SIZE));
     if (tdh > pThis->iTxDCurrent)
         tdh -= pThis->iTxDCurrent;
@@ -5297,8 +5265,8 @@ static void e1kDumpTxDCache(PE1KSTATE pThis)
     for (i = 0; i < pThis->nTxDFetched; ++i)
     {
         if (i == pThis->iTxDCurrent)
-            LogRel(("E1000: >>> "));
-        LogRel(("E1000: %RGp: %R[e1ktxd]\n", e1kDescAddr(TDBAH, TDBAL, tdh++ % cDescs), &pThis->aTxDescriptors[i]));
+            LogRel((">>> "));
+        LogRel(("%RGp: %R[e1ktxd]\n", e1kDescAddr(TDBAH, TDBAL, tdh++ % cDescs), &pThis->aTxDescriptors[i]));
     }
 }
 
@@ -5368,7 +5336,7 @@ static int e1kXmitPending(PE1KSTATE pThis, bool fOnWorkerThread)
                  * a complete packet in it. Drop the cache and hope that
                  * the guest driver can recover from network card error.
                  */
-                LogRel(("%s: No complete packets in%s TxD cache! "
+                LogRel(("%s No complete packets in%s TxD cache! "
                       "Fetched=%d, current=%d, TX len=%d.\n",
                       pThis->szPrf,
                       u8Remain == E1K_TXD_CACHE_SIZE ? " full" : "",
@@ -6179,47 +6147,47 @@ static void e1kDumpState(PE1KSTATE pThis)
 {
     RT_NOREF(pThis);
     for (int i = 0; i < E1K_NUM_OF_32BIT_REGS; ++i)
-        E1kLog2(("%s: %8.8s = %08x\n", pThis->szPrf, g_aE1kRegMap[i].abbrev, pThis->auRegs[i]));
+        E1kLog2(("%s %8.8s = %08x\n", pThis->szPrf, g_aE1kRegMap[i].abbrev, pThis->auRegs[i]));
 # ifdef E1K_INT_STATS
-    LogRel(("%s: Interrupt attempts: %d\n", pThis->szPrf, pThis->uStatIntTry));
-    LogRel(("%s: Interrupts raised : %d\n", pThis->szPrf, pThis->uStatInt));
-    LogRel(("%s: Interrupts lowered: %d\n", pThis->szPrf, pThis->uStatIntLower));
-    LogRel(("%s: ICR outside ISR   : %d\n", pThis->szPrf, pThis->uStatNoIntICR));
-    LogRel(("%s: IMS raised ints   : %d\n", pThis->szPrf, pThis->uStatIntIMS));
-    LogRel(("%s: Interrupts skipped: %d\n", pThis->szPrf, pThis->uStatIntSkip));
-    LogRel(("%s: Masked interrupts : %d\n", pThis->szPrf, pThis->uStatIntMasked));
-    LogRel(("%s: Early interrupts  : %d\n", pThis->szPrf, pThis->uStatIntEarly));
-    LogRel(("%s: Late interrupts   : %d\n", pThis->szPrf, pThis->uStatIntLate));
-    LogRel(("%s: Lost interrupts   : %d\n", pThis->szPrf, pThis->iStatIntLost));
-    LogRel(("%s: Interrupts by RX  : %d\n", pThis->szPrf, pThis->uStatIntRx));
-    LogRel(("%s: Interrupts by TX  : %d\n", pThis->szPrf, pThis->uStatIntTx));
-    LogRel(("%s: Interrupts by ICS : %d\n", pThis->szPrf, pThis->uStatIntICS));
-    LogRel(("%s: Interrupts by RDTR: %d\n", pThis->szPrf, pThis->uStatIntRDTR));
-    LogRel(("%s: Interrupts by RDMT: %d\n", pThis->szPrf, pThis->uStatIntRXDMT0));
-    LogRel(("%s: Interrupts by TXQE: %d\n", pThis->szPrf, pThis->uStatIntTXQE));
-    LogRel(("%s: TX int delay asked: %d\n", pThis->szPrf, pThis->uStatTxIDE));
-    LogRel(("%s: TX delayed:         %d\n", pThis->szPrf, pThis->uStatTxDelayed));
-    LogRel(("%s: TX delay expired:   %d\n", pThis->szPrf, pThis->uStatTxDelayExp));
-    LogRel(("%s: TX no report asked: %d\n", pThis->szPrf, pThis->uStatTxNoRS));
-    LogRel(("%s: TX abs timer expd : %d\n", pThis->szPrf, pThis->uStatTAD));
-    LogRel(("%s: TX int timer expd : %d\n", pThis->szPrf, pThis->uStatTID));
-    LogRel(("%s: RX abs timer expd : %d\n", pThis->szPrf, pThis->uStatRAD));
-    LogRel(("%s: RX int timer expd : %d\n", pThis->szPrf, pThis->uStatRID));
-    LogRel(("%s: TX CTX descriptors: %d\n", pThis->szPrf, pThis->uStatDescCtx));
-    LogRel(("%s: TX DAT descriptors: %d\n", pThis->szPrf, pThis->uStatDescDat));
-    LogRel(("%s: TX LEG descriptors: %d\n", pThis->szPrf, pThis->uStatDescLeg));
-    LogRel(("%s: Received frames   : %d\n", pThis->szPrf, pThis->uStatRxFrm));
-    LogRel(("%s: Transmitted frames: %d\n", pThis->szPrf, pThis->uStatTxFrm));
-    LogRel(("%s: TX frames up to 1514: %d\n", pThis->szPrf, pThis->uStatTx1514));
-    LogRel(("%s: TX frames up to 2962: %d\n", pThis->szPrf, pThis->uStatTx2962));
-    LogRel(("%s: TX frames up to 4410: %d\n", pThis->szPrf, pThis->uStatTx4410));
-    LogRel(("%s: TX frames up to 5858: %d\n", pThis->szPrf, pThis->uStatTx5858));
-    LogRel(("%s: TX frames up to 7306: %d\n", pThis->szPrf, pThis->uStatTx7306));
-    LogRel(("%s: TX frames up to 8754: %d\n", pThis->szPrf, pThis->uStatTx8754));
-    LogRel(("%s: TX frames up to 16384: %d\n", pThis->szPrf, pThis->uStatTx16384));
-    LogRel(("%s: TX frames up to 32768: %d\n", pThis->szPrf, pThis->uStatTx32768));
-    LogRel(("%s: Larger TX frames    : %d\n", pThis->szPrf, pThis->uStatTxLarge));
-    LogRel(("%s: Max TX Delay        : %lld\n", pThis->szPrf, pThis->uStatMaxTxDelay));
+    LogRel(("%s Interrupt attempts: %d\n", pThis->szPrf, pThis->uStatIntTry));
+    LogRel(("%s Interrupts raised : %d\n", pThis->szPrf, pThis->uStatInt));
+    LogRel(("%s Interrupts lowered: %d\n", pThis->szPrf, pThis->uStatIntLower));
+    LogRel(("%s ICR outside ISR   : %d\n", pThis->szPrf, pThis->uStatNoIntICR));
+    LogRel(("%s IMS raised ints   : %d\n", pThis->szPrf, pThis->uStatIntIMS));
+    LogRel(("%s Interrupts skipped: %d\n", pThis->szPrf, pThis->uStatIntSkip));
+    LogRel(("%s Masked interrupts : %d\n", pThis->szPrf, pThis->uStatIntMasked));
+    LogRel(("%s Early interrupts  : %d\n", pThis->szPrf, pThis->uStatIntEarly));
+    LogRel(("%s Late interrupts   : %d\n", pThis->szPrf, pThis->uStatIntLate));
+    LogRel(("%s Lost interrupts   : %d\n", pThis->szPrf, pThis->iStatIntLost));
+    LogRel(("%s Interrupts by RX  : %d\n", pThis->szPrf, pThis->uStatIntRx));
+    LogRel(("%s Interrupts by TX  : %d\n", pThis->szPrf, pThis->uStatIntTx));
+    LogRel(("%s Interrupts by ICS : %d\n", pThis->szPrf, pThis->uStatIntICS));
+    LogRel(("%s Interrupts by RDTR: %d\n", pThis->szPrf, pThis->uStatIntRDTR));
+    LogRel(("%s Interrupts by RDMT: %d\n", pThis->szPrf, pThis->uStatIntRXDMT0));
+    LogRel(("%s Interrupts by TXQE: %d\n", pThis->szPrf, pThis->uStatIntTXQE));
+    LogRel(("%s TX int delay asked: %d\n", pThis->szPrf, pThis->uStatTxIDE));
+    LogRel(("%s TX delayed:         %d\n", pThis->szPrf, pThis->uStatTxDelayed));
+    LogRel(("%s TX delay expired:   %d\n", pThis->szPrf, pThis->uStatTxDelayExp));
+    LogRel(("%s TX no report asked: %d\n", pThis->szPrf, pThis->uStatTxNoRS));
+    LogRel(("%s TX abs timer expd : %d\n", pThis->szPrf, pThis->uStatTAD));
+    LogRel(("%s TX int timer expd : %d\n", pThis->szPrf, pThis->uStatTID));
+    LogRel(("%s RX abs timer expd : %d\n", pThis->szPrf, pThis->uStatRAD));
+    LogRel(("%s RX int timer expd : %d\n", pThis->szPrf, pThis->uStatRID));
+    LogRel(("%s TX CTX descriptors: %d\n", pThis->szPrf, pThis->uStatDescCtx));
+    LogRel(("%s TX DAT descriptors: %d\n", pThis->szPrf, pThis->uStatDescDat));
+    LogRel(("%s TX LEG descriptors: %d\n", pThis->szPrf, pThis->uStatDescLeg));
+    LogRel(("%s Received frames   : %d\n", pThis->szPrf, pThis->uStatRxFrm));
+    LogRel(("%s Transmitted frames: %d\n", pThis->szPrf, pThis->uStatTxFrm));
+    LogRel(("%s TX frames up to 1514: %d\n", pThis->szPrf, pThis->uStatTx1514));
+    LogRel(("%s TX frames up to 2962: %d\n", pThis->szPrf, pThis->uStatTx2962));
+    LogRel(("%s TX frames up to 4410: %d\n", pThis->szPrf, pThis->uStatTx4410));
+    LogRel(("%s TX frames up to 5858: %d\n", pThis->szPrf, pThis->uStatTx5858));
+    LogRel(("%s TX frames up to 7306: %d\n", pThis->szPrf, pThis->uStatTx7306));
+    LogRel(("%s TX frames up to 8754: %d\n", pThis->szPrf, pThis->uStatTx8754));
+    LogRel(("%s TX frames up to 16384: %d\n", pThis->szPrf, pThis->uStatTx16384));
+    LogRel(("%s TX frames up to 32768: %d\n", pThis->szPrf, pThis->uStatTx32768));
+    LogRel(("%s Larger TX frames    : %d\n", pThis->szPrf, pThis->uStatTxLarge));
+    LogRel(("%s Max TX Delay        : %lld\n", pThis->szPrf, pThis->uStatMaxTxDelay));
 # endif /* E1K_INT_STATS */
 }
 
@@ -6384,8 +6352,8 @@ static DECLCALLBACK(int) e1kR3NetworkDown_WaitReceiveAvail(PPDMINETWORKDOWN pInt
             rc = VINF_SUCCESS;
             break;
         }
-        E1kLogRel(("E1000: e1kR3NetworkDown_WaitReceiveAvail: waiting cMillies=%u...\n", cMillies));
-        E1kLog(("%s: e1kR3NetworkDown_WaitReceiveAvail: waiting cMillies=%u...\n", pThis->szPrf, cMillies));
+        E1kLogRel(("E1000 e1kR3NetworkDown_WaitReceiveAvail: waiting cMillies=%u...\n", cMillies));
+        E1kLog(("%s e1kR3NetworkDown_WaitReceiveAvail: waiting cMillies=%u...\n", pThis->szPrf, cMillies));
         RTSemEventWait(pThis->hEventMoreRxDescAvail, cMillies);
     }
     STAM_PROFILE_STOP(&pThis->StatRxOverflow, a);
@@ -7732,11 +7700,11 @@ static DECLCALLBACK(int) e1kR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFGM
                                 N_("Configuration error: Failed to get the value of 'LinkUpDelay'"));
     Assert(pThis->cMsLinkUpDelay <= 300000); /* less than 5 minutes */
     if (pThis->cMsLinkUpDelay > 5000)
-        LogRel(("%s: WARNING! Link up delay is set to %u seconds!\n", pThis->szPrf, pThis->cMsLinkUpDelay / 1000));
+        LogRel(("%s WARNING! Link up delay is set to %u seconds!\n", pThis->szPrf, pThis->cMsLinkUpDelay / 1000));
     else if (pThis->cMsLinkUpDelay == 0)
-        LogRel(("%s: WARNING! Link up delay is disabled!\n", pThis->szPrf));
+        LogRel(("%s WARNING! Link up delay is disabled!\n", pThis->szPrf));
 
-    LogRel(("%s: Chip=%s LinkUpDelay=%ums EthernetCRC=%s GSO=%s Itr=%s ItrRx=%s TID=%s R0=%s GC=%s\n", pThis->szPrf,
+    LogRel(("%s Chip=%s LinkUpDelay=%ums EthernetCRC=%s GSO=%s Itr=%s ItrRx=%s TID=%s R0=%s GC=%s\n", pThis->szPrf,
             g_aChips[pThis->eChip].pcszName, pThis->cMsLinkUpDelay,
             pThis->fEthernetCRC ? "on" : "off",
             pThis->fGSOEnabled ? "enabled" : "disabled",

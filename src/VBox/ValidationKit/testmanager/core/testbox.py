@@ -7,7 +7,7 @@ Test Manager - TestBox.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2019 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,12 +26,11 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard python imports.
 import copy;
-import sys;
 import unittest;
 
 # Validation Kit imports.
@@ -40,10 +39,6 @@ from testmanager.core.base          import ModelDataBase, ModelDataBaseTestCase,
                                            TMInvalidData, TMTooManyRows, TMRowNotFound, \
                                            ChangeLogEntry, AttributeChangeEntry, AttributeChangeEntryPre;
 from testmanager.core.useraccount   import UserAccountLogic;
-
-# Python 3 hacks:
-if sys.version_info[0] >= 3:
-    xrange = range; # pylint: disable=redefined-builtin,invalid-name
 
 
 class TestBoxInSchedGroupData(ModelDataBase):

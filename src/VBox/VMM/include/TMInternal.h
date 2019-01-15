@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VMM_INCLUDED_SRC_include_TMInternal_h
-#define VMM_INCLUDED_SRC_include_TMInternal_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___TMInternal_h
+#define ___TMInternal_h
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
@@ -331,9 +328,7 @@ typedef enum TMTSCMODE
     /** The guest TSC is an offset of the real TSC. */
     TMTSCMODE_REAL_TSC_OFFSET,
     /** The guest TSC is dynamically derived through emulating or offsetting. */
-    TMTSCMODE_DYNAMIC,
-    /** The native API provides it. */
-    TMTSCMODE_NATIVE_API
+    TMTSCMODE_DYNAMIC
 } TMTSCMODE;
 AssertCompileSize(TMTSCMODE, sizeof(uint32_t));
 
@@ -818,5 +813,5 @@ DECLCALLBACK(DECLEXPORT(uint64_t))  tmVirtualNanoTSBadCpuIndex(PRTTIMENANOTSDATA
 
 RT_C_DECLS_END
 
-#endif /* !VMM_INCLUDED_SRC_include_TMInternal_h */
+#endif
 

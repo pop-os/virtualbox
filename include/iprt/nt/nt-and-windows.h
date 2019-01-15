@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,11 +24,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_nt_nt_and_windows_h
-#define IPRT_INCLUDED_nt_nt_and_windows_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_nt_nt_and_windows_h
+#define ___iprt_nt_nt_and_windows_h
 
 #define _PEB    IncompleteWindows__PEB
 #define PEB     IncompleteWindows_PEB
@@ -54,5 +51,5 @@
 
 #include <iprt/nt/nt.h>
 
-#endif /* !IPRT_INCLUDED_nt_nt_and_windows_h */
+#endif
 

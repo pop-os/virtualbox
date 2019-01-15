@@ -1,10 +1,11 @@
 /** $Id: VDScriptInterp.cpp $ */
 /** @file
+ *
  * VBox HDD container test utility - scripting engine, interpreter.
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,14 +15,12 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-
 #define LOGGROUP LOGGROUP_DEFAULT
-#include <iprt/assert.h>
-#include <iprt/err.h>
 #include <iprt/list.h>
 #include <iprt/mem.h>
-#include <iprt/stream.h>
+#include <iprt/assert.h>
 #include <iprt/string.h>
+#include <iprt/stream.h>
 
 #include <VBox/log.h>
 

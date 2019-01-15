@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_avl_h
-#define IPRT_INCLUDED_avl_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_avl_h
+#define ___iprt_avl_h
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -193,9 +190,9 @@ typedef struct _AVLU32NodeCore
     unsigned char           uchHeight;  /**< Height of this tree: max(height(left), height(right)) + 1 */
 } AVLU32NODECORE, *PAVLU32NODECORE, **PPAVLU32NODECORE;
 
-/** A tree with uint32_t keys. */
+/** A tree with void pointer keys. */
 typedef PAVLU32NODECORE     AVLU32TREE;
-/** Pointer to a tree with uint32_t keys. */
+/** Pointer to a tree with void pointer keys. */
 typedef PPAVLU32NODECORE    PAVLU32TREE;
 
 /** Callback function for AVLU32DoWithAll() & AVLU32Destroy().
@@ -305,47 +302,6 @@ RTDECL(int)                 RTAvllU32Destroy(PPAVLLU32NODECORE pTree, PAVLLU32CA
 /** @} */
 
 
-/** AVL tree of uint64_t
- * @{
- */
-
-/** AVL key type. */
-typedef uint64_t    AVLU64KEY;
-
-/** AVL Core node. */
-typedef struct _AVLU64NodeCore
-{
-    struct _AVLU64NodeCore *pLeft;      /**< Pointer to left leaf node. */
-    struct _AVLU64NodeCore *pRight;     /**< Pointer to right leaf node. */
-    AVLU64KEY               Key;        /**< Key value. */
-    unsigned char           uchHeight;  /**< Height of this tree: max(height(left), height(right)) + 1 */
-} AVLU64NODECORE, *PAVLU64NODECORE, **PPAVLU64NODECORE;
-
-/** A tree with uint64_t keys. */
-typedef PAVLU64NODECORE     AVLU64TREE;
-/** Pointer to a tree with uint64_t keys. */
-typedef PPAVLU64NODECORE    PAVLU64TREE;
-
-/** Callback function for AVLU64DoWithAll() & AVLU64Destroy().
- *  @returns IPRT status codes. */
-typedef DECLCALLBACK(int) AVLU64CALLBACK(PAVLU64NODECORE, void*);
-/** Pointer to callback function for AVLU64DoWithAll() & AVLU64Destroy(). */
-typedef AVLU64CALLBACK *PAVLU64CALLBACK;
-
-
-/*
- * Functions.
- */
-RTDECL(bool)            RTAvlU64Insert(PAVLU64TREE pTree, PAVLU64NODECORE pNode);
-RTDECL(PAVLU64NODECORE) RTAvlU64Remove(PAVLU64TREE pTree, AVLU64KEY Key);
-RTDECL(PAVLU64NODECORE) RTAvlU64Get(PAVLU64TREE pTree, AVLU64KEY Key);
-RTDECL(PAVLU64NODECORE) RTAvlU64GetBestFit(PAVLU64TREE pTree, AVLU64KEY Key, bool fAbove);
-RTDECL(PAVLU64NODECORE) RTAvlU64RemoveBestFit(PAVLU64TREE pTree, AVLU64KEY Key, bool fAbove);
-RTDECL(int)             RTAvlU64DoWithAll(PAVLU64TREE pTree, int fFromLeft, PAVLU64CALLBACK pfnCallBack, void *pvParam);
-RTDECL(int)             RTAvlU64Destroy(PAVLU64TREE pTree, PAVLU64CALLBACK pfnCallBack, void *pvParam);
-
-/** @} */
-
 
 /** AVL tree of uint64_t ranges.
  * @{
@@ -368,9 +324,9 @@ typedef struct AVLRU64NodeCore
     unsigned char            uchHeight;  /**< Height of this tree: max(height(left), height(right)) + 1 */
 } AVLRU64NODECORE, *PAVLRU64NODECORE, **PPAVLRU64NODECORE;
 
-/** A tree with uint64_t keys. */
+/** A tree with void pointer keys. */
 typedef PAVLRU64NODECORE    AVLRU64TREE;
-/** Pointer to a tree with uint64_t keys. */
+/** Pointer to a tree with void pointer keys. */
 typedef PPAVLRU64NODECORE   PAVLRU64TREE;
 
 /** Callback function for AVLRU64DoWithAll().
@@ -1176,5 +1132,5 @@ RTDECL(PAVLRFOFFNODECORE)     RTAvlrFileOffsetGetRight(     PAVLRFOFFNODECORE pN
 
 RT_C_DECLS_END
 
-#endif /* !IPRT_INCLUDED_avl_h */
+#endif
 

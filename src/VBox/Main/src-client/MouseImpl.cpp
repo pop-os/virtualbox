@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,10 +25,12 @@
 #include "VMMDev.h"
 #include "MousePointerShapeWrap.h"
 
+#include "AutoCaller.h"
+
 #include <VBox/vmm/pdmdrv.h>
 #include <VBox/VMMDev.h>
-#include <VBox/err.h>
 
+#include <iprt/asm.h>
 
 class ATL_NO_VTABLE MousePointerShape:
     public MousePointerShapeWrap
@@ -501,9 +503,9 @@ HRESULT Mouse::i_reportRelEventToMouseDev(int32_t dx, int32_t dy, int32_t dz,
         int vrc = pUpPort->pfnPutEvent(pUpPort, dx, dy, dz, dw, fButtons);
 
         if (RT_FAILURE(vrc))
-            return setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
-                                tr("Could not send the mouse event to the virtual mouse (%Rrc)"),
-                                vrc);
+            return setError(VBOX_E_IPRT_ERROR,
+                            tr("Could not send the mouse event to the virtual mouse (%Rrc)"),
+                            vrc);
         mfLastButtons = fButtons;
     }
     return S_OK;
@@ -544,9 +546,9 @@ HRESULT Mouse::i_reportAbsEventToMouseDev(int32_t x, int32_t y,
         int vrc = pUpPort->pfnPutEventAbs(pUpPort, x, y, dz,
                                           dw, fButtons);
         if (RT_FAILURE(vrc))
-            return setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
-                                tr("Could not send the mouse event to the virtual mouse (%Rrc)"),
-                                vrc);
+            return setError(VBOX_E_IPRT_ERROR,
+                            tr("Could not send the mouse event to the virtual mouse (%Rrc)"),
+                            vrc);
         mfLastButtons = fButtons;
 
     }
@@ -579,9 +581,9 @@ HRESULT Mouse::i_reportMultiTouchEventToDevice(uint8_t cContacts,
     {
         int vrc = pUpPort->pfnPutEventMultiTouch(pUpPort, cContacts, pau64Contacts, u32ScanTime);
         if (RT_FAILURE(vrc))
-            hrc = setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
-                               tr("Could not send the multi-touch event to the virtual device (%Rrc)"),
-                               vrc);
+            hrc = setError(VBOX_E_IPRT_ERROR,
+                           tr("Could not send the multi-touch event to the virtual device (%Rrc)"),
+                           vrc);
     }
     else
     {
@@ -610,9 +612,9 @@ HRESULT Mouse::i_reportAbsEventToVMMDev(int32_t x, int32_t y)
         int vrc = pVMMDevPort->pfnSetAbsoluteMouse(pVMMDevPort,
                                                    x, y);
         if (RT_FAILURE(vrc))
-            return setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
-                                tr("Could not send the mouse event to the virtual mouse (%Rrc)"),
-                                vrc);
+            return setError(VBOX_E_IPRT_ERROR,
+                            tr("Could not send the mouse event to the virtual mouse (%Rrc)"),
+                            vrc);
     }
     return S_OK;
 }

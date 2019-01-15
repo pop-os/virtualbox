@@ -31,9 +31,6 @@
 
 #ifndef _SVGA_OVERLAY_H_
 #define _SVGA_OVERLAY_H_
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
 
 #include "svga_reg.h"
 
@@ -201,4 +198,4 @@ VMwareVideoGetAttributes(const SVGAOverlayFormat format,    // IN
     return TRUE;
 }
 #endif
-#endif /* !_SVGA_OVERLAY_H_ */
+#endif // _SVGA_OVERLAY_H_

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,12 +21,9 @@
 #include "HGCMThread.h"
 
 #include <VBox/err.h>
-#include <VBox/vmm/stam.h>
 #include <iprt/semaphore.h>
 #include <iprt/thread.h>
 #include <iprt/string.h>
-
-#include <new> /* for std:nothrow */
 
 
 /* HGCM uses worker threads, which process messages from other threads.
@@ -68,12 +65,12 @@
 
 /** @todo consider use of RTReq */
 
-static DECLCALLBACK(int) hgcmWorkerThreadFunc(RTTHREAD ThreadSelf, void *pvUser);
+static DECLCALLBACK(int) hgcmWorkerThreadFunc (RTTHREAD ThreadSelf, void *pvUser);
 
-class HGCMThread : public HGCMReferencedObject
+class HGCMThread: public HGCMObject
 {
     private:
-    friend DECLCALLBACK(int) hgcmWorkerThreadFunc(RTTHREAD ThreadSelf, void *pvUser);
+    friend DECLCALLBACK(int) hgcmWorkerThreadFunc (RTTHREAD ThreadSelf, void *pvUser);
 
         /* Worker thread function. */
         PFNHGCMTHREAD m_pfnThread;
@@ -82,11 +79,12 @@ class HGCMThread : public HGCMReferencedObject
         void *m_pvUser;
 
         /* The thread runtime handle. */
-        RTTHREAD m_hThread;
+        RTTHREAD m_thread;
 
-        /** Event the thread waits for, signalled when a message to process is posted to
-         * the thread, automatically reset. */
-        RTSEMEVENT m_eventThread;
+        /* Event the thread waits for, signalled when a message
+         * to process is posted to the thread.
+         */
+        RTSEMEVENTMULTI m_eventThread;
 
         /* A caller thread waits for completion of a SENT message on this event. */
         RTSEMEVENTMULTI m_eventSend;
@@ -118,22 +116,15 @@ class HGCMThread : public HGCMReferencedObject
         /* Tail of free message structures list. */
         HGCMMsgCore *m_pFreeTail;
 
-        /** @name Statistics
-         * @{ */
-        STAMCOUNTER m_StatPostMsgNoPending;
-        STAMCOUNTER m_StatPostMsgOnePending;
-        STAMCOUNTER m_StatPostMsgTwoPending;
-        STAMCOUNTER m_StatPostMsgThreePending;
-        STAMCOUNTER m_StatPostMsgManyPending;
-        /** @} */
+        HGCMTHREADHANDLE m_handle;
 
-        inline int Enter(void);
-        inline void Leave(void);
+        inline int Enter (void);
+        inline void Leave (void);
 
-        HGCMMsgCore *FetchFreeListHead(void);
+        HGCMMsgCore *FetchFreeListHead (void);
 
     protected:
-        virtual ~HGCMThread(void);
+        virtual ~HGCMThread (void);
 
     public:
 
@@ -141,12 +132,12 @@ class HGCMThread : public HGCMReferencedObject
 
         int WaitForTermination (void);
 
-        int Initialize(const char *pszThreadName, PFNHGCMTHREAD pfnThread, void *pvUser, const char *pszStatsSubDir, PUVM pUVM);
+        int Initialize (HGCMTHREADHANDLE handle, const char *pszThreadName, PFNHGCMTHREAD pfnThread, void *pvUser);
 
-        int MsgAlloc(HGCMMsgCore **pMsg, uint32_t u32MsgId, PFNHGCMNEWMSGALLOC pfnNewMessage);
-        int MsgGet(HGCMMsgCore **ppMsg);
-        int MsgPost(HGCMMsgCore *pMsg, PHGCMMSGCALLBACK pfnCallback, bool bWait);
-        int MsgComplete(HGCMMsgCore *pMsg, int32_t result);
+        int MsgAlloc (HGCMMSGHANDLE *pHandle, uint32_t u32MsgId, PFNHGCMNEWMSGALLOC pfnNewMessage);
+        int MsgGet (HGCMMsgCore **ppMsg);
+        int MsgPost (HGCMMsgCore *pMsg, PHGCMMSGCALLBACK pfnCallback, bool bWait);
+        void MsgComplete (HGCMMsgCore *pMsg, int32_t result);
 };
 
 
@@ -158,7 +149,7 @@ class HGCMThread : public HGCMReferencedObject
 #define HGCM_MSG_F_WAIT       (0x00000002)
 #define HGCM_MSG_F_IN_PROCESS (0x00000004)
 
-void HGCMMsgCore::InitializeCore(uint32_t u32MsgId, HGCMThread *pThread)
+void HGCMMsgCore::InitializeCore (uint32_t u32MsgId, HGCMTHREADHANDLE hThread)
 {
     m_u32Version  = HGCMMSG_VERSION;
     m_u32Msg      = u32MsgId;
@@ -167,15 +158,16 @@ void HGCMMsgCore::InitializeCore(uint32_t u32MsgId, HGCMThread *pThread)
     m_pPrev       = NULL;
     m_fu32Flags   = 0;
     m_rcSend      = VINF_SUCCESS;
-    m_pThread     = pThread;
-    pThread->Reference();
+
+    m_pThread = (HGCMThread *)hgcmObjReference (hThread, HGCMOBJ_THREAD);
+    AssertRelease (m_pThread);
 }
 
-/* virtual */ HGCMMsgCore::~HGCMMsgCore()
+/* virtual */ HGCMMsgCore::~HGCMMsgCore ()
 {
     if (m_pThread)
     {
-        m_pThread->Dereference();
+        hgcmObjDereference (m_pThread);
         m_pThread = NULL;
     }
 }
@@ -184,51 +176,54 @@ void HGCMMsgCore::InitializeCore(uint32_t u32MsgId, HGCMThread *pThread)
  * HGCMThread implementation.
  */
 
-static DECLCALLBACK(int) hgcmWorkerThreadFunc(RTTHREAD hThreadSelf, void *pvUser)
+static DECLCALLBACK(int) hgcmWorkerThreadFunc (RTTHREAD ThreadSelf, void *pvUser)
 {
+    int rc = VINF_SUCCESS;
+
     HGCMThread *pThread = (HGCMThread *)pvUser;
 
     LogFlow(("MAIN::hgcmWorkerThreadFunc: starting HGCM thread %p\n", pThread));
 
     AssertRelease(pThread);
 
-    pThread->m_hThread = hThreadSelf;
+    pThread->m_thread = ThreadSelf;
     pThread->m_fu32ThreadFlags &= ~HGCMMSG_TF_INITIALIZING;
-    int rc = RTThreadUserSignal(hThreadSelf);
+    rc = RTThreadUserSignal (ThreadSelf);
     AssertRC(rc);
 
-    pThread->m_pfnThread(pThread, pThread->m_pvUser);
+    pThread->m_pfnThread (pThread->Handle (), pThread->m_pvUser);
 
     pThread->m_fu32ThreadFlags |= HGCMMSG_TF_TERMINATED;
 
-    pThread->m_hThread = NIL_RTTHREAD;
+    pThread->m_thread = NIL_RTTHREAD;
 
     LogFlow(("MAIN::hgcmWorkerThreadFunc: completed HGCM thread %p\n", pThread));
 
     return rc;
 }
 
-HGCMThread::HGCMThread()
+HGCMThread::HGCMThread ()
     :
-    HGCMReferencedObject(HGCMOBJ_THREAD),
-    m_pfnThread(NULL),
-    m_pvUser(NULL),
-    m_hThread(NIL_RTTHREAD),
-    m_eventThread(NIL_RTSEMEVENT),
-    m_eventSend(NIL_RTSEMEVENTMULTI),
-    m_i32MessagesProcessed(0),
-    m_fu32ThreadFlags(0),
-    m_pMsgInputQueueHead(NULL),
-    m_pMsgInputQueueTail(NULL),
-    m_pMsgInProcessHead(NULL),
-    m_pMsgInProcessTail(NULL),
-    m_pFreeHead(NULL),
-    m_pFreeTail(NULL)
+    HGCMObject(HGCMOBJ_THREAD),
+    m_pfnThread (NULL),
+    m_pvUser (NULL),
+    m_thread (NIL_RTTHREAD),
+    m_eventThread (0),
+    m_eventSend (0),
+    m_i32MessagesProcessed (0),
+    m_fu32ThreadFlags (0),
+    m_pMsgInputQueueHead (NULL),
+    m_pMsgInputQueueTail (NULL),
+    m_pMsgInProcessHead (NULL),
+    m_pMsgInProcessTail (NULL),
+    m_pFreeHead (NULL),
+    m_pFreeTail (NULL),
+    m_handle (0)
 {
     RT_ZERO(m_critsect);
 }
 
-HGCMThread::~HGCMThread()
+HGCMThread::~HGCMThread ()
 {
     /*
      * Free resources allocated for the thread.
@@ -236,90 +231,76 @@ HGCMThread::~HGCMThread()
 
     Assert(m_fu32ThreadFlags & HGCMMSG_TF_TERMINATED);
 
-    if (RTCritSectIsInitialized(&m_critsect))
-        RTCritSectDelete(&m_critsect);
-
-    if (m_eventSend != NIL_RTSEMEVENTMULTI)
+    if (RTCritSectIsInitialized (&m_critsect))
     {
-        RTSemEventMultiDestroy(m_eventSend);
-        m_eventSend = NIL_RTSEMEVENTMULTI;
+        RTCritSectDelete (&m_critsect);
     }
 
-    if (m_eventThread != NIL_RTSEMEVENT)
+    if (m_eventSend)
     {
-        RTSemEventDestroy(m_eventThread);
-        m_eventThread = NIL_RTSEMEVENT;
+        RTSemEventMultiDestroy (m_eventSend);
     }
+
+    if (m_eventThread)
+    {
+        RTSemEventMultiDestroy (m_eventThread);
+    }
+
+    return;
 }
 
-int HGCMThread::WaitForTermination(void)
+int HGCMThread::WaitForTermination (void)
 {
     int rc = VINF_SUCCESS;
     LogFlowFunc(("\n"));
 
-    if (m_hThread != NIL_RTTHREAD)
-        rc = RTThreadWait(m_hThread, 5000, NULL);
+    if (m_thread != NIL_RTTHREAD)
+    {
+        rc = RTThreadWait (m_thread, 5000, NULL);
+    }
 
     LogFlowFunc(("rc = %Rrc\n", rc));
     return rc;
 }
 
-int HGCMThread::Initialize(const char *pszThreadName, PFNHGCMTHREAD pfnThread, void *pvUser, const char *pszStatsSubDir, PUVM pUVM)
+int HGCMThread::Initialize (HGCMTHREADHANDLE handle, const char *pszThreadName, PFNHGCMTHREAD pfnThread, void *pvUser)
 {
-    int rc = RTSemEventCreate(&m_eventThread);
+    int rc = VINF_SUCCESS;
+
+    rc = RTSemEventMultiCreate (&m_eventThread);
 
     if (RT_SUCCESS(rc))
     {
-        rc = RTSemEventMultiCreate(&m_eventSend);
+        rc = RTSemEventMultiCreate (&m_eventSend);
 
         if (RT_SUCCESS(rc))
         {
-            rc = RTCritSectInit(&m_critsect);
+            rc = RTCritSectInit (&m_critsect);
 
             if (RT_SUCCESS(rc))
             {
                 m_pfnThread = pfnThread;
                 m_pvUser    = pvUser;
+                m_handle    = handle;
 
                 m_fu32ThreadFlags = HGCMMSG_TF_INITIALIZING;
 
-                RTTHREAD hThread;
-                rc = RTThreadCreate(&hThread, hgcmWorkerThreadFunc, this, 0, /* default stack size; some services
+                RTTHREAD thread;
+                rc = RTThreadCreate (&thread, hgcmWorkerThreadFunc, this, 0, /* default stack size; some service
                                                                                 may need quite a bit */
-                                    RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE,
-                                    pszThreadName);
+                                     RTTHREADTYPE_IO, RTTHREADFLAGS_WAITABLE,
+                                     pszThreadName);
 
                 if (RT_SUCCESS(rc))
                 {
-                    /* Register statistics while the thread starts. */
-                    if (pUVM)
-                    {
-                        STAMR3RegisterFU(pUVM, &m_StatPostMsgNoPending, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
-                                         "Times a message was appended to an empty input queue.",
-                                         "/HGCM/%s/PostMsg0Pending", pszStatsSubDir);
-                        STAMR3RegisterFU(pUVM, &m_StatPostMsgOnePending, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
-                                         "Times a message was appended to input queue with only one pending message.",
-                                         "/HGCM/%s/PostMsg1Pending", pszStatsSubDir);
-                        STAMR3RegisterFU(pUVM, &m_StatPostMsgTwoPending, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
-                                         "Times a message was appended to input queue with only one pending message.",
-                                         "/HGCM/%s/PostMsg2Pending", pszStatsSubDir);
-                        STAMR3RegisterFU(pUVM, &m_StatPostMsgTwoPending, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
-                                         "Times a message was appended to input queue with only one pending message.",
-                                         "/HGCM/%s/PostMsg3Pending", pszStatsSubDir);
-                        STAMR3RegisterFU(pUVM, &m_StatPostMsgManyPending, STAMTYPE_COUNTER, STAMVISIBILITY_ALWAYS, STAMUNIT_COUNT,
-                                         "Times a message was appended to input queue with only one pending message.",
-                                         "/HGCM/%s/PostMsgManyPending", pszStatsSubDir);
-                    }
-
-
                     /* Wait until the thread is ready. */
-                    rc = RTThreadUserWait(hThread, 30000);
+                    rc = RTThreadUserWait (thread, 30000);
                     AssertRC(rc);
                     Assert(!(m_fu32ThreadFlags & HGCMMSG_TF_INITIALIZING) || RT_FAILURE(rc));
                 }
                 else
                 {
-                    m_hThread = NIL_RTTHREAD;
+                    m_thread = NIL_RTTHREAD;
                     Log(("hgcmThreadCreate: FAILURE: Can't start worker thread.\n"));
                 }
             }
@@ -332,116 +313,120 @@ int HGCMThread::Initialize(const char *pszThreadName, PFNHGCMTHREAD pfnThread, v
         else
         {
             Log(("hgcmThreadCreate: FAILURE: Can't create an event semaphore for a sent messages.\n"));
-            m_eventSend = NIL_RTSEMEVENTMULTI;
+            m_eventSend = 0;
         }
     }
     else
     {
         Log(("hgcmThreadCreate: FAILURE: Can't create an event semaphore for a hgcm worker thread.\n"));
-        m_eventThread = NIL_RTSEMEVENT;
+        m_eventThread = 0;
     }
 
     return rc;
 }
 
-inline int HGCMThread::Enter(void)
+inline int HGCMThread::Enter (void)
 {
-    int rc = RTCritSectEnter(&m_critsect);
+    int rc = RTCritSectEnter (&m_critsect);
 
 #ifdef LOG_ENABLED
     if (RT_FAILURE(rc))
+    {
         Log(("HGCMThread::MsgPost: FAILURE: could not obtain worker thread mutex, rc = %Rrc!!!\n", rc));
-#endif
+    }
+#endif /* LOG_ENABLED */
 
     return rc;
 }
 
-inline void HGCMThread::Leave(void)
+inline void HGCMThread::Leave (void)
 {
-    RTCritSectLeave(&m_critsect);
+    RTCritSectLeave (&m_critsect);
 }
 
 
-int HGCMThread::MsgAlloc(HGCMMsgCore **ppMsg, uint32_t u32MsgId, PFNHGCMNEWMSGALLOC pfnNewMessage)
+int HGCMThread::MsgAlloc (HGCMMSGHANDLE *pHandle, uint32_t u32MsgId, PFNHGCMNEWMSGALLOC pfnNewMessage)
 {
-    /** @todo  Implement this free list / cache thingy.   */
+    int rc = VINF_SUCCESS;
+
     HGCMMsgCore *pmsg = NULL;
 
     bool fFromFreeList = false;
 
-    if (!pmsg)
+    if (!pmsg && RT_SUCCESS(rc))
     {
         /* We have to allocate a new memory block. */
-        pmsg = pfnNewMessage(u32MsgId);
-        if (pmsg != NULL)
-            pmsg->Reference(); /* (it's created with zero references) */
-        else
-            return VERR_NO_MEMORY;
+        pmsg = pfnNewMessage (u32MsgId);
+
+        if (pmsg == NULL)
+        {
+            rc = VERR_NO_MEMORY;
+        }
     }
 
-    /* Initialize just allocated message core */
-    pmsg->InitializeCore(u32MsgId, this);
-
-    /* and the message specific data. */
-    pmsg->Initialize();
-
-    LogFlow(("MAIN::hgcmMsgAlloc: allocated message %p\n", pmsg));
-
-    *ppMsg = pmsg;
-
-    if (fFromFreeList)
+    if (RT_SUCCESS(rc))
     {
-        /* Message was referenced in the free list, now dereference it. */
-        pmsg->Dereference();
+        /* Initialize just allocated message core */
+        pmsg->InitializeCore (u32MsgId, m_handle);
+
+        /* and the message specific data. */
+        pmsg->Initialize ();
+
+        LogFlow(("MAIN::hgcmMsgAlloc: allocated message %p\n", pmsg));
+
+        /** Get handle of the message. The message will be also referenced
+         *  until the handle is deleted.
+         */
+        *pHandle = hgcmObjGenerateHandle (pmsg);
+
+        if (fFromFreeList)
+        {
+            /* Message was referenced in the free list, now dereference it. */
+            pmsg->Dereference ();
+        }
     }
 
-    return VINF_SUCCESS;
+    return rc;
 }
 
-int HGCMThread::MsgPost(HGCMMsgCore *pMsg, PHGCMMSGCALLBACK pfnCallback, bool fWait)
+int HGCMThread::MsgPost (HGCMMsgCore *pMsg, PHGCMMSGCALLBACK pfnCallback, bool fWait)
 {
+    int rc = VINF_SUCCESS;
+
     LogFlow(("HGCMThread::MsgPost: thread = %p, pMsg = %p, pfnCallback = %p\n", this, pMsg, pfnCallback));
 
-    int rc = Enter();
+    rc = Enter ();
 
     if (RT_SUCCESS(rc))
     {
         pMsg->m_pfnCallback = pfnCallback;
 
         if (fWait)
+        {
             pMsg->m_fu32Flags |= HGCM_MSG_F_WAIT;
+        }
 
         /* Insert the message to the queue tail. */
         pMsg->m_pNext = NULL;
-        HGCMMsgCore * const pPrev = m_pMsgInputQueueTail;
-        pMsg->m_pPrev = pPrev;
+        pMsg->m_pPrev = m_pMsgInputQueueTail;
 
-        if (pPrev)
+        if (m_pMsgInputQueueTail)
         {
-            pPrev->m_pNext = pMsg;
-            if (!pPrev->m_pPrev)
-                STAM_REL_COUNTER_INC(&m_StatPostMsgOnePending);
-            else if (!pPrev->m_pPrev)
-                STAM_REL_COUNTER_INC(&m_StatPostMsgTwoPending);
-            else if (!pPrev->m_pPrev->m_pPrev)
-                STAM_REL_COUNTER_INC(&m_StatPostMsgThreePending);
-            else
-                STAM_REL_COUNTER_INC(&m_StatPostMsgManyPending);
+            m_pMsgInputQueueTail->m_pNext = pMsg;
         }
         else
         {
             m_pMsgInputQueueHead = pMsg;
-            STAM_REL_COUNTER_INC(&m_StatPostMsgNoPending);
         }
 
         m_pMsgInputQueueTail = pMsg;
 
-        Leave();
+        Leave ();
 
         LogFlow(("HGCMThread::MsgPost: going to inform the thread %p about message, fWait = %d\n", this, fWait));
 
         /* Inform the worker thread that there is a message. */
-        RTSemEventSignal(m_eventThread);
+        RTSemEventMultiSignal (m_eventThread);
 
         LogFlow(("HGCMThread::MsgPost: event signalled\n"));
 
@@ -451,12 +436,14 @@ int HGCMThread::MsgPost(HGCMMsgCore *pMsg, PHGCMMSGCALLBACK pfnCallback, bool fW
             while ((pMsg->m_fu32Flags & HGCM_MSG_F_PROCESSED) == 0)
             {
                 /* Poll infrequently to make sure no completed message has been missed. */
-                RTSemEventMultiWait(m_eventSend, 1000);
+                RTSemEventMultiWait (m_eventSend, 1000);
 
                 LogFlow(("HGCMThread::MsgPost: wait completed flags = %08X\n", pMsg->m_fu32Flags));
 
                 if ((pMsg->m_fu32Flags & HGCM_MSG_F_PROCESSED) == 0)
+                {
                     RTThreadYield();
+                }
             }
 
             /* 'Our' message has been processed, so should reset the semaphore.
@@ -467,18 +454,21 @@ int HGCMThread::MsgPost(HGCMMsgCore *pMsg, PHGCMMSGCALLBACK pfnCallback, bool fW
             int32_t c = ASMAtomicDecS32(&m_i32MessagesProcessed);
             Assert(c >= 0);
             if (c == 0)
-                RTSemEventMultiReset(m_eventSend);
+            {
+                RTSemEventMultiReset (m_eventSend);
+            }
 
             rc = pMsg->m_rcSend;
         }
     }
 
     LogFlow(("HGCMThread::MsgPost: rc = %Rrc\n", rc));
+
     return rc;
 }
 
 
-int HGCMThread::MsgGet(HGCMMsgCore **ppMsg)
+int HGCMThread::MsgGet (HGCMMsgCore **ppMsg)
 {
     int rc = VINF_SUCCESS;
 
@@ -497,7 +487,7 @@ int HGCMThread::MsgGet(HGCMMsgCore **ppMsg)
         if (m_pMsgInputQueueHead)
         {
             /* Move the message to the m_pMsgInProcessHead list */
-            rc = Enter();
+            rc = Enter ();
 
             if (RT_FAILURE(rc))
             {
@@ -527,15 +517,19 @@ int HGCMThread::MsgGet(HGCMMsgCore **ppMsg)
             pMsg->m_pPrev = m_pMsgInProcessTail;
 
             if (m_pMsgInProcessTail)
+            {
                 m_pMsgInProcessTail->m_pNext = pMsg;
+            }
             else
+            {
                 m_pMsgInProcessHead = pMsg;
+            }
 
             m_pMsgInProcessTail = pMsg;
 
             pMsg->m_fu32Flags |= HGCM_MSG_F_IN_PROCESS;
 
-            Leave();
+            Leave ();
 
             /* Return the message to the caller. */
             *ppMsg = pMsg;
@@ -546,47 +540,58 @@ int HGCMThread::MsgGet(HGCMMsgCore **ppMsg)
         }
 
         /* Wait for an event. */
-        RTSemEventWait(m_eventThread, RT_INDEFINITE_WAIT);
+        RTSemEventMultiWait (m_eventThread, RT_INDEFINITE_WAIT);
+        RTSemEventMultiReset (m_eventThread);
     }
 
     LogFlow(("HGCMThread::MsgGet: *ppMsg = %p, return rc = %Rrc\n", *ppMsg, rc));
+
     return rc;
 }
 
-int HGCMThread::MsgComplete(HGCMMsgCore *pMsg, int32_t result)
+void HGCMThread::MsgComplete (HGCMMsgCore *pMsg, int32_t result)
 {
-    LogFlow(("HGCMThread::MsgComplete: thread = %p, pMsg = %p, result = %Rrc (%d)\n", this, pMsg, result, result));
+    LogFlow(("HGCMThread::MsgComplete: thread = %p, pMsg = %p\n", this, pMsg));
+
+    int rc = VINF_SUCCESS;
 
     AssertRelease(pMsg->m_pThread == this);
     AssertReleaseMsg((pMsg->m_fu32Flags & HGCM_MSG_F_IN_PROCESS) != 0, ("%p %x\n", pMsg, pMsg->m_fu32Flags));
 
-    int rcRet = VINF_SUCCESS;
     if (pMsg->m_pfnCallback)
     {
         /** @todo call callback with error code in MsgPost in case of errors */
 
-        rcRet = pMsg->m_pfnCallback(result, pMsg);
+        pMsg->m_pfnCallback (result, pMsg);
 
-        LogFlow(("HGCMThread::MsgComplete: callback executed. pMsg = %p, thread = %p, rcRet = %Rrc\n", pMsg, this, rcRet));
+        LogFlow(("HGCMThread::MsgComplete: callback executed. pMsg = %p, thread = %p\n", pMsg, this));
     }
 
     /* Message processing has been completed. */
 
-    int rc = Enter();
+    rc = Enter ();
 
     if (RT_SUCCESS(rc))
     {
         /* Remove the message from the InProcess queue. */
 
         if (pMsg->m_pNext)
+        {
             pMsg->m_pNext->m_pPrev = pMsg->m_pPrev;
+        }
         else
+        {
             m_pMsgInProcessTail = pMsg->m_pPrev;
+        }
 
         if (pMsg->m_pPrev)
+        {
             pMsg->m_pPrev->m_pNext = pMsg->m_pNext;
+        }
         else
+        {
             m_pMsgInProcessHead = pMsg->m_pNext;
+        }
 
         pMsg->m_pNext = NULL;
         pMsg->m_pPrev = NULL;
@@ -606,167 +611,235 @@ int HGCMThread::MsgComplete(HGCMMsgCore *pMsg, int32_t result)
         pMsg->m_fu32Flags &= ~HGCM_MSG_F_WAIT;
         pMsg->m_fu32Flags |= HGCM_MSG_F_PROCESSED;
 
-        pMsg->Dereference();
+        hgcmObjDeleteHandle (pMsg->Handle ());
 
-        Leave();
+        Leave ();
 
         if (fWaited)
         {
             /* Wake up all waiters. so they can decide if their message has been processed. */
-            RTSemEventMultiSignal(m_eventSend);
+            RTSemEventMultiSignal (m_eventSend);
         }
     }
 
-    return rcRet;
+    return;
 }
 
 /*
  * Thread API. Public interface.
  */
 
-int hgcmThreadCreate(HGCMThread **ppThread, const char *pszThreadName, PFNHGCMTHREAD pfnThread, void *pvUser,
-                     const char *pszStatsSubDir, PUVM pUVM)
+int hgcmThreadCreate (HGCMTHREADHANDLE *pHandle, const char *pszThreadName, PFNHGCMTHREAD pfnThread, void *pvUser)
 {
+    int rc = VINF_SUCCESS;
+
     LogFlow(("MAIN::hgcmThreadCreate\n"));
-    int rc;
+
+    HGCMTHREADHANDLE handle = 0;
 
     /* Allocate memory for a new thread object. */
-    HGCMThread *pThread = new (std::nothrow) HGCMThread();
+    HGCMThread *pThread = new HGCMThread ();
 
     if (pThread)
     {
-        pThread->Reference(); /* (it's created with zero references) */
+        /* Put just created object to pool and obtain handle for it. */
+        handle = hgcmObjGenerateHandle (pThread);
 
         /* Initialize the object. */
-        rc = pThread->Initialize(pszThreadName, pfnThread, pvUser, pszStatsSubDir, pUVM);
-        if (RT_SUCCESS(rc))
-        {
-            *ppThread = pThread;
-            LogFlow(("MAIN::hgcmThreadCreate: rc = %Rrc\n", rc));
-            return rc;
-        }
-
-        Log(("hgcmThreadCreate: FAILURE: Initialize failed: rc = %Rrc\n", rc));
-
-        pThread->Dereference();
+        rc = pThread->Initialize (handle, pszThreadName, pfnThread, pvUser);
     }
     else
     {
         Log(("hgcmThreadCreate: FAILURE: Can't allocate memory for a hgcm worker thread.\n"));
         rc = VERR_NO_MEMORY;
     }
-    *ppThread = NULL;
+
+    if (RT_SUCCESS(rc))
+    {
+        *pHandle = handle;
+    }
+    else
+    {
+        Log(("hgcmThreadCreate: FAILURE: rc = %Rrc.\n", rc));
+
+        if (handle != 0)
+        {
+            /* Delete allocated handle, this will also free the object memory. */
+            hgcmObjDeleteHandle (handle);
+        }
+    }
 
     LogFlow(("MAIN::hgcmThreadCreate: rc = %Rrc\n", rc));
+
     return rc;
 }
 
-int hgcmThreadWait(HGCMThread *pThread)
+int hgcmThreadWait (HGCMTHREADHANDLE hThread)
 {
-    LogFlowFunc(("%p\n", pThread));
+    int rc = VERR_INVALID_HANDLE;
+    LogFlowFunc(("0x%08X\n", hThread));
 
-    int rc;
+    HGCMThread *pThread = (HGCMThread *)hgcmObjReference (hThread, HGCMOBJ_THREAD);
+
     if (pThread)
     {
-        rc = pThread->WaitForTermination();
+        rc = pThread->WaitForTermination ();
 
-        pThread->Dereference();
+        hgcmObjDereference (pThread);
     }
-    else
-        rc = VERR_INVALID_HANDLE;
+
+    hgcmObjDeleteHandle (hThread);
 
     LogFlowFunc(("rc = %Rrc\n", rc));
     return rc;
 }
 
-int hgcmMsgAlloc(HGCMThread *pThread, HGCMMsgCore **ppMsg, uint32_t u32MsgId, PFNHGCMNEWMSGALLOC pfnNewMessage)
+int hgcmMsgAlloc (HGCMTHREADHANDLE hThread, HGCMMSGHANDLE *pHandle, uint32_t u32MsgId, PFNHGCMNEWMSGALLOC pfnNewMessage)
 {
-    LogFlow(("hgcmMsgAlloc: pThread = %p, ppMsg = %p, sizeof (HGCMMsgCore) = %d\n", pThread, ppMsg, sizeof(HGCMMsgCore)));
+    LogFlow(("hgcmMsgAlloc: thread handle = 0x%08X, pHandle = %p, sizeof (HGCMMsgCore) = %d\n",
+             hThread, pHandle, sizeof (HGCMMsgCore)));
 
-    AssertReturn(pThread, VERR_INVALID_HANDLE);
-    AssertReturn(ppMsg, VERR_INVALID_PARAMETER);
+    if (!pHandle)
+    {
+        return VERR_INVALID_PARAMETER;
+    }
 
-    int rc = pThread->MsgAlloc(ppMsg, u32MsgId, pfnNewMessage);
+    int rc = VINF_SUCCESS;
 
-    LogFlow(("MAIN::hgcmMsgAlloc: *ppMsg = %p, rc = %Rrc\n", *ppMsg, rc));
+    HGCMThread *pThread = (HGCMThread *)hgcmObjReference (hThread, HGCMOBJ_THREAD);
+
+    if (!pThread)
+    {
+        rc = VERR_INVALID_HANDLE;
+    }
+    else
+    {
+        rc = pThread->MsgAlloc (pHandle, u32MsgId, pfnNewMessage);
+
+        hgcmObjDereference (pThread);
+    }
+
+    LogFlow(("MAIN::hgcmMsgAlloc: handle 0x%08X, rc = %Rrc\n", *pHandle, rc));
+
     return rc;
 }
 
-DECLINLINE(int) hgcmMsgPostInternal(HGCMMsgCore *pMsg, PHGCMMSGCALLBACK pfnCallback, bool fWait)
+static int hgcmMsgPostInternal (HGCMMSGHANDLE hMsg, PHGCMMSGCALLBACK pfnCallback, bool fWait)
 {
-    LogFlow(("MAIN::hgcmMsgPostInternal: pMsg = %p, pfnCallback = %p, fWait = %d\n", pMsg, pfnCallback, fWait));
-    Assert(pMsg);
+    LogFlow(("MAIN::hgcmMsgPostInternal: hMsg = 0x%08X, pfnCallback = %p, fWait = %d\n", hMsg, pfnCallback, fWait));
 
-    pMsg->Reference(); /* paranoia? */
+    int rc = VINF_SUCCESS;
 
-    int rc = pMsg->Thread()->MsgPost(pMsg, pfnCallback, fWait);
+    HGCMMsgCore *pMsg = (HGCMMsgCore *)hgcmObjReference (hMsg, HGCMOBJ_MSG);
 
-    pMsg->Dereference();
+    if (!pMsg)
+    {
+        rc = VERR_INVALID_HANDLE;
+    }
+    else
+    {
+        rc = pMsg->Thread()->MsgPost (pMsg, pfnCallback, fWait);
 
-    LogFlow(("MAIN::hgcmMsgPostInternal: pMsg = %p, rc = %Rrc\n", pMsg, rc));
+        hgcmObjDereference (pMsg);
+    }
+
+    LogFlow(("MAIN::hgcmMsgPostInternal: hMsg 0x%08X, rc = %Rrc\n", hMsg, rc));
+
     return rc;
 }
 
-int hgcmMsgPost(HGCMMsgCore *pMsg, PHGCMMSGCALLBACK pfnCallback)
+
+/* Post message to worker thread with a flag indication if this is a Send or Post.
+ *
+ * @thread any
+ */
+
+int hgcmMsgPost (HGCMMSGHANDLE hMsg, PHGCMMSGCALLBACK pfnCallback)
 {
-    int rc = hgcmMsgPostInternal(pMsg, pfnCallback, false);
+    int rc = hgcmMsgPostInternal (hMsg, pfnCallback, false);
 
     if (RT_SUCCESS(rc))
+    {
         rc = VINF_HGCM_ASYNC_EXECUTE;
+    }
 
     return rc;
 }
 
-int hgcmMsgSend(HGCMMsgCore *pMsg)
+/* Send message to worker thread. Sending thread will block until message is processed.
+ *
+ * @thread any
+ */
+
+int hgcmMsgSend (HGCMMSGHANDLE hMsg)
 {
-    return hgcmMsgPostInternal(pMsg, NULL, true);
+    return hgcmMsgPostInternal (hMsg, NULL, true);
 }
 
-int hgcmMsgGet(HGCMThread *pThread, HGCMMsgCore **ppMsg)
+
+int hgcmMsgGet (HGCMTHREADHANDLE hThread, HGCMMsgCore **ppMsg)
 {
-    LogFlow(("MAIN::hgcmMsgGet: pThread = %p, ppMsg = %p\n", pThread, ppMsg));
+    LogFlow(("MAIN::hgcmMsgGet: hThread = 0x%08X, ppMsg = %p\n", hThread, ppMsg));
 
-    AssertReturn(pThread, VERR_INVALID_HANDLE);
-    AssertReturn(ppMsg, VERR_INVALID_PARAMETER);
+    if (!hThread || !ppMsg)
+    {
+        return VERR_INVALID_PARAMETER;
+    }
 
-    pThread->Reference();           /* paranoia */
+    int rc = VINF_SUCCESS;
 
-    int rc = pThread->MsgGet(ppMsg);
+    HGCMThread *pThread = (HGCMThread *)hgcmObjReference (hThread, HGCMOBJ_THREAD);
 
-    pThread->Dereference();
+    if (!pThread)
+    {
+        rc = VERR_INVALID_HANDLE;
+    }
+    else
+    {
+        rc = pThread->MsgGet (ppMsg);
+
+        hgcmObjDereference (pThread);
+    }
 
     LogFlow(("MAIN::hgcmMsgGet: *ppMsg = %p, rc = %Rrc\n", *ppMsg, rc));
+
     return rc;
 }
 
-int hgcmMsgComplete(HGCMMsgCore *pMsg, int32_t rcMsg)
+
+void hgcmMsgComplete (HGCMMsgCore *pMsg, int32_t u32Result)
 {
-    LogFlow(("MAIN::hgcmMsgComplete: pMsg = %p, rcMsg = %Rrc (%d)\n", pMsg, rcMsg, rcMsg));
+    LogFlow(("MAIN::hgcmMsgComplete: pMsg = %p\n", pMsg));
 
-    int rc;
-    if (pMsg)
-        rc = pMsg->Thread()->MsgComplete(pMsg, rcMsg);
-    else
-        rc = VINF_SUCCESS;
+    if (!pMsg)
+    {
+        return;
+    }
 
-    LogFlow(("MAIN::hgcmMsgComplete: pMsg = %p, rcMsg =%Rrc (%d), returns rc = %Rrc\n", pMsg, rcMsg, rcMsg, rc));
-    return rc;
+    pMsg->Thread()->MsgComplete (pMsg, u32Result);
+
+    LogFlow(("MAIN::hgcmMsgComplete: pMsg = %p, rc = void\n", pMsg));
+
+    return;
 }
 
-int hgcmThreadInit(void)
+
+int hgcmThreadInit (void)
 {
+    int rc = VINF_SUCCESS;
+
     LogFlow(("MAIN::hgcmThreadInit\n"));
 
     /** @todo error processing. */
 
-    int rc = hgcmObjInit();
+    rc = hgcmObjInit ();
 
     LogFlow(("MAIN::hgcmThreadInit: rc = %Rrc\n", rc));
+
     return rc;
 }
 
-void hgcmThreadUninit(void)
+void hgcmThreadUninit (void)
 {
-    hgcmObjUninit();
+    hgcmObjUninit ();
 }
-

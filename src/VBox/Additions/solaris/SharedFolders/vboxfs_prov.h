@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,11 +25,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef GA_INCLUDED_SRC_solaris_SharedFolders_vboxfs_prov_h
-#define GA_INCLUDED_SRC_solaris_SharedFolders_vboxfs_prov_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef	___VBoxFS_prov_Solaris_h
+#define	___VBoxFS_prov_Solaris_h
 
 #include <VBox/VBoxGuestLibSharedFolders.h>
 
@@ -186,5 +183,5 @@ extern int sfprov_readdir(sfp_mount_t *mnt, char *path,
 }
 #endif
 
-#endif /* !GA_INCLUDED_SRC_solaris_SharedFolders_vboxfs_prov_h */
+#endif	/* !___VBoxFS_prov_Solaris_h */
 

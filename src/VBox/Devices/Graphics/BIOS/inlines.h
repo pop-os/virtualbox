@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,11 +14,6 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_INCLUDED_SRC_Graphics_BIOS_inlines_h
-#define VBOX_INCLUDED_SRC_Graphics_BIOS_inlines_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
 
 extern unsigned inp(unsigned port);
 extern unsigned outp(unsigned port, unsigned value);
@@ -146,6 +141,4 @@ extern void memcpyw(uint16_t dseg, uint16_t doffset, uint16_t sseg, uint16_t sof
     "pop    ds"         \
     "no_copy:"          \
     parm [es] [di] [dx] [si] [cx];
-
-#endif /* !VBOX_INCLUDED_SRC_Graphics_BIOS_inlines_h */
 

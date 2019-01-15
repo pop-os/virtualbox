@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,11 +17,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_INCLUDED_SRC_Audio_pulse_mangling_h
-#define VBOX_INCLUDED_SRC_Audio_pulse_mangling_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef AUDIO_PULSE_MANGLING_H
+#define AUDIO_PULSE_MANGLING_H
 
 #define PULSE_MANGLER(symbol) VBox_##symbol
 
@@ -89,5 +86,5 @@
 
 #define pa_usec_to_bytes                        PULSE_MANGLER(pa_usec_to_bytes)
 
-#endif /* !VBOX_INCLUDED_SRC_Audio_pulse_mangling_h */
+#endif /* !AUDIO_PULSE_MANGLING_H */
 

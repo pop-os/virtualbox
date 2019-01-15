@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -91,7 +91,7 @@ static DECLCALLBACK(PCPDMPICHLPRC) pdmR3PicHlp_GetRCHelpers(PPDMDEVINS pDevIns)
     VM_ASSERT_EMT(pVM);
 
     RTRCPTR pRCHelpers = NIL_RTRCPTR;
-    if (VM_IS_RAW_MODE_ENABLED(pVM))
+    if (!HMIsEnabled(pVM))
     {
         int rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_pdmRCPicHlp", &pRCHelpers);
         AssertReleaseRC(rc);
@@ -181,7 +181,7 @@ static DECLCALLBACK(PCPDMIOAPICHLPRC) pdmR3IoApicHlp_GetRCHelpers(PPDMDEVINS pDe
     VM_ASSERT_EMT(pVM);
 
     RTRCPTR pRCHelpers = NIL_RTRCPTR;
-    if (VM_IS_RAW_MODE_ENABLED(pVM))
+    if (!HMIsEnabled(pVM))
     {
         int rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_pdmRCIoApicHlp", &pRCHelpers);
         AssertReleaseRC(rc);
@@ -294,7 +294,7 @@ static DECLCALLBACK(PCPDMPCIHLPRC) pdmR3PciHlp_GetRCHelpers(PPDMDEVINS pDevIns)
     VM_ASSERT_EMT(pVM);
 
     RTRCPTR pRCHelpers = NIL_RTRCPTR;
-    if (VM_IS_RAW_MODE_ENABLED(pVM))
+    if (!HMIsEnabled(pVM))
     {
         int rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_pdmRCPciHlp", &pRCHelpers);
         AssertReleaseRC(rc);
@@ -423,7 +423,7 @@ static DECLCALLBACK(PCPDMHPETHLPRC) pdmR3HpetHlp_GetRCHelpers(PPDMDEVINS pDevIns
     VM_ASSERT_EMT(pVM);
 
     RTRCPTR pRCHelpers = NIL_RTRCPTR;
-    if (VM_IS_RAW_MODE_ENABLED(pVM))
+    if (!HMIsEnabled(pVM))
     {
         int rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_pdmRCHpetHlp", &pRCHelpers);
         AssertReleaseRC(rc);
@@ -480,7 +480,7 @@ static DECLCALLBACK(PCPDMPCIRAWHLPRC) pdmR3PciRawHlp_GetRCHelpers(PPDMDEVINS pDe
     VM_ASSERT_EMT(pVM);
 
     RTRCPTR pRCHelpers = NIL_RTRCPTR;
-    if (VM_IS_RAW_MODE_ENABLED(pVM))
+    if (!HMIsEnabled(pVM))
     {
         int rc = PDMR3LdrGetSymbolRC(pVM, NULL, "g_pdmRCPciRawHlp", &pRCHelpers);
         AssertReleaseRC(rc);

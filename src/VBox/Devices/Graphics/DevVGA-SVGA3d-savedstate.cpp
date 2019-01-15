@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,7 +21,7 @@
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DEV_VMSVGA
 #include <VBox/vmm/pdmdev.h>
-#include <iprt/errcore.h>
+#include <VBox/err.h>
 #include <VBox/log.h>
 
 #include <iprt/assert.h>
@@ -344,7 +344,8 @@ int vmsvga3dLoadExec(PVGASTATE pThis, PSSMHANDLE pSSM, uint32_t uVersion, uint32
                 }
             }
 
-            if (uVersion >= VGA_SAVEDSTATE_VERSION_VMSVGA)
+#if 0 /** @todo */
+            if (uVersion >= VGA_SAVEDSTATE_VERSION_VMSVGA_TEX_STAGES) /** @todo VGA_SAVEDSTATE_VERSION_VMSVGA_3D */
             {
                 VMSVGA3DQUERY query;
                 RT_ZERO(query);
@@ -382,6 +383,7 @@ int vmsvga3dLoadExec(PVGASTATE pThis, PSSMHANDLE pSSM, uint32_t uVersion, uint32
                         break;
                 }
             }
+#endif
         }
     }
 
@@ -501,7 +503,7 @@ int vmsvga3dLoadExec(PVGASTATE pThis, PSSMHANDLE pSSM, uint32_t uVersion, uint32
 
 static int vmsvga3dSaveContext(PVGASTATE pThis, PSSMHANDLE pSSM, PVMSVGA3DCONTEXT pContext)
 {
-    PVMSVGA3DSTATE pState = pThis->svga.p3dState;
+    RT_NOREF(pThis);
     uint32_t cid = pContext->id;
 
     /* Save the id first. */
@@ -598,6 +600,8 @@ static int vmsvga3dSaveContext(PVGASTATE pThis, PSSMHANDLE pSSM, PVMSVGA3DCONTEX
             }
         }
 
+#if 0 /** @todo Enable later. */
+        PVMSVGA3DSTATE pState = pThis->svga.p3dState;
         /* Occlusion query. */
         if (!VMSVGA3DQUERY_EXISTS(&pContext->occlusion))
         {
@@ -630,6 +634,7 @@ static int vmsvga3dSaveContext(PVGASTATE pThis, PSSMHANDLE pSSM, PVMSVGA3DCONTEX
 
         rc = SSMR3PutStructEx(pSSM, &pContext->occlusion, sizeof(pContext->occlusion), 0, g_aVMSVGA3DQUERYFields, NULL);
         AssertRCReturn(rc, rc);
+#endif
     }
 
     return VINF_SUCCESS;

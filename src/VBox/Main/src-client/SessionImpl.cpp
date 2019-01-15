@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,7 +25,7 @@
 
 #include "AutoCaller.h"
 
-#include <iprt/errcore.h>
+#include <VBox/err.h>
 #include <iprt/process.h>
 
 
@@ -724,7 +724,7 @@ HRESULT Session::onVRDEServerChange(BOOL aRestart)
 #endif
 }
 
-HRESULT Session::onRecordingChange(BOOL aEnable)
+HRESULT Session::onVideoCaptureChange()
 {
     LogFlowThisFunc(("\n"));
 
@@ -734,9 +734,8 @@ HRESULT Session::onRecordingChange(BOOL aEnable)
 #ifndef VBOX_COM_INPROC_API_CLIENT
     AssertReturn(mConsole, VBOX_E_INVALID_OBJECT_STATE);
 
-    return mConsole->i_onRecordingChange(aEnable);
+    return mConsole->i_onVideoCaptureChange();
 #else
-    RT_NOREF(aEnable);
     return S_OK;
 #endif
 }

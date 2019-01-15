@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_INCLUDED_SRC_Input_PS2Dev_h
-#define VBOX_INCLUDED_SRC_Input_PS2Dev_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef PS2DEV_H
+#define PS2DEV_H
 
 /** The size of the PS2K/PS2M structure fillers.
  * @note Must be at least as big as the real struct. Compile time assert
@@ -91,4 +88,4 @@ typedef enum
 
 int32_t XlateAT2PC(int32_t state, uint8_t scanIn, uint8_t *pScanOut);
 
-#endif /* !VBOX_INCLUDED_SRC_Input_PS2Dev_h */
+#endif

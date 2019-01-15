@@ -1,10 +1,10 @@
 /* $Id: QIRichToolButton.cpp $ */
 /** @file
- * VBox Qt GUI - Qt extensions: QIRichToolButton class declaration.
+ * VBox Qt GUI - QIRichToolButton class declaration.
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,19 +15,25 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QHBoxLayout>
-#include <QKeyEvent>
-#include <QLabel>
-#include <QStyleOptionFocusRect>
-#include <QStylePainter>
+# include <QHBoxLayout>
+# include <QLabel>
+# include <QStylePainter>
+# include <QStyleOptionFocusRect>
+# include <QKeyEvent>
 
 /* GUI includes: */
-#include "QIRichToolButton.h"
-#include "QIToolButton.h"
+# include "QIRichToolButton.h"
+# include "QIToolButton.h"
 
 /* Other VBox includes: */
-#include "iprt/assert.h"
+# include "iprt/assert.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 QIRichToolButton::QIRichToolButton(QWidget *pParent)
@@ -70,6 +76,7 @@ void QIRichToolButton::paintEvent(QPaintEvent *pEvent)
         option.rect = geometry();
         painter.drawPrimitive(QStyle::PE_FrameFocusRect, option);
     }
+
     /* Call to base-class: */
     QWidget::paintEvent(pEvent);
 }
@@ -130,3 +137,4 @@ void QIRichToolButton::prepare()
         }
     }
 }
+

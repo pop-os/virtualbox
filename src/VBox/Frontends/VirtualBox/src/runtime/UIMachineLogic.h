@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_runtime_UIMachineLogic_h
-#define FEQT_INCLUDED_SRC_runtime_UIMachineLogic_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIMachineLogic_h___
+#define ___UIMachineLogic_h___
 
 /* GUI includes: */
 #include "UIExtraDataDefs.h"
@@ -31,7 +28,6 @@
 /* Forward declarations: */
 class QAction;
 class QActionGroup;
-class QIManagerDialog;
 class UISession;
 class UIActionPool;
 class UIKeyboardHandler;
@@ -141,7 +137,6 @@ public:
     void updateDockIcon();
     void updateDockIconSize(int screenId, int width, int height);
     UIMachineView* dockPreviewView() const;
-    virtual void updateDock();
 #endif /* VBOX_WS_MAC */
 
     /** Detach and close Runtime UI. */
@@ -160,8 +155,6 @@ public:
 
     /** Returns whether VM should perform HID LEDs synchronization. */
     bool isHidLedsSyncEnabled() const { return m_fIsHidLedsSyncEnabled; }
-    /** An public interface to sltTypeHostKeyComboPressRelease. */
-    void typeHostKeyComboPressRelease(bool fToggleSequence);
 
 protected slots:
 
@@ -273,13 +266,8 @@ private slots:
     void sltTypeInsert();
     void sltTypePrintScreen();
     void sltTypeAltPrintScreen();
-    void sltTypeHostKeyComboPressRelease(bool fToggleSequence);
     void sltTakeSnapshot();
     void sltShowInformationDialog();
-    void sltShowFileManagerDialog();
-    void sltCloseFileManagerDialog();
-    void sltShowGuestProcessControlDialog();
-    void sltCloseGuestProcessControlDialog();
     void sltReset();
     void sltPause(bool fOn);
     void sltDetach();
@@ -293,8 +281,8 @@ private slots:
     void sltAdjustMachineWindows();
     void sltToggleGuestAutoresize(bool fEnabled);
     void sltTakeScreenshot();
-    void sltOpenRecordingOptions();
-    void sltToggleRecording(bool fEnabled);
+    void sltOpenVideoCaptureOptions();
+    void sltToggleVideoCapture(bool fEnabled);
     void sltToggleVRDE(bool fEnabled);
 
     /* "Device" menu functionality: */
@@ -319,8 +307,6 @@ private slots:
     void sltShowDebugCommandLine();
     void sltLoggingToggled(bool);
     void sltShowLogDialog();
-    /** Handles close signal from the log viewer dialog. */
-    void sltCloseLogViewerWindow();
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
 #ifdef RT_OS_DARWIN /* Something is *really* broken in regards of the moc here */
@@ -419,11 +405,7 @@ private:
     bool m_fIsDockIconEnabled;
     UIDockIconPreview *m_pDockIconPreview;
     QActionGroup *m_pDockPreviewSelectMonitorGroup;
-    QAction *m_pDockSettingsMenuSeparator;
     int m_DockIconPreviewMonitor;
-    QAction *m_pDockSettingMenuAction;
-    /* Keeps a list of machine menu actions that we add to dock menu. */
-    QList<QAction*> m_dockMachineMenuActions;
 #endif /* VBOX_WS_MAC */
 
     void *m_pHostLedsState;
@@ -431,13 +413,9 @@ private:
     /** Holds whether VM should perform HID LEDs synchronization. */
     bool m_fIsHidLedsSyncEnabled;
 
-    /** Holds the log viewer dialog instance. */
-    QIManagerDialog *m_pLogViewerDialog;
-    QIManagerDialog *m_pFileManagerDialog;
-    QIManagerDialog *m_pProcessControlDialog;
-
     /* Friend classes: */
     friend class UIMachineWindow;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_runtime_UIMachineLogic_h */
+#endif /* !___UIMachineLogic_h___ */
+

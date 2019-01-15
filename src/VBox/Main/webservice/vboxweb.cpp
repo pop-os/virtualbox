@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -926,27 +926,25 @@ static void doQueuesLoop()
         while (g_fKeepRunning)
         {
             struct timeval timeout;
-            fd_set ReadFds, WriteFds, XcptFds;
+            fd_set fds;
             int rv;
             for (;;)
             {
                 timeout.tv_sec = 60;
                 timeout.tv_usec = 0;
-                FD_ZERO(&ReadFds);
-                FD_SET(soap.master, &ReadFds);
-                FD_ZERO(&WriteFds);
-                FD_SET(soap.master, &WriteFds);
-                FD_ZERO(&XcptFds);
-                FD_SET(soap.master, &XcptFds);
-                rv = select((int)soap.master + 1, &ReadFds, &WriteFds, &XcptFds, &timeout);
+                FD_ZERO(&fds);
+                FD_SET(soap.master, &fds);
+                rv = select((int)soap.master + 1, &fds, &fds, &fds, &timeout);
                 if (rv > 0)
                     break; // work is waiting
-                if (rv == 0)
+                else if (rv == 0)
                     continue; // timeout, not necessary to bother gsoap
-                // r < 0, errno
-                if (soap_socket_errno(soap.master) == SOAP_EINTR)
-                    rv = 0; // re-check if we should terminate
-                break;
+                else // r < 0, errno
+                {
+                    if (soap_socket_errno(soap.master) == SOAP_EINTR)
+                        rv = 0; // re-check if we should terminate
+                    break;
+                }
             }
             if (rv == 0)
                 continue;

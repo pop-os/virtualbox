@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,14 +20,13 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_HM
-#define VMCPU_INCL_CPUM_GST_CTX
 #include <VBox/vmm/hm.h>
 #include <VBox/vmm/pgm.h>
 #include "HMInternal.h"
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/hm_vmx.h>
 #include <VBox/vmm/hm_svm.h>
-#include <iprt/errcore.h>
+#include <VBox/err.h>
 #include <VBox/log.h>
 #include <iprt/param.h>
 #include <iprt/assert.h>
@@ -49,43 +48,8 @@
  */
 VMMDECL(bool) HMIsEnabledNotMacro(PVM pVM)
 {
-    Assert(pVM->bMainExecutionEngine != VM_EXEC_ENGINE_NOT_SET);
+    Assert(pVM->fHMEnabledFixed);
     return pVM->fHMEnabled;
-}
-
-
-/**
- * Checks if the guest is in a suitable state for hardware-assisted execution.
- *
- * @returns @c true if it is suitable, @c false otherwise.
- * @param   pVCpu   The cross context virtual CPU structure.
- * @param   pCtx    Pointer to the guest CPU context.
- *
- * @remarks @a pCtx can be a partial context created and not necessarily the same as
- *          pVCpu->cpum.GstCtx.
- */
-VMMDECL(bool) HMCanExecuteGuest(PVMCPU pVCpu, PCCPUMCTX pCtx)
-{
-    PVM pVM = pVCpu->CTX_SUFF(pVM);
-    Assert(HMIsEnabled(pVM));
-
-#ifdef VBOX_WITH_NESTED_HWVIRT_ONLY_IN_IEM
-    if (   CPUMIsGuestInSvmNestedHwVirtMode(pCtx)
-        || CPUMIsGuestInVmxNonRootMode(pCtx))
-    {
-        LogFunc(("In nested-guest mode - returning false"));
-        return false;
-    }
-#endif
-
-    /* AMD-V supports real & protected mode with or without paging. */
-    if (pVM->hm.s.svm.fEnabled)
-    {
-        pVCpu->hm.s.fActive = true;
-        return true;
-    }
-
-    return HMVmxCanExecuteGuest(pVCpu, pCtx);
 }
 
 
@@ -117,7 +81,13 @@ VMM_INT_DECL(int) HMInvalidatePage(PVMCPU pVCpu, RTGCPTR GCVirt)
 {
     STAM_COUNTER_INC(&pVCpu->hm.s.StatFlushPageManual);
 #ifdef IN_RING0
-    return HMR0InvalidatePage(pVCpu, GCVirt);
+    PVM pVM = pVCpu->CTX_SUFF(pVM);
+    if (pVM->hm.s.vmx.fSupported)
+        return VMXR0InvalidatePage(pVM, pVCpu, GCVirt);
+
+    Assert(pVM->hm.s.svm.fSupported);
+    return SVMR0InvalidatePage(pVM, pVCpu, GCVirt);
+
 #else
     hmQueueInvlPage(pVCpu, GCVirt);
     return VINF_SUCCESS;
@@ -184,7 +154,6 @@ static void hmR0PokeCpu(PVMCPU pVCpu, RTCPUID idHostCpu)
 
 #endif /* IN_RING0 */
 #ifndef IN_RC
-
 /**
  * Flushes the guest TLB.
  *
@@ -318,19 +287,39 @@ VMM_INT_DECL(int) HMInvalidatePhysPage(PVM pVM, RTGCPHYS GCPhys)
     if (!HMIsNestedPagingActive(pVM))
         return VINF_SUCCESS;
 
-    /*
-     * AMD-V: Doesn't support invalidation with guest physical addresses.
-     *
-     * VT-x: Doesn't support invalidation with guest physical addresses.
-     * INVVPID instruction takes only a linear address while invept only flushes by EPT
-     * not individual addresses.
-     *
-     * We update the force flag and flush before the next VM-entry, see @bugref{6568}.
-     */
-    RT_NOREF(GCPhys);
-    /** @todo Remove or figure out to way to update the Phys STAT counter.  */
-    /* STAM_COUNTER_INC(&pVCpu->hm.s.StatFlushTlbInvlpgPhys); */
-    return HMFlushTLBOnAllVCpus(pVM);
+#ifdef IN_RING0
+    if (pVM->hm.s.vmx.fSupported)
+    {
+        VMCPUID idThisCpu = VMMGetCpuId(pVM);
+
+        for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+        {
+            PVMCPU pVCpu = &pVM->aCpus[idCpu];
+
+            if (idThisCpu == idCpu)
+            {
+                /** @todo r=ramshankar: Intel does not support flushing by guest physical
+                 *        address either. See comment in VMXR0InvalidatePhysPage(). Fix this. */
+                VMXR0InvalidatePhysPage(pVM, pVCpu, GCPhys);
+            }
+            else
+            {
+                VMCPU_FF_SET(pVCpu, VMCPU_FF_TLB_FLUSH);
+                hmPokeCpuForTlbFlush(pVCpu, true /*fAccountFlushStat*/);
+            }
+        }
+        return VINF_SUCCESS;
+    }
+
+    /* AMD-V doesn't support invalidation with guest physical addresses; see
+       comment in SVMR0InvalidatePhysPage. */
+    Assert(pVM->hm.s.svm.fSupported);
+#else
+    NOREF(GCPhys);
+#endif
+
+    HMFlushTLBOnAllVCpus(pVM);
+    return VINF_SUCCESS;
 }
 
 
@@ -368,13 +357,10 @@ VMM_INT_DECL(bool) HMAreNestedPagingAndFullGuestExecEnabled(PVM pVM)
 
 
 /**
- * Checks if this VM is using HM and is long-mode capable.
- *
- * Use VMR3IsLongModeAllowed() instead of this, when possible.
+ * Checks if this VM is long-mode capable.
  *
  * @returns true if long mode is allowed, false otherwise.
  * @param   pVM         The cross context VM structure.
- * @sa      VMR3IsLongModeAllowed, NEMHCIsLongModeAllowed
  */
 VMM_INT_DECL(bool) HMIsLongModeAllowed(PVM pVM)
 {
@@ -383,13 +369,13 @@ VMM_INT_DECL(bool) HMIsLongModeAllowed(PVM pVM)
 
 
 /**
- * Checks if MSR bitmaps are active. It is assumed that when it's available
+ * Checks if MSR bitmaps are available. It is assumed that when it's available
  * it will be used as well.
  *
  * @returns true if MSR bitmaps are available, false otherwise.
  * @param   pVM         The cross context VM structure.
  */
-VMM_INT_DECL(bool) HMIsMsrBitmapActive(PVM pVM)
+VMM_INT_DECL(bool) HMAreMsrBitmapsAvailable(PVM pVM)
 {
     if (HMIsEnabled(pVM))
     {
@@ -397,55 +383,32 @@ VMM_INT_DECL(bool) HMIsMsrBitmapActive(PVM pVM)
             return true;
 
         if (   pVM->hm.s.vmx.fSupported
-            && (pVM->hm.s.vmx.Msrs.ProcCtls.n.allowed1 & VMX_PROC_CTLS_USE_MSR_BITMAPS))
+            && (pVM->hm.s.vmx.Msrs.VmxProcCtls.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC_USE_MSR_BITMAPS))
+        {
             return true;
+        }
     }
     return false;
 }
 
 
 /**
- * Checks if AMD-V is active.
+ * Return the shadow paging mode for nested paging/ept
  *
- * @returns true if AMD-V is active.
+ * @returns shadow paging mode
  * @param   pVM         The cross context VM structure.
- *
- * @remarks Works before hmR3InitFinalizeR0.
  */
-VMM_INT_DECL(bool) HMIsSvmActive(PVM pVM)
+VMM_INT_DECL(PGMMODE) HMGetShwPagingMode(PVM pVM)
 {
-    return pVM->hm.s.svm.fSupported && HMIsEnabled(pVM);
+    Assert(HMIsNestedPagingActive(pVM));
+    if (pVM->hm.s.svm.fSupported)
+        return PGMMODE_NESTED;
+
+    Assert(pVM->hm.s.vmx.fSupported);
+    return PGMMODE_EPT;
 }
-
-
-/**
- * Checks if VT-x is active.
- *
- * @returns true if VT-x is active.
- * @param   pVM         The cross context VM structure.
- *
- * @remarks Works before hmR3InitFinalizeR0.
- */
-VMM_INT_DECL(bool) HMIsVmxActive(PVM pVM)
-{
-    return HMIsVmxSupported(pVM) && HMIsEnabled(pVM);
-}
-
-
-/**
- * Checks if VT-x is supported by the host CPU.
- *
- * @returns true if VT-x is supported, false otherwise.
- * @param   pVM         The cross context VM structure.
- *
- * @remarks Works before hmR3InitFinalizeR0.
- */
-VMM_INT_DECL(bool) HMIsVmxSupported(PVM pVM)
-{
-    return pVM->hm.s.vmx.fSupported;
-}
-
 #endif /* !IN_RC */
+
 
 /**
  * Checks if an interrupt event is currently pending.
@@ -473,6 +436,60 @@ VMM_INT_DECL(PX86PDPE) HMGetPaePdpes(PVMCPU pVCpu)
 
 
 /**
+ * Checks if the current AMD CPU is subject to erratum 170 "In SVM mode,
+ * incorrect code bytes may be fetched after a world-switch".
+ *
+ * @param   pu32Family      Where to store the CPU family (can be NULL).
+ * @param   pu32Model       Where to store the CPU model (can be NULL).
+ * @param   pu32Stepping    Where to store the CPU stepping (can be NULL).
+ * @returns true if the erratum applies, false otherwise.
+ */
+VMM_INT_DECL(int) HMAmdIsSubjectToErratum170(uint32_t *pu32Family, uint32_t *pu32Model, uint32_t *pu32Stepping)
+{
+    /*
+     * Erratum 170 which requires a forced TLB flush for each world switch:
+     * See AMD spec. "Revision Guide for AMD NPT Family 0Fh Processors".
+     *
+     * All BH-G1/2 and DH-G1/2 models include a fix:
+     * Athlon X2:   0x6b 1/2
+     *              0x68 1/2
+     * Athlon 64:   0x7f 1
+     *              0x6f 2
+     * Sempron:     0x7f 1/2
+     *              0x6f 2
+     *              0x6c 2
+     *              0x7c 2
+     * Turion 64:   0x68 2
+     */
+    uint32_t u32Dummy;
+    uint32_t u32Version, u32Family, u32Model, u32Stepping, u32BaseFamily;
+    ASMCpuId(1, &u32Version, &u32Dummy, &u32Dummy, &u32Dummy);
+    u32BaseFamily = (u32Version >> 8) & 0xf;
+    u32Family     = u32BaseFamily + (u32BaseFamily == 0xf ? ((u32Version >> 20) & 0x7f) : 0);
+    u32Model      = ((u32Version >> 4) & 0xf);
+    u32Model      = u32Model | ((u32BaseFamily == 0xf ? (u32Version >> 16) & 0x0f : 0) << 4);
+    u32Stepping   = u32Version & 0xf;
+
+    bool fErratumApplies = false;
+    if (   u32Family == 0xf
+        && !((u32Model == 0x68 || u32Model == 0x6b || u32Model == 0x7f) && u32Stepping >= 1)
+        && !((u32Model == 0x6f || u32Model == 0x6c || u32Model == 0x7c) && u32Stepping >= 2))
+    {
+        fErratumApplies = true;
+    }
+
+    if (pu32Family)
+        *pu32Family   = u32Family;
+    if (pu32Model)
+        *pu32Model    = u32Model;
+    if (pu32Stepping)
+        *pu32Stepping = u32Stepping;
+
+    return fErratumApplies;
+}
+
+
+/**
  * Sets or clears the single instruction flag.
  *
  * When set, HM will try its best to return to ring-3 after executing a single
@@ -495,6 +512,28 @@ VMM_INT_DECL(bool) HMSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable)
 
 
 /**
+ * Notifies HM that paravirtualized hypercalls are now enabled.
+ *
+ * @param   pVCpu   The cross context virtual CPU structure.
+ */
+VMM_INT_DECL(void) HMHypercallsEnable(PVMCPU pVCpu)
+{
+    pVCpu->hm.s.fHypercallsEnabled = true;
+}
+
+
+/**
+ * Notifies HM that paravirtualized hypercalls are now disabled.
+ *
+ * @param   pVCpu   The cross context virtual CPU structure.
+ */
+VMM_INT_DECL(void) HMHypercallsDisable(PVMCPU pVCpu)
+{
+    pVCpu->hm.s.fHypercallsEnabled = false;
+}
+
+
+/**
  * Notifies HM that GIM provider wants to trap \#UD.
  *
  * @param   pVCpu   The cross context virtual CPU structure.
@@ -502,10 +541,7 @@ VMM_INT_DECL(bool) HMSetSingleInstruction(PVM pVM, PVMCPU pVCpu, bool fEnable)
 VMM_INT_DECL(void) HMTrapXcptUDForGIMEnable(PVMCPU pVCpu)
 {
     pVCpu->hm.s.fGIMTrapXcptUD = true;
-    if (pVCpu->CTX_SUFF(pVM)->hm.s.vmx.fSupported)
-        ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_VMX_GUEST_XCPT_INTERCEPTS);
-    else
-        ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_SVM_GUEST_XCPT_INTERCEPTS);
+    HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_XCPT_INTERCEPTS);
 }
 
 
@@ -517,114 +553,18 @@ VMM_INT_DECL(void) HMTrapXcptUDForGIMEnable(PVMCPU pVCpu)
 VMM_INT_DECL(void) HMTrapXcptUDForGIMDisable(PVMCPU pVCpu)
 {
     pVCpu->hm.s.fGIMTrapXcptUD = false;
-    if (pVCpu->CTX_SUFF(pVM)->hm.s.vmx.fSupported)
-        ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_VMX_GUEST_XCPT_INTERCEPTS);
-    else
-        ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, HM_CHANGED_SVM_GUEST_XCPT_INTERCEPTS);
-}
-
-
-#ifndef IN_RC
-/**
- * Notification callback which is called whenever there is a chance that a CR3
- * value might have changed.
- *
- * This is called by PGM.
- *
- * @param   pVM             The cross context VM structure.
- * @param   pVCpu           The cross context virtual CPU structure.
- * @param   enmShadowMode   New shadow paging mode.
- * @param   enmGuestMode    New guest paging mode.
- */
-VMM_INT_DECL(void) HMHCPagingModeChanged(PVM pVM, PVMCPU pVCpu, PGMMODE enmShadowMode, PGMMODE enmGuestMode)
-{
-# ifdef IN_RING3
-    /* Ignore page mode changes during state loading. */
-    if (VMR3GetState(pVM) == VMSTATE_LOADING)
-        return;
-# endif
-
-    pVCpu->hm.s.enmShadowMode = enmShadowMode;
-
-    /*
-     * If the guest left protected mode VMX execution, we'll have to be
-     * extra careful if/when the guest switches back to protected mode.
-     */
-    if (enmGuestMode == PGMMODE_REAL)
-        pVCpu->hm.s.vmx.fWasInRealMode = true;
-
-# ifdef IN_RING0
-    /*
-     * We need to tickle SVM and VT-x state updates.
-     *
-     * Note! We could probably reduce this depending on what exactly changed.
-     */
-    if (VM_IS_HM_ENABLED(pVM))
-    {
-        CPUM_ASSERT_NOT_EXTRN(pVCpu, CPUMCTX_EXTRN_CR0 | CPUMCTX_EXTRN_CR3 | CPUMCTX_EXTRN_CR4 | CPUMCTX_EXTRN_EFER); /* No recursion! */
-        uint64_t fChanged = HM_CHANGED_GUEST_CR0 | HM_CHANGED_GUEST_CR3 | HM_CHANGED_GUEST_CR4 | HM_CHANGED_GUEST_EFER_MSR;
-        if (pVM->hm.s.svm.fSupported)
-            fChanged |= HM_CHANGED_SVM_GUEST_XCPT_INTERCEPTS;
-        else
-            fChanged |= HM_CHANGED_VMX_GUEST_XCPT_INTERCEPTS | HM_CHANGED_VMX_ENTRY_CTLS | HM_CHANGED_VMX_EXIT_CTLS;
-        ASMAtomicUoOrU64(&pVCpu->hm.s.fCtxChanged, fChanged);
-    }
-# endif
-
-    Log4(("HMHCPagingModeChanged: Guest paging mode '%s', shadow paging mode '%s'\n", PGMGetModeName(enmGuestMode),
-          PGMGetModeName(enmShadowMode)));
-}
-#endif /* !IN_RC */
-
-
-/**
- * Gets VMX MSRs from the provided hardware-virtualization MSRs struct.
- *
- * This abstraction exists to allow insultation of the support driver from including
- * VMX structures from HM headers.
- *
- * @param   pHwvirtMsrs     The hardware-virtualization MSRs.
- * @param   pVmxMsrs        Where to store the VMX MSRs.
- */
-VMM_INT_DECL(void) HMVmxGetVmxMsrsFromHwvirtMsrs(PCSUPHWVIRTMSRS pHwvirtMsrs, PVMXMSRS pVmxMsrs)
-{
-    AssertReturnVoid(pHwvirtMsrs);
-    AssertReturnVoid(pVmxMsrs);
-    pVmxMsrs->u64FeatCtrl      = pHwvirtMsrs->u.vmx.u64FeatCtrl;
-    pVmxMsrs->u64Basic         = pHwvirtMsrs->u.vmx.u64Basic;
-    pVmxMsrs->PinCtls.u        = pHwvirtMsrs->u.vmx.u64PinCtls;
-    pVmxMsrs->ProcCtls.u       = pHwvirtMsrs->u.vmx.u64ProcCtls;
-    pVmxMsrs->ProcCtls2.u      = pHwvirtMsrs->u.vmx.u64ProcCtls2;
-    pVmxMsrs->ExitCtls.u       = pHwvirtMsrs->u.vmx.u64ExitCtls;
-    pVmxMsrs->EntryCtls.u      = pHwvirtMsrs->u.vmx.u64EntryCtls;
-    pVmxMsrs->TruePinCtls.u    = pHwvirtMsrs->u.vmx.u64TruePinCtls;
-    pVmxMsrs->TrueProcCtls.u   = pHwvirtMsrs->u.vmx.u64TrueProcCtls;
-    pVmxMsrs->TrueEntryCtls.u  = pHwvirtMsrs->u.vmx.u64TrueEntryCtls;
-    pVmxMsrs->TrueExitCtls.u   = pHwvirtMsrs->u.vmx.u64TrueExitCtls;
-    pVmxMsrs->u64Misc          = pHwvirtMsrs->u.vmx.u64Misc;
-    pVmxMsrs->u64Cr0Fixed0     = pHwvirtMsrs->u.vmx.u64Cr0Fixed0;
-    pVmxMsrs->u64Cr0Fixed1     = pHwvirtMsrs->u.vmx.u64Cr0Fixed1;
-    pVmxMsrs->u64Cr4Fixed0     = pHwvirtMsrs->u.vmx.u64Cr4Fixed0;
-    pVmxMsrs->u64Cr4Fixed1     = pHwvirtMsrs->u.vmx.u64Cr4Fixed1;
-    pVmxMsrs->u64VmcsEnum      = pHwvirtMsrs->u.vmx.u64VmcsEnum;
-    pVmxMsrs->u64VmFunc        = pHwvirtMsrs->u.vmx.u64VmFunc;
-    pVmxMsrs->u64EptVpidCaps   = pHwvirtMsrs->u.vmx.u64EptVpidCaps;
+    HMCPU_CF_SET(pVCpu, HM_CHANGED_GUEST_XCPT_INTERCEPTS);
 }
 
 
 /**
- * Gets SVM MSRs from the provided hardware-virtualization MSRs struct.
+ * VMX nested-guest VM-exit handler.
  *
- * This abstraction exists to allow insultation of the support driver from including
- * SVM structures from HM headers.
- *
- * @param   pHwvirtMsrs     The hardware-virtualization MSRs.
- * @param   pSvmMsrs        Where to store the SVM MSRs.
+ * @param   pVCpu              The cross context virtual CPU structure.
+ * @param   uBasicExitReason   The basic exit reason.
  */
-VMM_INT_DECL(void) HMVmxGetSvmMsrsFromHwvirtMsrs(PCSUPHWVIRTMSRS pHwvirtMsrs, PSVMMSRS pSvmMsrs)
+VMM_INT_DECL(void) HMNstGstVmxVmExit(PVMCPU pVCpu, uint16_t uBasicExitReason)
 {
-    AssertReturnVoid(pHwvirtMsrs);
-    AssertReturnVoid(pSvmMsrs);
-    pSvmMsrs->u64MsrHwcr = pHwvirtMsrs->u.svm.u64MsrHwcr;
+    RT_NOREF2(pVCpu, uBasicExitReason);
 }
 

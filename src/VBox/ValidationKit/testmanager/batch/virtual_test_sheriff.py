@@ -12,11 +12,9 @@ Duties:
 
 """
 
-from __future__ import print_function;
-
 __copyright__ = \
 """
-Copyright (C) 2012-2019 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -35,25 +33,16 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127929 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard python imports
 import sys;
 import os;
 import hashlib;
-import subprocess;
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.utils import COMMASPACE
-
-if sys.version_info[0] >= 3:
-    from io       import StringIO as StringIO;      # pylint: disable=import-error,no-name-in-module
-else:
-    from StringIO import StringIO as StringIO;      # pylint: disable=import-error,no-name-in-module
-from optparse import OptionParser;                  # pylint: disable=deprecated-module
-from PIL import Image;                              # pylint: disable=import-error
+import StringIO;
+from optparse import OptionParser;
+from PIL import Image;                  # pylint: disable=import-error
 
 # Add Test Manager's modules path
 g_ksTestManagerDir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))));
@@ -70,12 +59,6 @@ from testmanager.core.testset               import TestSetLogic, TestSetData;
 from testmanager.core.testresults           import TestResultLogic, TestResultFileData;
 from testmanager.core.testresultfailures    import TestResultFailureLogic, TestResultFailureData;
 from testmanager.core.useraccount           import UserAccountLogic;
-from testmanager.config                     import g_ksSmtpHost, g_kcSmtpPort, g_ksAlertFrom, \
-                                                   g_ksAlertSubject, g_asAlertList, g_ksLomPassword;
-
-# Python 3 hacks:
-if sys.version_info[0] >= 3:
-    xrange = range; # pylint: disable=redefined-builtin,invalid-name
 
 
 class VirtualTestSheriffCaseFile(object):
@@ -151,7 +134,7 @@ class VirtualTestSheriffCaseFile(object):
     def isVBoxUnitTest(self):
         """ Test case classification: The unit test doing all our testcase/*.cpp stuff. """
         return self.isVBoxTest() \
-           and (self.oTestCase.sName.lower() == 'unit tests' or self.oTestCase.sName.lower() == 'misc: unit tests');
+           and self.oTestCase.sName.lower() == 'unit tests';
 
     def isVBoxInstallTest(self):
         """ Test case classification: VirtualBox Guest installation test. """
@@ -195,7 +178,7 @@ class VirtualTestSheriffCaseFile(object):
 
     def getMainLog(self):
         """
-        Tries to read the main log file since this will be the first source of information.
+        Tries to reads the main log file since this will be the first source of information.
         """
         if self.sMainLog:
             return self.sMainLog;
@@ -212,7 +195,7 @@ class VirtualTestSheriffCaseFile(object):
 
     def getLogFile(self, oFile):
         """
-        Tries to read the given file as a utf-8 log file.
+        Tries to reads the given file as a utf-8 log file.
         oFile is a TestFileDataEx instance.
         Returns empty string if problems opening or reading the file.
         """
@@ -233,14 +216,14 @@ class VirtualTestSheriffCaseFile(object):
         on the raw pixels.
         Returns SHA-2 digest string on success, None on failure.
         """
-        (oImgFile, _, _) = self.oTestSet.openFile(oFile.sFile, 'rb');
+        (oFile, _, _) = self.oTestSet.openFile(oFile.sFile, 'rb');
         try:
-            abImageFile = oImgFile.read();
+            abImageFile = oFile.read();
         except Exception as oXcpt:
             self.oSheriff.vprint(u'Error reading the "%s" image file: %s' % (oFile.sFile, oXcpt,))
         else:
             try:
-                oImage = Image.open(StringIO(abImageFile));
+                oImage = Image.open(StringIO.StringIO(abImageFile));
             except Exception as oXcpt:
                 self.oSheriff.vprint(u'Error opening the "%s" image bytes using PIL.Image.open: %s' % (oFile.sFile, oXcpt,))
             else:
@@ -310,7 +293,7 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
 
         if self.oConfig.sLogFile:
             self.oLogFile = open(self.oConfig.sLogFile, "a");
-            self.oLogFile.write('VirtualTestSheriff: $Revision: 127929 $ \n');
+            self.oLogFile.write('VirtualTestSheriff: $Revision: 118412 $ \n');
 
 
     def eprint(self, sText):
@@ -318,7 +301,7 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
         Prints error messages.
         Returns 1 (for exit code usage.)
         """
-        print('error: %s' % (sText,));
+        print 'error: %s' % (sText,);
         if self.oLogFile is not None:
             self.oLogFile.write((u'error: %s\n' % (sText,)).encode('utf-8'));
         return 1;
@@ -329,7 +312,7 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
         """
         if self.oConfig.fDebug:
             if not self.oConfig.fQuiet:
-                print('debug: %s' % (sText, ));
+                print 'debug: %s' % (sText, );
             if self.oLogFile is not None:
                 self.oLogFile.write((u'debug: %s\n' % (sText,)).encode('utf-8'));
         return 0;
@@ -339,7 +322,7 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
         Prints verbose info.
         """
         if not self.oConfig.fQuiet:
-            print('info: %s' % (sText,));
+            print 'info: %s' % (sText,);
         if self.oLogFile is not None:
             self.oLogFile.write((u'info: %s\n' % (sText,)).encode('utf-8'));
         return 0;
@@ -366,45 +349,7 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
                 rcExit = self.eprint(u'Cannot find my user account "%s"!' % (VirtualTestSheriff.ksLoginName,));
         return rcExit;
 
-    def sendEmailAlert(self, uidAuthor, sBodyText):
-        """
-        Sends email alert.
-        """
 
-        # Get author email
-        self.oDb.execute('SELECT sEmail FROM Users WHERE uid=%s', (uidAuthor,));
-        sFrom = self.oDb.fetchOne();
-        if sFrom is not None:
-            sFrom = sFrom[0];
-        else:
-            sFrom = g_ksAlertFrom;
-
-        # Gather recipient list.
-        asEmailList = [];
-        for sUser in g_asAlertList:
-            self.oDb.execute('SELECT sEmail FROM Users WHERE sUsername=%s', (sUser,));
-            sEmail = self.oDb.fetchOne();
-            if sEmail:
-                asEmailList.append(sEmail[0]);
-        if not asEmailList:
-            return self.eprint('No email addresses to send alter to!');
-
-        # Compose the message.
-        oMsg = MIMEMultipart();
-        oMsg['From'] = sFrom;
-        oMsg['To'] = COMMASPACE.join(asEmailList);
-        oMsg['Subject'] = g_ksAlertSubject;
-        oMsg.attach(MIMEText(sBodyText, 'plain'))
-
-        # Try send it.
-        try:
-            oSMTP = smtplib.SMTP(g_ksSmtpHost, g_kcSmtpPort);
-            oSMTP.sendmail(sFrom, asEmailList, oMsg.as_string())
-            oSMTP.quit()
-        except smtplib.SMTPException as oXcpt:
-            return self.eprint('Failed to send mail: %s' % (oXcpt,));
-
-        return 0;
 
     def badTestBoxManagement(self):
         """
@@ -499,45 +444,10 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
                                                         sComment = 'Automatically rebooted (iFirstOkay=%u cBad=%u cOkay=%u)'
                                                                  % (iFirstOkay, cBad, cOkay),);
                         except Exception as oXcpt:
-                            rcExit = self.eprint(u'Error rebooting testbox #%u (%s): %s\n' % (idTestBox, oTestBox.sName, oXcpt,));
+                            rcExit = self.eprint(u'Error rebooting testbox #%u (%u): %s\n' % (idTestBox, oTestBox.sName, oXcpt,));
             else:
                 self.dprint(u'badTestBoxManagement: #%u (%s) looks ok:  iFirstOkay=%u cBad=%u cOkay=%u'
                             % ( idTestBox, oTestBox.sName, iFirstOkay, cBad, cOkay));
-        #
-        # Reset hanged testboxes
-        #
-        cStatusTimeoutMins = 10;
-
-        self.oDb.execute('SELECT idTestBox FROM TestBoxStatuses WHERE tsUpdated < (CURRENT_TIMESTAMP - interval \'%s minutes\')', (cStatusTimeoutMins,));
-        for idTestBox in self.oDb.fetchAll():
-            idTestBox = idTestBox[0];
-            try:
-                oTestBox = TestBoxData().initFromDbWithId(self.oDb, idTestBox);
-            except Exception as oXcpt:
-                rcExit = self.eprint('Failed to get data for test box #%u in badTestBoxManagement: %s' % (idTestBox, oXcpt,));
-                continue;
-            # Skip if the testbox is already disabled, already reset or there's no iLOM
-            if not oTestBox.fEnabled or oTestBox.ipLom is None or oTestBox.sComment is not None and oTestBox.sComment.find('Automatically reset') >= 0:
-                self.dprint(u'badTestBoxManagement: Skipping test box #%u (%s) as it has been disabled already.'
-                            % ( idTestBox, oTestBox.sName, ));
-                continue;
-            ## @todo get iLOM credentials from a table?
-            sCmd = 'sshpass -p%s ssh -oStrictHostKeyChecking=no root@%s show /SP && reset /SYS' % (g_ksLomPassword, oTestBox.ipLom,);
-            try:
-                oPs = subprocess.Popen(sCmd, stdout=subprocess.PIPE, shell=True);
-                sStdout = oPs.communicate()[0];
-                iRC = oPs.wait();
-
-                oTestBox.sComment = 'Automatically reset (iRC=%u sStdout=%s)' % (iRC, sStdout,);
-                oTestBoxLogic.editEntry(oTestBox, self.uidSelf, fCommit = True);
-
-                sComment = u'Reset testbox #%u (%s) - iRC=%u sStduot=%s' % ( idTestBox, oTestBox.sName, iRC, sStdout);
-                self.vprint(sComment);
-                self.sendEmailAlert(self.uidSelf, sComment);
-
-            except Exception as oXcpt:
-                rcExit = self.eprint(u'Error reseting testbox #%u (%s): %s\n' % (idTestBox, oTestBox.sName, oXcpt,));
-
         return rcExit;
 
 
@@ -566,10 +476,8 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
     ktReason_Host_Reboot_OSX_Watchdog_Timeout          = ( 'Host Reboot',       'OSX Watchdog Timeout' );
     ktReason_Host_Modprobe_Failed                      = ( 'Host',              'Modprobe failed' );
     ktReason_Host_Install_Hang                         = ( 'Host',              'Install hang' );
-    ktReason_Host_NetworkMisconfiguration              = ( 'Host',              'Network misconfiguration' );
     ktReason_Networking_Nonexistent_host_nic           = ( 'Networking',        'Nonexistent host networking interface' );
     ktReason_OSInstall_GRUB_hang                       = ( 'O/S Install',       'GRUB hang' );
-    ktReason_OSInstall_Udev_hang                       = ( 'O/S Install',       'udev hang' );
     ktReason_OSInstall_Sata_no_BM                      = ( 'O/S Install',       'SATA busmaster bit not set' );
     ktReason_Panic_BootManagerC000000F                 = ( 'Panic',             'Hardware Changed' );
     ktReason_BootManager_Image_corrupt                 = ( 'Unknown',           'BOOTMGR Image corrupt' );
@@ -590,9 +498,6 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
     ktReason_Ignore_Buggy_Test_Driver                  = ( 'Ignore',            'Buggy test driver' );
     ktReason_Ignore_Stale_Files                        = ( 'Ignore',            'Stale files' );
     ktReason_Buggy_Build_Broken_Build                  = ( 'Broken Build',      'Buggy build' );
-    ktReason_Unknown_VM_Start_Error                    = ( 'Unknown',           'VM Start Error' );
-    ktReason_Unknown_VM_Runtime_Error                  = ( 'Unknown',           'VM Runtime Error' );
-    ktReason_GuestBug_CompizVBoxQt                     = ( 'Guest Bug',         'Compiz + VirtualBox Qt GUI crash' );
     ## @}
 
     ## BSOD category.
@@ -657,7 +562,7 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
         for idTestResult, tReason in dReasonForResultId.items():
             oFailureReason = self.getFailureReason(tReason);
             if oFailureReason is not None:
-                sComment = 'Set by $Revision: 127929 $' # Handy for reverting later.
+                sComment = 'Set by $Revision: 118412 $' # Handy for reverting later.
                 if idTestResult in dCommentForResultId:
                     sComment += ': ' + dCommentForResultId[idTestResult];
 
@@ -968,8 +873,6 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
         ( True,  ktReason_Host_Modprobe_Failed,                     'Kernel driver not installed' ),
         ( True,  ktReason_OSInstall_Sata_no_BM,                     'PCHS=14128/14134/8224' ),
         ( True,  ktReason_Host_DoubleFreeHeap,                      'double free or corruption' ),
-        ( False, ktReason_Unknown_VM_Start_Error,                   'VMSetError: ' ),
-        ( False, ktReason_Unknown_VM_Runtime_Error,                 'Console: VM runtime error: fatal=true' ),
     ];
 
     ## Things we search a VBoxHardening.log file for to figure out why something went bust.
@@ -985,8 +888,6 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
         ( True,  ktReason_Panic_HugeMemory,                         'mm/huge_memory.c:1988' ),
         ( True,  ktReason_Panic_IOAPICDoesntWork,                   'IO-APIC + timer doesn''t work' ),
         ( True,  ktReason_Panic_TxUnitHang,                         'Detected Tx Unit Hang' ),
-        ( True,  ktReason_GuestBug_CompizVBoxQt,                    'error 4 in libQt5CoreVBox' ),
-        ( True,  ktReason_GuestBug_CompizVBoxQt,                    'error 4 in libgtk-3' ),
     ];
 
     ## Things we search the _RIGHT_ _STRIPPED_ vgatext for.
@@ -1004,16 +905,6 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
           "\n" ),
         ( True,  ktReason_OSInstall_GRUB_hang,
           "-----\nGRUB Loading stage2..\n\n\n\n" ),
-        ( True,  ktReason_OSInstall_GRUB_hang,
-          "-----\nGRUB Loading stage2...\n\n\n\n" ), # the 3 dot hang appears to be less frequent
-        ( True,  ktReason_OSInstall_GRUB_hang,
-          "-----\nGRUB Loading stage2....\n\n\n\n" ), # the 4 dot hang appears to be very infrequent
-        ( True,  ktReason_OSInstall_GRUB_hang,
-          "-----\nGRUB Loading stage2.....\n\n\n\n" ), # the 5 dot hang appears to be more frequent again
-        ( True,  ktReason_OSInstall_Udev_hang,
-          "\nStarting udev:\n\n\n\n" ),
-        ( True,  ktReason_OSInstall_Udev_hang,
-          "\nStarting udev:\n------" ),
         ( True,  ktReason_Panic_BootManagerC000000F,
           "Windows failed to start. A recent hardware or software change might be the" ),
         ( True,  ktReason_BootManager_Image_corrupt,
@@ -1308,8 +1199,6 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
             elif self.isResultFromVMRun(oFailedResult, sResultLog):
                 self.investigateVMResult(oCaseFile, oFailedResult, sResultLog);
 
-            elif sResultLog.find('most likely not unique') > 0:
-                oCaseFile.noteReasonForId(self.ktReason_Host_NetworkMisconfiguration, oFailedResult.idTestResult)
             elif sResultLog.find('Exception: 0x800706be (Call to remote object failed (NS_ERROR_CALL_FAILED))') > 0:
                 oCaseFile.noteReasonForId(self.ktReason_XPCOM_NS_ERROR_CALL_FAILED, oFailedResult.idTestResult);
 

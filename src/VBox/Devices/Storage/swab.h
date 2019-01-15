@@ -15,7 +15,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,11 +26,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_INCLUDED_SRC_Storage_swab_h
-#define VBOX_INCLUDED_SRC_Storage_swab_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef _VBOX_LINUX_SWAB_H
+#define _VBOX_LINUX_SWAB_H
 
 #define _LINUX_BYTEORDER_SWAB_H
 #define _LINUX_BYTEORDER_SWABB_H
@@ -61,4 +58,4 @@ static __inline__ __u64 __swab64p(const __u64 *px)
            | ((x >> 40) & 0xff00) | ((x >> 56) & 0xff);
 }
 
-#endif /* !VBOX_INCLUDED_SRC_Storage_swab_h */
+#endif /* _VBOX_LINUX_SWAB_H */

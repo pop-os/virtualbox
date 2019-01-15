@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,20 +15,15 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_extensions_QIComboBox_h
-#define FEQT_INCLUDED_SRC_extensions_QIComboBox_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___QIComboBox_h___
+#define ___QIComboBox_h___
 
 /* Qt includes: */
 #include <QComboBox>
 
-/* GUI includes: */
-#include "UILibraryDefs.h"
 
 /** QWidget subclass extending standard functionality of QComboBox. */
-class SHARED_LIBRARY_STUFF QIComboBox : public QWidget
+class QIComboBox : public QWidget
 {
     Q_OBJECT;
 
@@ -131,4 +126,5 @@ private:
     QComboBox *m_pComboBox;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_extensions_QIComboBox_h */
+#endif /* !___QIComboBox_h___ */
+

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,11 +24,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_INTERNAL_strhash_h
-#define IPRT_INCLUDED_INTERNAL_strhash_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___internal_strhash_h
+#define ___internal_strhash_h
 
 #include <iprt/types.h>
 
@@ -108,5 +105,5 @@ DECLINLINE(uint32_t) sdbmIncN(const char *psz, size_t cchMax, uint32_t uHash)
 }
 
 
-#endif /* !IPRT_INCLUDED_INTERNAL_strhash_h */
+#endif
 

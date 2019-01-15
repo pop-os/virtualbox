@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,85 +15,62 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_widgets_UIPortForwardingTable_h
-#define FEQT_INCLUDED_SRC_widgets_UIPortForwardingTable_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __UIPortForwardingTable_h__
+#define __UIPortForwardingTable_h__
 
 /* Qt includes: */
-#include <QString>
 #include <QWidget>
 
 /* GUI includes: */
 #include "QIWithRetranslateUI.h"
-#include "UILibraryDefs.h"
 
 /* COM includes: */
 #include "COMEnums.h"
 
 /* Forward declarations: */
-class QAction;
-class QHBoxLayout;
-class QIDialogButtonBox;
 class QITableView;
-class UIPortForwardingModel;
 class UIToolBar;
+class QIDialogButtonBox;
+class UIPortForwardingModel;
 
-
-/** QString subclass used to distinguish name data from simple QString. */
+/* Name data: */
 class NameData : public QString
 {
 public:
 
-    /** Constructs null name data. */
     NameData() : QString() {}
-    /** Constructs name data passing @a strName to the base-class. */
     NameData(const QString &strName) : QString(strName) {}
 };
 Q_DECLARE_METATYPE(NameData);
 
-
-/** QString subclass used to distinguish IP data from simple QString. */
+/* Ip data: */
 class IpData : public QString
 {
 public:
 
-    /** Constructs null IP data. */
     IpData() : QString() {}
-    /** Constructs name data passing @a strIp to the base-class. */
-    IpData(const QString &strIp) : QString(strIp) {}
+    IpData(const QString &strIP) : QString(strIP) {}
 };
 Q_DECLARE_METATYPE(IpData);
 
-
-/** Wrapper for ushort used to distinguish port data from simple ushort. */
+/* Port data: */
 class PortData
 {
 public:
 
-    /** Constructs null port data. */
     PortData() : m_uValue(0) {}
-    /** Constructs port data based on @a uValue. */
     PortData(ushort uValue) : m_uValue(uValue) {}
-    /** Constructs port data based on @a other port data value. */
     PortData(const PortData &other) : m_uValue(other.value()) {}
-
-    /** Returns whether this port data is equal to @a another. */
-    bool operator==(const PortData &another) const { return m_uValue == another.m_uValue; }
-
-    /** Returns serialized port data value. */
+    bool operator==(const PortData &other) const { return m_uValue == other.m_uValue; }
     ushort value() const { return m_uValue; }
 
 private:
 
-    /** Holds the port data value. */
     ushort m_uValue;
 };
 Q_DECLARE_METATYPE(PortData);
 
-
-/** Port Forwarding Rule structure. */
+/** Port Forwarding Rule data structure. */
 struct UIDataPortForwardingRule
 {
     /** Constructs data. */
@@ -159,136 +136,91 @@ struct UIDataPortForwardingRule
     PortData guestPort;
 };
 
-/** Port Forwarding Data list. */
-typedef QList<UIDataPortForwardingRule> UIPortForwardingDataList;
-
-
-/** Unique part of port forwarding data. */
+/* Port forwarding data, unique part: */
 struct UIPortForwardingDataUnique
 {
-    /** Constructs unique port forwarding data based on
-      * @a enmProtocol, @a uHostPort and @a uHostPort. */
     UIPortForwardingDataUnique(KNATProtocol enmProtocol,
                                PortData uHostPort,
                                const IpData &strHostIp)
         : protocol(enmProtocol)
         , hostPort(uHostPort)
-        , hostIp(strHostIp)
-    {}
-
-    /** Returns whether this port data is equal to @a another. */
-    bool operator==(const UIPortForwardingDataUnique &another)
+        , hostIp(strHostIp) {}
+    bool operator==(const UIPortForwardingDataUnique &other)
     {
-        return    protocol == another.protocol
-               && hostPort == another.hostPort
-               && (   hostIp.isEmpty()    || another.hostIp.isEmpty()
-                   || hostIp == "0.0.0.0" || another.hostIp == "0.0.0.0"
-                   || hostIp              == another.hostIp);
+        return    protocol == other.protocol
+               && hostPort == other.hostPort
+               && (   hostIp.isEmpty()    || other.hostIp.isEmpty()
+                   || hostIp == "0.0.0.0" || other.hostIp == "0.0.0.0"
+                   || hostIp              == other.hostIp);
     }
-
-    /** Holds the port forwarding data protocol type. */
     KNATProtocol protocol;
-    /** Holds the port forwarding data host port. */
     PortData hostPort;
-    /** Holds the port forwarding data host IP. */
     IpData hostIp;
 };
 
+/* Port forwarding data list: */
+typedef QList<UIDataPortForwardingRule> UIPortForwardingDataList;
 
-/** QWidget subclass representig Port Forwarding table. */
-class SHARED_LIBRARY_STUFF UIPortForwardingTable : public QIWithRetranslateUI<QWidget>
+/* Port forwarding dialog: */
+class UIPortForwardingTable : public QIWithRetranslateUI<QWidget>
 {
     Q_OBJECT;
 
 public:
 
-    /** Constructs Port Forwarding table.
-      * @param  rules                Brings the current list of Port Forwarding rules.
-      * @param  fIPv6                Brings whether this table contains IPv6 rules, not IPv4.
-      * @param  fAllowEmptyGuestIPs  Brings whether this table allows empty guest IPs. */
+    /* Constructor: */
     UIPortForwardingTable(const UIPortForwardingDataList &rules, bool fIPv6, bool fAllowEmptyGuestIPs);
 
-    /** Returns the list of port forwarding rules. */
+    /* API: Rules stuff: */
     const UIPortForwardingDataList rules() const;
-
-    /** Validates the table. */
     bool validate() const;
 
     /** Returns whether the table data was changed. */
-    bool isChanged() const { return m_fTableDataChanged; }
+    bool isChanged() const { return m_fIsTableDataChanged; }
 
     /** Makes sure current editor data committed. */
     void makeSureEditorDataCommitted();
 
-protected:
-
-    /** Preprocesses any Qt @a pEvent for passed @a pObject. */
-    virtual bool eventFilter(QObject *pObject, QEvent *pEvent) /* override */;
-
-    /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
-
 private slots:
 
-    /** Adds the rule. */
+    /* Handlers: Table operation stuff: */
     void sltAddRule();
-    /** Copies the rule. */
     void sltCopyRule();
-    /** Removes the rule. */
-    void sltRemoveRule();
+    void sltDelRule();
 
     /** Marks table data as changed. */
-    void sltTableDataChanged() { m_fTableDataChanged = true; }
+    void sltTableDataChanged() { m_fIsTableDataChanged = true; }
 
-    /** Handles current item change. */
+    /* Handlers: Table stuff: */
     void sltCurrentChanged();
-    /** Handles request to show context-menu in certain @a position. */
     void sltShowTableContexMenu(const QPoint &position);
-    /** Adjusts table column sizes. */
     void sltAdjustTable();
 
 private:
 
-    /** Prepares all. */
-    void prepare();
-    /** Prepares layout. */
-    void prepareLayout();
-    /** Prepares table-view. */
-    void prepareTableView();
-    /** Prepares table-model. */
-    void prepareTableModel();
-    /** Prepares table-delegates. */
-    void prepareTableDelegates();
-    /** Prepares toolbar. */
-    void prepareToolbar();
+    /* Handler: Translation stuff: */
+    void retranslateUi();
 
-    /** Holds the _initial_ list of Port Forwarding rules. */
-    const UIPortForwardingDataList &m_rules;
+    /* Handlers: Event-processing stuff: */
+    bool eventFilter(QObject *pObject, QEvent *pEvent);
 
-    /** Holds whether this table contains IPv6 rules, not IPv4. */
-    bool  m_fIPv6               : 1;
-    /** Holds whether this table allows empty guest IPs. */
-    bool  m_fAllowEmptyGuestIPs : 1;
-    /** Holds whether this table data was changed. */
-    bool  m_fTableDataChanged   : 1;
+    /* Flags: */
+    bool m_fAllowEmptyGuestIPs;
 
-    /** Holds the layout instance. */
-    QHBoxLayout *m_pLayout;
-    /** Holds the table-view instance. */
+    /** Holds whether the table data was changed. */
+    bool m_fIsTableDataChanged;
+
+    /* Widgets: */
     QITableView *m_pTableView;
-    /** Holds the tool-bar instance. */
-    UIToolBar   *m_pToolBar;
+    UIToolBar *m_pToolBar;
 
-    /** Holds the table-model instance. */
-    UIPortForwardingModel *m_pTableModel;
+    /* Model: */
+    UIPortForwardingModel *m_pModel;
 
-    /** Holds the Add action instance. */
-    QAction *m_pActionAdd;
-    /** Holds the Copy action instance. */
-    QAction *m_pActionCopy;
-    /** Holds the Remove action instance. */
-    QAction *m_pActionRemove;
+    /* Actions: */
+    QAction *m_pAddAction;
+    QAction *m_pCopyAction;
+    QAction *m_pDelAction;
 };
 
-
-#endif /* !FEQT_INCLUDED_SRC_widgets_UIPortForwardingTable_h */
+#endif // __UIPortForwardingTable_h__

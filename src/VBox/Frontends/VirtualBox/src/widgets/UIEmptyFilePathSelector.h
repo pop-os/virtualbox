@@ -1,10 +1,10 @@
 /* $Id: UIEmptyFilePathSelector.h $ */
 /** @file
- * VBox Qt GUI - UIEmptyFilePathSelector class declaration.
+ * VBox Qt GUI - VirtualBox Qt extensions: UIEmptyFilePathSelector class declaration.
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_widgets_UIEmptyFilePathSelector_h
-#define FEQT_INCLUDED_SRC_widgets_UIEmptyFilePathSelector_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __UIEmptyFilePathSelector_h__
+#define __UIEmptyFilePathSelector_h__
 
 /* VBox includes */
 #include "QIWithRetranslateUI.h"
@@ -34,7 +31,7 @@ class QILineEdit;
 /* Qt forward declarations */
 class QHBoxLayout;
 class QAction;
-class QToolButton;
+class QIToolButton;
 
 
 class UIEmptyFilePathSelector: public QIWithRetranslateUI<QWidget>
@@ -110,7 +107,7 @@ private:
     QILabel *mLabel;
     UIEmptyFilePathSelector::Mode mMode;
     QILineEdit *mLineEdit;
-    QToolButton *mSelectButton;
+    QIToolButton *mSelectButton;
     bool m_fButtonToolTipSet;
     QString mFileDialogTitle;
     QString mFileFilters;
@@ -120,5 +117,5 @@ private:
     QString mPath;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_widgets_UIEmptyFilePathSelector_h */
+#endif /* !___UIEmptyFilePathSelector_h___ */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,209 +30,101 @@
 *********************************************************************************************************************************/
 #include "internal/iprt.h"
 #include <iprt/path.h>
-
 #include <iprt/assert.h>
-#include <iprt/errcore.h>
+#include <iprt/err.h>
 #include <iprt/string.h>
-#if RTPATH_STYLE == RTPATH_STR_F_STYLE_DOS
-# include <iprt/uni.h>
-#endif
 #include "internal/path.h"
 
 
-#if RTPATH_STYLE == RTPATH_STR_F_STYLE_DOS
-/** Helper for doing case insensitive comparison of a mismatching codepoint. */
-DECLINLINE(bool) rtPathCalcRelativeEqualICaseCodepoint(const char *pszPathFromStart, const char *pszPathFrom,
-                                                       const char *pszPathToStart,   const char *pszPathTo)
-{
-    RTUNICP ucFrom = RTStrGetCp(RTStrPrevCp(pszPathFromStart, pszPathFrom));
-    RTUNICP ucTo   = RTStrGetCp(RTStrPrevCp(pszPathToStart,   pszPathTo));
-    return ucFrom == ucTo
-        || RTUniCpToLower(ucFrom) == RTUniCpToLower(ucTo)
-        || RTUniCpToUpper(ucFrom) == RTUniCpToUpper(ucTo);
-}
-#endif
-
 
 RTDECL(int) RTPathCalcRelative(char *pszPathDst, size_t cbPathDst,
-                               const char *pszPathFrom, bool fFromFile,
+                               const char *pszPathFrom,
                                const char *pszPathTo)
 {
+    int rc = VINF_SUCCESS;
+
     AssertPtrReturn(pszPathDst, VERR_INVALID_POINTER);
     AssertReturn(cbPathDst, VERR_INVALID_PARAMETER);
     AssertPtrReturn(pszPathFrom, VERR_INVALID_POINTER);
     AssertPtrReturn(pszPathTo, VERR_INVALID_POINTER);
-#if RTPATH_STYLE == RTPATH_STR_F_STYLE_DOS
-    const char * const pszPathFromStart = pszPathFrom;
-    const char * const pszPathToStart   = pszPathTo;
-#endif
+    AssertReturn(RTPathStartsWithRoot(pszPathFrom), VERR_INVALID_PARAMETER);
+    AssertReturn(RTPathStartsWithRoot(pszPathTo), VERR_INVALID_PARAMETER);
+    AssertReturn(RTStrCmp(pszPathFrom, pszPathTo), VERR_INVALID_PARAMETER);
 
     /*
      * Check for different root specifiers (drive letters), creating a relative path doesn't work here.
+     * @todo: How to handle case insensitive root specifiers correctly?
      */
     size_t offRootFrom = rtPathRootSpecLen(pszPathFrom);
-    AssertReturn(offRootFrom > 0, VERR_INVALID_PARAMETER);
-
     size_t offRootTo   = rtPathRootSpecLen(pszPathTo);
-    AssertReturn(offRootTo > 0, VERR_INVALID_PARAMETER);
 
-
-    /** @todo correctly deal with extra root slashes! */
-    if (offRootFrom != offRootTo)
+    if (   offRootFrom != offRootTo
+        || RTStrNCmp(pszPathFrom, pszPathTo, offRootFrom))
         return VERR_NOT_SUPPORTED;
 
-#if RTPATH_STYLE != RTPATH_STR_F_STYLE_DOS
-    if (RTStrNCmp(pszPathFrom, pszPathTo, offRootFrom))
-        return VERR_NOT_SUPPORTED;
-#else
-    if (RTStrNICmp(pszPathFrom, pszPathTo, offRootFrom))
+    /* Filter out the parent path which is equal to both paths. */
+    while (   *pszPathFrom == *pszPathTo
+           && *pszPathFrom != '\0'
+           && *pszPathTo != '\0')
     {
-        const char *pszFromCursor = pszPathFrom;
-        const char *pszToCursor   = pszPathTo;
-        while ((size_t)(pszFromCursor - pszPathFrom) < offRootFrom)
-        {
-            RTUNICP ucFrom;
-            int rc = RTStrGetCpEx(&pszFromCursor, &ucFrom);
-            AssertRCReturn(rc, rc);
-
-            RTUNICP ucTo;
-            rc = RTStrGetCpEx(&pszToCursor, &ucTo);
-            AssertRCReturn(rc, rc);
-            if (   ucFrom != ucTo
-                && RTUniCpToLower(ucFrom) != RTUniCpToLower(ucTo)
-                && RTUniCpToUpper(ucFrom) != RTUniCpToUpper(ucTo)
-                && (!RTPATH_IS_SLASH(ucFrom) || !RTPATH_IS_SLASH(ucTo)) )
-                return VERR_NOT_SUPPORTED;
-        }
+        pszPathFrom++;
+        pszPathTo++;
     }
-#endif
-
-    pszPathFrom += offRootFrom;
-    pszPathTo   += offRootTo;
 
     /*
-     * Skip out the part of the path which is equal to both.
+     * Because path components can start with an equal string but differ afterwards we
+     * need to go back to the beginning of the current component.
      */
-    const char *pszStartOfFromComp = pszPathFrom;
-    for (;;)
-    {
-        char const chFrom = *pszPathFrom;
-        char const chTo   = *pszPathTo;
-        if (!RTPATH_IS_SLASH(chFrom))
-        {
-            if (chFrom == chTo)
-            {
-                if (chFrom)
-                { /* likely */ }
-                else
-                {
-                    /* Special case: The two paths are equal. */
-                    if (fFromFile)
-                    {
-                        size_t cchComp = pszPathFrom - pszStartOfFromComp;
-                        if (cchComp < cbPathDst)
-                        {
-                            memcpy(pszPathDst, pszStartOfFromComp, cchComp);
-                            pszPathDst[cchComp] = '\0';
-                            return VINF_SUCCESS;
-                        }
-                    }
-                    else if (sizeof(".") <= cbPathDst)
-                    {
-                        memcpy(pszPathDst, ".", sizeof("."));
-                        return VINF_SUCCESS;
-                    }
-                    return VERR_BUFFER_OVERFLOW;
-                }
-            }
-#if RTPATH_STYLE == RTPATH_STR_F_STYLE_DOS
-            else if (rtPathCalcRelativeEqualICaseCodepoint(pszPathFromStart, pszPathFrom + 1, pszPathToStart, pszPathTo + 1))
-            { /* if not likely, then simpler code structure wise. */ }
-#endif
-            else if (chFrom != '\0' || !RTPATH_IS_SLASH(chTo) || fFromFile)
-                break;
-            else
-            {
-                pszStartOfFromComp = pszPathFrom;
-                do
-                    pszPathTo++;
-                while (RTPATH_IS_SLASH(*pszPathTo));
-                break;
-            }
-            pszPathFrom++;
-            pszPathTo++;
-        }
-        else if (RTPATH_IS_SLASH(chTo))
-        {
-            /* Both have slashes.  Skip any additional ones before taking down
-               the start of the component for rewinding purposes. */
-            do
-                pszPathTo++;
-            while (RTPATH_IS_SLASH(*pszPathTo));
-            do
-                pszPathFrom++;
-            while (RTPATH_IS_SLASH(*pszPathFrom));
-            pszStartOfFromComp = pszPathFrom;
-        }
-        else
-            break;
-    }
+    while (!RTPATH_IS_SEP(*pszPathFrom))
+        pszPathFrom--;
 
-    /* Rewind to the start of the current component. */
-    pszPathTo  -= pszPathFrom - pszStartOfFromComp;
-    pszPathFrom = pszStartOfFromComp;
+    pszPathFrom++; /* Skip path separator. */
+
+    while (!RTPATH_IS_SEP(*pszPathTo))
+        pszPathTo--;
+
+    pszPathTo++; /* Skip path separator. */
 
     /* Paths point to the first non equal component now. */
-
-    /*
-     * Constructure the relative path.
-     */
+    char aszPathTmp[RTPATH_MAX + 1];
+    unsigned offPathTmp = 0;
 
     /* Create the part to go up from pszPathFrom. */
-    unsigned offDst = 0;
-
-    if (!fFromFile && *pszPathFrom != '\0')
-    {
-        if (offDst + 3 < cbPathDst)
-        {
-            pszPathDst[offDst++] = '.';
-            pszPathDst[offDst++] = '.';
-            pszPathDst[offDst++] = RTPATH_SLASH;
-        }
-        else
-            return VERR_BUFFER_OVERFLOW;
-    }
-
     while (*pszPathFrom != '\0')
     {
-        char ch;
-        while (   (ch = *pszPathFrom) != '\0'
-               && !RTPATH_IS_SLASH(*pszPathFrom))
+        while (   !RTPATH_IS_SEP(*pszPathFrom)
+               && *pszPathFrom != '\0')
             pszPathFrom++;
-        while (   (ch = *pszPathFrom) != '\0'
-               && RTPATH_IS_SLASH(ch))
-            pszPathFrom++;
-        if (!ch)
-            break;
 
-        if (offDst + 3 < cbPathDst)
+        if (RTPATH_IS_SEP(*pszPathFrom))
         {
-            pszPathDst[offDst++] = '.';
-            pszPathDst[offDst++] = '.';
-            pszPathDst[offDst++] = RTPATH_SLASH;
+            if (offPathTmp + 3 >= sizeof(aszPathTmp) - 1)
+                return VERR_FILENAME_TOO_LONG;
+            aszPathTmp[offPathTmp++] = '.';
+            aszPathTmp[offPathTmp++] = '.';
+            aszPathTmp[offPathTmp++] = RTPATH_SLASH;
+            pszPathFrom++;
         }
-        else
-            return VERR_BUFFER_OVERFLOW;
     }
+
+    aszPathTmp[offPathTmp] = '\0';
 
     /* Now append the rest of pszPathTo to the final path. */
-    size_t cchTo = strlen(pszPathTo);
-    if (offDst + cchTo <= cbPathDst)
+    char *pszPathTmp = &aszPathTmp[offPathTmp];
+    size_t cbPathTmp = sizeof(aszPathTmp) - offPathTmp - 1;
+    rc = RTStrCatP(&pszPathTmp, &cbPathTmp, pszPathTo);
+    if (RT_SUCCESS(rc))
     {
-        memcpy(&pszPathDst[offDst], pszPathTo, cchTo);
-        pszPathDst[offDst + cchTo] = '\0';
-        return VINF_SUCCESS;
+        *pszPathTmp = '\0';
+
+        size_t cchPathTmp = strlen(aszPathTmp);
+        if (cchPathTmp >= cbPathDst)
+           return VERR_BUFFER_OVERFLOW;
+        memcpy(pszPathDst, aszPathTmp, cchPathTmp + 1);
     }
-    return VERR_BUFFER_OVERFLOW;
+    else
+        rc = VERR_FILENAME_TOO_LONG;
+
+    return rc;
 }
 

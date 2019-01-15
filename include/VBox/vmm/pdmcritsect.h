@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef VBOX_INCLUDED_vmm_pdmcritsect_h
-#define VBOX_INCLUDED_vmm_pdmcritsect_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBox_vmm_pdmcritsect_h
+#define ___VBox_vmm_pdmcritsect_h
 
 #include <VBox/types.h>
 #include <iprt/critsect.h>
@@ -89,7 +86,7 @@ VMMR3DECL(RCPTRTYPE(PPDMCRITSECT))  PDMR3CritSectGetNopRC(PVM pVM);
 
 /* Strict build: Remap the two enter calls to the debug versions. */
 #ifdef VBOX_STRICT
-# ifdef IPRT_INCLUDED_asm_h
+# ifdef ___iprt_asm_h
 #  define PDMCritSectEnter(pCritSect, rcBusy)   PDMCritSectEnterDebug((pCritSect), (rcBusy), (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
 #  define PDMCritSectTryEnter(pCritSect)        PDMCritSectTryEnterDebug((pCritSect), (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
 # else
@@ -102,5 +99,5 @@ VMMR3DECL(RCPTRTYPE(PPDMCRITSECT))  PDMR3CritSectGetNopRC(PVM pVM);
 
 RT_C_DECLS_END
 
-#endif /* !VBOX_INCLUDED_vmm_pdmcritsect_h */
+#endif
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,15 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_platform_x11_VBoxX11Helper_h
-#define FEQT_INCLUDED_SRC_platform_x11_VBoxX11Helper_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
-
-/* GUI includes: */
-#include "UILibraryDefs.h"
-
+#ifndef ___VBoxX11Helpers_h___
+#define ___VBoxX11Helpers_h___
 
 /** X11: Known Window Manager types. */
 enum X11WMType
@@ -37,20 +30,19 @@ enum X11WMType
     X11WMType_Xfwm4,
 };
 
-
 /** X11: Determines and returns whether the compositing manager is running. */
-SHARED_LIBRARY_STUFF bool X11IsCompositingManagerRunning();
+bool X11IsCompositingManagerRunning();
 
 /** X11: Determines and returns current Window Manager type. */
-SHARED_LIBRARY_STUFF X11WMType X11WindowManagerType();
+X11WMType X11WindowManagerType();
 
 /** X11: Inits the screen saver save/restore mechanism. */
-SHARED_LIBRARY_STUFF void X11ScreenSaverSettingsInit();
+void X11ScreenSaverSettingsInit();
 /** X11: Saves screen saver settings. */
-SHARED_LIBRARY_STUFF void X11ScreenSaverSettingsSave();
+void X11ScreenSaverSettingsSave();
 /** X11: Restores previously saved screen saver settings. */
-SHARED_LIBRARY_STUFF void X11ScreenSaverSettingsRestore();
+void X11ScreenSaverSettingsRestore();
 /** X11: Returns true if XLib extension with name @p extensionName is avaible, false otherwise. */
-SHARED_LIBRARY_STUFF bool X11CheckExtension(const char *extensionName);
+bool X11CheckExtension(const char *extensionName);
 
-#endif /* !FEQT_INCLUDED_SRC_platform_x11_VBoxX11Helper_h */
+#endif /* !___VBoxX11Helpers_h___ */

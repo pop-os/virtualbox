@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,7 +34,6 @@
 #include <iprt/alloca.h>
 #include <iprt/dir.h>
 #include <iprt/file.h>
-#include <iprt/err.h>
 #include <iprt/getopt.h>
 #include <iprt/initterm.h>
 #include <iprt/list.h>
@@ -43,7 +42,7 @@
 #include <iprt/path.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
-#include <iprt/utf16.h>
+#include <iprt/err.h>
 
 #include "r0drv/nt/symdb.h"
 
@@ -218,8 +217,8 @@ static void generateHeader(PRTSTREAM pOut)
                  " */\n"
                  "\n"
                  "\n"
-                 "#ifndef IPRT_INCLUDED_SRC_nt_symdbdata_h\n"
-                 "#define IPRT_INCLUDED_SRC_nt_symdbdata_h\n"
+                 "#ifndef ___r0drv_nt_symdbdata_h\n"
+                 "#define ___r0drv_nt_symdbdata_h\n"
                  "\n"
                  "#include \"r0drv/nt/symdb.h\"\n"
                  "\n"
@@ -1155,7 +1154,7 @@ int main(int argc, char **argv)
                 break;
 
             case 'V':
-                RTPrintf("$Revision: 127862 $");
+                RTPrintf("$Revision: 125570 $");
                 break;
 
             case 'h':

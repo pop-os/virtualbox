@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,20 +15,15 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_extensions_QIStatusBar_h
-#define FEQT_INCLUDED_SRC_extensions_QIStatusBar_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___QIStatusBar_h___
+#define ___QIStatusBar_h___
 
 /* Qt includes: */
 #include <QStatusBar>
 
-/* GUI includes: */
-#include "UILibraryDefs.h"
 
-/** QStatusBar extension with advanced functionality. */
-class SHARED_LIBRARY_STUFF QIStatusBar : public QStatusBar
+/** QStatusBar subclass extending standard functionality. */
+class QIStatusBar : public QStatusBar
 {
     Q_OBJECT;
 
@@ -48,4 +43,5 @@ protected:
     QString m_strMessage;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_extensions_QIStatusBar_h */
+#endif /* !___QIStatusBar_h___ */
+

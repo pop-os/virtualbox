@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,16 +23,13 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_win_lazy_dbghelp_h
-#define IPRT_INCLUDED_win_lazy_dbghelp_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_win_lazy_dbghelp_h
+#define ___iprt_win_lazy_dbghelp_h
 
 #include <iprt/ldrlazy.h>
 #include <iprt/path.h>
 #include <iprt/env.h>
-#include <iprt/errcore.h>
+#include <iprt/err.h>
 
 
 /**
@@ -137,5 +134,5 @@ RTLDRLAZY_FUNC(dbghelp, BOOL, WINAPI, SymGetModuleInfo64, (HANDLE a1, DWORD64 a2
 
 
 
-#endif /* !IPRT_INCLUDED_win_lazy_dbghelp_h */
+#endif
 

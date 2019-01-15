@@ -28,20 +28,16 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef IPRT_INCLUDED_SRC_r0drv_os2_the_os2_kernel_h
-#define IPRT_INCLUDED_SRC_r0drv_os2_the_os2_kernel_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+
+#ifndef ___the_os2_kernel_h
+#define ___the_os2_kernel_h
 
 #include <iprt/types.h>
 
 #define INCL_ERRORS
-#define INCL_DOSSEMAPHORES /* for SEM_INDEFINITE_WAIT */
-#undef RT_MAX
 #include <os2ddk/bsekee.h>
-#include <os2ddk/devhlp.h>
 #undef RT_MAX
+#include <os2ddk/devhlp.h>
 
 RT_C_DECLS_BEGIN
 
@@ -56,4 +52,4 @@ DECLASM(int) RTR0Os2DHVMGlobalToProcess(ULONG fFlags, PVOID pvR0, ULONG cb, PPVO
 
 RT_C_DECLS_END
 
-#endif /* !IPRT_INCLUDED_SRC_r0drv_os2_the_os2_kernel_h */
+#endif

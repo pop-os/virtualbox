@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,13 +23,12 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_asm_watcom_x86_16_h
-#define IPRT_INCLUDED_asm_watcom_x86_16_h
-/* no pragma once */
-
-#ifndef IPRT_INCLUDED_asm_h
+#ifndef ___iprt_asm_h
 # error "Don't include this header directly."
 #endif
+#ifndef ___iprt_asm_watcom_x86_16_h
+#define ___iprt_asm_watcom_x86_16_h
+
 
 /*
  * Turns out we cannot use 'ds' for segment stuff here because the compiler
@@ -39,54 +38,46 @@
  * Note! The #undef that preceds the #pragma aux statements is for undoing
  *       the mangling, because the symbol in #pragma aux [symbol] statements
  *       doesn't get subjected to preprocessing.  This is also why we include
- *       the watcom header at both the top and the bottom of asm.h file.
+ *       the watcom header at the top rather than at the bottom of the
+ *       asm-amd64-x86.h file.
  */
 
 #undef       ASMCompilerBarrier
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
-# if 0 /* overkill version. */
-#  pragma aux ASMCompilerBarrier = \
+#if 0 /* overkill version. */
+# pragma aux ASMCompilerBarrier = \
     "nop" \
     parm [] \
     modify exact [ax bx cx dx es ds];
-# else
-#  pragma aux ASMCompilerBarrier = \
+#else
+# pragma aux ASMCompilerBarrier = \
     "" \
     parm [] \
     modify exact [];
-# endif
 #endif
 
 #undef      ASMNopPause
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMNopPause = \
     ".686p" \
     ".xmm2" \
     "pause" \
     parm [] nomemory \
     modify exact [] nomemory;
-#endif
 
 #undef      ASMAtomicXchgU8
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicXchgU8 = \
     "xchg es:[bx], al" \
     parm [es bx] [al] \
     value [al] \
     modify exact [al];
-#endif
 
 #undef      ASMAtomicXchgU16
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicXchgU16 = \
     "xchg es:[bx], ax" \
     parm [es bx] [ax] \
     value [ax] \
     modify exact [ax];
-#endif
 
 #undef      ASMAtomicXchgU32
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicXchgU32 = \
     ".386" \
     "shl  ecx, 16" \
@@ -97,10 +88,8 @@
     parm [es bx] [ax cx] \
     value [ax cx] \
     modify exact [ax cx];
-#endif
 
 #undef      ASMAtomicXchgU64
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicXchgU64 = \
     ".586" \
     "shl eax, 16" \
@@ -120,10 +109,8 @@
     parm [es si] [dx cx bx ax] \
     value [dx cx bx ax] \
     modify exact [dx cx bx ax];
-#endif
 
 #undef      ASMAtomicCmpXchgU8
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicCmpXchgU8 = \
     ".486" \
     "lock cmpxchg es:[bx], cl" \
@@ -131,10 +118,8 @@
     parm [es bx] [cl] [al] \
     value [al] \
     modify exact [al];
-#endif
 
 #undef      ASMAtomicCmpXchgU16
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicCmpXchgU16 = \
     ".486" \
     "lock cmpxchg es:[bx], cx" \
@@ -142,10 +127,8 @@
     parm [es bx] [cx] [ax] \
     value [al] \
     modify exact [ax];
-#endif
 
 #undef      ASMAtomicCmpXchgU32
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicCmpXchgU32 = \
     ".486" \
     "shl ecx, 16" \
@@ -158,24 +141,20 @@
     parm [es bx] [cx dx] [ax di] \
     value [al] \
     modify exact [ax cx];
-#endif
 
 /* ASMAtomicCmpXchgU64: External assembly implementation, too few registers for parameters.  */
 /* ASMAtomicCmpXchgExU32: External assembly implementation, too few registers for parameters.  */
 /* ASMAtomicCmpXchgExU64: External assembly implementation, too few registers for parameters.  */
 
 #undef      ASMSerializeInstructionCpuId
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMSerializeInstructionCpuId = \
     ".586" \
     "xor eax, eax" \
     "cpuid" \
     parm [] \
     modify exact [ax bx cx dx];
-#endif
 
 #undef ASMSerializeInstructionIRet
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMSerializeInstructionIRet = \
     "pushf" \
     "push cs" \
@@ -186,18 +165,14 @@
     "done:" \
     parm [] \
     modify exact [];
-#endif
 
 #undef      ASMSerializeInstructionRdTscp
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMSerializeInstructionRdTscp = \
     0x0f 0x01 0xf9 \
     parm [] \
     modify exact [ax dx cx];
-#endif
 
 #undef      ASMAtomicReadU64
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicReadU64 = \
     ".586" \
     "xor eax, eax" \
@@ -213,10 +188,8 @@
     parm [es si] \
     value [dx cx bx ax] \
     modify exact [dx cx bx ax];
-#endif
 
 #undef      ASMAtomicUoReadU64
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicUoReadU64 = \
     ".586" \
     "xor eax, eax" \
@@ -232,20 +205,16 @@
     parm [es si] \
     value [dx cx bx ax] \
     modify exact [dx cx bx ax];
-#endif
 
 #undef      ASMAtomicAddU16
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicAddU16 = \
     ".486" \
     "lock xadd es:[bx], ax" \
     parm [es bx] [ax] \
     value [ax] \
     modify exact [ax];
-#endif
 
 #undef      ASMAtomicAddU32
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicAddU32 = \
     ".486" \
     "shl edx, 16" \
@@ -256,10 +225,8 @@
     parm [es bx] [ax dx] \
     value [ax dx] \
     modify exact [ax dx];
-#endif
 
 #undef      ASMAtomicIncU16
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicIncU16 = \
     ".486" \
     "mov ax, 1" \
@@ -268,10 +235,8 @@
     parm [es bx] \
     value [ax] \
     modify exact [ax];
-#endif
 
 #undef      ASMAtomicIncU32
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicIncU32 = \
     ".486" \
     "mov edx, 1" \
@@ -282,12 +247,10 @@
     parm [es bx] \
     value [ax dx] \
     modify exact [ax dx];
-#endif
 
 /* ASMAtomicIncU64: Should be done by C inline or in external file. */
 
 #undef      ASMAtomicDecU16
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicDecU16 = \
     ".486" \
     "mov ax, 0ffffh" \
@@ -296,10 +259,8 @@
     parm [es bx] \
     value [ax] \
     modify exact [ax];
-#endif
 
 #undef      ASMAtomicDecU32
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicDecU32 = \
     ".486" \
     "mov edx, 0ffffffffh" \
@@ -310,12 +271,10 @@
     parm [es bx] \
     value [ax dx] \
     modify exact [ax dx];
-#endif
 
 /* ASMAtomicDecU64: Should be done by C inline or in external file. */
 
 #undef      ASMAtomicOrU32
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicOrU32 = \
     ".386" \
     "shl edx, 16" \
@@ -323,12 +282,10 @@
     "lock or es:[bx], edx" \
     parm [es bx] [ax dx] \
     modify exact [dx];
-#endif
 
 /* ASMAtomicOrU64: Should be done by C inline or in external file. */
 
 #undef      ASMAtomicAndU32
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicAndU32 = \
     ".386" \
     "shl edx, 16" \
@@ -336,12 +293,10 @@
     "lock and es:[bx], edx" \
     parm [es bx] [ax dx] \
     modify exact [dx];
-#endif
 
 /* ASMAtomicAndU64: Should be done by C inline or in external file. */
 
 #undef      ASMAtomicUoOrU32
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicUoOrU32 = \
     ".386" \
     "shl edx, 16" \
@@ -349,12 +304,10 @@
     "or es:[bx], edx" \
     parm [es bx] [ax dx] \
     modify exact [dx];
-#endif
 
 /* ASMAtomicUoOrU64: Should be done by C inline or in external file. */
 
 #undef      ASMAtomicUoAndU32
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicUoAndU32 = \
     ".386" \
     "shl edx, 16" \
@@ -362,12 +315,10 @@
     "and es:[bx], edx" \
     parm [es bx] [ax dx] \
     modify exact [dx];
-#endif
 
 /* ASMAtomicUoAndU64: Should be done by C inline or in external file. */
 
 #undef      ASMAtomicUoIncU32
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicUoIncU32 = \
     ".486" \
     "mov edx, 1" \
@@ -378,10 +329,8 @@
     parm [es bx] \
     value [ax dx] \
     modify exact [ax dx];
-#endif
 
 #undef      ASMAtomicUoDecU32
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicUoDecU32 = \
     ".486" \
     "mov edx, 0ffffffffh" \
@@ -392,52 +341,46 @@
     parm [es bx] \
     value [ax dx] \
     modify exact [ax dx];
-#endif
 
 #undef      ASMMemZeroPage
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
-# if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
-#  pragma aux ASMMemZeroPage = \
+#if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
+# pragma aux ASMMemZeroPage = \
     "mov cx, 2048" \
     "xor ax, ax" \
     "rep stosw"  \
     parm [es di] \
     modify exact [ax cx di];
-# else
-#  pragma aux ASMMemZeroPage = \
+#else
+# pragma aux ASMMemZeroPage = \
     "mov ecx, 1024" \
     "xor eax, eax" \
     "rep stosd"  \
     parm [es di] \
     modify exact [ax cx di];
-# endif
 #endif
 
 #undef      ASMMemZero32
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
-# if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
-#  pragma aux ASMMemZero32 = \
+#if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
+# pragma aux ASMMemZero32 = \
     "xor ax, ax" \
     "shr cx, 1" \
     "shr cx, 1" \
     "rep stosw" \
     parm [es di] [cx] \
     modify exact [ax dx cx di];
-# else
-#  pragma aux ASMMemZero32 = \
+#else
+# pragma aux ASMMemZero32 = \
     "and ecx, 0ffffh" /* probably not necessary, lazy bird should check... */ \
     "shr ecx, 2" \
     "xor eax, eax" \
     "rep stosd"  \
     parm [es di] [cx] \
     modify exact [ax cx di];
-# endif
 #endif
 
 #undef      ASMMemFill32
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
-# if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
-#  pragma aux ASMMemFill32 = \
+#if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
+# pragma aux ASMMemFill32 = \
     "   shr     cx, 1" \
     "   shr     cx, 1" \
     "   jz      done" \
@@ -451,8 +394,8 @@
     "done:" \
     parm [es di] [cx] [ax dx]\
     modify exact [cx di];
-# else
-#  pragma aux ASMMemFill32 = \
+#else
+# pragma aux ASMMemFill32 = \
     "and ecx, 0ffffh" /* probably not necessary, lazy bird should check... */ \
     "shr ecx, 2" \
     "shl eax, 16" \
@@ -461,22 +404,18 @@
     "rep stosd"  \
     parm [es di] [cx] [ax dx]\
     modify exact [ax cx di];
-# endif
 #endif
 
 #undef      ASMProbeReadByte
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMProbeReadByte = \
     "mov al, es:[bx]" \
     parm [es bx] \
     value [al] \
     modify exact [al];
-#endif
 
 #undef      ASMBitSet
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
-# if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
-#  pragma aux ASMBitSet = \
+#if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
+# pragma aux ASMBitSet = \
     "   mov     ch, cl" /* Only the three lowest bits are relevant due to 64KB segments */ \
     "   mov     cl, 5" \
     "   shl     ch, cl" \
@@ -492,18 +431,16 @@
     "   or      es:[bx], al" \
     parm [es bx] [ax cx] \
     modify exact [ax bx cx];
-# else
-#  pragma aux ASMBitSet = \
+#else
+# pragma aux ASMBitSet = \
     "shl edx, 16" \
     "mov dx, ax" \
     "bts es:[bx], edx" \
     parm [es bx] [ax dx] \
     modify exact [dx];
-# endif
 #endif
 
 #undef      ASMAtomicBitSet
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicBitSet = \
     ".386" \
     "shl edx, 16" \
@@ -511,12 +448,10 @@
     "lock bts es:[bx], edx" \
     parm [es bx] [ax dx] \
     modify exact [dx];
-#endif
 
 #undef      ASMBitClear
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
-# if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
-#  pragma aux ASMBitClear = \
+#if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
+# pragma aux ASMBitClear = \
     "   mov     ch, cl" /* Only the three lowest bits are relevant due to 64KB segments */ \
     "   mov     cl, 5" \
     "   shl     ch, cl" \
@@ -533,18 +468,16 @@
     "   and     es:[bx], al" \
     parm [es bx] [ax cx] \
     modify exact [ax bx cx];
-# else
-#  pragma aux ASMBitClear = \
+#else
+# pragma aux ASMBitClear = \
     "shl edx, 16" \
     "mov dx, ax" \
     "btr es:[bx], edx" \
     parm [es bx] [ax dx] \
     modify exact [dx];
-# endif
 #endif
 
 #undef      ASMAtomicBitClear
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicBitClear = \
     ".386" \
     "shl edx, 16" \
@@ -552,12 +485,10 @@
     "lock btr es:[bx], edx" \
     parm [es bx] [ax dx] \
     modify exact [dx];
-#endif
 
 #undef      ASMBitToggle
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
-# if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
-#  pragma aux ASMBitToggle = \
+#if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
+# pragma aux ASMBitToggle = \
     "   mov     ch, cl" /* Only the three lowest bits are relevant due to 64KB segments */ \
     "   mov     cl, 5" \
     "   shl     ch, cl" \
@@ -573,18 +504,16 @@
     "   xor     es:[bx], al" \
     parm [es bx] [ax cx] \
     modify exact [ax bx cx];
-# else
-#  pragma aux ASMBitToggle = \
+#else
+# pragma aux ASMBitToggle = \
     "shl edx, 16" \
     "mov dx, ax" \
     "btc es:[bx], edx" \
     parm [es bx] [ax dx] \
     modify exact [dx];
-# endif
 #endif
 
 #undef      ASMAtomicBitToggle
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicBitToggle = \
     ".386" \
     "shl edx, 16" \
@@ -592,12 +521,10 @@
     "lock btc es:[bx], edx" \
     parm [es bx] [ax dx] \
     modify exact [dx];
-#endif
 
 #undef      ASMBitTestAndSet
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
-# if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
-#  pragma aux ASMBitTestAndSet = \
+#if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
+# pragma aux ASMBitTestAndSet = \
     "   mov     ch, cl" /* Only the three lowest bits are relevant due to 64KB segments */ \
     "   mov     cl, 5" \
     "   shl     ch, cl" \
@@ -618,8 +545,8 @@
     parm [es bx] [ax cx] \
     value [al] \
     modify exact [ax bx cx];
-# else
-#  pragma aux ASMBitTestAndSet = \
+#else
+# pragma aux ASMBitTestAndSet = \
     "shl edx, 16" \
     "mov dx, ax" \
     "bts es:[bx], edx" \
@@ -627,11 +554,9 @@
     parm [es bx] [ax dx] \
     value [al] \
     modify exact [ax dx];
-# endif
 #endif
 
 #undef      ASMAtomicBitTestAndSet
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicBitTestAndSet = \
     ".386" \
     "shl edx, 16" \
@@ -641,12 +566,10 @@
     parm [es bx] [ax dx] \
     value [al] \
     modify exact [ax dx];
-#endif
 
 #undef      ASMBitTestAndClear
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
-# if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
-#  pragma aux ASMBitTestAndClear = \
+#if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
+# pragma aux ASMBitTestAndClear = \
     "   mov     ch, cl" /* Only the three lowest bits are relevant due to 64KB segments */ \
     "   mov     cl, 5" \
     "   shl     ch, cl" \
@@ -668,8 +591,8 @@
     parm [es bx] [ax cx] \
     value [al] \
     modify exact [ax bx cx];
-# else
-#  pragma aux ASMBitTestAndClear = \
+#else
+# pragma aux ASMBitTestAndClear = \
     "shl edx, 16" \
     "mov dx, ax" \
     "btr es:[bx], edx" \
@@ -677,11 +600,9 @@
     parm [es bx] [ax dx] \
     value [al] \
     modify exact [ax dx];
-# endif
 #endif
 
 #undef      ASMAtomicBitTestAndClear
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicBitTestAndClear = \
     ".386" \
     "shl edx, 16" \
@@ -691,12 +612,10 @@
     parm [es bx] [ax dx] \
     value [al] \
     modify exact [ax dx];
-#endif
 
 #undef      ASMBitTestAndToggle
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
-# if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
-#  pragma aux ASMBitTestAndToggle = \
+#if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
+# pragma aux ASMBitTestAndToggle = \
     "   mov     ch, cl" /* Only the three lowest bits are relevant due to 64KB segments */ \
     "   mov     cl, 5" \
     "   shl     ch, cl" \
@@ -717,8 +636,8 @@
     parm [es bx] [ax cx] \
     value [al] \
     modify exact [ax bx cx];
-# else
-#  pragma aux ASMBitTestAndToggle = \
+#else
+# pragma aux ASMBitTestAndToggle = \
     "shl edx, 16" \
     "mov dx, ax" \
     "btc es:[bx], edx" \
@@ -726,11 +645,9 @@
     parm [es bx] [ax dx] \
     value [al] \
     modify exact [ax dx];
-# endif
 #endif
 
 #undef      ASMAtomicBitTestAndToggle
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMAtomicBitTestAndToggle = \
     ".386" \
     "shl edx, 16" \
@@ -740,12 +657,10 @@
     parm [es bx] [ax dx] \
     value [al] \
     modify exact [ax dx];
-#endif
 
 #undef      ASMBitTest
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
-# if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
-#  pragma aux ASMBitTest = \
+#if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
+# pragma aux ASMBitTest = \
     "   mov     ch, cl" /* Only the three lowest bits are relevant due to 64KB segments */ \
     "   mov     cl, 5" \
     "   shl     ch, cl" \
@@ -762,8 +677,8 @@
     parm [es bx] [ax cx] \
     value [al] \
     modify exact [ax bx cx];
-# else
-#  pragma aux ASMBitTest = \
+#else
+# pragma aux ASMBitTest = \
     "shl edx, 16" \
     "mov dx, ax" \
     "bt  es:[bx], edx" \
@@ -771,7 +686,6 @@
     parm [es bx] [ax dx] nomemory \
     value [al] \
     modify exact [ax dx] nomemory;
-# endif
 #endif
 
 /* ASMBitFirstClear: External file.  */
@@ -783,7 +697,6 @@
 /* ASMBitFirstSetU32: External file. */
 #else
 # undef      ASMBitFirstSetU32
-# ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 # pragma aux ASMBitFirstSetU32 = \
     "shl edx, 16" \
     "mov dx, ax" \
@@ -797,14 +710,12 @@
     parm [ax dx] nomemory \
     value [ax] \
     modify exact [ax dx] nomemory;
-# endif
 #endif
 
 #if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
 /* ASMBitFirstSetU64: External file. */
 #else
 # undef      ASMBitFirstSetU64
-# ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 # pragma aux ASMBitFirstSetU64 = \
     ".386" \
     "shl ecx, 16" \
@@ -829,14 +740,12 @@
     parm [dx cx bx ax] nomemory \
     value [ax] \
     modify exact [ax cx] nomemory;
-# endif
 #endif
 
 #if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
 /* ASMBitFirstSetU16: External file. */
 #else
 # undef      ASMBitFirstSetU16
-# ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 # pragma aux ASMBitFirstSetU16 = \
     "bsf ax, ax" \
     "jz  not_found" \
@@ -848,14 +757,12 @@
     parm [ax] nomemory \
     value [ax] \
     modify exact [ax] nomemory;
-# endif
 #endif
 
 #if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
 /* ASMBitLastSetU32: External file. */
 #else
 # undef      ASMBitLastSetU32
-# ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 # pragma aux ASMBitLastSetU32 = \
     "shl edx, 16" \
     "mov dx, ax" \
@@ -869,14 +776,12 @@
     parm [ax dx] nomemory \
     value [ax] \
     modify exact [ax dx] nomemory;
-# endif
 #endif
 
 #if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
 /* ASMBitLastSetU64: External file. */
 #else
 # undef      ASMBitLastSetU64
-# ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 # pragma aux ASMBitLastSetU64 = \
     ".386" \
     "shl ecx, 16" \
@@ -901,14 +806,12 @@
     parm [dx cx bx ax] nomemory \
     value [ax] \
     modify exact [ax cx] nomemory;
-# endif
 #endif
 
 #if defined(__SW_0) || defined(__SW_1) || defined(__SW_2)
 /* ASMBitLastSetU16: External file. */
 #else
 # undef      ASMBitLastSetU16
-# ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 # pragma aux ASMBitLastSetU16 = \
     "bsr ax, ax" \
     "jz  not_found" \
@@ -920,30 +823,24 @@
     parm [ax] nomemory \
     value [ax] \
     modify exact [ax] nomemory;
-# endif
 #endif
 
 #undef      ASMByteSwapU16
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMByteSwapU16 = \
     "xchg al, ah" \
     parm [ax] nomemory \
     value [ax] \
     modify exact [ax] nomemory;
-#endif
 
 #undef      ASMByteSwapU32
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMByteSwapU32 = \
     "xchg dh, al" \
     "xchg dl, ah" \
     parm [ax dx] nomemory \
     value [ax dx] \
     modify exact [ax dx] nomemory;
-#endif
 
 #undef      ASMRotateLeftU32
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMRotateLeftU32 = \
     ".386" \
     "shl    edx, 16" \
@@ -954,10 +851,8 @@
     parm [ax dx] [cx] nomemory \
     value [ax dx] \
     modify exact [ax dx] nomemory;
-#endif
 
 #undef      ASMRotateRightU32
-#ifdef IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
 #pragma aux ASMRotateRightU32 = \
     ".386" \
     "shl    edx, 16" \
@@ -968,6 +863,5 @@
     parm [ax dx] [cx] nomemory \
     value [ax dx] \
     modify exact [ax dx] nomemory;
-#endif
 
-#endif /* !IPRT_INCLUDED_asm_watcom_x86_16_h */
+#endif

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsSerial_h
-#define FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsSerial_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIMachineSettingsSerial_h___
+#define ___UIMachineSettingsSerial_h___
 
 /* GUI includes: */
 #include "UISettingsPage.h"
@@ -33,8 +30,9 @@ struct UIDataSettingsMachineSerialPort;
 typedef UISettingsCache<UIDataSettingsMachineSerialPort> UISettingsCacheMachineSerialPort;
 typedef UISettingsCachePool<UIDataSettingsMachineSerial, UISettingsCacheMachineSerialPort> UISettingsCacheMachineSerial;
 
+
 /** Machine settings: Serial page. */
-class SHARED_LIBRARY_STUFF UIMachineSettingsSerialPage : public UISettingsPageMachine
+class UIMachineSettingsSerialPage : public UISettingsPageMachine
 {
     Q_OBJECT;
 
@@ -92,4 +90,5 @@ private:
     UISettingsCacheMachineSerial *m_pCache;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsSerial_h */
+#endif /* !___UIMachineSettingsSerial_h___ */
+

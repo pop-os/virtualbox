@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef MAIN_INCLUDED_MachineImpl_h
-#define MAIN_INCLUDED_MachineImpl_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ____H_MACHINEIMPL
+#define ____H_MACHINEIMPL
 
 #include "AuthLibrary.h"
 #include "VirtualBoxBase.h"
@@ -34,7 +31,6 @@
 #include "SerialPortImpl.h"
 #include "ParallelPortImpl.h"
 #include "BIOSSettingsImpl.h"
-#include "RecordingSettingsImpl.h"
 #include "StorageControllerImpl.h"          // required for MachineImpl.h to compile on Windows
 #include "USBControllerImpl.h"              // required for MachineImpl.h to compile on Windows
 #include "BandwidthControlImpl.h"
@@ -268,7 +264,16 @@ public:
         BOOL                mPageFusionEnabled;
         GraphicsControllerType_T mGraphicsControllerType;
         ULONG               mVRAMSize;
-        settings::RecordingSettings mRecordSettings;
+        ULONG               mVideoCaptureWidth;
+        ULONG               mVideoCaptureHeight;
+        ULONG               mVideoCaptureRate;
+        ULONG               mVideoCaptureFPS;
+        ULONG               mVideoCaptureMaxTime;
+        ULONG               mVideoCaptureMaxFileSize;
+        Utf8Str             mVideoCaptureOptions;
+        Utf8Str             mVideoCaptureFile;
+        BOOL                mVideoCaptureEnabled;
+        BOOL                maVideoCaptureScreens[SchemaDefs::MaxGuestMonitors];
         ULONG               mMonitorCount;
         BOOL                mHWVirtExEnabled;
         BOOL                mHWVirtExNestedPagingEnabled;
@@ -276,7 +281,6 @@ public:
         BOOL                mHWVirtExVPIDEnabled;
         BOOL                mHWVirtExUXEnabled;
         BOOL                mHWVirtExForceEnabled;
-        BOOL                mHWVirtExUseNativeApi;
         BOOL                mAccelerate2DVideoEnabled;
         BOOL                mPAEEnabled;
         settings::Hardware::LongModeType mLongMode;
@@ -289,7 +293,6 @@ public:
         BOOL                mSpecCtrlByHost;
         BOOL                mL1DFlushOnSched;
         BOOL                mL1DFlushOnVMEntry;
-        BOOL                mNestedHWVirt;
         ULONG               mCPUCount;
         BOOL                mCPUHotPlugEnabled;
         ULONG               mCpuExecutionCap;
@@ -347,7 +350,6 @@ public:
                  const Utf8Str &strConfigFile,
                  const Utf8Str &strName,
                  const StringsList &llGroups,
-                 const Utf8Str &strOsTypeId,
                  GuestOSType *aOsType,
                  const Guid &aId,
                  bool fForceOverwrite,
@@ -361,7 +363,6 @@ public:
     // initializer for machine config in memory (OVF import)
     HRESULT init(VirtualBox *aParent,
                  const Utf8Str &strName,
-                 const Utf8Str &strSettingsFilename,
                  const settings::MachineConfigFile &config);
 
     void uninit();
@@ -480,8 +481,7 @@ public:
         IsModified_BIOS                 = 0x0200,
         IsModified_SharedFolders        = 0x0400,
         IsModified_Snapshots            = 0x0800,
-        IsModified_BandwidthControl     = 0x1000,
-        IsModified_Recording            = 0x2000
+        IsModified_BandwidthControl     = 0x1000
     };
 
     /**
@@ -493,14 +493,11 @@ public:
      */
     Utf8Str i_getOSTypeId() const { return mUserData->s.strOsType; }
     ChipsetType_T i_getChipsetType() const { return mHWData->mChipsetType; }
-    ULONG i_getMonitorCount() const { return mHWData->mMonitorCount; }
     ParavirtProvider_T i_getParavirtProvider() const { return mHWData->mParavirtProvider; }
     Utf8Str i_getParavirtDebug() const { return mHWData->mParavirtDebug; }
 
     void i_setModified(uint32_t fl, bool fAllowStateModification = true);
     void i_setModifiedLock(uint32_t fl, bool fAllowStateModification = true);
-
-    MachineState_T i_getMachineState() const { return mData->mMachineState; }
 
     bool i_isStateModificationAllowed() const { return mData->m_fAllowStateModification; }
     void i_allowStateModification()           { mData->m_fAllowStateModification = true; }
@@ -528,7 +525,7 @@ public:
     virtual HRESULT i_onBandwidthGroupChange(IBandwidthGroup * /* aBandwidthGroup */) { return S_OK; }
     virtual HRESULT i_onStorageDeviceChange(IMediumAttachment * /* mediumAttachment */, BOOL /* remove */,
                                             BOOL /* silent */) { return S_OK; }
-    virtual HRESULT i_onRecordingChange(BOOL /* aEnable */) { return S_OK; }
+    virtual HRESULT i_onVideoCaptureChange() { return S_OK; }
 
     HRESULT i_saveRegistryEntry(settings::MachineRegistryEntry &data);
 
@@ -540,6 +537,8 @@ public:
     Utf8Str i_getHardeningLogFilename(void);
 
     void i_composeSavedStateFilename(Utf8Str &strStateFilePath);
+
+    void i_getDefaultVideoCaptureFile(Utf8Str &strFile);
 
     bool i_isUSBControllerPresent();
 
@@ -781,7 +780,6 @@ protected:
     const ComObjPtr<AudioAdapter>      mAudioAdapter;
     const ComObjPtr<USBDeviceFilters>  mUSBDeviceFilters;
     const ComObjPtr<BIOSSettings>      mBIOSSettings;
-    const ComObjPtr<RecordingSettings> mRecordingSettings;
     const ComObjPtr<BandwidthControl>  mBandwidthControl;
 
     typedef std::vector<ComObjPtr<NetworkAdapter> > NetworkAdapterVector;
@@ -828,15 +826,13 @@ protected:
     class DeleteConfigTask;
     void i_deleteConfigHandler(DeleteConfigTask &task);
 
-    friend class Appliance;
-    friend class RecordingSettings;
-    friend class RecordingScreenSettings;
     friend class SessionMachine;
     friend class SnapshotMachine;
+    friend class Appliance;
     friend class VirtualBox;
 
     friend class MachineCloneVM;
-    friend class MachineMoveVM;
+
 private:
     // wrapped IMachine properties
     HRESULT getParent(ComPtr<IVirtualBox> &aParent);
@@ -883,8 +879,27 @@ private:
     HRESULT setAccelerate2DVideoEnabled(BOOL aAccelerate2DVideoEnabled);
     HRESULT getMonitorCount(ULONG *aMonitorCount);
     HRESULT setMonitorCount(ULONG aMonitorCount);
+    HRESULT getVideoCaptureEnabled(BOOL *aVideoCaptureEnabled);
+    HRESULT setVideoCaptureEnabled(BOOL aVideoCaptureEnabled);
+    HRESULT getVideoCaptureScreens(std::vector<BOOL> &aVideoCaptureScreens);
+    HRESULT setVideoCaptureScreens(const std::vector<BOOL> &aVideoCaptureScreens);
+    HRESULT getVideoCaptureFile(com::Utf8Str &aVideoCaptureFile);
+    HRESULT setVideoCaptureFile(const com::Utf8Str &aVideoCaptureFile);
+    HRESULT getVideoCaptureWidth(ULONG *aVideoCaptureWidth);
+    HRESULT setVideoCaptureWidth(ULONG aVideoCaptureWidth);
+    HRESULT getVideoCaptureHeight(ULONG *aVideoCaptureHeight);
+    HRESULT setVideoCaptureHeight(ULONG aVideoCaptureHeight);
+    HRESULT getVideoCaptureRate(ULONG *aVideoCaptureRate);
+    HRESULT setVideoCaptureRate(ULONG aVideoCaptureRate);
+    HRESULT getVideoCaptureFPS(ULONG *aVideoCaptureFPS);
+    HRESULT setVideoCaptureFPS(ULONG aVideoCaptureFPS);
+    HRESULT getVideoCaptureMaxTime(ULONG *aVideoCaptureMaxTime);
+    HRESULT setVideoCaptureMaxTime(ULONG aVideoCaptureMaxTime);
+    HRESULT getVideoCaptureMaxFileSize(ULONG *aVideoCaptureMaxFileSize);
+    HRESULT setVideoCaptureMaxFileSize(ULONG aVideoCaptureMaxFileSize);
+    HRESULT getVideoCaptureOptions(com::Utf8Str &aVideoCaptureOptions);
+    HRESULT setVideoCaptureOptions(const com::Utf8Str &aVideoCaptureOptions);
     HRESULT getBIOSSettings(ComPtr<IBIOSSettings> &aBIOSSettings);
-    HRESULT getRecordingSettings(ComPtr<IRecordingSettings> &aRecordingSettings);
     HRESULT getFirmwareType(FirmwareType_T *aFirmwareType);
     HRESULT setFirmwareType(FirmwareType_T aFirmwareType);
     HRESULT getPointingHIDType(PointingHIDType_T *aPointingHIDType);
@@ -1119,8 +1134,7 @@ private:
     HRESULT createSharedFolder(const com::Utf8Str &aName,
                                const com::Utf8Str &aHostPath,
                                BOOL aWritable,
-                               BOOL aAutomount,
-                               const com::Utf8Str &aAutoMountPoint);
+                               BOOL aAutomount);
     HRESULT removeSharedFolder(const com::Utf8Str &aName);
     HRESULT canShowConsoleWindow(BOOL *aCanShow);
     HRESULT showConsoleWindow(LONG64 *aWinId);
@@ -1179,9 +1193,6 @@ private:
                     CloneMode_T aMode,
                     const std::vector<CloneOptions_T> &aOptions,
                     ComPtr<IProgress> &aProgress);
-    HRESULT moveTo(const com::Utf8Str &aTargetPath,
-                   const com::Utf8Str &aType,
-                   ComPtr<IProgress> &aProgress);
     HRESULT saveState(ComPtr<IProgress> &aProgress);
     HRESULT adoptSavedState(const com::Utf8Str &aSavedStateFile);
     HRESULT discardSavedState(BOOL aFRemoveFile);
@@ -1331,7 +1342,7 @@ public:
     HRESULT i_onParallelPortChange(IParallelPort *parallelPort);
     HRESULT i_onCPUChange(ULONG aCPU, BOOL aRemove);
     HRESULT i_onVRDEServerChange(BOOL aRestart);
-    HRESULT i_onRecordingChange(BOOL aEnable);
+    HRESULT i_onVideoCaptureChange();
     HRESULT i_onUSBControllerChange();
     HRESULT i_onUSBDeviceAttach(IUSBDevice *aDevice,
                                 IVirtualBoxErrorInfo *aError,
@@ -1591,5 +1602,5 @@ inline const Guid &Machine::i_getSnapshotId() const
 }
 
 
-#endif /* !MAIN_INCLUDED_MachineImpl_h */
+#endif // ____H_MACHINEIMPL
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

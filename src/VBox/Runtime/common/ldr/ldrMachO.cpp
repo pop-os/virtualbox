@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018-2019 Oracle Corporation
+ * Copyright (C) 2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1245,7 +1245,7 @@ static int kldrModMachOPreParseLoadCommands(uint8_t *pbLoadCommands, const mach_
     {
         case MH_OBJECT:
         case MH_EXECUTE:
-            RTLDRMODMACHO_CHECK_RETURN(!fDySymbolTabWithRelocs || (fOpenFlags & (RTLDR_O_FOR_DEBUG | RTLDR_O_FOR_VALIDATION)),
+            RTLDRMODMACHO_CHECK_RETURN(!fDySymbolTabWithRelocs,
                                        RTErrInfoSetF(pErrInfo, VERR_LDRMACHO_BAD_LOAD_COMMAND,
                                                      "Did not expect relocations in LC_DYSYMTAB (file type %u)", uEffFileType));
             break;
@@ -4877,10 +4877,10 @@ static int rtldrMachO_VerifySignatureDecode(PRTLDRMODMACHO pThis, PRTLDRMACHOSIG
             uint32_t cMaxPageShift;
             if (   pThis->Core.enmArch == RTLDRARCH_AMD64
                 || pThis->Core.enmArch == RTLDRARCH_X86_32
-                || pThis->Core.enmArch == RTLDRARCH_ARM32)
+                /*|| pThis->Core.enmArch == RTLDRARCH_ARM32*/)
                 cMaxPageShift = 12;
-            else if (pThis->Core.enmArch == RTLDRARCH_ARM64)
-                cMaxPageShift = 16; /* 16KB */
+            //else if (pThis->Core.enmArch == RTLDRARCH_ARM64)
+            //    cMaxPageShift = 16; /* 16KB */
             else
                 return RTErrInfoSetF(pErrInfo, VERR_LDRVI_BAD_CERT_FORMAT, "Unsupported architecture: %d", pThis->Core.enmArch);
             if (   pCodeDir->cPageShift < 12 /* */
@@ -5558,7 +5558,6 @@ static const RTLDROPS s_rtldrMachOOps=
     rtldrMachO_QueryProp,
     rtldrMachO_VerifySignature,
     NULL /*pfnHashImage*/,
-    NULL /*pfnUnwindFrame*/,
     42
 };
 
@@ -5652,12 +5651,13 @@ DECLHIDDEN(int) rtldrFatOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH en
             case RTLDRARCH_AMD64:
                 fMatch = FatEntry.cputype == CPU_TYPE_X86_64;
                 break;
-
+#if 0
             case RTLDRARCH_ARM32:
             case RTLDRARCH_ARM64:
             case RTLDRARCH_X86_16:
                 fMatch = false;
                 break;
+#endif
 
             case RTLDRARCH_INVALID:
             case RTLDRARCH_HOST:

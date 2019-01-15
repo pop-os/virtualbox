@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,11 +24,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_INTERNAL_iprt_h
-#define IPRT_INCLUDED_INTERNAL_iprt_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___internal_iprt_h
+#define ___internal_iprt_h
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -203,5 +200,5 @@ uint32_t rtR0SemWaitOs2ConvertTimeout(uint32_t fFlags, uint64_t uTimeout);
 
 RT_C_DECLS_END
 
-#endif /* !IPRT_INCLUDED_INTERNAL_iprt_h */
+#endif
 

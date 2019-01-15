@@ -1,10 +1,10 @@
 /* $Id: UIHotKeyEditor.cpp $ */
 /** @file
- * VBox Qt GUI - UIHotKeyEditor class implementation.
+ * VBox Qt GUI - VirtualBox Qt extensions: UIHotKeyEditor class implementation.
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,52 +15,48 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QApplication>
-#include <QHBoxLayout>
-#include <QLineEdit>
-#include <QKeyEvent>
-#include <QStyle>
+# include <QApplication>
+# include <QHBoxLayout>
+# include <QLineEdit>
+# include <QKeyEvent>
+# include <QStyle>
 
 /* GUI includes; */
-#include "UIHostComboEditor.h"
-#include "UIHotKeyEditor.h"
-#include "UIIconPool.h"
-#include "QIToolButton.h"
+# include "UIHotKeyEditor.h"
+# include "UIIconPool.h"
+# include "UIHostComboEditor.h"
+# include "QIToolButton.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
-/** QLineEdit extension representing hot-key editor. */
+/* A line-edit representing hot-key editor: */
 class UIHotKeyLineEdit : public QLineEdit
 {
     Q_OBJECT;
 
 public:
 
-    /** Constructs hot-key editor passing @a pParent to the base-class. */
+    /* Constructor: */
     UIHotKeyLineEdit(QWidget *pParent);
 
-protected slots:
+private slots:
 
-    /** Deselects the hot-key editor text. */
+    /* Handler: Selection preserver stuff: */
     void sltDeselect() { deselect(); }
-
-protected:
-
-    /** Handles key-press @a pEvent. */
-    virtual void keyPressEvent(QKeyEvent *pEvent) /* override */;
-    /** Handles key-release @a pEvent. */
-    virtual void keyReleaseEvent(QKeyEvent *pEvent) /* override */;
 
 private:
 
-    /** Returns whether the passed @a pevent should be ignored. */
+    /* Handlers: Key event processing stuff: */
+    void keyPressEvent(QKeyEvent *pEvent);
+    void keyReleaseEvent(QKeyEvent *pEvent);
     bool isKeyEventIgnored(QKeyEvent *pEvent);
 };
-
-
-/*********************************************************************************************************************************
-*   Class UIHotKeyLineEdit implementation.                                                                                       *
-*********************************************************************************************************************************/
 
 UIHotKeyLineEdit::UIHotKeyLineEdit(QWidget *pParent)
     : QLineEdit(pParent)
@@ -110,10 +106,6 @@ bool UIHotKeyLineEdit::isKeyEventIgnored(QKeyEvent *pEvent)
     return false;
 }
 
-
-/*********************************************************************************************************************************
-*   Class UIHotKeyEditor implementation.                                                                                         *
-*********************************************************************************************************************************/
 
 UIHotKeyEditor::UIHotKeyEditor(QWidget *pParent)
     : QIWithRetranslateUI<QWidget>(pParent)
@@ -185,6 +177,12 @@ void UIHotKeyEditor::sltClear()
     emit sigCommitData(this);
 }
 
+void UIHotKeyEditor::retranslateUi()
+{
+    m_pResetButton->setToolTip(tr("Reset shortcut to default"));
+    m_pClearButton->setToolTip(tr("Unset shortcut"));
+}
+
 bool UIHotKeyEditor::eventFilter(QObject *pWatched, QEvent *pEvent)
 {
     /* Special handling for our line-edit only: */
@@ -224,30 +222,6 @@ bool UIHotKeyEditor::eventFilter(QObject *pWatched, QEvent *pEvent)
     return true;
 }
 
-void UIHotKeyEditor::retranslateUi()
-{
-    m_pResetButton->setToolTip(tr("Reset shortcut to default"));
-    m_pClearButton->setToolTip(tr("Unset shortcut"));
-}
-
-void UIHotKeyEditor::keyPressEvent(QKeyEvent *pEvent)
-{
-    /* Is this event ignored? */
-    if (isKeyEventIgnored(pEvent))
-        return;
-    /* Call to base-class: */
-    return QWidget::keyPressEvent(pEvent);
-}
-
-void UIHotKeyEditor::keyReleaseEvent(QKeyEvent *pEvent)
-{
-    /* Is this event ignored? */
-    if (isKeyEventIgnored(pEvent))
-        return;
-    /* Call to base-class: */
-    return QWidget::keyReleaseEvent(pEvent);
-}
-
 bool UIHotKeyEditor::shouldWeSkipKeyEventToLineEdit(QKeyEvent *pEvent)
 {
     /* Special handling for some keys: */
@@ -268,6 +242,24 @@ bool UIHotKeyEditor::shouldWeSkipKeyEventToLineEdit(QKeyEvent *pEvent)
     }
     /* Do not skip by default: */
     return false;
+}
+
+void UIHotKeyEditor::keyPressEvent(QKeyEvent *pEvent)
+{
+    /* Is this event ignored? */
+    if (isKeyEventIgnored(pEvent))
+        return;
+    /* Call to base-class: */
+    return QWidget::keyPressEvent(pEvent);
+}
+
+void UIHotKeyEditor::keyReleaseEvent(QKeyEvent *pEvent)
+{
+    /* Is this event ignored? */
+    if (isKeyEventIgnored(pEvent))
+        return;
+    /* Call to base-class: */
+    return QWidget::keyReleaseEvent(pEvent);
 }
 
 bool UIHotKeyEditor::isKeyEventIgnored(QKeyEvent *pEvent)
@@ -489,5 +481,5 @@ void UIHotKeyEditor::setHotKey(const UIHotKey &hotKey)
     drawSequence();
 }
 
-
 #include "UIHotKeyEditor.moc"
+

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,18 +15,14 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VMM_INCLUDED_SRC_include_CPUMInternal_h
-#define VMM_INCLUDED_SRC_include_CPUMInternal_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___CPUMInternal_h
+#define ___CPUMInternal_h
 
 #ifndef VBOX_FOR_DTRACE_LIB
 # include <VBox/cdefs.h>
 # include <VBox/types.h>
 # include <VBox/vmm/stam.h>
 # include <iprt/x86.h>
-# include <VBox/vmm/pgm.h>
 #else
 # pragma D depends_on library x86.d
 # pragma D depends_on library cpumctx.d
@@ -120,9 +116,7 @@ typedef uint64_t STAMCOUNTER;
 /** @name CPUM Saved State Version.
  * @{ */
 /** The current saved state version. */
-#define CPUM_SAVED_STATE_VERSION                CPUM_SAVED_STATE_VERSION_HWVIRT_SVM
-/** The saved state version including SVM hardware virtualization state. */
-#define CPUM_SAVED_STATE_VERSION_HWVIRT_SVM     18
+#define CPUM_SAVED_STATE_VERSION                CPUM_SAVED_STATE_VERSION_XSAVE
 /** The saved state version including XSAVE state. */
 #define CPUM_SAVED_STATE_VERSION_XSAVE          17
 /** The saved state version with good CPUID leaf count. */
@@ -423,6 +417,7 @@ typedef struct CPUM
     /** Guest CPU info. */
     CPUMINFO                GuestInfo;
 
+
     /** The standard set of CpuId leaves. */
     CPUMCPUID               aGuestCpuIdPatmStd[6];
     /** The extended set of CpuId leaves. */
@@ -443,7 +438,7 @@ typedef struct CPUM
 } CPUM;
 #ifndef VBOX_FOR_DTRACE_LIB
 AssertCompileMemberOffset(CPUM, HostFeatures, 64);
-AssertCompileMemberOffset(CPUM, GuestFeatures, 112);
+AssertCompileMemberOffset(CPUM, GuestFeatures, 96);
 #endif
 /** Pointer to the CPUM instance data residing in the shared VM structure. */
 typedef CPUM *PCPUM;
@@ -532,11 +527,10 @@ PCPUMCPUIDLEAF      cpumCpuIdGetLeafEx(PVM pVM, uint32_t uLeaf, uint32_t uSubLea
 
 # ifdef IN_RING3
 int                 cpumR3DbgInit(PVM pVM);
-int                 cpumR3CpuIdExplodeFeatures(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCCPUMMSRS pMsrs, PCPUMFEATURES pFeatures);
-int                 cpumR3InitCpuIdAndMsrs(PVM pVM, PCCPUMMSRS pHostMsrs);
-void                cpumR3InitVmxGuestFeaturesAndMsrs(PVM pVM, PCVMXMSRS pHostVmxMsrs, PVMXMSRS pGuestVmxMsrs);
+int                 cpumR3CpuIdExplodeFeatures(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCPUMFEATURES pFeatures);
+int                 cpumR3InitCpuIdAndMsrs(PVM pVM);
 void                cpumR3SaveCpuId(PVM pVM, PSSMHANDLE pSSM);
-int                 cpumR3LoadCpuId(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, PCCPUMMSRS pGuestMsrs);
+int                 cpumR3LoadCpuId(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion);
 int                 cpumR3LoadCpuIdPre32(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion);
 DECLCALLBACK(void)  cpumR3CpuIdInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 
@@ -573,5 +567,5 @@ RT_C_DECLS_END
 
 /** @} */
 
-#endif /* !VMM_INCLUDED_SRC_include_CPUMInternal_h */
+#endif
 

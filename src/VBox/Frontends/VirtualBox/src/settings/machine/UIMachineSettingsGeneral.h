@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsGeneral_h
-#define FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsGeneral_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIMachineSettingsGeneral_h___
+#define ___UIMachineSettingsGeneral_h___
 
 /* GUI includes: */
 #include "UIAddDiskEncryptionPasswordDialog.h"
@@ -30,9 +27,10 @@
 struct UIDataSettingsMachineGeneral;
 typedef UISettingsCache<UIDataSettingsMachineGeneral> UISettingsCacheMachineGeneral;
 
+
 /** Machine settings: General page. */
-class SHARED_LIBRARY_STUFF UIMachineSettingsGeneral : public UISettingsPageMachine,
-                                                      public Ui::UIMachineSettingsGeneral
+class UIMachineSettingsGeneral : public UISettingsPageMachine,
+                                 public Ui::UIMachineSettingsGeneral
 {
     Q_OBJECT;
 
@@ -141,4 +139,5 @@ private:
     UISettingsCacheMachineGeneral *m_pCache;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsGeneral_h */
+#endif /* !___UIMachineSettingsGeneral_h___ */
+

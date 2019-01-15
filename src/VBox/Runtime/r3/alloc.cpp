@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -85,41 +85,6 @@
 #undef RTALLOC_USE_EFENCE
 
 
-#ifdef IPRT_WITH_GCC_SANITIZER
-/**
- * Checks if @a pszTag is a leak tag.
- *
- * @returns true if leak tag, false if not.
- * @param   pszTag              Tage to inspect.
- */
-DECLINLINE(bool) rtMemIsLeakTag(const char *pszTag)
-{
-    char ch = *pszTag;
-    if (ch != 'w')
-    { /* likely */ }
-    else
-        return pszTag[1] == 'i'
-            && pszTag[2] == 'l'
-            && pszTag[3] == 'l'
-            && pszTag[4] == '-'
-            && pszTag[5] == 'l'
-            && pszTag[6] == 'e'
-            && pszTag[7] == 'a'
-            && pszTag[8] == 'k';
-    if (ch != 'm')
-        return false;
-    return pszTag[1] == 'm'
-        && pszTag[2] == 'a'
-        && pszTag[3] == 'y'
-        && pszTag[4] == '-'
-        && pszTag[5] == 'l'
-        && pszTag[6] == 'e'
-        && pszTag[7] == 'a'
-        && pszTag[8] == 'k';
-}
-#endif /* IPRT_WITH_GCC_SANITIZER */
-
-
 RTDECL(void *)  RTMemTmpAllocTag(size_t cb, const char *pszTag) RT_NO_THROW_DEF
 {
     return RTMemAllocTag(cb, pszTag);
@@ -147,7 +112,7 @@ RTDECL(void *) RTMemAllocTag(size_t cb, const char *pszTag) RT_NO_THROW_DEF
 
     AssertMsg(cb, ("Allocating ZERO bytes is really not a good idea! Good luck with the next assertion!\n"));
 # ifdef RTMEMALLOC_USE_TRACKER
-    void *pv = RTMemTrackerHdrAlloc(malloc(cb + sizeof(RTMEMTRACKERHDR)), cb, pszTag, ASMReturnAddress(), RTMEMTRACKERMETHOD_ALLOC);
+    void *pv = RTMemTrackerHdrAlloc(malloc(cb + sizeof(RTMEMTRACKERHDR)), cb, pszTag, RTMEMTRACKERMETHOD_ALLOC);
 # else
     void *pv = malloc(cb); NOREF(pszTag);
 # endif
@@ -157,10 +122,6 @@ RTDECL(void *) RTMemAllocTag(size_t cb, const char *pszTag) RT_NO_THROW_DEF
               || ( (cb & RTMEM_ALIGNMENT) + ((uintptr_t)pv & RTMEM_ALIGNMENT)) == RTMEM_ALIGNMENT
               , ("pv=%p RTMEM_ALIGNMENT=%#x\n", pv, RTMEM_ALIGNMENT));
 #endif /* !RTALLOC_USE_EFENCE */
-#ifdef IPRT_WITH_GCC_SANITIZER
-    if (rtMemIsLeakTag(pszTag))
-        __lsan_ignore_object(pv);
-#endif
     return pv;
 }
 
@@ -175,7 +136,7 @@ RTDECL(void *) RTMemAllocZTag(size_t cb, const char *pszTag) RT_NO_THROW_DEF
     AssertMsg(cb, ("Allocating ZERO bytes is really not a good idea! Good luck with the next assertion!\n"));
 
 # ifdef RTMEMALLOC_USE_TRACKER
-    void *pv = RTMemTrackerHdrAlloc(calloc(1, cb + sizeof(RTMEMTRACKERHDR)), cb, pszTag, ASMReturnAddress(), RTMEMTRACKERMETHOD_ALLOCZ);
+    void *pv = RTMemTrackerHdrAlloc(calloc(1, cb + sizeof(RTMEMTRACKERHDR)), cb, pszTag, RTMEMTRACKERMETHOD_ALLOCZ);
 #else
     void *pv = calloc(1, cb); NOREF(pszTag);
 #endif
@@ -185,10 +146,6 @@ RTDECL(void *) RTMemAllocZTag(size_t cb, const char *pszTag) RT_NO_THROW_DEF
               || ( (cb & RTMEM_ALIGNMENT) + ((uintptr_t)pv & RTMEM_ALIGNMENT)) == RTMEM_ALIGNMENT
               , ("pv=%p RTMEM_ALIGNMENT=%#x\n", pv, RTMEM_ALIGNMENT));
 #endif /* !RTALLOC_USE_EFENCE */
-#ifdef IPRT_WITH_GCC_SANITIZER
-    if (rtMemIsLeakTag(pszTag))
-        __lsan_ignore_object(pv);
-#endif
     return pv;
 }
 
@@ -233,10 +190,10 @@ RTDECL(void *)  RTMemReallocTag(void *pvOld, size_t cbNew, const char *pszTag) R
 #else /* !RTALLOC_USE_EFENCE */
 
 # ifdef RTMEMALLOC_USE_TRACKER
-    void *pvRealOld  = RTMemTrackerHdrReallocPrep(pvOld, 0, pszTag, ASMReturnAddress());
+    void *pvRealOld  = RTMemTrackerHdrReallocPrep(pvOld, 0, pszTag);
     size_t cbRealNew = cbNew || !pvRealOld ? cbNew + sizeof(RTMEMTRACKERHDR) : 0;
     void *pvNew      = realloc(pvRealOld, cbRealNew);
-    void *pv         = RTMemTrackerHdrReallocDone(pvNew, cbNew, pvOld, pszTag, ASMReturnAddress());
+    void *pv         = RTMemTrackerHdrReallocDone(pvNew, cbNew, pvOld, pszTag);
 # else
     void *pv = realloc(pvOld, cbNew); NOREF(pszTag);
 # endif
@@ -257,7 +214,7 @@ RTDECL(void) RTMemFree(void *pv) RT_NO_THROW_DEF
         rtR3MemFree("Free", RTMEMTYPE_RTMEMFREE, pv, ASMReturnAddress(), NULL, 0, NULL);
 #else
 # ifdef RTMEMALLOC_USE_TRACKER
-        pv = RTMemTrackerHdrFree(pv, 0, NULL, ASMReturnAddress(), RTMEMTRACKERMETHOD_FREE);
+        pv = RTMemTrackerHdrFree(pv, 0, NULL, RTMEMTRACKERMETHOD_FREE);
 # endif
         free(pv);
 #endif

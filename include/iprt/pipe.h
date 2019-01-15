@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_pipe_h
-#define IPRT_INCLUDED_pipe_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_pipe_h
+#define ___iprt_pipe_h
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -106,14 +103,6 @@ RTDECL(int)  RTPipeFromNative(PRTPIPE phPipe, RTHCINTPTR hNativePipe, uint32_t f
  * @param   hPipe           The IPRT pipe handle.
  */
 RTDECL(RTHCINTPTR) RTPipeToNative(RTPIPE hPipe);
-
-/**
- * Get the creation inheritability of the pipe.
- *
- * @returns true if inherited by children (when pipe was created), false if not.
- * @param   hPipe           The IPRT pipe handle.
- */
-RTDECL(int) RTPipeGetCreationInheritability(RTPIPE hPipe);
 
 /**
  * Read bytes from a pipe, non-blocking.
@@ -259,5 +248,5 @@ RTDECL(int) RTPipeQueryInfo(RTPIPE hPipe, PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD 
 
 RT_C_DECLS_END
 
-#endif /* !IPRT_INCLUDED_pipe_h */
+#endif
 

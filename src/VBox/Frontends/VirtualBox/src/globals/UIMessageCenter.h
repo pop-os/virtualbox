@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,17 +15,14 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_globals_UIMessageCenter_h
-#define FEQT_INCLUDED_SRC_globals_UIMessageCenter_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __UIMessageCenter_h__
+#define __UIMessageCenter_h__
 
 /* Qt includes: */
 #include <QObject>
 
 /* GUI includes: */
-#include "UILibraryDefs.h"
+#include "QIMessageBox.h"
 #include "UIMediumDefs.h"
 
 /* COM includes: */
@@ -37,10 +34,9 @@ class UIMedium;
 struct StorageSlot;
 #ifdef VBOX_WITH_DRAG_AND_DROP
 class CGuest;
-#endif
+#endif /* VBOX_WITH_DRAG_AND_DROP */
 
-
-/** Possible message types. */
+/* Possible message types: */
 enum MessageType
 {
     MessageType_Info = 1,
@@ -52,28 +48,15 @@ enum MessageType
 };
 Q_DECLARE_METATYPE(MessageType);
 
-
-/** Singleton QObject extension
-  * providing GUI with corresponding messages. */
-class SHARED_LIBRARY_STUFF UIMessageCenter : public QObject
+/* Global message-center object: */
+class UIMessageCenter: public QObject
 {
     Q_OBJECT;
 
 signals:
 
-    /** Asks to show message-box.
-      * @param  pParent           Brings the message-box parent.
-      * @param  enmType           Brings the message-box type.
-      * @param  strMessage        Brings the message.
-      * @param  strDetails        Brings the details.
-      * @param  iButton1          Brings the button 1 type.
-      * @param  iButton2          Brings the button 2 type.
-      * @param  iButton3          Brings the button 3 type.
-      * @param  strButtonText1    Brings the button 1 text.
-      * @param  strButtonText2    Brings the button 2 text.
-      * @param  strButtonText3    Brings the button 3 text.
-      * @param  strAutoConfirmId  Brings whether this message can be auto-confirmed. */
-    void sigToShowMessageBox(QWidget *pParent, MessageType enmType,
+    /* Notifier: Interthreading stuff: */
+    void sigToShowMessageBox(QWidget *pParent, MessageType type,
                              const QString &strMessage, const QString &strDetails,
                              int iButton1, int iButton2, int iButton3,
                              const QString &strButtonText1, const QString &strButtonText2, const QString &strButtonText3,
@@ -81,87 +64,49 @@ signals:
 
 public:
 
-    /** Creates message-center singleton. */
+    /* Static API: Create/destroy stuff: */
     static void create();
-    /** Destroys message-center singleton. */
     static void destroy();
 
-    /** Defines whether warning with particular @a strWarningName is @a fShown. */
-    void setWarningShown(const QString &strWarningName, bool fShown) const;
-    /** Returns whether warning with particular @a strWarningName is shown. */
+    /* API: Warning registration stuff: */
     bool warningShown(const QString &strWarningName) const;
+    void setWarningShown(const QString &strWarningName, bool fWarningShown) const;
 
-    /** Shows a general type of 'Message'.
-      * @param  pParent            Brings the message-box parent.
-      * @param  enmType            Brings the message-box type.
-      * @param  strMessage         Brings the message.
-      * @param  strDetails         Brings the details.
-      * @param  pcszAutoConfirmId  Brings the auto-confirm ID.
-      * @param  iButton1           Brings the button 1 type.
-      * @param  iButton2           Brings the button 2 type.
-      * @param  iButton3           Brings the button 3 type.
-      * @param  strButtonText1     Brings the button 1 text.
-      * @param  strButtonText2     Brings the button 2 text.
-      * @param  strButtonText3     Brings the button 3 text. */
-    int message(QWidget *pParent, MessageType enmType,
-                const QString &strMessage, const QString &strDetails,
+    /* API: Main message function, used directly only in exceptional cases: */
+    int message(QWidget *pParent, MessageType type,
+                const QString &strMessage,
+                const QString &strDetails,
                 const char *pcszAutoConfirmId = 0,
                 int iButton1 = 0, int iButton2 = 0, int iButton3 = 0,
                 const QString &strButtonText1 = QString(),
                 const QString &strButtonText2 = QString(),
                 const QString &strButtonText3 = QString()) const;
 
-    /** Shows an 'Error' type of 'Message'.
-      * Provides single Ok button.
-      * @param  pParent            Brings the message-box parent.
-      * @param  enmType            Brings the message-box type.
-      * @param  strMessage         Brings the message.
-      * @param  strDetails         Brings the details.
-      * @param  pcszAutoConfirmId  Brings the auto-confirm ID. */
-    void error(QWidget *pParent, MessageType enmType,
+    /* API: Wrapper to 'message' function.
+     * Provides single OK button: */
+    void error(QWidget *pParent, MessageType type,
                const QString &strMessage,
                const QString &strDetails,
                const char *pcszAutoConfirmId = 0) const;
 
-    /** Shows an 'Error with Question' type of 'Message'.
-      * Provides Ok and Cancel buttons (called same way by default).
-      * @param  pParent              Brings the message-box parent.
-      * @param  enmType              Brings the message-box type.
-      * @param  strMessage           Brings the message.
-      * @param  strDetails           Brings the details.
-      * @param  pcszAutoConfirmId    Brings the auto-confirm ID.
-      * @param  strOkButtonText      Brings the Ok button text.
-      * @param  strCancelButtonText  Brings the Cancel button text. */
-    bool errorWithQuestion(QWidget *pParent, MessageType enmType,
+    /* API: Wrapper to 'message' function,
+     * Error with question providing two buttons (OK and Cancel by default): */
+    bool errorWithQuestion(QWidget *pParent, MessageType type,
                            const QString &strMessage,
                            const QString &strDetails,
                            const char *pcszAutoConfirmId = 0,
                            const QString &strOkButtonText = QString(),
                            const QString &strCancelButtonText = QString()) const;
 
-    /** Shows an 'Alert' type of 'Error'.
-      * Omit details.
-      * @param  pParent            Brings the message-box parent.
-      * @param  enmType            Brings the message-box type.
-      * @param  strMessage         Brings the message.
-      * @param  pcszAutoConfirmId  Brings the auto-confirm ID. */
-    void alert(QWidget *pParent, MessageType enmType,
+    /* API: Wrapper to 'error' function.
+     * Omits details: */
+    void alert(QWidget *pParent, MessageType type,
                const QString &strMessage,
                const char *pcszAutoConfirmId = 0) const;
 
-    /** Shows a 'Question' type of 'Message'.
-      * Omit details.
-      * @param  pParent            Brings the message-box parent.
-      * @param  enmType            Brings the message-box type.
-      * @param  strMessage         Brings the message.
-      * @param  pcszAutoConfirmId  Brings the auto-confirm ID.
-      * @param  iButton1           Brings the button 1 type.
-      * @param  iButton2           Brings the button 2 type.
-      * @param  iButton3           Brings the button 3 type.
-      * @param  strButtonText1     Brings the button 1 text.
-      * @param  strButtonText2     Brings the button 2 text.
-      * @param  strButtonText3     Brings the button 3 text. */
-    int question(QWidget *pParent, MessageType enmType,
+    /* API: Wrapper to 'message' function.
+     * Omits details, provides two or three buttons: */
+    int question(QWidget *pParent, MessageType type,
                  const QString &strMessage,
                  const char *pcszAutoConfirmId = 0,
                  int iButton1 = 0, int iButton2 = 0, int iButton3 = 0,
@@ -169,51 +114,26 @@ public:
                  const QString &strButtonText2 = QString(),
                  const QString &strButtonText3 = QString()) const;
 
-    /** Shows a 'Binary' type of 'Question'.
-      * Omit details. Provides Ok and Cancel buttons (called same way by default).
-      * @param  pParent              Brings the message-box parent.
-      * @param  enmType              Brings the message-box type.
-      * @param  strMessage           Brings the message.
-      * @param  pcszAutoConfirmId    Brings the auto-confirm ID.
-      * @param  strOkButtonText      Brings the button 1 text.
-      * @param  strCancelButtonText  Brings the button 2 text.
-      * @param  fDefaultFocusForOk   Brings whether Ok button should be focused initially. */
-    bool questionBinary(QWidget *pParent, MessageType enmType,
+    /* API: Wrapper to 'question' function,
+     * Question providing two buttons (OK and Cancel by default): */
+    bool questionBinary(QWidget *pParent, MessageType type,
                         const QString &strMessage,
                         const char *pcszAutoConfirmId = 0,
                         const QString &strOkButtonText = QString(),
                         const QString &strCancelButtonText = QString(),
                         bool fDefaultFocusForOk = true) const;
 
-    /** Shows a 'Trinary' type of 'Question'.
-      * Omit details. Provides Yes, No and Cancel buttons (called same way by default).
-      * @param  pParent               Brings the message-box parent.
-      * @param  enmType               Brings the message-box type.
-      * @param  strMessage            Brings the message.
-      * @param  pcszAutoConfirmId     Brings the auto-confirm ID.
-      * @param  strChoice1ButtonText  Brings the button 1 text.
-      * @param  strChoice2ButtonText  Brings the button 2 text.
-      * @param  strCancelButtonText   Brings the button 3 text. */
-    int questionTrinary(QWidget *pParent, MessageType enmType,
+    /* API: Wrapper to 'question' function,
+     * Question providing three buttons (Yes, No and Cancel by default): */
+    int questionTrinary(QWidget *pParent, MessageType type,
                         const QString &strMessage,
                         const char *pcszAutoConfirmId = 0,
                         const QString &strChoice1ButtonText = QString(),
                         const QString &strChoice2ButtonText = QString(),
                         const QString &strCancelButtonText = QString()) const;
 
-    /** Shows a general type of 'Message with Option'.
-      * @param  pParent              Brings the message-box parent.
-      * @param  enmType              Brings the message-box type.
-      * @param  strMessage           Brings the message.
-      * @param  strOptionText        Brings the option text.
-      * @param  fDefaultOptionValue  Brings the default option value.
-      * @param  iButton1             Brings the button 1 type.
-      * @param  iButton2             Brings the button 2 type.
-      * @param  iButton3             Brings the button 3 type.
-      * @param  strButtonText1       Brings the button 1 text.
-      * @param  strButtonText2       Brings the button 2 text.
-      * @param  strButtonText3       Brings the button 3 text. */
-    int messageWithOption(QWidget *pParent, MessageType enmType,
+    /* API: One more main function: */
+    int messageWithOption(QWidget *pParent, MessageType type,
                           const QString &strMessage,
                           const QString &strOptionText,
                           bool fDefaultOptionValue = true,
@@ -222,24 +142,16 @@ public:
                           const QString &strButtonText2 = QString(),
                           const QString &strButtonText3 = QString()) const;
 
-    /** Shows modal progress-dialog.
-      * @param  comProgress   Brings the progress this dialog is based on.
-      * @param  strTitle      Brings the title.
-      * @param  strImage      Brings the image.
-      * @param  pParent       Brings the parent.
-      * @param  cMinDuration  Brings the minimum diration to show this dialog after expiring it. */
-    bool showModalProgressDialog(CProgress &comProgress, const QString &strTitle,
+    /* API: Progress-dialog stuff: */
+    bool showModalProgressDialog(CProgress &progress, const QString &strTitle,
                                  const QString &strImage = "", QWidget *pParent = 0,
                                  int cMinDuration = 2000);
 
     /* API: Main (startup) warnings: */
-    void warnAboutUnknownOptionType(const QString &strOption);
-    void warnAboutUnrelatedOptionType(const QString &strOption);
 #ifdef RT_OS_LINUX
     void warnAboutWrongUSBMounted() const;
 #endif /* RT_OS_LINUX */
     void cannotStartSelector() const;
-    void cannotStartRuntime() const;
     void showBetaBuildWarning() const;
     void showExperimentalBuildWarning() const;
 
@@ -253,7 +165,7 @@ public:
     void cannotFindLanguage(const QString &strLangId, const QString &strNlsPath) const;
     void cannotLoadLanguage(const QString &strLangFile) const;
     void cannotFindMachineByName(const CVirtualBox &vbox, const QString &strName) const;
-    void cannotFindMachineById(const CVirtualBox &vbox, const QUuid &uId) const;
+    void cannotFindMachineById(const CVirtualBox &vbox, const QString &strId) const;
     void cannotOpenSession(const CSession &session) const;
     void cannotOpenSession(const CMachine &machine) const;
     void cannotOpenSession(const CProgress &progress, const QString &strMachineName) const;
@@ -287,8 +199,6 @@ public:
     void cannotPowerDownMachine(const CConsole &console) const;
     void cannotPowerDownMachine(const CProgress &progress, const QString &strMachineName) const;
     bool confirmStartMultipleMachines(const QString &strNames) const;
-    void cannotMoveMachine(const CMachine &machine, QWidget *pParent = 0) const;
-    void cannotMoveMachine(const CProgress &progress, const QString &strMachineName, QWidget *pParent = 0) const;
 
     /* API: Snapshot warnings: */
     int confirmSnapshotRestoring(const QString &strSnapshotName, bool fAlsoCreateNewSnapshot) const;
@@ -303,7 +213,7 @@ public:
     void cannotRemoveSnapshot(const CProgress &progress, const QString &strSnapshotName, const QString &strMachineName) const;
     void cannotChangeSnapshot(const CSnapshot &comSnapshot, const QString &strSnapshotName, const QString &strMachineName) const;
     void cannotFindSnapshotByName(const CMachine &comMachine, const QString &strName, QWidget *pParent = 0) const;
-    void cannotFindSnapshotById(const CMachine &comMachine, const QUuid &uId, QWidget *pParent = 0) const;
+    void cannotFindSnapshotById(const CMachine &comMachine, const QString &strId, QWidget *pParent = 0) const;
     void cannotAcquireSnapshotAttributes(const CSnapshot &comSnapshot, QWidget *pParent = 0);
 
     /* API: Common settings warnings: */
@@ -321,7 +231,7 @@ public:
     int confirmOpticalAttachmentCreation(const QString &strControllerName, QWidget *pParent = 0) const;
     int confirmFloppyAttachmentCreation(const QString &strControllerName, QWidget *pParent = 0) const;
     int confirmRemovingOfLastDVDDevice(QWidget *pParent = 0) const;
-    void cannotAttachDevice(const CMachine &machine, UIMediumDeviceType type, const QString &strLocation, const StorageSlot &storageSlot, QWidget *pParent = 0);
+    void cannotAttachDevice(const CMachine &machine, UIMediumType type, const QString &strLocation, const StorageSlot &storageSlot, QWidget *pParent = 0);
     bool warnAboutIncorrectPort(QWidget *pParent = 0) const;
     bool warnAboutIncorrectAddress(QWidget *pParent = 0) const;
     bool warnAboutEmptyGuestAddress(QWidget *pParent = 0) const;
@@ -342,9 +252,9 @@ public:
     void cannotDeleteHardDiskStorage(const CProgress &progress, const QString &strLocation, QWidget *pParent = 0) const;
     void cannotResizeHardDiskStorage(const CMedium &comMedium, const QString &strLocation, const QString &strSizeOld, const QString &strSizeNew, QWidget *pParent = 0) const;
     void cannotResizeHardDiskStorage(const CProgress &comProgress, const QString &strLocation, const QString &strSizeOld, const QString &strSizeNew, QWidget *pParent = 0) const;
-    void cannotDetachDevice(const CMachine &machine, UIMediumDeviceType type, const QString &strLocation, const StorageSlot &storageSlot, QWidget *pParent = 0) const;
+    void cannotDetachDevice(const CMachine &machine, UIMediumType type, const QString &strLocation, const StorageSlot &storageSlot, QWidget *pParent = 0) const;
     bool cannotRemountMedium(const CMachine &machine, const UIMedium &medium, bool fMount, bool fRetry, QWidget *pParent = 0) const;
-    void cannotOpenMedium(const CVirtualBox &vbox, UIMediumDeviceType type, const QString &strLocation, QWidget *pParent = 0) const;
+    void cannotOpenMedium(const CVirtualBox &vbox, UIMediumType type, const QString &strLocation, QWidget *pParent = 0) const;
     void cannotCloseMedium(const UIMedium &medium, const COMResult &rc, QWidget *pParent = 0) const;
 
     /* API: Host Network Manager warnings: */
@@ -362,22 +272,6 @@ public:
     void cannotAcquireDHCPServerParameter(const CDHCPServer &comServer, QWidget *pParent = 0) const;
     void cannotSaveDHCPServerParameter(const CDHCPServer &comServer, QWidget *pParent = 0) const;
 
-    /* API: Cloud Profile Manager warnings: */
-    void cannotAcquireCloudProviderManager(const CVirtualBox &comVBox, QWidget *pParent = 0) const;
-    void cannotAcquireCloudProviderManagerParameter(const CCloudProviderManager &comManager, QWidget *pParent = 0) const;
-    void cannotFindCloudProvider(const CCloudProviderManager &comManager, const QUuid &uId, QWidget *pParent = 0) const;
-    void cannotAcquireCloudProviderParameter(const CCloudProvider &comProvider, QWidget *pParent = 0) const;
-    void cannotFindCloudProfile(const CCloudProvider &comProvider, const QString &strName, QWidget *pParent = 0) const;
-    void cannotCreateCloudProfle(const CCloudProvider &comProvider, QWidget *pParent = 0) const;
-    void cannotSaveCloudProfiles(const CCloudProvider &comProvider, QWidget *pParent = 0) const;
-    void cannotImportCloudProfiles(const CCloudProvider &comProvider, QWidget *pParent = 0) const;
-    void cannotAcquireCloudProfileParameter(const CCloudProfile &comProfile, QWidget *pParent = 0) const;
-    void cannotAssignCloudProfileParameter(const CCloudProfile &comProfile, QWidget *pParent = 0) const;
-    void cannotCreateCloudClient(const CCloudProfile &comProfile, QWidget *pParent = 0) const;
-    void cannotAcquireCloudClientParameter(const CCloudClient &comClient, QWidget *pParent = 0) const;
-    bool confirmCloudProfileRemoval(const QString &strName, QWidget *pParent = 0) const;
-    bool confirmCloudProfilesImport(QWidget *pParent = 0) const;
-
     /* API: Wizards warnings: */
     bool confirmHardDisklessMachine(QWidget *pParent = 0) const;
     void cannotCreateMachine(const CVirtualBox &vbox, QWidget *pParent = 0) const;
@@ -388,7 +282,6 @@ public:
     void cannotCreateHardDiskStorage(const CVirtualBox &vbox, const QString &strLocation,QWidget *pParent = 0) const;
     void cannotCreateHardDiskStorage(const CMedium &medium, const QString &strLocation, QWidget *pParent = 0) const;
     void cannotCreateHardDiskStorage(const CProgress &progress, const QString &strLocation, QWidget *pParent = 0) const;
-    void cannotCreateHardDiskStorageInFAT(const QString &strLocation, QWidget *pParent = 0) const;
     void cannotCreateMediumStorage(const CVirtualBox &comVBox, const QString &strLocation, QWidget *pParent = 0) const;
     void cannotCreateMediumStorage(const CMedium &comMedium, const QString &strLocation, QWidget *pParent = 0) const;
     void cannotCreateMediumStorage(const CProgress &comProgress, const QString &strLocation, QWidget *pParent = 0) const;
@@ -397,16 +290,13 @@ public:
     void cannotCreateMachineFolder(const QString &strFolderName, QWidget *pParent = 0) const;
     void cannotImportAppliance(CAppliance &appliance, QWidget *pParent = 0) const;
     void cannotImportAppliance(const CProgress &progress, const QString &strPath, QWidget *pParent = 0) const;
-    bool cannotCheckFiles(const CAppliance &comAppliance, QWidget *pParent = 0) const;
-    bool cannotCheckFiles(const CVFSExplorer &comVFSExplorer, QWidget *pParent = 0) const;
-    bool cannotCheckFiles(const CProgress &comProgress, QWidget *pParent = 0) const;
-    bool cannotRemoveFiles(const CVFSExplorer &comVFSExplorer, QWidget *pParent = 0) const;
-    bool cannotRemoveFiles(const CProgress &comProgress, QWidget *pParent = 0) const;
+    void cannotCheckFiles(const CProgress &progress, QWidget *pParent = 0) const;
+    void cannotRemoveFiles(const CProgress &progress, QWidget *pParent = 0) const;
     bool confirmExportMachinesInSaveState(const QStringList &machineNames, QWidget *pParent = 0) const;
-    bool cannotExportAppliance(const CAppliance &comAppliance, QWidget *pParent = 0) const;
+    void cannotExportAppliance(const CAppliance &appliance, QWidget *pParent = 0) const;
     void cannotExportAppliance(const CMachine &machine, const QString &strPath, QWidget *pParent = 0) const;
-    bool cannotExportAppliance(const CProgress &comProgress, const QString &strPath, QWidget *pParent = 0) const;
-    bool cannotAddDiskEncryptionPassword(const CAppliance &comAppliance, QWidget *pParent = 0);
+    void cannotExportAppliance(const CProgress &progress, const QString &strPath, QWidget *pParent = 0) const;
+    void cannotAddDiskEncryptionPassword(const CAppliance &appliance, QWidget *pParent = 0);
 
     /* API: Runtime UI warnings: */
     void showRuntimeError(const CConsole &console, bool fFatal, const QString &strErrorId, const QString &strErrorMsg) const;
@@ -445,7 +335,7 @@ public:
     bool confirmDownloadUserManual(const QString &strURL, qulonglong uSize) const;
     void cannotSaveUserManual(const QString &strURL, const QString &strTarget) const;
     void warnAboutUserManualDownloaded(const QString &strURL, const QString &strTarget) const;
-    bool warnAboutOutdatedExtensionPack(const QString &strExtPackName, const QString &strExtPackVersion) const;
+    bool warAboutOutdatedExtensionPack(const QString &strExtPackName, const QString &strExtPackVersion) const;
     bool confirmDownloadExtensionPack(const QString &strExtPackName, const QString &strURL, qulonglong uSize) const;
     void cannotSaveExtensionPack(const QString &strExtPackName, const QString &strFrom, const QString &strTo) const;
     bool proposeInstallExtentionPack(const QString &strExtPackName, const QString &strFrom, const QString &strTo) const;
@@ -499,19 +389,8 @@ public slots:
 
 private slots:
 
-    /** Shows message-box.
-      * @param  pParent           Brings the message-box parent.
-      * @param  enmType           Brings the message-box type.
-      * @param  strMessage        Brings the message.
-      * @param  strDetails        Brings the details.
-      * @param  iButton1          Brings the button 1 type.
-      * @param  iButton2          Brings the button 2 type.
-      * @param  iButton3          Brings the button 3 type.
-      * @param  strButtonText1    Brings the button 1 text.
-      * @param  strButtonText2    Brings the button 2 text.
-      * @param  strButtonText3    Brings the button 3 text.
-      * @param  strAutoConfirmId  Brings whether this message can be auto-confirmed. */
-    void sltShowMessageBox(QWidget *pParent, MessageType enmType,
+    /* Handler: Interthreading stuff: */
+    void sltShowMessageBox(QWidget *pParent, MessageType type,
                            const QString &strMessage, const QString &strDetails,
                            int iButton1, int iButton2, int iButton3,
                            const QString &strButtonText1, const QString &strButtonText2, const QString &strButtonText3,
@@ -519,47 +398,32 @@ private slots:
 
 private:
 
-    /** Constructs message-center. */
+    /* Constructor/destructor: */
     UIMessageCenter();
-    /** Destructs message-center. */
     ~UIMessageCenter();
 
-    /** Prepares all. */
+    /* Helpers: Prepare/cleanup stuff: */
     void prepare();
-    /** Cleanups all. */
     void cleanup();
 
-    /** Shows message-box.
-      * @param  pParent           Brings the message-box parent.
-      * @param  enmType           Brings the message-box type.
-      * @param  strMessage        Brings the message.
-      * @param  strDetails        Brings the details.
-      * @param  iButton1          Brings the button 1 type.
-      * @param  iButton2          Brings the button 2 type.
-      * @param  iButton3          Brings the button 3 type.
-      * @param  strButtonText1    Brings the button 1 text.
-      * @param  strButtonText2    Brings the button 2 text.
-      * @param  strButtonText3    Brings the button 3 text.
-      * @param  strAutoConfirmId  Brings whether this message can be auto-confirmed. */
+    /* Helper: Message-box stuff: */
     int showMessageBox(QWidget *pParent, MessageType type,
                        const QString &strMessage, const QString &strDetails,
                        int iButton1, int iButton2, int iButton3,
                        const QString &strButtonText1, const QString &strButtonText2, const QString &strButtonText3,
                        const QString &strAutoConfirmId) const;
 
-    /** Holds the list of shown warnings. */
+    /* Variables: */
     mutable QStringList m_warnings;
 
-    /** Holds the singleton message-center instance. */
-    static UIMessageCenter *s_pInstance;
-    /** Returns the singleton message-center instance. */
-    static UIMessageCenter *instance();
-    /** Allows for shortcut access. */
-    friend UIMessageCenter &msgCenter();
+    /* API: Instance stuff: */
+    static UIMessageCenter* m_spInstance;
+    static UIMessageCenter* instance();
+    friend UIMessageCenter& msgCenter();
 };
 
-/** Singleton Message Center 'official' name. */
-inline UIMessageCenter &msgCenter() { return *UIMessageCenter::instance(); }
+/* Shortcut to the static UIMessageCenter::instance() method: */
+inline UIMessageCenter& msgCenter() { return *UIMessageCenter::instance(); }
 
+#endif // __UIMessageCenter_h__
 
-#endif /* !FEQT_INCLUDED_SRC_globals_UIMessageCenter_h */

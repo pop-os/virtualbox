@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,12 +14,8 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-
-#ifndef VBOX_INCLUDED_SRC_testcase_tstDeviceVMMInternal_h
-#define VBOX_INCLUDED_SRC_testcase_tstDeviceVMMInternal_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___tstDeviceVMMInternal_h
+#define ___tstDeviceVMMInternal_h
 
 #include <VBox/types.h>
 #include <VBox/vmm/tm.h>
@@ -213,8 +209,8 @@ typedef struct PDMNSFILTER
 #define PDMCRITSECTINT_DECLARED
 #define PDMTHREADINT_DECLARED
 #define PDMDEVINSINT_DECLARED
-#define VMM_INCLUDED_SRC_include_VMInternal_h
-#define VMM_INCLUDED_SRC_include_VMMInternal_h
+#define ___VMInternal_h
+#define ___VMMInternal_h
 RT_C_DECLS_END
 #include <VBox/vmm/pdmcritsect.h>
 #include <VBox/vmm/vm.h>
@@ -360,5 +356,5 @@ extern const TSTDEVVMMCALLBACKS g_tstDevVmmCallbacks;
 
 RT_C_DECLS_END
 
-#endif /* !VBOX_INCLUDED_SRC_testcase_tstDeviceVMMInternal_h */
+#endif
 

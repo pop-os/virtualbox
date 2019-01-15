@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_types_h
-#define IPRT_INCLUDED_types_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_types_h
+#define ___iprt_types_h
 
 #include <iprt/cdefs.h>
 #include <iprt/stdint.h>
@@ -2089,13 +2086,6 @@ typedef RTCRDIGEST                          RT_FAR *PRTCRDIGEST;
 /** NIL cryptographic message digest handle. */
 #define NIL_RTCRDIGEST                              (0)
 
-/** Cryptographic key handle. */
-typedef R3R0PTRTYPE(struct RTCRKEYINT RT_FAR *)     RTCRKEY;
-/** Pointer to a cryptographic key handle. */
-typedef RTCRKEY                             RT_FAR *PRTCRKEY;
-/** Cryptographic key handle nil value. */
-#define NIL_RTCRKEY                                 (0)
-
 /** Public key encryption schema handle. */
 typedef R3R0PTRTYPE(struct RTCRPKIXENCRYPTIONINT RT_FAR *) RTCRPKIXENCRYPTION;
 /** Pointer to a public key encryption schema handle. */
@@ -2429,11 +2419,6 @@ typedef RTDBGMOD                            RT_FAR *PRTDBGMOD;
 /** NIL debug module handle. */
 #define NIL_RTDBGMOD                                ((RTDBGMOD)0)
 
-/** Pointer to an unwind machine state. */
-typedef struct RTDBGUNWINDSTATE RT_FAR              *PRTDBGUNWINDSTATE;
-/** Pointer to a const unwind machine state. */
-typedef struct RTDBGUNWINDSTATE const RT_FAR        *PCRTDBGUNWINDSTATE;
-
 /** Manifest handle. */
 typedef struct RTMANIFESTINT                RT_FAR *RTMANIFEST;
 /** Pointer to a manifest handle. */
@@ -2529,13 +2514,6 @@ typedef struct RTKRNLMODINFOINT             RT_FAR *RTKRNLMODINFO;
 typedef RTKRNLMODINFO                       RT_FAR *PRTKRNLMODINFO;
 /** A NIL kernel module information record handle. */
 #define NIL_RTKRNLMODINFO                          ((RTKRNLMODINFO)~(uintptr_t)0);
-
-/** Shared memory object handle. */
-typedef struct RTSHMEMINT                   RT_FAR *RTSHMEM;
-/** Pointer to a shared memory object handle. */
-typedef RTSHMEM                             RT_FAR *PRTSHMEM;
-/** A NIL shared memory object handle. */
-#define NIL_RTSHMEM                                ((RTSHMEM)~(uintptr_t)0)
 
 /**
  * Handle type.
@@ -3213,5 +3191,5 @@ public:
 #endif /* __cplusplus */
 /** @} */
 
-#endif /* !IPRT_INCLUDED_types_h */
+#endif
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -458,7 +458,7 @@ static int pdmR3UsbFindHub(PVM pVM, uint32_t iUsbVersion, PPDMUSBHUB *ppHub)
 
 
 /**
- * Translates a USB version (a bit-mask) to USB speed (enum). Picks
+ * Translates a USB vesion (a bit-mask) to USB speed (enum). Picks
  * the highest available version.
  *
  * @returns VUSBSPEED enum
@@ -479,39 +479,6 @@ static VUSBSPEED pdmR3UsbVer2Spd(uint32_t iUsbVersion)
         enmSpd = VUSB_SPEED_FULL;    /* Can't distinguish LS vs. FS. */
 
     return enmSpd;
-}
-
-
-/**
- * Translates a USB speed (enum) to USB version.
- *
- * @returns USB version mask
- *
- * @param   enmSpeed        The USB connection speed.
- *
- */
-static uint32_t pdmR3UsbSpd2Ver(VUSBSPEED enmSpeed)
-{
-    uint32_t    iUsbVersion = 0;
-    Assert(enmSpeed != VUSB_SPEED_UNKNOWN);
-
-    switch (enmSpeed)
-    {
-    case VUSB_SPEED_LOW:
-    case VUSB_SPEED_FULL:
-        iUsbVersion = VUSB_STDVER_11;
-        break;
-    case VUSB_SPEED_HIGH:
-        iUsbVersion = VUSB_STDVER_20;
-        break;
-    case VUSB_SPEED_SUPER:
-    case VUSB_SPEED_SUPERPLUS:
-    default:
-        iUsbVersion = VUSB_STDVER_30;
-        break;
-    }
-
-    return iUsbVersion;
 }
 
 
@@ -1019,12 +986,12 @@ VMMR3DECL(int) PDMR3UsbCreateEmulatedDevice(PUVM pUVM, const char *pszDeviceName
  * @param   pszBackend          The proxy backend to use.
  * @param   pszAddress          The address string.
  * @param   pvBackend           Pointer to the backend.
- * @param   enmSpeed            The speed the USB device is operating at.
+ * @param   iUsbVersion         The preferred USB version.
  * @param   fMaskedIfs          The interfaces to hide from the guest.
  * @param   pszCaptureFilename  Path to the file for USB traffic capturing, optional.
  */
 VMMR3DECL(int) PDMR3UsbCreateProxyDevice(PUVM pUVM, PCRTUUID pUuid, const char *pszBackend, const char *pszAddress, void *pvBackend,
-                                         VUSBSPEED enmSpeed, uint32_t fMaskedIfs, const char *pszCaptureFilename)
+                                         uint32_t iUsbVersion, uint32_t fMaskedIfs, const char *pszCaptureFilename)
 {
     /*
      * Validate input.
@@ -1035,11 +1002,9 @@ VMMR3DECL(int) PDMR3UsbCreateProxyDevice(PUVM pUVM, PCRTUUID pUuid, const char *
     VM_ASSERT_EMT_RETURN(pVM, VERR_VM_THREAD_NOT_EMT);
     AssertPtrReturn(pUuid, VERR_INVALID_POINTER);
     AssertPtrReturn(pszAddress, VERR_INVALID_POINTER);
-    AssertReturn(    enmSpeed == VUSB_SPEED_LOW
-                 ||  enmSpeed == VUSB_SPEED_FULL
-                 ||  enmSpeed == VUSB_SPEED_HIGH
-                 ||  enmSpeed == VUSB_SPEED_SUPER
-                 ||  enmSpeed == VUSB_SPEED_SUPERPLUS, VERR_INVALID_PARAMETER);
+    AssertReturn(    iUsbVersion == VUSB_STDVER_30
+                 ||  iUsbVersion == VUSB_STDVER_20
+                 ||  iUsbVersion == VUSB_STDVER_11, VERR_INVALID_PARAMETER);
 
     /*
      * Find the USBProxy driver.
@@ -1055,7 +1020,6 @@ VMMR3DECL(int) PDMR3UsbCreateProxyDevice(PUVM pUVM, PCRTUUID pUuid, const char *
      * Find a suitable hub with free ports.
      */
     PPDMUSBHUB pHub;
-    uint32_t iUsbVersion = pdmR3UsbSpd2Ver(enmSpeed);
     int rc = pdmR3UsbFindHub(pVM, iUsbVersion, &pHub);
     if (RT_FAILURE(rc))
     {
@@ -1077,6 +1041,7 @@ VMMR3DECL(int) PDMR3UsbCreateProxyDevice(PUVM pUVM, PCRTUUID pUuid, const char *
         rc = RTUuidToStr(pUuid, &szUuid[0], sizeof(szUuid));                    AssertRCBreak(rc);
         rc = CFGMR3InsertString(pConfig,  "UUID", szUuid);                      AssertRCBreak(rc);
         rc = CFGMR3InsertString(pConfig, "Backend", pszBackend);                AssertRCBreak(rc);
+        rc = CFGMR3InsertInteger(pConfig, "USBVersion", iUsbVersion);           AssertRCBreak(rc);
         rc = CFGMR3InsertInteger(pConfig, "pvBackend", (uintptr_t)pvBackend);   AssertRCBreak(rc);
         rc = CFGMR3InsertInteger(pConfig, "MaskedIfs", fMaskedIfs);             AssertRCBreak(rc);
         rc = CFGMR3InsertInteger(pConfig, "Force11Device", !(pHub->fVersions & iUsbVersion)); AssertRCBreak(rc);
@@ -1088,8 +1053,7 @@ VMMR3DECL(int) PDMR3UsbCreateProxyDevice(PUVM pUVM, PCRTUUID pUuid, const char *
         return rc;
     }
 
-    if (enmSpeed == VUSB_SPEED_UNKNOWN)
-        enmSpeed = pdmR3UsbVer2Spd(iUsbVersion);
+    VUSBSPEED enmSpeed = pdmR3UsbVer2Spd(iUsbVersion);
 
     /*
      * Finally, try to create it.
@@ -1417,23 +1381,23 @@ VMMR3DECL(int)  PDMR3UsbDriverAttach(PUVM pUVM, const char *pszDevice, unsigned 
  * @param   iLun            The Logical Unit in which to look for the driver.
  * @param   pszDriver       The name of the driver which to detach.  If NULL
  *                          then the entire driver chain is detatched.
- * @param   iOccurrence     The occurrence of that driver in the chain.  This is
+ * @param   iOccurance      The occurrence of that driver in the chain.  This is
  *                          usually 0.
  * @param   fFlags          Flags, combination of the PDM_TACH_FLAGS_* \#defines.
  * @thread  EMT
  */
 VMMR3DECL(int)  PDMR3UsbDriverDetach(PUVM pUVM, const char *pszDevice, unsigned iDevIns, unsigned iLun,
-                                     const char *pszDriver, unsigned iOccurrence, uint32_t fFlags)
+                                     const char *pszDriver, unsigned iOccurance, uint32_t fFlags)
 {
-    LogFlow(("PDMR3UsbDriverDetach: pszDevice=%p:{%s} iDevIns=%u iLun=%u pszDriver=%p:{%s} iOccurrence=%u fFlags=%#x\n",
-             pszDevice, pszDevice, iDevIns, iLun, pszDriver, pszDriver, iOccurrence, fFlags));
+    LogFlow(("PDMR3UsbDriverDetach: pszDevice=%p:{%s} iDevIns=%u iLun=%u pszDriver=%p:{%s} iOccurance=%u fFlags=%#x\n",
+             pszDevice, pszDevice, iDevIns, iLun, pszDriver, pszDriver, iOccurance, fFlags));
     UVM_ASSERT_VALID_EXT_RETURN(pUVM, VERR_INVALID_VM_HANDLE);
     PVM pVM = pUVM->pVM;
     VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
     VM_ASSERT_EMT(pVM);
     AssertPtr(pszDevice);
     AssertPtrNull(pszDriver);
-    Assert(iOccurrence == 0 || pszDriver);
+    Assert(iOccurance == 0 || pszDriver);
     Assert(!(fFlags & ~(PDM_TACH_FLAGS_NOT_HOT_PLUG)));
 
     /*
@@ -1455,9 +1419,9 @@ VMMR3DECL(int)  PDMR3UsbDriverDetach(PUVM pUVM, const char *pszDevice, unsigned 
                 {
                     if (!strcmp(pDrvIns->pReg->szName, pszDriver))
                     {
-                        if (iOccurrence == 0)
+                        if (iOccurance == 0)
                             break;
-                        iOccurrence--;
+                        iOccurance--;
                     }
                     pDrvIns = pDrvIns->Internal.s.pDown;
                 }

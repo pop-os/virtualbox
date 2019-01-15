@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,73 +15,70 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_wizards_exportappliance_UIWizardExportApp_h
-#define FEQT_INCLUDED_SRC_wizards_exportappliance_UIWizardExportApp_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __UIWizardExportApp_h__
+#define __UIWizardExportApp_h__
 
-/* GUI includes: */
+/* Local includes: */
 #include "UIWizard.h"
 
 /* Forward declarations: */
 class CAppliance;
 
-/** Export Appliance wizard. */
+/* Export Appliance wizard: */
 class UIWizardExportApp : public UIWizard
 {
     Q_OBJECT;
 
 public:
 
-    /** Basic page IDs. */
+    /* Page IDs: */
     enum
     {
         Page1,
         Page2,
-        Page3
+        Page3,
+        Page4
     };
 
-    /** Expert page IDs. */
+    /* Page IDs: */
     enum
     {
         PageExpert
     };
 
-    /** Constructs export appliance wizard passing @a pParent to the base-class.
-      * @param  selectedVMNames  Brings the names of VMs to be exported. */
+    /* Constructor: */
     UIWizardExportApp(QWidget *pParent, const QStringList &selectedVMNames = QStringList());
-
-    /** Exports full appliance. */
-    bool exportAppliance();
-
-    /** Composes universal resource identifier.
-      * @param  fWithFile  Brings whether uri should include file name as well. */
-    QString uri(bool fWithFile = true) const;
-
-protected slots:
-
-    /** Handles page change to @a iId. */
-    virtual void sltCurrentIdChanged(int iId) /* override */;
-
-    /** Handles custom button @a iId click. */
-    virtual void sltCustomButtonClicked(int iId) /* override */;
 
 protected:
 
-    /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
+    /* Export appliance stuff: */
+    bool exportAppliance();
+    bool exportVMs(CAppliance &appliance);
+    QString uri(bool fWithFile = true) const;
 
-    /** Prepares all. */
-    virtual void prepare() /* override */;
+    /* Who will be able to export appliance: */
+    friend class UIWizardExportAppPage4;
+    friend class UIWizardExportAppPageBasic4;
+    friend class UIWizardExportAppPageExpert;
+
+private slots:
+
+    /* Page change handler: */
+    void sltCurrentIdChanged(int iId);
+    /* Custom button 2 click handler: */
+    void sltCustomButtonClicked(int iId);
 
 private:
 
-    /** Exports @a comAppliance VMs. */
-    bool exportVMs(CAppliance &comAppliance);
+    /* Translation stuff: */
+    void retranslateUi();
 
-    /** Holds the names of VMs to be exported. */
+    /* Pages related stuff: */
+    void prepare();
+
+    /* Variables: */
     QStringList m_selectedVMNames;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_wizards_exportappliance_UIWizardExportApp_h */
+#endif /* __UIWizardExportApp_h__ */
+

@@ -3,7 +3,7 @@
  * VBox USB Monitor
  */
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,12 +22,8 @@
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
  */
-
-#ifndef VBOX_INCLUDED_SRC_VBoxUSB_win_mon_VBoxUsbMon_h
-#define VBOX_INCLUDED_SRC_VBoxUSB_win_mon_VBoxUsbMon_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBoxUsbMon_h___
+#define ___VBoxUsbMon_h___
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
@@ -71,4 +67,4 @@ typedef FNVBOXUSBMONDEVWALKER *PFNVBOXUSBMONDEVWALKER;
 
 VOID vboxUsbMonHubDevWalk(PFNVBOXUSBMONDEVWALKER pfnWalker, PVOID pvWalker, ULONG fFlags);
 
-#endif /* !VBOX_INCLUDED_SRC_VBoxUSB_win_mon_VBoxUsbMon_h */
+#endif /* #ifndef ___VBoxUsbMon_h___ */

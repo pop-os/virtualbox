@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -267,10 +267,10 @@ static int rtldrRdrMem_Create(PRTLDRREADER *ppReader, const char *pszName, size_
 
 RTDECL(int) RTLdrOpenInMemory(const char *pszName, uint32_t fFlags, RTLDRARCH enmArch, size_t cbImage,
                               PFNRTLDRRDRMEMREAD pfnRead, PFNRTLDRRDRMEMDTOR pfnDtor, void *pvUser,
-                              PRTLDRMOD phLdrMod, PRTERRINFO pErrInfo)
+                              PRTLDRMOD phLdrMod)
 {
-    LogFlow(("RTLdrOpenInMemory: pszName=%p:{%s} fFlags=%#x enmArch=%d cbImage=%#zx pfnRead=%p pfnDtor=%p pvUser=%p phLdrMod=%p pErrInfo=%p\n",
-             pszName, pszName, fFlags, enmArch, cbImage, pfnRead, pfnDtor, pvUser, phLdrMod, pErrInfo));
+    LogFlow(("RTLdrOpenInMemory: pszName=%p:{%s} fFlags=%#x enmArch=%d cbImage=%#zx pfnRead=%p pfnDtor=%p pvUser=%p phLdrMod=%p\n",
+             pszName, pszName, fFlags, enmArch, cbImage, pfnRead, pfnDtor, pvUser, phLdrMod));
 
     if (!pfnRead || !pfnDtor)
         AssertPtrReturn(pvUser, VERR_INVALID_POINTER);
@@ -294,7 +294,13 @@ RTDECL(int) RTLdrOpenInMemory(const char *pszName, uint32_t fFlags, RTLDRARCH en
      * Resolve RTLDRARCH_HOST.
      */
     if (enmArch == RTLDRARCH_HOST)
-        enmArch = RTLdrGetHostArch();
+#if   defined(RT_ARCH_AMD64)
+        enmArch = RTLDRARCH_AMD64;
+#elif defined(RT_ARCH_X86)
+        enmArch = RTLDRARCH_X86_32;
+#else
+        enmArch = RTLDRARCH_WHATEVER;
+#endif
 
     /*
      * Create file reader & invoke worker which identifies and calls the image interpreter.
@@ -303,7 +309,7 @@ RTDECL(int) RTLdrOpenInMemory(const char *pszName, uint32_t fFlags, RTLDRARCH en
     int rc = rtldrRdrMem_Create(&pReader, pszName, cbImage, pfnRead, pfnDtor, pvUser);
     if (RT_SUCCESS(rc))
     {
-        rc = RTLdrOpenWithReader(pReader, fFlags, enmArch, phLdrMod, pErrInfo);
+        rc = RTLdrOpenWithReader(pReader, fFlags, enmArch, phLdrMod, NULL);
         if (RT_SUCCESS(rc))
         {
             LogFlow(("RTLdrOpen: return %Rrc *phLdrMod=%p\n", rc, *phLdrMod));
@@ -313,10 +319,7 @@ RTDECL(int) RTLdrOpenInMemory(const char *pszName, uint32_t fFlags, RTLDRARCH en
         pReader->pfnDestroy(pReader);
     }
     else
-    {
         pfnDtor(pvUser, cbImage);
-        rc = RTErrInfoSetF(pErrInfo, rc, "rtldrRdrMem_Create failed: %Rrc", rc);
-    }
     *phLdrMod = NIL_RTLDRMOD;
 
     LogFlow(("RTLdrOpen: return %Rrc\n", rc));

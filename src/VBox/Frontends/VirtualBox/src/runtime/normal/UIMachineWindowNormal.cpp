@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,41 +15,47 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QMenuBar>
-#include <QTimer>
-#include <QContextMenuEvent>
-#include <QResizeEvent>
-#include <QScrollBar>
+# include <QMenuBar>
+# include <QTimer>
+# include <QContextMenuEvent>
+# include <QResizeEvent>
+# include <QScrollBar>
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
-#include "UIDesktopWidgetWatchdog.h"
-#include "UIMachineWindowNormal.h"
-#include "UIActionPoolRuntime.h"
-#include "UIExtraDataManager.h"
-#include "UIIndicatorsPool.h"
-#include "UIKeyboardHandler.h"
-#include "UIMouseHandler.h"
-#include "UIMachineLogic.h"
-#include "UIMachineView.h"
-#include "UIIconPool.h"
-#include "UISession.h"
-#include "QIStatusBar.h"
-#include "QIStatusBarIndicator.h"
-#ifndef VBOX_WS_MAC
-# include "UIMenuBar.h"
-#else  /* VBOX_WS_MAC */
-# include "VBoxUtils.h"
-# include "UIImageTools.h"
-# include "UICocoaApplication.h"
-#endif /* VBOX_WS_MAC */
+# include "VBoxGlobal.h"
+# include "UIDesktopWidgetWatchdog.h"
+# include "UIMachineWindowNormal.h"
+# include "UIActionPoolRuntime.h"
+# include "UIExtraDataManager.h"
+# include "UIIndicatorsPool.h"
+# include "UIKeyboardHandler.h"
+# include "UIMouseHandler.h"
+# include "UIMachineLogic.h"
+# include "UIMachineView.h"
+# include "UIIconPool.h"
+# include "UISession.h"
+# include "QIStatusBar.h"
+# include "QIStatusBarIndicator.h"
+# ifndef VBOX_WS_MAC
+#  include "UIMenuBar.h"
+# else  /* VBOX_WS_MAC */
+#  include "VBoxUtils.h"
+#  include "UIImageTools.h"
+#  include "UICocoaApplication.h"
+# endif /* VBOX_WS_MAC */
 
 /* COM includes: */
-#include "CConsole.h"
-#include "CMediumAttachment.h"
-#include "CUSBController.h"
-#include "CUSBDeviceFilters.h"
+# include "CConsole.h"
+# include "CMediumAttachment.h"
+# include "CUSBController.h"
+# include "CUSBDeviceFilters.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 UIMachineWindowNormal::UIMachineWindowNormal(UIMachineLogic *pMachineLogic, ulong uScreenId)
@@ -64,7 +70,7 @@ void UIMachineWindowNormal::sltMachineStateChanged()
     UIMachineWindow::sltMachineStateChanged();
 
     /* Update indicator-pool and virtualization stuff: */
-    updateAppearanceOf(UIVisualElement_IndicatorPoolStuff | UIVisualElement_Recording | UIVisualElement_FeaturesStuff);
+    updateAppearanceOf(UIVisualElement_IndicatorPoolStuff | UIVisualElement_VideoCapture | UIVisualElement_FeaturesStuff);
 }
 
 void UIMachineWindowNormal::sltMediumChange(const CMediumAttachment &attachment)
@@ -109,10 +115,10 @@ void UIMachineWindowNormal::sltSharedFolderChange()
     updateAppearanceOf(UIVisualElement_SharedFolderStuff);
 }
 
-void UIMachineWindowNormal::sltRecordingChange()
+void UIMachineWindowNormal::sltVideoCaptureChange()
 {
     /* Update video-capture stuff: */
-    updateAppearanceOf(UIVisualElement_Recording);
+    updateAppearanceOf(UIVisualElement_VideoCapture);
 }
 
 void UIMachineWindowNormal::sltCPUExecutionCapChange()
@@ -131,10 +137,10 @@ void UIMachineWindowNormal::sltHandleSessionInitialized()
 }
 
 #ifndef RT_OS_DARWIN
-void UIMachineWindowNormal::sltHandleMenuBarConfigurationChange(const QUuid &uMachineID)
+void UIMachineWindowNormal::sltHandleMenuBarConfigurationChange(const QString &strMachineID)
 {
     /* Skip unrelated machine IDs: */
-    if (vboxGlobal().managedVMUuid() != uMachineID)
+    if (vboxGlobal().managedVMUuid() != strMachineID)
         return;
 
     /* Check whether menu-bar is enabled: */
@@ -165,10 +171,10 @@ void UIMachineWindowNormal::sltHandleMenuBarContextMenuRequest(const QPoint &pos
 }
 #endif /* !RT_OS_DARWIN */
 
-void UIMachineWindowNormal::sltHandleStatusBarConfigurationChange(const QUuid &uMachineID)
+void UIMachineWindowNormal::sltHandleStatusBarConfigurationChange(const QString &strMachineID)
 {
     /* Skip unrelated machine IDs: */
-    if (vboxGlobal().managedVMUuid() != uMachineID)
+    if (vboxGlobal().managedVMUuid() != strMachineID)
         return;
 
     /* Check whether status-bar is enabled: */
@@ -198,11 +204,11 @@ void UIMachineWindowNormal::sltHandleStatusBarContextMenuRequest(const QPoint &p
         actionPool()->action(UIActionIndexRT_M_View_M_StatusBar)->menu()->exec(statusBar()->mapToGlobal(position));
 }
 
-void UIMachineWindowNormal::sltHandleIndicatorContextMenuRequest(IndicatorType enmIndicatorType, const QPoint &indicatorPosition)
+void UIMachineWindowNormal::sltHandleIndicatorContextMenuRequest(IndicatorType indicatorType, const QPoint &position)
 {
     /* Determine action depending on indicator-type: */
     UIAction *pAction = 0;
-    switch (enmIndicatorType)
+    switch (indicatorType)
     {
         case IndicatorType_HardDisks:     pAction = actionPool()->action(UIActionIndexRT_M_Devices_M_HardDrives);     break;
         case IndicatorType_OpticalDisks:  pAction = actionPool()->action(UIActionIndexRT_M_Devices_M_OpticalDevices); break;
@@ -212,14 +218,14 @@ void UIMachineWindowNormal::sltHandleIndicatorContextMenuRequest(IndicatorType e
         case IndicatorType_USB:           pAction = actionPool()->action(UIActionIndexRT_M_Devices_M_USBDevices);     break;
         case IndicatorType_SharedFolders: pAction = actionPool()->action(UIActionIndexRT_M_Devices_M_SharedFolders);  break;
         case IndicatorType_Display:       pAction = actionPool()->action(UIActionIndexRT_M_ViewPopup);                break;
-        case IndicatorType_Recording:     pAction = actionPool()->action(UIActionIndexRT_M_View_M_Recording);         break;
+        case IndicatorType_VideoCapture:  pAction = actionPool()->action(UIActionIndexRT_M_View_M_VideoCapture);      break;
         case IndicatorType_Mouse:         pAction = actionPool()->action(UIActionIndexRT_M_Input_M_Mouse);            break;
         case IndicatorType_Keyboard:      pAction = actionPool()->action(UIActionIndexRT_M_Input_M_Keyboard);         break;
         default: break;
     }
     /* Raise action's context-menu: */
     if (pAction && pAction->isEnabled())
-        pAction->menu()->exec(m_pIndicatorsPool->mapIndicatorPositionToGlobal(enmIndicatorType, indicatorPosition));
+        pAction->menu()->exec(position);
 }
 
 #ifdef VBOX_WS_MAC
@@ -248,8 +254,8 @@ void UIMachineWindowNormal::prepareSessionConnections()
             this, SLOT(sltNetworkAdapterChange()));
     connect(machineLogic()->uisession(), SIGNAL(sigSharedFolderChange()),
             this, SLOT(sltSharedFolderChange()));
-    connect(machineLogic()->uisession(), SIGNAL(sigRecordingChange()),
-            this, SLOT(sltRecordingChange()));
+    connect(machineLogic()->uisession(), SIGNAL(sigVideoCaptureChange()),
+            this, SLOT(sltVideoCaptureChange()));
     connect(machineLogic()->uisession(), SIGNAL(sigCPUExecutionCapChange()),
             this, SLOT(sltCPUExecutionCapChange()));
     connect(machineLogic()->uisession(), SIGNAL(sigInitialized()),
@@ -267,8 +273,8 @@ void UIMachineWindowNormal::prepareMenu()
         menuBar()->setContextMenuPolicy(Qt::CustomContextMenu);
         connect(menuBar(), SIGNAL(customContextMenuRequested(const QPoint&)),
                 this, SLOT(sltHandleMenuBarContextMenuRequest(const QPoint&)));
-        connect(gEDataManager, SIGNAL(sigMenuBarConfigurationChange(const QUuid &)),
-                this, SLOT(sltHandleMenuBarConfigurationChange(const QUuid &)));
+        connect(gEDataManager, SIGNAL(sigMenuBarConfigurationChange(const QString&)),
+                this, SLOT(sltHandleMenuBarConfigurationChange(const QString&)));
         /* Update menu-bar: */
         updateMenu();
     }
@@ -299,8 +305,8 @@ void UIMachineWindowNormal::prepareStatusBar()
             statusBar()->addPermanentWidget(m_pIndicatorsPool, 0);
         }
         /* Post-configure status-bar: */
-        connect(gEDataManager, SIGNAL(sigStatusBarConfigurationChange(const QUuid &)),
-                this, SLOT(sltHandleStatusBarConfigurationChange(const QUuid &)));
+        connect(gEDataManager, SIGNAL(sigStatusBarConfigurationChange(const QString&)),
+                this, SLOT(sltHandleStatusBarConfigurationChange(const QString&)));
 #ifdef VBOX_WS_MAC
         /* Make sure the status-bar is aware of action hovering: */
         connect(actionPool(), SIGNAL(sigActionHovered(UIAction *)),
@@ -457,8 +463,8 @@ void UIMachineWindowNormal::cleanupSessionConnections()
                this, &UIMachineWindowNormal::sltAudioAdapterChange);
     disconnect(machineLogic()->uisession(), SIGNAL(sigSharedFolderChange()),
                this, SLOT(sltSharedFolderChange()));
-    disconnect(machineLogic()->uisession(), SIGNAL(sigRecordingChange()),
-               this, SLOT(sltRecordingChange()));
+    disconnect(machineLogic()->uisession(), SIGNAL(sigVideoCaptureChange()),
+               this, SLOT(sltVideoCaptureChange()));
     disconnect(machineLogic()->uisession(), SIGNAL(sigCPUExecutionCapChange()),
                this, SLOT(sltCPUExecutionCapChange()));
 
@@ -632,8 +638,8 @@ void UIMachineWindowNormal::updateAppearanceOf(int iElement)
         /* If VM is running or paused: */
         if (uisession()->isRunning() || uisession()->isPaused())
         {
-            if (iElement & UIVisualElement_Recording)
-                m_pIndicatorsPool->updateAppearance(IndicatorType_Recording);
+            if (iElement & UIVisualElement_VideoCapture)
+                m_pIndicatorsPool->updateAppearance(IndicatorType_VideoCapture);
         }
     }
 }

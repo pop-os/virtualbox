@@ -1,10 +1,10 @@
 /* $Id: UIHostComboEditor.cpp $ */
 /** @file
- * VBox Qt GUI - UIHostComboEditor class implementation.
+ * VBox Qt GUI - VirtualBox Qt extensions: UIHostComboEditor class implementation.
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,40 +15,51 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QApplication>
-#include <QHBoxLayout>
-#include <QKeyEvent>
-#include <QStyleOption>
-#include <QStylePainter>
-#include <QTimer>
-#ifdef VBOX_WS_X11
-# include <QX11Info>
-#endif
-#if defined(VBOX_WS_MAC) || defined(VBOX_WS_WIN)
-# include <QAbstractNativeEventFilter>
-#endif
+# include <QApplication>
+# include <QKeyEvent>
+# include <QStyleOption>
+# include <QStylePainter>
+# include <QTimer>
+# ifdef VBOX_WS_X11
+#  include <QX11Info>
+# endif /* VBOX_WS_X11 */
 
 /* GUI includes: */
-#include "QIToolButton.h"
-#include "VBoxGlobal.h"
-#include "UIExtraDataManager.h"
-#include "UIHostComboEditor.h"
-#include "UIIconPool.h"
-#ifdef VBOX_WS_MAC
-# include "UICocoaApplication.h"
-# include "VBoxUtils-darwin.h"
+# include "UIHostComboEditor.h"
+# include "UIExtraDataManager.h"
+# include "UIIconPool.h"
+# include "VBoxGlobal.h"
+# include "QIToolButton.h"
+# ifdef VBOX_WS_MAC
+#  include "UICocoaApplication.h"
+#  include "VBoxUtils-darwin.h"
+# endif /* VBOX_WS_MAC */
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+/* Qt includes: */
+#if defined(VBOX_WS_MAC) || defined(VBOX_WS_WIN)
+# include <QAbstractNativeEventFilter>
+#endif /* VBOX_WS_MAC || VBOX_WS_WIN */
+
+/* GUI includes: */
+#if defined(VBOX_WS_MAC)
 # include "DarwinKeyboard.h"
 #elif defined(VBOX_WS_WIN)
 # include "WinKeyboard.h"
 #elif defined(VBOX_WS_X11)
 # include "XKeyboard.h"
-#endif
+#endif /* VBOX_WS_X11 */
 
 /* Other VBox includes: */
 #if defined(VBOX_WS_X11)
 # include <VBox/VBoxKeyboard.h>
-#endif
+#endif /* VBOX_WS_X11 */
 
 /* External includes: */
 #if defined(VBOX_WS_MAC)
@@ -84,7 +95,7 @@ public:
     {}
 
     /** Handles all native events. */
-    virtual bool nativeEventFilter(const QByteArray &eventType, void *pMessage, long *pResult) /* override */
+    bool nativeEventFilter(const QByteArray &eventType, void *pMessage, long *pResult)
     {
         /* Redirect event to parent: */
         return m_pParent->nativeEvent(eventType, pMessage, pResult);
@@ -155,11 +166,10 @@ QString UINativeHotKey::toString(int iKeyCode)
 
 #elif defined(VBOX_WS_WIN)
 
-    // WORKAROUND:
-    // MapVirtualKey doesn't distinguish between right and left vkeys,
-    // even under XP, despite that it stated in MSDN. Do it by hands.
-    // Besides that it can't recognize such virtual keys as
-    // VK_DIVIDE & VK_PAUSE, this is also known bug.
+    /* MapVirtualKey doesn't distinguish between right and left vkeys,
+     * even under XP, despite that it stated in MSDN. Do it by hands.
+     * Besides that it can't recognize such virtual keys as
+     * VK_DIVIDE & VK_PAUSE, this is also known bug. */
     int iScan;
     switch (iKeyCode)
     {
@@ -255,7 +265,6 @@ bool UINativeHotKey::isValidKey(int iKeyCode)
 # warning "port me!"
 
     return false;
-
 #endif
 }
 
@@ -457,12 +466,6 @@ UIHostComboEditor::UIHostComboEditor(QWidget *pParent)
     prepare();
 }
 
-void UIHostComboEditor::retranslateUi()
-{
-    /* Translate 'clear' tool-button: */
-    m_pButtonClear->setToolTip(QApplication::translate("UIHotKeyEditor", "Unset shortcut"));
-}
-
 void UIHostComboEditor::sltCommitData()
 {
     /* Commit data to the listener: */
@@ -506,6 +509,12 @@ void UIHostComboEditor::prepare()
     retranslateUi();
 }
 
+void UIHostComboEditor::retranslateUi()
+{
+    /* Translate 'clear' tool-button: */
+    m_pButtonClear->setToolTip(QApplication::translate("UIHotKeyEditor", "Unset shortcut"));
+}
+
 void UIHostComboEditor::setCombo(const UIHostComboWrapper &strCombo)
 {
     /* Pass combo to child: */
@@ -528,10 +537,10 @@ UIHostComboEditorPrivate::UIHostComboEditorPrivate()
     , m_fStartNewSequence(true)
 #if defined(VBOX_WS_MAC) || defined(VBOX_WS_WIN)
     , m_pPrivateEventFilter(0)
-#endif
+#endif /* VBOX_WS_MAC || VBOX_WS_WIN */
 #ifdef VBOX_WS_WIN
     , m_pAltGrMonitor(0)
-#endif
+#endif /* VBOX_WS_WIN */
 {
     /* Configure widget: */
     setAttribute(Qt::WA_NativeWindow);
@@ -627,9 +636,9 @@ bool UIHostComboEditorPrivate::nativeEvent(const QByteArray &eventType, void *pM
         return QLineEdit::nativeEvent(eventType, pMessage, pResult);
     EventRef event = static_cast<EventRef>(darwinCocoaToCarbonEvent(pMessage));
 
-    /* Check if some NSEvent should be filtered out: */
-    // Returning @c true means filtering-out,
-    // Returning @c false means passing event to Qt.
+    /* Check if some NSEvent should be filtered out.
+     * Returning @c true means filtering-out,
+     * Returning @c false means passing event to Qt. */
     switch(::GetEventClass(event))
     {
         /* Watch for keyboard-events: */
@@ -683,9 +692,9 @@ bool UIHostComboEditorPrivate::nativeEvent(const QByteArray &eventType, void *pM
         return QLineEdit::nativeEvent(eventType, pMessage, pResult);
     MSG *pEvent = static_cast<MSG*>(pMessage);
 
-    /* Check if some MSG event should be filtered out: */
-    // Returning @c true means filtering-out,
-    // Returning @c false means passing event to Qt.
+    /* Check if some MSG event should be filtered out.
+     * Returning @c true means filtering-out,
+     * Returning @c false means passing event to Qt. */
     switch (pEvent->message)
     {
         /* Watch for key-events: */
@@ -711,9 +720,8 @@ bool UIHostComboEditorPrivate::nativeEvent(const QByteArray &eventType, void *pM
                     m_pressedKeys.remove(VK_LCONTROL);
                     m_shownKeys.remove(VK_LCONTROL);
                 }
-                // WORKAROUND:
-                // Fake LCtrl release events can also end up in the released
-                // key set.  Detect them on the immediately following RAlt up.
+                /* Fake LCtrl release events can also end up in the released
+                 * key set.  Detect them on the immediately following RAlt up. */
                 if (!m_pressedKeys.contains(VK_LCONTROL))
                     m_releasedKeys.remove(VK_LCONTROL);
             }
@@ -732,9 +740,9 @@ bool UIHostComboEditorPrivate::nativeEvent(const QByteArray &eventType, void *pM
         return QLineEdit::nativeEvent(eventType, pMessage, pResult);
     xcb_generic_event_t *pEvent = static_cast<xcb_generic_event_t*>(pMessage);
 
-    /* Check if some XCB event should be filtered out: */
-    // Returning @c true means filtering-out,
-    // Returning @c false means passing event to Qt.
+    /* Check if some XCB event should be filtered out.
+     * Returning @c true means filtering-out,
+     * Returning @c false means passing event to Qt. */
     switch (pEvent->response_type & ~0x80)
     {
         /* Watch for key-events: */
@@ -746,7 +754,7 @@ bool UIHostComboEditorPrivate::nativeEvent(const QByteArray &eventType, void *pM
             RT_GCC_NO_WARN_DEPRECATED_BEGIN
             const KeySym ks = ::XKeycodeToKeysym(QX11Info::display(), pKeyEvent->detail, 0);
             RT_GCC_NO_WARN_DEPRECATED_END
-            const int iKeySym = static_cast<int>(ks);
+            const int iKeySym = static_cast<const int>(ks);
 
             /* Handle key-event: */
             return processKeyEvent(iKeySym, (pEvent->response_type & ~0x80) == XCB_KEY_PRESS);
@@ -903,3 +911,4 @@ void UIHostComboEditorPrivate::updateText()
     QStringList shownKeyNames(m_shownKeys.values());
     setText(shownKeyNames.isEmpty() ? UIHostComboEditor::tr("None") : shownKeyNames.join(" + "));
 }
+

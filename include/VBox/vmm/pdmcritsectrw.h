@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef VBOX_INCLUDED_vmm_pdmcritsectrw_h
-#define VBOX_INCLUDED_vmm_pdmcritsectrw_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBox_vmm_pdmcritsectrw_h
+#define ___VBox_vmm_pdmcritsectrw_h
 
 #include <VBox/types.h>
 
@@ -80,7 +77,7 @@ VMMDECL(bool)       PDMCritSectRwIsInitialized(PCPDMCRITSECTRW pCritSect);
 
 /* Lock strict build: Remap the three enter calls to the debug versions. */
 #ifdef VBOX_STRICT
-# ifdef IPRT_INCLUDED_asm_h
+# ifdef ___iprt_asm_h
 #  define PDMCritSectRwEnterExcl(pCritSect, rcBusy)     PDMCritSectRwEnterExclDebug(pCritSect, rcBusy, (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
 #  define PDMCritSectRwTryEnterExcl(pCritSect)          PDMCritSectRwTryEnterExclDebug(pCritSect, (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
 #  define PDMCritSectRwEnterShared(pCritSect, rcBusy)   PDMCritSectRwEnterSharedDebug(pCritSect, rcBusy, (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
@@ -97,5 +94,5 @@ VMMDECL(bool)       PDMCritSectRwIsInitialized(PCPDMCRITSECTRW pCritSect);
 
 RT_C_DECLS_END
 
-#endif /* !VBOX_INCLUDED_vmm_pdmcritsectrw_h */
+#endif
 

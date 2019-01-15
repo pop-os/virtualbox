@@ -146,7 +146,7 @@
            </widget>
           </item>
           <item row="4" column="0">
-           <widget class="QLabel" name="m_pLabelGuestScreenScaleFactorEditor">
+           <widget class="QLabel" name="m_pLabelGuestScreenScale">
             <property name="text">
              <string>Scale Factor:</string>
             </property>
@@ -155,50 +155,26 @@
             </property>
            </widget>
           </item>
-          <item row="4" column="1" rowspan="2" colspan="2">
-           <layout class="QGridLayout" name="m_pLayoutGuestScreenScaleFactorEditor">
+          <item row="4" column="1" rowspan="2">
+           <layout class="QGridLayout" name="m_pLayoutGuestScreenScaleSlider">
             <property name="spacing">
              <number>0</number>
             </property>
-            <item row="0" column="0" rowspan="2" colspan="3">
-             <widget class="UIScaleFactorEditor" name="m_pScaleFactorEditor">
+            <item row="0" column="0" colspan="3">
+             <widget class="QIAdvancedSlider" name="m_pSliderGuestScreenScale">
               <property name="whatsThis">
                <string>Controls the guest screen scale factor.</string>
               </property>
-             </widget>
-            </item>
-           </layout>
-          </item>
-          <item row="6" column="0">
-           <widget class="QLabel" name="m_pLabelGraphicsControllerType">
-            <property name="text">
-             <string>&amp;Graphics Controller:</string>
-            </property>
-            <property name="alignment">
-             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-            </property>
-            <property name="buddy">
-             <cstring>m_pComboGraphicsControllerType</cstring>
-            </property>
-           </widget>
-          </item>
-          <item row="6" column="1" colspan="2">
-           <layout class="QHBoxLayout">
-            <item>
-             <widget class="QComboBox" name="m_pComboGraphicsControllerType" >
-              <property name="sizePolicy" >
-               <sizepolicy vsizetype="Fixed" hsizetype="Minimum" >
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="whatsThis" >
-               <string>Selects the graphics adapter type the virtual machine will use.</string>
+              <property name="orientation">
+               <enum>Qt::Horizontal</enum>
               </property>
              </widget>
             </item>
-            <item>
-             <spacer name="m_pSpacerHorizontalGraphicsAdapterType">
+            <item row="1" column="0">
+             <widget class="QLabel" name="m_pLabelGuestScreenScaleMin"/>
+            </item>
+            <item row="1" column="1">
+             <spacer name="m_pSpacerGuestScreenScale">
               <property name="orientation">
                <enum>Qt::Horizontal</enum>
               </property>
@@ -210,7 +186,46 @@
               </property>
              </spacer>
             </item>
+            <item row="1" column="2">
+             <widget class="QLabel" name="m_pLabelGuestScreenScaleMax"/>
+            </item>
            </layout>
+          </item>
+          <item row="4" column="2">
+           <widget class="QSpinBox" name="m_pEditorGuestScreenScale">
+            <property name="whatsThis">
+             <string>Controls the guest screen scale factor.</string>
+            </property>
+            <property name="suffix">
+             <string>%</string>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="0">
+           <widget class="QLabel" name="m_pLabelHiDPI">
+            <property name="text">
+             <string>HiDPI Support:</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
+            </property>
+           </widget>
+          </item>
+          <item row="6" column="1">
+           <widget class="QCheckBox" name="m_pCheckBoxUnscaledHiDPIOutput">
+            <property name="sizePolicy">
+             <sizepolicy vsizetype="Fixed" hsizetype="MinimumExpanding">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="whatsThis">
+             <string>When checked, guest screen contents will not be scaled up to compensate for high host screen resolutions.</string>
+            </property>
+            <property name="text">
+             <string>Use &amp;Unscaled HiDPI Output</string>
+            </property>
+           </widget>
           </item>
           <item row="7" column="0">
            <widget class="QLabel" name="m_pLabelVideoOptions">
@@ -421,7 +436,7 @@
      </widget>
      <widget class="QWidget" name="m_pTabVideoCapture">
       <attribute name="title">
-       <string>Re&amp;cording</string>
+       <string>Video &amp;Capture</string>
       </attribute>
       <layout class="QVBoxLayout" name="m_pLayoutTabVideoCapture">
        <item>
@@ -436,7 +451,7 @@
              <string>When checked, VirtualBox will record the virtual machine session as a video file.</string>
             </property>
             <property name="text">
-             <string>&amp;Enable Recording</string>
+             <string>&amp;Enable Video Capture</string>
             </property>
            </widget>
           </item>
@@ -463,26 +478,6 @@
             </property>
             <layout class="QGridLayout" name="m_pContainerLayoutVideoCapture">
              <item row="0" column="0">
-              <widget class="QLabel" name="m_pLabelCaptureMode">
-               <property name="text">
-                <string>Recording &amp;Mode:</string>
-               </property>
-               <property name="alignment">
-                <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
-               </property>
-               <property name="buddy">
-                <cstring>m_pEditorVideoCapturePath</cstring>
-               </property>
-              </widget>
-             </item>
-             <item row="0" column="1" colspan="3">
-              <widget class="QComboBox" name="m_pComboBoxCaptureMode">
-               <property name="whatsThis">
-                <string>Selects the recording mode.</string>
-               </property>
-              </widget>
-             </item>
-             <item row="1" column="0">
               <widget class="QLabel" name="m_pLabelVideoCapturePath">
                <property name="text">
                 <string>File &amp;Path:</string>
@@ -495,14 +490,14 @@
                </property>
               </widget>
              </item>
-             <item row="1" column="1" colspan="3">
+             <item row="0" column="1" colspan="3">
               <widget class="UIFilePathSelector" name="m_pEditorVideoCapturePath">
                <property name="whatsThis">
                 <string>Holds the filename VirtualBox uses to save the recorded content.</string>
                </property>
               </widget>
              </item>
-             <item row="2" column="0">
+             <item row="1" column="0">
               <widget class="QLabel" name="m_pLabelVideoCaptureSize">
                <property name="text">
                 <string>Frame &amp;Size:</string>
@@ -515,7 +510,7 @@
                </property>
               </widget>
              </item>
-             <item row="2" column="1">
+             <item row="1" column="1">
               <widget class="QComboBox" name="m_pComboVideoCaptureSize">
                <property name="sizePolicy">
                 <sizepolicy hsizetype="MinimumExpanding" vsizetype="Fixed">
@@ -528,21 +523,21 @@
                </property>
               </widget>
              </item>
-             <item row="2" column="2">
+             <item row="1" column="2">
               <widget class="QSpinBox" name="m_pEditorVideoCaptureWidth">
                <property name="whatsThis">
                 <string>Holds the &lt;b>horizontal&lt;/b> resolution (frame width) of the recorded video.</string>
                </property>
               </widget>
              </item>
-             <item row="2" column="3">
+             <item row="1" column="3">
               <widget class="QSpinBox" name="m_pEditorVideoCaptureHeight">
                <property name="whatsThis">
                 <string>Holds the &lt;b>vertical&lt;/b> resolution (frame height) of the recorded video.</string>
                </property>
               </widget>
              </item>
-             <item row="3" column="0">
+             <item row="2" column="0">
               <widget class="QLabel" name="m_pLabelVideoCaptureFrameRate">
                <property name="text">
                 <string>&amp;Frame Rate:</string>
@@ -555,7 +550,7 @@
                </property>
               </widget>
              </item>
-             <item row="3" column="1" rowspan="2">
+             <item row="2" column="1" rowspan="2">
               <widget class="QWidget" name="m_pContainerSliderVideoCaptureFrameRate">
                <layout class="QGridLayout" name="m_pContainerLayoutSliderVideoCaptureFrameRate">
                 <property name="spacing">
@@ -593,17 +588,17 @@
                </layout>
               </widget>
              </item>
-             <item row="3" column="2" colspan="2">
+             <item row="2" column="2" colspan="2">
               <widget class="QSpinBox" name="m_pEditorVideoCaptureFrameRate">
                <property name="whatsThis">
                 <string>Controls the maximum number of &lt;b>frames per second&lt;/b>. Additional frames will be skipped. Reducing this value will increase the number of skipped frames and reduce the file size.</string>
                </property>
               </widget>
              </item>
-             <item row="5" column="0">
+             <item row="4" column="0">
               <widget class="QLabel" name="m_pLabelVideoCaptureRate">
                <property name="text">
-                <string>&amp;Video Quality:</string>
+                <string>&amp;Quality:</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
@@ -613,7 +608,7 @@
                </property>
               </widget>
              </item>
-             <item row="5" column="1" rowspan="2">
+             <item row="4" column="1" rowspan="2">
               <widget class="QWidget" name="m_pContainerSliderVideoCaptureQuality">
                <layout class="QGridLayout" name="m_pContainerLayoutSliderVideoCaptureQuality">
                 <property name="spacing">
@@ -667,84 +662,37 @@
                </layout>
               </widget>
              </item>
-             <item row="5" column="2" colspan="2">
+             <item row="4" column="2" colspan="2">
               <widget class="QSpinBox" name="m_pEditorVideoCaptureBitRate">
                <property name="whatsThis">
                 <string>Holds the bitrate in &lt;b>kilobits per second&lt;/b>. Increasing this value will make the video look better at the cost of an increased file size.</string>
                </property>
               </widget>
              </item>
-              <item row="7" column="0">
-              <widget class="QLabel" name="m_pAudioCaptureQualityLabel">
+             <item row="6" column="1">
+              <widget class="QLabel" name="m_pLabelVideoCaptureSizeHint"/>
+             </item>
+             <item row="7" column="0">
+              <widget class="QLabel" name="m_pLabelVideoCaptureExtended">
                <property name="text">
-                <string>&amp;Audio Quality:</string>
+                <string>Extended Features:</string>
                </property>
                <property name="alignment">
                 <set>Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter</set>
                </property>
-               <property name="buddy">
-                <cstring>m_pSliderAudioCaptureQuality</cstring>
+              </widget>
+             </item>
+             <item row="7" column="1" colspan="3">
+              <widget class="QCheckBox" name="m_pCheckBoxVideoCaptureWithAudio">
+               <property name="whatsThis">
+                <string>When checked, VirtualBox will record the audio stream to video file as well.</string>
+               </property>
+               <property name="text">
+                <string>&amp;Record Audio</string>
                </property>
               </widget>
              </item>
-             <item row="7" column="1" rowspan="2">
-              <widget class="QWidget" name="m_pContainerSliderAudioCaptureQuality">
-               <layout class="QGridLayout" name="m_pContainerLayoutSliderAudioCaptureQuality">
-                <property name="spacing">
-                 <number>0</number>
-                </property>
-                <item row="0" column="0" colspan="5">
-                 <widget class="QIAdvancedSlider" name="m_pSliderAudioCaptureQuality">
-                  <property name="whatsThis">
-                   <string>Controls the &lt;b>quality&lt;/b>. Increasing this value will make the audio sound better at the cost of an increased file size.</string>
-                  </property>
-                  <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
-                  </property>
-                 </widget>
-                </item>
-                <item row="1" column="0">
-                 <widget class="QLabel" name="m_pLabelAudioCaptureQualityMin"/>
-                </item>
-                <item row="1" column="1">
-                 <spacer name="m_pStretchAudioCaptureQualityLeft">
-                  <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>0</width>
-                    <height>0</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
-                <item row="1" column="2">
-                 <widget class="QLabel" name="m_pLabelAudioCaptureQualityMed"/>
-                </item>
-                <item row="1" column="3">
-                 <spacer name="m_pStretchAudioCaptureQualityRight">
-                  <property name="orientation">
-                   <enum>Qt::Horizontal</enum>
-                  </property>
-                  <property name="sizeHint" stdset="0">
-                   <size>
-                    <width>0</width>
-                    <height>0</height>
-                   </size>
-                  </property>
-                 </spacer>
-                </item>
-                <item row="1" column="4">
-                 <widget class="QLabel" name="m_pLabelAudioCaptureQualityMax"/>
-                </item>
-               </layout>
-              </widget>
-             </item>
-             <item row="9" column="1">
-              <widget class="QLabel" name="m_pLabelVideoCaptureSizeHint"/>
-             </item>
-             <item row="10" column="0">
+             <item row="8" column="0">
               <widget class="QLabel" name="m_pLabelVideoCaptureScreens">
                <property name="text">
                 <string>&amp;Screens:</string>
@@ -757,7 +705,7 @@
                </property>
               </widget>
              </item>
-             <item row="10" column="1" colspan="3">
+             <item row="8" column="1" colspan="3">
               <widget class="UIFilmContainer" name="m_pScrollerVideoCaptureScreens">
                <property name="whatsThis">
                 <string></string>
@@ -810,11 +758,6 @@
    <class>UIFilmContainer</class>
    <extends>QWidget</extends>
    <header>UIFilmContainer.h</header>
-  </customwidget>
-  <customwidget>
-   <class>UIScaleFactorEditor</class>
-   <extends>QWidget</extends>
-   <header>UIScaleFactorEditor.h</header>
   </customwidget>
  </customwidgets>
  <resources/>

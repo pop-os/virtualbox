@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,15 +23,12 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_asn1_h
-#define IPRT_INCLUDED_asn1_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_asn1_h
+#define ___iprt_asn1_h
 
 #include <iprt/time.h>
 #include <iprt/stdarg.h>
-#include <iprt/errcore.h>
+#include <iprt/err.h>
 #include <iprt/formats/asn1.h>
 
 
@@ -159,9 +156,6 @@ extern RTDATADECL(RTASN1ALLOCATORVTABLE const) g_RTAsn1DefaultAllocator;
 
 /** The Electric Fence ASN.1 allocator. */
 extern RTDATADECL(RTASN1ALLOCATORVTABLE const) g_RTAsn1EFenceAllocator;
-
-/** The safer ASN.1 allocator for sensitive data. */
-extern RTDATADECL(RTASN1ALLOCATORVTABLE const) g_RTAsn1SaferAllocator;
 
 
 /**
@@ -1026,8 +1020,6 @@ RTASN1TYPE_STANDARD_PROTOTYPES(RTASN1TIME, RTDECL, RTAsn1GeneralizedTime, Asn1Co
  */
 RTDECL(int) RTAsn1Time_CompareWithTimeSpec(PCRTASN1TIME pLeft, PCRTTIMESPEC pTsRight);
 
-RTDECL(int) RTAsn1Time_InitEx(PRTASN1TIME pThis, uint32_t uTag, PCRTASN1ALLOCATORVTABLE pAllocator);
-
 /** @name Predicate macros for determing the exact type of RTASN1TIME.
  * @{ */
 /** True if UTC time. */
@@ -1157,9 +1149,6 @@ RTASN1TYPE_STANDARD_PROTOTYPES(RTASN1BITSTRING, RTDECL, RTAsn1BitString, Asn1Cor
 RTDECL(int) RTAsn1BitString_DecodeAsn1Ex(PRTASN1CURSOR pCursor, uint32_t fFlags, uint32_t cMaxBits, PRTASN1BITSTRING pThis,
                                          const char *pszErrorTag);
 RTDECL(uint64_t) RTAsn1BitString_GetAsUInt64(PCRTASN1BITSTRING pThis);
-RTDECL(int) RTAsn1BitString_RefreshContent(PRTASN1BITSTRING pThis, uint32_t fFlags,
-                                           PCRTASN1ALLOCATORVTABLE pAllocator, PRTERRINFO pErrInfo);
-RTDECL(bool) RTAsn1BitString_AreContentBitsValid(PCRTASN1BITSTRING pThis, uint32_t fFlags);
 
 RTASN1_IMPL_GEN_SEQ_OF_TYPEDEFS_AND_PROTOS(RTASN1SEQOFBITSTRINGS, RTASN1BITSTRING, RTDECL, RTAsn1SeqOfBitStrings);
 RTASN1_IMPL_GEN_SET_OF_TYPEDEFS_AND_PROTOS(RTASN1SETOFBITSTRINGS, RTASN1BITSTRING, RTDECL, RTAsn1SetOfBitStrings);
@@ -1191,9 +1180,7 @@ extern RTDATADECL(RTASN1COREVTABLE const) g_RTAsn1OctetString_Vtable;
 
 RTASN1TYPE_STANDARD_PROTOTYPES(RTASN1OCTETSTRING, RTDECL, RTAsn1OctetString, Asn1Core);
 
-RTDECL(bool) RTAsn1OctetString_AreContentBytesValid(PCRTASN1OCTETSTRING pThis, uint32_t fFlags);
-RTDECL(int) RTAsn1OctetString_RefreshContent(PRTASN1OCTETSTRING pThis, uint32_t fFlags,
-                                             PCRTASN1ALLOCATORVTABLE pAllocator, PRTERRINFO pErrInfo);
+RTDECL(int) RTAsn1OctetStringCompare(PCRTASN1OCTETSTRING pLeft, PCRTASN1OCTETSTRING pRight);
 
 RTASN1_IMPL_GEN_SEQ_OF_TYPEDEFS_AND_PROTOS(RTASN1SEQOFOCTETSTRINGS, RTASN1OCTETSTRING, RTDECL, RTAsn1SeqOfOctetStrings);
 RTASN1_IMPL_GEN_SET_OF_TYPEDEFS_AND_PROTOS(RTASN1SETOFOCTETSTRINGS, RTASN1OCTETSTRING, RTDECL, RTAsn1SetOfOctetStrings);
@@ -1268,7 +1255,6 @@ RTDECL(int) RTAsn1String_InitEx(PRTASN1STRING pThis, uint32_t uTag, void const *
  *                              not.
  */
 RTDECL(int) RTAsn1String_CompareEx(PCRTASN1STRING pLeft, PCRTASN1STRING pRight, bool fTypeToo);
-RTDECL(int) RTAsn1String_CompareValues(PCRTASN1STRING pLeft, PCRTASN1STRING pRight);
 
 /**
  * Compares a ASN.1 string object with an UTF-8 string.
@@ -1708,7 +1694,6 @@ RTDECL(PRTASN1CURSOR) RTAsn1CursorInitPrimary(PRTASN1CURSORPRIMARY pPrimaryCurso
                                               PRTERRINFO pErrInfo, PCRTASN1ALLOCATORVTABLE pAllocator, uint32_t fFlags,
                                               const char *pszErrorTag);
 
-RTDECL(int) RTAsn1CursorInitSub(PRTASN1CURSOR pParent, uint32_t cb, PRTASN1CURSOR pChild, const char *pszErrorTag);
 
 /**
  * Initialize a sub-cursor for traversing the content of an ASN.1 object.
@@ -1772,17 +1757,6 @@ RTDECL(int) RTAsn1CursorSetInfo(PRTASN1CURSOR pCursor, int rc, const char *pszMs
  * @param   va                  Format arguments.
  */
 RTDECL(int) RTAsn1CursorSetInfoV(PRTASN1CURSOR pCursor, int rc, const char *pszMsg, va_list va) RT_IPRT_FORMAT_ATTR(3, 0);
-
-/**
- * Checks that we've reached the end of the data for the cursor.
- *
- * This differs from RTAsn1CursorCheckEnd in that it does not consider the end
- * an error and therefore leaves the error buffer alone.
- *
- * @returns True if end, otherwise false.
- * @param   pCursor             The cursor we're decoding from.
- */
-RTDECL(bool) RTAsn1CursorIsEnd(PRTASN1CURSOR pCursor);
 
 /**
  * Checks that we've reached the end of the data for the cursor.
@@ -2294,5 +2268,5 @@ RTDECL(int) RTAsn1QueryObjIdName(PCRTASN1OBJID pObjId, char *pszDst, size_t cbDs
 
 RT_C_DECLS_END
 
-#endif /* !IPRT_INCLUDED_asn1_h */
+#endif
 

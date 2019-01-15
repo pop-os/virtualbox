@@ -1,10 +1,10 @@
-/* $Id: VBoxClipboard.h $ */
 /** @file
- * Shared Clipboard Service - Internal Header.
+ *
+ * Shared Clipboard
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,12 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_INCLUDED_SRC_SharedClipboard_VBoxClipboard_h
-#define VBOX_INCLUDED_SRC_SharedClipboard_VBoxClipboard_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __VBOXCLIPBOARD__H
+#define __VBOXCLIPBOARD__H
 
+#define LOG_GROUP LOG_GROUP_SHARED_CLIPBOARD
 #include <VBox/hgcmsvc.h>
 #include <VBox/log.h>
 
@@ -99,5 +97,4 @@ int vboxClipboardSync (VBOXCLIPBOARDCLIENTDATA *pClient);
 uint32_t TestClipSvcGetMode(void);
 #endif
 
-#endif /* !VBOX_INCLUDED_SRC_SharedClipboard_VBoxClipboard_h */
-
+#endif /* __VBOXCLIPBOARD__H */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,10 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#define LOG_GROUP LOG_GROUP_MAIN_NETWORKADAPTER
 #include "NetworkAdapterImpl.h"
 #include "NATEngineImpl.h"
 #include "AutoCaller.h"
-#include "LoggingNew.h"
+#include "Logging.h"
 #include "MachineImpl.h"
 #include "GuestOSTypeImpl.h"
 #include "HostImpl.h"
@@ -30,7 +29,7 @@
 #include <iprt/string.h>
 #include <iprt/cpp/utils.h>
 
-#include <iprt/errcore.h>
+#include <VBox/err.h>
 #include <VBox/settings.h>
 
 #include "AutoStateDep.h"
@@ -513,8 +512,7 @@ HRESULT NetworkAdapter::setBridgedInterface(const com::Utf8Str &aBridgedInterfac
     {
         /* if an empty/null string is to be set, bridged interface must be
          * turned off */
-        if (   canonicalName.isEmpty()
-            && mData->fEnabled
+        if (canonicalName.isEmpty()
             && mData->mode == NetworkAttachmentType_Bridged)
         {
             return setError(E_FAIL,
@@ -561,9 +559,8 @@ HRESULT NetworkAdapter::setHostOnlyInterface(const com::Utf8Str &aHostOnlyInterf
     {
         /* if an empty/null string is to be set, host only interface must be
          * turned off */
-        if (   aHostOnlyInterface.isEmpty()
-            && mData->fEnabled
-            && mData->mode == NetworkAttachmentType_HostOnly)
+        if ( aHostOnlyInterface.isEmpty()
+             && mData->mode == NetworkAttachmentType_HostOnly)
         {
             return setError(E_FAIL,
                             tr("Empty or null host only interface name is not valid"));
@@ -610,9 +607,7 @@ HRESULT NetworkAdapter::setInternalNetwork(const com::Utf8Str &aInternalNetwork)
     {
         /* if an empty/null string is to be set, internal networking must be
          * turned off */
-        if (   aInternalNetwork.isEmpty()
-            && mData->fEnabled
-            && mData->mode == NetworkAttachmentType_Internal)
+        if (aInternalNetwork.isEmpty() && mData->mode == NetworkAttachmentType_Internal)
         {
             return setError(E_FAIL,
                             tr("Empty or null internal network name is not valid"));
@@ -658,8 +653,7 @@ HRESULT NetworkAdapter::setNATNetwork(const com::Utf8Str &aNATNetwork)
     {
         /* if an empty/null string is to be set, host only interface must be
          * turned off */
-        if (   aNATNetwork.isEmpty()
-            && mData->fEnabled
+        if (aNATNetwork.isEmpty()
             && mData->mode == NetworkAttachmentType_NATNetwork)
             return setError(E_FAIL,
                             tr("Empty or null NAT network name is not valid"));
@@ -1128,12 +1122,12 @@ HRESULT NetworkAdapter::i_saveSettings(settings::NetworkAdapter &data)
  * Returns true if any setter method has modified settings of this instance.
  * @return
  */
-bool NetworkAdapter::i_isModified()
-{
+bool NetworkAdapter::i_isModified() {
+
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     bool fChanged = mData.isBackedUp();
-    fChanged     |= mNATEngine->i_isModified();
+    fChanged |= (mData->type == NetworkAttachmentType_NAT? mNATEngine->i_isModified() : false);
     return fChanged;
 }
 
@@ -1233,18 +1227,9 @@ void NetworkAdapter::i_applyDefaults(GuestOSType *aOsType)
     e1000enabled = true;
 #endif // VBOX_WITH_E1000
 
-    NetworkAdapterType_T defaultType;
+    NetworkAdapterType_T defaultType = NetworkAdapterType_Am79C973;
     if (aOsType)
         defaultType = aOsType->i_networkAdapterType();
-    else
-    {
-#ifdef VBOX_WITH_E1000
-        defaultType = NetworkAdapterType_I82540EM;
-#else
-        defaultType = NetworkAdapterType_Am79C973A;
-#endif
-    }
-
 
     /* Set default network adapter for this OS type */
     if (defaultType == NetworkAdapterType_I82540EM ||

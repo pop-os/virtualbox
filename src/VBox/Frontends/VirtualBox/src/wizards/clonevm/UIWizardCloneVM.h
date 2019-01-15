@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_wizards_clonevm_UIWizardCloneVM_h
-#define FEQT_INCLUDED_SRC_wizards_clonevm_UIWizardCloneVM_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __UIWizardCloneVM_h__
+#define __UIWizardCloneVM_h__
 
 /* GUI includes: */
 #include "UIWizard.h"
@@ -51,8 +48,7 @@ public:
     };
 
     /* Constructor: */
-    UIWizardCloneVM(QWidget *pParent, const CMachine &machine,
-                    const QString &strGroup, CSnapshot snapshot = CSnapshot());
+    UIWizardCloneVM(QWidget *pParent, const CMachine &machine, CSnapshot snapshot = CSnapshot());
 
 protected:
 
@@ -73,9 +69,9 @@ private:
     void prepare();
 
     /* Variables: */
-    CMachine  m_machine;
+    CMachine m_machine;
     CSnapshot m_snapshot;
-    QString   m_strGroup;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_wizards_clonevm_UIWizardCloneVM_h */
+#endif // __UIWizardCloneVM_h__
+

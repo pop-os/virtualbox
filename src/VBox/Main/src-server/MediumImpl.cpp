@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,10 +14,7 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-
-#define LOG_GROUP LOG_GROUP_MAIN_MEDIUM
 #include "MediumImpl.h"
-#include "MediumIOImpl.h"
 #include "TokenImpl.h"
 #include "ProgressImpl.h"
 #include "SystemPropertiesImpl.h"
@@ -25,7 +22,7 @@
 #include "ExtPackManagerImpl.h"
 
 #include "AutoCaller.h"
-#include "LoggingNew.h"
+#include "Logging.h"
 #include "ThreadTask.h"
 #include "VBox/com/MultiResult.h"
 #include "VBox/com/ErrorInfo.h"
@@ -40,15 +37,11 @@
 #include <iprt/cpp/utils.h>
 #include <iprt/memsafer.h>
 #include <iprt/base64.h>
-#include <iprt/vfs.h>
-#include <iprt/fsvfs.h>
 
 #include <VBox/vd.h>
 
 #include <algorithm>
 #include <list>
-#include <set>
-#include <map>
 
 
 typedef std::list<Guid> GuidList;
@@ -225,14 +218,13 @@ typedef struct VDSOCKETINT
 class Medium::Task : public ThreadTask
 {
 public:
-    Task(Medium *aMedium, Progress *aProgress, bool fNotifyAboutChanges = true)
+    Task(Medium *aMedium, Progress *aProgress)
         : ThreadTask("Medium::Task"),
           mVDOperationIfaces(NULL),
           mMedium(aMedium),
           mMediumCaller(aMedium),
           mProgress(aProgress),
-          mVirtualBoxCaller(NULL),
-          mNotifyAboutChanges(fNotifyAboutChanges)
+          mVirtualBoxCaller(NULL)
     {
         AssertReturnVoidStmt(aMedium, mRC = E_FAIL);
         mRC = mMediumCaller.rc();
@@ -275,7 +267,6 @@ public:
 
     HRESULT rc() const { return mRC; }
     bool isOk() const { return SUCCEEDED(rc()); }
-    bool NotifyAboutChanges() const { return mNotifyAboutChanges; }
 
     const ComPtr<Progress>& GetProgressObject() const {return mProgress;}
 
@@ -336,7 +327,6 @@ private:
      * uninit uses event semaphores which sabotages deadlock detection. */
     ComObjPtr<VirtualBox> mVirtualBox;
     AutoCaller mVirtualBoxCaller;
-    bool mNotifyAboutChanges;
 };
 
 HRESULT Medium::Task::executeTask()
@@ -350,9 +340,8 @@ public:
     CreateBaseTask(Medium *aMedium,
                    Progress *aProgress,
                    uint64_t aSize,
-                   MediumVariant_T aVariant,
-                   bool fNotifyAboutChanges = true)
-        : Medium::Task(aMedium, aProgress, fNotifyAboutChanges),
+                   MediumVariant_T aVariant)
+        : Medium::Task(aMedium, aProgress),
           mSize(aSize),
           mVariant(aVariant)
     {
@@ -374,9 +363,8 @@ public:
                    Medium *aTarget,
                    MediumVariant_T aVariant,
                    MediumLockList *aMediumLockList,
-                   bool fKeepMediumLockList = false,
-                   bool fNotifyAboutChanges = true)
-        : Medium::Task(aMedium, aProgress, fNotifyAboutChanges),
+                   bool fKeepMediumLockList = false)
+        : Medium::Task(aMedium, aProgress),
           mpMediumLockList(aMediumLockList),
           mTarget(aTarget),
           mVariant(aVariant),
@@ -420,9 +408,8 @@ public:
               MediumLockList *aSourceMediumLockList,
               MediumLockList *aTargetMediumLockList,
               bool fKeepSourceMediumLockList = false,
-              bool fKeepTargetMediumLockList = false,
-              bool fNotifyAboutChanges = true)
-        : Medium::Task(aMedium, aProgress, fNotifyAboutChanges),
+              bool fKeepTargetMediumLockList = false)
+        : Medium::Task(aMedium, aProgress),
           mTarget(aTarget),
           mParent(aParent),
           mpSourceMediumLockList(aSourceMediumLockList),
@@ -479,9 +466,8 @@ public:
               Progress *aProgress,
               MediumVariant_T aVariant,
               MediumLockList *aMediumLockList,
-              bool fKeepMediumLockList = false,
-              bool fNotifyAboutChanges = true)
-        : Medium::Task(aMedium, aProgress, fNotifyAboutChanges),
+              bool fKeepMediumLockList = false)
+        : Medium::Task(aMedium, aProgress),
           mpMediumLockList(aMediumLockList),
           mVariant(aVariant),
           mfKeepMediumLockList(fKeepMediumLockList)
@@ -510,9 +496,8 @@ public:
     CompactTask(Medium *aMedium,
                 Progress *aProgress,
                 MediumLockList *aMediumLockList,
-                bool fKeepMediumLockList = false,
-                bool fNotifyAboutChanges = true)
-        : Medium::Task(aMedium, aProgress, fNotifyAboutChanges),
+                bool fKeepMediumLockList = false)
+        : Medium::Task(aMedium, aProgress),
           mpMediumLockList(aMediumLockList),
           mfKeepMediumLockList(fKeepMediumLockList)
     {
@@ -540,9 +525,8 @@ public:
                uint64_t aSize,
                Progress *aProgress,
                MediumLockList *aMediumLockList,
-               bool fKeepMediumLockList = false,
-               bool fNotifyAboutChanges = true)
-        : Medium::Task(aMedium, aProgress, fNotifyAboutChanges),
+               bool fKeepMediumLockList = false)
+        : Medium::Task(aMedium, aProgress),
           mSize(aSize),
           mpMediumLockList(aMediumLockList),
           mfKeepMediumLockList(fKeepMediumLockList)
@@ -571,9 +555,8 @@ public:
     ResetTask(Medium *aMedium,
               Progress *aProgress,
               MediumLockList *aMediumLockList,
-              bool fKeepMediumLockList = false,
-              bool fNotifyAboutChanges = true)
-        : Medium::Task(aMedium, aProgress, fNotifyAboutChanges),
+              bool fKeepMediumLockList = false)
+        : Medium::Task(aMedium, aProgress),
           mpMediumLockList(aMediumLockList),
           mfKeepMediumLockList(fKeepMediumLockList)
     {
@@ -599,9 +582,8 @@ public:
     DeleteTask(Medium *aMedium,
                Progress *aProgress,
                MediumLockList *aMediumLockList,
-               bool fKeepMediumLockList = false,
-               bool fNotifyAboutChanges = true)
-        : Medium::Task(aMedium, aProgress, fNotifyAboutChanges),
+               bool fKeepMediumLockList = false)
+        : Medium::Task(aMedium, aProgress),
           mpMediumLockList(aMediumLockList),
           mfKeepMediumLockList(fKeepMediumLockList)
     {
@@ -631,9 +613,8 @@ public:
               MediumLockList *aChildrenToReparent,
               Progress *aProgress,
               MediumLockList *aMediumLockList,
-              bool fKeepMediumLockList = false,
-              bool fNotifyAboutChanges = true)
-        : Medium::Task(aMedium, aProgress, fNotifyAboutChanges),
+              bool fKeepMediumLockList = false)
+        : Medium::Task(aMedium, aProgress),
           mTarget(aTarget),
           mfMergeForward(fMergeForward),
           mParentForTarget(aParentForTarget),
@@ -681,9 +662,8 @@ public:
                RTVFSIOSTREAM aVfsIosSrc,
                Medium *aParent,
                MediumLockList *aTargetMediumLockList,
-               bool fKeepTargetMediumLockList = false,
-               bool fNotifyAboutChanges = true)
-        : Medium::Task(aMedium, aProgress, fNotifyAboutChanges),
+               bool fKeepTargetMediumLockList = false)
+        : Medium::Task(aMedium, aProgress),
           mFilename(aFilename),
           mFormat(aFormat),
           mVariant(aVariant),
@@ -746,7 +726,7 @@ public:
                 const com::Utf8Str &strNewPasswordId,
                 Progress *aProgress,
                 MediumLockList *aMediumLockList)
-        : Medium::Task(aMedium, aProgress, false),
+        : Medium::Task(aMedium, aProgress),
           mstrNewPassword(strNewPassword),
           mstrCurrentPassword(strCurrentPassword),
           mstrCipher(strCipher),
@@ -785,6 +765,40 @@ public:
 private:
     HRESULT executeTask();
     AutoCaller mParentCaller;
+};
+
+/**
+ * Settings for a crypto filter instance.
+ */
+struct Medium::CryptoFilterSettings
+{
+    CryptoFilterSettings()
+        : fCreateKeyStore(false),
+          pszPassword(NULL),
+          pszKeyStore(NULL),
+          pszKeyStoreLoad(NULL),
+          pbDek(NULL),
+          cbDek(0),
+          pszCipher(NULL),
+          pszCipherReturned(NULL)
+    { }
+
+    bool              fCreateKeyStore;
+    const char        *pszPassword;
+    char              *pszKeyStore;
+    const char        *pszKeyStoreLoad;
+
+    const uint8_t     *pbDek;
+    size_t            cbDek;
+    const char        *pszCipher;
+
+    /** The cipher returned by the crypto filter. */
+    char              *pszCipherReturned;
+
+    PVDINTERFACE      vdFilterIfaces;
+
+    VDINTERFACECONFIG vdIfCfg;
+    VDINTERFACECRYPTO vdIfCrypto;
 };
 
 /**
@@ -1592,9 +1606,8 @@ HRESULT Medium::getId(com::Guid &aId)
     return S_OK;
 }
 
-HRESULT Medium::getDescription(AutoCaller &autoCaller, com::Utf8Str &aDescription)
+HRESULT Medium::getDescription(com::Utf8Str &aDescription)
 {
-    NOREF(autoCaller);
     AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
 
     aDescription = m->strDescription;
@@ -1602,7 +1615,7 @@ HRESULT Medium::getDescription(AutoCaller &autoCaller, com::Utf8Str &aDescriptio
     return S_OK;
 }
 
-HRESULT Medium::setDescription(AutoCaller &autoCaller, const com::Utf8Str &aDescription)
+HRESULT Medium::setDescription(const com::Utf8Str &aDescription)
 {
     /// @todo update m->strDescription and save the global registry (and local
     /// registries of portable VMs referring to this medium), this will also
@@ -1614,53 +1627,53 @@ HRESULT Medium::setDescription(AutoCaller &autoCaller, const com::Utf8Str &aDesc
 
     try
     {
-        autoCaller.release();
+        // locking: we need the tree lock first because we access parent pointers
+        // and we need to write-lock the media involved
+        uint32_t    cHandles    = 2;
+        LockHandle* pHandles[2] = { &m->pVirtualBox->i_getMediaTreeLockHandle(),
+                                    this->lockHandle() };
 
-        // to avoid redundant locking, which just takes a time, just call required functions.
-        // the error will be just stored and will be reported after locks will be acquired again
-
-        const char *pszError = NULL;
-
+        AutoWriteLock alock(cHandles,
+                            pHandles
+                            COMMA_LOCKVAL_SRC_POS);
 
         /* Build the lock list. */
+        alock.release();
         rc = i_createMediumLockList(true /* fFailIfInaccessible */,
                                     this /* pToLockWrite */,
                                     true /* fMediumLockWriteAll */,
                                     NULL,
                                     *pMediumLockList);
-        if (FAILED(rc))
-        {
-            pszError = tr("Failed to create medium lock list for '%s'");
-        }
-        else
-        {
-            rc = pMediumLockList->Lock();
-            if (FAILED(rc))
-                pszError = tr("Failed to lock media '%s'");
-        }
-
-        // locking: we need the tree lock first because we access parent pointers
-        // and we need to write-lock the media involved
-        AutoWriteLock treeLock(m->pVirtualBox->i_getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
-
-        autoCaller.add();
-        AssertComRCThrowRC(autoCaller.rc());
-
-        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        alock.acquire();
 
         if (FAILED(rc))
-            throw setError(rc, pszError, i_getLocationFull().c_str());
+        {
+            throw setError(rc,
+                           tr("Failed to create medium lock list for '%s'"),
+                           i_getLocationFull().c_str());
+        }
+
+        alock.release();
+        rc = pMediumLockList->Lock();
+        alock.acquire();
+
+        if (FAILED(rc))
+        {
+            throw setError(rc,
+                           tr("Failed to lock media '%s'"),
+                           i_getLocationFull().c_str());
+        }
 
         /* Set a new description */
-        m->strDescription = aDescription;
+        if (SUCCEEDED(rc))
+        {
+            m->strDescription = aDescription;
+        }
 
         // save the settings
         alock.release();
-        autoCaller.release();
-        treeLock.release();
         i_markRegistriesModified();
         m->pVirtualBox->i_saveModifiedRegistries();
-        m->pVirtualBox->i_onMediumConfigChanged(this);
     }
     catch (HRESULT aRC) { rc = aRC; }
 
@@ -1892,11 +1905,9 @@ HRESULT Medium::setType(AutoCaller &autoCaller, MediumType_T aType)
 
     // save the settings
     mlock.release();
-    autoCaller.release();
     treeLock.release();
     i_markRegistriesModified();
     m->pVirtualBox->i_saveModifiedRegistries();
-    m->pVirtualBox->i_onMediumConfigChanged(this);
 
     return S_OK;
 }
@@ -2008,7 +2019,6 @@ HRESULT Medium::setAutoReset(BOOL aAutoReset)
         mlock.release();
         i_markRegistriesModified();
         m->pVirtualBox->i_saveModifiedRegistries();
-        m->pVirtualBox->i_onMediumConfigChanged(this);
     }
 
     return S_OK;
@@ -2075,9 +2085,7 @@ HRESULT Medium::setIds(AutoCaller &autoCaller,
             parentId = aParentId;
     }
 
-    const Guid uPrevImage = m->uuidImage;
     unconst(m->uuidImage) = imageId;
-    ComObjPtr<Medium> pPrevParent = i_getParent();
     unconst(m->uuidParentImage) = parentId;
 
     // must not hold any locks before calling Medium::i_queryInfo
@@ -2086,24 +2094,6 @@ HRESULT Medium::setIds(AutoCaller &autoCaller,
     HRESULT rc = i_queryInfo(!!aSetImageId /* fSetImageId */,
                              !!aSetParentId /* fSetParentId */,
                              autoCaller);
-
-    AutoReadLock arlock(this COMMA_LOCKVAL_SRC_POS);
-    const Guid uCurrImage = m->uuidImage;
-    ComObjPtr<Medium> pCurrParent = i_getParent();
-    arlock.release();
-
-    if (SUCCEEDED(rc))
-    {
-        if (uCurrImage != uPrevImage)
-            m->pVirtualBox->i_onMediumConfigChanged(this);
-        if (pPrevParent != pCurrParent)
-        {
-            if (pPrevParent)
-                m->pVirtualBox->i_onMediumConfigChanged(pPrevParent);
-            if (pCurrParent)
-                m->pVirtualBox->i_onMediumConfigChanged(pCurrParent);
-        }
-    }
 
     return rc;
 }
@@ -2397,15 +2387,9 @@ HRESULT Medium::close(AutoCaller &aAutoCaller)
     // make a copy of VirtualBox pointer which gets nulled by uninit()
     ComObjPtr<VirtualBox> pVirtualBox(m->pVirtualBox);
 
-    Guid uId = i_getId();
-    DeviceType_T devType = i_getDeviceType();
-    bool wasCreated = m->state != MediumState_NotCreated;
     MultiResult mrc = i_close(aAutoCaller);
 
     pVirtualBox->i_saveModifiedRegistries();
-
-    if (SUCCEEDED(mrc) && wasCreated)
-        pVirtualBox->i_onMediumRegistered(uId, devType, FALSE);
 
     return mrc;
 }
@@ -2475,7 +2459,6 @@ HRESULT Medium::setProperty(const com::Utf8Str &aName,
     mlock.release();
     i_markRegistriesModified();
     m->pVirtualBox->i_saveModifiedRegistries();
-    m->pVirtualBox->i_onMediumConfigChanged(this);
 
     return S_OK;
 }
@@ -2555,11 +2538,9 @@ HRESULT Medium::setProperties(const std::vector<com::Utf8Str> &aNames,
     mlock.release();
     i_markRegistriesModified();
     m->pVirtualBox->i_saveModifiedRegistries();
-    m->pVirtualBox->i_onMediumConfigChanged(this);
 
     return S_OK;
 }
-
 HRESULT Medium::createBaseStorage(LONG64 aLogicalSize,
                                   const std::vector<MediumVariant_T> &aVariant,
                                   ComPtr<IProgress> &aProgress)
@@ -2597,11 +2578,6 @@ HRESULT Medium::createBaseStorage(LONG64 aLogicalSize,
                            tr("Medium format '%s' does not support fixed storage creation"),
                            m->strFormat.c_str());
 
-        if (    (mediumVariantFlags & MediumVariant_Formatted)
-            &&  i_getDeviceType() != DeviceType_Floppy)
-            throw setError(VBOX_E_NOT_SUPPORTED,
-                           tr("Medium variant 'formatted' applies to floppy images only"));
-
         if (m->state != MediumState_NotCreated)
             throw i_setStateError();
 
@@ -2618,6 +2594,7 @@ HRESULT Medium::createBaseStorage(LONG64 aLogicalSize,
         /* setup task object to carry out the operation asynchronously */
         pTask = new Medium::CreateBaseTask(this, pProgress, aLogicalSize,
                                            (MediumVariant_T)mediumVariantFlags);
+                                           //(MediumVariant_T)aVariant);
         rc = pTask->rc();
         AssertComRC(rc);
         if (FAILED(rc))
@@ -2645,8 +2622,7 @@ HRESULT Medium::deleteStorage(ComPtr<IProgress> &aProgress)
     ComObjPtr<Progress> pProgress;
 
     MultiResult mrc = i_deleteStorage(&pProgress,
-                                      false /* aWait */,
-                                      true /* aNotify */);
+                                      false /* aWait */);
     /* Must save the registries in any case, since an entry was removed. */
     m->pVirtualBox->i_saveModifiedRegistries();
 
@@ -2661,6 +2637,9 @@ HRESULT Medium::createDiffStorage(AutoCaller &autoCaller,
                                   const std::vector<MediumVariant_T> &aVariant,
                                   ComPtr<IProgress> &aProgress)
 {
+    /** @todo r=klaus The code below needs to be double checked with regard
+     * to lock order violations, it probably causes lock order issues related
+     * to the AutoCaller usage. */
     IMedium *aT = aTarget;
     ComObjPtr<Medium> diff = static_cast<Medium*>(aT);
 
@@ -2676,7 +2655,7 @@ HRESULT Medium::createDiffStorage(AutoCaller &autoCaller,
     autoCaller.add();
     if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
-    AutoMultiWriteLock2 alock(this, diff COMMA_LOCKVAL_SRC_POS);
+    AutoMultiWriteLock2 alock(this->lockHandle(), diff->lockHandle() COMMA_LOCKVAL_SRC_POS);
 
     if (m->type == MediumType_Writethrough)
         return setError(VBOX_E_INVALID_OBJECT_STATE,
@@ -2694,7 +2673,6 @@ HRESULT Medium::createDiffStorage(AutoCaller &autoCaller,
     /* Apply the normal locking logic to the entire chain. */
     MediumLockList *pMediumLockList(new MediumLockList());
     alock.release();
-    autoCaller.release();
     treeLock.release();
     HRESULT rc = diff->i_createMediumLockList(true /* fFailIfInaccessible */,
                                               diff /* pToLockWrite */,
@@ -2702,9 +2680,6 @@ HRESULT Medium::createDiffStorage(AutoCaller &autoCaller,
                                               this,
                                               *pMediumLockList);
     treeLock.acquire();
-    autoCaller.add();
-    if (FAILED(autoCaller.rc()))
-        rc = autoCaller.rc();
     alock.acquire();
     if (FAILED(rc))
     {
@@ -2713,13 +2688,9 @@ HRESULT Medium::createDiffStorage(AutoCaller &autoCaller,
     }
 
     alock.release();
-    autoCaller.release();
     treeLock.release();
     rc = pMediumLockList->Lock();
     treeLock.acquire();
-    autoCaller.add();
-    if (FAILED(autoCaller.rc()))
-        rc = autoCaller.rc();
     alock.acquire();
     if (FAILED(rc))
     {
@@ -2735,16 +2706,13 @@ HRESULT Medium::createDiffStorage(AutoCaller &autoCaller,
         /* since this medium has been just created it isn't associated yet */
         diff->m->llRegistryIDs.push_back(parentMachineRegistry);
         alock.release();
-        autoCaller.release();
         treeLock.release();
         diff->i_markRegistriesModified();
         treeLock.acquire();
-        autoCaller.add();
         alock.acquire();
     }
 
     alock.release();
-    autoCaller.release();
     treeLock.release();
 
     ComObjPtr<Progress> pProgress;
@@ -2757,15 +2725,8 @@ HRESULT Medium::createDiffStorage(AutoCaller &autoCaller,
             mediumVariantFlags |= (ULONG)aVariant[i];
     }
 
-    if (mediumVariantFlags & MediumVariant_Formatted)
-    {
-        delete pMediumLockList;
-        return setError(VBOX_E_NOT_SUPPORTED,
-                        tr("Medium variant 'formatted' applies to floppy images only"));
-    }
-
     rc = i_createDiffStorage(diff, (MediumVariant_T)mediumVariantFlags, pMediumLockList,
-                             &pProgress, false /* aWait */, true /* aNotify */);
+                             &pProgress, false /* aWait */);
     if (FAILED(rc))
         delete pMediumLockList;
     else
@@ -2777,6 +2738,10 @@ HRESULT Medium::createDiffStorage(AutoCaller &autoCaller,
 HRESULT Medium::mergeTo(const ComPtr<IMedium> &aTarget,
                         ComPtr<IProgress> &aProgress)
 {
+
+    /** @todo r=klaus The code below needs to be double checked with regard
+     * to lock order violations, it probably causes lock order issues related
+     * to the AutoCaller usage. */
     IMedium *aT = aTarget;
 
     ComAssertRet(aT != this, E_INVALIDARG);
@@ -2797,7 +2762,7 @@ HRESULT Medium::mergeTo(const ComPtr<IMedium> &aTarget,
     ComObjPtr<Progress> pProgress;
 
     rc = i_mergeTo(pTarget, fMergeForward, pParentForTarget, pChildrenToReparent,
-                   pMediumLockList, &pProgress, false /* aWait */, true /* aNotify */);
+                   pMediumLockList, &pProgress, false /* aWait */);
     if (FAILED(rc))
         i_cancelMergeTo(pChildrenToReparent, pMediumLockList);
     else
@@ -2932,14 +2897,6 @@ HRESULT Medium::cloneTo(const ComPtr<IMedium> &aTarget,
                 mediumVariantFlags |= (ULONG)aVariant[i];
         }
 
-        if (mediumVariantFlags & MediumVariant_Formatted)
-        {
-            delete pSourceMediumLockList;
-            delete pTargetMediumLockList;
-            throw setError(VBOX_E_NOT_SUPPORTED,
-                           tr("Medium variant 'formatted' applies to floppy images only"));
-        }
-
         /* setup task object to carry out the operation asynchronously */
         pTask = new Medium::CloneTask(this, pProgress, pTarget,
                                       (MediumVariant_T)mediumVariantFlags,
@@ -2968,8 +2925,9 @@ HRESULT Medium::cloneTo(const ComPtr<IMedium> &aTarget,
     return rc;
 }
 
-HRESULT Medium::moveTo(AutoCaller &autoCaller, const com::Utf8Str &aLocation, ComPtr<IProgress> &aProgress)
+HRESULT Medium::setLocation(const com::Utf8Str &aLocation, ComPtr<IProgress> &aProgress)
 {
+
     ComObjPtr<Medium> pParent;
     ComObjPtr<Progress> pProgress;
     HRESULT rc = S_OK;
@@ -2979,23 +2937,22 @@ HRESULT Medium::moveTo(AutoCaller &autoCaller, const com::Utf8Str &aLocation, Co
     {
     /// @todo NEWMEDIA for file names, add the default extension if no extension
     /// is present (using the information from the VD backend which also implies
-    /// that one more parameter should be passed to moveTo() requesting
+    /// that one more parameter should be passed to setLocation() requesting
     /// that functionality since it is only allowed when called from this method
 
     /// @todo NEWMEDIA rename the file and set m->location on success, then save
     /// the global registry (and local registries of portable VMs referring to
     /// this medium), this will also require to add the mRegistered flag to data
 
-        autoCaller.release();
-
         // locking: we need the tree lock first because we access parent pointers
         // and we need to write-lock the media involved
-        AutoWriteLock treeLock(m->pVirtualBox->i_getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
+        uint32_t    cHandles    = 2;
+        LockHandle* pHandles[2] = { &m->pVirtualBox->i_getMediaTreeLockHandle(),
+                                    this->lockHandle() };
 
-        autoCaller.add();
-        AssertComRCThrowRC(autoCaller.rc());
-
-        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
+        AutoWriteLock alock(cHandles,
+                            pHandles
+                            COMMA_LOCKVAL_SRC_POS);
 
         /* play with locations */
         {
@@ -3060,39 +3017,19 @@ HRESULT Medium::moveTo(AutoCaller &autoCaller, const com::Utf8Str &aLocation, Co
                 suffix = i_getFormat();
                 if (suffix.compare("RAW", Utf8Str::CaseInsensitive) == 0)
                 {
-                    DeviceType_T devType = i_getDeviceType();
-                    switch (devType)
+                    if (i_getDeviceType() == DeviceType_DVD)
+                        suffix = "iso";
+                    else
                     {
-                        case DeviceType_DVD:
-                            suffix = "iso";
-                            break;
-                        case DeviceType_Floppy:
-                            suffix = "img";
-                            break;
-                        default:
-                            rc = setError(VERR_NOT_A_FILE,
-                                   tr("Medium '%s' has RAW type. \"Move\" operation isn't supported for this type."),
-                                   i_getLocationFull().c_str());
-                            throw rc;
+                        rc = setError(VERR_NOT_A_FILE,
+                               tr("Medium '%s' has RAW type. \"Move\" operation isn't supported for this type."),
+                               i_getLocationFull().c_str());
+                        throw rc;
                     }
                 }
-                else if (suffix.compare("Parallels", Utf8Str::CaseInsensitive) == 0)
-                {
-                    suffix = "hdd";
-                }
-
                 /* Set the target extension like on the source. Any conversions are prohibited */
                 suffix.toLower();
                 destPath.stripSuffix().append('.').append(suffix);
-            }
-
-            /* Simple check for existence */
-            if (RTFileExists(destPath.c_str()))
-            {
-                rc = setError(VBOX_E_FILE_ERROR,
-                              tr("The given path '%s' is an existing file. Delete or rename this file."),
-                              destPath.c_str());
-                throw rc;
             }
 
             if (!i_isMediumFormatFile())
@@ -3138,12 +3075,7 @@ HRESULT Medium::moveTo(AutoCaller &autoCaller, const com::Utf8Str &aLocation, Co
             ComObjPtr<Machine> aMachine;
 
             alock.release();
-            autoCaller.release();
-            treeLock.release();
             rc = m->pVirtualBox->i_findMachine(id, false, true, &aMachine);
-            treeLock.acquire();
-            autoCaller.add();
-            AssertComRCThrowRC(autoCaller.rc());
             alock.acquire();
 
             if (SUCCEEDED(rc))
@@ -3152,12 +3084,7 @@ HRESULT Medium::moveTo(AutoCaller &autoCaller, const com::Utf8Str &aLocation, Co
                 ComPtr<IInternalSessionControl> ctl;
 
                 alock.release();
-                autoCaller.release();
-                treeLock.release();
                 bool ses = aMachine->i_isSessionOpenVM(sm, &ctl);
-                treeLock.acquire();
-                autoCaller.add();
-                AssertComRCThrowRC(autoCaller.rc());
                 alock.acquire();
 
                 if (ses)
@@ -3175,16 +3102,11 @@ HRESULT Medium::moveTo(AutoCaller &autoCaller, const com::Utf8Str &aLocation, Co
         /* Build the source lock list. */
         MediumLockList *pMediumLockList(new MediumLockList());
         alock.release();
-        autoCaller.release();
-        treeLock.release();
         rc = i_createMediumLockList(true /* fFailIfInaccessible */,
                                     this /* pToLockWrite */,
                                     true /* fMediumLockWriteAll */,
                                     NULL,
                                     *pMediumLockList);
-        treeLock.acquire();
-        autoCaller.add();
-        AssertComRCThrowRC(autoCaller.rc());
         alock.acquire();
         if (FAILED(rc))
         {
@@ -3194,12 +3116,7 @@ HRESULT Medium::moveTo(AutoCaller &autoCaller, const com::Utf8Str &aLocation, Co
                            i_getLocationFull().c_str());
         }
         alock.release();
-        autoCaller.release();
-        treeLock.release();
         rc = pMediumLockList->Lock();
-        treeLock.acquire();
-        autoCaller.add();
-        AssertComRCThrowRC(autoCaller.rc());
         alock.acquire();
         if (FAILED(rc))
         {
@@ -3245,112 +3162,6 @@ HRESULT Medium::moveTo(AutoCaller &autoCaller, const com::Utf8Str &aLocation, Co
         if (pTask)
             delete pTask;
     }
-
-    return rc;
-}
-
-HRESULT Medium::setLocation(const com::Utf8Str &aLocation)
-{
-    HRESULT rc = S_OK;
-
-    try
-    {
-        // locking: we need the tree lock first because we access parent pointers
-        // and we need to write-lock the media involved
-        AutoWriteLock treeLock(m->pVirtualBox->i_getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
-
-        AutoCaller autoCaller(this);
-        AssertComRCThrowRC(autoCaller.rc());
-
-        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-        Utf8Str destPath(aLocation);
-
-        // some check for file based medium
-        if (i_isMediumFormatFile())
-        {
-            /* Path must be absolute */
-            if (!RTPathStartsWithRoot(destPath.c_str()))
-            {
-                rc = setError(VBOX_E_FILE_ERROR,
-                              tr("The given path '%s' is not fully qualified"),
-                              destPath.c_str());
-                throw rc;
-            }
-
-            /* Simple check for existence */
-            if (!RTFileExists(destPath.c_str()))
-            {
-                rc = setError(VBOX_E_FILE_ERROR,
-                              tr("The given path '%s' is not an existing file. New location is invalid."),
-                              destPath.c_str());
-                throw rc;
-            }
-        }
-
-        /* Check VMs which have this medium attached to*/
-        std::vector<com::Guid> aMachineIds;
-        rc = getMachineIds(aMachineIds);
-
-        // switch locks only if there are machines with this medium attached
-        if (!aMachineIds.empty())
-        {
-            std::vector<com::Guid>::const_iterator currMachineID = aMachineIds.begin();
-            std::vector<com::Guid>::const_iterator lastMachineID = aMachineIds.end();
-
-            alock.release();
-            autoCaller.release();
-            treeLock.release();
-
-            while (currMachineID != lastMachineID)
-            {
-                Guid id(*currMachineID);
-                ComObjPtr<Machine> aMachine;
-                rc = m->pVirtualBox->i_findMachine(id, false, true, &aMachine);
-                if (SUCCEEDED(rc))
-                {
-                    ComObjPtr<SessionMachine> sm;
-                    ComPtr<IInternalSessionControl> ctl;
-
-                    bool ses = aMachine->i_isSessionOpenVM(sm, &ctl);
-                    if (ses)
-                    {
-                        treeLock.acquire();
-                        autoCaller.add();
-                        AssertComRCThrowRC(autoCaller.rc());
-                        alock.acquire();
-
-                        rc = setError(VERR_VM_UNEXPECTED_VM_STATE,
-                                      tr("At least the VM '%s' to whom this medium '%s' attached has currently an opened session. Stop all VMs before set location for this medium"),
-                                      id.toString().c_str(),
-                                      i_getLocationFull().c_str());
-                        throw rc;
-                    }
-                }
-                ++currMachineID;
-            }
-
-            treeLock.acquire();
-            autoCaller.add();
-            AssertComRCThrowRC(autoCaller.rc());
-            alock.acquire();
-        }
-
-        m->strLocationFull = destPath;
-
-        // save the settings
-        alock.release();
-        autoCaller.release();
-        treeLock.release();
-
-        i_markRegistriesModified();
-        m->pVirtualBox->i_saveModifiedRegistries();
-
-        MediumState_T mediumState;
-        refreshState(autoCaller, &mediumState);
-        m->pVirtualBox->i_onMediumConfigChanged(this);
-    }
-    catch (HRESULT aRC) { rc = aRC; }
 
     return rc;
 }
@@ -3429,59 +3240,67 @@ HRESULT Medium::resize(LONG64 aLogicalSize,
 {
     HRESULT rc = S_OK;
     ComObjPtr<Progress> pProgress;
-
-    /* Build the medium lock list. */
-    MediumLockList *pMediumLockList(new MediumLockList());
+    Medium::Task *pTask = NULL;
 
     try
     {
-        const char *pszError = NULL;
+        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
+        /* Build the medium lock list. */
+        MediumLockList *pMediumLockList(new MediumLockList());
+        alock.release();
         rc = i_createMediumLockList(true /* fFailIfInaccessible */ ,
                                     this /* pToLockWrite */,
                                     false /* fMediumLockWriteAll */,
                                     NULL,
                                     *pMediumLockList);
-        if (FAILED(rc))
-        {
-            pszError = tr("Failed to create medium lock list when resize '%s'");
-        }
-        else
-        {
-            rc = pMediumLockList->Lock();
-            if (FAILED(rc))
-                pszError = tr("Failed to lock media when compacting '%s'");
-        }
-
-
-        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
+        alock.acquire();
         if (FAILED(rc))
         {
             delete pMediumLockList;
-            throw setError(rc, pszError, i_getLocationFull().c_str());
+            throw rc;
+        }
+
+        alock.release();
+        rc = pMediumLockList->Lock();
+        alock.acquire();
+        if (FAILED(rc))
+        {
+            delete pMediumLockList;
+            throw setError(rc,
+                           tr("Failed to lock media when compacting '%s'"),
+                           i_getLocationFull().c_str());
         }
 
         pProgress.createObject();
         rc = pProgress->init(m->pVirtualBox,
                              static_cast <IMedium *>(this),
-                             BstrFmt(tr("Resizing medium '%s'"), m->strLocationFull.c_str()).raw(),
+                             BstrFmt(tr("Compacting medium '%s'"), m->strLocationFull.c_str()).raw(),
                              TRUE /* aCancelable */);
         if (FAILED(rc))
         {
             delete pMediumLockList;
             throw rc;
         }
+
+        /* setup task object to carry out the operation asynchronously */
+        pTask = new Medium::ResizeTask(this, aLogicalSize, pProgress, pMediumLockList);
+        rc = pTask->rc();
+        AssertComRC(rc);
+        if (FAILED(rc))
+            throw rc;
     }
     catch (HRESULT aRC) { rc = aRC; }
 
     if (SUCCEEDED(rc))
-        rc = i_resize(aLogicalSize, pMediumLockList, &pProgress, false /* aWait */, true /* aNotify */);
+    {
+        rc = pTask->createThread();
 
-    if (SUCCEEDED(rc))
-        pProgress.queryInterfaceTo(aProgress.asOutParam());
-    else
-        delete pMediumLockList;
+        if (SUCCEEDED(rc))
+            pProgress.queryInterfaceTo(aProgress.asOutParam());
+    }
+    else if (pTask != NULL)
+        delete pTask;
 
     return rc;
 }
@@ -3711,7 +3530,7 @@ HRESULT Medium::changeEncryption(const com::Utf8Str &aCurrentPassword, const com
     return rc;
 }
 
-HRESULT Medium::getEncryptionSettings(AutoCaller &autoCaller, com::Utf8Str &aCipher, com::Utf8Str &aPasswordId)
+HRESULT Medium::getEncryptionSettings(com::Utf8Str &aCipher, com::Utf8Str &aPasswordId)
 {
 #ifndef VBOX_WITH_EXTPACK
     RT_NOREF(aCipher, aPasswordId);
@@ -3720,11 +3539,7 @@ HRESULT Medium::getEncryptionSettings(AutoCaller &autoCaller, com::Utf8Str &aCip
 
     try
     {
-        autoCaller.release();
         ComObjPtr<Medium> pBase = i_getBase();
-        autoCaller.add();
-        if (FAILED(autoCaller.rc()))
-            throw rc;
         AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
 
         /* Check whether encryption is configured for this medium. */
@@ -3743,9 +3558,9 @@ HRESULT Medium::getEncryptionSettings(AutoCaller &autoCaller, com::Utf8Str &aCip
             {
                 int vrc = VDPluginLoadFromFilename(strPlugin.c_str());
                 if (RT_FAILURE(vrc))
-                    throw setErrorBoth(VBOX_E_NOT_SUPPORTED, vrc,
-                                       tr("Retrieving encryption settings of the image failed because the encryption plugin could not be loaded (%s)"),
-                                       i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_NOT_SUPPORTED,
+                                   tr("Retrieving encryption settings of the image failed because the encryption plugin could not be loaded (%s)"),
+                                   i_vdError(vrc).c_str());
             }
             else
                 throw setError(VBOX_E_NOT_SUPPORTED,
@@ -3761,14 +3576,14 @@ HRESULT Medium::getEncryptionSettings(AutoCaller &autoCaller, com::Utf8Str &aCip
         int vrc = VDCreate(m->vdDiskIfaces, i_convertDeviceType(), &pDisk);
         ComAssertRCThrow(vrc, E_FAIL);
 
-        MediumCryptoFilterSettings CryptoSettings;
+        Medium::CryptoFilterSettings CryptoSettings;
 
         i_taskEncryptSettingsSetup(&CryptoSettings, NULL, it->second.c_str(), NULL, false /* fCreateKeyStore */);
         vrc = VDFilterAdd(pDisk, "CRYPT", VD_FILTER_FLAGS_READ | VD_FILTER_FLAGS_INFO, CryptoSettings.vdFilterIfaces);
         if (RT_FAILURE(vrc))
-            throw setErrorBoth(VBOX_E_INVALID_OBJECT_STATE, vrc,
-                               tr("Failed to load the encryption filter: %s"),
-                               i_vdError(vrc).c_str());
+            throw setError(VBOX_E_INVALID_OBJECT_STATE,
+                           tr("Failed to load the encryption filter: %s"),
+                           i_vdError(vrc).c_str());
 
         it = pBase->m->mapProperties.find("CRYPT/KeyId");
         if (it == pBase->m->mapProperties.end())
@@ -3819,9 +3634,9 @@ HRESULT Medium::checkEncryptionPassword(const com::Utf8Str &aPassword)
             {
                 int vrc = VDPluginLoadFromFilename(strPlugin.c_str());
                 if (RT_FAILURE(vrc))
-                    throw setErrorBoth(VBOX_E_NOT_SUPPORTED, vrc,
-                                       tr("Retrieving encryption settings of the image failed because the encryption plugin could not be loaded (%s)"),
-                                       i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_NOT_SUPPORTED,
+                                   tr("Retrieving encryption settings of the image failed because the encryption plugin could not be loaded (%s)"),
+                                   i_vdError(vrc).c_str());
             }
             else
                 throw setError(VBOX_E_NOT_SUPPORTED,
@@ -3837,7 +3652,7 @@ HRESULT Medium::checkEncryptionPassword(const com::Utf8Str &aPassword)
         int vrc = VDCreate(m->vdDiskIfaces, i_convertDeviceType(), &pDisk);
         ComAssertRCThrow(vrc, E_FAIL);
 
-        MediumCryptoFilterSettings CryptoSettings;
+        Medium::CryptoFilterSettings CryptoSettings;
 
         i_taskEncryptSettingsSetup(&CryptoSettings, NULL, it->second.c_str(), aPassword.c_str(),
                                    false /* fCreateKeyStore */);
@@ -3846,9 +3661,9 @@ HRESULT Medium::checkEncryptionPassword(const com::Utf8Str &aPassword)
             throw setError(VBOX_E_PASSWORD_INCORRECT,
                            tr("The given password is incorrect"));
         else if (RT_FAILURE(vrc))
-            throw setErrorBoth(VBOX_E_INVALID_OBJECT_STATE, vrc,
-                               tr("Failed to load the encryption filter: %s"),
-                               i_vdError(vrc).c_str());
+            throw setError(VBOX_E_INVALID_OBJECT_STATE,
+                           tr("Failed to load the encryption filter: %s"),
+                           i_vdError(vrc).c_str());
 
         VDDestroy(pDisk);
 # else
@@ -3860,35 +3675,6 @@ HRESULT Medium::checkEncryptionPassword(const com::Utf8Str &aPassword)
 
     return rc;
 }
-
-HRESULT Medium::openForIO(BOOL aWritable, com::Utf8Str const &aPassword, ComPtr<IMediumIO> &aMediumIO)
-{
-    /*
-     * Input validation.
-     */
-    if (aWritable && i_isReadOnly())
-        return setError(E_ACCESSDENIED, tr("Write access denied: read-only"));
-
-    com::Utf8Str const strKeyId = i_getKeyId();
-    if (strKeyId.isEmpty() && aPassword.isNotEmpty())
-        return setError(E_INVALIDARG, tr("Password given for unencrypted medium"));
-    if (strKeyId.isNotEmpty() && aPassword.isEmpty())
-        return setError(E_INVALIDARG, tr("Password needed for encrypted medium"));
-
-    /*
-     * Create IO object and return it.
-     */
-    ComObjPtr<MediumIO> ptrIO;
-    HRESULT hrc = ptrIO.createObject();
-    if (SUCCEEDED(hrc))
-    {
-        hrc = ptrIO->initForMedium(this, m->pVirtualBox, aWritable != FALSE, strKeyId, aPassword);
-        if (SUCCEEDED(hrc))
-            ptrIO.queryInterfaceTo(aMediumIO.asOutParam());
-    }
-    return hrc;
-}
-
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -4529,8 +4315,6 @@ HRESULT Medium::i_updatePath(const Utf8Str &strOldPath, const Utf8Str &strNewPat
         newPath.append(pcszMediumPath + strOldPath.length());
         unconst(m->strLocationFull) = newPath;
 
-        m->pVirtualBox->i_onMediumConfigChanged(this);
-
         LogFlowThisFunc(("locationFull.after='%s'\n", m->strLocationFull.c_str()));
         // we changed something
         return S_OK;
@@ -4677,7 +4461,7 @@ bool Medium::i_isReadOnly()
 }
 
 /**
- * Internal method to update the medium's id. Must have caller + locking!
+ * Internal method to return the medium's size. Must have caller + locking!
  * @return
  */
 void Medium::i_updateId(const Guid &id)
@@ -4923,8 +4707,6 @@ HRESULT Medium::i_createMediumLockList(bool fFailIfInaccessible,
  *                          operation completion.
  * @param aWait             @c true if this method should block instead of
  *                          creating an asynchronous thread.
- * @param aNotify           Notify about mediums which metadatÐ° are changed
- *                          during execution of the function.
  *
  * @note Locks this object and @a aTarget for writing.
  */
@@ -4932,8 +4714,7 @@ HRESULT Medium::i_createDiffStorage(ComObjPtr<Medium> &aTarget,
                                     MediumVariant_T aVariant,
                                     MediumLockList *aMediumLockList,
                                     ComObjPtr<Progress> *aProgress,
-                                    bool aWait,
-                                    bool aNotify)
+                                    bool aWait)
 {
     AssertReturn(!aTarget.isNull(), E_FAIL);
     AssertReturn(aMediumLockList, E_FAIL);
@@ -5008,8 +4789,7 @@ HRESULT Medium::i_createDiffStorage(ComObjPtr<Medium> &aTarget,
         /* setup task object to carry out the operation sync/async */
         pTask = new Medium::CreateDiffTask(this, pProgress, aTarget, aVariant,
                                            aMediumLockList,
-                                           aWait /* fKeepMediumLockList */,
-                                           aNotify);
+                                           aWait /* fKeepMediumLockList */);
         rc = pTask->rc();
         AssertComRC(rc);
         if (FAILED(rc))
@@ -5189,16 +4969,20 @@ HRESULT Medium::i_close(AutoCaller &autoCaller)
  *                      completion.
  * @param aWait         @c true if this method should block instead of creating
  *                      an asynchronous thread.
- * @param aNotify       Notify about mediums which metadatÐ° are changed
- *                      during execution of the function.
  *
  * @note Locks mVirtualBox and this object for writing. Locks medium tree for
  *       writing.
  */
 HRESULT Medium::i_deleteStorage(ComObjPtr<Progress> *aProgress,
-                              bool aWait, bool aNotify)
+                              bool aWait)
 {
+    /** @todo r=klaus The code below needs to be double checked with regard
+     * to lock order violations, it probably causes lock order issues related
+     * to the AutoCaller usage. */
     AssertReturn(aProgress != NULL || aWait == true, E_FAIL);
+
+    AutoCaller autoCaller(this);
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     HRESULT rc = S_OK;
     ComObjPtr<Progress> pProgress;
@@ -5207,13 +4991,9 @@ HRESULT Medium::i_deleteStorage(ComObjPtr<Progress> *aProgress,
     try
     {
         /* we're accessing the media tree, and canClose() needs it too */
-        AutoWriteLock treelock(m->pVirtualBox->i_getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
-
-        AutoCaller autoCaller(this);
-        AssertComRCThrowRC(autoCaller.rc());
-
-        AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-
+        AutoMultiWriteLock2 multilock(&m->pVirtualBox->i_getMediaTreeLockHandle(),
+                                      this->lockHandle()
+                                      COMMA_LOCKVAL_SRC_POS);
         LogFlowThisFunc(("aWait=%RTbool locationFull=%s\n", aWait, i_getLocationFull().c_str() ));
 
         if (    !(m->formatObj->i_getCapabilities() & (  MediumFormatCapabilities_CreateDynamic
@@ -5229,9 +5009,7 @@ HRESULT Medium::i_deleteStorage(ComObjPtr<Progress> *aProgress,
         {
             while (m->queryInfoRunning)
             {
-                alock.release();
-                autoCaller.release();
-                treelock.release();
+                multilock.release();
                 /* Must not hold the media tree lock or the object lock, as
                  * Medium::i_queryInfo needs this lock and thus we would run
                  * into a deadlock here. */
@@ -5240,10 +5018,7 @@ HRESULT Medium::i_deleteStorage(ComObjPtr<Progress> *aProgress,
                 {
                     AutoReadLock qlock(m->queryInfoSem COMMA_LOCKVAL_SRC_POS);
                 }
-                treelock.acquire();
-                autoCaller.add();
-                AssertComRCThrowRC(autoCaller.rc());
-                alock.acquire();
+                multilock.acquire();
             }
         }
 
@@ -5301,32 +5076,22 @@ HRESULT Medium::i_deleteStorage(ComObjPtr<Progress> *aProgress,
 
         /* Build the medium lock list. */
         MediumLockList *pMediumLockList(new MediumLockList());
-        alock.release();
-        autoCaller.release();
-        treelock.release();
+        multilock.release();
         rc = i_createMediumLockList(true /* fFailIfInaccessible */,
                                     this /* pToLockWrite */,
                                     false /* fMediumLockWriteAll */,
                                     NULL,
                                     *pMediumLockList);
-        treelock.acquire();
-        autoCaller.add();
-        AssertComRCThrowRC(autoCaller.rc());
-        alock.acquire();
+        multilock.acquire();
         if (FAILED(rc))
         {
             delete pMediumLockList;
             throw rc;
         }
 
-        alock.release();
-        autoCaller.release();
-        treelock.release();
+        multilock.release();
         rc = pMediumLockList->Lock();
-        treelock.acquire();
-        autoCaller.add();
-        AssertComRCThrowRC(autoCaller.rc());
-        alock.acquire();
+        multilock.acquire();
         if (FAILED(rc))
         {
             delete pMediumLockList;
@@ -5343,9 +5108,7 @@ HRESULT Medium::i_deleteStorage(ComObjPtr<Progress> *aProgress,
         if (FAILED(rc))
             throw rc;
         // no longer need lock
-        alock.release();
-        autoCaller.release();
-        treelock.release();
+        multilock.release();
         i_markRegistriesModified();
 
         if (aProgress != NULL)
@@ -5367,7 +5130,7 @@ HRESULT Medium::i_deleteStorage(ComObjPtr<Progress> *aProgress,
         }
 
         /* setup task object to carry out the operation sync/async */
-        pTask = new Medium::DeleteTask(this, pProgress, pMediumLockList, false, aNotify);
+        pTask = new Medium::DeleteTask(this, pProgress, pMediumLockList);
         rc = pTask->rc();
         AssertComRC(rc);
         if (FAILED(rc))
@@ -5502,8 +5265,18 @@ HRESULT Medium::i_unmarkLockedForDeletion()
 HRESULT Medium::i_queryPreferredMergeDirection(const ComObjPtr<Medium> &pOther,
                                                bool &fMergeForward)
 {
+    /** @todo r=klaus The code below needs to be double checked with regard
+     * to lock order violations, it probably causes lock order issues related
+     * to the AutoCaller usage. Likewise the code using this method seems
+     * problematic. */
     AssertReturn(pOther != NULL, E_FAIL);
     AssertReturn(pOther != this, E_FAIL);
+
+    AutoCaller autoCaller(this);
+    AssertComRCReturnRC(autoCaller.rc());
+
+    AutoCaller otherCaller(pOther);
+    AssertComRCReturnRC(otherCaller.rc());
 
     HRESULT rc = S_OK;
     bool fThisParent = false; /**<< Flag whether this medium is the parent of pOther. */
@@ -5512,12 +5285,6 @@ HRESULT Medium::i_queryPreferredMergeDirection(const ComObjPtr<Medium> &pOther,
     {
         // locking: we need the tree lock first because we access parent pointers
         AutoWriteLock treeLock(m->pVirtualBox->i_getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
-
-        AutoCaller autoCaller(this);
-        AssertComRCThrowRC(autoCaller.rc());
-
-        AutoCaller otherCaller(pOther);
-        AssertComRCThrowRC(otherCaller.rc());
 
         /* more sanity checking and figuring out the current merge direction */
         ComObjPtr<Medium> pMedium = i_getParent();
@@ -5580,16 +5347,7 @@ HRESULT Medium::i_queryPreferredMergeDirection(const ComObjPtr<Medium> &pOther,
                  * and everything else is too complicated, especially when the
                  * media are used by a running VM.
                  */
-
-                uint32_t mediumVariants =  MediumVariant_Fixed | MediumVariant_VmdkStreamOptimized;
-                uint32_t mediumCaps = MediumFormatCapabilities_CreateDynamic | MediumFormatCapabilities_File;
-
-                bool fDynamicOther =    pOther->i_getMediumFormat()->i_getCapabilities() & mediumCaps
-                                     && pOther->i_getVariant() & ~mediumVariants;
-                bool fDynamicThis =    i_getMediumFormat()->i_getCapabilities() & mediumCaps
-                                    && i_getVariant() & ~mediumVariants;
-                bool fMergeIntoThis =    (fDynamicThis && !fDynamicOther)
-                                      || (fDynamicThis == fDynamicOther && cbMediumThis > cbMediumOther);
+                bool fMergeIntoThis = cbMediumThis > cbMediumOther;
                 fMergeForward = fMergeIntoThis != fThisParent;
             }
         }
@@ -5636,8 +5394,18 @@ HRESULT Medium::i_prepareMergeTo(const ComObjPtr<Medium> &pTarget,
                                  MediumLockList * &aChildrenToReparent,
                                  MediumLockList * &aMediumLockList)
 {
+    /** @todo r=klaus The code below needs to be double checked with regard
+     * to lock order violations, it probably causes lock order issues related
+     * to the AutoCaller usage. Likewise the code using this method seems
+     * problematic. */
     AssertReturn(pTarget != NULL, E_FAIL);
     AssertReturn(pTarget != this, E_FAIL);
+
+    AutoCaller autoCaller(this);
+    AssertComRCReturnRC(autoCaller.rc());
+
+    AutoCaller targetCaller(pTarget);
+    AssertComRCReturnRC(targetCaller.rc());
 
     HRESULT rc = S_OK;
     fMergeForward = false;
@@ -5651,12 +5419,6 @@ HRESULT Medium::i_prepareMergeTo(const ComObjPtr<Medium> &pTarget,
     {
         // locking: we need the tree lock first because we access parent pointers
         AutoWriteLock treeLock(m->pVirtualBox->i_getMediaTreeLockHandle() COMMA_LOCKVAL_SRC_POS);
-
-        AutoCaller autoCaller(this);
-        AssertComRCThrowRC(autoCaller.rc());
-
-        AutoCaller targetCaller(pTarget);
-        AssertComRCThrowRC(targetCaller.rc());
 
         /* more sanity checking and figuring out the merge direction */
         ComObjPtr<Medium> pMedium = i_getParent();
@@ -5688,8 +5450,6 @@ HRESULT Medium::i_prepareMergeTo(const ComObjPtr<Medium> &pTarget,
 
         /* Build the lock list. */
         aMediumLockList = new MediumLockList();
-        targetCaller.release();
-        autoCaller.release();
         treeLock.release();
         if (fMergeForward)
             rc = pTarget->i_createMediumLockList(true /* fFailIfInaccessible */,
@@ -5704,10 +5464,6 @@ HRESULT Medium::i_prepareMergeTo(const ComObjPtr<Medium> &pTarget,
                                         NULL,
                                         *aMediumLockList);
         treeLock.acquire();
-        autoCaller.add();
-        AssertComRCThrowRC(autoCaller.rc());
-        targetCaller.add();
-        AssertComRCThrowRC(targetCaller.rc());
         if (FAILED(rc))
             throw rc;
 
@@ -5850,15 +5606,9 @@ HRESULT Medium::i_prepareMergeTo(const ComObjPtr<Medium> &pTarget,
             }
             if (fLockMedia && aChildrenToReparent)
             {
-                targetCaller.release();
-                autoCaller.release();
                 treeLock.release();
                 rc = aChildrenToReparent->Lock();
                 treeLock.acquire();
-                autoCaller.add();
-                AssertComRCThrowRC(autoCaller.rc());
-                targetCaller.add();
-                AssertComRCThrowRC(targetCaller.rc());
                 if (FAILED(rc))
                     throw rc;
             }
@@ -5903,15 +5653,9 @@ HRESULT Medium::i_prepareMergeTo(const ComObjPtr<Medium> &pTarget,
 
         if (fLockMedia)
         {
-            targetCaller.release();
-            autoCaller.release();
             treeLock.release();
             rc = aMediumLockList->Lock();
             treeLock.acquire();
-            autoCaller.add();
-            AssertComRCThrowRC(autoCaller.rc());
-            targetCaller.add();
-            AssertComRCThrowRC(targetCaller.rc());
             if (FAILED(rc))
             {
                 AutoReadLock alock(pTarget COMMA_LOCKVAL_SRC_POS);
@@ -6012,8 +5756,6 @@ HRESULT Medium::i_prepareMergeTo(const ComObjPtr<Medium> &pTarget,
  *                      completion.
  * @param aWait         @c true if this method should block instead of creating
  *                      an asynchronous thread.
- * @param aNotify       Notify about mediums which metadatÐ° are changed
- *                      during execution of the function.
  *
  * @note Locks the tree lock for writing. Locks the media from the chain
  *       for writing.
@@ -6024,7 +5766,7 @@ HRESULT Medium::i_mergeTo(const ComObjPtr<Medium> &pTarget,
                           MediumLockList *aChildrenToReparent,
                           MediumLockList *aMediumLockList,
                           ComObjPtr<Progress> *aProgress,
-                          bool aWait, bool aNotify)
+                          bool aWait)
 {
     AssertReturn(pTarget != NULL, E_FAIL);
     AssertReturn(pTarget != this, E_FAIL);
@@ -6032,7 +5774,7 @@ HRESULT Medium::i_mergeTo(const ComObjPtr<Medium> &pTarget,
     AssertReturn(aProgress != NULL || aWait == true, E_FAIL);
 
     AutoCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
+    if (FAILED(autoCaller.rc())) return autoCaller.rc();
 
     AutoCaller targetCaller(pTarget);
     AssertComRCReturnRC(targetCaller.rc());
@@ -6065,11 +5807,7 @@ HRESULT Medium::i_mergeTo(const ComObjPtr<Medium> &pTarget,
                                      BstrFmt(tr("Merging medium '%s' to '%s'"),
                                              i_getName().c_str(),
                                              tgtName.c_str()).raw(),
-                                     TRUE, /* aCancelable */
-                                     2, /* Number of opearations */
-                                     BstrFmt(tr("Resizing medium '%s' before merge"),
-                                             tgtName.c_str()).raw()
-                                     );
+                                     TRUE /* aCancelable */);
                 if (FAILED(rc))
                     throw rc;
             }
@@ -6079,8 +5817,7 @@ HRESULT Medium::i_mergeTo(const ComObjPtr<Medium> &pTarget,
         pTask = new Medium::MergeTask(this, pTarget, fMergeForward,
                                       pParentForTarget, aChildrenToReparent,
                                       pProgress, aMediumLockList,
-                                      aWait /* fKeepMediumLockList */,
-                                      aNotify);
+                                      aWait /* fKeepMediumLockList */);
         rc = pTask->rc();
         AssertComRC(rc);
         if (FAILED(rc))
@@ -6117,8 +5854,7 @@ HRESULT Medium::i_mergeTo(const ComObjPtr<Medium> &pTarget,
  *                      to be reparented to the target after merge.
  * @param aMediumLockList Medium locking information.
  *
- * @note Locks the tree lock for writing. Locks the media from the chain
- *       for writing.
+ * @note Locks the media from the chain for writing.
  */
 void Medium::i_cancelMergeTo(MediumLockList *aChildrenToReparent,
                              MediumLockList *aMediumLockList)
@@ -6163,113 +5899,6 @@ void Medium::i_cancelMergeTo(MediumLockList *aChildrenToReparent,
      * the work */
     if (aChildrenToReparent)
         delete aChildrenToReparent;
-}
-
-/**
- * Resizes the media.
- *
- * If @a aWait is @c true then this method will perform the operation on the
- * calling thread and will not return to the caller until the operation is
- * completed. When this method succeeds, the state of the target medium (and all
- * involved extra media) will be restored. @a aMediumLockList will not be
- * deleted, whether the operation is successful or not. The caller has to do
- * this if appropriate.
- *
- * If @a aWait is @c false then this method will create a thread to perform the
- * operation asynchronously and will return immediately. The thread will reset
- * the state of the target medium (and all involved extra media) and delete
- * @a aMediumLockList.
- *
- * When this method fails (regardless of the @a aWait mode), it is a caller's
- * responsibility to undo state changes and delete @a aMediumLockList.
- *
- * If @a aProgress is not NULL but the object it points to is @c null then a new
- * progress object will be created and assigned to @a *aProgress on success,
- * otherwise the existing progress object is used. If Progress is NULL, then no
- * progress object is created/used at all. Note that @a aProgress cannot be
- * NULL when @a aWait is @c false (this method will assert in this case).
- *
- * @param aLogicalSize  New nominal capacity of the medium in bytes.
- * @param aMediumLockList Medium locking information.
- * @param aProgress     Where to find/store a Progress object to track operation
- *                      completion.
- * @param aWait         @c true if this method should block instead of creating
- *                      an asynchronous thread.
- * @param aNotify       Notify about mediums which metadatÐ° are changed
- *                      during execution of the function.
- *
- * @note Locks the media from the chain for writing.
- */
-
-HRESULT Medium::i_resize(LONG64 aLogicalSize,
-                         MediumLockList *aMediumLockList,
-                         ComObjPtr<Progress> *aProgress,
-                         bool aWait,
-                         bool aNotify)
-{
-    AssertReturn(aMediumLockList != NULL, E_FAIL);
-    AssertReturn(aProgress != NULL || aWait == true, E_FAIL);
-
-    AutoCaller autoCaller(this);
-    AssertComRCReturnRC(autoCaller.rc());
-
-    HRESULT rc = S_OK;
-    ComObjPtr<Progress> pProgress;
-    Medium::Task *pTask = NULL;
-
-    try
-    {
-        if (aProgress != NULL)
-        {
-            /* use the existing progress object... */
-            pProgress = *aProgress;
-
-            /* ...but create a new one if it is null */
-            if (pProgress.isNull())
-            {
-                AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-
-                pProgress.createObject();
-                rc = pProgress->init(m->pVirtualBox,
-                                     static_cast <IMedium *>(this),
-                                     BstrFmt(tr("Resizing medium '%s'"), m->strLocationFull.c_str()).raw(),
-                                     TRUE /* aCancelable */);
-                if (FAILED(rc))
-                    throw rc;
-            }
-        }
-
-        /* setup task object to carry out the operation asynchronously */
-        pTask = new Medium::ResizeTask(this,
-                                       aLogicalSize,
-                                       pProgress,
-                                       aMediumLockList,
-                                       aWait /* fKeepMediumLockList */,
-                                       aNotify);
-        rc = pTask->rc();
-        AssertComRC(rc);
-        if (FAILED(rc))
-            throw rc;
-    }
-    catch (HRESULT aRC) { rc = aRC; }
-
-    if (SUCCEEDED(rc))
-    {
-        if (aWait)
-        {
-            rc = pTask->runNow();
-            delete pTask;
-        }
-        else
-            rc = pTask->createThread();
-
-        if (SUCCEEDED(rc) && aProgress != NULL)
-            *aProgress = pProgress;
-    }
-    else if (pTask != NULL)
-        delete pTask;
-
-    return rc;
 }
 
 /**
@@ -6350,10 +5979,10 @@ HRESULT Medium::i_fixParentUuidOfChildren(MediumLockList *pChildrenToReparent)
         catch (HRESULT aRC) { rc = aRC; }
         catch (int aVRC)
         {
-            rc = setErrorBoth(E_FAIL, aVRC,
-                              tr("Could not update medium UUID references to parent '%s' (%s)"),
-                              m->strLocationFull.c_str(),
-                              i_vdError(aVRC).c_str());
+            rc = setError(E_FAIL,
+                          tr("Could not update medium UUID references to parent '%s' (%s)"),
+                          m->strLocationFull.c_str(),
+                          i_vdError(aVRC).c_str());
         }
 
         VDDestroy(hdd);
@@ -6377,10 +6006,10 @@ HRESULT Medium::i_addRawToFss(const char *aFilename, SecretKeyStore *pKeyStore, 
         /*
          * Get a readonly hdd for this medium.
          */
-        MediumCryptoFilterSettings      CryptoSettingsRead;
+        Medium::CryptoFilterSettings    CryptoSettingsRead;
         MediumLockList                  SourceMediumLockList;
         PVDISK                          pHdd;
-        hrc = i_openForIO(false /*fWritable*/, pKeyStore, &pHdd, &SourceMediumLockList, &CryptoSettingsRead);
+        hrc = i_openHddForReading(pKeyStore, &pHdd, &SourceMediumLockList, &CryptoSettingsRead);
         if (SUCCEEDED(hrc))
         {
             /*
@@ -6465,10 +6094,10 @@ HRESULT Medium::i_exportFile(const char *aFilename,
                 /*
                  * Get a readonly hdd for this medium (source).
                  */
-                MediumCryptoFilterSettings      CryptoSettingsRead;
+                Medium::CryptoFilterSettings    CryptoSettingsRead;
                 MediumLockList                  SourceMediumLockList;
                 PVDISK                          pSrcHdd;
-                hrc = i_openForIO(false /*fWritable*/, pKeyStore, &pSrcHdd, &SourceMediumLockList, &CryptoSettingsRead);
+                hrc = i_openHddForReading(pKeyStore, &pSrcHdd, &SourceMediumLockList, &CryptoSettingsRead);
                 if (SUCCEEDED(hrc))
                 {
                     /*
@@ -6509,7 +6138,7 @@ HRESULT Medium::i_exportFile(const char *aFilename,
                                          aFilename,
                                          false /* fMoveByRename */,
                                          0 /* cbSize */,
-                                         aVariant & ~(MediumVariant_NoCreateDir | MediumVariant_Formatted),
+                                         aVariant & ~MediumVariant_NoCreateDir,
                                          NULL /* pDstUuid */,
                                          VD_OPEN_FLAGS_NORMAL | VD_OPEN_FLAGS_SEQUENTIAL,
                                          pProgress,
@@ -6548,8 +6177,6 @@ HRESULT Medium::i_exportFile(const char *aFilename,
  * @param aVfsIosSrc            Handle to the source I/O stream.
  * @param aParent               Parent medium. May be NULL.
  * @param aProgress             Progress object to use.
- * @param aNotify               Notify about mediums which metadatÐ° are changed
- *                              during execution of the function.
  * @return
  * @note The destination format is defined by the Medium instance.
  *
@@ -6563,8 +6190,7 @@ HRESULT Medium::i_importFile(const char *aFilename,
                              MediumVariant_T aVariant,
                              RTVFSIOSTREAM aVfsIosSrc,
                              const ComObjPtr<Medium> &aParent,
-                             const ComObjPtr<Progress> &aProgress,
-                             bool aNotify)
+                             const ComObjPtr<Progress> &aProgress)
 {
     /** @todo r=klaus The code below needs to be double checked with regard
      * to lock order violations, it probably causes lock order issues related
@@ -6625,7 +6251,7 @@ HRESULT Medium::i_importFile(const char *aFilename,
 
         /* setup task object to carry out the operation asynchronously */
         pTask = new Medium::ImportTask(this, aProgress, aFilename, aFormat, aVariant,
-                                       aVfsIosSrc, aParent, pTargetMediumLockList, false, aNotify);
+                                       aVfsIosSrc, aParent, pTargetMediumLockList);
         rc = pTask->rc();
         AssertComRC(rc);
         if (FAILED(rc))
@@ -6659,13 +6285,11 @@ HRESULT Medium::i_importFile(const char *aFilename,
  * @param idxDstImageSame    The last image in the destination chain which has the
  *                           same content as the given image in the source chain.
  *                           Use UINT32_MAX to disable this optimization.
- * @param aNotify            Notify about mediums which metadatÐ° are changed
- *                           during execution of the function.
  * @return
  */
-HRESULT Medium::i_cloneToEx(const ComObjPtr<Medium> &aTarget, MediumVariant_T aVariant,
+HRESULT Medium::i_cloneToEx(const ComObjPtr<Medium> &aTarget, ULONG aVariant,
                             const ComObjPtr<Medium> &aParent, IProgress **aProgress,
-                            uint32_t idxSrcImageSame, uint32_t idxDstImageSame, bool aNotify)
+                            uint32_t idxSrcImageSame, uint32_t idxDstImageSame)
 {
     /** @todo r=klaus The code below needs to be double checked with regard
      * to lock order violations, it probably causes lock order issues related
@@ -6767,10 +6391,11 @@ HRESULT Medium::i_cloneToEx(const ComObjPtr<Medium> &aTarget, MediumVariant_T aV
         }
 
         /* setup task object to carry out the operation asynchronously */
-        pTask = new Medium::CloneTask(this, pProgress, aTarget, aVariant,
+        pTask = new Medium::CloneTask(this, pProgress, aTarget,
+                                      (MediumVariant_T)aVariant,
                                       aParent, idxSrcImageSame,
                                       idxDstImageSame, pSourceMediumLockList,
-                                      pTargetMediumLockList, false, false, aNotify);
+                                      pTargetMediumLockList);
         rc = pTask->rc();
         AssertComRC(rc);
         if (FAILED(rc))
@@ -6811,7 +6436,6 @@ const Utf8Str& Medium::i_getKeyId()
 
     return it->second;
 }
-
 
 /**
  * Returns all filter related properties.
@@ -7370,8 +6994,7 @@ HRESULT Medium::i_queryInfo(bool fSetImageId, bool fSetParentId, AutoCaller &aut
     pToken->Abandon();
     pToken.setNull();
 
-    if (FAILED(rc))
-        return rc;
+    if (FAILED(rc)) return rc;
 
     /* If this is a base image which incorrectly has a parent UUID set,
      * repair the image now by zeroing the parent UUID. This is only done
@@ -7379,55 +7002,50 @@ HRESULT Medium::i_queryInfo(bool fSetImageId, bool fSetParentId, AutoCaller &aut
      * this is not possible. If someone would accidentally call openMedium
      * with a diff image before the base is registered this would destroy
      * the diff. Not acceptable. */
-    do
+    if (fRepairImageZeroParentUuid)
     {
-        if (fRepairImageZeroParentUuid)
-        {
-            rc = LockWrite(pToken.asOutParam());
-            if (FAILED(rc))
-                break;
+        rc = LockWrite(pToken.asOutParam());
+        if (FAILED(rc)) return rc;
 
-            alock.release();
+        alock.release();
+
+        try
+        {
+            PVDISK hdd;
+            vrc = VDCreate(m->vdDiskIfaces, i_convertDeviceType(), &hdd);
+            ComAssertRCThrow(vrc, E_FAIL);
 
             try
             {
-                PVDISK hdd;
-                vrc = VDCreate(m->vdDiskIfaces, i_convertDeviceType(), &hdd);
+                vrc = VDOpen(hdd,
+                             format.c_str(),
+                             location.c_str(),
+                             (uOpenFlags & ~VD_OPEN_FLAGS_READONLY) | m->uOpenFlagsDef,
+                             m->vdImageIfaces);
+                if (RT_FAILURE(vrc))
+                    throw S_OK;
+
+                RTUUID zeroParentUuid;
+                RTUuidClear(&zeroParentUuid);
+                vrc = VDSetParentUuid(hdd, 0, &zeroParentUuid);
                 ComAssertRCThrow(vrc, E_FAIL);
-
-                try
-                {
-                    vrc = VDOpen(hdd,
-                                 format.c_str(),
-                                 location.c_str(),
-                                 (uOpenFlags & ~VD_OPEN_FLAGS_READONLY) | m->uOpenFlagsDef,
-                                 m->vdImageIfaces);
-                    if (RT_FAILURE(vrc))
-                        throw S_OK;
-
-                    RTUUID zeroParentUuid;
-                    RTUuidClear(&zeroParentUuid);
-                    vrc = VDSetParentUuid(hdd, 0, &zeroParentUuid);
-                    ComAssertRCThrow(vrc, E_FAIL);
-                }
-                catch (HRESULT aRC)
-                {
-                    rc = aRC;
-                }
-
-                VDDestroy(hdd);
             }
             catch (HRESULT aRC)
             {
                 rc = aRC;
             }
 
-            pToken->Abandon();
-            pToken.setNull();
-            if (FAILED(rc))
-                break;
+            VDDestroy(hdd);
         }
-    } while(0);
+        catch (HRESULT aRC)
+        {
+            rc = aRC;
+        }
+
+        pToken->Abandon();
+        pToken.setNull();
+        if (FAILED(rc)) return rc;
+    }
 
     return rc;
 }
@@ -7701,17 +7319,17 @@ HRESULT Medium::i_setLocation(const Utf8Str &aLocation,
             if (RT_FAILURE(vrc))
             {
                 if (vrc == VERR_ACCESS_DENIED)
-                    return setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                        tr("Permission problem accessing the file for the medium '%s' (%Rrc)"),
-                                        locationFull.c_str(), vrc);
+                    return setError(VBOX_E_FILE_ERROR,
+                                    tr("Permission problem accessing the file for the medium '%s' (%Rrc)"),
+                                    locationFull.c_str(), vrc);
                 else if (vrc == VERR_FILE_NOT_FOUND || vrc == VERR_PATH_NOT_FOUND)
-                    return setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                        tr("Could not find file for the medium '%s' (%Rrc)"),
-                                        locationFull.c_str(), vrc);
+                    return setError(VBOX_E_FILE_ERROR,
+                                    tr("Could not find file for the medium '%s' (%Rrc)"),
+                                    locationFull.c_str(), vrc);
                 else if (aFormat.isEmpty())
-                    return setErrorBoth(VBOX_E_IPRT_ERROR, vrc,
-                                        tr("Could not get the storage format of the medium '%s' (%Rrc)"),
-                                        locationFull.c_str(), vrc);
+                    return setError(VBOX_E_IPRT_ERROR,
+                                    tr("Could not get the storage format of the medium '%s' (%Rrc)"),
+                                    locationFull.c_str(), vrc);
                 else
                 {
                     HRESULT rc = i_setFormat(aFormat);
@@ -8132,7 +7750,7 @@ DECLCALLBACK(bool) Medium::i_vdCryptoConfigAreKeysValid(void *pvUser, const char
 
 DECLCALLBACK(int) Medium::i_vdCryptoConfigQuerySize(void *pvUser, const char *pszName, size_t *pcbValue)
 {
-    MediumCryptoFilterSettings *pSettings = (MediumCryptoFilterSettings *)pvUser;
+    Medium::CryptoFilterSettings *pSettings = (Medium::CryptoFilterSettings *)pvUser;
     AssertPtrReturn(pSettings, VERR_GENERAL_FAILURE);
     AssertReturn(VALID_PTR(pcbValue), VERR_INVALID_POINTER);
 
@@ -8160,7 +7778,7 @@ DECLCALLBACK(int) Medium::i_vdCryptoConfigQuerySize(void *pvUser, const char *ps
 DECLCALLBACK(int) Medium::i_vdCryptoConfigQuery(void *pvUser, const char *pszName,
                                                 char *pszValue, size_t cchValue)
 {
-    MediumCryptoFilterSettings *pSettings = (MediumCryptoFilterSettings *)pvUser;
+    Medium::CryptoFilterSettings *pSettings = (Medium::CryptoFilterSettings *)pvUser;
     AssertPtrReturn(pSettings, VERR_GENERAL_FAILURE);
     AssertReturn(VALID_PTR(pszValue), VERR_INVALID_POINTER);
 
@@ -8192,7 +7810,7 @@ DECLCALLBACK(int) Medium::i_vdCryptoConfigQuery(void *pvUser, const char *pszNam
 DECLCALLBACK(int) Medium::i_vdCryptoKeyRetain(void *pvUser, const char *pszId,
                                               const uint8_t **ppbKey, size_t *pcbKey)
 {
-    MediumCryptoFilterSettings *pSettings = (MediumCryptoFilterSettings *)pvUser;
+    Medium::CryptoFilterSettings *pSettings = (Medium::CryptoFilterSettings *)pvUser;
     NOREF(pszId);
     NOREF(ppbKey);
     NOREF(pcbKey);
@@ -8202,7 +7820,7 @@ DECLCALLBACK(int) Medium::i_vdCryptoKeyRetain(void *pvUser, const char *pszId,
 
 DECLCALLBACK(int) Medium::i_vdCryptoKeyRelease(void *pvUser, const char *pszId)
 {
-    MediumCryptoFilterSettings *pSettings = (MediumCryptoFilterSettings *)pvUser;
+    Medium::CryptoFilterSettings *pSettings = (Medium::CryptoFilterSettings *)pvUser;
     NOREF(pszId);
     AssertPtrReturn(pSettings, VERR_GENERAL_FAILURE);
     AssertMsgFailedReturn(("This method should not be called here!\n"), VERR_INVALID_STATE);
@@ -8210,7 +7828,7 @@ DECLCALLBACK(int) Medium::i_vdCryptoKeyRelease(void *pvUser, const char *pszId)
 
 DECLCALLBACK(int) Medium::i_vdCryptoKeyStorePasswordRetain(void *pvUser, const char *pszId, const char **ppszPassword)
 {
-    MediumCryptoFilterSettings *pSettings = (MediumCryptoFilterSettings *)pvUser;
+    Medium::CryptoFilterSettings *pSettings = (Medium::CryptoFilterSettings *)pvUser;
     AssertPtrReturn(pSettings, VERR_GENERAL_FAILURE);
 
     NOREF(pszId);
@@ -8220,7 +7838,7 @@ DECLCALLBACK(int) Medium::i_vdCryptoKeyStorePasswordRetain(void *pvUser, const c
 
 DECLCALLBACK(int) Medium::i_vdCryptoKeyStorePasswordRelease(void *pvUser, const char *pszId)
 {
-    MediumCryptoFilterSettings *pSettings = (MediumCryptoFilterSettings *)pvUser;
+    Medium::CryptoFilterSettings *pSettings = (Medium::CryptoFilterSettings *)pvUser;
     AssertPtrReturn(pSettings, VERR_GENERAL_FAILURE);
     NOREF(pszId);
     return VINF_SUCCESS;
@@ -8228,7 +7846,7 @@ DECLCALLBACK(int) Medium::i_vdCryptoKeyStorePasswordRelease(void *pvUser, const 
 
 DECLCALLBACK(int) Medium::i_vdCryptoKeyStoreSave(void *pvUser, const void *pvKeyStore, size_t cbKeyStore)
 {
-    MediumCryptoFilterSettings *pSettings = (MediumCryptoFilterSettings *)pvUser;
+    Medium::CryptoFilterSettings *pSettings = (Medium::CryptoFilterSettings *)pvUser;
     AssertPtrReturn(pSettings, VERR_GENERAL_FAILURE);
 
     pSettings->pszKeyStore = (char *)RTMemAllocZ(cbKeyStore);
@@ -8242,7 +7860,7 @@ DECLCALLBACK(int) Medium::i_vdCryptoKeyStoreSave(void *pvUser, const void *pvKey
 DECLCALLBACK(int) Medium::i_vdCryptoKeyStoreReturnParameters(void *pvUser, const char *pszCipher,
                                                              const uint8_t *pbDek, size_t cbDek)
 {
-    MediumCryptoFilterSettings *pSettings = (MediumCryptoFilterSettings *)pvUser;
+    Medium::CryptoFilterSettings *pSettings = (Medium::CryptoFilterSettings *)pvUser;
     AssertPtrReturn(pSettings, VERR_GENERAL_FAILURE);
 
     pSettings->pszCipherReturned = RTStrDup(pszCipher);
@@ -8253,14 +7871,12 @@ DECLCALLBACK(int) Medium::i_vdCryptoKeyStoreReturnParameters(void *pvUser, const
 }
 
 /**
- * Creates a VDISK instance for this medium.
+ * Creates a read-only VDISK instance for this medium.
  *
  * @note    Caller should not hold any medium related locks as this method will
  *          acquire the medium lock for writing and others (VirtualBox).
  *
  * @returns COM status code.
- * @param   fWritable               Whether to return a writable VDISK instance
- *                                  (true) or a read-only one (false).
  * @param   pKeyStore               The key store.
  * @param   ppHdd                   Where to return the pointer to the VDISK on
  *                                  success.
@@ -8268,18 +7884,18 @@ DECLCALLBACK(int) Medium::i_vdCryptoKeyStoreReturnParameters(void *pvUser, const
  *                                  is responsible for calling the destructor or
  *                                  MediumLockList::Clear() after destroying
  *                                  @a *ppHdd
- * @param   pCryptoSettings         The crypto settings to use for setting up
- *                                  decryption/encryption of the VDISK.  This object
+ * @param   pCryptoSettingsRead     The crypto read settings to use for setting
+ *                                  up decryption of the VDISK.  This object
  *                                  must be alive until the VDISK is destroyed!
  */
-HRESULT Medium::i_openForIO(bool fWritable, SecretKeyStore *pKeyStore, PVDISK *ppHdd, MediumLockList *pMediumLockList,
-                            MediumCryptoFilterSettings *pCryptoSettings)
+HRESULT Medium::i_openHddForReading(SecretKeyStore *pKeyStore, PVDISK *ppHdd, MediumLockList *pMediumLockList,
+                                    Medium::CryptoFilterSettings *pCryptoSettingsRead)
 {
     /*
      * Create the media lock list and lock the media.
      */
     HRESULT hrc = i_createMediumLockList(true /* fFailIfInaccessible */,
-                                         fWritable ? this : NULL /* pToLockWrite */,
+                                         NULL /* pToLockWrite */,
                                          false /* fMediumLockWriteAll */,
                                          NULL,
                                          *pMediumLockList);
@@ -8322,9 +7938,9 @@ HRESULT Medium::i_openForIO(bool fWritable, SecretKeyStore *pKeyStore, PVDISK *p
                 {
                     vrc = VDPluginLoadFromFilename(strPlugin.c_str());
                     if (RT_FAILURE(vrc))
-                        throw setErrorBoth(VBOX_E_NOT_SUPPORTED, vrc,
-                                           tr("Retrieving encryption settings of the image failed because the encryption plugin could not be loaded (%s)"),
-                                           i_vdError(vrc).c_str());
+                        throw setError(VBOX_E_NOT_SUPPORTED,
+                                       tr("Retrieving encryption settings of the image failed because the encryption plugin could not be loaded (%s)"),
+                                       i_vdError(vrc).c_str());
                 }
                 else
                     throw setError(VBOX_E_NOT_SUPPORTED,
@@ -8354,29 +7970,26 @@ HRESULT Medium::i_openForIO(bool fWritable, SecretKeyStore *pKeyStore, PVDISK *p
             SecretKey *pKey = NULL;
             vrc = pKeyStore->retainSecretKey(itKeyId->second, &pKey);
             if (RT_FAILURE(vrc))
-                throw setErrorBoth(VBOX_E_INVALID_OBJECT_STATE, vrc,
-                                   tr("Failed to retrieve the secret key with ID \"%s\" from the store (%Rrc)"),
-                                   itKeyId->second.c_str(), vrc);
+                throw setError(VBOX_E_INVALID_OBJECT_STATE,
+                               tr("Failed to retrieve the secret key with ID \"%s\" from the store (%Rrc)"),
+                               itKeyId->second.c_str(), vrc);
 
-            i_taskEncryptSettingsSetup(pCryptoSettings, NULL, itKeyStore->second.c_str(), (const char *)pKey->getKeyBuffer(),
+            i_taskEncryptSettingsSetup(pCryptoSettingsRead, NULL, itKeyStore->second.c_str(), (const char *)pKey->getKeyBuffer(),
                                        false /* fCreateKeyStore */);
-            vrc = VDFilterAdd(pHdd, "CRYPT", VD_FILTER_FLAGS_DEFAULT, pCryptoSettings->vdFilterIfaces);
+            vrc = VDFilterAdd(pHdd, "CRYPT", VD_FILTER_FLAGS_READ, pCryptoSettingsRead->vdFilterIfaces);
             pKeyStore->releaseSecretKey(itKeyId->second);
             if (vrc == VERR_VD_PASSWORD_INCORRECT)
-                throw setErrorBoth(VBOX_E_PASSWORD_INCORRECT, vrc, tr("The password to decrypt the image is incorrect"));
+                throw setError(VBOX_E_PASSWORD_INCORRECT, tr("The password to decrypt the image is incorrect"));
             if (RT_FAILURE(vrc))
-                throw setErrorBoth(VBOX_E_INVALID_OBJECT_STATE, vrc, tr("Failed to load the decryption filter: %s"),
-                                   i_vdError(vrc).c_str());
+                throw setError(VBOX_E_INVALID_OBJECT_STATE, tr("Failed to load the decryption filter: %s"),
+                               i_vdError(vrc).c_str());
         }
 
         /*
          * Open all media in the source chain.
          */
         MediumLockList::Base::const_iterator sourceListBegin = pMediumLockList->GetBegin();
-        MediumLockList::Base::const_iterator sourceListEnd   = pMediumLockList->GetEnd();
-        MediumLockList::Base::const_iterator mediumListLast  = sourceListEnd;
-        --mediumListLast;
-
+        MediumLockList::Base::const_iterator sourceListEnd = pMediumLockList->GetEnd();
         for (MediumLockList::Base::const_iterator it = sourceListBegin; it != sourceListEnd; ++it)
         {
             const MediumLock &mediumLock = *it;
@@ -8384,22 +7997,22 @@ HRESULT Medium::i_openForIO(bool fWritable, SecretKeyStore *pKeyStore, PVDISK *p
             AutoReadLock alock(pMedium COMMA_LOCKVAL_SRC_POS);
 
             /* sanity check */
-            Assert(pMedium->m->state == (fWritable && it == mediumListLast ? MediumState_LockedWrite : MediumState_LockedRead));
+            Assert(pMedium->m->state == MediumState_LockedRead);
 
             /* Open all media in read-only mode. */
             vrc = VDOpen(pHdd,
                          pMedium->m->strFormat.c_str(),
                          pMedium->m->strLocationFull.c_str(),
-                         m->uOpenFlagsDef | (fWritable && it == mediumListLast ? VD_OPEN_FLAGS_NORMAL : VD_OPEN_FLAGS_READONLY),
+                         VD_OPEN_FLAGS_READONLY | m->uOpenFlagsDef,
                          pMedium->m->vdImageIfaces);
             if (RT_FAILURE(vrc))
-                throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                   tr("Could not open the medium storage unit '%s'%s"),
-                                   pMedium->m->strLocationFull.c_str(),
-                                   i_vdError(vrc).c_str());
+                throw setError(VBOX_E_FILE_ERROR,
+                               tr("Could not open the medium storage unit '%s'%s"),
+                               pMedium->m->strLocationFull.c_str(),
+                               i_vdError(vrc).c_str());
         }
 
-        Assert(m->state == (fWritable ? MediumState_LockedWrite : MediumState_LockedRead));
+        Assert(m->state == MediumState_LockedRead);
 
         /*
          * Done!
@@ -8444,7 +8057,7 @@ HRESULT Medium::i_taskCreateBaseHandler(Medium::CreateBaseTask &task)
         AutoWriteLock thisLock(this COMMA_LOCKVAL_SRC_POS);
 
         /* The object may request a specific UUID (through a special form of
-        * the moveTo() argument). Otherwise we have to generate it */
+        * the setLocation() argument). Otherwise we have to generate it */
         Guid id = m->id;
 
         fGenerateUuid = id.isZero();
@@ -8485,7 +8098,7 @@ HRESULT Medium::i_taskCreateBaseHandler(Medium::CreateBaseTask &task)
                                format.c_str(),
                                location.c_str(),
                                task.mSize,
-                               task.mVariant & ~(MediumVariant_NoCreateDir | MediumVariant_Formatted),
+                               task.mVariant & ~MediumVariant_NoCreateDir,
                                NULL,
                                &geo,
                                &geo,
@@ -8496,35 +8109,13 @@ HRESULT Medium::i_taskCreateBaseHandler(Medium::CreateBaseTask &task)
             if (RT_FAILURE(vrc))
             {
                 if (vrc == VERR_VD_INVALID_TYPE)
-                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                       tr("Parameters for creating the medium storage unit '%s' are invalid%s"),
-                                       location.c_str(), i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_FILE_ERROR,
+                                   tr("Parameters for creating the medium storage unit '%s' are invalid%s"),
+                                   location.c_str(), i_vdError(vrc).c_str());
                 else
-                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                       tr("Could not create the medium storage unit '%s'%s"),
-                                       location.c_str(), i_vdError(vrc).c_str());
-            }
-
-            if (task.mVariant & MediumVariant_Formatted)
-            {
-                RTVFSFILE hVfsFile;
-                vrc = VDCreateVfsFileFromDisk(hdd, 0 /*fFlags*/, &hVfsFile);
-                if (RT_FAILURE(vrc))
-                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc, tr("Opening medium storage unit '%s' failed%s"),
-                                       location.c_str(), i_vdError(vrc).c_str());
-                RTERRINFOSTATIC ErrInfo;
-                vrc = RTFsFatVolFormat(hVfsFile, 0 /* offVol */, 0 /* cbVol */, RTFSFATVOL_FMT_F_FULL,
-                                       0 /* cbSector */, 0 /* cbSectorPerCluster */, RTFSFATTYPE_INVALID,
-                                       0 /* cHeads */, 0 /* cSectorsPerTrack*/, 0 /* bMedia */,
-                                       0 /* cRootDirEntries */, 0 /* cHiddenSectors */,
-                                       RTErrInfoInitStatic(&ErrInfo));
-                RTVfsFileRelease(hVfsFile);
-                if (RT_FAILURE(vrc) && RTErrInfoIsSet(&ErrInfo.Core))
-                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc, tr("Formatting medium storage unit '%s' failed: %s"),
-                                       location.c_str(), ErrInfo.Core.pszMsg);
-                if (RT_FAILURE(vrc))
-                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc, tr("Formatting medium storage unit '%s' failed%s"),
-                                       location.c_str(), i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_FILE_ERROR,
+                                   tr("Could not create the medium storage unit '%s'%s"),
+                                   location.c_str(), i_vdError(vrc).c_str());
             }
 
             size = VDGetFileSize(hdd, 0);
@@ -8569,8 +8160,6 @@ HRESULT Medium::i_taskCreateBaseHandler(Medium::CreateBaseTask &task)
             // in asynchronous mode, save settings now
             m->pVirtualBox->i_saveModifiedRegistries();
         }
-        if (task.NotifyAboutChanges())
-            m->pVirtualBox->i_onMediumRegistered(m->id, m->devType, TRUE);
     }
     else
     {
@@ -8624,7 +8213,7 @@ HRESULT Medium::i_taskCreateDiffHandler(Medium::CreateDiffTask &task)
         AutoMultiWriteLock2 mediaLock(this, pTarget COMMA_LOCKVAL_SRC_POS);
 
         /* The object may request a specific UUID (through a special form of
-         * the moveTo() argument). Otherwise we have to generate it */
+         * the setLocation() argument). Otherwise we have to generate it */
         Guid targetId = pTarget->m->id;
 
         fGenerateUuid = targetId.isZero();
@@ -8683,10 +8272,10 @@ HRESULT Medium::i_taskCreateDiffHandler(Medium::CreateDiffTask &task)
                              VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_INFO | m->uOpenFlagsDef,
                              pMedium->m->vdImageIfaces);
                 if (RT_FAILURE(vrc))
-                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                       tr("Could not open the medium storage unit '%s'%s"),
-                                       pMedium->m->strLocationFull.c_str(),
-                                       i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_FILE_ERROR,
+                                   tr("Could not open the medium storage unit '%s'%s"),
+                                   pMedium->m->strLocationFull.c_str(),
+                                   i_vdError(vrc).c_str());
             }
 
             /* ensure the target directory exists */
@@ -8701,8 +8290,7 @@ HRESULT Medium::i_taskCreateDiffHandler(Medium::CreateDiffTask &task)
             vrc = VDCreateDiff(hdd,
                                targetFormat.c_str(),
                                targetLocation.c_str(),
-                                 (task.mVariant & ~(MediumVariant_NoCreateDir | MediumVariant_Formatted | MediumVariant_VmdkESX))
-                               | VD_IMAGE_FLAGS_DIFF,
+                               (task.mVariant & ~(MediumVariant_NoCreateDir | MediumVariant_VmdkESX)) | VD_IMAGE_FLAGS_DIFF,
                                NULL,
                                targetId.raw(),
                                id.raw(),
@@ -8712,13 +8300,13 @@ HRESULT Medium::i_taskCreateDiffHandler(Medium::CreateDiffTask &task)
             if (RT_FAILURE(vrc))
             {
                 if (vrc == VERR_VD_INVALID_TYPE)
-                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                       tr("Parameters for creating the differencing medium storage unit '%s' are invalid%s"),
-                                       targetLocation.c_str(), i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_FILE_ERROR,
+                                   tr("Parameters for creating the differencing medium storage unit '%s' are invalid%s"),
+                                   targetLocation.c_str(), i_vdError(vrc).c_str());
                 else
-                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                       tr("Could not create the differencing medium storage unit '%s'%s"),
-                                       targetLocation.c_str(), i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_FILE_ERROR,
+                                   tr("Could not create the differencing medium storage unit '%s'%s"),
+                                   targetLocation.c_str(), i_vdError(vrc).c_str());
             }
 
             size = VDGetFileSize(hdd, VD_LAST_IMAGE);
@@ -8806,12 +8394,6 @@ HRESULT Medium::i_taskCreateDiffHandler(Medium::CreateDiffTask &task)
     /* Note that in sync mode, it's the caller's responsibility to
      * unlock the medium. */
 
-    if (task.NotifyAboutChanges() && SUCCEEDED(mrc))
-    {
-        m->pVirtualBox->i_onMediumRegistered(pTarget->i_getId(), pTarget->i_getDeviceType(), TRUE);
-        m->pVirtualBox->i_onMediumConfigChanged(this);
-    }
-
     return mrc;
 }
 
@@ -8846,90 +8428,6 @@ HRESULT Medium::i_taskMergeHandler(Medium::MergeTask &task)
                                tr("Cannot merge image for medium '%s', because it exceeds the medium tree depth limit. Please merge some images which you no longer need"),
                                task.mParentForTarget->m->strLocationFull.c_str());
             }
-
-        // Resize target to source size, if possible. Otherwise throw an error.
-        // It's offline resizing. Online resizing will be called in the
-        // SessionMachine::onlineMergeMedium.
-
-        uint64_t sourceSize = 0;
-        Utf8Str sourceName;
-        {
-            AutoReadLock alock(this COMMA_LOCKVAL_SRC_POS);
-            sourceSize = i_getLogicalSize();
-            sourceName = i_getName();
-        }
-        uint64_t targetSize = 0;
-        Utf8Str targetName;
-        {
-            AutoReadLock alock(pTarget COMMA_LOCKVAL_SRC_POS);
-            targetSize = pTarget->i_getLogicalSize();
-            targetName = pTarget->i_getName();
-        }
-
-        //reducing vm disks are not implemented yet
-        if (sourceSize > targetSize)
-        {
-            if (i_isMediumFormatFile())
-            {
-                // Have to make own lock list, because "resize" method resizes only last image
-                // in the lock chain. The lock chain already in the task.mpMediumLockList, so
-                // just make new lock list based on it. In fact the own lock list neither makes
-                // double locking of mediums nor unlocks them during delete, because medium
-                // already locked by task.mpMediumLockList and own list is used just to specify
-                // what "resize" method should resize.
-
-                MediumLockList* pMediumLockListForResize = new MediumLockList();
-
-                for (MediumLockList::Base::iterator it = task.mpMediumLockList->GetBegin();
-                     it != task.mpMediumLockList->GetEnd();
-                     ++it)
-                {
-                    ComObjPtr<Medium> pMedium = it->GetMedium();
-                    pMediumLockListForResize->Append(pMedium, pMedium->m->state == MediumState_LockedWrite);
-                    if (pMedium == pTarget)
-                        break;
-                }
-
-                // just to switch internal state of the lock list to avoid errors during list deletion,
-                // because all meduims in the list already locked by task.mpMediumLockList
-                HRESULT rc = pMediumLockListForResize->Lock(true /* fSkipOverLockedMedia */);
-                if (FAILED(rc))
-                {
-                    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-                    rc = setError(rc,
-                                  tr("Failed to lock the medium '%s' to resize before merge"),
-                                  targetName.c_str());
-                    delete pMediumLockListForResize;
-                    throw rc;
-                }
-
-                ComObjPtr<Progress> pProgress(task.GetProgressObject());
-                rc = pTarget->i_resize(sourceSize, pMediumLockListForResize, &pProgress, true, false);
-                if (FAILED(rc))
-                {
-                    AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-                    rc = setError(rc,
-                                  tr("Failed to set size of '%s' to size of '%s'"),
-                                  targetName.c_str(), sourceName.c_str());
-                    delete pMediumLockListForResize;
-                    throw rc;
-                }
-                delete pMediumLockListForResize;
-            }
-            else
-            {
-                AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
-                HRESULT rc = setError(VBOX_E_NOT_SUPPORTED,
-                                      tr("Sizes of '%s' and '%s' are different and medium format does not support resing"),
-                                      sourceName.c_str(), targetName.c_str());
-                throw rc;
-            }
-        }
-
-        task.GetProgressObject()->SetNextOperation(BstrFmt(tr("Merging medium '%s' to '%s'"),
-                                                           i_getName().c_str(),
-                                                           targetName.c_str()).raw(),
-                                                   1);
 
         PVDISK hdd;
         int vrc = VDCreate(m->vdDiskIfaces, i_convertDeviceType(), &hdd);
@@ -9055,11 +8553,11 @@ HRESULT Medium::i_taskMergeHandler(Medium::MergeTask &task)
         catch (HRESULT aRC) { rcTmp = aRC; }
         catch (int aVRC)
         {
-            rcTmp = setErrorBoth(VBOX_E_FILE_ERROR, aVRC,
-                                 tr("Could not merge the medium '%s' to '%s'%s"),
-                                 m->strLocationFull.c_str(),
-                                 pTarget->m->strLocationFull.c_str(),
-                                 i_vdError(aVRC).c_str());
+            rcTmp = setError(VBOX_E_FILE_ERROR,
+                             tr("Could not merge the medium '%s' to '%s'%s"),
+                             m->strLocationFull.c_str(),
+                             pTarget->m->strLocationFull.c_str(),
+                             i_vdError(aVRC).c_str());
         }
 
         VDDestroy(hdd);
@@ -9069,9 +8567,6 @@ HRESULT Medium::i_taskMergeHandler(Medium::MergeTask &task)
     ErrorInfoKeeper eik;
     MultiResult mrc(rcTmp);
     HRESULT rc2;
-
-    std::set<ComObjPtr<Medium> > pMediumsForNotify;
-    std::map<Guid, DeviceType_T> uIdsForNotify;
 
     if (SUCCEEDED(mrc))
     {
@@ -9092,11 +8587,7 @@ HRESULT Medium::i_taskMergeHandler(Medium::MergeTask &task)
             pTarget->i_deparent();
             pTarget->i_setParent(task.mParentForTarget);
             if (task.mParentForTarget)
-            {
                 i_deparent();
-                if (task.NotifyAboutChanges())
-                    pMediumsForNotify.insert(task.mParentForTarget);
-            }
 
             /* then, register again */
             ComObjPtr<Medium> pMedium;
@@ -9131,12 +8622,8 @@ HRESULT Medium::i_taskMergeHandler(Medium::MergeTask &task)
                     pMedium->i_deparent();  // removes pMedium from source
                     // no depth check, reduces depth
                     pMedium->i_setParent(pTarget);
-
-                    if (task.NotifyAboutChanges())
-                        pMediumsForNotify.insert(pMedium);
                 }
             }
-            pMediumsForNotify.insert(pTarget);
         }
 
         /* unregister and uninitialize all media removed by the merge */
@@ -9161,7 +8648,6 @@ HRESULT Medium::i_taskMergeHandler(Medium::MergeTask &task)
                 continue;
             }
 
-            uIdsForNotify[pMedium->i_getId()] = pMedium->i_getDeviceType();
             rc2 = pMedium->m->pVirtualBox->i_unregisterMedium(pMedium);
             AssertComRC(rc2);
 
@@ -9223,22 +8709,6 @@ HRESULT Medium::i_taskMergeHandler(Medium::MergeTask &task)
         if (task.isAsync())
             i_cancelMergeTo(task.mpChildrenToReparent, task.mpMediumLockList);
     }
-    else if (task.NotifyAboutChanges())
-    {
-        for (std::set<ComObjPtr<Medium> >::const_iterator it = pMediumsForNotify.begin();
-             it != pMediumsForNotify.end();
-             ++it)
-        {
-            if (it->isNotNull())
-                m->pVirtualBox->i_onMediumConfigChanged(*it);
-        }
-        for (std::map<Guid, DeviceType_T>::const_iterator it = uIdsForNotify.begin();
-             it != uIdsForNotify.end();
-             ++it)
-        {
-            m->pVirtualBox->i_onMediumRegistered(it->first, it->second, FALSE);
-        }
-    }
 
     return mrc;
 }
@@ -9290,7 +8760,7 @@ HRESULT Medium::i_taskCloneHandler(Medium::CloneTask &task)
         fCreatingTarget = pTarget->m->state == MediumState_Creating;
 
         /* The object may request a specific UUID (through a special form of
-         * the moveTo() argument). Otherwise we have to generate it */
+         * the setLocation() argument). Otherwise we have to generate it */
         Guid targetId = pTarget->m->id;
 
         fGenerateUuid = targetId.isZero();
@@ -9330,10 +8800,10 @@ HRESULT Medium::i_taskCloneHandler(Medium::CloneTask &task)
                              VD_OPEN_FLAGS_READONLY | m->uOpenFlagsDef,
                              pMedium->m->vdImageIfaces);
                 if (RT_FAILURE(vrc))
-                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                       tr("Could not open the medium storage unit '%s'%s"),
-                                       pMedium->m->strLocationFull.c_str(),
-                                       i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_FILE_ERROR,
+                                   tr("Could not open the medium storage unit '%s'%s"),
+                                   pMedium->m->strLocationFull.c_str(),
+                                   i_vdError(vrc).c_str());
             }
 
             Utf8Str targetFormat(pTarget->m->strFormat);
@@ -9400,10 +8870,10 @@ HRESULT Medium::i_taskCloneHandler(Medium::CloneTask &task)
                                  uOpenFlags | m->uOpenFlagsDef,
                                  pMedium->m->vdImageIfaces);
                     if (RT_FAILURE(vrc))
-                        throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                           tr("Could not open the medium storage unit '%s'%s"),
-                                           pMedium->m->strLocationFull.c_str(),
-                                           i_vdError(vrc).c_str());
+                        throw setError(VBOX_E_FILE_ERROR,
+                                       tr("Could not open the medium storage unit '%s'%s"),
+                                       pMedium->m->strLocationFull.c_str(),
+                                       i_vdError(vrc).c_str());
                 }
 
                 /* target isn't locked, but no changing data is accessed */
@@ -9416,7 +8886,7 @@ HRESULT Medium::i_taskCloneHandler(Medium::CloneTask &task)
                                  (fCreatingTarget) ? targetLocation.c_str() : (char *)NULL,
                                  false /* fMoveByRename */,
                                  0 /* cbSize */,
-                                 task.mVariant & ~(MediumVariant_NoCreateDir | MediumVariant_Formatted),
+                                 task.mVariant & ~MediumVariant_NoCreateDir,
                                  targetId.raw(),
                                  VD_OPEN_FLAGS_NORMAL | m->uOpenFlagsDef,
                                  NULL /* pVDIfsOperation */,
@@ -9434,7 +8904,7 @@ HRESULT Medium::i_taskCloneHandler(Medium::CloneTask &task)
                                    0 /* cbSize */,
                                    task.midxSrcImageSame,
                                    task.midxDstImageSame,
-                                   task.mVariant & ~(MediumVariant_NoCreateDir | MediumVariant_Formatted),
+                                   task.mVariant & ~MediumVariant_NoCreateDir,
                                    targetId.raw(),
                                    VD_OPEN_FLAGS_NORMAL | m->uOpenFlagsDef,
                                    NULL /* pVDIfsOperation */,
@@ -9442,9 +8912,9 @@ HRESULT Medium::i_taskCloneHandler(Medium::CloneTask &task)
                                    task.mVDOperationIfaces);
                 }
                 if (RT_FAILURE(vrc))
-                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                       tr("Could not create the clone medium '%s'%s"),
-                                       targetLocation.c_str(), i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_FILE_ERROR,
+                                   tr("Could not create the clone medium '%s'%s"),
+                                   targetLocation.c_str(), i_vdError(vrc).c_str());
 
                 size = VDGetFileSize(targetHdd, VD_LAST_IMAGE);
                 logicalSize = VDGetSize(targetHdd, VD_LAST_IMAGE);
@@ -9558,21 +9028,6 @@ HRESULT Medium::i_taskCloneHandler(Medium::CloneTask &task)
                 eik.restore();
                 m->pVirtualBox->i_saveModifiedRegistries();
                 eik.fetch();
-
-                if (task.NotifyAboutChanges())
-                {
-                    if (!fCreatingTarget)
-                    {
-                        if (!aFilterPropNames.empty())
-                            m->pVirtualBox->i_onMediumConfigChanged(pTargetBase);
-                        if (pParent)
-                            m->pVirtualBox->i_onMediumConfigChanged(pParent);
-                    }
-                    else
-                    {
-                        m->pVirtualBox->i_onMediumRegistered(pTarget->i_getId(), pTarget->i_getDeviceType(), TRUE);
-                    }
-                }
             }
         }
     }
@@ -9591,7 +9046,7 @@ HRESULT Medium::i_taskCloneHandler(Medium::CloneTask &task)
 /**
  * Implementation code for the "move" task.
  *
- * This only gets started from Medium::MoveTo() and always
+ * This only gets started from Medium::SetLocation() and always
  * runs asynchronously.
  *
  * @param task
@@ -9656,10 +9111,10 @@ HRESULT Medium::i_taskMoveHandler(Medium::MoveTask &task)
                              VD_OPEN_FLAGS_NORMAL,
                              pMedium->m->vdImageIfaces);
                 if (RT_FAILURE(vrc))
-                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                       tr("Could not open the medium storage unit '%s'%s"),
-                                       pMedium->m->strLocationFull.c_str(),
-                                       i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_FILE_ERROR,
+                                   tr("Could not open the medium storage unit '%s'%s"),
+                                   pMedium->m->strLocationFull.c_str(),
+                                   i_vdError(vrc).c_str());
             }
 
             /* we can directly use pTarget->m->"variables" but for better reading we use local copies */
@@ -9702,9 +9157,9 @@ HRESULT Medium::i_taskMoveHandler(Medium::MoveTask &task)
                              NULL,
                              NULL);
                 if (RT_FAILURE(vrc))
-                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                       tr("Could not move medium '%s'%s"),
-                                       targetLocation.c_str(), i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_FILE_ERROR,
+                                   tr("Could not move medium '%s'%s"),
+                                   targetLocation.c_str(), i_vdError(vrc).c_str());
                 size = VDGetFileSize(hdd, VD_LAST_IMAGE);
                 logicalSize = VDGetSize(hdd, VD_LAST_IMAGE);
                 unsigned uImageFlags;
@@ -9748,8 +9203,6 @@ HRESULT Medium::i_taskMoveHandler(Medium::MoveTask &task)
 
     task.mpMediumLockList->Clear();
 
-    if (task.NotifyAboutChanges() && SUCCEEDED(mrc))
-        m->pVirtualBox->i_onMediumConfigChanged(this);
     return mrc;
 }
 
@@ -9796,9 +9249,9 @@ HRESULT Medium::i_taskDeleteHandler(Medium::DeleteTask &task)
                 vrc = VDClose(hdd, true /* fDelete */);
 
             if (RT_FAILURE(vrc) && vrc != VERR_FILE_NOT_FOUND)
-                throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                   tr("Could not delete the medium storage unit '%s'%s"),
-                                   location.c_str(), i_vdError(vrc).c_str());
+                throw setError(VBOX_E_FILE_ERROR,
+                               tr("Could not delete the medium storage unit '%s'%s"),
+                               location.c_str(), i_vdError(vrc).c_str());
 
         }
         catch (HRESULT aRC) { rc = aRC; }
@@ -9817,9 +9270,6 @@ HRESULT Medium::i_taskDeleteHandler(Medium::DeleteTask &task)
 
     /* Reset UUID to prevent Create* from reusing it again */
     unconst(m->id).clear();
-
-    if (task.NotifyAboutChanges() && SUCCEEDED(rc) && m->pParent.isNotNull())
-        m->pVirtualBox->i_onMediumConfigChanged(m->pParent);
 
     return rc;
 }
@@ -9894,10 +9344,10 @@ HRESULT Medium::i_taskResetHandler(Medium::ResetTask &task)
                              VD_OPEN_FLAGS_READONLY | m->uOpenFlagsDef,
                              pMedium->m->vdImageIfaces);
                 if (RT_FAILURE(vrc))
-                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                       tr("Could not open the medium storage unit '%s'%s"),
-                                       pMedium->m->strLocationFull.c_str(),
-                                       i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_FILE_ERROR,
+                                   tr("Could not open the medium storage unit '%s'%s"),
+                                   pMedium->m->strLocationFull.c_str(),
+                                   i_vdError(vrc).c_str());
 
                 /* Done when we hit the media which should be reset */
                 if (pMedium == this)
@@ -9907,9 +9357,9 @@ HRESULT Medium::i_taskResetHandler(Medium::ResetTask &task)
             /* first, delete the storage unit */
             vrc = VDClose(hdd, true /* fDelete */);
             if (RT_FAILURE(vrc))
-                throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                   tr("Could not delete the medium storage unit '%s'%s"),
-                                   location.c_str(), i_vdError(vrc).c_str());
+                throw setError(VBOX_E_FILE_ERROR,
+                               tr("Could not delete the medium storage unit '%s'%s"),
+                               location.c_str(), i_vdError(vrc).c_str());
 
             /* next, create it again */
             vrc = VDOpen(hdd,
@@ -9918,9 +9368,9 @@ HRESULT Medium::i_taskResetHandler(Medium::ResetTask &task)
                          VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_INFO | m->uOpenFlagsDef,
                          m->vdImageIfaces);
             if (RT_FAILURE(vrc))
-                throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                   tr("Could not open the medium storage unit '%s'%s"),
-                                   parentLocation.c_str(), i_vdError(vrc).c_str());
+                throw setError(VBOX_E_FILE_ERROR,
+                               tr("Could not open the medium storage unit '%s'%s"),
+                               parentLocation.c_str(), i_vdError(vrc).c_str());
 
             vrc = VDCreateDiff(hdd,
                                format.c_str(),
@@ -9936,13 +9386,13 @@ HRESULT Medium::i_taskResetHandler(Medium::ResetTask &task)
             if (RT_FAILURE(vrc))
             {
                 if (vrc == VERR_VD_INVALID_TYPE)
-                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                       tr("Parameters for creating the differencing medium storage unit '%s' are invalid%s"),
-                                       location.c_str(), i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_FILE_ERROR,
+                                   tr("Parameters for creating the differencing medium storage unit '%s' are invalid%s"),
+                                   location.c_str(), i_vdError(vrc).c_str());
                 else
-                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                       tr("Could not create the differencing medium storage unit '%s'%s"),
-                                       location.c_str(), i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_FILE_ERROR,
+                                   tr("Could not create the differencing medium storage unit '%s'%s"),
+                                   location.c_str(), i_vdError(vrc).c_str());
             }
 
             size = VDGetFileSize(hdd, VD_LAST_IMAGE);
@@ -9963,9 +9413,6 @@ HRESULT Medium::i_taskResetHandler(Medium::ResetTask &task)
     m->size = size;
     m->logicalSize = logicalSize;
     m->variant = variant;
-
-    if (task.NotifyAboutChanges() && SUCCEEDED(rc))
-        m->pVirtualBox->i_onMediumConfigChanged(this);
 
     /* Everything is explicitly unlocked when the task exits,
      * as the task destruction also destroys the media chain. */
@@ -10027,10 +9474,10 @@ HRESULT Medium::i_taskCompactHandler(Medium::CompactTask &task)
                              m->uOpenFlagsDef | (it == mediumListLast ? VD_OPEN_FLAGS_NORMAL : VD_OPEN_FLAGS_READONLY),
                              pMedium->m->vdImageIfaces);
                 if (RT_FAILURE(vrc))
-                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                       tr("Could not open the medium storage unit '%s'%s"),
-                                       pMedium->m->strLocationFull.c_str(),
-                                       i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_FILE_ERROR,
+                                   tr("Could not open the medium storage unit '%s'%s"),
+                                   pMedium->m->strLocationFull.c_str(),
+                                   i_vdError(vrc).c_str());
             }
 
             Assert(m->state == MediumState_LockedWrite);
@@ -10044,18 +9491,18 @@ HRESULT Medium::i_taskCompactHandler(Medium::CompactTask &task)
             if (RT_FAILURE(vrc))
             {
                 if (vrc == VERR_NOT_SUPPORTED)
-                    throw setErrorBoth(VBOX_E_NOT_SUPPORTED, vrc,
-                                       tr("Compacting is not yet supported for medium '%s'"),
-                                       location.c_str());
+                    throw setError(VBOX_E_NOT_SUPPORTED,
+                                   tr("Compacting is not yet supported for medium '%s'"),
+                                   location.c_str());
                 else if (vrc == VERR_NOT_IMPLEMENTED)
-                    throw setErrorBoth(E_NOTIMPL, vrc,
-                                       tr("Compacting is not implemented, medium '%s'"),
-                                       location.c_str());
+                    throw setError(E_NOTIMPL,
+                                   tr("Compacting is not implemented, medium '%s'"),
+                                   location.c_str());
                 else
-                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                       tr("Could not compact medium '%s'%s"),
-                                       location.c_str(),
-                                       i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_FILE_ERROR,
+                                   tr("Could not compact medium '%s'%s"),
+                                   location.c_str(),
+                                   i_vdError(vrc).c_str());
             }
         }
         catch (HRESULT aRC) { rc = aRC; }
@@ -10063,9 +9510,6 @@ HRESULT Medium::i_taskCompactHandler(Medium::CompactTask &task)
         VDDestroy(hdd);
     }
     catch (HRESULT aRC) { rc = aRC; }
-
-    if (task.NotifyAboutChanges() && SUCCEEDED(rc))
-        m->pVirtualBox->i_onMediumConfigChanged(this);
 
     /* Everything is explicitly unlocked when the task exits,
      * as the task destruction also destroys the media chain. */
@@ -10117,12 +9561,7 @@ HRESULT Medium::i_taskResizeHandler(Medium::ResizeTask &task)
                 if (it == mediumListLast)
                     Assert(pMedium->m->state == MediumState_LockedWrite);
                 else
-                    Assert(pMedium->m->state == MediumState_LockedRead ||
-                           // Allow resize the target image during mergeTo in case
-                           // of direction from parent to child because all intermediate
-                           // images are marked to MediumState_Deleting and will be
-                           // destroyed after successful merge
-                           pMedium->m->state == MediumState_Deleting);
+                    Assert(pMedium->m->state == MediumState_LockedRead);
 
                 /* Open all media but last in read-only mode. Do not handle
                  * shareable media, as compaction and sharing are mutually
@@ -10133,10 +9572,10 @@ HRESULT Medium::i_taskResizeHandler(Medium::ResizeTask &task)
                              m->uOpenFlagsDef | (it == mediumListLast ? VD_OPEN_FLAGS_NORMAL : VD_OPEN_FLAGS_READONLY),
                              pMedium->m->vdImageIfaces);
                 if (RT_FAILURE(vrc))
-                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                       tr("Could not open the medium storage unit '%s'%s"),
-                                       pMedium->m->strLocationFull.c_str(),
-                                       i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_FILE_ERROR,
+                                   tr("Could not open the medium storage unit '%s'%s"),
+                                   pMedium->m->strLocationFull.c_str(),
+                                   i_vdError(vrc).c_str());
             }
 
             Assert(m->state == MediumState_LockedWrite);
@@ -10150,23 +9589,19 @@ HRESULT Medium::i_taskResizeHandler(Medium::ResizeTask &task)
             vrc = VDResize(hdd, task.mSize, &geo, &geo, task.mVDOperationIfaces);
             if (RT_FAILURE(vrc))
             {
-                if (vrc == VERR_VD_SHRINK_NOT_SUPPORTED)
-                    throw setErrorBoth(VBOX_E_NOT_SUPPORTED, vrc,
-                                       tr("Shrinking is not yet supported for medium '%s'"),
-                                       location.c_str());
                 if (vrc == VERR_NOT_SUPPORTED)
-                    throw setErrorBoth(VBOX_E_NOT_SUPPORTED, vrc,
-                                       tr("Resizing to new size %llu is not yet supported for medium '%s'"),
-                                       task.mSize, location.c_str());
+                    throw setError(VBOX_E_NOT_SUPPORTED,
+                                   tr("Resizing to new size %llu is not yet supported for medium '%s'"),
+                                   task.mSize, location.c_str());
                 else if (vrc == VERR_NOT_IMPLEMENTED)
-                    throw setErrorBoth(E_NOTIMPL, vrc,
-                                       tr("Resiting is not implemented, medium '%s'"),
-                                       location.c_str());
+                    throw setError(E_NOTIMPL,
+                                   tr("Resiting is not implemented, medium '%s'"),
+                                   location.c_str());
                 else
-                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                       tr("Could not resize medium '%s'%s"),
-                                       location.c_str(),
-                                       i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_FILE_ERROR,
+                                   tr("Could not resize medium '%s'%s"),
+                                   location.c_str(),
+                                   i_vdError(vrc).c_str());
             }
             size = VDGetFileSize(hdd, VD_LAST_IMAGE);
             logicalSize = VDGetSize(hdd, VD_LAST_IMAGE);
@@ -10182,9 +9617,6 @@ HRESULT Medium::i_taskResizeHandler(Medium::ResizeTask &task)
         AutoWriteLock thisLock(this COMMA_LOCKVAL_SRC_POS);
         m->size = size;
         m->logicalSize = logicalSize;
-
-        if (task.NotifyAboutChanges())
-            m->pVirtualBox->i_onMediumConfigChanged(this);
     }
 
     /* Everything is explicitly unlocked when the task exits,
@@ -10237,7 +9669,7 @@ HRESULT Medium::i_taskImportHandler(Medium::ImportTask &task)
         fCreatingTarget = m->state == MediumState_Creating;
 
         /* The object may request a specific UUID (through a special form of
-         * the moveTo() argument). Otherwise we have to generate it */
+         * the setLocation() argument). Otherwise we have to generate it */
         Guid targetId = m->id;
 
         fGenerateUuid = targetId.isZero();
@@ -10262,10 +9694,10 @@ HRESULT Medium::i_taskImportHandler(Medium::ImportTask &task)
                          VD_OPEN_FLAGS_READONLY | VD_OPEN_FLAGS_SEQUENTIAL | m->uOpenFlagsDef,
                          task.mVDImageIfaces);
             if (RT_FAILURE(vrc))
-                throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                   tr("Could not open the medium storage unit '%s'%s"),
-                                   task.mFilename.c_str(),
-                                   i_vdError(vrc).c_str());
+                throw setError(VBOX_E_FILE_ERROR,
+                               tr("Could not open the medium storage unit '%s'%s"),
+                               task.mFilename.c_str(),
+                               i_vdError(vrc).c_str());
 
             Utf8Str targetFormat(m->strFormat);
             Utf8Str targetLocation(m->strLocationFull);
@@ -10330,10 +9762,10 @@ HRESULT Medium::i_taskImportHandler(Medium::ImportTask &task)
                                  uOpenFlags | m->uOpenFlagsDef,
                                  pMedium->m->vdImageIfaces);
                     if (RT_FAILURE(vrc))
-                        throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                           tr("Could not open the medium storage unit '%s'%s"),
-                                           pMedium->m->strLocationFull.c_str(),
-                                           i_vdError(vrc).c_str());
+                        throw setError(VBOX_E_FILE_ERROR,
+                                       tr("Could not open the medium storage unit '%s'%s"),
+                                       pMedium->m->strLocationFull.c_str(),
+                                       i_vdError(vrc).c_str());
                 }
 
                 vrc = VDCopy(hdd,
@@ -10343,16 +9775,16 @@ HRESULT Medium::i_taskImportHandler(Medium::ImportTask &task)
                              (fCreatingTarget) ? targetLocation.c_str() : (char *)NULL,
                              false /* fMoveByRename */,
                              0 /* cbSize */,
-                             task.mVariant & ~(MediumVariant_NoCreateDir | MediumVariant_Formatted),
+                             task.mVariant & ~MediumVariant_NoCreateDir,
                              targetId.raw(),
                              VD_OPEN_FLAGS_NORMAL,
                              NULL /* pVDIfsOperation */,
                              m->vdImageIfaces,
                              task.mVDOperationIfaces);
                 if (RT_FAILURE(vrc))
-                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                       tr("Could not create the imported medium '%s'%s"),
-                                       targetLocation.c_str(), i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_FILE_ERROR,
+                                   tr("Could not create the imported medium '%s'%s"),
+                                   targetLocation.c_str(), i_vdError(vrc).c_str());
 
                 size = VDGetFileSize(targetHdd, VD_LAST_IMAGE);
                 logicalSize = VDGetSize(targetHdd, VD_LAST_IMAGE);
@@ -10453,23 +9885,13 @@ HRESULT Medium::i_taskImportHandler(Medium::ImportTask &task)
      * lead to deadlocks with concurrent IAppliance activities. */
     task.mpTargetMediumLockList->Clear();
 
-    if (task.NotifyAboutChanges() && SUCCEEDED(mrc))
-    {
-        if (pParent)
-            m->pVirtualBox->i_onMediumConfigChanged(pParent);
-        if (fCreatingTarget)
-            m->pVirtualBox->i_onMediumConfigChanged(this);
-        else
-            m->pVirtualBox->i_onMediumRegistered(m->id, m->devType, TRUE);
-    }
-
     return mrc;
 }
 
 /**
  * Sets up the encryption settings for a filter.
  */
-void Medium::i_taskEncryptSettingsSetup(MediumCryptoFilterSettings *pSettings, const char *pszCipher,
+void Medium::i_taskEncryptSettingsSetup(CryptoFilterSettings *pSettings, const char *pszCipher,
                                         const char *pszKeyStore, const char *pszPassword,
                                         bool fCreateKeyStore)
 {
@@ -10538,9 +9960,9 @@ HRESULT Medium::i_taskEncryptHandler(Medium::EncryptTask &task)
             {
                 int vrc = VDPluginLoadFromFilename(strPlugin.c_str());
                 if (RT_FAILURE(vrc))
-                    throw setErrorBoth(VBOX_E_NOT_SUPPORTED, vrc,
-                                       tr("Encrypting the image failed because the encryption plugin could not be loaded (%s)"),
-                                       i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_NOT_SUPPORTED,
+                                   tr("Encrypting the image failed because the encryption plugin could not be loaded (%s)"),
+                                   i_vdError(vrc).c_str());
             }
             else
                 throw setError(VBOX_E_NOT_SUPPORTED,
@@ -10556,8 +9978,8 @@ HRESULT Medium::i_taskEncryptHandler(Medium::EncryptTask &task)
         int vrc = VDCreate(m->vdDiskIfaces, i_convertDeviceType(), &pDisk);
         ComAssertRCThrow(vrc, E_FAIL);
 
-        MediumCryptoFilterSettings CryptoSettingsRead;
-        MediumCryptoFilterSettings CryptoSettingsWrite;
+        Medium::CryptoFilterSettings CryptoSettingsRead;
+        Medium::CryptoFilterSettings CryptoSettingsWrite;
 
         void *pvBuf = NULL;
         const char *pszPasswordNew = NULL;
@@ -10616,9 +10038,9 @@ HRESULT Medium::i_taskEncryptHandler(Medium::EncryptTask &task)
                                            pszPasswordNew, true /* fCreateKeyStore */);
                 vrc = VDFilterAdd(pDisk, "CRYPT", VD_FILTER_FLAGS_WRITE, CryptoSettingsWrite.vdFilterIfaces);
                 if (RT_FAILURE(vrc))
-                    throw setErrorBoth(VBOX_E_INVALID_OBJECT_STATE, vrc,
-                                       tr("Failed to load the encryption filter: %s"),
-                                       i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_INVALID_OBJECT_STATE,
+                                   tr("Failed to load the encryption filter: %s"),
+                                   i_vdError(vrc).c_str());
             }
             else if (task.mstrNewPasswordId.isNotEmpty() || task.mstrNewPassword.isNotEmpty())
                 throw setError(VBOX_E_INVALID_OBJECT_STATE,
@@ -10651,10 +10073,10 @@ HRESULT Medium::i_taskEncryptHandler(Medium::EncryptTask &task)
                              m->uOpenFlagsDef | (it == mediumListLast ? VD_OPEN_FLAGS_NORMAL : VD_OPEN_FLAGS_READONLY),
                              pMedium->m->vdImageIfaces);
                 if (RT_FAILURE(vrc))
-                    throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                       tr("Could not open the medium storage unit '%s'%s"),
-                                       pMedium->m->strLocationFull.c_str(),
-                                       i_vdError(vrc).c_str());
+                    throw setError(VBOX_E_FILE_ERROR,
+                                   tr("Could not open the medium storage unit '%s'%s"),
+                                   pMedium->m->strLocationFull.c_str(),
+                                   i_vdError(vrc).c_str());
             }
 
             Assert(m->state == MediumState_LockedWrite);
@@ -10666,9 +10088,9 @@ HRESULT Medium::i_taskEncryptHandler(Medium::EncryptTask &task)
 
             vrc = VDPrepareWithFilters(pDisk, task.mVDOperationIfaces);
             if (RT_FAILURE(vrc))
-                throw setErrorBoth(VBOX_E_FILE_ERROR, vrc,
-                                   tr("Could not prepare disk images for encryption (%Rrc): %s"),
-                                   vrc, i_vdError(vrc).c_str());
+                throw setError(VBOX_E_FILE_ERROR,
+                               tr("Could not prepare disk images for encryption (%Rrc): %s"),
+                               vrc, i_vdError(vrc).c_str());
 
             thisLock.acquire();
             /* If everything went well set the new key store. */

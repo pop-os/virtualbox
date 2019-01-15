@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,41 +15,55 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QMouseEvent>
-#include <QTimer>
-#include <QTouchEvent>
-#ifdef VBOX_WS_X11
-# include <QX11Info>
-#endif
+# include <QMouseEvent>
+# include <QTimer>
+# ifdef VBOX_WS_X11
+#  include <QX11Info>
+# endif
 
 /* GUI includes: */
-#include "VBoxGlobal.h"
-#include "UIDesktopWidgetWatchdog.h"
-#include "UIExtraDataManager.h"
-#include "UIMessageCenter.h"
-#include "UIPopupCenter.h"
-#include "UISession.h"
-#include "UIMachineLogic.h"
-#include "UIMachineWindow.h"
-#include "UIMachineView.h"
-#include "UIKeyboardHandler.h"
-#include "UIMouseHandler.h"
-#include "UIFrameBuffer.h"
+# include "VBoxGlobal.h"
+# include "UIDesktopWidgetWatchdog.h"
+# include "UIExtraDataManager.h"
+# include "UIMessageCenter.h"
+# include "UIPopupCenter.h"
+# include "UISession.h"
+# include "UIMachineLogic.h"
+# include "UIMachineWindow.h"
+# include "UIMachineView.h"
+# include "UIKeyboardHandler.h"
+# include "UIMouseHandler.h"
+# include "UIFrameBuffer.h"
+# ifdef VBOX_WS_MAC
+#  include "VBoxUtils-darwin.h"
+# endif /* VBOX_WS_MAC */
+# ifdef VBOX_WS_WIN
+#  include "VBoxUtils-win.h"
+# endif /* VBOX_WS_WIN */
+
+/* COM includes: */
+# include "CDisplay.h"
+
+/* Other VBox includes: */
+# include <iprt/time.h>
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+/* Qt includes: */
+#include <QTouchEvent>
+
+/* GUI includes: */
 #ifdef VBOX_WS_MAC
-# include "VBoxUtils-darwin.h"
 # include "CocoaEventHelper.h"
-#endif
-#ifdef VBOX_WS_WIN
-# include "VBoxUtils-win.h"
 #endif
 
 /* COM includes: */
-#include "CDisplay.h"
 #include "CMouse.h"
-
-/* Other VBox includes: */
-#include <iprt/time.h>
 
 /* External includes: */
 #ifdef VBOX_WS_X11
@@ -512,9 +526,6 @@ UIMouseHandler::UIMouseHandler(UIMachineLogic *pMachineLogic)
     , m_pMachineLogic(pMachineLogic)
     , m_iLastMouseWheelDelta(0)
     , m_iMouseCaptureViewIndex(-1)
-#ifdef VBOX_WS_WIN
-    , m_fCursorPositionReseted(false)
-#endif
 {
     /* Machine state-change updater: */
     connect(uisession(), SIGNAL(sigMachineStateChange()), this, SLOT(sltMachineStateChanged()));
@@ -936,68 +947,43 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
         /* Send pending WM_PAINT events: */
         ::UpdateWindow((HWND)m_viewports[uScreenId]->winId());
 #endif
-
-#ifdef VBOX_WS_WIN
-        // WORKAROUND:
-        // There are situations at least on Windows host that we are receiving
-        // previously posted (but not yet handled) mouse event right after we
-        // have manually teleported mouse cursor to simulate infinite movement,
-        // this makes cursor blink for a large amount of space, so we should
-        // ignore such blinks .. well, at least once.
-        const QPoint shiftingSpace = globalPos - m_lastMousePos;
-        if (m_fCursorPositionReseted && shiftingSpace.manhattanLength() >= 10)
-        {
-            m_fCursorPositionReseted = false;
-            return true;
-        }
-#endif
-
-        /* Pass event to the guest: */
         mouse().PutMouseEvent(globalPos.x() - m_lastMousePos.x(),
                               globalPos.y() - m_lastMousePos.y(),
                               iWheelVertical, iWheelHorizontal, iMouseButtonsState);
 
 #ifdef VBOX_WS_WIN
-        /* Compose viewport-rectangle in local coordinates: */
+        /* Bringing mouse to the opposite side to simulate the endless moving: */
+
+        /* Get visible-viewport-rectangle in global coordinates: */
         QRect viewportRectangle = m_mouseCursorClippingRect;
+        /* Get top-left point of full-viewport-rectangle in global coordinates: */
         QPoint viewportRectangleGlobalPos = m_views[uScreenId]->mapToGlobal(m_viewports[uScreenId]->pos());
+        /* Shift visible-viewport-rectangle to local position because relative position is in local coordinates: */
         viewportRectangle.translate(-viewportRectangleGlobalPos);
 
-        /* Compose boundaries: */
-        const int iX1 = viewportRectangle.left() + 1;
-        const int iY1 = viewportRectangle.top() + 1;
-        const int iX2 = viewportRectangle.right() - 1;
-        const int iY2 = viewportRectangle.bottom() - 1;
+        /* Get boundaries: */
+        int ix1 = viewportRectangle.left() + 1;
+        int iy1 = viewportRectangle.top() + 1;
+        int ix2 = viewportRectangle.right() - 1;
+        int iy2 = viewportRectangle.bottom() - 1;
 
         /* Simulate infinite movement: */
         QPoint p = relativePos;
-        if (relativePos.x() <= iX1)
-            p.setX(iX2 - 1);
-        else if (relativePos.x() >= iX2)
-            p.setX(iX1 + 1);
-        if (relativePos.y() <= iY1)
-            p.setY(iY2 - 1);
-        else if (relativePos.y() >= iY2)
-            p.setY(iY1 + 1);
+        if (relativePos.x() == ix1)
+            p.setX(ix2 - 1);
+        else if (relativePos.x() == ix2)
+            p.setX(ix1 + 1);
+        if (relativePos.y() == iy1)
+            p.setY(iy2 - 1);
+        else if (relativePos.y() == iy2)
+            p.setY(iy1 + 1);
         if (p != relativePos)
         {
-            // WORKAROUND:
-            // Underlying QCursor::setPos call requires coordinates, rescaled according to primary screen.
-            // For that we have to map logical coordinates to relative origin (to make logical=>physical conversion).
-            // Besides that we have to make sure m_lastMousePos still uses logical coordinates afterwards.
-            const double dDprPrimary = gpDesktop->devicePixelRatio(gpDesktop->primaryScreen());
-            const double dDprCurrent = gpDesktop->devicePixelRatio(m_windows.value(m_iMouseCaptureViewIndex));
-            const QRect screenGeometry = gpDesktop->screenGeometry(m_windows.value(m_iMouseCaptureViewIndex));
-            QPoint requiredMousePos = (m_viewports[uScreenId]->mapToGlobal(p) - screenGeometry.topLeft()) * dDprCurrent + screenGeometry.topLeft();
-            QCursor::setPos(requiredMousePos / dDprPrimary);
-            m_lastMousePos = requiredMousePos / dDprCurrent;
-            m_fCursorPositionReseted = true;
+            m_lastMousePos = m_viewports[uScreenId]->mapToGlobal(p);
+            QCursor::setPos(m_lastMousePos);
         }
         else
-        {
             m_lastMousePos = globalPos;
-            m_fCursorPositionReseted = false;
-        }
 #else /* VBOX_WS_WIN */
         int iWe = gpDesktop->overallDesktopWidth() - 1;
         int iHe = gpDesktop->overallDesktopHeight() - 1;
@@ -1058,16 +1044,18 @@ bool UIMouseHandler::mouseEvent(int iEventType, ulong uScreenId,
                 }
             }
 
-            /* Take the device-pixel-ratio into account: */
-            const double dDevicePixelRatioFormal = pFrameBuffer->devicePixelRatio();
-            const double dDevicePixelRatioActual = pFrameBuffer->devicePixelRatioActual();
-            cpnt.setX(cpnt.x() * dDevicePixelRatioFormal);
-            cpnt.setY(cpnt.y() * dDevicePixelRatioFormal);
-            if (!pFrameBuffer->useUnscaledHiDPIOutput())
+#ifdef VBOX_WS_MAC
+            /* Take the backing-scale-factor into account: */
+            if (pFrameBuffer->useUnscaledHiDPIOutput())
             {
-                cpnt.setX(cpnt.x() / dDevicePixelRatioActual);
-                cpnt.setY(cpnt.y() / dDevicePixelRatioActual);
+                const double dBackingScaleFactor = pFrameBuffer->backingScaleFactor();
+                if (dBackingScaleFactor > 1.0)
+                {
+                    cpnt.setX((int)(cpnt.x() * dBackingScaleFactor));
+                    cpnt.setY((int)(cpnt.y() * dBackingScaleFactor));
+                }
             }
+#endif /* VBOX_WS_MAC */
 
 #ifdef VBOX_WITH_DRAG_AND_DROP
 # ifdef VBOX_WITH_DRAG_AND_DROP_GH
@@ -1228,41 +1216,35 @@ void UIMouseHandler::updateMouseCursorClipping()
 
     if (uisession()->isMouseCaptured())
     {
-        /* Get full-viewport-rectangle in global coordinates: */
+        /* Get full-viewport-rectangle in local coordinates: */
         QRect viewportRectangle = m_viewports[m_iMouseCaptureViewIndex]->visibleRegion().boundingRect();
-        const QPoint viewportRectangleGlobalPos = m_views[m_iMouseCaptureViewIndex]->mapToGlobal(m_viewports[m_iMouseCaptureViewIndex]->pos());
+        /* Get top-left point of full-viewport-rectangle in global coordinates: */
+        QPoint viewportRectangleGlobalPos = m_views[m_iMouseCaptureViewIndex]->mapToGlobal(m_viewports[m_iMouseCaptureViewIndex]->pos());
+        /* Get full-viewport-rectangle in global coordinates: */
         viewportRectangle.translate(viewportRectangleGlobalPos);
-
         /* Trim full-viewport-rectangle by available geometry: */
         viewportRectangle = viewportRectangle.intersected(gpDesktop->availableGeometry(machineLogic()->machineWindows()[m_iMouseCaptureViewIndex]));
-
         /* Trim partial-viewport-rectangle by top-most windows: */
-        QRegion viewportRegion = QRegion(viewportRectangle) - NativeWindowSubsystem::areaCoveredByTopMostWindows();
+        QRegion viewportRegion(viewportRectangle);
+        QRegion topMostRegion(NativeWindowSubsystem::areaCoveredByTopMostWindows());
+        viewportRegion -= topMostRegion;
         /* Check if partial-viewport-region consists of 1 rectangle: */
         if (viewportRegion.rectCount() > 1)
         {
             /* Choose the largest rectangle: */
+            QVector<QRect> rects = viewportRegion.rects();
             QRect largestRect;
-            foreach (const QRect &rect, viewportRegion.rects())
-                largestRect = largestRect.width() * largestRect.height() < rect.width() * rect.height() ? rect : largestRect;
+            for (int i = 0; i < rects.size(); ++i)
+                largestRect = largestRect.width() * largestRect.height() < rects[i].width() * rects[i].height() ? rects[i] : largestRect;
             /* Assign the partial-viewport-region to the largest rect: */
             viewportRegion = largestRect;
         }
         /* Assign the partial-viewport-rectangle to the partial-viewport-region: */
         viewportRectangle = viewportRegion.boundingRect();
-
         /* Assign the visible-viewport-rectangle to the partial-viewport-rectangle: */
         m_mouseCursorClippingRect = viewportRectangle;
-
         /* Prepare clipping area: */
-        // WORKAROUND:
-        // Underlying ClipCursor call requires physical coordinates, not logical upscaled Qt stuff.
-        // But we will have to map to relative origin (to make logical=>physical conversion) first.
-        const double dDpr = gpDesktop->devicePixelRatio(m_windows.value(m_iMouseCaptureViewIndex));
-        const QRect screenGeometry = gpDesktop->screenGeometry(m_windows.value(m_iMouseCaptureViewIndex));
-        viewportRectangle.moveTo((viewportRectangle.topLeft() - screenGeometry.topLeft()) * dDpr + screenGeometry.topLeft());
-        viewportRectangle.setSize(viewportRectangle.size() * dDpr);
-        RECT rect = { viewportRectangle.left() + 1, viewportRectangle.top() + 1, viewportRectangle.right(), viewportRectangle.bottom() };
+        RECT rect = { m_mouseCursorClippingRect.left() + 1, m_mouseCursorClippingRect.top() + 1, m_mouseCursorClippingRect.right(), m_mouseCursorClippingRect.bottom() };
         ::ClipCursor(&rect);
     }
     else

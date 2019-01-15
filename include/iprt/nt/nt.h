@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,11 +24,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_nt_nt_h
-#define IPRT_INCLUDED_nt_nt_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_nt_nt_h___
+#define ___iprt_nt_nt_h___
 
 /** @def IPRT_NT_MAP_TO_ZW
  * Map Nt calls to Zw calls.  In ring-0 the Zw calls let you pass kernel memory
@@ -139,9 +136,6 @@
 # include <ntstatus.h>
 # pragma warning(pop)
 
-# ifndef OBJ_DONT_REPARSE
-#  define RTNT_NEED_CLIENT_ID
-# endif
 
 # undef _FILE_INFORMATION_CLASS
 # undef FILE_INFORMATION_CLASS
@@ -508,14 +502,12 @@ RT_C_DECLS_BEGIN
 
 
 
-#ifdef RTNT_NEED_CLIENT_ID
+#ifdef IPRT_NT_USE_WINTERNL
 typedef struct _CLIENT_ID
 {
     HANDLE UniqueProcess;
     HANDLE UniqueThread;
 } CLIENT_ID;
-#endif
-#ifdef IPRT_NT_USE_WINTERNL
 typedef CLIENT_ID *PCLIENT_ID;
 #endif
 
@@ -592,7 +584,7 @@ typedef struct _KUSER_SHARED_DATA
     KSYSTEM_TIME volatile   TimeZoneBias;                               /**< 0x020 */
     USHORT                  ImageNumberLow;                             /**< 0x02c */
     USHORT                  ImageNumberHigh;                            /**< 0x02e */
-    WCHAR                   NtSystemRoot[260];                          /**< 0x030 - Seems to be last member in NT 3.51. */
+    WCHAR                   NtSystemRoot[260];                          /**< 0x030 */
     ULONG                   MaxStackTraceDepth;                         /**< 0x238 */
     ULONG                   CryptoExponent;                             /**< 0x23c */
     ULONG                   TimeZoneId;                                 /**< 0x240 */
@@ -684,8 +676,7 @@ typedef struct _KUSER_SHARED_DATA
     ULONG                   ImageFileExecutionOptions;                  /**< 0x3a0 */
     ULONG                   LangGenerationCount;                        /**< 0x3a4 */
     ULONGLONG               Reserved4;                                  /**< 0x3a8 */
-    ULONGLONG volatile      InterruptTimeBias;                          /**< 0x3b0 - What QueryUnbiasedInterruptTimePrecise
-                                                                         * subtracts from interrupt time. */
+    ULONGLONG volatile      InterruptTimeBias;                          /**< 0x3b0 */
     ULONGLONG volatile      QpcBias;                                    /**< 0x3b8 */
     ULONG volatile          ActiveProcessorCount;                       /**< 0x3c0 */
     UCHAR volatile          ActiveGroupCount;                           /**< 0x3c4 */
@@ -938,9 +929,6 @@ typedef struct _PEB_COMMON
     PVOID UnicodeCaseTableData;                                             /**< 0x0b0 / 0x060 */
     uint32_t NumberOfProcessors;                                            /**< 0x0b8 / 0x064 */
     uint32_t NtGlobalFlag;                                                  /**< 0x0bc / 0x068 */
-#if ARCH_BITS == 32
-    uint32_t Padding2b;
-#endif
     LARGE_INTEGER CriticalSectionTimeout;                                   /**< 0x0c0 / 0x070 */
     SIZE_T HeapSegmentReserve;                                              /**< 0x0c8 / 0x078 */
     SIZE_T HeapSegmentCommit;                                               /**< 0x0d0 / 0x07c */
@@ -948,8 +936,8 @@ typedef struct _PEB_COMMON
     SIZE_T HeapDeCommitFreeBlockThreshold;                                  /**< 0x0e0 / 0x084 */
     uint32_t NumberOfHeaps;                                                 /**< 0x0e8 / 0x088 */
     uint32_t MaximumNumberOfHeaps;                                          /**< 0x0ec / 0x08c */
-    PVOID *ProcessHeaps;                                                    /**< 0x0f0 / 0x090 - Last NT 3.51 member. */
-    PVOID GdiSharedHandleTable;                                             /**< 0x0f8 / 0x094  */
+    PVOID *ProcessHeaps;                                                    /**< 0x0f0 / 0x090 */
+    PVOID GdiSharedHandleTable;                                             /**< 0x0f8 / 0x094 */
     PVOID ProcessStarterHelper;                                             /**< 0x100 / 0x098 */
     uint32_t GdiDCAttributeList;                                            /**< 0x108 / 0x09c */
 #if ARCH_BITS == 64
@@ -1499,14 +1487,10 @@ typedef PTEB_COMMON PTEB;
 DECL_FORCE_INLINE(PTEB)     RTNtCurrentTeb(void) { return (PTEB)__readfsdword(RT_UOFFSETOF(TEB_COMMON, NtTib.Self)); }
 DECL_FORCE_INLINE(PPEB)     RTNtCurrentPeb(void) { return (PPEB)__readfsdword(RT_UOFFSETOF(TEB_COMMON, ProcessEnvironmentBlock)); }
 DECL_FORCE_INLINE(uint32_t) RTNtCurrentThreadId(void) { return __readfsdword(RT_UOFFSETOF(TEB_COMMON, ClientId.UniqueThread)); }
-DECL_FORCE_INLINE(NTSTATUS) RTNtLastStatusValue(void) { return (NTSTATUS)__readfsdword(RT_UOFFSETOF(TEB_COMMON, LastStatusValue)); }
-DECL_FORCE_INLINE(uint32_t) RTNtLastErrorValue(void)  { return __readfsdword(RT_UOFFSETOF(TEB_COMMON, LastErrorValue)); }
 # elif defined(RT_ARCH_AMD64)
 DECL_FORCE_INLINE(PTEB)     RTNtCurrentTeb(void) { return (PTEB)__readgsqword(RT_UOFFSETOF(TEB_COMMON, NtTib.Self)); }
 DECL_FORCE_INLINE(PPEB)     RTNtCurrentPeb(void) { return (PPEB)__readgsqword(RT_UOFFSETOF(TEB_COMMON, ProcessEnvironmentBlock)); }
-DECL_FORCE_INLINE(uint32_t) RTNtCurrentThreadId(void) { return __readgsdword(RT_UOFFSETOF(TEB_COMMON, ClientId.UniqueThread)); }
-DECL_FORCE_INLINE(NTSTATUS) RTNtLastStatusValue(void) { return (NTSTATUS)__readgsdword(RT_UOFFSETOF(TEB_COMMON, LastStatusValue)); }
-DECL_FORCE_INLINE(uint32_t) RTNtLastErrorValue(void)  { return __readgsdword(RT_UOFFSETOF(TEB_COMMON, LastErrorValue)); }
+DECL_FORCE_INLINE(uint32_t) RTNtCurrentThreadId(void) { return (uint32_t)__readgsqword(RT_UOFFSETOF(TEB_COMMON, ClientId.UniqueThread)); }
 # else
 #  error "Port me"
 # endif
@@ -1514,8 +1498,6 @@ DECL_FORCE_INLINE(uint32_t) RTNtLastErrorValue(void)  { return __readgsdword(RT_
 # define RTNtCurrentTeb()        ((PTEB)NtCurrentTeb())
 # define RTNtCurrentPeb()        (RTNtCurrentTeb()->ProcessEnvironmentBlock)
 # define RTNtCurrentThreadId()   ((uint32_t)(uintptr_t)RTNtCurrentTeb()->ClientId.UniqueThread)
-# define RTNtLastStatusValue()   (RTNtCurrentTeb()->LastStatusValue)
-# define RTNtLastErrorValue()    (RTNtCurrentTeb()->LastErrorValue)
 #endif
 #define NtCurrentPeb()           RTNtCurrentPeb()
 
@@ -1546,38 +1528,16 @@ typedef struct _FILE_FS_ATTRIBUTE_INFORMATION
 } FILE_FS_ATTRIBUTE_INFORMATION;
 typedef FILE_FS_ATTRIBUTE_INFORMATION *PFILE_FS_ATTRIBUTE_INFORMATION;
 
-#endif
 NTSYSAPI NTSTATUS NTAPI NtOpenProcess(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, PCLIENT_ID);
-NTSYSAPI NTSTATUS NTAPI ZwOpenProcess(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, PCLIENT_ID);
-NTSYSAPI NTSTATUS NTAPI NtOpenThread(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, PCLIENT_ID);
-NTSYSAPI NTSTATUS NTAPI ZwOpenThread(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, PCLIENT_ID);
-NTSYSAPI NTSTATUS NTAPI NtAlertThread(HANDLE hThread);
-#ifdef IPRT_NT_USE_WINTERNL
-NTSYSAPI NTSTATUS NTAPI ZwAlertThread(HANDLE hThread);
-#endif
-
-#ifdef IPRT_NT_USE_WINTERNL
 NTSYSAPI NTSTATUS NTAPI NtOpenProcessToken(HANDLE, ACCESS_MASK, PHANDLE);
+NTSYSAPI NTSTATUS NTAPI NtOpenThread(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, PCLIENT_ID);
 NTSYSAPI NTSTATUS NTAPI NtOpenThreadToken(HANDLE, ACCESS_MASK, BOOLEAN, PHANDLE);
-#endif
-NTSYSAPI NTSTATUS NTAPI ZwOpenProcessToken(HANDLE, ACCESS_MASK, PHANDLE);
-NTSYSAPI NTSTATUS NTAPI ZwOpenThreadToken(HANDLE, ACCESS_MASK, BOOLEAN, PHANDLE);
-
-#ifdef IPRT_NT_USE_WINTERNL
-typedef struct _FILE_FS_SIZE_INFORMATION
-{
-    LARGE_INTEGER   TotalAllocationUnits;
-    LARGE_INTEGER   AvailableAllocationUnits;
-    ULONG           SectorsPerAllocationUnit;
-    ULONG           BytesPerSector;
-} FILE_FS_SIZE_INFORMATION;
-typedef FILE_FS_SIZE_INFORMATION *PFILE_FS_SIZE_INFORMATION;
 
 typedef enum _FSINFOCLASS
 {
     FileFsVolumeInformation = 1,
     FileFsLabelInformation,
-    FileFsSizeInformation,          /**< FILE_FS_SIZE_INFORMATION */
+    FileFsSizeInformation,
     FileFsDeviceInformation,
     FileFsAttributeInformation,
     FileFsControlInformation,
@@ -1594,20 +1554,20 @@ NTSYSAPI NTSTATUS NTAPI NtQueryVolumeInformationFile(HANDLE, PIO_STATUS_BLOCK, P
 
 typedef struct _FILE_BOTH_DIR_INFORMATION
 {
-    ULONG           NextEntryOffset;    /**< 0x00: */
-    ULONG           FileIndex;          /**< 0x04: */
-    LARGE_INTEGER   CreationTime;       /**< 0x08: */
-    LARGE_INTEGER   LastAccessTime;     /**< 0x10: */
-    LARGE_INTEGER   LastWriteTime;      /**< 0x18: */
-    LARGE_INTEGER   ChangeTime;         /**< 0x20: */
-    LARGE_INTEGER   EndOfFile;          /**< 0x28: */
-    LARGE_INTEGER   AllocationSize;     /**< 0x30: */
-    ULONG           FileAttributes;     /**< 0x38: */
-    ULONG           FileNameLength;     /**< 0x3c: */
-    ULONG           EaSize;             /**< 0x40: */
-    CCHAR           ShortNameLength;    /**< 0x44: */
-    WCHAR           ShortName[12];      /**< 0x46: */
-    WCHAR           FileName[1];        /**< 0x5e: */
+    ULONG           NextEntryOffset;
+    ULONG           FileIndex;
+    LARGE_INTEGER   CreationTime;
+    LARGE_INTEGER   LastAccessTime;
+    LARGE_INTEGER   LastWriteTime;
+    LARGE_INTEGER   ChangeTime;
+    LARGE_INTEGER   EndOfFile;
+    LARGE_INTEGER   AllocationSize;
+    ULONG           FileAttributes;
+    ULONG           FileNameLength;
+    ULONG           EaSize;
+    CCHAR           ShortNameLength;
+    WCHAR           ShortName[12];
+    WCHAR           FileName[1];
 } FILE_BOTH_DIR_INFORMATION;
 typedef FILE_BOTH_DIR_INFORMATION *PFILE_BOTH_DIR_INFORMATION;
 typedef struct _FILE_BASIC_INFORMATION
@@ -1720,39 +1680,6 @@ NTSYSAPI NTSTATUS NTAPI NtSetInformationFile(HANDLE, PIO_STATUS_BLOCK, PVOID, UL
 NTSYSAPI NTSTATUS NTAPI NtQueryAttributesFile(POBJECT_ATTRIBUTES, PFILE_BASIC_INFORMATION);
 NTSYSAPI NTSTATUS NTAPI NtQueryFullAttributesFile(POBJECT_ATTRIBUTES, PFILE_NETWORK_OPEN_INFORMATION);
 
-
-/** @name SE_GROUP_XXX - Attributes returned with TokenGroup and others.
- * @{  */
-#ifndef SE_GROUP_MANDATORY
-# define SE_GROUP_MANDATORY             UINT32_C(0x01)
-#endif
-#ifndef SE_GROUP_ENABLED_BY_DEFAULT
-# define SE_GROUP_ENABLED_BY_DEFAULT    UINT32_C(0x02)
-#endif
-#ifndef SE_GROUP_ENABLED
-# define SE_GROUP_ENABLED               UINT32_C(0x04)
-#endif
-#ifndef SE_GROUP_OWNER
-# define SE_GROUP_OWNER                 UINT32_C(0x08)
-#endif
-#ifndef SE_GROUP_USE_FOR_DENY_ONLY
-# define SE_GROUP_USE_FOR_DENY_ONLY     UINT32_C(0x10)
-#endif
-#ifndef SE_GROUP_INTEGRITY
-# define SE_GROUP_INTEGRITY             UINT32_C(0x20)
-#endif
-#ifndef SE_GROUP_INTEGRITY_ENABLED
-# define SE_GROUP_INTEGRITY_ENABLED     UINT32_C(0x40)
-#endif
-#ifndef SE_GROUP_RESOURCE
-# define SE_GROUP_RESOURCE              UINT32_C(0x20000000)
-#endif
-#ifndef SE_GROUP_LOGON_ID
-# define SE_GROUP_LOGON_ID              UINT32_C(0xc0000000)
-#endif
-/** @} */
-
-
 #ifdef IPRT_NT_USE_WINTERNL
 
 /** For use with KeyBasicInformation. */
@@ -1864,107 +1791,77 @@ typedef PROCESS_BASIC_INFORMATION *PPROCESS_BASIC_INFORMATION;
 
 typedef enum _PROCESSINFOCLASS
 {
-    ProcessBasicInformation = 0,                /**<  0 / 0x00 */
-    ProcessQuotaLimits,                         /**<  1 / 0x01 */
-    ProcessIoCounters,                          /**<  2 / 0x02 */
-    ProcessVmCounters,                          /**<  3 / 0x03 */
-    ProcessTimes,                               /**<  4 / 0x04 */
-    ProcessBasePriority,                        /**<  5 / 0x05 */
-    ProcessRaisePriority,                       /**<  6 / 0x06 */
-    ProcessDebugPort,                           /**<  7 / 0x07 */
-    ProcessExceptionPort,                       /**<  8 / 0x08 */
-    ProcessAccessToken,                         /**<  9 / 0x09 */
-    ProcessLdtInformation,                      /**< 10 / 0x0a */
-    ProcessLdtSize,                             /**< 11 / 0x0b */
-    ProcessDefaultHardErrorMode,                /**< 12 / 0x0c */
-    ProcessIoPortHandlers,                      /**< 13 / 0x0d */
-    ProcessPooledUsageAndLimits,                /**< 14 / 0x0e */
-    ProcessWorkingSetWatch,                     /**< 15 / 0x0f */
-    ProcessUserModeIOPL,                        /**< 16 / 0x10 */
-    ProcessEnableAlignmentFaultFixup,           /**< 17 / 0x11 */
-    ProcessPriorityClass,                       /**< 18 / 0x12 */
-    ProcessWx86Information,                     /**< 19 / 0x13 */
-    ProcessHandleCount,                         /**< 20 / 0x14 */
-    ProcessAffinityMask,                        /**< 21 / 0x15 */
-    ProcessPriorityBoost,                       /**< 22 / 0x16 */
-    ProcessDeviceMap,                           /**< 23 / 0x17 */
-    ProcessSessionInformation,                  /**< 24 / 0x18 */
-    ProcessForegroundInformation,               /**< 25 / 0x19 */
-    ProcessWow64Information,                    /**< 26 / 0x1a */
-    ProcessImageFileName,                       /**< 27 / 0x1b */
-    ProcessLUIDDeviceMapsEnabled,               /**< 28 / 0x1c */
-    ProcessBreakOnTermination,                  /**< 29 / 0x1d */
-    ProcessDebugObjectHandle,                   /**< 30 / 0x1e */
-    ProcessDebugFlags,                          /**< 31 / 0x1f */
-    ProcessHandleTracing,                       /**< 32 / 0x20 */
-    ProcessIoPriority,                          /**< 33 / 0x21 */
-    ProcessExecuteFlags,                        /**< 34 / 0x22 */
-    ProcessTlsInformation,                      /**< 35 / 0x23 */
-    ProcessCookie,                              /**< 36 / 0x24 */
-    ProcessImageInformation,                    /**< 37 / 0x25 */
-    ProcessCycleTime,                           /**< 38 / 0x26 */
-    ProcessPagePriority,                        /**< 39 / 0x27 */
-    ProcessInstrumentationCallbak,              /**< 40 / 0x28 */
-    ProcessThreadStackAllocation,               /**< 41 / 0x29 */
-    ProcessWorkingSetWatchEx,                   /**< 42 / 0x2a */
-    ProcessImageFileNameWin32,                  /**< 43 / 0x2b */
-    ProcessImageFileMapping,                    /**< 44 / 0x2c */
-    ProcessAffinityUpdateMode,                  /**< 45 / 0x2d */
-    ProcessMemoryAllocationMode,                /**< 46 / 0x2e */
-    ProcessGroupInformation,                    /**< 47 / 0x2f */
-    ProcessTokenVirtualizationEnabled,          /**< 48 / 0x30 */
-    ProcessOwnerInformation,                    /**< 49 / 0x31 */
-    ProcessWindowInformation,                   /**< 50 / 0x32 */
-    ProcessHandleInformation,                   /**< 51 / 0x33 */
-    ProcessMitigationPolicy,                    /**< 52 / 0x34 */
-    ProcessDynamicFunctionTableInformation,     /**< 53 / 0x35 */
-    ProcessHandleCheckingMode,                  /**< 54 / 0x36 */
-    ProcessKeepAliveCount,                      /**< 55 / 0x37 */
-    ProcessRevokeFileHandles,                   /**< 56 / 0x38 */
-    ProcessWorkingSetControl,                   /**< 57 / 0x39 */
-    ProcessHandleTable,                         /**< 58 / 0x3a */
-    ProcessCheckStackExtentsMode,               /**< 59 / 0x3b */
-    ProcessCommandLineInformation,              /**< 60 / 0x3c */
-    ProcessProtectionInformation,               /**< 61 / 0x3d */
-    ProcessMemoryExhaustion,                    /**< 62 / 0x3e */
-    ProcessFaultInformation,                    /**< 63 / 0x3f */
-    ProcessTelemetryIdInformation,              /**< 64 / 0x40 */
-    ProcessCommitReleaseInformation,            /**< 65 / 0x41 */
-    ProcessDefaultCpuSetsInformation,           /**< 66 / 0x42 - aka ProcessReserved1Information */
-    ProcessAllowedCpuSetsInformation,           /**< 67 / 0x43 - aka ProcessReserved2Information; PROCESS_SET_LIMITED_INFORMATION & audiog.exe; W10 */
-    ProcessSubsystemProcess,                    /**< 68 / 0x44 */
-    ProcessJobMemoryInformation,                /**< 69 / 0x45 */
-    ProcessInPrivate,                           /**< 70 / 0x46 */
-    ProcessRaiseUMExceptionOnInvalidHandleClose,/**< 71 / 0x47 */
-    ProcessIumChallengeResponse,                /**< 72 / 0x48 */
-    ProcessChildProcessInformation,             /**< 73 / 0x49 */
-    ProcessHighGraphicsPriorityInformation,     /**< 74 / 0x4a */
-    ProcessSubsystemInformation,                /**< 75 / 0x4b */
-    ProcessEnergyValues,                        /**< 76 / 0x4c */
-    ProcessPowerThrottlingState,                /**< 77 / 0x4d */
-    ProcessReserved3Information,                /**< 78 / 0x4e */
-    ProcessWin32kSyscallFilterInformation,      /**< 79 / 0x4f */
-    ProcessDisableSystemAllowedCpuSets,         /**< 80 / 0x50 */
-    ProcessWakeInformation,                     /**< 81 / 0x51 */
-    ProcessEnergyTrackingState,                 /**< 82 / 0x52 */
-    ProcessManageWritesToExecutableMemory,      /**< 83 / 0x53 */
-    ProcessCaptureTrustletLiveDump,             /**< 84 / 0x54 */
-    ProcessTelemetryCoverage,                   /**< 85 / 0x55 */
-    ProcessEnclaveInformation,                  /**< 86 / 0x56 */
-    ProcessEnableReadWriteVmLogging,            /**< 87 / 0x57 */
-    ProcessUptimeInformation,                   /**< 88 / 0x58 */
-    ProcessImageSection,                        /**< 89 / 0x59 */
-    ProcessDebugAuthInformation,                /**< 90 / 0x5a */
-    ProcessSystemResourceManagement,            /**< 92 / 0x5b */
-    ProcessSequenceNumber,                      /**< 93 / 0x5c */
-    MaxProcessInfoClass
+    ProcessBasicInformation = 0,        /**<  0 / 0x00 */
+    ProcessQuotaLimits,                 /**<  1 / 0x01 */
+    ProcessIoCounters,                  /**<  2 / 0x02 */
+    ProcessVmCounters,                  /**<  3 / 0x03 */
+    ProcessTimes,                       /**<  4 / 0x04 */
+    ProcessBasePriority,                /**<  5 / 0x05 */
+    ProcessRaisePriority,               /**<  6 / 0x06 */
+    ProcessDebugPort,                   /**<  7 / 0x07 */
+    ProcessExceptionPort,               /**<  8 / 0x08 */
+    ProcessAccessToken,                 /**<  9 / 0x09 */
+    ProcessLdtInformation,              /**< 10 / 0x0a */
+    ProcessLdtSize,                     /**< 11 / 0x0b */
+    ProcessDefaultHardErrorMode,        /**< 12 / 0x0c */
+    ProcessIoPortHandlers,              /**< 13 / 0x0d */
+    ProcessPooledUsageAndLimits,        /**< 14 / 0x0e */
+    ProcessWorkingSetWatch,             /**< 15 / 0x0f */
+    ProcessUserModeIOPL,                /**< 16 / 0x10 */
+    ProcessEnableAlignmentFaultFixup,   /**< 17 / 0x11 */
+    ProcessPriorityClass,               /**< 18 / 0x12 */
+    ProcessWx86Information,             /**< 19 / 0x13 */
+    ProcessHandleCount,                 /**< 20 / 0x14 */
+    ProcessAffinityMask,                /**< 21 / 0x15 */
+    ProcessPriorityBoost,               /**< 22 / 0x16 */
+    ProcessDeviceMap,                   /**< 23 / 0x17 */
+    ProcessSessionInformation,          /**< 24 / 0x18 */
+    ProcessForegroundInformation,       /**< 25 / 0x19 */
+    ProcessWow64Information,            /**< 26 / 0x1a */
+    ProcessImageFileName,               /**< 27 / 0x1b */
+    ProcessLUIDDeviceMapsEnabled,       /**< 28 / 0x1c */
+    ProcessBreakOnTermination,          /**< 29 / 0x1d */
+    ProcessDebugObjectHandle,           /**< 30 / 0x1e */
+    ProcessDebugFlags,                  /**< 31 / 0x1f */
+    ProcessHandleTracing,               /**< 32 / 0x20 */
+    ProcessIoPriority,                  /**< 33 / 0x21 */
+    ProcessExecuteFlags,                /**< 34 / 0x22 */
+    ProcessTlsInformation,              /**< 35 / 0x23 */
+    ProcessCookie,                      /**< 36 / 0x24 */
+    ProcessImageInformation,            /**< 37 / 0x25 */
+    ProcessCycleTime,                   /**< 38 / 0x26 */
+    ProcessPagePriority,                /**< 39 / 0x27 */
+    ProcessInstrumentationCallbak,      /**< 40 / 0x28 */
+    ProcessThreadStackAllocation,       /**< 41 / 0x29 */
+    ProcessWorkingSetWatchEx,           /**< 42 / 0x2a */
+    ProcessImageFileNameWin32,          /**< 43 / 0x2b */
+    ProcessImageFileMapping,            /**< 44 / 0x2c */
+    ProcessAffinityUpdateMode,          /**< 45 / 0x2d */
+    ProcessMemoryAllocationMode,        /**< 46 / 0x2e */
+    ProcessGroupInformation,            /**< 47 / 0x2f */
+    ProcessTokenVirtualizationEnabled,  /**< 48 / 0x30 */
+    ProcessConsoleHostProcess,          /**< 49 / 0x31 */
+    ProcessWindowsInformation,          /**< 50 / 0x32 */
+    ProcessUnknown51,
+    ProcessUnknown52,
+    ProcessUnknown53,
+    ProcessUnknown54,
+    ProcessUnknown55,
+    ProcessUnknown56,
+    ProcessUnknown57,
+    ProcessUnknown58,
+    ProcessUnknown59,
+    ProcessUnknown60,
+    ProcessUnknown61,
+    ProcessUnknown62,
+    ProcessUnknown63,
+    ProcessUnknown64,
+    ProcessUnknown65,
+    ProcessUnknown66,
+    ProcessMaybe_KeSetCpuSetsProcess,   /**< 67 / 0x43 - is correct, then PROCESS_SET_LIMITED_INFORMATION & audiog.exe; W10. */
+    MaxProcessInfoClass                 /**< 68 / 0x44 */
 } PROCESSINFOCLASS;
-AssertCompile(ProcessSequenceNumber == 0x5c);
 NTSYSAPI NTSTATUS NTAPI NtQueryInformationProcess(HANDLE, PROCESSINFOCLASS, PVOID, ULONG, PULONG);
-#if ARCH_BITS == 32
-/** 64-bit API pass thru to WOW64 processes. */
-NTSYSAPI NTSTATUS NTAPI NtWow64QueryInformationProcess64(HANDLE, PROCESSINFOCLASS, PVOID, ULONG, PULONG);
-#endif
 
 typedef enum _THREADINFOCLASS
 {
@@ -2008,12 +1905,10 @@ typedef enum _THREADINFOCLASS
 NTSYSAPI NTSTATUS NTAPI NtSetInformationThread(HANDLE, THREADINFOCLASS, LPCVOID, ULONG);
 
 NTSYSAPI NTSTATUS NTAPI NtQueryInformationToken(HANDLE, TOKEN_INFORMATION_CLASS, PVOID, ULONG, PULONG);
-NTSYSAPI NTSTATUS NTAPI ZwQueryInformationToken(HANDLE, TOKEN_INFORMATION_CLASS, PVOID, ULONG, PULONG);
 
 NTSYSAPI NTSTATUS NTAPI NtReadFile(HANDLE, HANDLE, PIO_APC_ROUTINE, PVOID, PIO_STATUS_BLOCK, PVOID, ULONG, PLARGE_INTEGER, PULONG);
 NTSYSAPI NTSTATUS NTAPI NtWriteFile(HANDLE, HANDLE, PIO_APC_ROUTINE, void const *, PIO_STATUS_BLOCK, PVOID, ULONG, PLARGE_INTEGER, PULONG);
 NTSYSAPI NTSTATUS NTAPI NtFlushBuffersFile(HANDLE, PIO_STATUS_BLOCK);
-NTSYSAPI NTSTATUS NTAPI NtCancelIoFile(HANDLE, PIO_STATUS_BLOCK);
 
 NTSYSAPI NTSTATUS NTAPI NtReadVirtualMemory(HANDLE, PVOID, PVOID, SIZE_T, PSIZE_T);
 NTSYSAPI NTSTATUS NTAPI NtWriteVirtualMemory(HANDLE, PVOID, void const *, SIZE_T, PSIZE_T);
@@ -2030,23 +1925,13 @@ NTSYSAPI PULONG   NTAPI RtlSubAuthoritySid(PSID, ULONG);
 
 #endif /* IPRT_NT_USE_WINTERNL */
 
-/** For use with ObjectHandleFlagInformation. */
-typedef struct _OBJECT_HANDLE_FLAG_INFORMATION
-{
-    BOOLEAN Inherit;
-    BOOLEAN ProtectFromClose;
-} OBJECT_HANDLE_FLAG_INFORMATION;
-typedef OBJECT_HANDLE_FLAG_INFORMATION *POBJECT_HANDLE_FLAG_INFORMATION;
-
 typedef enum _OBJECT_INFORMATION_CLASS
 {
     ObjectBasicInformation = 0,
     ObjectNameInformation,
     ObjectTypeInformation,
     ObjectAllInformation,
-    ObjectHandleFlagInformation,
-    ObjectSessionInformation,
-    MaxObjectInfoClass
+    ObjectDataInformation
 } OBJECT_INFORMATION_CLASS;
 typedef OBJECT_INFORMATION_CLASS *POBJECT_INFORMATION_CLASS;
 #ifdef IN_RING0
@@ -2077,15 +1962,6 @@ NTSYSAPI NTSTATUS NTAPI NtResumeProcess(HANDLE);
 /** @} */
 NTSYSAPI NTSTATUS NTAPI NtSetInformationProcess(HANDLE, PROCESSINFOCLASS, PVOID, ULONG);
 NTSYSAPI NTSTATUS NTAPI NtTerminateProcess(HANDLE, LONG);
-
-/** Returned by NtQUerySection with SectionBasicInformation. */
-typedef struct _SECTION_BASIC_INFORMATION
-{
-    PVOID            BaseAddress;
-    ULONG            AllocationAttributes;
-    LARGE_INTEGER    MaximumSize;
-} SECTION_BASIC_INFORMATION;
-typedef SECTION_BASIC_INFORMATION *PSECTION_BASIC_INFORMATION;
 
 /** Retured by ProcessImageInformation as well as NtQuerySection. */
 typedef struct _SECTION_IMAGE_INFORMATION
@@ -2151,7 +2027,6 @@ NTSYSAPI NTSTATUS NTAPI NtSuspendThread(HANDLE, PULONG);
 NTSYSAPI NTSTATUS NTAPI NtTerminateThread(HANDLE, LONG);
 NTSYSAPI NTSTATUS NTAPI NtGetContextThread(HANDLE, PCONTEXT);
 NTSYSAPI NTSTATUS NTAPI NtSetContextThread(HANDLE, PCONTEXT);
-NTSYSAPI NTSTATUS NTAPI ZwYieldExecution(void);
 
 
 #ifndef SEC_FILE
@@ -2447,9 +2322,6 @@ typedef struct _RTL_PROCESS_MODULES
 typedef RTL_PROCESS_MODULES *PRTL_PROCESS_MODULES;
 
 NTSYSAPI NTSTATUS NTAPI NtQuerySystemInformation(SYSTEM_INFORMATION_CLASS, PVOID, ULONG, PULONG);
-#ifndef IPRT_NT_MAP_TO_ZW
-NTSYSAPI NTSTATUS NTAPI ZwQuerySystemInformation(SYSTEM_INFORMATION_CLASS, PVOID, ULONG, PULONG);
-#endif
 
 NTSYSAPI NTSTATUS NTAPI NtSetTimerResolution(ULONG cNtTicksWanted, BOOLEAN fSetResolution, PULONG pcNtTicksCur);
 NTSYSAPI NTSTATUS NTAPI NtQueryTimerResolution(PULONG pcNtTicksMin, PULONG pcNtTicksMax, PULONG pcNtTicksCur);
@@ -2525,9 +2397,8 @@ NTSYSAPI NTSTATUS NTAPI RtlAddAccessDeniedAce(PACL, ULONG, ULONG, PSID);
 typedef struct _CURDIR
 {
     UNICODE_STRING  DosPath;
-    HANDLE          Handle;     /**< 0x10 / 0x08 */
+    HANDLE          Handle;
 } CURDIR;
-AssertCompileSize(CURDIR, ARCH_BITS == 32 ? 0x0c : 0x18);
 typedef CURDIR *PCURDIR;
 
 typedef struct _RTL_DRIVE_LETTER_CURDIR
@@ -2541,39 +2412,38 @@ typedef RTL_DRIVE_LETTER_CURDIR *PRTL_DRIVE_LETTER_CURDIR;
 
 typedef struct _RTL_USER_PROCESS_PARAMETERS
 {
-    ULONG           MaximumLength;                      /**< 0x000 / 0x000 */
-    ULONG           Length;                             /**< 0x004 / 0x004 */
-    ULONG           Flags;                              /**< 0x008 / 0x008 */
-    ULONG           DebugFlags;                         /**< 0x00c / 0x00c */
-    HANDLE          ConsoleHandle;                      /**< 0x010 / 0x010 */
-    ULONG           ConsoleFlags;                       /**< 0x018 / 0x014 */
-    HANDLE          StandardInput;                      /**< 0x020 / 0x018 */
-    HANDLE          StandardOutput;                     /**< 0x028 / 0x01c */
-    HANDLE          StandardError;                      /**< 0x030 / 0x020 */
-    CURDIR          CurrentDirectory;                   /**< 0x038 / 0x024 */
-    UNICODE_STRING  DllPath;                            /**< 0x050 / 0x030 */
-    UNICODE_STRING  ImagePathName;                      /**< 0x060 / 0x038 */
-    UNICODE_STRING  CommandLine;                        /**< 0x070 / 0x040 */
-    PWSTR           Environment;                        /**< 0x080 / 0x048 */
-    ULONG           StartingX;                          /**< 0x088 / 0x04c */
-    ULONG           StartingY;                          /**< 0x090 / 0x050 */
-    ULONG           CountX;                             /**< 0x094 / 0x054 */
-    ULONG           CountY;                             /**< 0x098 / 0x058 */
-    ULONG           CountCharsX;                        /**< 0x09c / 0x05c */
-    ULONG           CountCharsY;                        /**< 0x0a0 / 0x060 */
-    ULONG           FillAttribute;                      /**< 0x0a4 / 0x064 */
-    ULONG           WindowFlags;                        /**< 0x0a8 / 0x068 */
-    ULONG           ShowWindowFlags;                    /**< 0x0ac / 0x06c */
-    UNICODE_STRING  WindowTitle;                        /**< 0x0b0 / 0x070 */
-    UNICODE_STRING  DesktopInfo;                        /**< 0x0c0 / 0x078 */
-    UNICODE_STRING  ShellInfo;                          /**< 0x0d0 / 0x080 */
-    UNICODE_STRING  RuntimeInfo;                        /**< 0x0e0 / 0x088 */
-    RTL_DRIVE_LETTER_CURDIR  CurrentDirectories[0x20];  /**< 0x0f0 / 0x090 */
-    SIZE_T          EnvironmentSize;                    /**< 0x3f0 / 0x - Added in Vista */
-    SIZE_T          EnvironmentVersion;                 /**< 0x3f8 / 0x - Added in Windows 7. */
-    PVOID           PackageDependencyData;              /**< 0x400 / 0x - Added Windows 8? */
-    ULONG           ProcessGroupId;                     /**< 0x408 / 0x - Added Windows 8? */
-    ULONG           LoaderThreads;                      /**< 0x40c / 0x - Added Windows 10? */
+    ULONG           MaximumLength;
+    ULONG           Length;
+    ULONG           Flags;
+    ULONG           DebugFlags;
+    HANDLE          ConsoleHandle;
+    ULONG           ConsoleFlags;
+    HANDLE          StandardInput;
+    HANDLE          StandardOutput;
+    HANDLE          StandardError;
+    CURDIR          CurrentDirectory;
+    UNICODE_STRING  DllPath;
+    UNICODE_STRING  ImagePathName;
+    UNICODE_STRING  CommandLine;
+    PWSTR           Environment;
+    ULONG           StartingX;
+    ULONG           StartingY;
+    ULONG           CountX;
+    ULONG           CountY;
+    ULONG           CountCharsX;
+    ULONG           CountCharsY;
+    ULONG           FillAttribute;
+    ULONG           WindowFlags;
+    ULONG           ShowWindowFlags;
+    UNICODE_STRING  WindowTitle;
+    UNICODE_STRING  DesktopInfo;
+    UNICODE_STRING  ShellInfo;
+    UNICODE_STRING  RuntimeInfo;
+    RTL_DRIVE_LETTER_CURDIR  CurrentDirectories[0x20];
+    SIZE_T          EnvironmentSize;        /**< Added in Vista */
+    SIZE_T          EnvironmentVersion;     /**< Added in Windows 7. */
+    PVOID           PackageDependencyData;  /**< Added Windows 8? */
+    ULONG           ProcessGroupId;         /**< Added Windows 8? */
 } RTL_USER_PROCESS_PARAMETERS;
 typedef RTL_USER_PROCESS_PARAMETERS *PRTL_USER_PROCESS_PARAMETERS;
 #define RTL_USER_PROCESS_PARAMS_FLAG_NORMALIZED     1
@@ -2687,7 +2557,6 @@ typedef  NTSTATUS (NTAPI *PFNKEQUERYLOGICALPROCESSORRELATIONSHIP)(PROCESSOR_NUMB
 typedef  PVOID   (NTAPI *PFNKEREGISTERPROCESSORCHANGECALLBACK)(PPROCESSOR_CALLBACK_FUNCTION pfnCallback, void *pvUser, ULONG fFlags);
 typedef  VOID    (NTAPI *PFNKEDEREGISTERPROCESSORCHANGECALLBACK)(PVOID pvCallback);
 typedef  NTSTATUS (NTAPI *PFNKESETTARGETPROCESSORDPCEX)(KDPC *pDpc, PROCESSOR_NUMBER *pProcNumber);
-typedef  LOGICAL  (NTAPI *PFNKESHOULDYIELDPROCESSOR)(void);
 
 NTSYSAPI BOOLEAN  NTAPI ObFindHandleForObject(PEPROCESS pProcess, PVOID pvObject, POBJECT_TYPE pObjectType,
                                               PVOID pvOptionalConditions, PHANDLE phFound);
@@ -2924,14 +2793,10 @@ NTSYSAPI VOID NTAPI     RtlRestoreLastWin32Error(ULONG uError);
 NTSYSAPI BOOLEAN NTAPI  RtlQueryPerformanceCounter(PLARGE_INTEGER);
 NTSYSAPI uint64_t NTAPI RtlGetSystemTimePrecise(VOID);
 typedef uint64_t (NTAPI * PFNRTLGETSYSTEMTIMEPRECISE)(VOID);
-NTSYSAPI uint64_t NTAPI RtlGetInterruptTimePrecise(uint64_t *puPerfTime);
-typedef uint64_t (NTAPI * PFNRTLGETINTERRUPTTIMEPRECISE)(uint64_t *);
-NTSYSAPI BOOLEAN NTAPI RtlQueryUnbiasedInterruptTime(uint64_t *puInterruptTime);
-typedef BOOLEAN (NTAPI * PFNRTLQUERYUNBIASEDINTERRUPTTIME)(uint64_t *);
 
 RT_C_DECLS_END
 /** @} */
 #endif /* IN_RING3 */
 
-#endif /* !IPRT_INCLUDED_nt_nt_h */
+#endif
 

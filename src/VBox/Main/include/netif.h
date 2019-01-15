@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef MAIN_INCLUDED_netif_h
-#define MAIN_INCLUDED_netif_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___netif_h
+#define ___netif_h
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -41,8 +38,6 @@
 #if 1
 /**
  * Encapsulation type.
- * @note Must match HostNetworkInterfaceMediumType_T exactly.
- * @todo r=bird: Why are we duplicating HostNetworkInterfaceMediumType_T here?!?
  */
 typedef enum NETIFTYPE
 {
@@ -54,8 +49,6 @@ typedef enum NETIFTYPE
 
 /**
  * Current state of the interface.
- * @note Must match HostNetworkInterfaceStatus_T exactly.
- * @todo r=bird: Why are we duplicating HostNetworkInterfaceStatus_T here?!?
  */
 typedef enum NETIFSTATUS
 {
@@ -125,5 +118,5 @@ DECLINLINE(Bstr) getDefaultIPv4Address(Bstr bstrIfName)
     return Bstr(addr);
 }
 
-#endif /* !MAIN_INCLUDED_netif_h */
+#endif  /* !___netif_h */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

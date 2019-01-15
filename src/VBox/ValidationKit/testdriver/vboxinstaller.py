@@ -11,7 +11,7 @@ other VBox test drivers.
 
 __copyright__ = \
 """
-Copyright (C) 2010-2019 Oracle Corporation
+Copyright (C) 2010-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -30,7 +30,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard Python imports.
@@ -467,7 +467,7 @@ class VBoxInstallerTestDriver(TestDriverBase):
         sHost = utils.getHostOs()
         if   sHost == 'darwin':     fRc = self._uninstallVBoxOnDarwin();
         elif sHost == 'linux':      fRc = self._uninstallVBoxOnLinux();
-        elif sHost == 'solaris':    fRc = self._uninstallVBoxOnSolaris(True);
+        elif sHost == 'solaris':    fRc = self._uninstallVBoxOnSolaris();
         elif sHost == 'win':        fRc = self._uninstallVBoxOnWindows(True);
         else:
             reporter.error('Unsupported host "%s".' % (sHost,));
@@ -561,7 +561,7 @@ class VBoxInstallerTestDriver(TestDriverBase):
         sMountPath = self._darwinDmgPath();
         if not os.path.exists(sMountPath):
             try:
-                os.mkdir(sMountPath, 0o755);
+                os.mkdir(sMountPath, 0755);
             except:
                 reporter.logXcpt();
                 return False;
@@ -702,31 +702,19 @@ class VBoxInstallerTestDriver(TestDriverBase):
             return False;
 
         # Uninstall first (ignore result).
-        self._uninstallVBoxOnSolaris(False);
+        self._uninstallVBoxOnSolaris();
 
         # Install the new one.
         fRc, _ = self._sudoExecuteSync(['pkgadd', '-d', sPkg, '-n', '-a', sRsp, 'SUNWvbox']);
         return fRc;
 
-    def _uninstallVBoxOnSolaris(self, fRestartSvcConfigD):
+    def _uninstallVBoxOnSolaris(self):
         """ Uninstalls VBox on Solaris."""
         reporter.flushall();
         if utils.processCall(['pkginfo', '-q', 'SUNWvbox']) != 0:
             return True;
         sRsp = self._generateAutoResponseOnSolaris();
         fRc, _ = self._sudoExecuteSync(['pkgrm', '-n', '-a', sRsp, 'SUNWvbox']);
-
-        #
-        # Restart the svc.configd as it has a tendency to clog up with time and
-        # become  unresponsive.  It will handle SIGHUP by exiting the sigwait()
-        # look in the main function and shut down the service nicely (backend_fini).
-        # The restarter will then start a new instance of it.
-        #
-        if fRestartSvcConfigD:
-            time.sleep(1); # Give it a chance to flush pkgrm stuff.
-            self._sudoExecuteSync(['pkill', '-HUP', 'svc.configd']);
-            time.sleep(5); # Spare a few cpu cycles it to shutdown and restart.
-
         return fRc;
 
     #

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -185,15 +185,9 @@ VMMR3_INT_DECL(int) DBGFR3Init(PVM pVM)
                             rc = dbgfR3PlugInInit(pUVM);
                             if (RT_SUCCESS(rc))
                             {
-                                rc = dbgfR3BugCheckInit(pVM);
-                                if (RT_SUCCESS(rc))
-                                {
-                                    return VINF_SUCCESS;
-                                }
-                                dbgfR3PlugInTerm(pUVM);
+                                return VINF_SUCCESS;
                             }
-                            dbgfR3OSTermPart1(pUVM);
-                            dbgfR3OSTermPart2(pUVM);
+                            dbgfR3OSTerm(pUVM);
                         }
                     }
                     dbgfR3AsTerm(pUVM);
@@ -218,9 +212,8 @@ VMMR3_INT_DECL(int) DBGFR3Term(PVM pVM)
 {
     PUVM pUVM = pVM->pUVM;
 
-    dbgfR3OSTermPart1(pUVM);
     dbgfR3PlugInTerm(pUVM);
-    dbgfR3OSTermPart2(pUVM);
+    dbgfR3OSTerm(pUVM);
     dbgfR3AsTerm(pUVM);
     dbgfR3RegTerm(pUVM);
     dbgfR3TraceTerm(pVM);
@@ -297,8 +290,8 @@ VMMR3_INT_DECL(void) DBGFR3PowerOff(PVM pVM)
                     /* Wait for new command, processing pending priority requests
                        first.  The request processing is a bit crazy, but
                        unfortunately required by plugin unloading. */
-                    if (   VM_FF_IS_SET(pVM, VM_FF_REQUEST)
-                        || VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_REQUEST))
+                    if (   VM_FF_IS_PENDING(pVM, VM_FF_REQUEST)
+                        || VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_REQUEST))
                     {
                         LogFlow(("DBGFR3PowerOff: Processes priority requests...\n"));
                         rc = VMR3ReqProcessU(pVM->pUVM, VMCPUID_ANY, true /*fPriorityOnly*/);
@@ -308,7 +301,7 @@ VMMR3_INT_DECL(void) DBGFR3PowerOff(PVM pVM)
                         cPollHack = 1;
                     }
                     /* Need to handle rendezvous too, for generic debug event management. */
-                    else if (VM_FF_IS_SET(pVM, VM_FF_EMT_RENDEZVOUS))
+                    else if (VM_FF_IS_PENDING(pVM, VM_FF_EMT_RENDEZVOUS))
                     {
                         rc = VMMR3EmtRendezvousFF(pVM, pVCpu);
                         AssertLogRel(rc == VINF_SUCCESS);
@@ -366,10 +359,10 @@ bool dbgfR3WaitForAttach(PVM pVM, PVMCPU pVCpu, DBGFEVENTTYPE enmEvent)
      */
 #ifndef RT_OS_L4
 
-# if !defined(DEBUG) || defined(DEBUG_sandervl) || defined(DEBUG_frank)
+# if !defined(DEBUG) || defined(DEBUG_sandervl) || defined(DEBUG_frank) || defined(IEM_VERIFICATION_MODE)
     int cWait = 10;
 # else
-    int cWait = !VM_IS_RAW_MODE_ENABLED(pVM)
+    int cWait = HMIsEnabled(pVM)
              && (   enmEvent == DBGFEVENT_ASSERTION_HYPER
                  || enmEvent == DBGFEVENT_FATAL_ERROR)
              && !RTEnvExist("VBOX_DBGF_WAIT_FOR_ATTACH")
@@ -390,8 +383,8 @@ bool dbgfR3WaitForAttach(PVM pVM, PVMCPU pVCpu, DBGFEVENTTYPE enmEvent)
         }
 
         /* Process priority stuff. */
-        if (   VM_FF_IS_SET(pVM, VM_FF_REQUEST)
-            || VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_REQUEST))
+        if (   VM_FF_IS_PENDING(pVM, VM_FF_REQUEST)
+            || VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_REQUEST))
         {
             int rc = VMR3ReqProcessU(pVM->pUVM, VMCPUID_ANY, true /*fPriorityOnly*/);
             if (rc == VINF_SUCCESS)
@@ -833,8 +826,8 @@ static int dbgfR3VMMWait(PVM pVM)
         for (;;)
         {
             int rc;
-            if (    !VM_FF_IS_ANY_SET(pVM, VM_FF_EMT_RENDEZVOUS | VM_FF_REQUEST)
-                &&  !VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_REQUEST))
+            if (    !VM_FF_IS_PENDING(pVM, VM_FF_EMT_RENDEZVOUS | VM_FF_REQUEST)
+                &&  !VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_REQUEST))
             {
                 rc = RTSemPingWait(&pVM->dbgf.s.PingPong, cPollHack);
                 if (RT_SUCCESS(rc))
@@ -846,13 +839,13 @@ static int dbgfR3VMMWait(PVM pVM)
                 }
             }
 
-            if (VM_FF_IS_SET(pVM, VM_FF_EMT_RENDEZVOUS))
+            if (VM_FF_IS_PENDING(pVM, VM_FF_EMT_RENDEZVOUS))
             {
                 rc = VMMR3EmtRendezvousFF(pVM, pVCpu);
                 cPollHack = 1;
             }
-            else if (   VM_FF_IS_SET(pVM, VM_FF_REQUEST)
-                     || VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_REQUEST))
+            else if (   VM_FF_IS_PENDING(pVM, VM_FF_REQUEST)
+                     || VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_REQUEST))
             {
                 LogFlow(("dbgfR3VMMWait: Processes requests...\n"));
                 rc = VMR3ReqProcessU(pVM->pUVM, VMCPUID_ANY, false /*fPriorityOnly*/);
@@ -2109,7 +2102,6 @@ VMMR3DECL(int) DBGFR3InjectNMI(PUVM pUVM, VMCPUID idCpu)
     AssertReturn(idCpu < pVM->cCpus, VERR_INVALID_CPU_ID);
 
     /** @todo Implement generic NMI injection. */
-    /** @todo NEM: NMI injection   */
     if (!HMIsEnabled(pVM))
         return VERR_NOT_SUP_IN_RAW_MODE;
 

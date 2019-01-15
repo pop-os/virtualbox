@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsExtension_h
-#define FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsExtension_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIGlobalSettingsExtension_h___
+#define ___UIGlobalSettingsExtension_h___
 
 /* GUI includes: */
 #include "UISettingsPage.h"
@@ -30,9 +27,10 @@ struct UIDataSettingsGlobalExtension;
 struct UIDataSettingsGlobalExtensionItem;
 typedef UISettingsCache<UIDataSettingsGlobalExtension> UISettingsCacheGlobalExtension;
 
+
 /** Global settings: Extension page. */
-class SHARED_LIBRARY_STUFF UIGlobalSettingsExtension : public UISettingsPageGlobal,
-                                                       public Ui::UIGlobalSettingsExtension
+class UIGlobalSettingsExtension : public UISettingsPageGlobal,
+                                  public Ui::UIGlobalSettingsExtension
 {
     Q_OBJECT;
 
@@ -42,6 +40,13 @@ public:
     UIGlobalSettingsExtension();
     /** Destructs Extension settings page. */
     ~UIGlobalSettingsExtension();
+
+    /** Initiates the extension pack installation process.
+      * @param  strFilePath      Brings the extension pack file path.
+      * @param  strDigest        Brings the extension pack file digest.
+      * @param  pParent          Brings the parent dialog reference.
+      * @param  pstrExtPackName  Brings the extension pack name. */
+    static void doInstallation(QString const &strFilePath, QString const &strDigest, QWidget *pParent, QString *pstrExtPackName);
 
 protected:
 
@@ -93,4 +98,5 @@ private:
     UISettingsCacheGlobalExtension *m_pCache;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsExtension_h */
+#endif /* !___UIGlobalSettingsExtension_h___ */
+

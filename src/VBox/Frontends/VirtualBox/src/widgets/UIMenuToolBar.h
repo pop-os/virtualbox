@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_widgets_UIMenuToolBar_h
-#define FEQT_INCLUDED_SRC_widgets_UIMenuToolBar_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIMenuToolBar_h___
+#define ___UIMenuToolBar_h___
 
 /* Qt includes: */
 #include <QWidget>
@@ -72,5 +69,5 @@ private:
     UIMenuToolBarPrivate *m_pToolbar;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_widgets_UIMenuToolBar_h */
+#endif /* !___UIMenuToolBar_h___ */
 

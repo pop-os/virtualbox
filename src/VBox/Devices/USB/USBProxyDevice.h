@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_INCLUDED_SRC_USB_USBProxyDevice_h
-#define VBOX_INCLUDED_SRC_USB_USBProxyDevice_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___USBProxyDevice_h
+#define ___USBProxyDevice_h
 
 #include <VBox/cdefs.h>
 #include <VBox/vusb.h>
@@ -213,7 +210,9 @@ typedef struct USBPROXYDEV
     /** Ignore one or two SET_CONFIGURATION operation.
      * See usbProxyDevSetCfg for details. */
     int                 cIgnoreSetConfigs;
-    /** Mask of the interfaces that the guest shall not see. */
+    /** Mask of the interfaces that the guest shall doesn't see.
+     * This is experimental!
+     */
     uint32_t            fMaskedIfs;
     /** Whether we've opened the device or not.
      * For dealing with failed construction (the destruct method is always called). */
@@ -272,5 +271,5 @@ RTDECL(int) USBProxyDeviceLinuxGetFD(PUSBPROXYDEV pProxyDev);
 
 RT_C_DECLS_END
 
-#endif /* !VBOX_INCLUDED_SRC_USB_USBProxyDevice_h */
+#endif
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,12 +39,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-
-#ifndef VBOX_INCLUDED_SRC_Graphics_DevVGA_h
-#define VBOX_INCLUDED_SRC_Graphics_DevVGA_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
 
 /** Use VBE bytewise I/O. Only needed for Windows Longhorn/Vista betas and backwards compatibility. */
 #define VBE_BYTEWISE_IO
@@ -84,13 +78,13 @@
 #ifdef CONFIG_BOCHS_VBE
 
 /* Cross reference with <VBoxVideoVBE.h> */
-#define VBE_DISPI_INDEX_NB_SAVED        0xb /* Old number of saved registers (vbe_regs array, see vga_load) */
-#define VBE_DISPI_INDEX_NB              0xd /* Total number of VBE registers */
+#define VBE_DISPI_INDEX_NB_SAVED        0xb /* Number of saved registers (vbe_regs array) */
+#define VBE_DISPI_INDEX_NB              0xc /* Total number of VBE registers */
 
 #define VGA_STATE_COMMON_BOCHS_VBE              \
     uint16_t vbe_index;                         \
     uint16_t vbe_regs[VBE_DISPI_INDEX_NB];      \
-    uint16_t alignment[2]; /* pad to 64 bits */ \
+    uint16_t alignment[3]; /* pad to 64 bits */ \
     uint32_t vbe_start_addr;                    \
     uint32_t vbe_line_offset;                   \
     uint32_t vbe_bank_max;
@@ -343,15 +337,12 @@ typedef struct VGAState {
     bool                        fRemappedVGA;
     /** Whether to render the guest VRAM to the framebuffer memory. False only for some LFB modes. */
     bool                        fRenderVRAM;
-    /** Whether 3D is enabled for the VM. */
-    bool                        f3DEnabled;
 # ifdef VBOX_WITH_VMSVGA
     /* Whether the SVGA emulation is enabled or not. */
     bool                        fVMSVGAEnabled;
-    bool                        fVMSVGAPciId;
-    bool                        Padding4[0+3];
-# else
     bool                        Padding4[1+4];
+# else
+    bool                        Padding4[2+4];
 # endif
 
     /** Physical access type for the linear frame buffer dirty page tracking. */
@@ -630,6 +621,4 @@ void vga_draw_cursor_line_32(uint8_t *d1, const uint8_t *src1,
 extern const uint8_t sr_mask[8];
 extern const uint8_t gr_mask[16];
 #endif /* !VBOX */
-
-#endif /* !VBOX_INCLUDED_SRC_Graphics_DevVGA_h */
 

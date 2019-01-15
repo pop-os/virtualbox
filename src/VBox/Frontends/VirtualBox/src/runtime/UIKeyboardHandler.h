@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_runtime_UIKeyboardHandler_h
-#define FEQT_INCLUDED_SRC_runtime_UIKeyboardHandler_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIKeyboardHandler_h___
+#define ___UIKeyboardHandler_h___
 
 /* Qt includes: */
 #include <QMap>
@@ -106,10 +103,6 @@ public:
 
     /** Qt5: Performs pre-processing of all the native events. */
     bool nativeEventFilter(void *pMessage, ulong uScreenId);
-
-    /** Called whenever host key press/release scan codes are inserted to the guest.
-      * @a bPressed is true for press and false for release inserts. */
-    void setHostKeyComboPressedFlag(bool bPressed);
 
 protected slots:
 
@@ -205,7 +198,6 @@ protected:
     bool m_bIsHostComboAlone : 1;
     bool m_bIsHostComboProcessed : 1;
     bool m_fPassCADtoGuest : 1;
-    bool m_fHostKeyComboPressInserted : 1;
     /** Whether the debugger is active.
      * Currently only affects auto capturing. */
     bool m_fDebuggerActive : 1;
@@ -235,4 +227,5 @@ protected:
     ULONG m_cMonitors;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_runtime_UIKeyboardHandler_h */
+#endif // !___UIKeyboardHandler_h___
+

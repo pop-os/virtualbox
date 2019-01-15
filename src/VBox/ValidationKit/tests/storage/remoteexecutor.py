@@ -7,7 +7,7 @@ VirtualBox Validation Kit - Storage benchmark, test execution helpers.
 
 __copyright__ = \
 """
-Copyright (C) 2016-2019 Oracle Corporation
+Copyright (C) 2016-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,31 +26,25 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard Python imports.
 import array;
 import os;
 import shutil;
-import sys;
-if sys.version_info[0] >= 3:
-    from io import StringIO as StringIO;            # pylint: disable=import-error,no-name-in-module
-else:
-    from StringIO import StringIO as StringIO;      # pylint: disable=import-error,no-name-in-module
+import StringIO
 import subprocess;
 
 # Validation Kit imports.
 from common     import utils;
 from testdriver import reporter;
 
-
-
 class StdInOutBuffer(object):
     """ Standard input output buffer """
 
     def __init__(self, sInput = None):
-        self.sInput = StringIO();
+        self.sInput = StringIO.StringIO();
         if sInput is not None:
             self.sInput.write(self._toString(sInput));
             self.sInput.seek(0);
@@ -251,7 +245,7 @@ class RemoteExecutor(object):
 
         return sFileId;
 
-    def mkDir(self, sDir, fMode = 0o700, cMsTimeout = 30000):
+    def mkDir(self, sDir, fMode = 0700, cMsTimeout = 30000):
         """
         Creates a new directory at the given location.
         """

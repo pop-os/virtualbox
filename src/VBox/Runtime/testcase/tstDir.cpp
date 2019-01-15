@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,7 +45,6 @@ int main(int argc, char **argv)
     bool fShortName = false;
     bool fFiltered  = false;
     bool fQuiet     = false;
-    bool fNoFollow  = false;
     for (int i = 1; i < argc; i++)
     {
         if (argv[i][0] == '-')
@@ -72,9 +71,6 @@ int main(int argc, char **argv)
                     case 'q':
                         fQuiet = true;
                         break;
-                    case 'H':
-                        fNoFollow = true;
-                        break;
                     default:
                         RTPrintf("Unknown option '%c' ignored!\n", argv[i][j]);
                         break;
@@ -86,11 +82,10 @@ int main(int argc, char **argv)
             /* open */
             RTDIR hDir;
             int rc;
-            if (!fFiltered && !fNoFollow)
+            if (!fFiltered)
                 rc = RTDirOpen(&hDir, argv[i]);
             else
-                rc = RTDirOpenFiltered(&hDir, argv[i], fFiltered ? RTDIRFILTER_WINNT : RTDIRFILTER_NONE,
-                                       fNoFollow ? RTDIR_F_NO_FOLLOW : 0);
+                rc = RTDirOpenFiltered(&hDir, argv[i], RTDIRFILTER_WINNT, 0 /*fFlags*/);
             if (RT_SUCCESS(rc))
             {
                 /* list */

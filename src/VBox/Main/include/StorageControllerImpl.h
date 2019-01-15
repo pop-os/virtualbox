@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,11 +17,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef MAIN_INCLUDED_StorageControllerImpl_h
-#define MAIN_INCLUDED_StorageControllerImpl_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ____H_STORAGECONTROLLERIMPL
+#define ____H_STORAGECONTROLLERIMPL
 #include "StorageControllerWrap.h"
 
 class ATL_NO_VTABLE StorageController :
@@ -93,5 +90,5 @@ private:
     Data *m;
 };
 
-#endif /* !MAIN_INCLUDED_StorageControllerImpl_h */
+#endif //!____H_STORAGECONTROLLERIMPL
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

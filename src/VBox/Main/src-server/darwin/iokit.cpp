@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1688,14 +1688,9 @@ PDARWINETHERNIC DarwinGetEthernetControllers(void)
                         RTMAC Mac;
                         AssertBreak(darwinDictGetData(PropsRef, CFSTR("IOMACAddress"), &Mac, sizeof(Mac)));
 
-                        /* The BSD Name from the interface dictionary.  No assert here as the belkin USB-C gadget
-                           does not always end up with a BSD name, typically requiring replugging. */
+                        /* The BSD Name from the interface dictionary. */
                         char szBSDName[RT_SIZEOFMEMB(DARWINETHERNIC, szBSDName)];
-                        if (RT_UNLIKELY(!darwinDictGetString(IfPropsRef, CFSTR("BSD Name"), szBSDName, sizeof(szBSDName))))
-                        {
-                            LogRelMax(32, ("DarwinGetEthernetControllers: Warning! Failed to get 'BSD Name'; provider class %s\n", szTmp));
-                            break;
-                        }
+                        AssertBreak(darwinDictGetString(IfPropsRef, CFSTR("BSD Name"), szBSDName, sizeof(szBSDName)));
 
                         /* Check if it's really wireless. */
                         if (    darwinDictIsPresent(IfPropsRef, CFSTR("IO80211CountryCode"))

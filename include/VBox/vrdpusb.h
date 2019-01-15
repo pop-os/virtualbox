@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef VBOX_INCLUDED_vrdpusb_h
-#define VBOX_INCLUDED_vrdpusb_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBox_vrdpusb_h
+#define ___VBox_vrdpusb_h
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
@@ -84,5 +81,5 @@ typedef struct REMOTEUSBCALLBACK
 
 /** @} */
 
-#endif /* !VBOX_INCLUDED_vrdpusb_h */
+#endif
 

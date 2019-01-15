@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,11 +24,9 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_SRC_r3_nt_internal_r3_nt_h
-#define IPRT_INCLUDED_SRC_r3_nt_internal_r3_nt_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+
+#ifndef ___internal_r3_nt_h___
+#define ___internal_r3_nt_h___
 
 #ifdef IN_SUP_HARDENED_R3
 # include <iprt/nt/nt-and-windows.h>
@@ -38,12 +36,11 @@
 #include "internal/iprt.h"
 
 
-#if 1
+#ifdef DEBUG_bird
 /** Enables the "\\!\" NT path pass thru as well as hacks for listing NT object
  * directories. */
 # define IPRT_WITH_NT_PATH_PASSTHRU 1
 #endif
-
 
 
 /**
@@ -69,7 +66,7 @@ DECLINLINE(bool) rtNtCompWideStrAndAscii(WCHAR const *pwsz1, size_t cch1, const 
     return true;
 }
 
-#endif /* !IPRT_INCLUDED_SRC_r3_nt_internal_r3_nt_h */
+#endif
 
 /**
  * Common worker for RTFileSetMode, RTPathSetMode and RTDirRelPathSetMode.

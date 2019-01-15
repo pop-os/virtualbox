@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_cpp_ministring_h
-#define IPRT_INCLUDED_cpp_ministring_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_cpp_ministring_h
+#define ___iprt_cpp_ministring_h
 
 #include <iprt/mem.h>
 #include <iprt/string.h>
@@ -246,10 +243,9 @@ public:
      */
     void reserve(size_t cb)
     {
-        if (   (   cb != m_cbAllocated
-                && cb > m_cch + 1)
-            || (   m_psz == NULL
-                && cb > 0))
+        if (    cb != m_cbAllocated
+             && cb > m_cch + 1
+           )
         {
             int rc = RTStrRealloc(&m_psz, cb);
             if (RT_SUCCESS(rc))
@@ -267,12 +263,11 @@ public:
      * @returns VINF_SUCCESS or VERR_NO_STRING_MEMORY.
      * @param   cb              New minimum size (in bytes) of member memory buffer.
      */
-    int reserveNoThrow(size_t cb) RT_NOEXCEPT
+    int reserveNoThrow(size_t cb)
     {
-        if (   (   cb != m_cbAllocated
-                && cb > m_cch + 1)
-            || (   m_psz == NULL
-                && cb > 0))
+        if (    cb != m_cbAllocated
+             && cb > m_cch + 1
+           )
         {
             int rc = RTStrRealloc(&m_psz, cb);
             if (RT_SUCCESS(rc))
@@ -342,14 +337,6 @@ public:
     RTCString &assign(const RTCString &a_rSrc);
 
     /**
-     * Assigns a copy of another RTCString.
-     *
-     * @param   a_rSrc          Reference to the source string.
-     * @returns VINF_SUCCESS or VERR_NO_STRING_MEMORY.
-     */
-    int assignNoThrow(const RTCString &a_rSrc) RT_NOEXCEPT;
-
-    /**
      * Assigns a copy of a C-style string.
      *
      * @param   a_pszSrc        Pointer to the C-style source string.
@@ -359,73 +346,31 @@ public:
     RTCString &assign(const char *a_pszSrc);
 
     /**
-     * Assigns a copy of a C-style string.
-     *
-     * @param   a_pszSrc        Pointer to the C-style source string.
-     * @returns VINF_SUCCESS or VERR_NO_STRING_MEMORY.
-     * @remarks ASSUMES valid
-     */
-    int assignNoThrow(const char *a_pszSrc) RT_NOEXCEPT;
-
-    /**
      * Assigns a partial copy of another RTCString.
      *
      * @param   a_rSrc          The source string.
      * @param   a_offSrc        The byte offset into the source string.
      * @param   a_cchSrc        The max number of chars (encoded UTF-8 bytes)
      *                          to copy from the source string.
-     * @throws  std::bad_alloc  On allocation error.  The object is left unchanged.
      */
     RTCString &assign(const RTCString &a_rSrc, size_t a_offSrc, size_t a_cchSrc = npos);
 
     /**
-     * Assigns a partial copy of another RTCString.
-     *
-     * @param   a_rSrc          The source string.
-     * @param   a_offSrc        The byte offset into the source string.
-     * @param   a_cchSrc        The max number of chars (encoded UTF-8 bytes)
-     *                          to copy from the source string.
-     * @returns VINF_SUCCESS or VERR_NO_STRING_MEMORY.
-     */
-    int assignNoThrow(const RTCString &a_rSrc, size_t a_offSrc, size_t a_cchSrc = npos) RT_NOEXCEPT;
-
-    /**
      * Assigns a partial copy of a C-style string.
      *
      * @param   a_pszSrc        The source string (UTF-8).
      * @param   a_cchSrc        The max number of chars (encoded UTF-8 bytes)
      *                          to copy from the source string.
-     * @throws  std::bad_alloc  On allocation error.  The object is left unchanged.
      */
     RTCString &assign(const char *a_pszSrc, size_t a_cchSrc);
 
     /**
-     * Assigns a partial copy of a C-style string.
-     *
-     * @param   a_pszSrc        The source string (UTF-8).
-     * @param   a_cchSrc        The max number of chars (encoded UTF-8 bytes)
-     *                          to copy from the source string.
-     * @returns VINF_SUCCESS or VERR_NO_STRING_MEMORY.
-     */
-    int assignNoThrow(const char *a_pszSrc, size_t a_cchSrc) RT_NOEXCEPT;
-
-    /**
      * Assigs a string containing @a a_cTimes repetitions of the character @a a_ch.
      *
      * @param   a_cTimes        The number of times the character is repeated.
      * @param   a_ch            The character to fill the string with.
-     * @throws  std::bad_alloc  On allocation error.  The object is left unchanged.
      */
     RTCString &assign(size_t a_cTimes, char a_ch);
-
-    /**
-     * Assigs a string containing @a a_cTimes repetitions of the character @a a_ch.
-     *
-     * @param   a_cTimes        The number of times the character is repeated.
-     * @param   a_ch            The character to fill the string with.
-     * @returns VINF_SUCCESS or VERR_NO_STRING_MEMORY.
-     */
-    int assignNoThrow(size_t a_cTimes, char a_ch) RT_NOEXCEPT;
 
     /**
      * Assigns the output of the string format operation (RTStrPrintf).
@@ -442,18 +387,6 @@ public:
     RTCString &printf(const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(1, 2);
 
     /**
-     * Assigns the output of the string format operation (RTStrPrintf).
-     *
-     * @param   pszFormat       Pointer to the format string,
-     *                          @see pg_rt_str_format.
-     * @param   ...             Ellipsis containing the arguments specified by
-     *                          the format string.
-     *
-     * @returns VINF_SUCCESS or VERR_NO_STRING_MEMORY.
-     */
-    int printfNoThrow(const char *pszFormat, ...) RT_NOEXCEPT RT_IPRT_FORMAT_ATTR(1, 2);
-
-    /**
      * Assigns the output of the string format operation (RTStrPrintfV).
      *
      * @param   pszFormat       Pointer to the format string,
@@ -468,18 +401,6 @@ public:
     RTCString &printfV(const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(1, 0);
 
     /**
-     * Assigns the output of the string format operation (RTStrPrintfV).
-     *
-     * @param   pszFormat       Pointer to the format string,
-     *                          @see pg_rt_str_format.
-     * @param   va              Argument vector containing the arguments
-     *                          specified by the format string.
-     *
-     * @returns VINF_SUCCESS or VERR_NO_STRING_MEMORY.
-     */
-    int printfVNoThrow(const char *pszFormat, va_list va) RT_NOEXCEPT RT_IPRT_FORMAT_ATTR(1, 0);
-
-    /**
      * Appends the string @a that to @a rThat.
      *
      * @param   rThat            The string to append.
@@ -489,14 +410,6 @@ public:
     RTCString &append(const RTCString &rThat);
 
     /**
-     * Appends the string @a that to @a rThat.
-     *
-     * @param   rThat            The string to append.
-     * @returns VINF_SUCCESS or VERR_NO_STRING_MEMORY.
-     */
-    int appendNoThrow(const RTCString &rThat) RT_NOEXCEPT;
-
-    /**
      * Appends the string @a pszSrc to @a this.
      *
      * @param   pszSrc          The C-style string to append.
@@ -504,14 +417,6 @@ public:
      * @returns Reference to the object.
      */
     RTCString &append(const char *pszSrc);
-
-    /**
-     * Appends the string @a pszSrc to @a this.
-     *
-     * @param   pszSrc          The C-style string to append.
-     * @returns VINF_SUCCESS or VERR_NO_STRING_MEMORY.
-     */
-    int appendNoThrow(const char *pszSrc) RT_NOEXCEPT;
 
     /**
      * Appends the a substring from @a rThat to @a this.
@@ -526,17 +431,6 @@ public:
     RTCString &append(const RTCString &rThat, size_t offStart, size_t cchMax = RTSTR_MAX);
 
     /**
-     * Appends the a substring from @a rThat to @a this.
-     *
-     * @param   rThat           The string to append a substring from.
-     * @param   offStart        The start of the substring to append (byte offset,
-     *                          not codepoint).
-     * @param   cchMax          The maximum number of bytes to append.
-     * @returns VINF_SUCCESS or VERR_NO_STRING_MEMORY.
-     */
-    int appendNoThrow(const RTCString &rThat, size_t offStart, size_t cchMax = RTSTR_MAX) RT_NOEXCEPT;
-
-    /**
      * Appends the first @a cchMax chars from string @a pszThat to @a this.
      *
      * @param   pszThat         The C-style string to append.
@@ -545,15 +439,6 @@ public:
      * @returns Reference to the object.
      */
     RTCString &append(const char *pszThat, size_t cchMax);
-
-    /**
-     * Appends the first @a cchMax chars from string @a pszThat to @a this.
-     *
-     * @param   pszThat         The C-style string to append.
-     * @param   cchMax          The maximum number of bytes to append.
-     * @returns VINF_SUCCESS or VERR_NO_STRING_MEMORY.
-     */
-    int appendNoThrow(const char *pszThat, size_t cchMax) RT_NOEXCEPT;
 
     /**
      * Appends the given character to @a this.
@@ -565,14 +450,6 @@ public:
     RTCString &append(char ch);
 
     /**
-     * Appends the given character to @a this.
-     *
-     * @param   ch              The character to append.
-     * @returns VINF_SUCCESS or VERR_NO_STRING_MEMORY.
-     */
-    int appendNoThrow(char ch) RT_NOEXCEPT;
-
-    /**
      * Appends the given unicode code point to @a this.
      *
      * @param   uc              The unicode code point to append.
@@ -580,66 +457,6 @@ public:
      * @returns Reference to the object.
      */
     RTCString &appendCodePoint(RTUNICP uc);
-
-    /**
-     * Appends the given unicode code point to @a this.
-     *
-     * @param   uc              The unicode code point to append.
-     * @returns VINF_SUCCESS, VERR_INVALID_UTF8_ENCODING or VERR_NO_STRING_MEMORY.
-     */
-    int appendCodePointNoThrow(RTUNICP uc) RT_NOEXCEPT;
-
-    /**
-     * Appends the output of the string format operation (RTStrPrintf).
-     *
-     * @param   pszFormat       Pointer to the format string,
-     *                          @see pg_rt_str_format.
-     * @param   ...             Ellipsis containing the arguments specified by
-     *                          the format string.
-     *
-     * @throws  std::bad_alloc  On allocation error.  The object is left unchanged.
-     *
-     * @returns Reference to the object.
-     */
-    RTCString &appendPrintf(const char *pszFormat, ...) RT_IPRT_FORMAT_ATTR(1, 2);
-
-    /**
-     * Appends the output of the string format operation (RTStrPrintf).
-     *
-     * @param   pszFormat       Pointer to the format string,
-     *                          @see pg_rt_str_format.
-     * @param   ...             Ellipsis containing the arguments specified by
-     *                          the format string.
-     *
-     * @returns VINF_SUCCESS or VERR_NO_STRING_MEMORY.
-     */
-    int appendPrintfNoThrow(const char *pszFormat, ...) RT_NOEXCEPT RT_IPRT_FORMAT_ATTR(1, 2);
-
-    /**
-     * Appends the output of the string format operation (RTStrPrintfV).
-     *
-     * @param   pszFormat       Pointer to the format string,
-     *                          @see pg_rt_str_format.
-     * @param   va              Argument vector containing the arguments
-     *                          specified by the format string.
-     *
-     * @throws  std::bad_alloc  On allocation error.  The object is left unchanged.
-     *
-     * @returns Reference to the object.
-     */
-    RTCString &appendPrintfV(const char *pszFormat, va_list va) RT_IPRT_FORMAT_ATTR(1, 0);
-
-    /**
-     * Appends the output of the string format operation (RTStrPrintfV).
-     *
-     * @param   pszFormat       Pointer to the format string,
-     *                          @see pg_rt_str_format.
-     * @param   va              Argument vector containing the arguments
-     *                          specified by the format string.
-     *
-     * @returns VINF_SUCCESS or VERR_NO_STRING_MEMORY.
-     */
-    int appendPrintfVNoThrow(const char *pszFormat, va_list va) RT_NOEXCEPT RT_IPRT_FORMAT_ATTR(1, 0);
 
     /**
      * Shortcut to append(), RTCString variant.
@@ -680,7 +497,7 @@ public:
      *
      * @returns Reference to the object.
      */
-    RTCString &toUpper() RT_NOEXCEPT
+    RTCString &toUpper()
     {
         if (length())
         {
@@ -699,7 +516,7 @@ public:
      *
      * @returns Reference to the object.
      */
-    RTCString &toLower() RT_NOEXCEPT
+    RTCString &toLower()
     {
         if (length())
         {
@@ -720,7 +537,7 @@ public:
      * @param   offStart        Where in @a this string to start erasing.
      * @param   cchLength       How much following @a offStart to erase.
      */
-    RTCString &erase(size_t offStart = 0, size_t cchLength = npos) RT_NOEXCEPT;
+    RTCString &erase(size_t offStart = 0, size_t cchLength = npos);
 
     /**
      * Replaces a span of @a this string with a replacement string.
@@ -737,17 +554,6 @@ public:
      *          No change will occure and strict builds hits a debug assertion.
      */
     RTCString &replace(size_t offStart, size_t cchLength, const RTCString &rStrReplacement);
-
-    /**
-     * Replaces a span of @a this string with a replacement string.
-     *
-     * @returns VINF_SUCCESS, VERR_OUT_OF_RANGE or VERR_NO_STRING_MEMORY.
-     * @param   offStart        Where in @a this string to start replacing.
-     * @param   cchLength       How much following @a offStart to replace.  npos is
-     *                          accepted.
-     * @param   rStrReplacement The replacement string.
-     */
-    int replaceNoThrow(size_t offStart, size_t cchLength, const RTCString &rStrReplacement) RT_NOEXCEPT;
 
     /**
      * Replaces a span of @a this string with a replacement substring.
@@ -772,21 +578,6 @@ public:
                        size_t offReplacement, size_t cchReplacement);
 
     /**
-     * Replaces a span of @a this string with a replacement substring.
-     *
-     * @returns VINF_SUCCESS, VERR_OUT_OF_RANGE or VERR_NO_STRING_MEMORY.
-     * @param   offStart        Where in @a this string to start replacing.
-     * @param   cchLength       How much following @a offStart to replace.  npos is
-     *                          accepted.
-     * @param   rStrReplacement The string from which a substring is taken.
-     * @param   offReplacement  The offset into @a rStrReplacement where the
-     *                          replacement substring starts.
-     * @param   cchReplacement   The maximum length of the replacement substring.
-     */
-    int replaceNoThrow(size_t offStart, size_t cchLength, const RTCString &rStrReplacement,
-                       size_t offReplacement, size_t cchReplacement) RT_NOEXCEPT;
-
-    /**
      * Replaces a span of @a this string with the replacement string.
      *
      * @returns Reference to the object.
@@ -801,17 +592,6 @@ public:
      *          No change will occure and strict builds hits a debug assertion.
      */
     RTCString &replace(size_t offStart, size_t cchLength, const char *pszReplacement);
-
-    /**
-     * Replaces a span of @a this string with the replacement string.
-     *
-     * @returns VINF_SUCCESS, VERR_OUT_OF_RANGE or VERR_NO_STRING_MEMORY.
-     * @param   offStart        Where in @a this string to start replacing.
-     * @param   cchLength       How much following @a offStart to replace.  npos is
-     *                          accepted.
-     * @param   pszReplacement  The replacement string.
-     */
-    int replaceNoThrow(size_t offStart, size_t cchLength, const char *pszReplacement) RT_NOEXCEPT;
 
     /**
      * Replaces a span of @a this string with the replacement string.
@@ -833,20 +613,6 @@ public:
     RTCString &replace(size_t offStart, size_t cchLength, const char *pszReplacement, size_t cchReplacement);
 
     /**
-     * Replaces a span of @a this string with the replacement string.
-     *
-     * @returns VINF_SUCCESS, VERR_OUT_OF_RANGE or VERR_NO_STRING_MEMORY.
-     * @param   offStart        Where in @a this string to start replacing.
-     * @param   cchLength       How much following @a offStart to replace.  npos is
-     *                          accepted.
-     * @param   pszReplacement  The replacement string.
-     * @param   cchReplacement  How much of @a pszReplacement to use at most.  If a
-     *                          zero terminator is found before reaching this value,
-     *                          we'll stop there.
-     */
-    int replaceNoThrow(size_t offStart, size_t cchLength, const char *pszReplacement, size_t cchReplacement) RT_NOEXCEPT;
-
-    /**
      * Index operator.
      *
      * Returns the byte at the given index, or a null byte if the index is not
@@ -856,7 +622,7 @@ public:
      * @param   i       The index into the string buffer.
      * @returns char at the index or null.
      */
-    inline char operator[](size_t i) const RT_NOEXCEPT
+    inline char operator[](size_t i) const
     {
         if (i < length())
             return m_psz[i];
@@ -871,7 +637,7 @@ public:
      *
      * @returns const pointer to C-style string.
      */
-    inline const char *c_str() const RT_NOEXCEPT
+    inline const char *c_str() const
     {
         return (m_psz) ? m_psz : "";
     }
@@ -888,7 +654,7 @@ public:
      *         you _must_ call RTCString::jolt(), or subsequent copy operations
      *         may go nowhere.  Better not use mutableRaw() at all.
      */
-    char *mutableRaw() RT_NOEXCEPT
+    char *mutableRaw()
     {
         return m_psz;
     }
@@ -901,7 +667,7 @@ public:
      * internal lengths correctly.  Otherwise subsequent copy operations may go
      * nowhere.
      */
-    void jolt() RT_NOEXCEPT
+    void jolt()
     {
         if (m_psz)
         {
@@ -925,7 +691,7 @@ public:
      *
      * @returns @c true if empty, @c false if not.
      */
-    bool isEmpty() const RT_NOEXCEPT
+    bool isEmpty() const
     {
         return length() == 0;
     }
@@ -940,7 +706,7 @@ public:
      *
      * @returns @c false if empty, @c true if not.
      */
-    bool isNotEmpty() const RT_NOEXCEPT
+    bool isNotEmpty() const
     {
         return length() != 0;
     }
@@ -960,7 +726,7 @@ public:
      * @returns 0 if equal, negative if this is smaller than @a pcsz, positive
      *          if larger.
      */
-    int compare(const char *pcszThat, CaseSensitivity cs = CaseSensitive) const RT_NOEXCEPT
+    int compare(const char *pcszThat, CaseSensitivity cs = CaseSensitive) const
     {
         /* This klugde is for m_cch=0 and m_psz=NULL.  pcsz=NULL and psz=""
            are treated the same way so that str.compare(str2.c_str()) works. */
@@ -980,7 +746,7 @@ public:
      * @returns 0 if equal, negative if this is smaller than @a pcsz, positive
      *          if larger.
      */
-    int compare(const RTCString &rThat, CaseSensitivity cs = CaseSensitive) const RT_NOEXCEPT
+    int compare(const RTCString &rThat, CaseSensitivity cs = CaseSensitive) const
     {
         if (cs == CaseSensitive)
             return ::RTStrCmp(m_psz, rThat.m_psz);
@@ -993,7 +759,7 @@ public:
      * @returns true if equal, false if not.
      * @param   rThat    The string to compare with.
      */
-    bool equals(const RTCString &rThat) const RT_NOEXCEPT
+    bool equals(const RTCString &rThat) const
     {
         return rThat.length() == length()
             && (   length() == 0
@@ -1006,7 +772,7 @@ public:
      * @returns true if equal, false if not.
      * @param   pszThat The string to compare with.
      */
-    bool equals(const char *pszThat) const RT_NOEXCEPT
+    bool equals(const char *pszThat) const
     {
         /* This klugde is for m_cch=0 and m_psz=NULL.  pcsz=NULL and psz=""
            are treated the same way so that str.equals(str2.c_str()) works. */
@@ -1021,7 +787,7 @@ public:
      * @returns true if equal, false if not.
      * @param   that    The string to compare with.
      */
-    bool equalsIgnoreCase(const RTCString &that) const RT_NOEXCEPT
+    bool equalsIgnoreCase(const RTCString &that) const
     {
         /* Unfolded upper and lower case characters may require different
            amount of encoding space, so the length optimization doesn't work. */
@@ -1034,7 +800,7 @@ public:
      * @returns true if equal, false if not.
      * @param   pszThat The string to compare with.
      */
-    bool equalsIgnoreCase(const char *pszThat) const RT_NOEXCEPT
+    bool equalsIgnoreCase(const char *pszThat) const
     {
         /* This klugde is for m_cch=0 and m_psz=NULL.  pcsz=NULL and psz=""
            are treated the same way so that str.equalsIgnoreCase(str2.c_str()) works. */
@@ -1076,7 +842,7 @@ public:
      *
      * @returns 0 based position of pszNeedle. npos if not found.
      */
-    size_t find(const char *pszNeedle, size_t offStart = 0) const RT_NOEXCEPT;
+    size_t find(const char *pszNeedle, size_t offStart = 0) const;
 
     /**
      * Find the given substring.
@@ -1092,37 +858,7 @@ public:
      * @returns 0 based position of pStrNeedle. npos if not found or pStrNeedle is
      *          NULL or an empty string.
      */
-    size_t find(const RTCString *pStrNeedle, size_t offStart = 0) const RT_NOEXCEPT;
-
-    /**
-     * Find the given substring.
-     *
-     * Looks for @a rStrNeedle in @a this starting at @a offStart and returns its
-     * position as a byte (not codepoint) offset, counting from the beginning of
-     * @a this as 0.
-     *
-     * @param   rStrNeedle      The substring to find.
-     * @param   offStart        The (byte) offset into the string buffer to start
-     *                          searching.
-     *
-     * @returns 0 based position of pStrNeedle. npos if not found or pStrNeedle is
-     *          NULL or an empty string.
-     */
-    size_t find(const RTCString &rStrNeedle, size_t offStart = 0) const RT_NOEXCEPT;
-
-    /**
-     * Find the given character (byte).
-     *
-     * @returns 0 based position of chNeedle. npos if not found or pStrNeedle is
-     *          NULL or an empty string.
-     * @param   chNeedle        The character (byte) to find.
-     * @param   offStart        The (byte) offset into the string buffer to start
-     *                          searching.  Default is start of the string.
-     *
-     * @note    This searches for a C character value, not a codepoint.  Use the
-     *          string version to locate codepoints above U+7F.
-     */
-    size_t find(char chNeedle, size_t offStart = 0) const RT_NOEXCEPT;
+    size_t find(const RTCString *pStrNeedle, size_t offStart = 0) const;
 
     /**
      * Replaces all occurences of cFind with cReplace in the member string.
@@ -1132,7 +868,7 @@ public:
      * @param   chFind      Character to replace. Must be ASCII < 128.
      * @param   chReplace   Character to replace cFind with. Must be ASCII < 128.
      */
-    void findReplace(char chFind, char chReplace) RT_NOEXCEPT;
+    void findReplace(char chFind, char chReplace);
 
     /**
      * Count the occurences of the specified character in the string.
@@ -1140,7 +876,7 @@ public:
      * @param   ch          What to search for. Must be ASCII < 128.
      * @remarks QString::count
      */
-    size_t count(char ch) const RT_NOEXCEPT;
+    size_t count(char ch) const;
 
     /**
      * Count the occurences of the specified sub-string in the string.
@@ -1149,7 +885,7 @@ public:
      * @param   cs          Case sensitivity selector.
      * @remarks QString::count
      */
-    size_t count(const char *psz, CaseSensitivity cs = CaseSensitive) const RT_NOEXCEPT;
+    size_t count(const char *psz, CaseSensitivity cs = CaseSensitive) const;
 
     /**
      * Count the occurences of the specified sub-string in the string.
@@ -1158,28 +894,28 @@ public:
      * @param   cs          Case sensitivity selector.
      * @remarks QString::count
      */
-    size_t count(const RTCString *pStr, CaseSensitivity cs = CaseSensitive) const RT_NOEXCEPT;
+    size_t count(const RTCString *pStr, CaseSensitivity cs = CaseSensitive) const;
 
     /**
      * Strips leading and trailing spaces.
      *
      * @returns this
      */
-    RTCString &strip() RT_NOEXCEPT;
+    RTCString &strip();
 
     /**
      * Strips leading spaces.
      *
      * @returns this
      */
-    RTCString &stripLeft() RT_NOEXCEPT;
+    RTCString &stripLeft();
 
     /**
      * Strips trailing spaces.
      *
      * @returns this
      */
-    RTCString &stripRight() RT_NOEXCEPT;
+    RTCString &stripRight();
 
     /**
      * Returns a substring of @a this as a new Utf8Str.
@@ -1221,7 +957,7 @@ public:
      * @param   cs      Case sensitivity selector.
      * @returns true if match, false if mismatch.
      */
-    bool endsWith(const RTCString &that, CaseSensitivity cs = CaseSensitive) const RT_NOEXCEPT;
+    bool endsWith(const RTCString &that, CaseSensitivity cs = CaseSensitive) const;
 
     /**
      * Returns true if @a this begins with @a that.
@@ -1229,7 +965,7 @@ public:
      * @param   cs      Case sensitivity selector.
      * @returns true if match, false if mismatch.
      */
-    bool startsWith(const RTCString &that, CaseSensitivity cs = CaseSensitive) const RT_NOEXCEPT;
+    bool startsWith(const RTCString &that, CaseSensitivity cs = CaseSensitive) const;
 
     /**
      * Checks if the string starts with the given word, ignoring leading blanks.
@@ -1238,7 +974,7 @@ public:
      * @param   enmCase Case sensitivity selector.
      * @returns true if match, false if mismatch.
      */
-    bool startsWithWord(const char *pszWord, CaseSensitivity enmCase = CaseSensitive) const RT_NOEXCEPT;
+    bool startsWithWord(const char *pszWord, CaseSensitivity enmCase = CaseSensitive) const;
 
     /**
      * Checks if the string starts with the given word, ignoring leading blanks.
@@ -1247,7 +983,7 @@ public:
      * @param   enmCase Case sensitivity selector.
      * @returns true if match, false if mismatch.
      */
-    bool startsWithWord(const RTCString &rThat, CaseSensitivity enmCase = CaseSensitive) const RT_NOEXCEPT;
+    bool startsWithWord(const RTCString &rThat, CaseSensitivity enmCase = CaseSensitive) const;
 
     /**
      * Returns true if @a this contains @a that (strstr).
@@ -1256,7 +992,7 @@ public:
      * @param   cs      Case sensitivity selector.
      * @returns true if found, false if not found.
      */
-    bool contains(const RTCString &that, CaseSensitivity cs = CaseSensitive) const RT_NOEXCEPT;
+    bool contains(const RTCString &that, CaseSensitivity cs = CaseSensitive) const;
 
     /**
      * Returns true if @a this contains @a pszNeedle (strstr).
@@ -1265,7 +1001,7 @@ public:
      * @param   cs          Case sensitivity selector.
      * @returns true if found, false if not found.
      */
-    bool contains(const char *pszNeedle, CaseSensitivity cs = CaseSensitive) const RT_NOEXCEPT;
+    bool contains(const char *pszNeedle, CaseSensitivity cs = CaseSensitive) const;
 
     /**
      * Attempts to convert the member string into a 32-bit integer.
@@ -1273,7 +1009,7 @@ public:
      * @returns 32-bit unsigned number on success.
      * @returns 0 on failure.
      */
-    int32_t toInt32() const RT_NOEXCEPT
+    int32_t toInt32() const
     {
         return RTStrToInt32(c_str());
     }
@@ -1284,7 +1020,7 @@ public:
      * @returns 32-bit unsigned number on success.
      * @returns 0 on failure.
      */
-    uint32_t toUInt32() const RT_NOEXCEPT
+    uint32_t toUInt32() const
     {
         return RTStrToUInt32(c_str());
     }
@@ -1295,7 +1031,7 @@ public:
      * @returns 64-bit unsigned number on success.
      * @returns 0 on failure.
      */
-    int64_t toInt64() const RT_NOEXCEPT
+    int64_t toInt64() const
     {
         return RTStrToInt64(c_str());
     }
@@ -1306,7 +1042,7 @@ public:
      * @returns 64-bit unsigned number on success.
      * @returns 0 on failure.
      */
-    uint64_t toUInt64() const RT_NOEXCEPT
+    uint64_t toUInt64() const
     {
         return RTStrToUInt64(c_str());
     }
@@ -1317,7 +1053,7 @@ public:
      * @param   i       Where to return the value on success.
      * @returns IPRT error code, see RTStrToInt64.
      */
-    int toInt(uint64_t &i) const RT_NOEXCEPT;
+    int toInt(uint64_t &i) const;
 
     /**
      * Attempts to convert the member string into an unsigned 32-bit integer.
@@ -1325,7 +1061,7 @@ public:
      * @param   i       Where to return the value on success.
      * @returns IPRT error code, see RTStrToInt32.
      */
-    int toInt(uint32_t &i) const RT_NOEXCEPT;
+    int toInt(uint32_t &i) const;
 
     /** Splitting behavior regarding empty sections in the string. */
     enum SplitMode
@@ -1340,7 +1076,6 @@ public:
      * @param   a_rstrSep   The separator to search for.
      * @param   a_enmMode   How should empty parts be handled.
      * @returns separated strings as string list.
-     * @throws  std::bad_alloc  On allocation error.
      */
     RTCList<RTCString, RTCString *> split(const RTCString &a_rstrSep,
                                           SplitMode a_enmMode = RemoveEmptyParts) const;
@@ -1353,7 +1088,6 @@ public:
      * @param   a_rstrPrefix    The prefix used for appending to each item.
      * @param   a_rstrSep       The separator used for joining.
      * @returns joined string.
-     * @throws  std::bad_alloc  On allocation error.
      */
     static RTCString joinEx(const RTCList<RTCString, RTCString *> &a_rList,
                             const RTCString &a_rstrPrefix /* = "" */,
@@ -1365,7 +1099,6 @@ public:
      * @param   a_rList     The list to join.
      * @param   a_rstrSep   The separator used for joining.
      * @returns joined string.
-     * @throws  std::bad_alloc  On allocation error.
      */
     static RTCString join(const RTCList<RTCString, RTCString *> &a_rList,
                           const RTCString &a_rstrSep = "");
@@ -1377,7 +1110,7 @@ public:
      *
      * @param   a_rThat  The string to swap with.
      */
-    inline void swap(RTCString &a_rThat) RT_NOEXCEPT
+    inline void swap(RTCString &a_rThat) throw()
     {
         char   *pszTmp         = m_psz;
         size_t  cchTmp         = m_cch;
@@ -1403,7 +1136,7 @@ protected:
      * Destructor implementation, also used to clean up in operator=() before
      * assigning a new string.
      */
-    void cleanup() RT_NOEXCEPT
+    void cleanup()
     {
         if (m_psz)
         {
@@ -1474,17 +1207,6 @@ protected:
     RTCString &appendWorker(const char *pszSrc, size_t cchSrc);
 
     /**
-     * Appends exactly @a cchSrc chars from @a pszSrc to @a this.
-     *
-     * This is an internal worker for the appendNoThrow() methods.
-     *
-     * @returns VINF_SUCCESS or VERR_NO_STRING_MEMORY.
-     * @param   pszSrc          The source string.
-     * @param   cchSrc          The source string length (exact).
-     */
-    int appendWorkerNoThrow(const char *pszSrc, size_t cchSrc) RT_NOEXCEPT;
-
-    /**
      * Replaces exatly @a cchLength chars at @a offStart with @a cchSrc from @a
      * pszSrc.
      *
@@ -1499,21 +1221,7 @@ protected:
      */
     RTCString &replaceWorker(size_t offStart, size_t cchLength, const char *pszSrc, size_t cchSrc);
 
-    /**
-     * Replaces exatly @a cchLength chars at @a offStart with @a cchSrc from @a
-     * pszSrc.
-     *
-     * @returns VINF_SUCCESS, VERR_OUT_OF_RANGE or VERR_NO_STRING_MEMORY.
-     * @param   offStart        Where in @a this string to start replacing.
-     * @param   cchLength       How much following @a offStart to replace.  npos is
-     *                          accepted.
-     * @param   pszSrc          The replacement string.
-     * @param   cchSrc          The exactly length of the replacement string.
-     */
-    int replaceWorkerNoThrow(size_t offStart, size_t cchLength, const char *pszSrc, size_t cchSrc) RT_NOEXCEPT;
-
     static DECLCALLBACK(size_t) printfOutputCallback(void *pvArg, const char *pachChars, size_t cbChars);
-    static DECLCALLBACK(size_t) printfOutputCallbackNoThrow(void *pvArg, const char *pachChars, size_t cbChars) RT_NOEXCEPT;
 
     char   *m_psz;                      /**< The string buffer. */
     size_t  m_cch;                      /**< strlen(m_psz) - i.e. no terminator included. */
@@ -1601,5 +1309,5 @@ protected:
 
 /** @} */
 
-#endif /* !IPRT_INCLUDED_cpp_ministring_h */
+#endif
 

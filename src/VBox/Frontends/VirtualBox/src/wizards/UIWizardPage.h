@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,82 +15,66 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_wizards_UIWizardPage_h
-#define FEQT_INCLUDED_SRC_wizards_UIWizardPage_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIWizardPage_h___
+#define ___UIWizardPage_h___
 
-/* Qt includes: */
+/* Global includes: */
 #include <QVariant>
 #include <QWizardPage>
 
-/* GUI includes: */
+/* Local includes: */
 #include "QIWithRetranslateUI.h"
-#include "UILibraryDefs.h"
 
 /* Forward declarations: */
 class UIWizard;
 class UIWizardPage;
 
-
-/** One of two interfaces for wizard page.
-  * This is page-BASE providing access API for basic/expert pages. */
-class SHARED_LIBRARY_STUFF UIWizardPageBase
+/* One of interfaces for wizard page,
+ * providing API for basic/expert pages. */
+class UIWizardPageBase
 {
 public:
-
-    /** Destructs wizard page-base. */
     virtual ~UIWizardPageBase() { /* Makes MSC happy. */ }
 
 protected:
 
-    /** Returns wizard this page-base belongs to. */
-    virtual UIWizard *wizardImp();
-
-    /** Returns wizard page this page-base belongs to. */
-    virtual UIWizardPage *thisImp();
-
-    /** Returns page field with certain @a strFieldName. */
+    /* Helpers: */
+    virtual UIWizard* wizardImp();
+    virtual UIWizardPage* thisImp();
     virtual QVariant fieldImp(const QString &strFieldName) const;
 };
 
-
-/** One of two interfaces for wizard page.
-  * This is page-BODY based on QWizardPage with advanced functionality. */
-class SHARED_LIBRARY_STUFF UIWizardPage : public QIWithRetranslateUI<QWizardPage>
+/* One of interfaces for wizard page,
+ * QWizardPage class reimplementation with extended funtionality. */
+class UIWizardPage : public QIWithRetranslateUI<QWizardPage>
 {
     Q_OBJECT;
 
 public:
 
-    /** Constructs wizard page. */
+    /* Constructor: */
     UIWizardPage();
 
-    /** Redirects the translation call to actual handler. */
+    /* Translation stuff: */
     void retranslate() { retranslateUi(); }
 
-    /** Marks page ready. */
+    /* Prepare stuff: */
     void markReady();
 
-    /** Defines page @a strTitle. */
+    /* Title stuff: */
     void setTitle(const QString &strTitle);
 
 protected:
 
-    /** Returns wizard this page belongs to. */
-    UIWizard *wizard() const;
-
-    /** Starts page processing.  */
+    /* Helpers: */
+    UIWizard* wizard() const;
     void startProcessing();
-    /** Ends page processing.  */
     void endProcessing();
 
-    /** Holds whether page is ready. */
+    /* Variables: */
     bool m_fReady;
-    /** Holds the page title. */
     QString m_strTitle;
 };
 
+#endif
 
-#endif /* !FEQT_INCLUDED_SRC_wizards_UIWizardPage_h */

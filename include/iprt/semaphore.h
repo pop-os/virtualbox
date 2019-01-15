@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_semaphore_h
-#define IPRT_INCLUDED_semaphore_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_semaphore_h
+#define ___iprt_semaphore_h
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -166,10 +163,6 @@ RTDECL(int)  RTSemEventDestroy(RTSEMEVENT hEventSem);
  * @remarks ring-0: This works when preemption is disabled.  However it is
  *          system specific whether it works in interrupt context or with
  *          interrupts disabled.
- *
- *          ring-0/Darwin: This works when interrupts are disabled and thereby
- *          in interrupt context, except it cannot race semaphore destruction as
- *          the allocator does not work under these circumstances.
  */
 RTDECL(int)  RTSemEventSignal(RTSEMEVENT hEventSem);
 
@@ -331,10 +324,6 @@ RTDECL(int)  RTSemEventMultiDestroy(RTSEMEVENTMULTI hEventMultiSem);
  * @remarks ring-0: This works when preemption is disabled.  However it is
  *          system specific whether it works in interrupt context or with
  *          interrupts disabled.
- *
- *          ring-0/Darwin: This works when interrupts are disabled and thereby
- *          in interrupt context, except it cannot race semaphore destruction as
- *          the allocator does not work under these circumstances.
  */
 RTDECL(int)  RTSemEventMultiSignal(RTSEMEVENTMULTI hEventMultiSem);
 
@@ -632,7 +621,7 @@ RTDECL(bool) RTSemMutexIsOwned(RTSEMMUTEX hMutexSem);
 
 /* Strict build: Remap the two request calls to the debug versions. */
 #if   defined(RT_STRICT) && !defined(RTSEMMUTEX_WITHOUT_REMAPPING) && !defined(RT_WITH_MANGLING)
-# ifdef IPRT_INCLUDED_asm_h
+# ifdef ___iprt_asm_h
 #  define RTSemMutexRequest(hMutexSem, cMillies)            RTSemMutexRequestDebug((hMutexSem), (cMillies), (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
 #  define RTSemMutexRequestNoResume(hMutexSem, cMillies)    RTSemMutexRequestNoResumeDebug((hMutexSem), (cMillies), (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
 #  define RTSemMutexRequestEx(hMutexSem, fFlags, uTimeout)  RTSemMutexRequestExDebug((hMutexSem), (fFlags), (uTimeout), (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
@@ -1142,7 +1131,7 @@ RTDECL(uint32_t) RTSemRWGetReadCount(RTSEMRW hRWSem);
 
 /* Strict build: Remap the four request calls to the debug versions. */
 #if defined(RT_STRICT) && !defined(RTSEMRW_WITHOUT_REMAPPING) && !defined(RT_WITH_MANGLING)
-# ifdef IPRT_INCLUDED_asm_h
+# ifdef ___iprt_asm_h
 #  define RTSemRWRequestRead(hRWSem, cMillies)              RTSemRWRequestReadDebug((hRWSem), (cMillies), (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
 #  define RTSemRWRequestReadNoResume(hRWSem, cMillies)      RTSemRWRequestReadNoResumeDebug((hRWSem), (cMillies), (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
 #  define RTSemRWRequestWrite(hRWSem, cMillies)             RTSemRWRequestWriteDebug((hRWSem), (cMillies), (uintptr_t)ASMReturnAddress(), RT_SRC_POS)
@@ -1416,5 +1405,5 @@ RTDECL(int) RTSemXRoadsEWLeave(RTSEMXROADS hXRoads);
 
 RT_C_DECLS_END
 
-#endif /* !IPRT_INCLUDED_semaphore_h */
+#endif
 

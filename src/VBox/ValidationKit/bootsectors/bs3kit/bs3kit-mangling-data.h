@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,12 +28,8 @@
 /*
  * First part is only applied once.  It concerns itself with data symbols.
  */
-
-#ifndef BS3KIT_INCLUDED_bs3kit_mangling_data_h
-#define BS3KIT_INCLUDED_bs3kit_mangling_data_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___bs3kit_mangling_data_h
+#define ___bs3kit_mangling_data_h
 
 #if 0 /* the object converter deals with this now  */
 #if ARCH_BITS == 64
@@ -281,5 +277,5 @@
 #endif /* ARCH_BITS == 64 */
 #endif /* not needed */
 
-#endif /* !BS3KIT_INCLUDED_bs3kit_mangling_data_h */
+#endif /* !___bs3kit_mangling_data_h */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,13 +15,19 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Qt includes: */
-#include <QCoreApplication>
-#include <QStringList>
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* GUI includes: */
-#include "VBoxGlobal.h"
-#include "UIUpdateDefs.h"
+/* Global includes: */
+# include <QCoreApplication>
+# include <QStringList>
+
+/* Local includes: */
+# include "UIUpdateDefs.h"
+# include "VBoxGlobal.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 /* static: */
@@ -33,9 +39,8 @@ void VBoxUpdateData::populate()
     /* Clear list initially: */
     m_dayList.clear();
 
-    // WORKAROUND:
-    // To avoid re-translation complexity
-    // all values will be retranslated separately.
+    /* To avoid re-translation complexity
+     * all values will be retranslated separately: */
 
     /* Separately retranslate each day: */
     m_dayList << VBoxUpdateDay(QCoreApplication::translate("UIUpdateManager", "1 day"),  "1 d");
@@ -59,22 +64,22 @@ QStringList VBoxUpdateData::list()
 {
     QStringList result;
     for (int i = 0; i < m_dayList.size(); ++i)
-        result << m_dayList.at(i).val;
+        result << m_dayList[i].val;
     return result;
 }
 
 VBoxUpdateData::VBoxUpdateData(const QString &strData)
     : m_strData(strData)
-    , m_enmPeriodIndex(Period1Day)
-    , m_enmBranchIndex(BranchStable)
+    , m_periodIndex(Period1Day)
+    , m_branchIndex(BranchStable)
 {
     decode();
 }
 
-VBoxUpdateData::VBoxUpdateData(PeriodType enmPeriodIndex, BranchType enmBranchIndex)
+VBoxUpdateData::VBoxUpdateData(PeriodType periodIndex, BranchType branchIndex)
     : m_strData(QString())
-    , m_enmPeriodIndex(enmPeriodIndex)
-    , m_enmBranchIndex(enmBranchIndex)
+    , m_periodIndex(periodIndex)
+    , m_branchIndex(branchIndex)
 {
     encode();
 }
@@ -82,7 +87,7 @@ VBoxUpdateData::VBoxUpdateData(PeriodType enmPeriodIndex, BranchType enmBranchIn
 bool VBoxUpdateData::isNoNeedToCheck() const
 {
     /* Return 'false' if Period == Never: */
-    return m_enmPeriodIndex == PeriodNever;
+    return m_periodIndex == PeriodNever;
 }
 
 bool VBoxUpdateData::isNeedToCheck() const
@@ -110,7 +115,7 @@ QString VBoxUpdateData::data() const
 
 VBoxUpdateData::PeriodType VBoxUpdateData::periodIndex() const
 {
-    return m_enmPeriodIndex;
+    return m_periodIndex;
 }
 
 QString VBoxUpdateData::date() const
@@ -120,12 +125,12 @@ QString VBoxUpdateData::date() const
 
 VBoxUpdateData::BranchType VBoxUpdateData::branchIndex() const
 {
-    return m_enmBranchIndex;
+    return m_branchIndex;
 }
 
 QString VBoxUpdateData::branchName() const
 {
-    switch (m_enmBranchIndex)
+    switch (m_branchIndex)
     {
         case BranchStable:
             return "stable";
@@ -146,7 +151,7 @@ void VBoxUpdateData::decode()
 {
     /* Parse standard values: */
     if (m_strData == "never")
-        m_enmPeriodIndex = PeriodNever;
+        m_periodIndex = PeriodNever;
     /* Parse other values: */
     else
     {
@@ -158,7 +163,7 @@ void VBoxUpdateData::decode()
             if (m_dayList.isEmpty())
                 populate();
             PeriodType index = (PeriodType)m_dayList.indexOf(VBoxUpdateDay(QString(), parser[0]));
-            m_enmPeriodIndex = index == PeriodUndefined ? Period1Day : index;
+            m_periodIndex = index == PeriodUndefined ? Period1Day : index;
         }
 
         /* Parse 'date' value: */
@@ -172,7 +177,7 @@ void VBoxUpdateData::decode()
         if (parser.size() > 2)
         {
             QString branch(parser[2]);
-            m_enmBranchIndex = branch == "withbetas" ? BranchWithBetas :
+            m_branchIndex = branch == "withbetas" ? BranchWithBetas :
                             branch == "allrelease" ? BranchAllRelease : BranchStable;
         }
 
@@ -187,7 +192,7 @@ void VBoxUpdateData::decode()
 void VBoxUpdateData::encode()
 {
     /* Encode standard values: */
-    if (m_enmPeriodIndex == PeriodNever)
+    if (m_periodIndex == PeriodNever)
         m_strData = "never";
     /* Encode other values: */
     else
@@ -195,7 +200,7 @@ void VBoxUpdateData::encode()
         /* Encode 'period' value: */
         if (m_dayList.isEmpty())
             populate();
-        QString remindPeriod = m_dayList[m_enmPeriodIndex].key;
+        QString remindPeriod = m_dayList[m_periodIndex].key;
 
         /* Encode 'date' value: */
         m_date = QDate::currentDate();
@@ -209,8 +214,8 @@ void VBoxUpdateData::encode()
         QString remindDate = m_date.toString(Qt::ISODate);
 
         /* Encode 'branch' value: */
-        QString branchValue = m_enmBranchIndex == BranchWithBetas ? "withbetas" :
-                              m_enmBranchIndex == BranchAllRelease ? "allrelease" : "stable";
+        QString branchValue = m_branchIndex == BranchWithBetas ? "withbetas" :
+                              m_branchIndex == BranchAllRelease ? "allrelease" : "stable";
 
         /* Encode 'version' value: */
         QString versionValue = UIVersion(vboxGlobal().vboxVersionStringNormalized()).toString();

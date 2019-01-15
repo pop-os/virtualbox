@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2019 Oracle Corporation
+ * Copyright (C) 2014-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -278,7 +278,7 @@ HRESULT GuestDnDSource::dragIsPending(ULONG uScreenId, GuestDnDMIMEList &aFormat
             fFetchResult = false;
 
         if (   fFetchResult
-            && isDnDIgnoreAction(pResp->getActionDefault()))
+            && isDnDIgnoreAction(pResp->defAction()))
             fFetchResult = false;
 
         /* Fetch the default action to use. */
@@ -298,9 +298,9 @@ HRESULT GuestDnDSource::dragIsPending(ULONG uScreenId, GuestDnDMIMEList &aFormat
                     LogRel3(("DnD:\tFormat #%zu: %s\n", i, lstFiltered.at(i).c_str()));
 
                 aFormats            = lstFiltered;
-                aAllowedActions     = GuestDnD::toMainActions(pResp->getActionsAllowed());
+                aAllowedActions     = GuestDnD::toMainActions(pResp->allActions());
                 if (aDefaultAction)
-                    *aDefaultAction = GuestDnD::toMainAction(pResp->getActionDefault());
+                    *aDefaultAction = GuestDnD::toMainAction(pResp->defAction());
 
                 /* Apply the (filtered) formats list. */
                 m_lstFmtOffered     = lstFiltered;
@@ -309,7 +309,7 @@ HRESULT GuestDnDSource::dragIsPending(ULONG uScreenId, GuestDnDMIMEList &aFormat
                 LogRel2(("DnD: Negotiation of formats between guest and host failed, drag and drop to host not possible\n"));
         }
 
-        LogFlowFunc(("fFetchResult=%RTbool, lstActionsAllowed=0x%x\n", fFetchResult, pResp->getActionsAllowed()));
+        LogFlowFunc(("fFetchResult=%RTbool, allActions=0x%x\n", fFetchResult, pResp->allActions()));
     }
 
     LogFlowFunc(("hr=%Rhrc\n", hr));
@@ -336,8 +336,8 @@ HRESULT GuestDnDSource::drop(const com::Utf8Str &aFormat, DnDAction_T aAction, C
     if (!GuestDnD::isFormatInFormatList(aFormat, m_lstFmtOffered))
         return setError(E_INVALIDARG, tr("Specified format '%s' is not supported"), aFormat.c_str());
 
-    VBOXDNDACTION dndAction = GuestDnD::toHGCMAction(aAction);
-    if (isDnDIgnoreAction(dndAction)) /* If there is no usable action, ignore this request. */
+    uint32_t uAction = GuestDnD::toHGCMAction(aAction);
+    if (isDnDIgnoreAction(uAction)) /* If there is no usable action, ignore this request. */
         return S_OK;
 
     AutoWriteLock alock(this COMMA_LOCKVAL_SRC_POS);
@@ -399,7 +399,7 @@ HRESULT GuestDnDSource::drop(const com::Utf8Str &aFormat, DnDAction_T aAction, C
         /* Note: pTask is now owned by the worker thread. */
     }
     else
-        hr = setError(hr, tr("Starting thread for GuestDnDSource::i_receiveDataThread failed (%Rhrc)"), hr);
+        hr = setError(VBOX_E_IPRT_ERROR, tr("Starting thread for GuestDnDSource::i_receiveDataThread failed (%Rhrc)"), hr);
     /* Note: mDataBase.mfTransferIsPending will be set to false again by i_receiveDataThread. */
 
     LogFlowFunc(("Returning hr=%Rhrc\n", hr));
@@ -692,7 +692,7 @@ int GuestDnDSource::i_onReceiveDir(PRECVDATACTX pCtx, const char *pszPath, uint3
 
     GuestDnDURIObjCtx &objCtx = pCtx->mURI.getObj(0); /** @todo Fill in context ID. */
 
-    rc = objCtx.createIntermediate(DnDURIObject::Type_Directory);
+    rc = objCtx.createIntermediate(DnDURIObject::Directory);
     if (RT_FAILURE(rc))
         return rc;
 
@@ -718,7 +718,7 @@ int GuestDnDSource::i_onReceiveDir(PRECVDATACTX pCtx, const char *pszPath, uint3
             AssertRC(rc2);
 
             objCtx.reset();
-            LogRel2(("DnD: Created guest directory '%s' on host\n", pszDir));
+            LogRel2(("DnD: Created guest directory on host: %s\n", pszDir));
         }
         else
             LogRel(("DnD: Error creating guest directory '%s' on host, rc=%Rrc\n", pszDir, rc));
@@ -780,14 +780,14 @@ int GuestDnDSource::i_onReceiveFileHdr(PRECVDATACTX pCtx, const char *pszPath, u
             if (    pObj->IsOpen()
                 && !pObj->IsComplete())
             {
-                AssertMsgFailed(("Object '%s' not complete yet\n", pObj->GetDestPathAbs().c_str()));
+                AssertMsgFailed(("Object '%s' not complete yet\n", pObj->GetDestPath().c_str()));
                 rc = VERR_WRONG_ORDER;
                 break;
             }
 
             if (pObj->IsOpen()) /* File already opened? */
             {
-                AssertMsgFailed(("Current opened object is '%s', close this first\n", pObj->GetDestPathAbs().c_str()));
+                AssertMsgFailed(("Current opened object is '%s', close this first\n", pObj->GetDestPath().c_str()));
                 rc = VERR_WRONG_ORDER;
                 break;
             }
@@ -797,7 +797,7 @@ int GuestDnDSource::i_onReceiveFileHdr(PRECVDATACTX pCtx, const char *pszPath, u
             /*
              * Create new intermediate object to work with.
              */
-            rc = objCtx.createIntermediate(DnDURIObject::Type_File);
+            rc = objCtx.createIntermediate();
         }
 
         if (RT_SUCCESS(rc))
@@ -823,10 +823,10 @@ int GuestDnDSource::i_onReceiveFileHdr(PRECVDATACTX pCtx, const char *pszPath, u
                 break;
             }
 
-            LogRel2(("DnD: Absolute file path for guest file on the host is now '%s'\n", pszPathAbs));
+            LogFunc(("Rebased to: %s\n", pszPathAbs));
 
             /** @todo Add sparse file support based on fFlags? (Use Open(..., fFlags | SPARSE). */
-            rc = pObj->OpenEx(pszPathAbs, DnDURIObject::View_Target,
+            rc = pObj->OpenEx(pszPathAbs, DnDURIObject::File, DnDURIObject::Target,
                               RTFILE_O_CREATE_REPLACE | RTFILE_O_WRITE | RTFILE_O_DENY_WRITE,
                               (fMode & RTFS_UNIX_MASK) | RTFS_UNIX_IRUSR | RTFS_UNIX_IWUSR);
             if (RT_SUCCESS(rc))
@@ -835,8 +835,6 @@ int GuestDnDSource::i_onReceiveFileHdr(PRECVDATACTX pCtx, const char *pszPath, u
                 int rc2 = pCtx->mURI.getDroppedFiles().AddFile(pszPathAbs);
                 AssertRC(rc2);
             }
-            else
-                LogRel(("DnD: Error opening/creating guest file '%s' on host, rc=%Rrc\n", pszPathAbs, rc));
         }
 
         if (RT_SUCCESS(rc))
@@ -846,8 +844,8 @@ int GuestDnDSource::i_onReceiveFileHdr(PRECVDATACTX pCtx, const char *pszPath, u
                 rc = pObj->SetSize(cbSize);
 
             /** @todo Unescpae path before printing. */
-            LogRel2(("DnD: Transferring guest file '%s' to host (%RU64 bytes, mode 0x%x)\n",
-                     pObj->GetDestPathAbs().c_str(), pObj->GetSize(), pObj->GetMode()));
+            LogRel2(("DnD: Transferring guest file to host: %s (%RU64 bytes, mode 0x%x)\n",
+                     pObj->GetDestPath().c_str(), pObj->GetSize(), pObj->GetMode()));
 
             /** @todo Set progress object title to current file being transferred? */
 
@@ -855,10 +853,14 @@ int GuestDnDSource::i_onReceiveFileHdr(PRECVDATACTX pCtx, const char *pszPath, u
                 pObj->Close();
         }
 
-    } while (0);
+        if (RT_FAILURE(rc))
+        {
+            LogRel2(("DnD: Error opening/creating guest file '%s' on host, rc=%Rrc\n",
+                     pObj->GetDestPath().c_str(), rc));
+            break;
+        }
 
-    if (RT_FAILURE(rc))
-        LogRel(("DnD: Error receiving guest file header, rc=%Rrc\n", rc));
+    } while (0);
 
     LogFlowFuncLeaveRC(rc);
     return rc;
@@ -894,14 +896,14 @@ int GuestDnDSource::i_onReceiveFileData(PRECVDATACTX pCtx, const void *pvData, u
 
         if (pObj->IsComplete())
         {
-            LogFlowFunc(("Warning: Object '%s' already completed\n", pObj->GetDestPathAbs().c_str()));
+            LogFlowFunc(("Warning: Object '%s' already completed\n", pObj->GetDestPath().c_str()));
             rc = VERR_WRONG_ORDER;
             break;
         }
 
         if (!pObj->IsOpen()) /* File opened on host? */
         {
-            LogFlowFunc(("Warning: Object '%s' not opened\n", pObj->GetDestPathAbs().c_str()));
+            LogFlowFunc(("Warning: Object '%s' not opened\n", pObj->GetDestPath().c_str()));
             rc = VERR_WRONG_ORDER;
             break;
         }
@@ -920,24 +922,26 @@ int GuestDnDSource::i_onReceiveFileData(PRECVDATACTX pCtx, const void *pvData, u
             if (RT_SUCCESS(rc))
                 rc = updateProgress(&pCtx->mData, pCtx->mpResp, cbWritten);
         }
-        else
-            LogRel(("DnD: Error writing guest file data for '%s', rc=%Rrc\n", pObj->GetDestPathAbs().c_str(), rc));
+        else /* Something went wrong; close the object. */
+            pObj->Close();
 
         if (RT_SUCCESS(rc))
         {
             if (pObj->IsComplete())
             {
                 /** @todo Sanitize path. */
-                LogRel2(("DnD: Transferring guest file '%s' to host complete\n", pObj->GetDestPathAbs().c_str()));
+                LogRel2(("DnD: File transfer to host complete: %s\n", pObj->GetDestPath().c_str()));
                 pCtx->mURI.processObject(*pObj);
                 objCtx.reset();
             }
         }
+        else
+        {
+            /** @todo What to do when the host's disk is full? */
+            LogRel(("DnD: Error writing guest file to host to '%s': %Rrc\n", pObj->GetDestPath().c_str(), rc));
+        }
 
     } while (0);
-
-    if (RT_FAILURE(rc))
-        LogRel(("DnD: Error receiving guest file data, rc=%Rrc\n", rc));
 
     LogFlowFuncLeaveRC(rc);
     return rc;
@@ -952,6 +956,11 @@ int GuestDnDSource::i_receiveData(PRECVDATACTX pCtx, RTMSINTERVAL msTimeout)
 {
     AssertPtrReturn(pCtx, VERR_INVALID_POINTER);
 
+    /* Is this context already in receiving state? */
+    if (ASMAtomicReadBool(&pCtx->mIsActive))
+        return VERR_WRONG_ORDER;
+    ASMAtomicWriteBool(&pCtx->mIsActive, true);
+
     GuestDnD *pInst = GuestDnDInst();
     if (!pInst)
         return VERR_INVALID_POINTER;
@@ -962,11 +971,6 @@ int GuestDnDSource::i_receiveData(PRECVDATACTX pCtx, RTMSINTERVAL msTimeout)
     int rc = pCtx->mCBEvent.Reset();
     if (RT_FAILURE(rc))
         return rc;
-
-    /* Is this context already in receiving state? */
-    if (ASMAtomicReadBool(&pCtx->mIsActive))
-        return VERR_WRONG_ORDER;
-    ASMAtomicWriteBool(&pCtx->mIsActive, true);
 
     /*
      * Reset any old data.
@@ -1061,11 +1065,12 @@ void GuestDnDSource::i_receiveDataThreadTask(RecvDataTask *pTask)
         return;
 
     int vrc = pThis->i_receiveData(pTask->getCtx(), RT_INDEFINITE_WAIT /* msTimeout */);
-    if (RT_FAILURE(vrc)) /* In case we missed some error handling within i_receiveData(). */
-    {
-        AssertFailed();
-        LogRel(("DnD: Receiving data from guest failed with %Rrc\n", vrc));
-    }
+    AssertRC(vrc);
+/** @todo
+ *
+ *  r=bird: What happens with @a vrc?
+ *
+ */
 
     AutoWriteLock alock(pThis COMMA_LOCKVAL_SRC_POS);
 
@@ -1073,7 +1078,7 @@ void GuestDnDSource::i_receiveDataThreadTask(RecvDataTask *pTask)
     if (pThis->mDataBase.m_cTransfersPending)
         pThis->mDataBase.m_cTransfersPending--;
 
-    LogFlowFunc(("pSource=%p, vrc=%Rrc (ignored)\n", (GuestDnDSource *)pThis, vrc));
+    LogFlowFunc(("pSource=%p vrc=%Rrc (ignored)\n", (GuestDnDSource *)pThis, vrc));
 }
 
 int GuestDnDSource::i_receiveRawData(PRECVDATACTX pCtx, RTMSINTERVAL msTimeout)
@@ -1154,17 +1159,12 @@ int GuestDnDSource::i_receiveRawData(PRECVDATACTX pCtx, RTMSINTERVAL msTimeout)
 
     if (RT_FAILURE(rc))
     {
-        if (rc == VERR_CANCELLED) /* Transfer was cancelled by the host. */
+        if (rc == VERR_CANCELLED)
         {
-            /*
-             * Now that we've cleaned up tell the guest side to cancel.
-             * This does not imply we're waiting for the guest to react, as the
-             * host side never must depend on anything from the guest.
-             */
-            int rc2 = sendCancel();
+            int rc2 = pCtx->mpResp->setProgress(100, DND_PROGRESS_CANCELLED);
             AssertRC(rc2);
 
-            rc2 = pCtx->mpResp->setProgress(100, DND_PROGRESS_CANCELLED);
+            rc2 = sendCancel();
             AssertRC(rc2);
         }
         else if (rc != VERR_GSTDND_GUEST_ERROR) /* Guest-side error are already handled in the callback. */
@@ -1173,8 +1173,6 @@ int GuestDnDSource::i_receiveRawData(PRECVDATACTX pCtx, RTMSINTERVAL msTimeout)
                                                 rc, GuestDnDSource::i_hostErrorToString(rc));
             AssertRC(rc2);
         }
-
-        rc = VINF_SUCCESS; /* The error was handled by the setProgress() calls above. */
     }
 
     LogFlowFuncLeaveRC(rc);
@@ -1279,32 +1277,28 @@ int GuestDnDSource::i_receiveURIData(PRECVDATACTX pCtx, RTMSINTERVAL msTimeout)
 
     if (RT_FAILURE(rc))
     {
-        int rc2 = droppedFiles.Rollback();
-        if (RT_FAILURE(rc2))
-            LogRel(("DnD: Deleting left over temporary files failed (%Rrc), please remove directory '%s' manually\n",
-                    rc2, droppedFiles.GetDirAbs()));
-
         if (rc == VERR_CANCELLED)
         {
-            /*
-             * Now that we've cleaned up tell the guest side to cancel.
-             * This does not imply we're waiting for the guest to react, as the
-             * host side never must depend on anything from the guest.
-             */
-            rc2 = sendCancel();
+            int rc2 = pCtx->mpResp->setProgress(100, DND_PROGRESS_CANCELLED);
             AssertRC(rc2);
 
-            rc2 = pCtx->mpResp->setProgress(100, DND_PROGRESS_CANCELLED);
+            rc2 = sendCancel();
             AssertRC(rc2);
         }
         else if (rc != VERR_GSTDND_GUEST_ERROR) /* Guest-side error are already handled in the callback. */
         {
-            rc2 = pCtx->mpResp->setProgress(100, DND_PROGRESS_ERROR,
-                                            rc, GuestDnDSource::i_hostErrorToString(rc));
+            int rc2 = pCtx->mpResp->setProgress(100, DND_PROGRESS_ERROR,
+                                                rc, GuestDnDSource::i_hostErrorToString(rc));
             AssertRC(rc2);
         }
+    }
 
-        rc = VINF_SUCCESS; /* The error was handled by the setProgress() calls above. */
+    if (RT_FAILURE(rc))
+    {
+        int rc2 = droppedFiles.Rollback();
+        if (RT_FAILURE(rc2))
+            LogRel(("DnD: Deleting left over temporary files failed (%Rrc). Please remove directory manually: %s\n",
+                    rc2, droppedFiles.GetDirAbs()));
     }
 
     droppedFiles.Close();

@@ -420,7 +420,6 @@ UsbRegisterChangeNotification( PUSBNOTIFY pNotifyID,
 
   ulSize = sizeof(EventSet);
   EventSet.ulSize = ulSize;
-  EventSet.ulCaps = 0;
 
   if(hDeviceAdded!=0)
   {
@@ -428,7 +427,7 @@ UsbRegisterChangeNotification( PUSBNOTIFY pNotifyID,
     rc = DosQueryEventSem(hDeviceAdded,&ulCnt);
     if(rc)
       return rc;
-    EventSet.ulCaps         |= DEV_SEM_ADD;
+    EventSet.ulCaps         = DEV_SEM_ADD;
     EventSet.ulSemDeviceAdd = hDeviceAdded;
   }
 
@@ -1049,7 +1048,7 @@ APIEXPORT APIRET APIENTRY
 UsbIsoStop( ISOHANDLE hIso)
 {
 
-  APIRET rc = NO_ERROR;
+  APIRET rc;
   if(!g_cInit)
     return USB_NOT_INIT;
 

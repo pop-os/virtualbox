@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,11 +24,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef BS3KIT_INCLUDED_bs3_cmn_test_h
-#define BS3KIT_INCLUDED_bs3_cmn_test_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___bs3_cmn_test_h
+#define ___bs3_cmn_test_h
 
 #include "bs3kit.h"
 #include <VBox/VMMDevTesting.h>
@@ -165,5 +162,5 @@ typedef struct BS3TESTFAILEDBUF
 /** Pointer to a bs3TestFailedStrOutput buffer.  */
 typedef BS3TESTFAILEDBUF BS3_FAR *PBS3TESTFAILEDBUF;
 
-#endif /* !BS3KIT_INCLUDED_bs3_cmn_test_h */
+#endif
 

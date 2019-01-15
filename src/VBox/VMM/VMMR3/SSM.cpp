@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -3778,7 +3778,7 @@ VMMR3DECL(int) SSMR3PutStructEx(PSSMHANDLE pSSM, const void *pvStruct, size_t cb
         AssertMsgBreakStmt(   cbField            <= cbStruct
                            && offField + cbField <= cbStruct
                            && offField + cbField >= offField,
-                           ("offField=%#x cbField=%#x cbStruct=%#x (%s)\n", offField, cbField, cbStruct, pCur->pszName),
+                           ("off=%#x cb=%#x cbStruct=%#x (%s)\n", cbField, offField, cbStruct, pCur->pszName),
                            rc = VERR_SSM_FIELD_OUT_OF_BOUNDS);
         AssertMsgBreakStmt(   !(fFlags & SSMSTRUCT_FLAGS_FULL_STRUCT)
                            || off == offField,

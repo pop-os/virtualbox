@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_runtime_information_UIInformationModel_h
-#define FEQT_INCLUDED_SRC_runtime_information_UIInformationModel_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIInformationModel_h___
+#define ___UIInformationModel_h___
 
 /* Qt includes: */
 #include <QAbstractListModel>
@@ -83,5 +80,5 @@ private:
     QList<UIInformationDataItem*> m_list;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_runtime_information_UIInformationModel_h */
+#endif /* !___UIInformationModel_h___ */
 

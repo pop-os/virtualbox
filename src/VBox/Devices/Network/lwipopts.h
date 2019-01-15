@@ -1,9 +1,5 @@
-
-#ifndef VBOX_INCLUDED_SRC_Network_lwipopts_h
-#define VBOX_INCLUDED_SRC_Network_lwipopts_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef VBOX_LWIP_OPTS_H_
+#define VBOX_LWIP_OPTS_H_
 
 #include <VBox/cdefs.h>     /* For VBOX_STRICT. */
 #include <iprt/mem.h>
@@ -183,4 +179,4 @@
 
 #include "lwip-namespace.h"
 
-#endif /* !VBOX_INCLUDED_SRC_Network_lwipopts_h */
+#endif

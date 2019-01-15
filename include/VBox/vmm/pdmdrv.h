@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,28 +23,27 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef VBOX_INCLUDED_vmm_pdmdrv_h
-#define VBOX_INCLUDED_vmm_pdmdrv_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBox_vmm_pdmdrv_h
+#define ___VBox_vmm_pdmdrv_h
 
 #include <VBox/vmm/pdmqueue.h>
 #include <VBox/vmm/pdmcritsect.h>
+#include <VBox/vmm/pdmthread.h>
 #include <VBox/vmm/pdmifs.h>
 #include <VBox/vmm/pdmins.h>
 #include <VBox/vmm/pdmcommon.h>
-#ifdef IN_RING3
-# include <VBox/vmm/pdmthread.h>
-# include <VBox/vmm/pdmasynccompletion.h>
-# include <VBox/vmm/pdmblkcache.h>
-#endif
+#include <VBox/vmm/pdmasynccompletion.h>
+#ifdef VBOX_WITH_NETSHAPER
+#include <VBox/vmm/pdmnetshaper.h>
+#endif /* VBOX_WITH_NETSHAPER */
+#include <VBox/vmm/pdmblkcache.h>
 #include <VBox/vmm/tm.h>
 #include <VBox/vmm/ssm.h>
 #include <VBox/vmm/cfgm.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/mm.h>
 #include <VBox/vmm/ftm.h>
+#include <VBox/err.h>
 #include <iprt/stdarg.h>
 
 
@@ -1184,6 +1183,7 @@ typedef struct PDMDRVHLPR3
                                                                 PFNPDMASYNCCOMPLETEDRV pfnCompleted, void *pvTemplateUser,
                                                                 const char *pszDesc));
 
+#ifdef VBOX_WITH_NETSHAPER
     /**
      * Attaches network filter driver to a bandwidth group.
      *
@@ -1192,7 +1192,9 @@ typedef struct PDMDRVHLPR3
      * @param   pcszBwGroup     Name of the bandwidth group to attach to.
      * @param   pFilter         Pointer to the filter we attach.
      */
-    DECLR3CALLBACKMEMBER(int, pfnNetShaperAttach,(PPDMDRVINS pDrvIns, const char *pszBwGroup, PPDMNSFILTER pFilter));
+    DECLR3CALLBACKMEMBER(int, pfnNetShaperAttach,(PPDMDRVINS pDrvIns, const char *pszBwGroup,
+                                                  PPDMNSFILTER pFilter));
+
 
     /**
      * Detaches network filter driver to a bandwidth group.
@@ -1202,6 +1204,8 @@ typedef struct PDMDRVHLPR3
      * @param   pFilter         Pointer to the filter we attach.
      */
     DECLR3CALLBACKMEMBER(int, pfnNetShaperDetach,(PPDMDRVINS pDrvIns, PPDMNSFILTER pFilter));
+#endif /* VBOX_WITH_NETSHAPER */
+
 
     /**
      * Resolves the symbol for a raw-mode context interface.
@@ -1888,4 +1892,4 @@ VMMR3DECL(int) PDMR3DrvStaticRegistration(PVM pVM, FNPDMVBOXDRIVERSREGISTER pfnC
 
 RT_C_DECLS_END
 
-#endif /* !VBOX_INCLUDED_vmm_pdmdrv_h */
+#endif

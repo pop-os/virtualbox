@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,12 +14,8 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-
-#ifndef VBOX_INCLUDED_SRC_Storage_ATAPIPassthrough_h
-#define VBOX_INCLUDED_SRC_Storage_ATAPIPassthrough_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __ATAPIPassthrough_h
+#define __ATAPIPassthrough_h
 
 #include <VBox/cdefs.h>
 #include <VBox/vmm/pdmifs.h>
@@ -97,4 +93,4 @@ DECLHIDDEN(bool) ATAPIPassthroughParseCdb(const uint8_t *pbCdb, size_t cbCdb, si
 
 RT_C_DECLS_END
 
-#endif /* !VBOX_INCLUDED_SRC_Storage_ATAPIPassthrough_h */
+#endif /* __ATAPIPassthrough_h */

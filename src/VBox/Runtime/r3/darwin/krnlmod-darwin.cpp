@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,40 +30,16 @@
 *********************************************************************************************************************************/
 #define LOG_GROUP RTLOGGROUP_SYSTEM
 #include <iprt/krnlmod.h>
-
 #include <iprt/asm.h>
 #include <iprt/assert.h>
-#include <iprt/errcore.h>
-#include <iprt/ldr.h>
+#include <iprt/err.h>
 #include <iprt/mem.h>
-#include <iprt/once.h>
 #include <iprt/string.h>
 #include <iprt/types.h>
 
 #include <CoreFoundation/CoreFoundation.h>
 #include <IOKit/IOKitLib.h>
 
-
-/** @name Missing/private IOKitLib declarations and definitions.
- * @{  */
-/** OSKextCopyLoadedKextInfo in IOKit. */
-typedef CFDictionaryRef (* PFNOSKEXTCOPYLOADEDKEXTINFO)(CFArrayRef, CFArrayRef);
-
-#ifndef kOSBundleRetainCountKey
-# define kOSBundleRetainCountKey CFSTR("OSBundleRetainCount")
-#endif
-#ifndef kOSBundleLoadSizeKey
-# define kOSBundleLoadSizeKey CFSTR("OSBundleLoadSize")
-#endif
-#ifndef kOSBundleLoadAddressKey
-# define kOSBundleLoadAddressKey CFSTR("OSBundleLoadAddress")
-#endif
-/** @} */
-
-
-/*********************************************************************************************************************************
-*   Structures and Typedefs                                                                                                      *
-*********************************************************************************************************************************/
 /**
  * Internal kernel information record state.
  */
@@ -79,25 +55,25 @@ typedef RTKRNLMODINFOINT *PRTKRNLMODINFOINT;
 /** Pointer to a const internal kernel module information record. */
 typedef const RTKRNLMODINFOINT *PCRTKRNLMODINFOINT;
 
-
-/*********************************************************************************************************************************
-*   Global Variables                                                                                                             *
-*********************************************************************************************************************************/
-static RTONCE                       g_GetIoKitApisOnce = RTONCE_INITIALIZER;
-static PFNOSKEXTCOPYLOADEDKEXTINFO  g_pfnOSKextCopyLoadedKextInfo = NULL;
-
-/** Do-once callback for setting g_pfnOSKextCopyLoadedKextInfo.   */
-static DECLCALLBACK(int) rtKrnlModDarwinResolveIoKitApis(void *pvUser)
+/**
+ * The declarations are not exposed so we have to define them ourselves.
+ */
+extern "C"
 {
-    RTLDRMOD hMod;
-//    int rc = RTLdrLoad("/System/Library/Frameworks/IOKit.framework/Versions/Current/IOKit", &hMod);
-    int rc = RTLdrLoadEx("/System/Library/Frameworks/IOKit.framework/Versions/Current/IOKit", &hMod, RTLDRLOAD_FLAGS_NO_SUFFIX, NULL);
-    if (RT_SUCCESS(rc))
-        RTLdrGetSymbol(hMod, "OSKextCopyLoadedKextInfo",  (void **)&g_pfnOSKextCopyLoadedKextInfo);
-
-    RT_NOREF(pvUser);
-    return VINF_SUCCESS;
+    extern CFDictionaryRef OSKextCopyLoadedKextInfo(CFArrayRef, CFArrayRef);
 }
+
+#ifndef kOSBundleRetainCountKey
+# define kOSBundleRetainCountKey CFSTR("OSBundleRetainCount")
+#endif
+
+#ifndef kOSBundleLoadSizeKey
+# define kOSBundleLoadSizeKey CFSTR("OSBundleLoadSize")
+#endif
+
+#ifndef kOSBundleLoadAddressKey
+# define kOSBundleLoadAddressKey CFSTR("OSBundleLoadAddress")
+#endif
 
 /**
  * Returns the kext information dictionary structure matching the given name.
@@ -108,31 +84,26 @@ static DECLCALLBACK(int) rtKrnlModDarwinResolveIoKitApis(void *pvUser)
 static CFDictionaryRef rtKrnlModDarwinGetKextInfoByName(const char *pszName)
 {
     CFDictionaryRef hDictKext = NULL;
-
-    RTOnce(&g_GetIoKitApisOnce, rtKrnlModDarwinResolveIoKitApis, NULL);
-    if (g_pfnOSKextCopyLoadedKextInfo)
+    CFStringRef hKextName = CFStringCreateWithCString(kCFAllocatorDefault, pszName, kCFStringEncodingUTF8);
+    if (hKextName)
     {
-        CFStringRef hKextName = CFStringCreateWithCString(kCFAllocatorDefault, pszName, kCFStringEncodingUTF8);
-        if (hKextName)
+        CFArrayRef hArrKextIdRef = CFArrayCreate(kCFAllocatorDefault, (const void **)&hKextName, 1, &kCFTypeArrayCallBacks);
+        if (hArrKextIdRef)
         {
-            CFArrayRef hArrKextIdRef = CFArrayCreate(kCFAllocatorDefault, (const void **)&hKextName, 1, &kCFTypeArrayCallBacks);
-            if (hArrKextIdRef)
+            CFDictionaryRef hLoadedKexts = OSKextCopyLoadedKextInfo(hArrKextIdRef, NULL /* all info */);
+            if (hLoadedKexts)
             {
-                CFDictionaryRef hLoadedKexts = g_pfnOSKextCopyLoadedKextInfo(hArrKextIdRef, NULL /* all info */);
-                if (hLoadedKexts)
+                if (CFDictionaryGetCount(hLoadedKexts) > 0)
                 {
-                    if (CFDictionaryGetCount(hLoadedKexts) > 0)
-                    {
-                        hDictKext = (CFDictionaryRef)CFDictionaryGetValue(hLoadedKexts, hKextName);
-                        CFRetain(hDictKext);
-                    }
-
-                    CFRelease(hLoadedKexts);
+                    hDictKext = (CFDictionaryRef)CFDictionaryGetValue(hLoadedKexts, hKextName);
+                    CFRetain(hDictKext);
                 }
-                CFRelease(hArrKextIdRef);
+
+                CFRelease(hLoadedKexts);
             }
-            CFRelease(hKextName);
+            CFRelease(hArrKextIdRef);
         }
+        CFRelease(hKextName);
     }
 
     return hDictKext;
@@ -195,15 +166,11 @@ RTDECL(int) RTKrnlModLoadedQueryInfo(const char *pszName, PRTKRNLMODINFO phKrnlM
 RTDECL(uint32_t) RTKrnlModLoadedGetCount(void)
 {
     uint32_t cLoadedKexts = 0;
-    RTOnce(&g_GetIoKitApisOnce, rtKrnlModDarwinResolveIoKitApis, NULL);
-    if (g_pfnOSKextCopyLoadedKextInfo)
+    CFDictionaryRef hLoadedKexts = OSKextCopyLoadedKextInfo(NULL, NULL /* all info */);
+    if (hLoadedKexts)
     {
-        CFDictionaryRef hLoadedKexts = g_pfnOSKextCopyLoadedKextInfo(NULL, NULL /* all info */);
-        if (hLoadedKexts)
-        {
-            cLoadedKexts = CFDictionaryGetCount(hLoadedKexts);
-            CFRelease(hLoadedKexts);
-        }
+        cLoadedKexts = CFDictionaryGetCount(hLoadedKexts);
+        CFRelease(hLoadedKexts);
     }
 
     return cLoadedKexts;
@@ -216,62 +183,56 @@ RTDECL(int) RTKrnlModLoadedQueryInfoAll(PRTKRNLMODINFO pahKrnlModInfo, uint32_t 
     AssertReturn(VALID_PTR(pahKrnlModInfo) || cEntriesMax == 0, VERR_INVALID_PARAMETER);
 
     int rc = VINF_SUCCESS;
-    RTOnce(&g_GetIoKitApisOnce, rtKrnlModDarwinResolveIoKitApis, NULL);
-    if (g_pfnOSKextCopyLoadedKextInfo)
+    CFDictionaryRef hLoadedKexts = OSKextCopyLoadedKextInfo(NULL, NULL /* all info */);
+    if (hLoadedKexts)
     {
-        CFDictionaryRef hLoadedKexts = g_pfnOSKextCopyLoadedKextInfo(NULL, NULL /* all info */);
-        if (hLoadedKexts)
+        uint32_t cLoadedKexts = CFDictionaryGetCount(hLoadedKexts);
+        if (cLoadedKexts <= cEntriesMax)
         {
-            uint32_t cLoadedKexts = CFDictionaryGetCount(hLoadedKexts);
-            if (cLoadedKexts <= cEntriesMax)
+            CFDictionaryRef *pahDictKext = (CFDictionaryRef *)RTMemTmpAllocZ(cLoadedKexts * sizeof(CFDictionaryRef));
+            if (pahDictKext)
             {
-                CFDictionaryRef *pahDictKext = (CFDictionaryRef *)RTMemTmpAllocZ(cLoadedKexts * sizeof(CFDictionaryRef));
-                if (pahDictKext)
+                CFDictionaryGetKeysAndValues(hLoadedKexts, NULL, (const void **)pahDictKext);
+                for (uint32_t i = 0; i < cLoadedKexts; i++)
                 {
-                    CFDictionaryGetKeysAndValues(hLoadedKexts, NULL, (const void **)pahDictKext);
-                    for (uint32_t i = 0; i < cLoadedKexts; i++)
+                    PRTKRNLMODINFOINT pThis = (PRTKRNLMODINFOINT)RTMemAllocZ(sizeof(RTKRNLMODINFOINT));
+                    if (RT_LIKELY(pThis))
                     {
-                        PRTKRNLMODINFOINT pThis = (PRTKRNLMODINFOINT)RTMemAllocZ(sizeof(RTKRNLMODINFOINT));
-                        if (RT_LIKELY(pThis))
+                        pThis->cRefs = 1;
+                        pThis->hDictKext = pahDictKext[i];
+                        CFRetain(pThis->hDictKext);
+                        pahKrnlModInfo[i] = pThis;
+                    }
+                    else
+                    {
+                        rc = VERR_NO_MEMORY;
+                        /* Rollback. */
+                        while (i-- > 0)
                         {
-                            pThis->cRefs = 1;
-                            pThis->hDictKext = pahDictKext[i];
-                            CFRetain(pThis->hDictKext);
-                            pahKrnlModInfo[i] = pThis;
-                        }
-                        else
-                        {
-                            rc = VERR_NO_MEMORY;
-                            /* Rollback. */
-                            while (i-- > 0)
-                            {
-                                CFRelease(pahKrnlModInfo[i]->hDictKext);
-                                RTMemFree(pahKrnlModInfo[i]);
-                            }
+                            CFRelease(pahKrnlModInfo[i]->hDictKext);
+                            RTMemFree(pahKrnlModInfo[i]);
                         }
                     }
-
-                    if (   RT_SUCCESS(rc)
-                        && pcEntries)
-                        *pcEntries = cLoadedKexts;
-
-                    RTMemTmpFree(pahDictKext);
                 }
-                else
-                    rc = VERR_NO_MEMORY;
+
+                if (   RT_SUCCESS(rc)
+                    && pcEntries)
+                    *pcEntries = cLoadedKexts;
+
+                RTMemTmpFree(pahDictKext);
             }
             else
-            {
-                rc = VERR_BUFFER_OVERFLOW;
-
-                if (pcEntries)
-                    *pcEntries = cLoadedKexts;
-            }
-
-            CFRelease(hLoadedKexts);
+                rc = VERR_NO_MEMORY;
         }
         else
-            rc = VERR_NOT_SUPPORTED;
+        {
+            rc = VERR_BUFFER_OVERFLOW;
+
+            if (pcEntries)
+                *pcEntries = cLoadedKexts;
+        }
+
+        CFRelease(hLoadedKexts);
     }
     else
         rc = VERR_NOT_SUPPORTED;

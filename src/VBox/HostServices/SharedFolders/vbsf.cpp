@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,6 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-
-/*********************************************************************************************************************************
-*   Header Files                                                                                                                 *
-*********************************************************************************************************************************/
-#define LOG_GROUP LOG_GROUP_SHARED_FOLDERS
 #ifdef UNITTEST
 # include "testcase/tstSharedFolderService.h"
 #endif
@@ -29,7 +24,6 @@
 #include "vbsf.h"
 #include "shflhandle.h"
 
-#include <VBox/AssertGuest.h>
 #include <iprt/alloc.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
@@ -49,12 +43,7 @@
 # include "teststubs.h"
 #endif
 
-
-/*********************************************************************************************************************************
-*   Defined Constants And Macros                                                                                                 *
-*********************************************************************************************************************************/
 #define SHFL_RT_LINK(pClient) ((pClient)->fu32Flags & SHFL_CF_SYMLINKS ? RTPATH_F_ON_LINK : RTPATH_F_FOLLOW_LINK)
-
 
 /**
  * @todo find a better solution for supporting the execute bit for non-windows
@@ -1178,6 +1167,7 @@ int vbsfDirList(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, SHFLS
         return rc;
 
     Assert(*pIndex == 0);
+    hDir = pHandle->dir.Handle;
 
     cbDirEntry = 4096;
     pDirEntryOrg = pDirEntry  = (PRTDIRENTRYEX)RTMemAlloc(cbDirEntry);
@@ -1194,9 +1184,7 @@ int vbsfDirList(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, SHFLS
     *pIndex = 1; /* not yet complete */
     *pcFiles = 0;
 
-    if (!pPath)
-        hDir = pHandle->dir.Handle;
-    else
+    if (pPath)
     {
         if (pHandle->dir.SearchHandle == 0)
         {
@@ -1221,17 +1209,9 @@ int vbsfDirList(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, SHFLS
             }
             else
                 goto end;
-            flags &= ~SHFL_LIST_RESTART;
         }
         Assert(pHandle->dir.SearchHandle);
         hDir = pHandle->dir.SearchHandle;
-    }
-
-    if (flags & SHFL_LIST_RESTART)
-    {
-        rc = RTDirRewind(hDir);
-        if (RT_FAILURE(rc))
-            goto end;
     }
 
     while (cbBufferOrg)
@@ -1583,29 +1563,6 @@ static int vbsfSetFileInfo(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Ha
 }
 
 
-/**
- * Handles SHFL_FN_SET_FILE_SIZE.
- */
-int vbsfSetFileSize(SHFLCLIENTDATA *pClient, SHFLROOT idRoot, SHFLHANDLE hHandle, uint64_t cbNewSize)
-{
-    /*
-     * Resolve handle and validate write access.
-     */
-    SHFLFILEHANDLE *pHandle = vbsfQueryFileHandle(pClient, hHandle);
-    ASSERT_GUEST_RETURN(pHandle, VERR_INVALID_HANDLE);
-
-    int rc = vbsfCheckHandleAccess(pClient, idRoot, pHandle, VBSF_CHECK_ACCESS_WRITE);
-    if (RT_SUCCESS(rc))
-    {
-        /*
-         * Execute the request.
-         */
-        rc = RTFileSetSize(pHandle->file.Handle, cbNewSize);
-    }
-    return rc;
-}
-
-
 static int vbsfSetEndOfFile(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLHANDLE Handle, uint32_t flags,
                             uint32_t *pcbBuffer, uint8_t *pBuffer)
 {
@@ -1946,7 +1903,7 @@ int vbsfRename(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pSrc, SHFLSTR
     int rc = VINF_SUCCESS;
 
     /* Validate input */
-    if (   flags & ~(SHFL_RENAME_FILE|SHFL_RENAME_DIR|SHFL_RENAME_REPLACE_IF_EXISTS)
+    if (   flags & ~(SHFL_REMOVE_FILE|SHFL_REMOVE_DIR|SHFL_RENAME_REPLACE_IF_EXISTS)
         || pSrc == 0
         || pDest == 0)
     {
@@ -1977,12 +1934,7 @@ int vbsfRename(SHFLCLIENTDATA *pClient, SHFLROOT root, SHFLSTRING *pSrc, SHFLSTR
 
         if (RT_SUCCESS(rc))
         {
-            if ((flags & (SHFL_RENAME_FILE | SHFL_RENAME_DIR)) == (SHFL_RENAME_FILE | SHFL_RENAME_DIR))
-            {
-                rc = RTPathRename(pszFullPathSrc, pszFullPathDest,
-                                  flags & SHFL_RENAME_REPLACE_IF_EXISTS ? RTPATHRENAME_FLAGS_REPLACE : 0);
-            }
-            else if (flags & SHFL_RENAME_FILE)
+            if (flags & SHFL_RENAME_FILE)
             {
                 rc = RTFileMove(pszFullPathSrc, pszFullPathDest,
                                   ((flags & SHFL_RENAME_REPLACE_IF_EXISTS) ? RTFILEMOVE_FLAGS_REPLACE : 0));
@@ -2094,14 +2046,5 @@ int vbsfDisconnect(SHFLCLIENTDATA *pClient)
             vbsfClose(pClient, pHandle->root, Handle);
         }
     }
-
-    for (uint32_t i = 0; i < RT_ELEMENTS(pClient->acMappings); i++)
-        if (pClient->acMappings[i])
-        {
-            uint16_t cMappings = pClient->acMappings[i];
-            while (cMappings-- > 0)
-                vbsfUnmapFolder(pClient, i);
-        }
-
     return VINF_SUCCESS;
 }

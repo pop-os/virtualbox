@@ -35,7 +35,7 @@
 #include "the-os2-kernel.h"
 
 #include <iprt/spinlock.h>
-#include <iprt/errcore.h>
+#include <iprt/err.h>
 #include <iprt/alloc.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
@@ -66,7 +66,6 @@ typedef struct RTSPINLOCKINTERNAL
 RTDECL(int)  RTSpinlockCreate(PRTSPINLOCK pSpinlock, uint32_t fFlags, const char *pszName)
 {
     AssertReturn(fFlags == RTSPINLOCK_FLAGS_INTERRUPT_SAFE || fFlags == RTSPINLOCK_FLAGS_INTERRUPT_UNSAFE, VERR_INVALID_PARAMETER);
-    RT_NOREF(pszName);
 
     /*
      * Allocate.

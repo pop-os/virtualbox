@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_INCLUDED_SRC_DisasmInternal_h
-#define VBOX_INCLUDED_SRC_DisasmInternal_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___DisasmInternal_h___
+#define ___DisasmInternal_h___
 
 #include <VBox/types.h>
 #include <VBox/dis.h>
@@ -209,5 +206,5 @@ extern const PCDISOPCODE g_apMapX86_FP_High[8];
 size_t disFormatBytes(PCDISSTATE pDis, char *pszDst, size_t cchDst, uint32_t fFlags);
 
 /** @} */
-#endif /* !VBOX_INCLUDED_SRC_DisasmInternal_h */
+#endif
 

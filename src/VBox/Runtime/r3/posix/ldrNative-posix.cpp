@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,7 +46,7 @@ DECLHIDDEN(int) rtldrNativeLoad(const char *pszFilename, uintptr_t *phHandle, ui
     /*
      * Do we need to add an extension?
      */
-    if (!RTPathHasSuffix(pszFilename) && !(fFlags & RTLDRLOAD_FLAGS_NO_SUFFIX))
+    if (!RTPathHasSuffix(pszFilename))
     {
 #if defined(RT_OS_OS2) || defined(RT_OS_WINDOWS)
         static const char s_szSuff[] = ".DLL";

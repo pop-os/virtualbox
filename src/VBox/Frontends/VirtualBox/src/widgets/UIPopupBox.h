@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,198 +15,134 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_widgets_UIPopupBox_h
-#define FEQT_INCLUDED_SRC_widgets_UIPopupBox_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __UIPopupBoxStuff_h__
+#define __UIPopupBoxStuff_h__
 
-/* Qt includes: */
+/* Global includes: */
 #include <QIcon>
 #include <QWidget>
 
-/* GUI includes: */
-#include "UILibraryDefs.h"
-
 /* Forward declarations: */
-class QEvent;
-class QIcon;
 class QLabel;
-class QMouseEvent;
-class QObject;
-class QPainterPath;
-class QPaintEvent;
-class QResizeEvent;
-class QString;
-class QWidget;
 
-
-/** QWidget extension,
-  * wrapping content-widget with nice collapsable frame. */
-class SHARED_LIBRARY_STUFF UIPopupBox : public QWidget
+/* QWidget reimplementation,
+ * wraps content-widget with nice/collapsable frame: */
+class UIPopupBox : public QWidget
 {
     Q_OBJECT;
 
 signals:
 
-    /** Notifies about title with @a strLink was clicked. */
+    /* Signals: */
     void sigTitleClicked(const QString &strLink);
-
-    /** Notifies box was toggled and currently @a fOpened. */
     void sigToggled(bool fOpened);
-
-    /** Asks to update contents widget. */
     void sigUpdateContentWidget();
-
-    /** Notify about box is hovered. */
     void sigGotHover();
 
 public:
 
-    /** Construct popup-box passing @a pParent to the base-class. */
+    /* Constructor/destructor: */
     UIPopupBox(QWidget *pParent);
-    /** Destruct popup-box. */
-    virtual ~UIPopupBox() /* override */;
+    ~UIPopupBox();
 
-    /** Defines title @a icon. */
+    /* Title-icon stuff: */
     void setTitleIcon(const QIcon &icon);
-    /** Returns title icon. */
     QIcon titleIcon() const;
 
-    /** Defines warning @a icon. */
+    /* Warning-icon stuff: */
     void setWarningIcon(const QIcon &icon);
-    /** Returns warnings icon. */
     QIcon warningIcon() const;
 
-    /** Defines @a strTitle. */
+    /* Title stuff: */
     void setTitle(const QString &strTitle);
-    /** Returns title. */
     QString title() const;
 
-    /** Defines title @a strLink. */
+    /* Link stuff: */
     void setTitleLink(const QString &strLink);
-    /** Returns title link. */
     QString titleLink() const;
-    /** Defines whether title link is @a fEnabled. */
     void setTitleLinkEnabled(bool fEnabled);
-    /** Returns whether title link is enabled. */
     bool isTitleLinkEnabled() const;
 
-    /** Defines content @a pWidget. */
+    /* Content-widget stuff: */
     void setContentWidget(QWidget *pWidget);
-    /** Returns content widget. */
-    QWidget *contentWidget() const;
+    QWidget* contentWidget() const;
 
-    /** Defines whether box is @a fOpened. */
-    void setOpen(bool fOpened);
-    /** Toggles current opened state. */
+    /* Toggle stuff: */
+    void setOpen(bool fOpen);
     void toggleOpen();
-    /** Returns whether box is opened. */
     bool isOpen() const;
 
-    /** Calls for content iwdget update. */
+    /* Update stuff: */
     void callForUpdateContentWidget() { emit sigUpdateContentWidget(); }
 
 protected:
 
-    /** Handles any Qt @a pEvent. */
-    virtual bool event(QEvent *pEvent) /* override */;
+    /* Event filter: */
+    bool eventFilter(QObject *pWatched, QEvent *pEvent);
 
-    /** Pre-handles standard Qt @a pEvent for passed @a pObject. */
-    virtual bool eventFilter(QObject *pObject, QEvent *pEvent) /* override */;
-
-    /** Handles resize @a pEvent. */
-    virtual void resizeEvent(QResizeEvent *pEvent) /* override */;
-
-    /** Handles paint @a pEvent. */
-    virtual void paintEvent(QPaintEvent *pEvent) /* override */;
-
-    /** Handles mouse double-click @a pEvent. */
-    virtual void mouseDoubleClickEvent(QMouseEvent *pEvent) /* override */;
+    /* Event handlers: */
+    void resizeEvent(QResizeEvent *pEvent);
+    void mouseDoubleClickEvent(QMouseEvent *pEvent);
+    void paintEvent(QPaintEvent *pEvent);
 
 private:
 
-    /** Updates title icon. */
+    /* Helpers: */
     void updateTitleIcon();
-    /** Updates warning icon. */
     void updateWarningIcon();
-    /** Updates title. */
     void updateTitle();
-    /** Updates hovered state. */
     void updateHover();
-    /** Revokes hovered state. */
     void revokeHover();
-    /** Toggles hovered state to @a fHeaderHover. */
     void toggleHover(bool fHeaderHover);
-    /** Recalculates geometry. */
     void recalc();
 
-    /** Holds the title icon label. */
+    /* Widgets: */
     QLabel *m_pTitleIcon;
-    /** Holds the warning icon label. */
     QLabel *m_pWarningIcon;
-    /** Holds the title label. */
     QLabel *m_pTitleLabel;
 
-    /** Holds the title icon. */
-    QIcon    m_titleIcon;
-    /** Holds the warning icon. */
-    QIcon    m_warningIcon;
-    /** Holds the title text. */
-    QString  m_strTitle;
-    /** Holds the link icon. */
-    QString  m_strLink;
-
-    /** Holds whether the link is enabled. */
-    bool m_fLinkEnabled : 1;
-    /** Holds whether box is opened. */
-    bool m_fOpened      : 1;
-    /** Holds whether header is hovered. */
-    bool m_fHovered     : 1;
-
-    /** Holds the content widget. */
+    /* Variables: */
+    QIcon m_titleIcon;
+    QIcon m_warningIcon;
+    QString m_strTitle;
+    QString m_strLink;
+    bool m_fLinkEnabled;
     QWidget *m_pContentWidget;
-
-    /** Holds the label painter path. */
+    bool m_fOpen;
     QPainterPath *m_pLabelPath;
-
-    /** Holds the arrow width. */
     const int m_iArrowWidth;
-    /** Holds the arrow painter-path. */
     QPainterPath m_arrowPath;
+    bool m_fHeaderHover;
 
-    /** Allow popup-box group to access private API. */
+    /* Friend class: */
     friend class UIPopupBoxGroup;
 };
 
-
-/** QObject extension,
-  * provides a container to organize groups of popup-boxes. */
-class SHARED_LIBRARY_STUFF UIPopupBoxGroup : public QObject
+/* QObject reimplementation,
+ * provides a container to organize groups of popup-boxes: */
+class UIPopupBoxGroup : public QObject
 {
     Q_OBJECT;
 
 public:
 
-    /** Construct popup-box passing @a pParent to the base-class. */
+    /* Constructor/destructor: */
     UIPopupBoxGroup(QObject *pParent);
-    /** Destruct popup-box. */
-    virtual ~UIPopupBoxGroup() /* override */;
+    ~UIPopupBoxGroup();
 
-    /** Adds @a pPopupBox into group. */
+    /* Add popup-box: */
     void addPopupBox(UIPopupBox *pPopupBox);
 
 private slots:
 
-    /** Handles group hovering. */
+    /* Hover-change handler: */
     void sltHoverChanged();
 
 private:
 
-    /** Holds the list of popup-boxes. */
+    /* Variables: */
     QList<UIPopupBox*> m_list;
 };
 
-
-#endif /* !FEQT_INCLUDED_SRC_widgets_UIPopupBox_h */
+#endif /* !__UIPopupBoxStuff_h__ */
 

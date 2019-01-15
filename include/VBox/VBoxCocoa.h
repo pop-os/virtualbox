@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef VBOX_INCLUDED_VBoxCocoa_h
-#define VBOX_INCLUDED_VBoxCocoa_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBox_VBoxCocoa_h
+#define ___VBox_VBoxCocoa_h
 
 /** Macro which add a typedef of the given Cocoa class in an appropriate form
  * for the current context. This means void* in the C/CPP context and
@@ -75,5 +72,5 @@ private:
 
 #endif /* __OBJC__ && __cplusplus */
 
-#endif /* !VBOX_INCLUDED_VBoxCocoa_h */
+#endif /* !___VBox_VBoxCocoa_h */
 

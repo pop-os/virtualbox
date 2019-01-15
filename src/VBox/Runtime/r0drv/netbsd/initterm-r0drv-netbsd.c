@@ -34,7 +34,7 @@
 *********************************************************************************************************************************/
 #include "the-netbsd-kernel.h"
 
-#include <iprt/errcore.h>
+#include <iprt/err.h>
 
 #include "internal/initterm.h"
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,25 +15,15 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_extensions_QIMainWindow_h
-#define FEQT_INCLUDED_SRC_extensions_QIMainWindow_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___QIMainWindow_h___
+#define ___QIMainWindow_h___
 
 /* Qt includes: */
 #include <QMainWindow>
-#include <QRect>
-
-/* GUI includes: */
-#include "UILibraryDefs.h"
-
-/* Forward declarations: */
-class QWidget;
 
 /** QMainWindow extension providing GUI
   * with the extended geometry management support. */
-class SHARED_LIBRARY_STUFF QIMainWindow : public QMainWindow
+class QIMainWindow : public QMainWindow
 {
     Q_OBJECT;
 
@@ -54,4 +44,5 @@ protected:
     QRect m_geometry;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_extensions_QIMainWindow_h */
+#endif /* ___QIMainWindow_h___ */
+

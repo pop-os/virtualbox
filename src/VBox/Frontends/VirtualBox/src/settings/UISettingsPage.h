@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,74 +15,64 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_settings_UISettingsPage_h
-#define FEQT_INCLUDED_SRC_settings_UISettingsPage_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __UISettingsPage_h__
+#define __UISettingsPage_h__
 
 /* Qt includes: */
-#include <QVariant>
 #include <QWidget>
+#include <QVariant>
 
 /* GUI includes: */
 #include "QIWithRetranslateUI.h"
-#include "UIExtraDataDefs.h"
 #include "UISettingsDefs.h"
+#include "UIExtraDataDefs.h"
 
 /* COM includes: */
 #include "COMEnums.h"
-#include "CConsole.h"
 #include "CMachine.h"
+#include "CConsole.h"
 #include "CSystemProperties.h"
 
 /* Forward declarations: */
-class QShowEvent;
-class QString;
-class QVariant;
-class QWidget;
 class UIPageValidator;
+class QShowEvent;
 
 /* Using declarations: */
 using namespace UISettingsDefs;
 
+/* Settings page types: */
+enum UISettingsPageType
+{
+    UISettingsPageType_Global,
+    UISettingsPageType_Machine
+};
 
-/** Global settings data wrapper. */
+/* Global settings data wrapper: */
 struct UISettingsDataGlobal
 {
-    /** Constructs NULL global settings data struct. */
     UISettingsDataGlobal() {}
-    /** Constructs global settings data struct on the basis of @a comProperties. */
-    UISettingsDataGlobal(const CSystemProperties &comProperties)
-        : m_properties(comProperties) {}
-    /** Holds the global VirtualBox properties. */
+    UISettingsDataGlobal(const CSystemProperties &properties)
+        : m_properties(properties) {}
     CSystemProperties m_properties;
 };
 Q_DECLARE_METATYPE(UISettingsDataGlobal);
 
-
-/** Machine settings data wrapper. */
+/* Machine settings data wrapper: */
 struct UISettingsDataMachine
 {
-    /** Constructs NULL machine settings data struct. */
     UISettingsDataMachine() {}
-    /** Constructs machine settings data struct on the basis of @a comMachine and @a comConsole. */
-    UISettingsDataMachine(const CMachine &comMachine, const CConsole &comConsole)
-        : m_machine(comMachine), m_console(comConsole) {}
-    /** Holds the machine reference. */
+    UISettingsDataMachine(const CMachine &machine, const CConsole &console)
+        : m_machine(machine), m_console(console) {}
     CMachine m_machine;
-    /** Holds the console reference. */
     CConsole m_console;
 };
 Q_DECLARE_METATYPE(UISettingsDataMachine);
 
-
-/** Validation message. */
+/* Validation message type: */
 typedef QPair<QString, QStringList> UIValidationMessage;
 
-
-/** QWidget subclass used as settings page interface. */
-class SHARED_LIBRARY_STUFF UISettingsPage : public QIWithRetranslateUI<QWidget>
+/* Settings page base class: */
+class UISettingsPage : public QIWithRetranslateUI<QWidget>
 {
     Q_OBJECT;
 
@@ -120,153 +110,135 @@ public:
       * @param  strErrorInfo  Brings the details of the error happened. */
     void notifyOperationProgressError(const QString &strErrorInfo);
 
-    /** Defines @a pValidator. */
+    /* Validation stuff: */
     void setValidator(UIPageValidator *pValidator);
-    /** Defines whether @a fIsValidatorBlocked which means not used at all. */
     void setValidatorBlocked(bool fIsValidatorBlocked) { m_fIsValidatorBlocked = fIsValidatorBlocked; }
-    /** Performs page validation composing a list of @a messages. */
-    virtual bool validate(QList<UIValidationMessage> &messages) { Q_UNUSED(messages); return true; }
+    virtual bool validate(QList<UIValidationMessage>& /* messages */) { return true; }
 
-    /** Returns first navigation widget. */
-    QWidget *firstWidget() const { return m_pFirstWidget; }
-    /** Defines the first navigation widget for TAB-order. */
+    /* Navigation stuff: */
+    QWidget* firstWidget() const { return m_pFirstWidget; }
     virtual void setOrderAfter(QWidget *pWidget) { m_pFirstWidget = pWidget; }
 
-    /** Defines @a enmConfigurationAccessLevel. */
-    virtual void setConfigurationAccessLevel(ConfigurationAccessLevel enmConfigurationAccessLevel);
-    /** Returns configuration access level. */
-    ConfigurationAccessLevel configurationAccessLevel() const { return m_enmConfigurationAccessLevel; }
-    /** Returns whether configuration access level is Full. */
+    /* Settings page type stuff: */
+    UISettingsPageType pageType() const { return m_pageType; }
+
+    /* Configuration access level stuff: */
+    ConfigurationAccessLevel configurationAccessLevel() const { return m_configurationAccessLevel; }
+    virtual void setConfigurationAccessLevel(ConfigurationAccessLevel newConfigurationAccessLevel) { m_configurationAccessLevel = newConfigurationAccessLevel; polishPage(); }
     bool isMachineOffline() const { return configurationAccessLevel() == ConfigurationAccessLevel_Full; }
-    /** Returns whether configuration access level corresponds to machine in Powered Off state. */
     bool isMachinePoweredOff() const { return configurationAccessLevel() == ConfigurationAccessLevel_Partial_PoweredOff; }
-    /** Returns whether configuration access level corresponds to machine in Saved state. */
     bool isMachineSaved() const { return configurationAccessLevel() == ConfigurationAccessLevel_Partial_Saved; }
-    /** Returns whether configuration access level corresponds to machine in one of Running states. */
     bool isMachineOnline() const { return configurationAccessLevel() == ConfigurationAccessLevel_Partial_Running; }
-    /** Returns whether configuration access level corresponds to machine in one of allowed states. */
     bool isMachineInValidMode() const { return isMachineOffline() || isMachinePoweredOff() || isMachineSaved() || isMachineOnline(); }
 
     /** Returns whether the page content was changed. */
     virtual bool changed() const = 0;
 
-    /** Defines page @a cId. */
-    void setId(int cId) { m_cId = cId; }
-    /** Returns page ID. */
+    /* Page 'ID' stuff: */
     int id() const { return m_cId; }
+    void setId(int cId) { m_cId = cId; }
 
-    /** Returns page internal name. */
+    /* Page 'name' stuff: */
     virtual QString internalName() const = 0;
 
-    /** Returns page warning pixmap. */
+    /* Page 'warning pixmap' stuff: */
     virtual QPixmap warningPixmap() const = 0;
 
-    /** Defines whether page is @a fProcessed. */
-    void setProcessed(bool fProcessed) { m_fProcessed = fProcessed; }
-    /** Returns whether page is processed. */
+    /* Page 'processed' stuff: */
     bool processed() const { return m_fProcessed; }
+    void setProcessed(bool fProcessed) { m_fProcessed = fProcessed; }
 
-    /** Defines whether page processing is @a fFailed. */
-    void setFailed(bool fFailed) { m_fFailed = fFailed; }
-    /** Returns whether page processing is failed. */
+    /* Page 'failed' stuff: */
     bool failed() const { return m_fFailed; }
+    void setFailed(bool fFailed) { m_fFailed = fFailed; }
 
-    /** Performs page polishing. */
+    /* Virtual function to polish page content: */
     virtual void polishPage() {}
 
 public slots:
 
-    /** Performs validation. */
+    /* Handler: Validation stuff: */
     void revalidate();
 
 protected:
 
-    /** Constructs settings page. */
-    UISettingsPage();
+    /* Settings page constructor, hidden: */
+    UISettingsPage(UISettingsPageType type);
 
 private:
 
-    /** Holds the configuration access level. */
-    ConfigurationAccessLevel  m_enmConfigurationAccessLevel;
-
-    /** Holds the page ID. */
-    int  m_cId;
-
-    /** Holds the first TAB-orer widget reference. */
-    QWidget         *m_pFirstWidget;
-    /** Holds the page validator. */
+    /* Variables: */
+    UISettingsPageType m_pageType;
+    ConfigurationAccessLevel m_configurationAccessLevel;
+    int m_cId;
+    bool m_fProcessed;
+    bool m_fFailed;
+    QWidget *m_pFirstWidget;
     UIPageValidator *m_pValidator;
-
-    /** Holds whether page validation is blocked. */
-    bool  m_fIsValidatorBlocked : 1;
-    /** Holds whether page is processed. */
-    bool  m_fProcessed : 1;
-    /** Holds whether page processing is failed. */
-    bool  m_fFailed : 1;
+    bool m_fIsValidatorBlocked;
 };
 
-
-/** UISettingsPage extension used as Global Preferences page interface. */
-class SHARED_LIBRARY_STUFF UISettingsPageGlobal : public UISettingsPage
+/* Global settings page class: */
+class UISettingsPageGlobal : public UISettingsPage
 {
     Q_OBJECT;
 
 protected:
 
-    /** Constructs global preferences page. */
+    /* Global settings page constructor, hidden: */
     UISettingsPageGlobal();
 
-    /** Returns internal page ID. */
+    /* Page 'ID' stuff: */
     GlobalSettingsPageType internalID() const;
 
-    /** Returns page internal name. */
-    virtual QString internalName() const /* override */;
+    /* Page 'name' stuff: */
+    QString internalName() const;
 
-    /** Returns page warning pixmap. */
-    virtual QPixmap warningPixmap() const /* override */;
+    /* Page 'warning pixmap' stuff: */
+    QPixmap warningPixmap() const;
 
-    /** Returns whether the page content was changed. */
-    virtual bool changed() const /* override */ { return false; }
-
-    /** Fetches data to m_properties & m_settings. */
+    /* Fetch data to m_properties & m_settings: */
     void fetchData(const QVariant &data);
-    /** Uploads m_properties & m_settings to data. */
+
+    /* Upload m_properties & m_settings to data: */
     void uploadData(QVariant &data) const;
 
-    /** Holds the source of global preferences. */
+    /** Returns whether the page content was changed. */
+    bool changed() const { return false; }
+
+    /* Global data source: */
     CSystemProperties m_properties;
 };
 
-
-/** UISettingsPage extension used as Machine Settings page interface. */
-class SHARED_LIBRARY_STUFF UISettingsPageMachine : public UISettingsPage
+/* Machine settings page class: */
+class UISettingsPageMachine : public UISettingsPage
 {
     Q_OBJECT;
 
 protected:
 
-    /** Constructs machine settings page. */
+    /* Machine settings page constructor, hidden: */
     UISettingsPageMachine();
 
-    /** Returns internal page ID. */
+    /* Page 'ID' stuff: */
     MachineSettingsPageType internalID() const;
 
-    /** Returns page internal name. */
-    virtual QString internalName() const /* override */;
+    /* Page 'name' stuff: */
+    QString internalName() const;
 
-    /** Returns page warning pixmap. */
-    virtual QPixmap warningPixmap() const /* override */;
+    /* Page 'warning pixmap' stuff: */
+    QPixmap warningPixmap() const;
 
-    /** Fetches data to m_machine & m_console. */
+    /* Fetch data to m_machine: */
     void fetchData(const QVariant &data);
-    /** Uploads m_machine & m_console to data. */
+
+    /* Upload m_machine to data: */
     void uploadData(QVariant &data) const;
 
-    /** Holds the source of machine settings. */
+    /* Machine data source: */
     CMachine m_machine;
-    /** Holds the source of console settings. */
     CConsole m_console;
 };
 
+#endif // __UISettingsPage_h__
 
-#endif /* !FEQT_INCLUDED_SRC_settings_UISettingsPage_h */

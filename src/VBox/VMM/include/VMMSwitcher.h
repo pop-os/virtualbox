@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VMM_INCLUDED_SRC_include_VMMSwitcher_h
-#define VMM_INCLUDED_SRC_include_VMMSwitcher_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VMMSwitcher_h
+#define ___VMMSwitcher_h
 
 #include <VBox/vmm/vmm.h>
 
@@ -153,4 +150,4 @@ extern DECLCALLBACK(void) vmmR3SwitcherAMD64ToPAE_Relocate(PVM pVM, PVMMSWITCHER
 extern DECLCALLBACK(void) vmmR3SwitcherAMD64ToAMD64_Relocate(PVM pVM, PVMMSWITCHERDEF pSwitcher, RTR0PTR R0PtrCode, uint8_t *pu8CodeR3, RTGCPTR GCPtrCode, uint32_t u32IdCode);
 RT_C_DECLS_END
 
-#endif /* !VMM_INCLUDED_SRC_include_VMMSwitcher_h */
+#endif

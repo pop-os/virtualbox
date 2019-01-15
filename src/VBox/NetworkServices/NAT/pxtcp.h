@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_INCLUDED_SRC_NAT_pxtcp_h
-#define VBOX_INCLUDED_SRC_NAT_pxtcp_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef _pxtcp_h_
+#define _pxtcp_h_
 
 #include "lwip/err.h"
 #include "lwip/ip_addr.h"
@@ -39,4 +36,4 @@ void pxtcp_pcb_connect(struct pxtcp *, const struct fwspec *);
 int pxtcp_pmgr_add(struct pxtcp *);
 void pxtcp_pmgr_del(struct pxtcp *);
 
-#endif /* !VBOX_INCLUDED_SRC_NAT_pxtcp_h */
+#endif  /* _pxtcp_h_ */

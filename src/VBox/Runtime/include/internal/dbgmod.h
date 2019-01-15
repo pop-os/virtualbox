@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,11 +24,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_INTERNAL_dbgmod_h
-#define IPRT_INCLUDED_INTERNAL_dbgmod_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___internal_dbgmod_h
+#define ___internal_dbgmod_h
 
 #include <iprt/types.h>
 #include <iprt/critsect.h>
@@ -238,31 +235,9 @@ typedef struct RTDBGMODVTIMG
      * @param   enmProp         The property to query.
      * @param   pvBuf           Pointer to the return buffer.
      * @param   cbBuf           The size of the return buffer.
-     * @param   pcbRet          How many bytes was actually returned.  In the
-     *                          case of VERR_BUFFER_OVERFLOW this will contain
-     *                          the required buffer size.  Optional.
-     * @sa      RTLdrQueryPropEx
+     * @sa      RTLdrQueryProp
      */
-    DECLCALLBACKMEMBER(int, pfnQueryProp)(PRTDBGMODINT pMod, RTLDRPROP enmProp, void *pvBuf, size_t cbBuf, size_t *pcbRet);
-
-    /**
-     * Try use unwind information to unwind one frame.
-     *
-     * @returns IPRT status code.  Last informational status from stack reader callback.
-     * @retval  VERR_DBG_NO_UNWIND_INFO if the module contains no unwind information.
-     * @retval  VERR_DBG_UNWIND_INFO_NOT_FOUND if no unwind information was found
-     *          for the location given by iSeg:off.
-     *
-     * @param   pMod        Pointer to the module structure.
-     * @param   iSeg        The segment number of the program counter.
-     * @param   off         The offset into @a iSeg.  Together with @a iSeg
-     *                      this corresponds to the RTDBGUNWINDSTATE::uPc
-     *                      value pointed to by @a pState.
-     * @param   pState      The unwind state to work.
-     *
-     * @sa      RTLdrUnwindFrame, RTDbgModUnwindFrame
-     */
-    DECLCALLBACKMEMBER(int, pfnUnwindFrame)(PRTDBGMODINT pMod, RTDBGSEGIDX iSeg, RTUINTPTR off, PRTDBGUNWINDSTATE pState);
+    DECLCALLBACKMEMBER(int, pfnQueryProp)(PRTDBGMODINT pMod, RTLDRPROP enmProp, void *pvBuf, size_t cbBuf);
 
     /** For catching initialization errors (RTDBGMODVTIMG_MAGIC). */
     uint32_t    u32EndMagic;
@@ -533,27 +508,8 @@ typedef struct RTDBGMODVTDBG
      * @param   pLineInfo   Where to store the information about the closest line
      *                      number.
      */
-    DECLCALLBACKMEMBER(int, pfnLineByAddr)(PRTDBGMODINT pMod, uint32_t iSeg, RTUINTPTR off,
-                                           PRTINTPTR poffDisp, PRTDBGLINE pLineInfo);
+    DECLCALLBACKMEMBER(int, pfnLineByAddr)(PRTDBGMODINT pMod, uint32_t iSeg, RTUINTPTR off, PRTINTPTR poffDisp, PRTDBGLINE pLineInfo);
 
-    /**
-     * Try use unwind information to unwind one frame.
-     *
-     * @returns IPRT status code.  Last informational status from stack reader callback.
-     * @retval  VERR_DBG_NO_UNWIND_INFO if the module contains no unwind information.
-     * @retval  VERR_DBG_UNWIND_INFO_NOT_FOUND if no unwind information was found
-     *          for the location given by iSeg:off.
-     *
-     * @param   pMod        Pointer to the module structure.
-     * @param   iSeg        The segment number of the program counter.
-     * @param   off         The offset into @a iSeg.  Together with @a iSeg
-     *                      this corresponds to the RTDBGUNWINDSTATE::uPc
-     *                      value pointed to by @a pState.
-     * @param   pState      The unwind state to work.
-     *
-     * @sa      RTDbgModUnwindFrame
-     */
-    DECLCALLBACKMEMBER(int, pfnUnwindFrame)(PRTDBGMODINT pMod, RTDBGSEGIDX iSeg, RTUINTPTR off, PRTDBGUNWINDSTATE pState);
 
     /** For catching initialization errors (RTDBGMODVTDBG_MAGIC). */
     uint32_t    u32EndMagic;
@@ -581,14 +537,12 @@ typedef FNRTDBGMODDEFERRED *PFNRTDBGMODDEFERRED;
  */
 typedef struct RTDBGMODDEFERRED
 {
-    /** Magic value (RTDBGMODDEFERRED_MAGIC). */
-    uint32_t            u32Magic;
-    /** Reference counter. */
-    uint32_t volatile   cRefs;
     /** The image size.
      * Deferred loading is almost pointless without knowing the module size, as
      * it cannot be mapped (correctly) without it. */
     RTUINTPTR           cbImage;
+    /** Reference counter. */
+    uint32_t volatile   cRefs;
     /** The configuration instance (referenced), can be NIL. */
     RTDBGCFG            hDbgCfg;
     /** Performs deferred loading of the module. */
@@ -690,7 +644,6 @@ extern DECLHIDDEN(RTSTRCACHE)           g_hDbgModStrCache;
 extern DECLHIDDEN(RTDBGMODVTDBG const)  g_rtDbgModVtDbgCodeView;
 extern DECLHIDDEN(RTDBGMODVTDBG const)  g_rtDbgModVtDbgDwarf;
 extern DECLHIDDEN(RTDBGMODVTDBG const)  g_rtDbgModVtDbgNm;
-extern DECLHIDDEN(RTDBGMODVTDBG const)  g_rtDbgModVtDbgMapSym;
 #ifdef RT_OS_WINDOWS
 extern DECLHIDDEN(RTDBGMODVTDBG const)  g_rtDbgModVtDbgDbgHelp;
 #endif
@@ -711,13 +664,9 @@ DECLHIDDEN(int) rtDbgModDeferredCreate(PRTDBGMODINT pDbgMod, PFNRTDBGMODDEFERRED
 
 DECLHIDDEN(int) rtDbgModLdrOpenFromHandle(PRTDBGMODINT pDbgMod, RTLDRMOD hLdrMod);
 
-DECLHIDDEN(int) rtDwarfUnwind_EhData(void const *pvSection, size_t cbSection, RTUINTPTR uRvaSection,
-                                     RTDBGSEGIDX idxSeg, RTUINTPTR offSeg, RTUINTPTR uRva,
-                                     PRTDBGUNWINDSTATE pState, RTLDRARCH enmArch);
-
 /** @} */
 
 RT_C_DECLS_END
 
-#endif /* !IPRT_INCLUDED_INTERNAL_dbgmod_h */
+#endif
 

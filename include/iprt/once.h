@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,16 +23,13 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_once_h
-#define IPRT_INCLUDED_once_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_once_h
+#define ___iprt_once_h
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
 #include <iprt/asm.h>
-#include <iprt/errcore.h>
+#include <iprt/err.h>
 #include <iprt/list.h>
 
 RT_C_DECLS_BEGIN
@@ -205,5 +202,5 @@ RTDECL(void) RTOnceReset(PRTONCE pOnce);
 
 RT_C_DECLS_END
 
-#endif /* !IPRT_INCLUDED_once_h */
+#endif
 

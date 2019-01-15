@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,70 +15,37 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_medium_UIMediumDefs_h
-#define FEQT_INCLUDED_SRC_medium_UIMediumDefs_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIMediumDefs_h___
+#define ___UIMediumDefs_h___
 
 /* Qt includes: */
 #include <QString>
 
-/* GUI includes: */
-#include "UILibraryDefs.h"
-
 /* COM includes: */
 #include "COMEnums.h"
-#include "CVirtualBox.h"
 
 /* Other VBox includes: */
 #include <VBox/com/defs.h>
 
-/* Forward declarations: */
-class CVirtualBox;
-
-
-/** Medium formats. */
-enum UIMediumFormat
-{
-    UIMediumFormat_VDI,
-    UIMediumFormat_VMDK,
-    UIMediumFormat_VHD,
-    UIMediumFormat_Parallels,
-    UIMediumFormat_QED,
-    UIMediumFormat_QCOW,
-};
 
 /** UIMediumDefs namespace. */
 namespace UIMediumDefs
 {
     /** UIMedium types. */
-    enum UIMediumDeviceType
+    enum UIMediumType
     {
-        UIMediumDeviceType_HardDisk,
-        UIMediumDeviceType_DVD,
-        UIMediumDeviceType_Floppy,
-        UIMediumDeviceType_All,
-        UIMediumDeviceType_Invalid
+        UIMediumType_HardDisk,
+        UIMediumType_DVD,
+        UIMediumType_Floppy,
+        UIMediumType_All,
+        UIMediumType_Invalid
     };
 
-    /** Converts global medium type (KDeviceType) to local (UIMediumDeviceType). */
-    SHARED_LIBRARY_STUFF UIMediumDeviceType mediumTypeToLocal(KDeviceType globalType);
-    /** Convert local medium type (UIMediumDeviceType) to global (KDeviceType). */
-    SHARED_LIBRARY_STUFF KDeviceType mediumTypeToGlobal(UIMediumDeviceType localType);
+    /** Converts global medium type (KDeviceType) to local (UIMediumType). */
+    UIMediumType mediumTypeToLocal(KDeviceType globalType);
 
-    /** Returns medium formats which are currently supported by @a comVBox for the given @a enmDeviceType. */
-    QList<QPair<QString, QString> > MediumBackends(const CVirtualBox &comVBox, KDeviceType enmDeviceType);
-    /** Returns which hard disk formats are currently supported by @a comVBox. */
-    QList<QPair<QString, QString> > HDDBackends(const CVirtualBox &comVBox);
-    /** Returns which optical disk formats are currently supported by @a comVBox. */
-    QList<QPair<QString, QString> > DVDBackends(const CVirtualBox &comVBox);
-    /** Returns which floppy disk formats are currently supported by @a comVBox. */
-    QList<QPair<QString, QString> > FloppyBackends(const CVirtualBox &comVBox);
-
-    /** Returns the first file extension of the list of file extension support for the @a enmDeviceType. */
-   QString getPreferredExtensionForMedium(KDeviceType enmDeviceType);
-   QVector<CMediumFormat>  getFormatsForDeviceType(KDeviceType enmDeviceType);
+    /** Convert local medium type (UIMediumType) to global (KDeviceType). */
+    KDeviceType mediumTypeToGlobal(UIMediumType localType);
 }
 /* Using this namespace globally: */
 using namespace UIMediumDefs;
@@ -87,17 +54,11 @@ using namespace UIMediumDefs;
 struct UIMediumTarget
 {
     /** Medium-target types. */
-    enum UIMediumTargetType
-    {
-        UIMediumTargetType_WithID,
-        UIMediumTargetType_WithLocation,
-        UIMediumTargetType_CreateAdHocVISO,
-        UIMediumTargetType_CreateFloppyDisk
-    };
+    enum UIMediumTargetType { UIMediumTargetType_WithID, UIMediumTargetType_WithLocation };
 
     /** Medium-target constructor. */
     UIMediumTarget(const QString &strName = QString(), LONG iPort = 0, LONG iDevice = 0,
-                   UIMediumDeviceType aMediumType = UIMediumDeviceType_Invalid,
+                   UIMediumType aMediumType = UIMediumType_Invalid,
                    UIMediumTargetType aType = UIMediumTargetType_WithID, const QString &strData = QString())
         : name(strName), port(iPort), device(iDevice)
         , mediumType(aMediumType)
@@ -112,7 +73,7 @@ struct UIMediumTarget
     LONG device;
 
     /** Determines medium-target medium-type. */
-    UIMediumDeviceType mediumType;
+    UIMediumType mediumType;
 
     /** Determines medium-target type. */
     UIMediumTargetType type;
@@ -121,7 +82,7 @@ struct UIMediumTarget
 };
 
 /* Let QMetaType know about our types: */
-Q_DECLARE_METATYPE(UIMediumDeviceType);
+Q_DECLARE_METATYPE(UIMediumType);
 Q_DECLARE_METATYPE(UIMediumTarget);
 
-#endif /* !FEQT_INCLUDED_SRC_medium_UIMediumDefs_h */
+#endif /* !___UIMediumDefs_h___ */

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,9 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_nt_tdikrnl_h
-#define IPRT_INCLUDED_nt_tdikrnl_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+
+#ifndef ___iprt_nt_tdikrnl_h___
+#define ___iprt_nt_tdikrnl_h___
 
 #pragma warning(push)
 #pragma warning(disable:4668) /* warning C4668: 'NTDDI_WINS03' is not defined as a preprocessor macro, replacing with '0' for '#if/#elif' */
@@ -36,5 +34,5 @@ RT_C_DECLS_BEGIN
 RT_C_DECLS_END
 #pragma warning(pop)
 
-#endif /* !IPRT_INCLUDED_nt_tdikrnl_h */
+#endif
 

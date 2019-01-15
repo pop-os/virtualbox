@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,8 +35,10 @@
 
 #include "ConsoleImpl.h"
 #include "DisplayImpl.h"
-#ifdef VBOX_WITH_DRAG_AND_DROP
+#ifdef VBOX_WITH_GUEST_CONTROL
 # include "GuestImpl.h"
+#endif
+#ifdef VBOX_WITH_DRAG_AND_DROP
 # include "GuestDnDPrivate.h"
 #endif
 #include "VMMDev.h"
@@ -122,8 +124,8 @@
 #ifdef VBOX_WITH_AUDIO_VRDE
 # include "DrvAudioVRDE.h"
 #endif
-#ifdef VBOX_WITH_AUDIO_RECORDING
-# include "DrvAudioRec.h"
+#ifdef VBOX_WITH_AUDIO_VIDEOREC
+# include "DrvAudioVideoRec.h"
 #endif
 #include "NetworkServiceRunner.h"
 #include "BusAssignmentManager.h"
@@ -817,16 +819,12 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             break;
     }
 
-    ComPtr<IGuestOSType> pGuestOSType;
-    virtualBox->GetGuestOSType(osTypeId.raw(), pGuestOSType.asOutParam());
+    ComPtr<IGuestOSType> guestOSType;
+    hrc = virtualBox->GetGuestOSType(osTypeId.raw(), guestOSType.asOutParam());             H();
 
-    BOOL fOsXGuest = FALSE;
-    if (!pGuestOSType.isNull())
-    {
-        Bstr guestTypeFamilyId;
-        hrc = pGuestOSType->COMGETTER(FamilyId)(guestTypeFamilyId.asOutParam());            H();
-        fOsXGuest = guestTypeFamilyId == Bstr("MacOS");
-    }
+    Bstr guestTypeFamilyId;
+    hrc = guestOSType->COMGETTER(FamilyId)(guestTypeFamilyId.asOutParam());                 H();
+    BOOL fOsXGuest = guestTypeFamilyId == Bstr("MacOS");
 
     ULONG maxNetworkAdapters;
     hrc = systemProperties->GetMaxNetworkAdapters(chipsetType, &maxNetworkAdapters);        H();
@@ -894,8 +892,6 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
          */
         PCFGMNODE pCPUM;
         InsertConfigNode(pRoot, "CPUM", &pCPUM);
-        PCFGMNODE pIsaExts;
-        InsertConfigNode(pCPUM, "IsaExts", &pIsaExts);
 
         /* Host CPUID leaf overrides. */
         for (uint32_t iOrdinal = 0; iOrdinal < _4K; iOrdinal++)
@@ -929,14 +925,14 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             || osTypeId == "Windows2016_64")
         {
             LogRel(("Enabling CMPXCHG16B for Windows 8.1 / 2k12 or newer guests\n"));
-            InsertConfigInteger(pIsaExts, "CMPXCHG16B", true);
+            InsertConfigInteger(pCPUM, "CMPXCHG16B", true);
         }
 
         if (fOsXGuest)
         {
             /* Expose extended MWAIT features to Mac OS X guests. */
             LogRel(("Using MWAIT extensions\n"));
-            InsertConfigInteger(pIsaExts, "MWaitExtensions", true);
+            InsertConfigInteger(pCPUM, "MWaitExtensions", true);
 
             /* Fake the CPU family/model so the guest works.  This is partly
                because older mac releases really doesn't work on newer cpus,
@@ -1028,11 +1024,6 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         hrc = pMachine->GetCPUProperty(CPUPropertyType_SpecCtrl, &fSpecCtrl);      H();
         InsertConfigInteger(pCPUM, "SpecCtrl", fSpecCtrl);
 
-        /* Nested VT-x / AMD-V. */
-        BOOL fNestedHWVirt = FALSE;
-        hrc = pMachine->GetCPUProperty(CPUPropertyType_HWVirt, &fNestedHWVirt);      H();
-        InsertConfigInteger(pCPUM, "NestedHWVirt", fNestedHWVirt ? true : false);
-
         /*
          * Hardware virtualization extensions.
          */
@@ -1116,7 +1107,7 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         }
         InsertConfigInteger(pRoot, "HMEnabled", fHMEnabled);
 
-        /* /HM/xyz */
+        /* /HM/xzy */
         PCFGMNODE pHM;
         InsertConfigNode(pRoot, "HM", &pHM);
         InsertConfigInteger(pHM, "HMForced", fHMForced);
@@ -1194,18 +1185,6 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         /* Reset overwrite. */
         if (i_isResetTurnedIntoPowerOff())
             InsertConfigInteger(pRoot, "PowerOffInsteadOfReset", 1);
-
-        /* Use NEM rather than HM. */
-        BOOL fUseNativeApi = false;
-        hrc = pMachine->GetHWVirtExProperty(HWVirtExPropertyType_UseNativeApi, &fUseNativeApi); H();
-        InsertConfigInteger(pHM, "UseNEMInstead", fUseNativeApi);
-
-        /*
-         * NEM
-         */
-        PCFGMNODE pNEM;
-        InsertConfigNode(pRoot, "NEM", &pNEM);
-        InsertConfigInteger(pNEM, "Allow64BitGuests", fIsGuest64Bit);
 
         /*
          * Paravirt. provider.
@@ -1414,6 +1393,7 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         PCFGMNODE pCfg = NULL;          /* /Devices/Dev/.../Config/ */
         PCFGMNODE pLunL0 = NULL;        /* /Devices/Dev/0/LUN#0/ */
         PCFGMNODE pLunL1 = NULL;        /* /Devices/Dev/0/LUN#0/AttachedDriver/ */
+        PCFGMNODE pLunL2 = NULL;        /* /Devices/Dev/0/LUN#0/AttachedDriver/Config/ */
         PCFGMNODE pBiosCfg = NULL;      /* /Devices/pcbios/0/Config/ */
         PCFGMNODE pNetBootCfg = NULL;   /* /Devices/pcbios/0/Config/NetBoot/ */
 
@@ -1669,13 +1649,10 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         {
             case GraphicsControllerType_Null:
                 break;
+            case GraphicsControllerType_VBoxVGA:
 #ifdef VBOX_WITH_VMSVGA
             case GraphicsControllerType_VMSVGA:
-                InsertConfigInteger(pHM, "LovelyMesaDrvWorkaround", 1); /* hits someone else logging backdoor. */
-                RT_FALL_THROUGH();
-            case GraphicsControllerType_VBoxSVGA:
 #endif
-            case GraphicsControllerType_VBoxVGA:
                 rc = i_configGraphicsController(pDevices, enmGraphicsController, pBusMgr, pMachine, biosSettings,
                                                 RT_BOOL(fHMEnabled));
                 if (FAILED(rc))
@@ -1766,7 +1743,11 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         {
             /* Autodetect firmware type, basing on guest type */
             if (eFwType == FirmwareType_EFI)
-                eFwType = fIsGuest64Bit ? FirmwareType_EFI64 : FirmwareType_EFI32;
+            {
+                eFwType = fIsGuest64Bit
+                        ? (FirmwareType_T)FirmwareType_EFI64
+                        : (FirmwareType_T)FirmwareType_EFI32;
+            }
             bool const f64BitEntry = eFwType == FirmwareType_EFI64;
 
             Utf8Str efiRomFile;
@@ -2567,10 +2548,10 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             switch (adapterType)
             {
                 case NetworkAdapterType_Am79C970A:
-                    InsertConfigString(pCfg, "ChipType", "Am79C970A");
+                    InsertConfigInteger(pCfg, "Am79C973", 0);
                     break;
                 case NetworkAdapterType_Am79C973:
-                    InsertConfigString(pCfg, "ChipType", "Am79C973");
+                    InsertConfigInteger(pCfg, "Am79C973", 1);
                     break;
                 case NetworkAdapterType_I82540EM:
                     InsertConfigInteger(pCfg, "AdapterType", 0);
@@ -2583,10 +2564,7 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                     break;
                 case NetworkAdapterType_Virtio:
                     break;
-                case NetworkAdapterType_Null:      AssertFailedBreak(); /* (compiler warnings) */
-#ifdef VBOX_WITH_XPCOM_CPP_ENUM_HACK
-                case NetworkAdapterType_32BitHack: AssertFailedBreak(); /* (compiler warnings) */
-#endif
+                case NetworkAdapterType_Null: AssertFailedBreak(); /* Shut up MSC */
             }
 
             /*
@@ -2692,13 +2670,9 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                 hrc = serialPort->COMGETTER(Enabled)(&fEnabledSerPort);                     H();
             }
             if (!fEnabledSerPort)
-            {
-                m_aeSerialPortMode[ulInstance] = PortMode_Disconnected;
                 continue;
-            }
 
             InsertConfigNode(pDev, Utf8StrFmt("%u", ulInstance).c_str(), &pInst);
-            InsertConfigInteger(pInst, "Trusted", 1); /* boolean */
             InsertConfigNode(pInst, "Config", &pCfg);
 
             ULONG ulIRQ;
@@ -2714,27 +2688,43 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             BOOL  fServer;
             hrc = serialPort->COMGETTER(Server)(&fServer);                                  H();
             hrc = serialPort->COMGETTER(Path)(bstr.asOutParam());                           H();
-            UartType_T eUartType;
-            const char *pszUartType;
-            hrc = serialPort->COMGETTER(UartType)(&eUartType);                              H();
-            switch (eUartType)
-            {
-                case UartType_U16450: pszUartType = "16450"; break;
-                case UartType_U16750: pszUartType = "16750"; break;
-                default: AssertFailed(); RT_FALL_THRU();
-                case UartType_U16550A: pszUartType = "16550A"; break;
-            }
-            InsertConfigString(pCfg, "UartType", pszUartType);
-
             PortMode_T eHostMode;
             hrc = serialPort->COMGETTER(HostMode)(&eHostMode);                              H();
-
-            m_aeSerialPortMode[ulInstance] = eHostMode;
             if (eHostMode != PortMode_Disconnected)
             {
-                rc = i_configSerialPort(pInst, eHostMode, Utf8Str(bstr).c_str(), RT_BOOL(fServer));
-                if (RT_FAILURE(rc))
-                    return rc;
+                InsertConfigNode(pInst,     "LUN#0", &pLunL0);
+                if (eHostMode == PortMode_HostPipe)
+                {
+                    InsertConfigString(pLunL0,  "Driver", "Char");
+                    InsertConfigNode(pLunL0,    "AttachedDriver", &pLunL1);
+                    InsertConfigString(pLunL1,  "Driver", "NamedPipe");
+                    InsertConfigNode(pLunL1,    "Config", &pLunL2);
+                    InsertConfigString(pLunL2,  "Location", bstr);
+                    InsertConfigInteger(pLunL2, "IsServer", fServer);
+                }
+                else if (eHostMode == PortMode_HostDevice)
+                {
+                    InsertConfigString(pLunL0,  "Driver", "Host Serial");
+                    InsertConfigNode(pLunL0,    "Config", &pLunL1);
+                    InsertConfigString(pLunL1,  "DevicePath", bstr);
+                }
+                else if (eHostMode == PortMode_TCP)
+                {
+                    InsertConfigString(pLunL0,  "Driver", "Char");
+                    InsertConfigNode(pLunL0,    "AttachedDriver", &pLunL1);
+                    InsertConfigString(pLunL1,  "Driver", "TCP");
+                    InsertConfigNode(pLunL1,    "Config", &pLunL2);
+                    InsertConfigString(pLunL2,  "Location", bstr);
+                    InsertConfigInteger(pLunL2, "IsServer", fServer);
+                }
+                else if (eHostMode == PortMode_RawFile)
+                {
+                    InsertConfigString(pLunL0,  "Driver", "Char");
+                    InsertConfigNode(pLunL0,    "AttachedDriver", &pLunL1);
+                    InsertConfigString(pLunL1,  "Driver", "RawFile");
+                    InsertConfigNode(pLunL1,    "Config", &pLunL2);
+                    InsertConfigString(pLunL2,  "Location", bstr);
+                }
             }
         }
 
@@ -3000,15 +2990,15 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
                 uAudioLUN++;
 #endif /* VBOX_WITH_AUDIO_VRDE */
 
-#ifdef VBOX_WITH_AUDIO_RECORDING
+#ifdef VBOX_WITH_AUDIO_VIDEOREC
             /* Insert dummy audio driver to have the LUN configured. */
             CFGMR3InsertNodeF(pInst, &pLunL0, "LUN#%RU8", uAudioLUN);
                 InsertConfigString(pLunL0, "Driver", "AUDIO");
             AudioDriverCfg DrvCfgVideoRec(strAudioDevice, 0 /* Instance */, uAudioLUN, "AudioVideoRec");
-            rc = Recording.mAudioRec->InitializeConfig(&DrvCfgVideoRec);
+            rc = mAudioVideoRec->InitializeConfig(&DrvCfgVideoRec);
             if (RT_SUCCESS(rc))
                 uAudioLUN++;
-#endif /* VBOX_WITH_AUDIO_RECORDING */
+#endif /* VBOX_WITH_AUDIO_VIDEOREC */
 
             if (fDebugEnabled)
             {
@@ -3075,7 +3065,8 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
 
                     /* Setup the service. */
                     VBOXHGCMSVCPARM parm;
-                    HGCMSvcSetU32(&parm, !i_useHostClipboard());
+                    parm.type = VBOX_HGCM_SVC_PARM_32BIT;
+                    parm.setUInt32(!i_useHostClipboard());
                     pVMMDev->hgcmHostCall("VBoxSharedClipboard",
                                           VBOX_SHARED_CLIPBOARD_HOST_FN_SET_HEADLESS, 1, &parm);
                 }
@@ -3193,6 +3184,20 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             }
         }
 #endif
+
+#ifdef VBOX_WITH_GUEST_PROPS
+        /*
+         * Guest property service.
+         */
+        rc = i_configGuestProperties(this, pUVM);
+#endif /* VBOX_WITH_GUEST_PROPS defined */
+
+#ifdef VBOX_WITH_GUEST_CONTROL
+        /*
+         * Guest control service.
+         */
+        rc = i_configGuestControl(this);
+#endif /* VBOX_WITH_GUEST_CONTROL defined */
 
         /*
          * ACPI
@@ -3810,20 +3815,27 @@ int Console::i_configGraphicsController(PCFGMNODE pDevices,
 #else
         NOREF(fHMEnabled);
 #endif
-        BOOL f3DEnabled;
-        hrc = ptrMachine->COMGETTER(Accelerate3DEnabled)(&f3DEnabled);                      H();
-        InsertConfigInteger(pCfg,  "3DEnabled",            f3DEnabled);
 
         i_attachStatusDriver(pInst, &mapCrOglLed, 0, 0, NULL, NULL, 0);
 
 #ifdef VBOX_WITH_VMSVGA
-        if (   enmGraphicsController == GraphicsControllerType_VMSVGA
-            || enmGraphicsController == GraphicsControllerType_VBoxSVGA)
+        if (enmGraphicsController == GraphicsControllerType_VMSVGA)
         {
             InsertConfigInteger(pCfg, "VMSVGAEnabled", true);
-            if (enmGraphicsController == GraphicsControllerType_VMSVGA)
-                InsertConfigInteger(pCfg, "VMSVGAPciId", true);
 #ifdef VBOX_WITH_VMSVGA3D
+            IFramebuffer *pFramebuffer = NULL;
+            hrc = i_getDisplay()->QueryFramebuffer(0, &pFramebuffer);
+            if (SUCCEEDED(hrc) && pFramebuffer)
+            {
+                LONG64 winId = 0;
+                /** @todo deal with multimonitor setup */
+                Assert(cMonitorCount == 1);
+                hrc = pFramebuffer->COMGETTER(WinId)(&winId);
+                InsertConfigInteger(pCfg, "HostWindowId", winId);
+                pFramebuffer->Release();
+            }
+            BOOL f3DEnabled;
+            hrc = ptrMachine->COMGETTER(Accelerate3DEnabled)(&f3DEnabled);                  H();
             InsertConfigInteger(pCfg, "VMSVGA3dEnabled", f3DEnabled);
 #else
             LogRel(("VMSVGA3d not available in this build!\n"));
@@ -4388,9 +4400,6 @@ int Console::i_configMediumAttachment(const char *pcszDevice,
         hrc = pMediumAtt->COMGETTER(NonRotational)(&fNonRotational);                        H();
         BOOL fDiscard;
         hrc = pMediumAtt->COMGETTER(Discard)(&fDiscard);                                    H();
-
-        if (lType == DeviceType_DVD)
-            fInsertDiskIntegrityDrv = false;
 
         unsigned uLUN;
         PCFGMNODE pLunL0 = NULL;
@@ -5036,7 +5045,7 @@ int Console::i_configNetwork(const char *pszDevice,
                 rc = VINF_SUCCESS;
             AssertLogRelRCReturn(rc, rc);
 
-            /* Nuke anything which might have been left behind. */
+            /* nuke anything which might have been left behind. */
             CFGMR3RemoveNode(CFGMR3GetChildF(pInst, "LUN#%u", uLun));
         }
 
@@ -5051,8 +5060,10 @@ int Console::i_configNetwork(const char *pszDevice,
         }
 #endif /* VBOX_WITH_NETSHAPER */
 
-        AssertMsg(uLun == 0, ("Network attachments with LUN > 0 are not supported yet\n"));
-        CFGMR3InsertNodeF(pInst, &pLunL0, "LUN#%u", uLun);
+        Utf8Str strNetDriver;
+
+
+        InsertConfigNode(pInst, "LUN#0", &pLunL0);
 
 #ifdef VBOX_WITH_NETSHAPER
         if (!strBwGroup.isEmpty())
@@ -5926,65 +5937,280 @@ int Console::i_configNetwork(const char *pszDevice,
     return VINF_SUCCESS;
 }
 
-
+#ifdef VBOX_WITH_GUEST_PROPS
 /**
- * Configures the serial port at the given CFGM node with the supplied parameters.
- *
- * @returns VBox status code.
- * @param   pInst               The instance CFGM node.
- * @param   ePortMode           The port mode to sue.
- * @param   pszPath             The serial port path.
- * @param   fServer             Flag whether the port should act as a server
- *                              for the pipe and TCP mode or connect as a client.
+ * Set an array of guest properties
  */
-int Console::i_configSerialPort(PCFGMNODE pInst, PortMode_T ePortMode, const char *pszPath, bool fServer)
+static void configSetProperties(VMMDev * const pVMMDev,
+                                void *names,
+                                void *values,
+                                void *timestamps,
+                                void *flags)
 {
-    PCFGMNODE pLunL0 = NULL;        /* /Devices/Dev/0/LUN#0/ */
-    PCFGMNODE pLunL1 = NULL;        /* /Devices/Dev/0/LUN#0/AttachedDriver/ */
-    PCFGMNODE pLunL1Cfg = NULL;     /* /Devices/Dev/0/LUN#0/AttachedDriver/Config */
+    VBOXHGCMSVCPARM parms[4];
 
-    try
-    {
-        InsertConfigNode(pInst, "LUN#0", &pLunL0);
-        if (ePortMode == PortMode_HostPipe)
-        {
-            InsertConfigString(pLunL0,     "Driver", "Char");
-            InsertConfigNode(pLunL0,       "AttachedDriver", &pLunL1);
-            InsertConfigString(pLunL1,     "Driver", "NamedPipe");
-            InsertConfigNode(pLunL1,       "Config", &pLunL1Cfg);
-            InsertConfigString(pLunL1Cfg,  "Location", pszPath);
-            InsertConfigInteger(pLunL1Cfg, "IsServer", fServer);
-        }
-        else if (ePortMode == PortMode_HostDevice)
-        {
-            InsertConfigString(pLunL0,     "Driver", "Host Serial");
-            InsertConfigNode(pLunL0,       "Config", &pLunL1);
-            InsertConfigString(pLunL1,     "DevicePath", pszPath);
-        }
-        else if (ePortMode == PortMode_TCP)
-        {
-            InsertConfigString(pLunL0,     "Driver", "Char");
-            InsertConfigNode(pLunL0,       "AttachedDriver", &pLunL1);
-            InsertConfigString(pLunL1,     "Driver", "TCP");
-            InsertConfigNode(pLunL1,       "Config", &pLunL1Cfg);
-            InsertConfigString(pLunL1Cfg,  "Location", pszPath);
-            InsertConfigInteger(pLunL1Cfg, "IsServer", fServer);
-        }
-        else if (ePortMode == PortMode_RawFile)
-        {
-            InsertConfigString(pLunL0,     "Driver", "Char");
-            InsertConfigNode(pLunL0,       "AttachedDriver", &pLunL1);
-            InsertConfigString(pLunL1,     "Driver", "RawFile");
-            InsertConfigNode(pLunL1,       "Config", &pLunL1Cfg);
-            InsertConfigString(pLunL1Cfg,  "Location", pszPath);
-        }
-    }
-    catch (ConfigError &x)
-    {
-        /* InsertConfig threw something */
-        return x.m_vrc;
-    }
+    parms[0].type = VBOX_HGCM_SVC_PARM_PTR;
+    parms[0].u.pointer.addr = names;
+    parms[0].u.pointer.size = 0;  /* We don't actually care. */
+    parms[1].type = VBOX_HGCM_SVC_PARM_PTR;
+    parms[1].u.pointer.addr = values;
+    parms[1].u.pointer.size = 0;  /* We don't actually care. */
+    parms[2].type = VBOX_HGCM_SVC_PARM_PTR;
+    parms[2].u.pointer.addr = timestamps;
+    parms[2].u.pointer.size = 0;  /* We don't actually care. */
+    parms[3].type = VBOX_HGCM_SVC_PARM_PTR;
+    parms[3].u.pointer.addr = flags;
+    parms[3].u.pointer.size = 0;  /* We don't actually care. */
 
-    return VINF_SUCCESS;
+    pVMMDev->hgcmHostCall("VBoxGuestPropSvc",
+                          guestProp::SET_PROPS_HOST,
+                          4,
+                          &parms[0]);
 }
 
+/**
+ * Set a single guest property
+ */
+static void configSetProperty(VMMDev * const pVMMDev,
+                              const char *pszName,
+                              const char *pszValue,
+                              const char *pszFlags)
+{
+    VBOXHGCMSVCPARM parms[4];
+
+    AssertPtrReturnVoid(pszName);
+    AssertPtrReturnVoid(pszValue);
+    AssertPtrReturnVoid(pszFlags);
+    parms[0].type = VBOX_HGCM_SVC_PARM_PTR;
+    parms[0].u.pointer.addr = (void *)pszName;
+    parms[0].u.pointer.size = (uint32_t)strlen(pszName) + 1;
+    parms[1].type = VBOX_HGCM_SVC_PARM_PTR;
+    parms[1].u.pointer.addr = (void *)pszValue;
+    parms[1].u.pointer.size = (uint32_t)strlen(pszValue) + 1;
+    parms[2].type = VBOX_HGCM_SVC_PARM_PTR;
+    parms[2].u.pointer.addr = (void *)pszFlags;
+    parms[2].u.pointer.size = (uint32_t)strlen(pszFlags) + 1;
+    pVMMDev->hgcmHostCall("VBoxGuestPropSvc", guestProp::SET_PROP_HOST, 3,
+                          &parms[0]);
+}
+
+/**
+ * Set the global flags value by calling the service
+ * @returns the status returned by the call to the service
+ *
+ * @param   pTable  the service instance handle
+ * @param   eFlags  the flags to set
+ */
+int configSetGlobalPropertyFlags(VMMDev * const pVMMDev,
+                                 guestProp::ePropFlags eFlags)
+{
+    VBOXHGCMSVCPARM paParm;
+    paParm.setUInt32(eFlags);
+    int rc = pVMMDev->hgcmHostCall("VBoxGuestPropSvc",
+                                   guestProp::SET_GLOBAL_FLAGS_HOST, 1,
+                                   &paParm);
+    if (RT_FAILURE(rc))
+    {
+        char szFlags[guestProp::MAX_FLAGS_LEN];
+        if (RT_FAILURE(writeFlags(eFlags, szFlags)))
+            Log(("Failed to set the global flags.\n"));
+        else
+            Log(("Failed to set the global flags \"%s\".\n", szFlags));
+    }
+    return rc;
+}
+#endif /* VBOX_WITH_GUEST_PROPS */
+
+/**
+ * Set up the Guest Property service, populate it with properties read from
+ * the machine XML and set a couple of initial properties.
+ */
+/* static */ int Console::i_configGuestProperties(void *pvConsole, PUVM pUVM)
+{
+#ifdef VBOX_WITH_GUEST_PROPS
+    AssertReturn(pvConsole, VERR_INVALID_POINTER);
+    ComObjPtr<Console> pConsole = static_cast<Console *>(pvConsole);
+    AssertReturn(pConsole->m_pVMMDev, VERR_INVALID_POINTER);
+
+    /* Load the service */
+    int rc = pConsole->m_pVMMDev->hgcmLoadService("VBoxGuestPropSvc", "VBoxGuestPropSvc");
+
+    if (RT_FAILURE(rc))
+    {
+        LogRel(("VBoxGuestPropSvc is not available. rc = %Rrc\n", rc));
+        /* That is not a fatal failure. */
+        rc = VINF_SUCCESS;
+    }
+    else
+    {
+        /*
+         * Initialize built-in properties that can be changed and saved.
+         *
+         * These are typically transient properties that the guest cannot
+         * change.
+         */
+
+        {
+            VBOXHGCMSVCPARM Params[2];
+            int rc2 = pConsole->m_pVMMDev->hgcmHostCall("VBoxGuestPropSvc", guestProp::GET_DBGF_INFO_FN, 2, &Params[0]);
+            if (RT_SUCCESS(rc2))
+            {
+                PFNDBGFHANDLEREXT pfnHandler = (PFNDBGFHANDLEREXT)(uintptr_t)Params[0].u.pointer.addr;
+                void *pService = (void*)Params[1].u.pointer.addr;
+                DBGFR3InfoRegisterExternal(pUVM, "guestprops", "Display the guest properties", pfnHandler, pService);
+            }
+        }
+
+        /* Sysprep execution by VBoxService. */
+        configSetProperty(pConsole->m_pVMMDev,
+                          "/VirtualBox/HostGuest/SysprepExec", "",
+                          "TRANSIENT, RDONLYGUEST");
+        configSetProperty(pConsole->m_pVMMDev,
+                          "/VirtualBox/HostGuest/SysprepArgs", "",
+                          "TRANSIENT, RDONLYGUEST");
+
+        /*
+         * Pull over the properties from the server.
+         */
+        SafeArray<BSTR> namesOut;
+        SafeArray<BSTR> valuesOut;
+        SafeArray<LONG64> timestampsOut;
+        SafeArray<BSTR> flagsOut;
+        HRESULT hrc;
+        hrc = pConsole->mControl->PullGuestProperties(ComSafeArrayAsOutParam(namesOut),
+                                                      ComSafeArrayAsOutParam(valuesOut),
+                                                      ComSafeArrayAsOutParam(timestampsOut),
+                                                      ComSafeArrayAsOutParam(flagsOut));
+        AssertLogRelMsgReturn(SUCCEEDED(hrc), ("hrc=%Rhrc\n", hrc), VERR_MAIN_CONFIG_CONSTRUCTOR_COM_ERROR);
+        size_t cProps = namesOut.size();
+        size_t cAlloc = cProps + 1;
+        if (   valuesOut.size() != cProps
+            || timestampsOut.size() != cProps
+            || flagsOut.size() != cProps
+           )
+            AssertFailedReturn(VERR_INVALID_PARAMETER);
+
+        char **papszNames, **papszValues, **papszFlags;
+        char szEmpty[] = "";
+        LONG64 *pai64Timestamps;
+        papszNames = (char **)RTMemTmpAllocZ(sizeof(void *) * cAlloc);
+        papszValues = (char **)RTMemTmpAllocZ(sizeof(void *) * cAlloc);
+        pai64Timestamps = (LONG64 *)RTMemTmpAllocZ(sizeof(LONG64) * cAlloc);
+        papszFlags = (char **)RTMemTmpAllocZ(sizeof(void *) * cAlloc);
+        if (papszNames && papszValues && pai64Timestamps && papszFlags)
+        {
+            for (unsigned i = 0; RT_SUCCESS(rc) && i < cProps; ++i)
+            {
+                AssertPtrBreakStmt(namesOut[i], rc = VERR_INVALID_PARAMETER);
+                rc = RTUtf16ToUtf8(namesOut[i], &papszNames[i]);
+                if (RT_FAILURE(rc))
+                    break;
+                if (valuesOut[i])
+                    rc = RTUtf16ToUtf8(valuesOut[i], &papszValues[i]);
+                else
+                    papszValues[i] = szEmpty;
+                if (RT_FAILURE(rc))
+                    break;
+                pai64Timestamps[i] = timestampsOut[i];
+                if (flagsOut[i])
+                    rc = RTUtf16ToUtf8(flagsOut[i], &papszFlags[i]);
+                else
+                    papszFlags[i] = szEmpty;
+            }
+            if (RT_SUCCESS(rc))
+                configSetProperties(pConsole->m_pVMMDev,
+                                    (void *)papszNames,
+                                    (void *)papszValues,
+                                    (void *)pai64Timestamps,
+                                    (void *)papszFlags);
+            for (unsigned i = 0; i < cProps; ++i)
+            {
+                RTStrFree(papszNames[i]);
+                if (valuesOut[i])
+                    RTStrFree(papszValues[i]);
+                if (flagsOut[i])
+                    RTStrFree(papszFlags[i]);
+            }
+        }
+        else
+            rc = VERR_NO_MEMORY;
+        RTMemTmpFree(papszNames);
+        RTMemTmpFree(papszValues);
+        RTMemTmpFree(pai64Timestamps);
+        RTMemTmpFree(papszFlags);
+        AssertRCReturn(rc, rc);
+
+        /*
+         * These properties have to be set before pulling over the properties
+         * from the machine XML, to ensure that properties saved in the XML
+         * will override them.
+         */
+        /* Set the raw VBox version string as a guest property. Used for host/guest
+         * version comparison. */
+        configSetProperty(pConsole->m_pVMMDev, "/VirtualBox/HostInfo/VBoxVer",
+                          VBOX_VERSION_STRING_RAW, "TRANSIENT, RDONLYGUEST");
+        /* Set the full VBox version string as a guest property. Can contain vendor-specific
+         * information/branding and/or pre-release tags. */
+        configSetProperty(pConsole->m_pVMMDev, "/VirtualBox/HostInfo/VBoxVerExt",
+                          VBOX_VERSION_STRING, "TRANSIENT, RDONLYGUEST");
+        /* Set the VBox SVN revision as a guest property */
+        configSetProperty(pConsole->m_pVMMDev, "/VirtualBox/HostInfo/VBoxRev",
+                          RTBldCfgRevisionStr(), "TRANSIENT, RDONLYGUEST");
+
+        /*
+         * Register the host notification callback
+         */
+        HGCMSVCEXTHANDLE hDummy;
+        HGCMHostRegisterServiceExtension(&hDummy, "VBoxGuestPropSvc",
+                                         Console::i_doGuestPropNotification,
+                                         pvConsole);
+
+#ifdef VBOX_WITH_GUEST_PROPS_RDONLY_GUEST
+        rc = configSetGlobalPropertyFlags(pConsole->m_pVMMDev,
+                                          guestProp::RDONLYGUEST);
+        AssertRCReturn(rc, rc);
+#endif
+
+        Log(("Set VBoxGuestPropSvc property store\n"));
+    }
+    return VINF_SUCCESS;
+#else /* !VBOX_WITH_GUEST_PROPS */
+    return VERR_NOT_SUPPORTED;
+#endif /* !VBOX_WITH_GUEST_PROPS */
+}
+
+/**
+ * Set up the Guest Control service.
+ */
+/* static */ int Console::i_configGuestControl(void *pvConsole)
+{
+#ifdef VBOX_WITH_GUEST_CONTROL
+    AssertReturn(pvConsole, VERR_INVALID_POINTER);
+    ComObjPtr<Console> pConsole = static_cast<Console *>(pvConsole);
+
+    /* Load the service */
+    int rc = pConsole->m_pVMMDev->hgcmLoadService("VBoxGuestControlSvc", "VBoxGuestControlSvc");
+
+    if (RT_FAILURE(rc))
+    {
+        LogRel(("VBoxGuestControlSvc is not available. rc = %Rrc\n", rc));
+        /* That is not a fatal failure. */
+        rc = VINF_SUCCESS;
+    }
+    else
+    {
+        HGCMSVCEXTHANDLE hDummy;
+        rc = HGCMHostRegisterServiceExtension(&hDummy, "VBoxGuestControlSvc",
+                                              &Guest::i_notifyCtrlDispatcher,
+                                              pConsole->i_getGuest());
+        if (RT_FAILURE(rc))
+            Log(("Cannot register VBoxGuestControlSvc extension!\n"));
+        else
+            LogRel(("Guest Control service loaded\n"));
+    }
+
+    return rc;
+#else /* !VBOX_WITH_GUEST_CONTROL */
+    return VERR_NOT_SUPPORTED;
+#endif /* !VBOX_WITH_GUEST_CONTROL */
+}

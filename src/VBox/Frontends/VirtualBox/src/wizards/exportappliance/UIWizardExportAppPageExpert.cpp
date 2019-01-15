@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,473 +15,248 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Qt includes: */
-#include <QCheckBox>
-#include <QGridLayout>
-#include <QGroupBox>
-#include <QHeaderView>
-#include <QLabel>
-#include <QLineEdit>
-#include <QListWidget>
-#include <QRadioButton>
-#include <QStackedWidget>
-#include <QTableWidget>
-#include <QVBoxLayout>
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* GUI includes: */
-#include "QIToolButton.h"
-#include "VBoxGlobal.h"
-#include "UIApplianceExportEditorWidget.h"
-#include "UIConverter.h"
-#include "UIEmptyFilePathSelector.h"
-#include "UIIconPool.h"
-#include "UIVirtualBoxManager.h"
-#include "UIWizardExportApp.h"
-#include "UIWizardExportAppDefs.h"
-#include "UIWizardExportAppPageExpert.h"
+/* Global includes: */
+# include <QVBoxLayout>
+# include <QGridLayout>
+# include <QListWidget>
+# include <QGroupBox>
+# include <QRadioButton>
+# include <QLineEdit>
+# include <QLabel>
+# include <QCheckBox>
+# include <QGroupBox>
 
+/* Local includes: */
+# include "UIWizardExportAppPageExpert.h"
+# include "UIWizardExportApp.h"
+# include "UIWizardExportAppDefs.h"
+# include "VBoxGlobal.h"
+# include "UIEmptyFilePathSelector.h"
+# include "UIApplianceExportEditorWidget.h"
 
-/*********************************************************************************************************************************
-*   Class UIWizardExportAppPageExpert implementation.                                                                            *
-*********************************************************************************************************************************/
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 
 UIWizardExportAppPageExpert::UIWizardExportAppPageExpert(const QStringList &selectedVMNames)
-    : m_pSelectorCnt(0)
-    , m_pApplianceCnt(0)
-    , m_pSettingsCnt(0)
 {
     /* Create widgets: */
     QGridLayout *pMainLayout = new QGridLayout(this);
-    if (pMainLayout)
     {
-        pMainLayout->setRowStretch(0, 1);
-
-        /* Create VM selector container: */
-        m_pSelectorCnt = new QGroupBox;
-        if (m_pSelectorCnt)
+        m_pSelectorCnt = new QGroupBox(this);
         {
-            /* Create VM selector container layout: */
             QVBoxLayout *pSelectorCntLayout = new QVBoxLayout(m_pSelectorCnt);
-            if (pSelectorCntLayout)
             {
-                /* Create VM selector: */
-                m_pVMSelector = new QListWidget;
-                if (m_pVMSelector)
+                m_pVMSelector = new QListWidget(m_pSelectorCnt);
                 {
                     m_pVMSelector->setAlternatingRowColors(true);
                     m_pVMSelector->setSelectionMode(QAbstractItemView::ExtendedSelection);
-
-                    /* Add into layout: */
-                    pSelectorCntLayout->addWidget(m_pVMSelector);
                 }
+                pSelectorCntLayout->addWidget(m_pVMSelector);
             }
-
-            /* Add into layout: */
-            pMainLayout->addWidget(m_pSelectorCnt, 0, 0);
         }
-
-        /* Create appliance widget container: */
-        m_pApplianceCnt = new QGroupBox;
-        if (m_pApplianceCnt)
+        m_pApplianceCnt = new QGroupBox(this);
         {
-            /* Create appliance widget container layout: */
             QVBoxLayout *pApplianceCntLayout = new QVBoxLayout(m_pApplianceCnt);
-            if (pApplianceCntLayout)
             {
-                /* Create appliance widget: */
-                m_pApplianceWidget = new UIApplianceExportEditorWidget;
-                if (m_pApplianceWidget)
+                m_pApplianceWidget = new UIApplianceExportEditorWidget(m_pApplianceCnt);
                 {
                     m_pApplianceWidget->setMinimumHeight(250);
                     m_pApplianceWidget->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::MinimumExpanding);
-
-                    /* Add into layout: */
-                    pApplianceCntLayout->addWidget(m_pApplianceWidget);
                 }
+                pApplianceCntLayout->addWidget(m_pApplianceWidget);
             }
-
-            /* Add into layout: */
-            pMainLayout->addWidget(m_pApplianceCnt, 0, 1);
         }
-
-        /* Create settings widget container: */
-        m_pSettingsCnt = new QGroupBox;
-        if (m_pSettingsCnt)
+        m_pTypeCnt = new QGroupBox(this);
         {
-            /* Create settings widget container layout: */
-            QVBoxLayout *pSettingsCntLayout = new QVBoxLayout(m_pSettingsCnt);
-            if (pSettingsCntLayout)
+            m_pTypeCnt->hide();
+            QVBoxLayout *pTypeCntLayout = new QVBoxLayout(m_pTypeCnt);
             {
-#ifdef VBOX_WS_MAC
-                pSettingsCntLayout->setSpacing(5);
-#endif
-
-                /* Create format layout: */
-                m_pFormatLayout = new QGridLayout;
-                if (m_pFormatLayout)
-                {
-                    m_pFormatLayout->setContentsMargins(0, 0, 0, 0);
-#ifdef VBOX_WS_MAC
-                    m_pFormatLayout->setSpacing(10);
-#endif
-                    m_pFormatLayout->setColumnStretch(0, 0);
-                    m_pFormatLayout->setColumnStretch(1, 1);
-
-                    /* Create format combo-box: */
-                    m_pFormatComboBox = new QComboBox;
-                    if (m_pFormatComboBox)
-                    {
-                        /* Add into layout: */
-                        m_pFormatLayout->addWidget(m_pFormatComboBox, 0, 1);
-                    }
-                    /* Create format combo-box label: */
-                    m_pFormatComboBoxLabel = new QLabel;
-                    if (m_pFormatComboBoxLabel)
-                    {
-                        m_pFormatComboBoxLabel->setAlignment(Qt::AlignRight | Qt::AlignTrailing | Qt::AlignVCenter);
-                        m_pFormatComboBoxLabel->setBuddy(m_pFormatComboBox);
-
-                        /* Add into layout: */
-                        m_pFormatLayout->addWidget(m_pFormatComboBoxLabel, 0, 0);
-                    }
-
-                    /* Add into layout: */
-                    pSettingsCntLayout->addLayout(m_pFormatLayout);
-                }
-
-                /* Create settings widget: */
-                m_pSettingsWidget = new QStackedWidget;
-                if (m_pSettingsWidget)
-                {
-                    /* Create settings pane 1: */
-                    QWidget *pSettingsPane1 = new QWidget;
-                    if (pSettingsPane1)
-                    {
-                        /* Create settings layout 1: */
-                        m_pSettingsLayout1 = new QGridLayout(pSettingsPane1);
-                        if (m_pSettingsLayout1)
-                        {
-#ifdef VBOX_WS_MAC
-                            m_pSettingsLayout1->setSpacing(10);
-#endif
-                            m_pSettingsLayout1->setContentsMargins(0, 0, 0, 0);
-                            m_pSettingsLayout1->setColumnStretch(0, 0);
-                            m_pSettingsLayout1->setColumnStretch(1, 1);
-
-                            /* Create file selector: */
-                            m_pFileSelector = new UIEmptyFilePathSelector;
-                            if (m_pFileSelector)
-                            {
-                                m_pFileSelector->setMode(UIEmptyFilePathSelector::Mode_File_Save);
-                                m_pFileSelector->setEditable(true);
-                                m_pFileSelector->setButtonPosition(UIEmptyFilePathSelector::RightPosition);
-                                m_pFileSelector->setDefaultSaveExt("ova");
-
-                                /* Add into layout: */
-                                m_pSettingsLayout1->addWidget(m_pFileSelector, 0, 1, 1, 2);
-                            }
-                            /* Create file selector label: */
-                            m_pFileSelectorLabel = new QLabel;
-                            if (m_pFileSelectorLabel)
-                            {
-                                m_pFileSelectorLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
-                                m_pFileSelectorLabel->setBuddy(m_pFileSelector);
-
-                                /* Add into layout: */
-                                m_pSettingsLayout1->addWidget(m_pFileSelectorLabel, 0, 0);
-                            }
-
-                            /* Create MAC policy combo-box: */
-                            m_pMACComboBox = new QComboBox;
-                            if (m_pMACComboBox)
-                            {
-                                /* Add into layout: */
-                                m_pSettingsLayout1->addWidget(m_pMACComboBox, 1, 1, 1, 2);
-                            }
-                            /* Create format combo-box label: */
-                            m_pMACComboBoxLabel = new QLabel;
-                            if (m_pMACComboBoxLabel)
-                            {
-                                m_pMACComboBoxLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
-                                m_pMACComboBoxLabel->setBuddy(m_pMACComboBox);
-
-                                /* Add into layout: */
-                                m_pSettingsLayout1->addWidget(m_pMACComboBoxLabel, 1, 0);
-                            }
-
-                            /* Create advanced label: */
-                            m_pAdditionalLabel = new QLabel;
-                            if (m_pAdditionalLabel)
-                            {
-                                m_pAdditionalLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
-
-                                /* Add into layout: */
-                                m_pSettingsLayout1->addWidget(m_pAdditionalLabel, 2, 0);
-                            }
-                            /* Create manifest check-box editor: */
-                            m_pManifestCheckbox = new QCheckBox;
-                            if (m_pManifestCheckbox)
-                            {
-                                /* Add into layout: */
-                                m_pSettingsLayout1->addWidget(m_pManifestCheckbox, 2, 1);
-                            }
-                            /* Create include ISOs check-box: */
-                            m_pIncludeISOsCheckbox = new QCheckBox;
-                            if (m_pIncludeISOsCheckbox)
-                            {
-                                /* Add into layout: */
-                                m_pSettingsLayout1->addWidget(m_pIncludeISOsCheckbox, 3, 1);
-                            }
-
-                            /* Create placeholder: */
-                            QWidget *pPlaceholder = new QWidget;
-                            if (pPlaceholder)
-                            {
-                                /* Add into layout: */
-                                m_pSettingsLayout1->addWidget(pPlaceholder, 4, 0, 1, 3);
-                            }
-                        }
-
-                        /* Add into layout: */
-                        m_pSettingsWidget->addWidget(pSettingsPane1);
-                    }
-
-                    /* Create settings pane 2: */
-                    QWidget *pSettingsPane2 = new QWidget;
-                    if (pSettingsPane2)
-                    {
-                        /* Create settings layout 2: */
-                        m_pSettingsLayout2 = new QGridLayout(pSettingsPane2);
-                        if (m_pSettingsLayout2)
-                        {
-#ifdef VBOX_WS_MAC
-                            m_pSettingsLayout2->setSpacing(10);
-#endif
-                            m_pSettingsLayout2->setContentsMargins(0, 0, 0, 0);
-                            m_pSettingsLayout2->setColumnStretch(0, 0);
-                            m_pSettingsLayout2->setColumnStretch(1, 1);
-
-                            /* Create account label: */
-                            m_pAccountComboBoxLabel = new QLabel;
-                            if (m_pAccountComboBoxLabel)
-                            {
-                                m_pAccountComboBoxLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
-
-                                /* Add into layout: */
-                                m_pSettingsLayout2->addWidget(m_pAccountComboBoxLabel, 0, 0);
-                            }
-                            /* Create sub-layout: */
-                            QHBoxLayout *pSubLayout = new QHBoxLayout;
-                            if (pSubLayout)
-                            {
-                                pSubLayout->setContentsMargins(0, 0, 0, 0);
-                                pSubLayout->setSpacing(1);
-
-                                /* Create provider combo-box: */
-                                m_pAccountComboBox = new QComboBox;
-                                if (m_pAccountComboBox)
-                                {
-                                    m_pAccountComboBoxLabel->setBuddy(m_pAccountComboBox);
-
-                                    /* Add into layout: */
-                                    pSubLayout->addWidget(m_pAccountComboBox);
-                                }
-                                /* Create provider combo-box: */
-                                m_pAccountToolButton = new QIToolButton;
-                                if (m_pAccountToolButton)
-                                {
-                                    m_pAccountToolButton->setIcon(UIIconPool::iconSet(":/cloud_profile_manager_16px.png",
-                                                                                      ":/cloud_profile_manager_disabled_16px.png"));
-
-                                    /* Add into layout: */
-                                    pSubLayout->addWidget(m_pAccountToolButton);
-                                }
-
-                                /* Add into layout: */
-                                m_pSettingsLayout2->addLayout(pSubLayout, 0, 1);
-                            }
-                            /* Create account property table: */
-                            m_pAccountPropertyTable = new QTableWidget;
-                            if (m_pAccountPropertyTable)
-                            {
-                                const QFontMetrics fm(m_pAccountPropertyTable->font());
-                                const int iFontWidth = fm.width('x');
-                                const int iTotalWidth = 50 * iFontWidth;
-                                const int iFontHeight = fm.height();
-                                const int iTotalHeight = 4 * iFontHeight;
-                                m_pAccountPropertyTable->setMinimumSize(QSize(iTotalWidth, iTotalHeight));
-                                m_pAccountPropertyTable->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Ignored);
-                                m_pAccountPropertyTable->setAlternatingRowColors(true);
-                                m_pAccountPropertyTable->horizontalHeader()->setVisible(false);
-                                m_pAccountPropertyTable->verticalHeader()->setVisible(false);
-                                m_pAccountPropertyTable->verticalHeader()->setSectionResizeMode(QHeaderView::ResizeToContents);
-
-                                /* Add into layout: */
-                                m_pSettingsLayout2->addWidget(m_pAccountPropertyTable, 1, 1);
-                            }
-                        }
-
-                        /* Add into layout: */
-                        m_pSettingsWidget->addWidget(pSettingsPane2);
-                    }
-
-                    /* Add into layout: */
-                    pSettingsCntLayout->addWidget(m_pSettingsWidget);
-                }
+                m_pTypeLocalFilesystem = new QRadioButton(m_pTypeCnt);
+                m_pTypeSunCloud = new QRadioButton(m_pTypeCnt);
+                m_pTypeSimpleStorageSystem = new QRadioButton(m_pTypeCnt);
+                pTypeCntLayout->addWidget(m_pTypeLocalFilesystem);
+                pTypeCntLayout->addWidget(m_pTypeSunCloud);
+                pTypeCntLayout->addWidget(m_pTypeSimpleStorageSystem);
             }
-
-            /* Add into layout: */
-            pMainLayout->addWidget(m_pSettingsCnt, 1, 0, 1, 2);
         }
+        m_pSettingsCnt = new QGroupBox(this);
+        {
+            QGridLayout *pSettingsLayout = new QGridLayout(m_pSettingsCnt);
+            {
+                m_pUsernameEditor = new QLineEdit(m_pSettingsCnt);
+                m_pUsernameLabel = new QLabel(m_pSettingsCnt);
+                {
+                    m_pUsernameLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
+                    m_pUsernameLabel->setBuddy(m_pUsernameEditor);
+                }
+                m_pPasswordEditor = new QLineEdit(m_pSettingsCnt);
+                {
+                    m_pPasswordEditor->setEchoMode(QLineEdit::Password);
+                }
+                m_pPasswordLabel = new QLabel(m_pSettingsCnt);
+                {
+                    m_pPasswordLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
+                    m_pPasswordLabel->setBuddy(m_pPasswordEditor);
+                }
+                m_pHostnameEditor = new QLineEdit(m_pSettingsCnt);
+                m_pHostnameLabel = new QLabel(m_pSettingsCnt);
+                {
+                    m_pHostnameLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
+                    m_pHostnameLabel->setBuddy(m_pHostnameEditor);
+                }
+                m_pBucketEditor = new QLineEdit(m_pSettingsCnt);
+                m_pBucketLabel = new QLabel(m_pSettingsCnt);
+                {
+                    m_pBucketLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
+                    m_pBucketLabel->setBuddy(m_pBucketEditor);
+                }
+                m_pFileSelector = new UIEmptyFilePathSelector(m_pSettingsCnt);
+                {
+                    m_pFileSelector->setMode(UIEmptyFilePathSelector::Mode_File_Save);
+                    m_pFileSelector->setEditable(true);
+                    m_pFileSelector->setButtonPosition(UIEmptyFilePathSelector::RightPosition);
+                    m_pFileSelector->setDefaultSaveExt("ova");
+                }
+                m_pFileSelectorLabel = new QLabel(m_pSettingsCnt);
+                {
+                    m_pFileSelectorLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
+                    m_pFileSelectorLabel->setBuddy(m_pFileSelector);
+                }
+                m_pFormatComboBox = new QComboBox(m_pSettingsCnt);
+                {
+                    const QString strFormatOVF09("ovf-0.9");
+                    const QString strFormatOVF10("ovf-1.0");
+                    const QString strFormatOVF20("ovf-2.0");
+                    const QString strFormatOPC10("opc-1.0");
+                    m_pFormatComboBox->addItem(strFormatOVF09, strFormatOVF09);
+                    m_pFormatComboBox->addItem(strFormatOVF10, strFormatOVF10);
+                    m_pFormatComboBox->addItem(strFormatOVF20, strFormatOVF20);
+                    m_pFormatComboBox->addItem(strFormatOPC10, strFormatOPC10);
+                    connect(m_pFormatComboBox, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
+                            this, &UIWizardExportAppPageExpert::sltHandleFormatComboChange);
+                }
+                m_pFormatComboBoxLabel = new QLabel(m_pSettingsCnt);
+                {
+                    m_pFormatComboBoxLabel->setAlignment(Qt::AlignRight|Qt::AlignTrailing|Qt::AlignVCenter);
+                    m_pFormatComboBoxLabel->setBuddy(m_pFormatComboBox);
+                }
+                m_pManifestCheckbox = new QCheckBox(m_pSettingsCnt);
+                pSettingsLayout->addWidget(m_pUsernameLabel, 0, 0);
+                pSettingsLayout->addWidget(m_pUsernameEditor, 0, 1);
+                pSettingsLayout->addWidget(m_pPasswordLabel, 1, 0);
+                pSettingsLayout->addWidget(m_pPasswordEditor, 1, 1);
+                pSettingsLayout->addWidget(m_pHostnameLabel, 2, 0);
+                pSettingsLayout->addWidget(m_pHostnameEditor, 2, 1);
+                pSettingsLayout->addWidget(m_pBucketLabel, 3, 0);
+                pSettingsLayout->addWidget(m_pBucketEditor, 3, 1);
+                pSettingsLayout->addWidget(m_pFileSelectorLabel, 4, 0);
+                pSettingsLayout->addWidget(m_pFileSelector, 4, 1);
+                pSettingsLayout->addWidget(m_pFormatComboBoxLabel, 5, 0);
+                pSettingsLayout->addWidget(m_pFormatComboBox, 5, 1);
+                pSettingsLayout->addWidget(m_pManifestCheckbox, 6, 0, 1, 2);
+            }
+        }
+        pMainLayout->addWidget(m_pSelectorCnt, 0, 0);
+        pMainLayout->addWidget(m_pApplianceCnt, 0, 1);
+        pMainLayout->addWidget(m_pTypeCnt, 1, 0, 1, 2);
+        pMainLayout->addWidget(m_pSettingsCnt, 2, 0, 1, 2);
+        populateVMSelectorItems(selectedVMNames);
+        chooseDefaultStorageType();
+        chooseDefaultSettings();
     }
 
-    /* Populate VM selector items: */
-    populateVMSelectorItems(selectedVMNames);
-    /* Populate formats: */
-    populateFormats();
-    /* Populate MAC address policies: */
-    populateMACAddressPolicies();
-    /* Populate accounts: */
-    populateAccounts();
-    /* Populate account properties: */
-    populateAccountProperties();
-    /* Populate cloud client parameters: */
-    populateCloudClientParameters();
-
     /* Setup connections: */
-    if (gpManager)
-        connect(gpManager, &UIVirtualBoxManager::sigCloudProfileManagerChange,
-                this, &UIWizardExportAppPageExpert::sltHandleFormatComboChange);
-    connect(m_pVMSelector, &QListWidget::itemSelectionChanged,      this, &UIWizardExportAppPageExpert::sltVMSelectionChangeHandler);
-    connect(m_pFileSelector, &UIEmptyFilePathSelector::pathChanged, this, &UIWizardExportAppPageExpert::completeChanged);
-    connect(m_pFormatComboBox, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
-            this, &UIWizardExportAppPageExpert::sltHandleFormatComboChange);
-    connect(m_pMACComboBox, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
-            this, &UIWizardExportAppPageExpert::sltHandleMACAddressPolicyComboChange);
-    connect(m_pAccountComboBox, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
-            this, &UIWizardExportAppPageExpert::sltHandleAccountComboChange);
-    connect(m_pAccountToolButton, &QIToolButton::clicked,
-            this, &UIWizardExportAppPageExpert::sltHandleAccountButtonClick);
+    connect(m_pVMSelector, SIGNAL(itemSelectionChanged()), this, SLOT(sltVMSelectionChangeHandler()));
+    connect(m_pTypeLocalFilesystem, SIGNAL(clicked()), this, SLOT(sltStorageTypeChangeHandler()));
+    connect(m_pTypeSunCloud, SIGNAL(clicked()), this, SLOT(sltStorageTypeChangeHandler()));
+    connect(m_pTypeSimpleStorageSystem, SIGNAL(clicked()), this, SLOT(sltStorageTypeChangeHandler()));
+    connect(m_pUsernameEditor, SIGNAL(textChanged(const QString &)), this, SIGNAL(completeChanged()));
+    connect(m_pPasswordEditor, SIGNAL(textChanged(const QString &)), this, SIGNAL(completeChanged()));
+    connect(m_pHostnameEditor, SIGNAL(textChanged(const QString &)), this, SIGNAL(completeChanged()));
+    connect(m_pBucketEditor, SIGNAL(textChanged(const QString &)), this, SIGNAL(completeChanged()));
+    connect(m_pFileSelector, SIGNAL(pathChanged(const QString &)), this, SIGNAL(completeChanged()));
 
     /* Register classes: */
+    qRegisterMetaType<StorageType>();
     qRegisterMetaType<ExportAppliancePointer>();
-
-    /* Register classes: */
-    qRegisterMetaType<AbstractVSDParameterList>();
     /* Register fields: */
     registerField("machineNames", this, "machineNames");
     registerField("machineIDs", this, "machineIDs");
+    registerField("storageType", this, "storageType");
     registerField("format", this, "format");
-    registerField("isFormatCloudOne", this, "isFormatCloudOne");
-    registerField("path", this, "path");
-    registerField("macAddressPolicy", this, "macAddressPolicy");
     registerField("manifestSelected", this, "manifestSelected");
-    registerField("includeISOsSelected", this, "includeISOsSelected");
-    registerField("providerShortName", this, "providerShortName");
-    registerField("profileName", this, "profileName");
-    registerField("profile", this, "profile");
-    registerField("cloudClientParameters", this, "cloudClientParameters");
+    registerField("username", this, "username");
+    registerField("password", this, "password");
+    registerField("hostname", this, "hostname");
+    registerField("bucket", this, "bucket");
+    registerField("path", this, "path");
     registerField("applianceWidget", this, "applianceWidget");
 }
 
-bool UIWizardExportAppPageExpert::event(QEvent *pEvent)
+void UIWizardExportAppPageExpert::sltVMSelectionChangeHandler()
 {
-    /* Handle known event types: */
-    switch (pEvent->type())
-    {
-        case QEvent::Show:
-        case QEvent::Resize:
-        {
-            /* Adjust profile property table: */
-            adjustAccountPropertyTable();
-            break;
-        }
-        default:
-            break;
-    }
-
     /* Call to base-class: */
-    return UIWizardPage::event(pEvent);
+    refreshCurrentSettings();
+    refreshApplianceSettingsWidget();
+
+    /* Broadcast complete-change: */
+    emit completeChanged();
+}
+
+void UIWizardExportAppPageExpert::sltStorageTypeChangeHandler()
+{
+    /* Call to base-class: */
+    refreshCurrentSettings();
+
+    /* Broadcast complete-change: */
+    emit completeChanged();
+}
+
+void UIWizardExportAppPageExpert::sltHandleFormatComboChange()
+{
+    refreshCurrentSettings();
+    updateFormatComboToolTip();
 }
 
 void UIWizardExportAppPageExpert::retranslateUi()
 {
     /* Translate objects: */
     m_strDefaultApplianceName = UIWizardExportApp::tr("Appliance");
-
-    /* Translate group-boxes: */
+    /* Translate widgets: */
     m_pSelectorCnt->setTitle(UIWizardExportApp::tr("Virtual &machines to export"));
-    m_pApplianceCnt->setTitle(UIWizardExportApp::tr("Virtual &system settings"));
-    m_pSettingsCnt->setTitle(UIWizardExportApp::tr("Appliance settings"));
-
-    /* Translate File selector: */
+    m_pApplianceCnt->setTitle(UIWizardExportApp::tr("Appliance &settings"));
+    m_pTypeCnt->setTitle(UIWizardExportApp::tr("&Destination"));
+    m_pSettingsCnt->setTitle(UIWizardExportApp::tr("&Storage settings"));
+    m_pTypeLocalFilesystem->setText(UIWizardExportApp::tr("&Local Filesystem "));
+    m_pTypeSunCloud->setText(UIWizardExportApp::tr("Sun &Cloud"));
+    m_pTypeSimpleStorageSystem->setText(UIWizardExportApp::tr("&Simple Storage System (S3)"));
+    m_pUsernameLabel->setText(UIWizardExportApp::tr("&Username:"));
+    m_pPasswordLabel->setText(UIWizardExportApp::tr("&Password:"));
+    m_pHostnameLabel->setText(UIWizardExportApp::tr("&Hostname:"));
+    m_pBucketLabel->setText(UIWizardExportApp::tr("&Bucket:"));
     m_pFileSelectorLabel->setText(UIWizardExportApp::tr("&File:"));
-    m_pFileSelector->setChooseButtonToolTip(UIWizardExportApp::tr("Choose a file to export the virtual appliance to..."));
+    m_pFileSelector->setChooseButtonToolTip(tr("Choose a file to export the virtual appliance to..."));
     m_pFileSelector->setFileDialogTitle(UIWizardExportApp::tr("Please choose a file to export the virtual appliance to"));
-
-    /* Translate hard-coded values of Format combo-box: */
     m_pFormatComboBoxLabel->setText(UIWizardExportApp::tr("F&ormat:"));
     m_pFormatComboBox->setItemText(0, UIWizardExportApp::tr("Open Virtualization Format 0.9"));
     m_pFormatComboBox->setItemText(1, UIWizardExportApp::tr("Open Virtualization Format 1.0"));
     m_pFormatComboBox->setItemText(2, UIWizardExportApp::tr("Open Virtualization Format 2.0"));
+    m_pFormatComboBox->setItemText(3, UIWizardExportApp::tr("Oracle Public Cloud Format 1.0"));
     m_pFormatComboBox->setItemData(0, UIWizardExportApp::tr("Write in legacy OVF 0.9 format for compatibility "
                                                             "with other virtualization products."), Qt::ToolTipRole);
     m_pFormatComboBox->setItemData(1, UIWizardExportApp::tr("Write in standard OVF 1.0 format."), Qt::ToolTipRole);
     m_pFormatComboBox->setItemData(2, UIWizardExportApp::tr("Write in new OVF 2.0 format."), Qt::ToolTipRole);
-    /* Translate received values of Format combo-box.
-     * We are enumerating starting from 0 for simplicity: */
-    for (int i = 0; i < m_pFormatComboBox->count(); ++i)
-        if (isFormatCloudOne(i))
-        {
-            m_pFormatComboBox->setItemText(i, m_pFormatComboBox->itemData(i, FormatData_Name).toString());
-            m_pFormatComboBox->setItemData(i, UIWizardExportApp::tr("Export to cloud service provider."), Qt::ToolTipRole);
-        }
-
-    /* Translate MAC address policy combo-box: */
-    m_pMACComboBoxLabel->setText(UIWizardExportApp::tr("MAC Address &Policy:"));
-    m_pMACComboBox->setItemText(MACAddressPolicy_KeepAllMACs,
-                                UIWizardExportApp::tr("Include all network adapter MAC addresses"));
-    m_pMACComboBox->setItemText(MACAddressPolicy_StripAllNonNATMACs,
-                                UIWizardExportApp::tr("Include only NAT network adapter MAC addresses"));
-    m_pMACComboBox->setItemText(MACAddressPolicy_StripAllMACs,
-                                UIWizardExportApp::tr("Strip all network adapter MAC addresses"));
-    m_pMACComboBox->setItemData(MACAddressPolicy_KeepAllMACs,
-                                UIWizardExportApp::tr("Include all network adapter MAC addresses in exported appliance archive."), Qt::ToolTipRole);
-    m_pMACComboBox->setItemData(MACAddressPolicy_StripAllNonNATMACs,
-                                UIWizardExportApp::tr("Include only NAT network adapter MAC addresses in exported appliance archive."), Qt::ToolTipRole);
-    m_pMACComboBox->setItemData(MACAddressPolicy_StripAllMACs,
-                                UIWizardExportApp::tr("Strip all network adapter MAC addresses from exported appliance archive."), Qt::ToolTipRole);
-
-    /* Translate addtional stuff: */
-    m_pAdditionalLabel->setText(UIWizardExportApp::tr("Additionally:"));
+    m_pFormatComboBox->setItemData(3, UIWizardExportApp::tr("Write in Oracle Public Cloud 1.0 format."), Qt::ToolTipRole);
     m_pManifestCheckbox->setToolTip(UIWizardExportApp::tr("Create a Manifest file for automatic data integrity checks on import."));
-    m_pManifestCheckbox->setText(UIWizardExportApp::tr("&Write Manifest file"));
-    m_pIncludeISOsCheckbox->setToolTip(UIWizardExportApp::tr("Include ISO image files into exported VM archive."));
-    m_pIncludeISOsCheckbox->setText(UIWizardExportApp::tr("&Include ISO image files"));
+    m_pManifestCheckbox->setText(UIWizardExportApp::tr("Write &Manifest file"));
 
-    /* Translate Account combo-box: */
-    m_pAccountComboBoxLabel->setText(UIWizardExportApp::tr("&Account:"));
-
-    /* Adjust label widths: */
-    QList<QWidget*> labels;
-    labels << m_pFormatComboBoxLabel;
-    labels << m_pFileSelectorLabel;
-    labels << m_pMACComboBoxLabel;
-    labels << m_pAdditionalLabel;
-    labels << m_pAccountComboBoxLabel;
-    int iMaxWidth = 0;
-    foreach (QWidget *pLabel, labels)
-        iMaxWidth = qMax(iMaxWidth, pLabel->minimumSizeHint().width());
-    m_pFormatLayout->setColumnMinimumWidth(0, iMaxWidth);
-    m_pSettingsLayout1->setColumnMinimumWidth(0, iMaxWidth);
-    m_pSettingsLayout2->setColumnMinimumWidth(0, iMaxWidth);
-
-    /* Refresh file selector name: */
-    refreshFileSelectorName();
-
-    /* Update tool-tips: */
+    /* Refresh current settings: */
+    refreshCurrentSettings();
     updateFormatComboToolTip();
-    updateMACAddressPolicyComboToolTip();
 }
 
 void UIWizardExportAppPageExpert::initializePage()
@@ -489,51 +264,55 @@ void UIWizardExportAppPageExpert::initializePage()
     /* Translate page: */
     retranslateUi();
 
-    /* Refresh file selector name: */
-    // refreshFileSelectorName(); already called from retranslateUi();
-    /* Refresh file selector extension: */
-    refreshFileSelectorExtension();
-    /* Refresh manifest check-box access: */
-    refreshManifestCheckBoxAccess();
-    /* Refresh include ISOs check-box access: */
-    refreshIncludeISOsCheckBoxAccess();
-
-    /* Refresh appliance settings: */
+    /* Call to base-class: */
+    refreshCurrentSettings();
     refreshApplianceSettingsWidget();
-}
-
-void UIWizardExportAppPageExpert::cleanupPage()
-{
-    /* Do nothing, we don't want field values to be reseted. */
 }
 
 bool UIWizardExportAppPageExpert::isComplete() const
 {
+    /* Initial result: */
     bool fResult = true;
 
     /* There should be at least one vm selected: */
     if (fResult)
         fResult = (m_pVMSelector->selectedItems().size() > 0);
 
-    /* Check appliance settings: */
+    /* Check storage-type attributes: */
     if (fResult)
     {
-        const bool fOVF =    field("format").toString() == "ovf-0.9"
-                          || field("format").toString() == "ovf-1.0"
-                          || field("format").toString() == "ovf-2.0";
-        const bool fCSP =    field("isFormatCloudOne").toBool();
-
-        const QString &strFile = field("path").toString().toLower();
-        const QString &strAccount = field("profileName").toString();
-        const AbstractVSDParameterList &parameters = field("cloudClientParameters").value<AbstractVSDParameterList>();
-
+        const QString &strFile = m_pFileSelector->path().toLower();
+        bool fOVF =    field("format").toString() == "ovf-0.9"
+                    || field("format").toString() == "ovf-1.0"
+                    || field("format").toString() == "ovf-2.0";
+        bool fOPC =    field("format").toString() == "opc-1.0";
         fResult =    (   fOVF
                       && VBoxGlobal::hasAllowedExtension(strFile, OVFFileExts))
-                  || (   fCSP
-                      && !strAccount.isNull()
-                      && !parameters.isEmpty());
+                  || (   fOPC
+                      && VBoxGlobal::hasAllowedExtension(strFile, OPCFileExts));
+        if (fResult)
+        {
+            StorageType st = storageType();
+            switch (st)
+            {
+                case Filesystem:
+                    break;
+                case SunCloud:
+                    fResult &= !m_pUsernameEditor->text().isEmpty() &&
+                               !m_pPasswordEditor->text().isEmpty() &&
+                               !m_pBucketEditor->text().isEmpty();
+                    break;
+                case S3:
+                    fResult &= !m_pUsernameEditor->text().isEmpty() &&
+                               !m_pPasswordEditor->text().isEmpty() &&
+                               !m_pHostnameEditor->text().isEmpty() &&
+                               !m_pBucketEditor->text().isEmpty();
+                    break;
+            }
+        }
     }
 
+    /* Return result: */
     return fResult;
 }
 
@@ -555,51 +334,3 @@ bool UIWizardExportAppPageExpert::validatePage()
     return fResult;
 }
 
-void UIWizardExportAppPageExpert::sltVMSelectionChangeHandler()
-{
-    /* Refresh required settings: */
-    refreshFileSelectorName();
-    refreshApplianceSettingsWidget();
-
-    /* Broadcast complete-change: */
-    emit completeChanged();
-}
-
-void UIWizardExportAppPageExpert::sltHandleFormatComboChange()
-{
-    /* Update tool-tip: */
-    updateFormatComboToolTip();
-
-    /* Refresh required settings: */
-    updatePageAppearance();
-    refreshFileSelectorExtension();
-    refreshManifestCheckBoxAccess();
-    refreshIncludeISOsCheckBoxAccess();
-    populateAccounts();
-    populateAccountProperties();
-    populateCloudClientParameters();
-    refreshApplianceSettingsWidget();
-    emit completeChanged();
-}
-
-void UIWizardExportAppPageExpert::sltHandleMACAddressPolicyComboChange()
-{
-    /* Update tool-tip: */
-    updateMACAddressPolicyComboToolTip();
-}
-
-void UIWizardExportAppPageExpert::sltHandleAccountComboChange()
-{
-    /* Refresh required settings: */
-    populateAccountProperties();
-    populateCloudClientParameters();
-    refreshApplianceSettingsWidget();
-    emit completeChanged();
-}
-
-void UIWizardExportAppPageExpert::sltHandleAccountButtonClick()
-{
-    /* Open Cloud Profile Manager: */
-    if (gpManager)
-        gpManager->openCloudProfileManager();
-}

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -180,17 +180,19 @@ static DECLCALLBACK(int) svcDisconnect(void *pvService, uint32_t u32ClientID, vo
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) svcConnect(void *pvService, uint32_t u32ClientID, void *pvClient, uint32_t fRequestor, bool fRestoring)
+static DECLCALLBACK(int) svcConnect(void *pvService, uint32_t u32ClientID, void *pvClient)
 {
-    RT_NOREF(pvService, fRequestor, fRestoring);
+    RT_NOREF1(pvService);
     VBOXHOSTCHCLIENT *pClient = (VBOXHOSTCHCLIENT *)pvClient;
+
+    int rc = VINF_SUCCESS;
 
     /* Register the client. */
     memset(pClient, 0, sizeof(VBOXHOSTCHCLIENT));
 
     pClient->u32ClientID = u32ClientID;
 
-    int rc = vboxHostChannelClientConnect(pClient);
+    rc = vboxHostChannelClientConnect(pClient);
 
     LogRel2(("svcConnect: rc = %Rrc\n", rc));
 
@@ -203,10 +205,9 @@ static DECLCALLBACK(void) svcCall(void *pvService,
                                   void *pvClient,
                                   uint32_t u32Function,
                                   uint32_t cParms,
-                                  VBOXHGCMSVCPARM paParms[],
-                                  uint64_t tsArrival)
+                                  VBOXHGCMSVCPARM paParms[])
 {
-    RT_NOREF(pvService, tsArrival);
+    NOREF(pvService);
 
     int rc = VINF_SUCCESS;
 

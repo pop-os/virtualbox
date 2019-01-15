@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,11 +18,8 @@
  * WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_INCLUDED_SRC_VBoxDTrace_include_VBoxDTraceTypes_h
-#define VBOX_INCLUDED_SRC_VBoxDTrace_include_VBoxDTraceTypes_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBoxDTraceTypes_h___
+#define ___VBoxDTraceTypes_h___
 
 #include <iprt/types.h>
 #include <iprt/stdarg.h>
@@ -465,5 +462,5 @@ typedef Elf64_Addr  GElf_Addr;
 #endif /* IN_RING3 */
 
 RT_C_DECLS_END
-#endif /* !VBOX_INCLUDED_SRC_VBoxDTrace_include_VBoxDTraceTypes_h */
+#endif
 

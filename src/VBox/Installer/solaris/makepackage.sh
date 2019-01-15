@@ -5,7 +5,7 @@
 #
 
 #
-# Copyright (C) 2007-2019 Oracle Corporation
+# Copyright (C) 2007-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -23,15 +23,11 @@
 
 # Parse options.
 HARDENED=""
-GUISHAREDLIB=""
 while test $# -ge 1;
 do
     case "$1" in
         --hardened)
             HARDENED=1
-            ;;
-        --guisharedlib)
-            GUISHAREDLIB=1
             ;;
     *)
         break
@@ -189,12 +185,12 @@ dirlist_fixup prototype  '$3 == "var/svc/manifest/application/virtualbox"'      
 # Hardening requires some executables to be marked setuid.
 if test -n "$HARDENED"; then
     $VBOX_AWK 'NF == 6 \
-        && (    (   $3 == "opt/VirtualBox/amd64/VirtualBox" \
-                 && "'$GUISHAREDLIB'" == "") \
-            ||  $3 == "opt/VirtualBox/amd64/VirtualBoxVM" \
+        && (    $3 == "opt/VirtualBox/amd64/VirtualBox" \
+            ||  $3 == "opt/VirtualBox/amd64/VirtualBox3" \
             ||  $3 == "opt/VirtualBox/amd64/VBoxHeadless" \
             ||  $3 == "opt/VirtualBox/amd64/VBoxSDL" \
             ||  $3 == "opt/VirtualBox/i386/VirtualBox" \
+            ||  $3 == "opt/VirtualBox/i386/VirtualBox3" \
             ||  $3 == "opt/VirtualBox/i386/VBoxHeadless" \
             ||  $3 == "opt/VirtualBox/i386/VBoxSDL" \
             ) \

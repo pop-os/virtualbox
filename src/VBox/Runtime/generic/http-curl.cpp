@@ -1,16 +1,10 @@
 /* $Id: http-curl.cpp $ */
 /** @file
  * IPRT - HTTP client API, cURL based.
- *
- * Logging groups:
- *      Log4 - request headers.
- *      Log5 - request body.
- *      Log6 - response headers.
- *      Log7 - response body.
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,10 +32,8 @@
 #include <iprt/http.h>
 #include "internal/iprt.h"
 
-#include <iprt/alloca.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
-#include <iprt/base64.h>
 #include <iprt/cidr.h>
 #include <iprt/crypto/store.h>
 #include <iprt/ctype.h>
@@ -58,11 +50,6 @@
 #include <iprt/string.h>
 #include <iprt/uni.h>
 #include <iprt/uri.h>
-#include <iprt/utf16.h>
-#include <iprt/crypto/digest.h>
-#include <iprt/crypto/pkix.h>
-#include <iprt/crypto/key.h>
-
 
 #include "internal/magics.h"
 
@@ -82,7 +69,7 @@
 #endif
 
 #ifdef RT_OS_LINUX
-# define IPRT_USE_LIBPROXY
+//# define IPRT_USE_LIBPROXY
 #endif
 #ifdef IPRT_USE_LIBPROXY
 # include <stdlib.h> /* free */
@@ -92,46 +79,6 @@
 /*********************************************************************************************************************************
 *   Structures and Typedefs                                                                                                      *
 *********************************************************************************************************************************/
-/** Output collection data. */
-typedef struct RTHTTPOUTPUTDATA
-{
-    /** Pointer to the HTTP client instance structure. */
-    struct RTHTTPINTERNAL  *pHttp;
-    /** Callback specific data. */
-    union
-    {
-        /** For file destination.  */
-        RTFILE          hFile;
-        /** For memory destination. */
-        struct
-        {
-            /** The current size (sans terminator char). */
-            size_t      cb;
-            /** The currently allocated size. */
-            size_t      cbAllocated;
-            /** Pointer to the buffer. */
-            uint8_t    *pb;
-        } Mem;
-    } uData;
-} RTHTTPOUTPUTDATA;
-
-/**
- * HTTP header.
- */
-typedef struct RTHTTPHEADER
-{
-    /** The core list structure. */
-    struct curl_slist   Core;
-    /** The field name length. */
-    uint32_t            cchName;
-    /** The value offset. */
-    uint32_t            offValue;
-    /** The full header field. */
-    char                szData[RT_FLEXIBLE_ARRAY];
-} RTHTTPHEADER;
-/** Pointer to a HTTP header. */
-typedef RTHTTPHEADER *PRTHTTPHEADER;
-
 /**
  * Internal HTTP client instance.
  */
@@ -143,12 +90,8 @@ typedef struct RTHTTPINTERNAL
     CURL               *pCurl;
     /** The last response code. */
     long                lLastResp;
-    /** Custom headers (PRTHTTPHEADER).
-     * The list head is registered with curl, though we do all the allocating. */
+    /** Custom headers/ */
     struct curl_slist  *pHeaders;
-    /** Where to append the next header. */
-    struct curl_slist **ppHeadersTail;
-
     /** CA certificate file for HTTPS authentication. */
     char               *pszCaFile;
     /** Whether to delete the CA on destruction. */
@@ -182,13 +125,6 @@ typedef struct RTHTTPINTERNAL
     char               *pszProxyPassword;
     /** @} */
 
-    /** @name Cached settings.
-     * @{ */
-    /** Maximum number of redirects to follow.
-     * Zero if not automatically following (default). */
-    uint32_t            cMaxRedirects;
-    /** @} */
-
     /** Abort the current HTTP request if true. */
     bool volatile       fAbort;
     /** Set if someone is preforming an HTTP operation. */
@@ -196,72 +132,30 @@ typedef struct RTHTTPINTERNAL
     /** The location field for 301 responses. */
     char               *pszRedirLocation;
 
+    /** Output callback data. */
     union
     {
+        /** For file destination.  */
+        RTFILE          hFile;
+        /** For memory destination. */
         struct
         {
-            /** Pointer to the memory block we're feeding the cURL/server. */
-            void const *pvMem;
-            /** Size of the memory block. */
-            size_t      cbMem;
-            /** Current memory block offset. */
-            size_t      offMem;
+            /** The current size (sans terminator char). */
+            size_t      cb;
+            /** The currently allocated size. */
+            size_t      cbAllocated;
+            /** Pointer to the buffer. */
+            uint8_t    *pb;
         } Mem;
-    }                   ReadData;
-
-    /** Body output callback data. */
-    RTHTTPOUTPUTDATA    BodyOutput;
-    /** Headers output callback data. */
-    RTHTTPOUTPUTDATA    HeadersOutput;
-    /** The output status.*/
+    } Output;
+    /** Output callback status. */
     int                 rcOutput;
-
-    /** @name Upload callback
-     * @{ */
-    /** Pointer to the download callback function, if any. */
-    PFNRTHTTPUPLOADCALLBACK         pfnUploadCallback;
-    /** The user argument for the upload callback function. */
-    void                           *pvUploadCallbackUser;
-    /** The expected upload size, UINT64_MAX if not known. */
-    uint64_t                        cbUploadContent;
-    /** The current upload offset. */
-    uint64_t                        offUploadContent;
-    /** @} */
-
-    /** @name Download callback.
-     * @{ */
-    /** Pointer to the download callback function, if any. */
-    PFNRTHTTPDOWNLOADCALLBACK       pfnDownloadCallback;
-    /** The user argument for the download callback function. */
-    void                           *pvDownloadCallbackUser;
-    /** The flags for the download callback function. */
-    uint32_t                        fDownloadCallback;
-    /** HTTP status for passing to the download callback, UINT32_MAX if not known. */
-    uint32_t                        uDownloadHttpStatus;
-    /** The download content length, or UINT64_MAX. */
-    uint64_t                        cbDownloadContent;
-    /** The current download offset. */
-    uint64_t                        offDownloadContent;
-    /** @} */
-
-    /** @name Download progress callback.
-     * @{ */
     /** Download size hint set by the progress callback. */
-    uint64_t                        cbDownloadHint;
+    uint64_t            cbDownloadHint;
     /** Callback called during download. */
-    PFNRTHTTPDOWNLDPROGRCALLBACK    pfnDownloadProgress;
+    PRTHTTPDOWNLDPROGRCALLBACK pfnDownloadProgress;
     /** User pointer parameter for pfnDownloadProgress. */
-    void                           *pvDownloadProgressUser;
-    /** @} */
-
-    /** @name Header callback.
-     * @{ */
-    /** Pointer to the header callback function, if any. */
-    PFNRTHTTPHEADERCALLBACK         pfnHeaderCallback;
-    /** User pointer parameter for pfnHeaderCallback. */
-    void                           *pvHeaderCallbackUser;
-    /** @} */
-
+    void               *pvDownloadProgressUser;
 } RTHTTPINTERNAL;
 /** Pointer to an internal HTTP client instance. */
 typedef RTHTTPINTERNAL *PRTHTTPINTERNAL;
@@ -306,10 +200,10 @@ typedef char          ** (* PFNLIBPROXYFACTORYGETPROXIES)(PLIBPROXYFACTORY, cons
 #define CURL_FAILURE(rcCurl)    RT_UNLIKELY(rcCurl != CURLE_OK)
 
 /** Validates a handle and returns VERR_INVALID_HANDLE if not valid. */
-#define RTHTTP_VALID_RETURN_RC(hHttp, a_rc) \
+#define RTHTTP_VALID_RETURN_RC(hHttp, rcCurl) \
     do { \
-        AssertPtrReturn((hHttp), (a_rc)); \
-        AssertReturn((hHttp)->u32Magic == RTHTTP_MAGIC, (a_rc)); \
+        AssertPtrReturn((hHttp), (rcCurl)); \
+        AssertReturn((hHttp)->u32Magic == RTHTTP_MAGIC, (rcCurl)); \
     } while (0)
 
 /** Validates a handle and returns VERR_INVALID_HANDLE if not valid. */
@@ -357,7 +251,6 @@ static void rtHttpUnsetCaFile(PRTHTTPINTERNAL pThis);
 #ifdef RT_OS_DARWIN
 static int rtHttpDarwinTryConfigProxies(PRTHTTPINTERNAL pThis, CFArrayRef hArrayProxies, CFURLRef hUrlTarget, bool fIgnorePacType);
 #endif
-static void rtHttpFreeHeaders(PRTHTTPINTERNAL pThis);
 
 
 RTR3DECL(int) RTHttpCreate(PRTHTTP phHttp)
@@ -368,7 +261,7 @@ RTR3DECL(int) RTHttpCreate(PRTHTTP phHttp)
      *        problem if multiple threads get here at the same time. */
     int rc = VERR_HTTP_INIT_FAILED;
     CURLcode rcCurl = curl_global_init(CURL_GLOBAL_ALL);
-    if (CURL_SUCCESS(rcCurl))
+    if (!CURL_FAILURE(rcCurl))
     {
         CURL *pCurl = curl_easy_init();
         if (pCurl)
@@ -378,19 +271,7 @@ RTR3DECL(int) RTHttpCreate(PRTHTTP phHttp)
             {
                 pThis->u32Magic                 = RTHTTP_MAGIC;
                 pThis->pCurl                    = pCurl;
-                pThis->ppHeadersTail            = &pThis->pHeaders;
-                pThis->fHaveSetUserAgent        = false;
-                pThis->fHaveUserAgentHeader     = false;
                 pThis->fUseSystemProxySettings  = true;
-                pThis->cMaxRedirects            = 0; /* no automatic redir following */
-                pThis->BodyOutput.pHttp         = pThis;
-                pThis->HeadersOutput.pHttp      = pThis;
-                pThis->uDownloadHttpStatus      = UINT32_MAX;
-                pThis->cbDownloadContent        = UINT64_MAX;
-                pThis->offDownloadContent       = 0;
-                pThis->cbUploadContent          = UINT64_MAX;
-                pThis->offUploadContent         = 0;
-
 
                 *phHttp = (RTHTTP)pThis;
 
@@ -406,38 +287,13 @@ RTR3DECL(int) RTHttpCreate(PRTHTTP phHttp)
 }
 
 
-RTR3DECL(int) RTHttpReset(RTHTTP hHttp, uint32_t fFlags)
-{
-    /* Validate the instance handle, state and flags. */
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-    AssertReturn(!pThis->fBusy, VERR_WRONG_ORDER);
-    AssertReturn(!(fFlags & ~RTHTTP_RESET_F_VALID_MASK), VERR_INVALID_FLAGS);
-
-    /* This resets options, but keeps open connections, cookies, etc. */
-    curl_easy_reset(pThis->pCurl);
-
-    if (!(fFlags & RTHTTP_RESET_F_KEEP_HEADERS))
-        rtHttpFreeHeaders(pThis);
-
-    pThis->uDownloadHttpStatus      = UINT32_MAX;
-    pThis->cbDownloadContent        = UINT64_MAX;
-    pThis->offDownloadContent       = 0;
-    pThis->cbUploadContent          = UINT64_MAX;
-    pThis->offUploadContent         = 0;
-    pThis->rcOutput                 = VINF_SUCCESS;
-
-    return VINF_SUCCESS;
-}
-
-
-RTR3DECL(int) RTHttpDestroy(RTHTTP hHttp)
+RTR3DECL(void) RTHttpDestroy(RTHTTP hHttp)
 {
     if (hHttp == NIL_RTHTTP)
-        return VINF_SUCCESS;
+        return;
 
     PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
+    RTHTTP_VALID_RETURN_VOID(pThis);
 
     Assert(!pThis->fBusy);
 
@@ -446,33 +302,26 @@ RTR3DECL(int) RTHttpDestroy(RTHTTP hHttp)
     curl_easy_cleanup(pThis->pCurl);
     pThis->pCurl = NULL;
 
-    rtHttpFreeHeaders(pThis);
+    if (pThis->pHeaders)
+        curl_slist_free_all(pThis->pHeaders);
 
     rtHttpUnsetCaFile(pThis);
     Assert(!pThis->pszCaFile);
 
     if (pThis->pszRedirLocation)
-    {
         RTStrFree(pThis->pszRedirLocation);
-        pThis->pszRedirLocation = NULL;
-    }
 
     RTStrFree(pThis->pszProxyHost);
-    pThis->pszProxyHost = NULL;
     RTStrFree(pThis->pszProxyUsername);
-    pThis->pszProxyUsername = NULL;
     if (pThis->pszProxyPassword)
     {
         RTMemWipeThoroughly(pThis->pszProxyPassword, strlen(pThis->pszProxyPassword), 2);
         RTStrFree(pThis->pszProxyPassword);
-        pThis->pszProxyPassword = NULL;
     }
 
     RTMemFree(pThis);
 
     curl_global_cleanup();
-
-    return VINF_SUCCESS;
 }
 
 
@@ -499,35 +348,6 @@ RTR3DECL(int) RTHttpGetRedirLocation(RTHTTP hHttp, char **ppszRedirLocation)
     return RTStrDupEx(ppszRedirLocation, pThis->pszRedirLocation);
 }
 
-
-RTR3DECL(int) RTHttpSetFollowRedirects(RTHTTP hHttp, uint32_t cMaxRedirects)
-{
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-    AssertReturn(!pThis->fBusy, VERR_WRONG_ORDER);
-
-    /*
-     * Update the redirection settings.
-     */
-    if (pThis->cMaxRedirects != cMaxRedirects)
-    {
-        int rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_MAXREDIRS, (long)cMaxRedirects);
-        AssertMsgReturn(rcCurl == CURLE_OK, ("CURLOPT_MAXREDIRS=%u: %d (%#x)\n", cMaxRedirects, rcCurl, rcCurl),
-                        VERR_HTTP_CURL_ERROR);
-
-        rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_FOLLOWLOCATION, (long)(cMaxRedirects > 0));
-        AssertMsgReturn(rcCurl == CURLE_OK, ("CURLOPT_FOLLOWLOCATION=%d: %d (%#x)\n", cMaxRedirects > 0, rcCurl, rcCurl),
-                        VERR_HTTP_CURL_ERROR);
-
-        pThis->cMaxRedirects = cMaxRedirects;
-    }
-    return VINF_SUCCESS;
-}
-
-
-/*********************************************************************************************************************************
-*   Proxy handling.                                                                                                              *
-*********************************************************************************************************************************/
 
 RTR3DECL(int) RTHttpUseSystemProxySettings(RTHTTP hHttp)
 {
@@ -577,7 +397,7 @@ static int rtHttpUpdateProxyConfig(PRTHTTPINTERNAL pThis, curl_proxytype enmProx
         rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_PROXYTYPE, (long)enmProxyType);
         AssertMsgReturn(rcCurl == CURLE_OK, ("CURLOPT_PROXYTYPE=%d: %d (%#x)\n", enmProxyType, rcCurl, rcCurl),
                         VERR_HTTP_CURL_PROXY_CONFIG);
-        pThis->enmProxyType = enmProxyType;
+        pThis->enmProxyType = CURLPROXY_HTTP;
     }
 
     if (uPort != pThis->uProxyPort)
@@ -831,7 +651,6 @@ static int rtHttpConfigureProxyFromUrl(PRTHTTPINTERNAL pThis, const char *pszPro
             char    *pszUsername = RTUriParsedAuthorityUsername(pszProxyUrl, &Parsed);
             char    *pszPassword = RTUriParsedAuthorityPassword(pszProxyUrl, &Parsed);
             uint32_t uProxyPort  = RTUriParsedAuthorityPort(pszProxyUrl, &Parsed);
-            bool     fUnknownProxyType = false;
             curl_proxytype enmProxyType;
             if (RTUriIsSchemeMatch(pszProxyUrl, "http"))
             {
@@ -839,16 +658,6 @@ static int rtHttpConfigureProxyFromUrl(PRTHTTPINTERNAL pThis, const char *pszPro
                 if (uProxyPort == UINT32_MAX)
                     uProxyPort = 80;
             }
-#ifdef CURL_AT_LEAST_VERSION
-# if CURL_AT_LEAST_VERSION(7,52,0)
-            else if (RTUriIsSchemeMatch(pszProxyUrl, "https"))
-            {
-                enmProxyType  = CURLPROXY_HTTPS;
-                if (uProxyPort == UINT32_MAX)
-                    uProxyPort = 443;
-            }
-# endif
-#endif
             else if (   RTUriIsSchemeMatch(pszProxyUrl, "socks4")
                      || RTUriIsSchemeMatch(pszProxyUrl, "socks"))
                 enmProxyType = CURLPROXY_SOCKS4;
@@ -860,7 +669,6 @@ static int rtHttpConfigureProxyFromUrl(PRTHTTPINTERNAL pThis, const char *pszPro
                 enmProxyType = CURLPROXY_SOCKS5_HOSTNAME;
             else
             {
-                fUnknownProxyType = true;
                 enmProxyType = CURLPROXY_HTTP;
                 if (uProxyPort == UINT32_MAX)
                     uProxyPort = 8080;
@@ -871,8 +679,6 @@ static int rtHttpConfigureProxyFromUrl(PRTHTTPINTERNAL pThis, const char *pszPro
                 uProxyPort = 1080; /* CURL_DEFAULT_PROXY_PORT */
 
             rc = rtHttpUpdateProxyConfig(pThis, enmProxyType, pszHost, uProxyPort, pszUsername, pszPassword);
-            if (RT_SUCCESS(rc) && fUnknownProxyType)
-                rc = VWRN_WRONG_TYPE;
 
             RTStrFree(pszUsername);
             RTStrFree(pszPassword);
@@ -887,21 +693,6 @@ static int rtHttpConfigureProxyFromUrl(PRTHTTPINTERNAL pThis, const char *pszPro
     if (pszFreeMe)
         RTMemTmpFree(pszFreeMe);
     return rc;
-}
-
-
-RTR3DECL(int) RTHttpSetProxyByUrl(RTHTTP hHttp, const char *pszUrl)
-{
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-    AssertPtrNullReturn(pszUrl, VERR_INVALID_PARAMETER);
-    AssertReturn(!pThis->fBusy, VERR_WRONG_ORDER);
-
-    if (!pszUrl || !*pszUrl)
-        return RTHttpUseSystemProxySettings(pThis);
-    if (RTStrNICmpAscii(pszUrl, RT_STR_TUPLE("direct://")) == 0)
-        return rtHttpUpdateAutomaticProxyDisable(pThis);
-    return rtHttpConfigureProxyFromUrl(pThis, pszUrl);
 }
 
 
@@ -1922,7 +1713,6 @@ static int rtHttpWinConfigureProxyForUrl(PRTHTTPINTERNAL pThis, const char *pszU
                     {
                         DWORD dwErr = GetLastError();
                         if (   dwErr == ERROR_WINHTTP_AUTODETECTION_FAILED
-                            || dwErr == ERROR_WINHTTP_UNABLE_TO_DOWNLOAD_SCRIPT
                             || (   dwErr == ERROR_WINHTTP_UNRECOGNIZED_SCHEME
                                 && (   RTStrNICmp(pszUrl, RT_STR_TUPLE("https://")) == 0
                                     || RTStrNICmp(pszUrl, RT_STR_TUPLE("http://")) == 0) ) )
@@ -2033,491 +1823,47 @@ RTR3DECL(int) RTHttpSetProxy(RTHTTP hHttp, const char *pcszProxy, uint32_t uPort
 }
 
 
-
-/*********************************************************************************************************************************
-*   HTTP Headers                                                                                                                 *
-*********************************************************************************************************************************/
-
-/**
- * Helper for RTHttpSetHeaders and RTHttpAddRawHeader that unsets the user agent
- * if it is now in one of the headers.
- */
-static int rtHttpUpdateUserAgentHeader(PRTHTTPINTERNAL pThis, PRTHTTPHEADER pNewHdr)
-{
-    static const char s_szUserAgent[] = "User-Agent";
-    if (   pNewHdr->cchName == sizeof(s_szUserAgent) - 1
-        && RTStrNICmpAscii(pNewHdr->szData, RT_STR_TUPLE(s_szUserAgent)) == 0)
-    {
-        pThis->fHaveUserAgentHeader = true;
-        if (pThis->fHaveSetUserAgent)
-        {
-            int rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_USERAGENT, (char *)NULL);
-            Assert(CURL_SUCCESS(rcCurl)); NOREF(rcCurl);
-            pThis->fHaveSetUserAgent = false;
-        }
-    }
-    return VINF_SUCCESS;
-}
-
-
-/**
- * Free the headers associated with the insance (w/o telling cURL about it).
- *
- * @param   pThis       The HTTP client instance.
- */
-static void rtHttpFreeHeaders(PRTHTTPINTERNAL pThis)
-{
-    struct curl_slist *pHead = pThis->pHeaders;
-    pThis->pHeaders = NULL;
-    pThis->ppHeadersTail = &pThis->pHeaders;
-    pThis->fHaveUserAgentHeader = false;
-
-    while (pHead)
-    {
-        struct curl_slist *pFree = pHead;
-        pHead = pHead->next;
-        ASMCompilerBarrier(); /* paranoia */
-
-        pFree->next = NULL;
-        pFree->data = NULL;
-        RTMemFree(pFree);
-    }
-}
-
-
-/**
- * Worker for RTHttpSetHeaders and RTHttpAddHeader.
- *
- * @returns IPRT status code.
- * @param   pThis       The HTTP client instance.
- * @param   pchName     The field name.  Does not need to be terminated.
- * @param   cchName     The field name length.
- * @param   pchValue    The field value.  Does not need to be terminated.
- * @param   cchValue    The field value length.
- * @param   fFlags      RTHTTPADDHDR_F_XXX.
- */
-static int rtHttpAddHeaderWorker(PRTHTTPINTERNAL pThis, const char *pchName, size_t cchName,
-                                 const char *pchValue, size_t cchValue, uint32_t fFlags)
-{
-    /*
-     * Create the list entry.
-     */
-    size_t        cbData = cchName + 2 + cchValue + 1;
-    PRTHTTPHEADER pHdr   = (PRTHTTPHEADER)RTMemAlloc(RT_UOFFSETOF_DYN(RTHTTPHEADER, szData[cbData]));
-    if (pHdr)
-    {
-        pHdr->Core.next = NULL;
-        pHdr->Core.data = pHdr->szData;
-        pHdr->cchName   = (uint32_t)cchName;
-        pHdr->offValue  = (uint32_t)(cchName + 2);
-        char *psz = pHdr->szData;
-        memcpy(psz, pchName, cchName);
-        psz += cchName;
-        *psz++ = ':';
-        *psz++ = ' ';
-        memcpy(psz, pchValue, cchValue);
-        psz[cchValue] = '\0';
-
-        /*
-         * Appending to an existing list requires no cURL interaction.
-         */
-        AssertCompile(RTHTTPADDHDR_F_FRONT != 0);
-        if (   !(fFlags & RTHTTPADDHDR_F_FRONT)
-            && pThis->pHeaders != NULL)
-        {
-            *pThis->ppHeadersTail = &pHdr->Core;
-            pThis->ppHeadersTail  = &pHdr->Core.next;
-            return rtHttpUpdateUserAgentHeader(pThis, pHdr);
-        }
-
-        /*
-         * When prepending or adding the first header we need to inform cURL
-         * about the new list head.
-         */
-        pHdr->Core.next = pThis->pHeaders;
-        if (!pThis->pHeaders)
-            pThis->ppHeadersTail = &pHdr->Core.next;
-        pThis->pHeaders = &pHdr->Core;
-
-        int rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_HTTPHEADER, pThis->pHeaders);
-        if (CURL_SUCCESS(rcCurl))
-            return rtHttpUpdateUserAgentHeader(pThis, pHdr);
-        return VERR_HTTP_CURL_ERROR;
-    }
-    return VERR_NO_MEMORY;
-}
-
-
 RTR3DECL(int) RTHttpSetHeaders(RTHTTP hHttp, size_t cHeaders, const char * const *papszHeaders)
 {
     PRTHTTPINTERNAL pThis = hHttp;
     RTHTTP_VALID_RETURN(pThis);
 
-    /*
-     * Drop old headers and reset state.
-     */
-    if (pThis->pHeaders)
-    {
-        rtHttpFreeHeaders(pThis);
-        curl_easy_setopt(pThis->pCurl, CURLOPT_HTTPHEADER, (struct curl_slist *)NULL);
-    }
-    pThis->ppHeadersTail = &pThis->pHeaders;
     pThis->fHaveUserAgentHeader = false;
-
-    /*
-     * We're done if no headers specified.
-     */
     if (!cHeaders)
+    {
+        if (pThis->pHeaders)
+            curl_slist_free_all(pThis->pHeaders);
+        pThis->pHeaders = 0;
         return VINF_SUCCESS;
+    }
 
-    /*
-     * Add the headers, one by one.
-     */
-    int rc = VINF_SUCCESS;
+    struct curl_slist *pHeaders = NULL;
     for (size_t i = 0; i < cHeaders; i++)
     {
-        const char *pszHeader = papszHeaders[i];
-        size_t      cchHeader = strlen(pszHeader);
-        size_t      cchName   = (const char *)memchr(pszHeader, ':', cchHeader) - pszHeader;
-        AssertBreakStmt(cchName < cchHeader, rc = VERR_INVALID_PARAMETER);
-        size_t      offValue  = RT_C_IS_BLANK(pszHeader[cchName + 1]) ? cchName + 2 : cchName + 1;
-        rc = rtHttpAddHeaderWorker(pThis, pszHeader, cchName, &pszHeader[offValue], cchHeader - offValue, RTHTTPADDHDR_F_BACK);
-        AssertRCBreak(rc);
+        pHeaders = curl_slist_append(pHeaders, papszHeaders[i]);
+        if (strncmp(papszHeaders[i], RT_STR_TUPLE("User-Agent:")) == 0)
+            pThis->fHaveUserAgentHeader = true;
     }
-    if (RT_SUCCESS(rc))
-        return rc;
-    rtHttpFreeHeaders(pThis);
-    curl_easy_setopt(pThis->pCurl, CURLOPT_HTTPHEADER, (struct curl_slist *)NULL);
-    return rc;
-}
 
-
-#if 0 /** @todo reimplement RTHttpAddRawHeader if ever actually needed. */
-RTR3DECL(int) RTHttpAddRawHeader(RTHTTP hHttp, const char *pszHeader, uint32_t fFlags)
-{
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-    AssertReturn(!(fFlags & ~RTHTTPADDHDR_F_BACK), VERR_INVALID_FLAGS);
-/** @todo implement RTHTTPADDHDR_F_FRONT */
+    pThis->pHeaders = pHeaders;
+    int rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_HTTPHEADER, pHeaders);
+    if (CURL_FAILURE(rcCurl))
+        return VERR_INVALID_PARAMETER;
 
     /*
-     * Append it to the header list, checking for User-Agent and such.
+     * Unset the user agent if it's in one of the headers.
      */
-    struct curl_slist *pHeaders = pThis->pHeaders;
-    struct curl_slist *pNewHeaders = curl_slist_append(pHeaders, pszHeader);
-    if (pNewHeaders)
-        pHeaders = pNewHeaders;
-    else
-        return VERR_NO_MEMORY;
-
-    if (strncmp(pszHeader, RT_STR_TUPLE("User-Agent:")) == 0)
-        pThis->fHaveUserAgentHeader = true;
-
-    /*
-     * If this is the first header, we need to tell curl.
-     */
-    if (!pThis->pHeaders)
+    if (   pThis->fHaveUserAgentHeader
+        && pThis->fHaveSetUserAgent)
     {
-        int rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_HTTPHEADER, pHeaders);
-        if (CURL_FAILURE(rcCurl))
-        {
-            curl_slist_free_all(pHeaders);
-            return VERR_INVALID_PARAMETER;
-        }
-        pThis->pHeaders = pHeaders;
+        rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_USERAGENT, (char *)NULL);
+        Assert(CURL_SUCCESS(rcCurl));
+        pThis->fHaveSetUserAgent = false;
     }
-    else
-        Assert(pThis->pHeaders == pHeaders);
-
-    rtHttpUpdateUserAgentHeader(pThis);
 
     return VINF_SUCCESS;
 }
-#endif
 
-
-RTR3DECL(int) RTHttpAddHeader(RTHTTP hHttp, const char *pszField, const char *pszValue, size_t cchValue, uint32_t fFlags)
-{
-    /*
-     * Validate input and calc string lengths.
-     */
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-    AssertReturn(!(fFlags & ~RTHTTPADDHDR_F_BACK), VERR_INVALID_FLAGS);
-    AssertPtr(pszField);
-    size_t const cchField = strlen(pszField);
-    AssertReturn(cchField > 0, VERR_INVALID_PARAMETER);
-    AssertReturn(pszField[cchField - 1] != ':', VERR_INVALID_PARAMETER);
-    AssertReturn(!RT_C_IS_SPACE(pszField[cchField - 1]), VERR_INVALID_PARAMETER);
-#ifdef RT_STRICT
-    for (size_t i = 0; i < cchField; i++)
-    {
-        char const ch = pszField[i];
-        Assert(RT_C_IS_PRINT(ch) && ch != ':');
-    }
-#endif
-
-    AssertPtr(pszValue);
-    if (cchValue == RTSTR_MAX)
-        cchValue = strlen(pszValue);
-
-    /*
-     * Just pass it along to the worker.
-     */
-    return rtHttpAddHeaderWorker(pThis, pszField, cchField, pszValue, cchValue, fFlags);
-}
-
-
-RTR3DECL(const char *) RTHttpGetHeader(RTHTTP hHttp, const char *pszField, size_t cchField)
-{
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN_RC(pThis, NULL);
-
-    PRTHTTPHEADER pCur = (PRTHTTPHEADER)pThis->pHeaders;
-    if (pCur)
-    {
-        if (cchField == RTSTR_MAX)
-            cchField = strlen(pszField);
-        do
-        {
-            if (   pCur->cchName == cchField
-                && RTStrNICmpAscii(pCur->szData, pszField, cchField) == 0)
-                return &pCur->szData[pCur->offValue];
-
-            /* next field. */
-            pCur = (PRTHTTPHEADER)pCur->Core.next;
-        } while (pCur);
-    }
-    return NULL;
-}
-
-
-RTR3DECL(size_t) RTHttpGetHeaderCount(RTHTTP hHttp)
-{
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN_RC(pThis, 0);
-
-    /* Note! Only for test cases and debugging, so we don't care about performance. */
-    size_t cHeaders = 0;
-    for (PRTHTTPHEADER pCur = (PRTHTTPHEADER)pThis->pHeaders; pCur != NULL; pCur = (PRTHTTPHEADER)pCur->Core.next)
-        cHeaders++;
-    return cHeaders;
-}
-
-
-RTR3DECL(const char *) RTHttpGetByOrdinal(RTHTTP hHttp, size_t iOrdinal)
-{
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN_RC(pThis, NULL);
-
-    /* Note! Only for test cases and debugging, so we don't care about performance. */
-    for (PRTHTTPHEADER pCur = (PRTHTTPHEADER)pThis->pHeaders; pCur != NULL; pCur = (PRTHTTPHEADER)pCur->Core.next)
-    {
-        if (iOrdinal == 0)
-            return pCur->szData;
-        iOrdinal--;
-    }
-
-    return NULL;
-}
-
-
-
-RTR3DECL(int) RTHttpSignHeaders(RTHTTP hHttp, RTHTTPMETHOD enmMethod, const char *pszUrl,
-                                RTCRKEY hKey, const char *pszKeyId, uint32_t fFlags)
-{
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-    AssertReturn(enmMethod > RTHTTPMETHOD_INVALID && enmMethod < RTHTTPMETHOD_END, VERR_INVALID_PARAMETER);
-    AssertPtrReturn(pszUrl, VERR_INVALID_POINTER);
-    AssertReturn(!fFlags, VERR_INVALID_FLAGS);
-    AssertPtrReturn(pszKeyId, VERR_INVALID_POINTER);
-
-    /*
-     * Do a little bit of preprocessing while we can easily return without
-     * needing clean anything up..
-     */
-    RTURIPARSED ParsedUrl;
-    int rc = RTUriParse(pszUrl, &ParsedUrl);
-    AssertRCReturn(rc, rc);
-    const char * const pszPath = pszUrl + ParsedUrl.offPath;
-
-    const char *pszMethodSp = NULL;
-    switch (enmMethod)
-    {
-        case RTHTTPMETHOD_GET:      pszMethodSp = "get "; break;
-        case RTHTTPMETHOD_PUT:      pszMethodSp = "put "; break;
-        case RTHTTPMETHOD_POST:     pszMethodSp = "post "; break;
-        case RTHTTPMETHOD_PATCH:    pszMethodSp = "patch "; break;
-        case RTHTTPMETHOD_DELETE:   pszMethodSp = "delete "; break;
-        case RTHTTPMETHOD_HEAD:     pszMethodSp = "head "; break;
-        case RTHTTPMETHOD_OPTIONS:  pszMethodSp = "options "; break;
-        case RTHTTPMETHOD_TRACE:    pszMethodSp = "trace "; break;
-        /* no default! */
-        case RTHTTPMETHOD_INVALID:
-        case RTHTTPMETHOD_END:
-        case RTHTTPMETHOD_32BIT_HACK:
-            break;
-    }
-    AssertReturn(pszMethodSp, VERR_INTERNAL_ERROR_4);
-
-    /*
-     * We work the authorization header entry directly here to avoid extra copying and stuff.
-     */
-
-    /* Estimate required string length first. */
-    static const char s_szSuffixFmt[]    = "Authorization: Signature version=\"1\",keyId=\"%s\",algorithm=\"rsa-sha256\",headers=\"";
-    static const char s_szInfix[]        = "\",signature=\"";
-    static const char s_szPostfix[]      = "\"";
-    static const char s_szRequestField[] = "(request-target)";
-    size_t const      cchKeyId           = strlen(pszKeyId);
-    size_t const      cbSigRaw           = (RTCrKeyGetBitCount(hKey) + 7) / 8;
-    size_t const      cbSigRawAligned    = RT_ALIGN_Z(cbSigRaw, 8);
-    size_t const      cchSigStr          = RTBase64EncodedLengthEx(cbSigRaw, RTBASE64_FLAGS_NO_LINE_BREAKS);
-    size_t cbEstimated = sizeof(s_szSuffixFmt) + sizeof(s_szInfix) + sizeof(s_szPostfix)
-                       + cchKeyId + sizeof(s_szRequestField) + cchSigStr;
-    for (PRTHTTPHEADER pCur = (PRTHTTPHEADER)pThis->pHeaders; pCur; pCur = (PRTHTTPHEADER)pCur->Core.next)
-        cbEstimated += pCur->cchName + 1;
-    cbEstimated += 32; /* safetype fudge */
-    /* Lazy bird: Put the raw signature at the end. */
-    cbEstimated = RT_ALIGN_Z(cbEstimated, 8) + cbSigRawAligned;
-
-    /* Allocate and initialize header entry. */
-    PRTHTTPHEADER const pHdr = (PRTHTTPHEADER)RTMemAllocZ(cbEstimated);
-    AssertPtrReturn(pHdr, VERR_NO_MEMORY);
-    uint8_t * const pbSigRaw = (uint8_t *)pHdr + cbEstimated - cbSigRawAligned;
-
-    pHdr->cchName   = sizeof("Authorization") - 1;
-    pHdr->offValue  = sizeof("Authorization") + 1;
-    pHdr->Core.next = NULL;
-    pHdr->Core.data = pHdr->szData;
-    char  *pszLeft  = pHdr->szData;
-    size_t cbLeft   = cbEstimated - RT_UOFFSETOF(RTHTTPHEADER, szData) - cbSigRawAligned;
-
-    size_t cch = RTStrPrintf(pszLeft, cbLeft, s_szSuffixFmt, pszKeyId);
-    cbLeft -= cch;
-    pszLeft += cch;
-
-    /*
-     * Instantiate the digest.
-     */
-    RTCRDIGEST hDigest = NIL_RTCRDIGEST;
-    rc = RTCrDigestCreateByType(&hDigest, RTDIGESTTYPE_SHA256);
-    if (RT_SUCCESS(rc))
-    {
-        /*
-         * Add the request-target pseudo header first.
-         */
-        Assert(cbLeft > sizeof(s_szRequestField));
-        memcpy(pszLeft, RT_STR_TUPLE(s_szRequestField));
-        pszLeft += sizeof(s_szRequestField) - 1;
-
-        rc = RTCrDigestUpdate(hDigest, RT_STR_TUPLE(s_szRequestField));
-        if (RT_SUCCESS(rc))
-            rc = RTCrDigestUpdate(hDigest, RT_STR_TUPLE(": "));
-        if (RT_SUCCESS(rc))
-            rc = RTCrDigestUpdate(hDigest, pszMethodSp, strlen(pszMethodSp));
-        if (RT_SUCCESS(rc))
-            rc = RTCrDigestUpdate(hDigest, pszPath, strlen(pszPath));
-
-        /*
-         * Add the header fields.
-         */
-        for (PRTHTTPHEADER pCur = (PRTHTTPHEADER)pThis->pHeaders; pCur && RT_SUCCESS(rc); pCur = (PRTHTTPHEADER)pCur->Core.next)
-        {
-            AssertBreakStmt(cbLeft > pCur->cchName, rc = VERR_INTERNAL_ERROR_3);
-            *pszLeft++ = ' ';
-            cbLeft--;
-            memcpy(pszLeft, pCur->szData, pCur->cchName);
-            pszLeft[pCur->cchName] = '\0';
-            RTStrToLower(pszLeft);
-
-            rc = RTCrDigestUpdate(hDigest, RT_STR_TUPLE("\n"));
-            AssertRCBreak(rc);
-            rc = RTCrDigestUpdate(hDigest, pszLeft, pCur->cchName);
-            AssertRCBreak(rc);
-            rc = RTCrDigestUpdate(hDigest, RT_STR_TUPLE(": "));
-            AssertRCBreak(rc);
-            const char *pszValue = &pCur->szData[pCur->offValue];
-            rc = RTCrDigestUpdate(hDigest, pszValue, strlen(pszValue));
-            AssertRCBreak(rc);
-
-            pszLeft += pCur->cchName;
-            cbLeft  -= pCur->cchName;
-        }
-        if (RT_SUCCESS(rc))
-            AssertStmt(cbLeft > sizeof(s_szInfix) + cchSigStr + sizeof(s_szPostfix), rc = VERR_INTERNAL_ERROR_3);
-        if (RT_SUCCESS(rc))
-        {
-            /* Complete the header field part. */
-            memcpy(pszLeft, RT_STR_TUPLE(s_szInfix));
-            pszLeft += sizeof(s_szInfix) - 1;
-            cbLeft  -= sizeof(s_szInfix) - 1;
-
-            /*
-             * Sign the digest.
-             */
-            RTCRPKIXSIGNATURE hSigner;
-            rc = RTCrPkixSignatureCreateByObjIdString(&hSigner, RTCR_PKCS1_SHA256_WITH_RSA_OID, hKey, NULL, true /*fSigning*/);
-            AssertRC(rc);
-            if (RT_SUCCESS(rc))
-            {
-                size_t cbActual = cbSigRawAligned;
-                rc = RTCrPkixSignatureSign(hSigner, hDigest, pbSigRaw, &cbActual);
-                AssertRC(rc);
-                if (RT_SUCCESS(rc))
-                {
-                    Assert(cbActual == cbSigRaw);
-                    RTCrPkixSignatureRelease(hSigner);
-                    hSigner = NIL_RTCRPKIXSIGNATURE;
-                    RTCrDigestRelease(hDigest);
-                    hDigest = NIL_RTCRDIGEST;
-
-                    /*
-                     * Convert the signature to Base64 and append it to the string.
-                     */
-                    size_t cchActual;
-                    rc = RTBase64EncodeEx(pbSigRaw, cbActual, RTBASE64_FLAGS_NO_LINE_BREAKS, pszLeft, cbLeft, &cchActual);
-                    AssertRC(rc);
-                    if (RT_SUCCESS(rc))
-                    {
-                        Assert(cchActual == cchSigStr);
-                        pszLeft += cchActual;
-                        cbLeft  -= cchActual;
-
-                        /*
-                         * Append the postfix and add the header to the front of the list.
-                         */
-                        AssertStmt(cbLeft >= sizeof(s_szPostfix), rc = VERR_INTERNAL_ERROR_3);
-                        if (RT_SUCCESS(rc))
-                        {
-                            memcpy(pszLeft, s_szPostfix, sizeof(s_szPostfix));
-
-                            pHdr->Core.next = pThis->pHeaders;
-                            if (!pThis->pHeaders)
-                                pThis->ppHeadersTail  = &pHdr->Core.next;
-                            pThis->pHeaders = &pHdr->Core;
-
-                            int rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_HTTPHEADER, pThis->pHeaders);
-                            if (CURL_SUCCESS(rcCurl))
-                                return VINF_SUCCESS;
-                            rc = VERR_HTTP_CURL_ERROR;
-                        }
-                    }
-                }
-                RTCrPkixSignatureRelease(hSigner);
-            }
-        }
-        RTCrDigestRelease(hDigest);
-    }
-    RTMemFree(pHdr);
-    return rc;
-}
-
-
-/*********************************************************************************************************************************
-*   HTTPS and root certficates                                                                                                   *
-*********************************************************************************************************************************/
 
 /**
  * Set the CA file to NULL, deleting any temporary file if necessary.
@@ -2674,21 +2020,14 @@ RTR3DECL(int) RTHttpGatherCaCertsInFile(const char *pszCaFile, uint32_t fFlags, 
 
 
 
-/*********************************************************************************************************************************
-*   .......
-*********************************************************************************************************************************/
-
-
 /**
  * Figures out the IPRT status code for a GET.
  *
  * @returns IPRT status code.
  * @param   pThis           The HTTP/HTTPS client instance.
  * @param   rcCurl          What curl returned.
- * @param   puHttpStatus    Where to optionally return the HTTP status.  If specified,
- *                          the HTTP statuses are not translated to IPRT status codes.
  */
-static int rtHttpGetCalcStatus(PRTHTTPINTERNAL pThis, int rcCurl, uint32_t *puHttpStatus)
+static int rtHttpGetCalcStatus(PRTHTTPINTERNAL pThis, int rcCurl)
 {
     int rc = VERR_HTTP_CURL_ERROR;
 
@@ -2700,12 +2039,6 @@ static int rtHttpGetCalcStatus(PRTHTTPINTERNAL pThis, int rcCurl, uint32_t *puHt
     if (rcCurl == CURLE_OK)
     {
         curl_easy_getinfo(pThis->pCurl, CURLINFO_RESPONSE_CODE, &pThis->lLastResp);
-        if (puHttpStatus)
-        {
-            *puHttpStatus = pThis->lLastResp;
-            rc = VINF_SUCCESS;
-        }
-
         switch (pThis->lLastResp)
         {
             case 200:
@@ -2714,35 +2047,27 @@ static int rtHttpGetCalcStatus(PRTHTTPINTERNAL pThis, int rcCurl, uint32_t *puHt
                 /* empty response */
                 rc = VINF_SUCCESS;
                 break;
-            case 301: /* Moved permantently. */
-            case 302: /* Found / Moved temporarily. */
-            case 303: /* See Other. */
-            case 307: /* Temporary redirect. */
-            case 308: /* Permanent redirect. */
+            case 301:
             {
-                const char *pszRedirect = NULL;
+                const char *pszRedirect;
                 curl_easy_getinfo(pThis->pCurl, CURLINFO_REDIRECT_URL, &pszRedirect);
-                size_t cb = pszRedirect ? strlen(pszRedirect) : 0;
+                size_t cb = strlen(pszRedirect);
                 if (cb > 0 && cb < 2048)
                     pThis->pszRedirLocation = RTStrDup(pszRedirect);
-                if (!puHttpStatus)
-                    rc = VERR_HTTP_REDIRECTED;
+                rc = VERR_HTTP_REDIRECTED;
                 break;
             }
             case 400:
                 /* bad request */
-                if (!puHttpStatus)
-                    rc = VERR_HTTP_BAD_REQUEST;
+                rc = VERR_HTTP_BAD_REQUEST;
                 break;
             case 403:
                 /* forbidden, authorization will not help */
-                if (!puHttpStatus)
-                    rc = VERR_HTTP_ACCESS_DENIED;
+                rc = VERR_HTTP_ACCESS_DENIED;
                 break;
             case 404:
                 /* URL not found */
-                if (!puHttpStatus)
-                    rc = VERR_HTTP_NOT_FOUND;
+                rc = VERR_HTTP_NOT_FOUND;
                 break;
         }
 
@@ -2915,68 +2240,26 @@ static int rtHttpApplySettings(PRTHTTPINTERNAL pThis, const char *pszUrl)
 
 
 /**
- * Resets state.
- *
- * @param   pThis        HTTP client instance.
+ * cURL callback for writing data.
  */
-static void rtHttpResetState(PRTHTTPINTERNAL pThis)
+static size_t rtHttpWriteData(void *pvBuf, size_t cbUnit, size_t cUnits, void *pvUser)
 {
-    pThis->fAbort                   = false;
-    pThis->rcOutput                 = VINF_SUCCESS;
-    pThis->uDownloadHttpStatus      = UINT32_MAX;
-    pThis->cbDownloadContent        = UINT64_MAX;
-    pThis->offDownloadContent       = 0;
-    pThis->offUploadContent         = 0;
-    pThis->rcOutput                 = VINF_SUCCESS;
-    pThis->cbDownloadHint           = 0;
-    Assert(pThis->BodyOutput.pHttp == pThis);
-    Assert(pThis->HeadersOutput.pHttp == pThis);
-}
+    PRTHTTPINTERNAL pThis = (PRTHTTPINTERNAL)pvUser;
 
-
-/**
- * Tries to determin uDownloadHttpStatus and cbDownloadContent.
- *
- * @param   pThis        HTTP client instance.
- */
-static void rtHttpGetDownloadStatusAndLength(PRTHTTPINTERNAL pThis)
-{
-    long lHttpStatus = 0;
-    curl_easy_getinfo(pThis->pCurl, CURLINFO_RESPONSE_CODE, &lHttpStatus);
-    pThis->uDownloadHttpStatus = (uint32_t)lHttpStatus;
-
-#ifdef CURLINFO_CONTENT_LENGTH_DOWNLOAD_T
-    curl_off_t cbContent = -1;
-    curl_easy_getinfo(pThis->pCurl, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T, &cbContent);
-    if (cbContent >= 0)
-        pThis->cbDownloadContent = (uint64_t)cbContent;
-#else
-    double rdContent = -1.0;
-    curl_easy_getinfo(pThis->pCurl, CURLINFO_CONTENT_LENGTH_DOWNLOAD, &rdContent);
-    if (rdContent >= 0.0)
-        pThis->cbDownloadContent = (uint64_t)rdContent;
-#endif
-}
-
-
-/**
- * Worker for rtHttpWriteHeaderData and rtHttpWriteBodyData.
- */
-static size_t rtHttpWriteDataToMemOutput(PRTHTTPINTERNAL pThis, RTHTTPOUTPUTDATA *pOutput, char const *pchBuf, size_t cbToAppend)
-{
     /*
      * Do max size and overflow checks.
      */
-    size_t const cbCurSize  = pOutput->uData.Mem.cb;
+    size_t const cbToAppend = cbUnit * cUnits;
+    size_t const cbCurSize  = pThis->Output.Mem.cb;
     size_t const cbNewSize  = cbCurSize + cbToAppend;
     if (   cbToAppend < RTHTTP_MAX_MEM_DOWNLOAD_SIZE
         && cbNewSize  < RTHTTP_MAX_MEM_DOWNLOAD_SIZE)
     {
-        if (cbNewSize + 1 <= pOutput->uData.Mem.cbAllocated)
+        if (cbNewSize + 1 <= pThis->Output.Mem.cbAllocated)
         {
-            memcpy(&pOutput->uData.Mem.pb[cbCurSize], pchBuf, cbToAppend);
-            pOutput->uData.Mem.cb = cbNewSize;
-            pOutput->uData.Mem.pb[cbNewSize] = '\0';
+            memcpy(&pThis->Output.Mem.pb[cbCurSize], pvBuf, cbToAppend);
+            pThis->Output.Mem.cb = cbNewSize;
+            pThis->Output.Mem.pb[cbNewSize] = '\0';
             return cbToAppend;
         }
 
@@ -2986,19 +2269,18 @@ static size_t rtHttpWriteDataToMemOutput(PRTHTTPINTERNAL pThis, RTHTTPOUTPUTDATA
         /** @todo this could do with a better strategy wrt growth. */
         size_t cbAlloc = RT_ALIGN_Z(cbNewSize + 1, 64);
         if (   cbAlloc <= pThis->cbDownloadHint
-            && pThis->cbDownloadHint < RTHTTP_MAX_MEM_DOWNLOAD_SIZE
-            && pOutput == &pThis->BodyOutput)
+            && pThis->cbDownloadHint < RTHTTP_MAX_MEM_DOWNLOAD_SIZE)
             cbAlloc = RT_ALIGN_Z(pThis->cbDownloadHint + 1, 64);
 
-        uint8_t *pbNew = (uint8_t *)RTMemRealloc(pOutput->uData.Mem.pb, cbAlloc);
+        uint8_t *pbNew = (uint8_t *)RTMemRealloc(pThis->Output.Mem.pb, cbAlloc);
         if (pbNew)
         {
-            memcpy(&pbNew[cbCurSize], pchBuf, cbToAppend);
+            memcpy(&pbNew[cbCurSize], pvBuf, cbToAppend);
             pbNew[cbNewSize] = '\0';
 
-            pOutput->uData.Mem.cbAllocated = cbAlloc;
-            pOutput->uData.Mem.pb = pbNew;
-            pOutput->uData.Mem.cb = cbNewSize;
+            pThis->Output.Mem.cbAllocated = cbAlloc;
+            pThis->Output.Mem.pb = pbNew;
+            pThis->Output.Mem.cb = cbNewSize;
             return cbToAppend;
         }
 
@@ -3010,263 +2292,11 @@ static size_t rtHttpWriteDataToMemOutput(PRTHTTPINTERNAL pThis, RTHTTPOUTPUTDATA
     /*
      * Failure - abort.
      */
-    RTMemFree(pOutput->uData.Mem.pb);
-    pOutput->uData.Mem.pb = NULL;
-    pOutput->uData.Mem.cb = RTHTTP_MAX_MEM_DOWNLOAD_SIZE;
-    pThis->fAbort   = true;
+    RTMemFree(pThis->Output.Mem.pb);
+    pThis->Output.Mem.pb = NULL;
+    pThis->Output.Mem.cb = RTHTTP_MAX_MEM_DOWNLOAD_SIZE;
+    pThis->fAbort        = true;
     return 0;
-}
-
-
-/**
- * cURL callback for writing body data.
- */
-static size_t rtHttpWriteBodyData(char *pchBuf, size_t cbUnit, size_t cUnits, void *pvUser)
-{
-    PRTHTTPINTERNAL   pThis      = (PRTHTTPINTERNAL)pvUser;
-    size_t const      cbToAppend = cbUnit * cUnits;
-
-    /*
-     * Check if this belongs to the body download callback.
-     */
-    if (pThis->pfnDownloadCallback)
-    {
-        if (pThis->offDownloadContent == 0)
-            rtHttpGetDownloadStatusAndLength(pThis);
-
-        if (   (pThis->fDownloadCallback & RTHTTPDOWNLOAD_F_ONLY_STATUS_MASK) == RTHTTPDOWNLOAD_F_ANY_STATUS
-            || (pThis->fDownloadCallback & RTHTTPDOWNLOAD_F_ONLY_STATUS_MASK) == pThis->uDownloadHttpStatus)
-        {
-            int rc = pThis->pfnDownloadCallback(pThis, pchBuf, cbToAppend, pThis->uDownloadHttpStatus, pThis->offDownloadContent,
-                                                pThis->cbDownloadContent, pThis->pvUploadCallbackUser);
-            if (RT_SUCCESS(rc))
-            {
-                pThis->offDownloadContent += cbToAppend;
-                return cbToAppend;
-            }
-            if (RT_SUCCESS(pThis->rcOutput))
-                pThis->rcOutput = rc;
-            pThis->fAbort = true;
-            return 0;
-        }
-    }
-
-    /*
-     * Otherwise, copy to memory output buffer.
-     */
-    return rtHttpWriteDataToMemOutput(pThis, &pThis->BodyOutput, pchBuf, cbToAppend);
-}
-
-
-/**
- * cURL callback for writing header data.
- */
-static size_t rtHttpWriteHeaderData(char *pchBuf, size_t cbUnit, size_t cUnits, void *pvUser)
-{
-    PRTHTTPINTERNAL   pThis      = (PRTHTTPINTERNAL)pvUser;
-    size_t const      cbToAppend = cbUnit * cUnits;
-
-    /*
-     * Work the header callback, if one.
-     * ASSUMES cURL is giving us one header at a time.
-     */
-    if (pThis->pfnHeaderCallback)
-    {
-        /*
-         * Find the end of the field name first.
-         */
-        uint32_t    uMatchWord;
-        size_t      cchField;
-        const char *pchField = pchBuf;
-        size_t      cchValue;
-        const char *pchValue = (const char *)memchr(pchBuf, ':', cbToAppend);
-        if (pchValue)
-        {
-            cchField = pchValue - pchField;
-            if (RT_LIKELY(cchField >= 3))
-                uMatchWord = RTHTTP_MAKE_HDR_MATCH_WORD(cchField, RT_C_TO_LOWER(pchBuf[0]),
-                                                        RT_C_TO_LOWER(pchBuf[1]), RT_C_TO_LOWER(pchBuf[2]));
-            else
-                uMatchWord = RTHTTP_MAKE_HDR_MATCH_WORD(cchField,
-                                                        cchField >= 1 ? RT_C_TO_LOWER(pchBuf[0]) : 0,
-                                                        cchField >= 2 ? RT_C_TO_LOWER(pchBuf[1]) : 0,
-                                                        0);
-            pchValue++;
-            cchValue = cbToAppend - cchField - 1;
-        }
-        /* Since cURL gives us the "HTTP/{version} {code} {status}" line too,
-           we slap a fictitious field name ':http-status-line' in front of it. */
-        else if (cbToAppend > 5 && pchBuf[0] == 'H' && pchBuf[1] == 'T' && pchBuf[2] == 'T' && pchBuf[3] == 'P' && pchBuf[4] == '/')
-        {
-            pchField   = ":http-status-line";
-            cchField   = 17;
-            uMatchWord = RTHTTP_MAKE_HDR_MATCH_WORD(17, ':', 'h', 't');
-            pchValue   = pchBuf;
-            cchValue   = cbToAppend;
-        }
-        /* cURL also gives us the empty line before the body, so we slap another
-           fictitious field name ':end-of-headers' in front of it as well. */
-        else if (cbToAppend == 2 && pchBuf[0] == '\r' && pchBuf[1] == '\n')
-        {
-            pchField   = ":end-of-headers";
-            cchField   = 15;
-            uMatchWord = RTHTTP_MAKE_HDR_MATCH_WORD(15, ':', 'e', 'n');
-            pchValue   = pchBuf;
-            cchValue   = cbToAppend;
-        }
-        else
-            AssertMsgFailedReturn(("pchBuf=%.*s\n", cbToAppend, pchBuf), cbToAppend);
-
-        /*
-         * Determin the field value, stripping one leading blank and all
-         * trailing spaces.
-         */
-        if (cchValue > 0 && RT_C_IS_BLANK(*pchValue))
-            pchValue++, cchValue--;
-        while (cchValue > 0 && RT_C_IS_SPACE(pchValue[cchValue - 1]))
-            cchValue--;
-
-        /*
-         * Pass it to the callback.
-         */
-        Log6(("rtHttpWriteHeaderData: %.*s: %.*s\n", cchField, pchBuf, cchValue, pchValue));
-        int rc = pThis->pfnHeaderCallback(pThis, uMatchWord, pchBuf, cchField,
-                                          pchValue, cchValue, pThis->pvHeaderCallbackUser);
-        if (RT_SUCCESS(rc))
-            return cbToAppend;
-
-        /* Abort on error. */
-        if (RT_SUCCESS(pThis->rcOutput))
-            pThis->rcOutput = rc;
-        pThis->fAbort = true;
-        return 0;
-    }
-
-    return rtHttpWriteDataToMemOutput(pThis, &pThis->HeadersOutput, pchBuf, cbToAppend);
-}
-
-
-/**
- * cURL callback for working the upload callback.
- */
-static size_t rtHttpWriteDataToDownloadCallback(char *pchBuf, size_t cbUnit, size_t cUnits, void *pvUser)
-{
-    PRTHTTPINTERNAL   pThis = (PRTHTTPINTERNAL)pvUser;
-    size_t const      cbBuf = cbUnit * cUnits;
-
-    /* Get download info the first time we're called. */
-    if (pThis->offDownloadContent == 0)
-        rtHttpGetDownloadStatusAndLength(pThis);
-
-    /* Call the callback if the HTTP status code matches, otherwise let it go to /dev/null. */
-    if (   (pThis->fDownloadCallback & RTHTTPDOWNLOAD_F_ONLY_STATUS_MASK) == RTHTTPDOWNLOAD_F_ANY_STATUS
-        || (pThis->fDownloadCallback & RTHTTPDOWNLOAD_F_ONLY_STATUS_MASK) == pThis->uDownloadHttpStatus)
-    {
-        int rc = pThis->pfnDownloadCallback(pThis, pchBuf, cbBuf, pThis->uDownloadHttpStatus, pThis->offDownloadContent,
-                                            pThis->cbDownloadContent, pThis->pvUploadCallbackUser);
-        if (RT_SUCCESS(rc))
-        {   /* likely */ }
-        else
-        {
-            if (RT_SUCCESS(pThis->rcOutput))
-                pThis->rcOutput = rc;
-            pThis->fAbort = true;
-            return 0;
-        }
-    }
-    pThis->offDownloadContent += cbBuf;
-    return cbBuf;
-}
-
-
-/**
- * Callback feeding cURL data from RTHTTPINTERNAL::ReadData::Mem.
- */
-static size_t rtHttpReadData(void *pvDst, size_t cbUnit, size_t cUnits, void *pvUser)
-{
-    PRTHTTPINTERNAL pThis = (PRTHTTPINTERNAL)pvUser;
-    size_t const cbReq    = cbUnit * cUnits;
-    size_t const offMem   = pThis->ReadData.Mem.offMem;
-    size_t cbToCopy = pThis->ReadData.Mem.cbMem - offMem;
-    if (cbToCopy > cbReq)
-        cbToCopy = cbReq;
-    memcpy(pvDst, (uint8_t const *)pThis->ReadData.Mem.pvMem + offMem, cbToCopy);
-    pThis->ReadData.Mem.offMem = offMem + cbToCopy;
-    return cbToCopy;
-}
-
-
-/**
- * Callback feeding cURL data via the user upload callback.
- */
-static size_t rtHttpReadDataFromUploadCallback(void *pvDst, size_t cbUnit, size_t cUnits, void *pvUser)
-{
-    PRTHTTPINTERNAL pThis = (PRTHTTPINTERNAL)pvUser;
-    size_t const cbReq    = cbUnit * cUnits;
-
-    size_t cbActual = 0;
-    int rc = pThis->pfnUploadCallback(pThis, pvDst, cbReq, pThis->offUploadContent, &cbActual, pThis->pvUploadCallbackUser);
-    if (RT_SUCCESS(rc))
-    {
-        pThis->offUploadContent += cbActual;
-        return cbActual;
-    }
-
-    if (RT_SUCCESS(pThis->rcOutput))
-        pThis->rcOutput = rc;
-    pThis->fAbort = true;
-    return CURL_READFUNC_ABORT;
-}
-
-
-/**
- * Helper for installing a (body) write callback function.
- *
- * @returns cURL status code.
- * @param   pThis               The HTTP client instance.
- * @param   pfnWrite            The callback.
- * @param   pvUser              The callback user argument.
- */
-static CURLcode rtHttpSetWriteCallback(PRTHTTPINTERNAL pThis, PFNRTHTTPWRITECALLBACKRAW pfnWrite, void *pvUser)
-{
-    CURLcode rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_WRITEFUNCTION, pfnWrite);
-    if (CURL_SUCCESS(rcCurl))
-        rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_WRITEDATA, pvUser);
-    return rcCurl;
-}
-
-
-/**
- * Helper for installing a header write callback function.
- *
- * @returns cURL status code.
- * @param   pThis               The HTTP client instance.
- * @param   pfnWrite            The callback.
- * @param   pvUser              The callback user argument.
- */
-static CURLcode rtHttpSetHeaderCallback(PRTHTTPINTERNAL pThis, PFNRTHTTPWRITECALLBACKRAW pfnWrite, void *pvUser)
-{
-    CURLcode rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_HEADERFUNCTION, pfnWrite);
-    if (CURL_SUCCESS(rcCurl))
-        rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_HEADERDATA, pvUser);
-    return rcCurl;
-}
-
-
-/**
- * Helper for installing a (body) read callback function.
- *
- * @returns cURL status code.
- * @param   pThis               The HTTP client instance.
- * @param   pfnRead             The callback.
- * @param   pvUser              The callback user argument.
- */
-static CURLcode rtHttpSetReadCallback(PRTHTTPINTERNAL pThis, PFNRTHTTPREADCALLBACKRAW pfnRead, void *pvUser)
-{
-    CURLcode rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_READFUNCTION, pfnRead);
-    if (CURL_SUCCESS(rcCurl))
-        rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_READDATA, pvUser);
-    return rcCurl;
 }
 
 
@@ -3307,38 +2337,42 @@ static int rtHttpGetToMem(RTHTTP hHttp, const char *pszUrl, bool fNoBody, uint8_
     /*
      * Reset the state and apply settings.
      */
-    rtHttpResetState(pThis);
+    pThis->fAbort = false;
+    pThis->rcOutput = VINF_SUCCESS;
+    pThis->cbDownloadHint = 0;
+
     int rc = rtHttpApplySettings(hHttp, pszUrl);
     if (RT_SUCCESS(rc))
     {
-        RT_ZERO(pThis->BodyOutput.uData.Mem);
-        int rcCurl = rtHttpSetWriteCallback(pThis, &rtHttpWriteBodyData, pThis);
+        RT_ZERO(pThis->Output.Mem);
+        int rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_WRITEFUNCTION, &rtHttpWriteData);
+        if (!CURL_FAILURE(rcCurl))
+            rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_WRITEDATA, (void *)pThis);
         if (fNoBody)
         {
-            if (CURL_SUCCESS(rcCurl))
+            if (!CURL_FAILURE(rcCurl))
                 rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_NOBODY, 1L);
-            if (CURL_SUCCESS(rcCurl))
+            if (!CURL_FAILURE(rcCurl))
                 rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_HEADER, 1L);
         }
-        if (CURL_SUCCESS(rcCurl))
+        if (!CURL_FAILURE(rcCurl))
         {
             /*
              * Perform the HTTP operation.
              */
             rcCurl = curl_easy_perform(pThis->pCurl);
-            rc = rtHttpGetCalcStatus(pThis, rcCurl, NULL);
+            rc = rtHttpGetCalcStatus(pThis, rcCurl);
             if (RT_SUCCESS(rc))
                 rc = pThis->rcOutput;
             if (RT_SUCCESS(rc))
             {
-                *ppvResponse = pThis->BodyOutput.uData.Mem.pb;
-                *pcb         = pThis->BodyOutput.uData.Mem.cb;
-                Log(("rtHttpGetToMem: %zx bytes (allocated %zx)\n",
-                     pThis->BodyOutput.uData.Mem.cb, pThis->BodyOutput.uData.Mem.cbAllocated));
+                *ppvResponse = pThis->Output.Mem.pb;
+                *pcb         = pThis->Output.Mem.cb;
+                Log(("rtHttpGetToMem: %zx bytes (allocated %zx)\n", pThis->Output.Mem.cb, pThis->Output.Mem.cbAllocated));
             }
-            else if (pThis->BodyOutput.uData.Mem.pb)
-                RTMemFree(pThis->BodyOutput.uData.Mem.pb);
-            RT_ZERO(pThis->BodyOutput.uData.Mem);
+            else if (pThis->Output.Mem.pb)
+                RTMemFree(pThis->Output.Mem.pb);
+            RT_ZERO(pThis->Output.Mem);
         }
         else
             rc = VERR_HTTP_CURL_ERROR;
@@ -3417,16 +2451,13 @@ RTR3DECL(void) RTHttpFreeResponse(void *pvResponse)
 /**
  * cURL callback for writing data to a file.
  */
-static size_t rtHttpWriteDataToFile(char *pchBuf, size_t cbUnit, size_t cUnits, void *pvUser)
+static size_t rtHttpWriteDataToFile(void *pvBuf, size_t cbUnit, size_t cUnits, void *pvUser)
 {
-    RTHTTPOUTPUTDATA *pOutput   = (RTHTTPOUTPUTDATA *)pvUser;
-    PRTHTTPINTERNAL   pThis     = pOutput->pHttp;
-
-    size_t            cbWritten = 0;
-    int rc = RTFileWrite(pOutput->uData.hFile, pchBuf, cbUnit * cUnits, &cbWritten);
+    PRTHTTPINTERNAL pThis = (PRTHTTPINTERNAL)pvUser;
+    size_t cbWritten = 0;
+    int rc = RTFileWrite(pThis->Output.hFile, pvBuf, cbUnit * cUnits, &cbWritten);
     if (RT_SUCCESS(rc))
         return cbWritten;
-
     Log(("rtHttpWriteDataToFile: rc=%Rrc cbUnit=%zd cUnits=%zu\n", rc, cbUnit, cUnits));
     pThis->rcOutput = rc;
     return 0;
@@ -3448,34 +2479,38 @@ RTR3DECL(int) RTHttpGetFile(RTHTTP hHttp, const char *pszUrl, const char *pszDst
     /*
      * Reset the state and apply settings.
      */
-    rtHttpResetState(pThis);
+    pThis->fAbort = false;
+    pThis->rcOutput = VINF_SUCCESS;
+    pThis->cbDownloadHint = 0;
+
     int rc = rtHttpApplySettings(hHttp, pszUrl);
     if (RT_SUCCESS(rc))
     {
-        pThis->BodyOutput.uData.hFile = NIL_RTFILE;
-        int rcCurl = rtHttpSetWriteCallback(pThis, &rtHttpWriteDataToFile, (void *)&pThis->BodyOutput);
-        if (CURL_SUCCESS(rcCurl))
+        pThis->Output.hFile = NIL_RTFILE;
+        int rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_WRITEFUNCTION, &rtHttpWriteDataToFile);
+        if (!CURL_FAILURE(rcCurl))
+            rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_WRITEDATA, (void *)pThis);
+        if (!CURL_FAILURE(rcCurl))
         {
             /*
              * Open the output file.
              */
-            rc = RTFileOpen(&pThis->BodyOutput.uData.hFile, pszDstFile,
-                            RTFILE_O_CREATE_REPLACE | RTFILE_O_WRITE | RTFILE_O_DENY_READWRITE);
+            rc = RTFileOpen(&pThis->Output.hFile, pszDstFile, RTFILE_O_CREATE_REPLACE | RTFILE_O_WRITE | RTFILE_O_DENY_READWRITE);
             if (RT_SUCCESS(rc))
             {
                 /*
                  * Perform the HTTP operation.
                  */
                 rcCurl = curl_easy_perform(pThis->pCurl);
-                rc = rtHttpGetCalcStatus(pThis, rcCurl, NULL);
+                rc = rtHttpGetCalcStatus(pThis, rcCurl);
                 if (RT_SUCCESS(rc))
                      rc = pThis->rcOutput;
 
-                int rc2 = RTFileClose(pThis->BodyOutput.uData.hFile);
+                int rc2 = RTFileClose(pThis->Output.hFile);
                 if (RT_FAILURE(rc2) && RT_SUCCESS(rc))
                     rc = rc2;
             }
-            pThis->BodyOutput.uData.hFile = NIL_RTFILE;
+            pThis->Output.hFile = NIL_RTFILE;
         }
         else
             rc = VERR_HTTP_CURL_ERROR;
@@ -3486,526 +2521,12 @@ RTR3DECL(int) RTHttpGetFile(RTHTTP hHttp, const char *pszUrl, const char *pszDst
 }
 
 
-RTR3DECL(int) RTHttpPerform(RTHTTP hHttp, const char *pszUrl, RTHTTPMETHOD enmMethod, void const *pvReqBody, size_t cbReqBody,
-                            uint32_t *puHttpStatus, void **ppvHeaders, size_t *pcbHeaders, void **ppvBody, size_t *pcbBody)
-{
-    /*
-     * Set safe return values and validate input.
-     */
-    Log(("RTHttpPerform: hHttp=%p pszUrl=%s enmMethod=%d pvReqBody=%p cbReqBody=%zu puHttpStatus=%p ppvHeaders=%p ppvBody=%p\n",
-         hHttp, pszUrl, enmMethod, pvReqBody, cbReqBody, puHttpStatus, ppvHeaders, ppvBody));
-
-    if (ppvHeaders)
-        *ppvHeaders = NULL;
-    if (pcbHeaders)
-        *pcbHeaders = 0;
-    if (ppvBody)
-        *ppvBody = NULL;
-    if (pcbBody)
-        *pcbBody = 0;
-    if (puHttpStatus)
-        *puHttpStatus = UINT32_MAX;
-
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-    AssertReturn(enmMethod > RTHTTPMETHOD_INVALID && enmMethod < RTHTTPMETHOD_END, VERR_INVALID_PARAMETER);
-    AssertPtrReturn(pszUrl, VERR_INVALID_POINTER);
-
-#ifdef LOG_ENABLED
-    if (LogIs6Enabled() && pThis->pHeaders)
-    {
-        Log4(("RTHttpPerform: headers:\n"));
-        for (struct curl_slist const *pCur = pThis->pHeaders; pCur; pCur = pCur->next)
-            Log4(("%s\n", pCur->data));
-    }
-    if (pvReqBody && cbReqBody)
-        Log5(("RTHttpPerform: request body:\n%.*Rhxd\n", cbReqBody, pvReqBody));
-#endif
-
-    /*
-     * Set the busy flag (paranoia).
-     */
-    bool fBusy = ASMAtomicXchgBool(&pThis->fBusy, true);
-    AssertReturn(!fBusy, VERR_WRONG_ORDER);
-
-    /*
-     * Reset the state and apply settings.
-     */
-    rtHttpResetState(pThis);
-    int rc = rtHttpApplySettings(hHttp, pszUrl);
-    if (RT_SUCCESS(rc))
-    {
-        /* Set the HTTP method. */
-        int rcCurl = 1;
-        switch (enmMethod)
-        {
-            case RTHTTPMETHOD_GET:
-                rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_HTTPGET, 1L);
-                break;
-            case RTHTTPMETHOD_PUT:
-                rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_PUT, 1L);
-                break;
-            case RTHTTPMETHOD_POST:
-                rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_POST, 1L);
-                break;
-            case RTHTTPMETHOD_PATCH:
-                rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_CUSTOMREQUEST, "PATCH");
-                break;
-            case RTHTTPMETHOD_DELETE:
-                rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_CUSTOMREQUEST, "DELETE");
-                break;
-            case RTHTTPMETHOD_HEAD:
-                rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_HTTPGET, 1L);
-                if (CURL_SUCCESS(rcCurl))
-                    rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_NOBODY, 1L);
-                break;
-            case RTHTTPMETHOD_OPTIONS:
-                rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_CUSTOMREQUEST, "OPTIONS");
-                break;
-            case RTHTTPMETHOD_TRACE:
-                rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_CUSTOMREQUEST, "TRACE");
-                break;
-            case RTHTTPMETHOD_END:
-            case RTHTTPMETHOD_INVALID:
-            case RTHTTPMETHOD_32BIT_HACK:
-                AssertFailed();
-        }
-
-        /* Request body.  POST requests should always have a body. */
-        if (   pvReqBody
-            && CURL_SUCCESS(rcCurl)
-            && (   cbReqBody > 0
-                || enmMethod == RTHTTPMETHOD_POST) )
-        {
-            if (enmMethod == RTHTTPMETHOD_POST)
-            {
-                /** @todo ??? */
-                rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_POSTFIELDSIZE, cbReqBody);
-                if (CURL_SUCCESS(rcCurl))
-                    rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_POSTFIELDS, pvReqBody);
-            }
-            else
-            {
-                pThis->ReadData.Mem.pvMem  = pvReqBody;
-                pThis->ReadData.Mem.cbMem  = cbReqBody;
-                pThis->ReadData.Mem.offMem = 0;
-                rcCurl = rtHttpSetReadCallback(pThis, rtHttpReadData, pThis);
-            }
-        }
-        else if (pThis->pfnUploadCallback && CURL_SUCCESS(rcCurl))
-            rcCurl = rtHttpSetReadCallback(pThis, rtHttpReadDataFromUploadCallback, pThis);
-
-        /* Headers. */
-        if (CURL_SUCCESS(rcCurl))
-        {
-            RT_ZERO(pThis->HeadersOutput.uData.Mem);
-            rcCurl = rtHttpSetHeaderCallback(pThis, rtHttpWriteHeaderData, pThis);
-        }
-
-        /* Body */
-        if (ppvBody && CURL_SUCCESS(rcCurl))
-        {
-            RT_ZERO(pThis->BodyOutput.uData.Mem);
-            rcCurl = rtHttpSetWriteCallback(pThis, rtHttpWriteBodyData, pThis);
-        }
-        else if (pThis->pfnDownloadCallback && CURL_SUCCESS(rcCurl))
-            rcCurl = rtHttpSetWriteCallback(pThis, rtHttpWriteDataToDownloadCallback, pThis);
-
-        if (CURL_SUCCESS(rcCurl))
-        {
-            /*
-             * Perform the HTTP operation.
-             */
-            rcCurl = curl_easy_perform(pThis->pCurl);
-            rc = rtHttpGetCalcStatus(pThis, rcCurl, puHttpStatus);
-            if (RT_SUCCESS(rc))
-                rc = pThis->rcOutput;
-            if (RT_SUCCESS(rc))
-            {
-                if (ppvHeaders)
-                {
-                    Log(("RTHttpPerform: headers: %zx bytes (allocated %zx)\n",
-                         pThis->HeadersOutput.uData.Mem.cb, pThis->HeadersOutput.uData.Mem.cbAllocated));
-                    Log6(("RTHttpPerform: headers blob:\n%.*Rhxd\n", pThis->HeadersOutput.uData.Mem.cb, pThis->HeadersOutput.uData.Mem.pb));
-                    *ppvHeaders = pThis->HeadersOutput.uData.Mem.pb;
-                    *pcbHeaders = pThis->HeadersOutput.uData.Mem.cb;
-                    pThis->HeadersOutput.uData.Mem.pb = NULL;
-                }
-                if (ppvBody)
-                {
-                    Log(("RTHttpPerform: body: %zx bytes (allocated %zx)\n",
-                         pThis->BodyOutput.uData.Mem.cb, pThis->BodyOutput.uData.Mem.cbAllocated));
-                    Log7(("RTHttpPerform: body blob:\n%.*Rhxd\n", pThis->BodyOutput.uData.Mem.cb, pThis->BodyOutput.uData.Mem.pb));
-                    *ppvBody = pThis->BodyOutput.uData.Mem.pb;
-                    *pcbBody = pThis->BodyOutput.uData.Mem.cb;
-                    pThis->BodyOutput.uData.Mem.pb = NULL;
-                }
-            }
-        }
-        else
-            rc = VERR_HTTP_CURL_ERROR;
-
-        /* Ensure we've freed all unused output and dropped references to input memory.*/
-        if (pThis->HeadersOutput.uData.Mem.pb)
-            RTMemFree(pThis->HeadersOutput.uData.Mem.pb);
-        if (pThis->BodyOutput.uData.Mem.pb)
-            RTMemFree(pThis->BodyOutput.uData.Mem.pb);
-        RT_ZERO(pThis->HeadersOutput.uData.Mem);
-        RT_ZERO(pThis->BodyOutput.uData.Mem);
-        RT_ZERO(pThis->ReadData);
-    }
-
-    ASMAtomicWriteBool(&pThis->fBusy, false);
-    return rc;
-}
-
-
-RTR3DECL(const char *) RTHttpMethodName(RTHTTPMETHOD enmMethod)
-{
-    switch (enmMethod)
-    {
-        case RTHTTPMETHOD_INVALID:  return "invalid";
-        case RTHTTPMETHOD_GET:      return "GET";
-        case RTHTTPMETHOD_PUT:      return "PUT";
-        case RTHTTPMETHOD_POST:     return "POST";
-        case RTHTTPMETHOD_PATCH:    return "PATCH";
-        case RTHTTPMETHOD_DELETE:   return "DELETE";
-        case RTHTTPMETHOD_HEAD:     return "HEAD";
-        case RTHTTPMETHOD_OPTIONS:  return "OPTIONS";
-        case RTHTTPMETHOD_TRACE:    return "TRACE";
-
-        case RTHTTPMETHOD_END:
-        case RTHTTPMETHOD_32BIT_HACK:
-            break;
-    }
-    return "unknown";
-}
-
-
-/*********************************************************************************************************************************
-*   Callback APIs.                                                                                                               *
-*********************************************************************************************************************************/
-
-RTR3DECL(int) RTHttpSetUploadCallback(RTHTTP hHttp, uint64_t cbContent, PFNRTHTTPUPLOADCALLBACK pfnCallback, void *pvUser)
+RTR3DECL(int) RTHttpSetDownloadProgressCallback(RTHTTP hHttp, PRTHTTPDOWNLDPROGRCALLBACK pfnDownloadProgress, void *pvUser)
 {
     PRTHTTPINTERNAL pThis = hHttp;
     RTHTTP_VALID_RETURN(pThis);
 
-    pThis->pfnUploadCallback        = pfnCallback;
-    pThis->pvUploadCallbackUser     = pvUser;
-    pThis->cbUploadContent          = cbContent;
-    pThis->offUploadContent         = 0;
-
-    if (cbContent != UINT64_MAX)
-    {
-        AssertCompile(sizeof(curl_off_t) == sizeof(uint64_t));
-        int rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_INFILESIZE_LARGE, cbContent);
-        AssertMsgReturn(CURL_SUCCESS(rcCurl), ("%d (%#x)\n", rcCurl, rcCurl), VERR_HTTP_CURL_ERROR);
-    }
-    return VINF_SUCCESS;
-}
-
-
-RTR3DECL(int) RTHttpSetDownloadCallback(RTHTTP hHttp, uint32_t fFlags, PFNRTHTTPDOWNLOADCALLBACK pfnCallback, void *pvUser)
-{
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-    AssertReturn(!pfnCallback || (fFlags & RTHTTPDOWNLOAD_F_ONLY_STATUS_MASK) != 0, VERR_INVALID_FLAGS);
-
-    pThis->pfnDownloadCallback      = pfnCallback;
-    pThis->pvDownloadCallbackUser   = pvUser;
-    pThis->fDownloadCallback        = fFlags;
-    pThis->uDownloadHttpStatus      = UINT32_MAX;
-    pThis->cbDownloadContent        = UINT64_MAX;
-    pThis->offDownloadContent       = 0;
-
-    return VINF_SUCCESS;
-}
-
-
-RTR3DECL(int) RTHttpSetDownloadProgressCallback(RTHTTP hHttp, PFNRTHTTPDOWNLDPROGRCALLBACK pfnCallback, void *pvUser)
-{
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-
-    pThis->pfnDownloadProgress    = pfnCallback;
+    pThis->pfnDownloadProgress = pfnDownloadProgress;
     pThis->pvDownloadProgressUser = pvUser;
     return VINF_SUCCESS;
 }
-
-
-RTR3DECL(int) RTHttpSetHeaderCallback(RTHTTP hHttp, PFNRTHTTPHEADERCALLBACK pfnCallback, void *pvUser)
-{
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-
-    pThis->pfnHeaderCallback    = pfnCallback;
-    pThis->pvHeaderCallbackUser = pvUser;
-    return VINF_SUCCESS;
-}
-
-
-/*********************************************************************************************************************************
-*   Temporary raw cURL stuff.  Will be gone before 6.0 is out!                                                                   *
-*********************************************************************************************************************************/
-
-RTR3DECL(int) RTHttpRawSetUrl(RTHTTP hHttp, const char *pszUrl)
-{
-    CURLcode rcCurl;
-
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-
-    int rc = rtHttpConfigureProxyForUrl(pThis, pszUrl);
-    if (RT_FAILURE(rc))
-        return rc;
-
-    rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_URL, pszUrl);
-    if (CURL_FAILURE(rcCurl))
-        return VERR_HTTP_CURL_ERROR;
-
-    return VINF_SUCCESS;
-}
-
-
-RTR3DECL(int) RTHttpRawSetGet(RTHTTP hHttp)
-{
-    CURLcode rcCurl;
-
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-
-    rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_HTTPGET, 1L);
-    if (CURL_FAILURE(rcCurl))
-        return VERR_HTTP_CURL_ERROR;
-
-    return VINF_SUCCESS;
-}
-
-
-RTR3DECL(int) RTHttpRawSetHead(RTHTTP hHttp)
-{
-    CURLcode rcCurl;
-
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-
-    rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_HTTPGET, 1L);
-    if (CURL_FAILURE(rcCurl))
-        return VERR_HTTP_CURL_ERROR;
-
-    rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_NOBODY, 1L);
-    if (CURL_FAILURE(rcCurl))
-        return VERR_HTTP_CURL_ERROR;
-
-    return VINF_SUCCESS;
-}
-
-
-RTR3DECL(int) RTHttpRawSetPost(RTHTTP hHttp)
-{
-    CURLcode rcCurl;
-
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-
-    rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_POST, 1L);
-    if (CURL_FAILURE(rcCurl))
-        return VERR_HTTP_CURL_ERROR;
-
-    return VINF_SUCCESS;
-}
-
-
-RTR3DECL(int) RTHttpRawSetPut(RTHTTP hHttp)
-{
-    CURLcode rcCurl;
-
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-
-    rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_PUT, 1L);
-    if (CURL_FAILURE(rcCurl))
-        return VERR_HTTP_CURL_ERROR;
-
-    return VINF_SUCCESS;
-}
-
-
-RTR3DECL(int) RTHttpRawSetDelete(RTHTTP hHttp)
-{
-    /* curl doesn't provide an option for this */
-    return RTHttpRawSetCustomRequest(hHttp, "DELETE");
-}
-
-
-RTR3DECL(int) RTHttpRawSetCustomRequest(RTHTTP hHttp, const char *pszVerb)
-{
-    CURLcode rcCurl;
-
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-
-    rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_CUSTOMREQUEST, pszVerb);
-    if (CURL_FAILURE(rcCurl))
-        return VERR_HTTP_CURL_ERROR;
-
-    return VINF_SUCCESS;
-}
-
-
-RTR3DECL(int) RTHttpRawSetPostFields(RTHTTP hHttp, const void *pv, size_t cb)
-{
-    CURLcode rcCurl;
-
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-
-    rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_POSTFIELDSIZE, cb);
-    if (CURL_FAILURE(rcCurl))
-        return VERR_HTTP_CURL_ERROR;
-
-    rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_POSTFIELDS, pv);
-    if (CURL_FAILURE(rcCurl))
-        return VERR_HTTP_CURL_ERROR;
-
-    return VINF_SUCCESS;
-}
-
-RTR3DECL(int) RTHttpRawSetInfileSize(RTHTTP hHttp, RTFOFF cb)
-{
-    CURLcode rcCurl;
-
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-
-    rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_INFILESIZE_LARGE, cb);
-    if (CURL_FAILURE(rcCurl))
-        return VERR_HTTP_CURL_ERROR;
-
-    return VINF_SUCCESS;
-}
-
-
-RTR3DECL(int) RTHttpRawSetVerbose(RTHTTP hHttp, bool fValue)
-{
-    CURLcode rcCurl;
-
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-
-    rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_VERBOSE, fValue ? 1L : 0L);
-    if (CURL_FAILURE(rcCurl))
-        return VERR_HTTP_CURL_ERROR;
-
-    return VINF_SUCCESS;
-}
-
-
-RTR3DECL(int) RTHttpRawSetTimeout(RTHTTP hHttp, long sec)
-{
-    CURLcode rcCurl;
-
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-
-    rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_TIMEOUT, sec);
-    if (CURL_FAILURE(rcCurl))
-        return VERR_HTTP_CURL_ERROR;
-
-    return VINF_SUCCESS;
-}
-
-
-RTR3DECL(int) RTHttpRawPerform(RTHTTP hHttp)
-{
-    CURLcode rcCurl;
-
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-
-    /*
-     * XXX: Do this here for now as a stop-gap measure as
-     * RTHttpReset() resets this (and proxy settings).
-     */
-    if (pThis->pszCaFile)
-    {
-        rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_CAINFO, pThis->pszCaFile);
-        if (CURL_FAILURE(rcCurl))
-            return VERR_HTTP_CURL_ERROR;
-    }
-
-    rcCurl = curl_easy_perform(pThis->pCurl);
-    if (CURL_FAILURE(rcCurl))
-        return VERR_HTTP_CURL_ERROR;
-
-    return VINF_SUCCESS;
-}
-
-
-RTR3DECL(int) RTHttpRawGetResponseCode(RTHTTP hHttp, long *plCode)
-{
-    CURLcode rcCurl;
-
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-    AssertPtrReturn(plCode, VERR_INVALID_PARAMETER);
-
-    rcCurl = curl_easy_getinfo(pThis->pCurl, CURLINFO_RESPONSE_CODE, plCode);
-    if (CURL_FAILURE(rcCurl))
-        return VERR_HTTP_CURL_ERROR;
-
-    return VINF_SUCCESS;
-}
-
-
-RTR3DECL(int) RTHttpRawSetReadCallback(RTHTTP hHttp, PFNRTHTTPREADCALLBACKRAW pfnRead, void *pvUser)
-{
-    CURLcode rcCurl;
-
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-
-    rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_READFUNCTION, pfnRead);
-    if (CURL_FAILURE(rcCurl))
-        return VERR_HTTP_CURL_ERROR;
-
-    rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_READDATA, pvUser);
-    if (CURL_FAILURE(rcCurl))
-        return VERR_HTTP_CURL_ERROR;
-
-    return VINF_SUCCESS;
-}
-
-
-RTR3DECL(int) RTHttpRawSetWriteCallback(RTHTTP hHttp, PFNRTHTTPWRITECALLBACKRAW pfnWrite, void *pvUser)
-{
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-
-    CURLcode rcCurl = rtHttpSetWriteCallback(pThis, pfnWrite, pvUser);
-    if (CURL_FAILURE(rcCurl))
-        return VERR_HTTP_CURL_ERROR;
-
-    return VINF_SUCCESS;
-}
-
-
-RTR3DECL(int) RTHttpRawSetWriteHeaderCallback(RTHTTP hHttp, PFNRTHTTPWRITECALLBACKRAW pfnWrite, void *pvUser)
-{
-    CURLcode rcCurl;
-
-    PRTHTTPINTERNAL pThis = hHttp;
-    RTHTTP_VALID_RETURN(pThis);
-
-    rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_HEADERFUNCTION, pfnWrite);
-    if (CURL_FAILURE(rcCurl))
-        return VERR_HTTP_CURL_ERROR;
-
-    rcCurl = curl_easy_setopt(pThis->pCurl, CURLOPT_HEADERDATA, pvUser);
-    if (CURL_FAILURE(rcCurl))
-        return VERR_HTTP_CURL_ERROR;
-
-    return VINF_SUCCESS;
-}
-

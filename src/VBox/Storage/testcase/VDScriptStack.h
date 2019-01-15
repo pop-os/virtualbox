@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,12 +14,8 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-
-#ifndef VBOX_INCLUDED_SRC_testcase_VDScriptStack_h
-#define VBOX_INCLUDED_SRC_testcase_VDScriptStack_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef _VDScriptStack_h__
+#define _VDScriptStack_h__
 
 #include <iprt/list.h>
 #include <iprt/string.h>
@@ -143,4 +139,4 @@ DECLINLINE(void) vdScriptStackPop(PVDSCRIPTSTACK pStack)
     pStack->cOnStack--;
 }
 
-#endif /* !VBOX_INCLUDED_SRC_testcase_VDScriptStack_h */
+#endif /* _VDScriptStack_h__ */

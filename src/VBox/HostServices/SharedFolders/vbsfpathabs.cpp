@@ -1,10 +1,10 @@
 /* $Id: vbsfpathabs.cpp $ */
 /** @file
- * Shared Folders Service - guest/host path convertion and verification.
+ * Shared Folders - guest/host path convertion and verification.
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,15 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-
-/*********************************************************************************************************************************
-*   Header Files                                                                                                                 *
-*********************************************************************************************************************************/
-#define LOG_GROUP LOG_GROUP_SHARED_FOLDERS
-#include <iprt/err.h>
 #include <iprt/path.h>
 #include <iprt/string.h>
-
 
 #if defined(RT_OS_WINDOWS)
 static void vbsfPathResolveRelative(char *pszPathBegin)

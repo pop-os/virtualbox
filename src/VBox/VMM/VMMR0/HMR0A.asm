@@ -4,7 +4,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2019 Oracle Corporation
+; Copyright (C) 2006-2017 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -731,10 +731,10 @@ ENDPROC VMXGetActivatedVmcs
 
 ;/**
 ; * Invalidate a page using INVEPT.
-; @param   enmTlbFlush  msc:ecx  gcc:edi  x86:[esp+04]  Type of flush.
+; @param   enmFlush     msc:ecx  gcc:edi  x86:[esp+04]  Type of flush.
 ; @param   pDescriptor  msc:edx  gcc:esi  x86:[esp+08]  Descriptor pointer.
 ; */
-;DECLASM(int) VMXR0InvEPT(VMXTLBFLUSHEPT enmTlbFlush, uint64_t *pDescriptor);
+;DECLASM(int) VMXR0InvEPT(VMX_FLUSH enmFlush, uint64_t *pDescriptor);
 BEGINPROC VMXR0InvEPT
 %ifdef RT_ARCH_AMD64
  %ifdef ASM_CALL64_GCC
@@ -768,10 +768,10 @@ ENDPROC VMXR0InvEPT
 
 ;/**
 ; * Invalidate a page using invvpid
-; @param   enmTlbFlush  msc:ecx  gcc:edi  x86:[esp+04]  Type of flush
+; @param   enmFlush     msc:ecx  gcc:edi  x86:[esp+04]  Type of flush
 ; @param   pDescriptor  msc:edx  gcc:esi  x86:[esp+08]  Descriptor pointer
 ; */
-;DECLASM(int) VMXR0InvVPID(VMXTLBFLUSHVPID enmTlbFlush, uint64_t *pDescriptor);
+;DECLASM(int) VMXR0InvVPID(VMX_FLUSH enmFlush, uint64_t *pDescriptor);
 BEGINPROC VMXR0InvVPID
 %ifdef RT_ARCH_AMD64
  %ifdef ASM_CALL64_GCC

@@ -28,11 +28,8 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef IPRT_INCLUDED_formats_lx_h
-#define IPRT_INCLUDED_formats_lx_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_formats_lx_h___
+#define ___iprt_formats_lx_h___
 
 #include <iprt/types.h>
 #include <iprt/assertcompile.h>
@@ -502,5 +499,5 @@ typedef struct e32_entry
 
 RT_C_DECLS_END
 
-#endif /* !IPRT_INCLUDED_formats_lx_h */
+#endif
 

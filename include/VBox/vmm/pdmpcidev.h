@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef VBOX_INCLUDED_vmm_pdmpcidev_h
-#define VBOX_INCLUDED_vmm_pdmpcidev_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBox_vmm_pdmpcidev_h
+#define ___VBox_vmm_pdmpcidev_h
 
 #include <VBox/pci.h>
 #include <iprt/assert.h>
@@ -60,8 +57,6 @@ typedef PFNPCICONFIGREAD *PPFNPCICONFIGREAD;
 /**
  * Callback function for writing to the PCI configuration space.
  *
- * @returns VINF_SUCCESS or PDMDevHlpDBGFStop status.
- *
  * @param   pDevIns         Pointer to the device instance the PCI device
  *                          belongs to.
  * @param   pPciDev         Pointer to PCI device. Use pPciDev->pDevIns to get the device instance.
@@ -73,8 +68,7 @@ typedef PFNPCICONFIGREAD *PPFNPCICONFIGREAD;
  * @remarks Called with the PDM lock held.  The device lock is NOT take because
  *          that is very likely be a lock order violation.
  */
-typedef DECLCALLBACK(VBOXSTRICTRC) FNPCICONFIGWRITE(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev,
-                                                    uint32_t uAddress, uint32_t u32Value, unsigned cb);
+typedef DECLCALLBACK(void) FNPCICONFIGWRITE(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev, uint32_t uAddress, uint32_t u32Value, unsigned cb);
 /** Pointer to a FNPCICONFIGWRITE() function. */
 typedef FNPCICONFIGWRITE *PFNPCICONFIGWRITE;
 /** Pointer to a PFNPCICONFIGWRITE. */
@@ -676,4 +670,4 @@ typedef PDMPCIDEV PDMIICH9BRIDGEPDMPCIDEV;
 
 /** @} */
 
-#endif /* !VBOX_INCLUDED_vmm_pdmpcidev_h */
+#endif

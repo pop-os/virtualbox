@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,46 +15,54 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QPushButton>
-#include <QScrollBar>
-#include <QVBoxLayout>
+# include <QScrollBar>
+# include <QPushButton>
 
 /* GUI includes: */
-#include "UIVMInformationDialog.h"
-#include "UIExtraDataManager.h"
-#include "UISession.h"
-#include "UIMachineLogic.h"
-#include "UIMachineWindow.h"
-#include "UIMachineView.h"
-#include "UIConverter.h"
-#include "UIIconPool.h"
-#include "QITabWidget.h"
-#include "QIDialogButtonBox.h"
-#include "VBoxGlobal.h"
-#include "VBoxUtils.h"
-#include "UIInformationConfiguration.h"
-#include "UIInformationRuntime.h"
-#include "UIMachine.h"
+# include "UIVMInformationDialog.h"
+# include "UIExtraDataManager.h"
+# include "UISession.h"
+# include "UIMachineLogic.h"
+# include "UIMachineWindow.h"
+# include "UIMachineView.h"
+# include "UIConverter.h"
+# include "UIIconPool.h"
+# include "QITabWidget.h"
+# include "QIDialogButtonBox.h"
+# include "VBoxGlobal.h"
+# include "VBoxUtils.h"
+# include "UIInformationConfiguration.h"
+# include "UIMachine.h"
+# include "UIVMItem.h"
+# include "UIInformationRuntime.h"
 
 /* COM includes: */
-#include "COMEnums.h"
-#include "CMachine.h"
-#include "CConsole.h"
-#include "CSystemProperties.h"
-#include "CMachineDebugger.h"
-#include "CDisplay.h"
-#include "CStorageController.h"
-#include "CMediumAttachment.h"
-#include "CNetworkAdapter.h"
-#include "CVRDEServerInfo.h"
+# include "COMEnums.h"
+# include "CMachine.h"
+# include "CConsole.h"
+# include "CSystemProperties.h"
+# include "CMachineDebugger.h"
+# include "CDisplay.h"
+# include "CGuest.h"
+# include "CStorageController.h"
+# include "CMediumAttachment.h"
+# include "CNetworkAdapter.h"
 
 /* Other VBox includes: */
-#include <iprt/time.h>
+# include <iprt/time.h>
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+#include "CVRDEServerInfo.h"
 
 
 /* static */
-UIVMInformationDialog *UIVMInformationDialog::s_pInstance = 0;
+UIVMInformationDialog* UIVMInformationDialog::s_pInstance = 0;
 
 void UIVMInformationDialog::invoke(UIMachineWindow *pMachineWindow)
 {
@@ -218,7 +226,7 @@ void UIVMInformationDialog::prepareTabWidget()
         /* Create Configuration Details tab: */
         UIInformationConfiguration *pInformationConfigurationWidget =
             new UIInformationConfiguration(this, m_pMachineWindow->machine(), m_pMachineWindow->console());
-        if (pInformationConfigurationWidget)
+        AssertPtrReturnVoid(pInformationConfigurationWidget);
         {
             m_tabs.insert(0, pInformationConfigurationWidget);
             m_pTabWidget->addTab(m_tabs.value(0), QString());
@@ -227,11 +235,12 @@ void UIVMInformationDialog::prepareTabWidget()
         /* Create Runtime Information tab: */
         UIInformationRuntime *pInformationRuntimeWidget =
             new UIInformationRuntime(this, m_pMachineWindow->machine(), m_pMachineWindow->console());
-        if (pInformationRuntimeWidget)
+        AssertPtrReturnVoid(pInformationRuntimeWidget);
         {
             m_tabs.insert(1, pInformationRuntimeWidget);
             m_pTabWidget->addTab(m_tabs.value(1), QString());
         }
+
         /* Set Runtime Information tab as default: */
         m_pTabWidget->setCurrentIndex(1);
 
@@ -292,3 +301,4 @@ void UIVMInformationDialog::cleanup()
     /* Save settings: */
     saveSettings();
 }
+

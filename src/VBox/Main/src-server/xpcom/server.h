@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,11 +16,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef MAIN_INCLUDED_SRC_src_server_xpcom_server_h
-#define MAIN_INCLUDED_SRC_src_server_xpcom_server_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ____H_LINUX_SERVER
+#define ____H_LINUX_SERVER
 
 #include <VBox/com/com.h>
 
@@ -37,4 +34,4 @@
  */
 #define VBOXSVC_STARTUP_PIPE_NAME "vboxsvc:startup-pipe"
 
-#endif /* !MAIN_INCLUDED_SRC_src_server_xpcom_server_h */
+#endif /* ____H_LINUX_SERVER */

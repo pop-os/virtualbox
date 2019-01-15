@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,16 +15,14 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef MAIN_INCLUDED_DisplayImpl_h
-#define MAIN_INCLUDED_DisplayImpl_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ____H_DISPLAYIMPL
+#define ____H_DISPLAYIMPL
 
 #include "SchemaDefs.h"
 
 #include <iprt/semaphore.h>
 #include <VBox/vmm/pdmdrv.h>
+#include <VBox/VMMDev.h>
 #include <VBoxVideo.h>
 #include <VBox/vmm/pdmifs.h>
 #include "DisplayWrap.h"
@@ -33,8 +31,12 @@
 # include <VBox/HostServices/VBoxCrOpenGLSvc.h>
 #endif
 
+#ifdef VBOX_WITH_VIDEOREC
+# include "../src-client/VideoRec.h"
+struct VIDEORECCONTEXT;
+#endif
+
 #include "DisplaySourceBitmapWrap.h"
-#include "GuestScreenInfoWrap.h"
 
 
 class Console;
@@ -98,12 +100,12 @@ typedef struct _DISPLAYFBINFO
     } pendingViewportInfo;
 #endif /* VBOX_WITH_CROGL */
 
-#ifdef VBOX_WITH_RECORDING
+#ifdef VBOX_WITH_VIDEOREC
     struct
     {
         ComPtr<IDisplaySourceBitmap> pSourceBitmap;
-    } Recording;
-#endif /* VBOX_WITH_RECORDING */
+    } videoRec;
+#endif /* VBOX_WITH_VIDEOREC */
 } DISPLAYFBINFO;
 
 /* The legacy VBVA (VideoAccel) data.
@@ -180,9 +182,12 @@ public:
     void  i_handleCrVRecScreenshotPerform(uint32_t uScreen,
                                           uint32_t x, uint32_t y, uint32_t uPixelFormat, uint32_t uBitsPerPixel,
                                           uint32_t uBytesPerLine, uint32_t uGuestWidth, uint32_t uGuestHeight,
-                                          uint8_t *pu8BufferAddress, uint64_t uTimestampMs);
-    bool i_handleCrVRecScreenshotBegin(uint32_t uScreen, uint64_t uTimestampMs);
-    void i_handleCrVRecScreenshotEnd(uint32_t uScreen, uint64_t uTimestampMs);
+                                          uint8_t *pu8BufferAddress, uint64_t u64TimeStamp);
+    /** @todo r=bird: u64TimeStamp - using the 'u64' prefix add nothing.
+     *        However, using one of the prefixes indicating the timestamp unit
+     *        would be very valuable!  */
+    bool i_handleCrVRecScreenshotBegin(uint32_t uScreen, uint64_t u64TimeStamp);
+    void i_handleCrVRecScreenshotEnd(uint32_t uScreen, uint64_t u64TimeStamp);
     void i_handleVRecCompletion();
 #endif
 
@@ -201,9 +206,15 @@ public:
     int  VideoAccelEnableVMMDev(bool fEnable, VBVAMEMORY *pVbvaMemory);
     void VideoAccelFlushVMMDev(void);
 
-#ifdef VBOX_WITH_RECORDING
-    int  i_recordingInvalidate(void);
-    void i_recordingScreenChanged(unsigned uScreenId);
+#ifdef VBOX_WITH_VIDEOREC
+    PVIDEORECCFG             i_videoRecGetConfig(void) { return &mVideoRecCfg; }
+    VIDEORECFEATURES         i_videoRecGetFeatures(void);
+    bool                     i_videoRecStarted(void);
+    void                     i_videoRecInvalidate();
+    int                      i_videoRecSendAudio(const void *pvData, size_t cbData, uint64_t uDurationMs);
+    int                      i_videoRecStart(void);
+    void                     i_videoRecStop(void);
+    void                     i_videoRecScreenChanged(unsigned uScreenId);
 #endif
 
     void i_notifyPowerDown(void);
@@ -286,16 +297,6 @@ private:
     virtual HRESULT setScreenLayout(ScreenLayoutMode_T aScreenLayoutMode,
                                     const std::vector<ComPtr<IGuestScreenInfo> > &aGuestScreenInfo);
     virtual HRESULT detachScreens(const std::vector<LONG> &aScreenIds);
-    virtual HRESULT createGuestScreenInfo(ULONG aDisplay,
-                                          GuestMonitorStatus_T aStatus,
-                                          BOOL aPrimary,
-                                          BOOL aChangeOrigin,
-                                          LONG aOriginX,
-                                          LONG aOriginY,
-                                          ULONG aWidth,
-                                          ULONG aHeight,
-                                          ULONG aBitsPerPixel,
-                                          ComPtr<IGuestScreenInfo> &aGuestScreenInfo);
 
     // Wrapped IEventListener properties
 
@@ -323,7 +324,6 @@ private:
     static DECLCALLBACK(void*) i_drvQueryInterface(PPDMIBASE pInterface, const char *pszIID);
     static DECLCALLBACK(int)   i_drvConstruct(PPDMDRVINS pDrvIns, PCFGMNODE pCfg, uint32_t fFlags);
     static DECLCALLBACK(void)  i_drvDestruct(PPDMDRVINS pDrvIns);
-    static DECLCALLBACK(void)  i_drvPowerOff(PPDMDRVINS pDrvIns);
     static DECLCALLBACK(int)   i_displayResizeCallback(PPDMIDISPLAYCONNECTOR pInterface, uint32_t bpp, void *pvVRAM,
                                                        uint32_t cbLine, uint32_t cx, uint32_t cy);
     static DECLCALLBACK(void)  i_displayUpdateCallback(PPDMIDISPLAYCONNECTOR pInterface,
@@ -379,7 +379,6 @@ private:
 
     static DECLCALLBACK(void)  i_displayVBVAInputMappingUpdate(PPDMIDISPLAYCONNECTOR pInterface, int32_t xOrigin, int32_t yOrigin,
                                                                uint32_t cx, uint32_t cy);
-    static DECLCALLBACK(void)  i_displayVBVAReportCursorPosition(PPDMIDISPLAYCONNECTOR pInterface, bool fData, uint32_t x, uint32_t y);
 #endif
 
 #if defined(VBOX_WITH_HGCM) && defined(VBOX_WITH_CROGL)
@@ -471,11 +470,15 @@ private:
     /** Serializes access to mVideoAccelLegacy and mfVideoAccelVRDP, etc between VRDP and Display. */
     RTCRITSECT           mVideoAccelLock;
 
-#ifdef VBOX_WITH_RECORDING
+#ifdef VBOX_WITH_VIDEOREC
     /* Serializes access to video recording source bitmaps. */
     RTCRITSECT           mVideoRecLock;
+    /** The current video recording configuration being used. */
+    VIDEORECCFG          mVideoRecCfg;
+    /** The video recording context. */
+    VIDEORECCONTEXT     *mpVideoRecCtx;
     /** Array which defines which screens are being enabled for recording. */
-    bool                 maRecordingEnabled[SchemaDefs::MaxGuestMonitors];
+    bool                 maVideoRecEnabled[SchemaDefs::MaxGuestMonitors];
 #endif
 
 public:
@@ -591,51 +594,5 @@ private:
     Data m;
 };
 
-class ATL_NO_VTABLE GuestScreenInfo:
-    public GuestScreenInfoWrap
-{
-public:
-
-    DECLARE_EMPTY_CTOR_DTOR(GuestScreenInfo)
-
-    HRESULT FinalConstruct();
-    void FinalRelease();
-
-    /* Public initializer/uninitializer for internal purposes only. */
-    HRESULT init(ULONG aDisplay,
-                 GuestMonitorStatus_T aGuestMonitorStatus,
-                 BOOL aPrimary,
-                 BOOL aChangeOrigin,
-                 LONG aOriginX,
-                 LONG aOriginY,
-                 ULONG aWidth,
-                 ULONG aHeight,
-                 ULONG aBitsPerPixel);
-    void uninit();
-
-private:
-    // wrapped IGuestScreenInfo properties
-    virtual HRESULT getScreenId(ULONG *aScreenId);
-    virtual HRESULT getGuestMonitorStatus(GuestMonitorStatus_T *aGuestMonitorStatus);
-    virtual HRESULT getPrimary(BOOL *aPrimary);
-    virtual HRESULT getOrigin(BOOL *aOrigin);
-    virtual HRESULT getOriginX(LONG *aOriginX);
-    virtual HRESULT getOriginY(LONG *aOriginY);
-    virtual HRESULT getWidth(ULONG *aWidth);
-    virtual HRESULT getHeight(ULONG *aHeight);
-    virtual HRESULT getBitsPerPixel(ULONG *aBitsPerPixel);
-    virtual HRESULT getExtendedInfo(com::Utf8Str &aExtendedInfo);
-
-    ULONG mScreenId;
-    GuestMonitorStatus_T mGuestMonitorStatus;
-    BOOL  mPrimary;
-    BOOL  mOrigin;
-    LONG  mOriginX;
-    LONG  mOriginY;
-    ULONG mWidth;
-    ULONG mHeight;
-    ULONG mBitsPerPixel;
-};
-
-#endif /* !MAIN_INCLUDED_DisplayImpl_h */
+#endif // !____H_DISPLAYIMPL
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

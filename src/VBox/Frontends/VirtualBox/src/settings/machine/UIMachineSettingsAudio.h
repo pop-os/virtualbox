@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsAudio_h
-#define FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsAudio_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIMachineSettingsAudio_h___
+#define ___UIMachineSettingsAudio_h___
 
 /* GUI includes: */
 #include "UISettingsPage.h"
@@ -29,9 +26,10 @@
 struct UIDataSettingsMachineAudio;
 typedef UISettingsCache<UIDataSettingsMachineAudio> UISettingsCacheMachineAudio;
 
+
 /** Machine settings: Audio page. */
-class SHARED_LIBRARY_STUFF UIMachineSettingsAudio : public UISettingsPageMachine,
-                                                    public Ui::UIMachineSettingsAudio
+class UIMachineSettingsAudio : public UISettingsPageMachine,
+                               public Ui::UIMachineSettingsAudio
 {
     Q_OBJECT;
 
@@ -81,4 +79,5 @@ private:
     UISettingsCacheMachineAudio *m_pCache;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsAudio_h */
+#endif /* !___UIMachineSettingsAudio_h___ */
+

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,25 +15,30 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QDir>
-#include <QLineEdit>
+# include <QDir>
+# include <QLineEdit>
 
 /* GUI includes: */
-#include "QIWidgetValidator.h"
-#include "VBoxGlobal.h"
-#include "UIConverter.h"
-#include "UIErrorString.h"
-#include "UIMachineSettingsGeneral.h"
-#include "UIModalWindowManager.h"
-#include "UIProgressDialog.h"
+# include "QIWidgetValidator.h"
+# include "UIConverter.h"
+# include "UIMachineSettingsGeneral.h"
+# include "UIErrorString.h"
+# include "UIModalWindowManager.h"
+# include "UIProgressDialog.h"
 
 /* COM includes: */
-#include "CExtPack.h"
-#include "CExtPackManager.h"
-#include "CMedium.h"
-#include "CMediumAttachment.h"
-#include "CProgress.h"
+# include "CExtPack.h"
+# include "CExtPackManager.h"
+# include "CMedium.h"
+# include "CMediumAttachment.h"
+# include "CProgress.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 /** Machine settings: General page data structure. */
@@ -105,7 +110,7 @@ struct UIDataSettingsMachineGeneral
     /** Holds the encryption password. */
     QString                m_strEncryptionPassword;
     /** Holds the encrypted medium ids. */
-    EncryptedMediumMap     m_encryptedMedia;
+    EncryptedMediumMap     m_encryptedMediums;
     /** Holds the encryption passwords. */
     EncryptionPasswordMap  m_encryptionPasswords;
 };
@@ -136,16 +141,14 @@ CGuestOSType UIMachineSettingsGeneral::guestOSType() const
 bool UIMachineSettingsGeneral::is64BitOSTypeSelected() const
 {
     AssertPtrReturn(m_pNameAndSystemEditor, false);
-    return   m_pNameAndSystemEditor->type().isNotNull()
-           ? m_pNameAndSystemEditor->type().GetIs64Bit()
-           : false;
+    return m_pNameAndSystemEditor->type().GetIs64Bit();
 }
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
 bool UIMachineSettingsGeneral::isWindowsOSTypeSelected() const
 {
     AssertPtrReturn(m_pNameAndSystemEditor, false);
-    return m_pNameAndSystemEditor->familyId() == "Windows";
+    return m_pNameAndSystemEditor->type().GetFamilyId() == "Windows";
 }
 #endif /* VBOX_WITH_VIDEOHWACCEL */
 
@@ -194,8 +197,8 @@ void UIMachineSettingsGeneral::loadToCacheFrom(QVariant &data)
     /* Gather old 'Encryption' data: */
     QString strCipher;
     bool fEncryptionCipherCommon = true;
-    /* Prepare the map of the encrypted media: */
-    EncryptedMediumMap encryptedMedia;
+    /* Prepare the map of the encrypted mediums: */
+    EncryptedMediumMap encryptedMediums;
     foreach (const CMediumAttachment &attachment, m_machine.GetMediumAttachments())
     {
         /* Check hard-drive attachments only: */
@@ -208,7 +211,7 @@ void UIMachineSettingsGeneral::loadToCacheFrom(QVariant &data)
             const QString strCurrentPasswordId = comMedium.GetEncryptionSettings(strCurrentCipher);
             if (comMedium.isOk())
             {
-                encryptedMedia.insert(strCurrentPasswordId, comMedium.GetId());
+                encryptedMediums.insert(strCurrentPasswordId, comMedium.GetId());
                 if (strCurrentCipher != strCipher)
                 {
                     if (strCipher.isNull())
@@ -219,14 +222,14 @@ void UIMachineSettingsGeneral::loadToCacheFrom(QVariant &data)
             }
         }
     }
-    oldGeneralData.m_fEncryptionEnabled = !encryptedMedia.isEmpty();
+    oldGeneralData.m_fEncryptionEnabled = !encryptedMediums.isEmpty();
     oldGeneralData.m_fEncryptionCipherChanged = false;
     oldGeneralData.m_fEncryptionPasswordChanged = false;
     if (fEncryptionCipherCommon)
         oldGeneralData.m_iEncryptionCipherIndex = m_encryptionCiphers.indexOf(strCipher);
     if (oldGeneralData.m_iEncryptionCipherIndex == -1)
         oldGeneralData.m_iEncryptionCipherIndex = 0;
-    oldGeneralData.m_encryptedMedia = encryptedMedia;
+    oldGeneralData.m_encryptedMediums = encryptedMediums;
 
     /* Cache old general data: */
     m_pCache->cacheInitialData(oldGeneralData);
@@ -243,7 +246,7 @@ void UIMachineSettingsGeneral::getFromCache()
     /* Load old 'Basic' data from the cache: */
     AssertPtrReturnVoid(m_pNameAndSystemEditor);
     m_pNameAndSystemEditor->setName(oldGeneralData.m_strName);
-    m_pNameAndSystemEditor->setTypeId(oldGeneralData.m_strGuestOsTypeId);
+    m_pNameAndSystemEditor->setType(vboxGlobal().vmGuestOSType(oldGeneralData.m_strGuestOsTypeId));
 
     /* Load old 'Advanced' data from the cache: */
     AssertPtrReturnVoid(mPsSnapshot);
@@ -281,7 +284,7 @@ void UIMachineSettingsGeneral::putToCache()
     /* Gather new 'Basic' data: */
     AssertPtrReturnVoid(m_pNameAndSystemEditor);
     newGeneralData.m_strName = m_pNameAndSystemEditor->name();
-    newGeneralData.m_strGuestOsTypeId = m_pNameAndSystemEditor->typeId();
+    newGeneralData.m_strGuestOsTypeId = m_pNameAndSystemEditor->type().GetId();
 
     /* Gather new 'Advanced' data: */
     AssertPtrReturnVoid(mPsSnapshot);
@@ -305,21 +308,21 @@ void UIMachineSettingsGeneral::putToCache()
     newGeneralData.m_fEncryptionPasswordChanged = m_fEncryptionPasswordChanged;
     newGeneralData.m_iEncryptionCipherIndex = m_pComboCipher->currentIndex();
     newGeneralData.m_strEncryptionPassword = m_pEditorEncryptionPassword->text();
-    newGeneralData.m_encryptedMedia = m_pCache->base().m_encryptedMedia;
+    newGeneralData.m_encryptedMediums = m_pCache->base().m_encryptedMediums;
     /* If encryption status, cipher or password is changed: */
     if (newGeneralData.m_fEncryptionEnabled != m_pCache->base().m_fEncryptionEnabled ||
         newGeneralData.m_fEncryptionCipherChanged != m_pCache->base().m_fEncryptionCipherChanged ||
         newGeneralData.m_fEncryptionPasswordChanged != m_pCache->base().m_fEncryptionPasswordChanged)
     {
         /* Ask for the disk encryption passwords if necessary: */
-        if (!m_pCache->base().m_encryptedMedia.isEmpty())
+        if (!m_pCache->base().m_encryptedMediums.isEmpty())
         {
             /* Create corresponding dialog: */
             QWidget *pDlgParent = windowManager().realParentWindow(window());
             QPointer<UIAddDiskEncryptionPasswordDialog> pDlg =
                  new UIAddDiskEncryptionPasswordDialog(pDlgParent,
                                                        newGeneralData.m_strName,
-                                                       newGeneralData.m_encryptedMedia);
+                                                       newGeneralData.m_encryptedMediums);
             /* Execute it and acquire the result: */
             if (pDlg->exec() == QDialog::Accepted)
                 newGeneralData.m_encryptionPasswords = pDlg->encryptionPasswords();
@@ -549,7 +552,7 @@ void UIMachineSettingsGeneral::prepareTabBasic()
         AssertPtrReturnVoid(m_pNameAndSystemEditor);
         {
             /* Configure widget: */
-            m_pNameAndSystemEditor->setNameFieldValidator(".+");
+            m_pNameAndSystemEditor->nameEditor()->setValidator(new QRegExpValidator(QRegExp(".+"), this));
         }
     }
 }
@@ -864,10 +867,10 @@ bool UIMachineSettingsGeneral::saveEncryptionData()
                         continue;
 
                     /* Get medium id for further activities: */
-                    QUuid uMediumId;
+                    QString strMediumId;
                     if (fSuccess)
                     {
-                        uMediumId = comMedium.GetId();
+                        strMediumId = comMedium.GetId();
                         fSuccess = comMedium.isOk();
                     }
 
@@ -894,12 +897,12 @@ bool UIMachineSettingsGeneral::saveEncryptionData()
                                                strMachineName : QString();
                         }
 
-                        /* Get the maps of encrypted media and their passwords: */
-                        const EncryptedMediumMap &encryptedMedium = newGeneralData.m_encryptedMedia;
+                        /* Get the maps of encrypted mediums and their passwords: */
+                        const EncryptedMediumMap &encryptedMedium = newGeneralData.m_encryptedMediums;
                         const EncryptionPasswordMap &encryptionPasswords = newGeneralData.m_encryptionPasswords;
 
                         /* Check if old password exists/provided: */
-                        const QString strOldPasswordId = encryptedMedium.key(uMediumId);
+                        const QString strOldPasswordId = encryptedMedium.key(strMediumId);
                         const QString strOldPassword = encryptionPasswords.value(strOldPasswordId);
 
                         /* Create encryption progress: */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsSystem_h
-#define FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsSystem_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIMachineSettingsSystem_h___
+#define ___UIMachineSettingsSystem_h___
 
 /* GUI includes: */
 #include "UISettingsPage.h"
@@ -29,9 +26,10 @@
 struct UIDataSettingsMachineSystem;
 typedef UISettingsCache<UIDataSettingsMachineSystem> UISettingsCacheMachineSystem;
 
+
 /** Machine settings: System page. */
-class SHARED_LIBRARY_STUFF UIMachineSettingsSystem : public UISettingsPageMachine,
-                                                     public Ui::UIMachineSettingsSystem
+class UIMachineSettingsSystem : public UISettingsPageMachine,
+                                public Ui::UIMachineSettingsSystem
 {
     Q_OBJECT;
 
@@ -42,20 +40,8 @@ public:
     /** Destructs System settings page. */
     ~UIMachineSettingsSystem();
 
-    /** Returns whether the HW Virt Ex is supported. */
-    bool isHWVirtExSupported() const;
     /** Returns whether the HW Virt Ex is enabled. */
     bool isHWVirtExEnabled() const;
-
-    /** Returns whether the Nested Paging is supported. */
-    bool isNestedPagingSupported() const;
-    /** Returns whether the Nested Paging is enabled. */
-    bool isNestedPagingEnabled() const;
-
-    /** Returns whether the Nested HW Virt Ex is supported. */
-    bool isNestedHWVirtExSupported() const;
-    /** Returns whether the Nested HW Virt Ex is enabled. */
-    bool isNestedHWVirtExEnabled() const;
 
     /** Returns whether the HID is enabled. */
     bool isHIDEnabled() const;
@@ -119,9 +105,6 @@ private slots:
     /** Handles CPU execution cap editor change. */
     void sltHandleCPUExecCapEditorChange();
 
-    /** Handles HW Virt Ex check-box toggling. */
-    void sltHandleHwVirtExToggle();
-
 private:
 
     /** Prepares all. */
@@ -180,4 +163,5 @@ private:
     UISettingsCacheMachineSystem *m_pCache;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsSystem_h */
+#endif /* !___UIMachineSettingsSystem_h___ */
+

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef GA_INCLUDED_SRC_common_crOpenGL_fakedri_drv_h
-#define GA_INCLUDED_SRC_common_crOpenGL_fakedri_drv_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___CROPENGL_FAKEDRIDRV_H
+#define ___CROPENGL_FAKEDRIDRV_H
 
 #include "src/mesa/main/mtypes.h"
 #include "src/mesa/main/dd.h"
@@ -119,5 +116,5 @@ extern void VBOXGLXENTRYTAG(glXSelectEvent)(Display *dpy, GLXDrawable draw, unsi
 # undef GLXAPI_ENTRY
 #endif
 
-#endif /* !GA_INCLUDED_SRC_common_crOpenGL_fakedri_drv_h */
+#endif /* !___CROPENGL_FAKEDRIDRV_H */
 

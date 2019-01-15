@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -109,32 +109,6 @@ VBOX_BS3KIT_COMMON_SOURCES = \
        bs3-cmn-RegCtxSetRipCsFromCurPtr.c \
        bs3-cmn-RegCtxSetRipCsFromFlat.c \
        bs3-cmn-RegCtxSetRipCsFromLnkPtr.c \
-       bs3-cmn-RegGetCr0.asm \
-       bs3-cmn-RegGetCr2.asm \
-       bs3-cmn-RegGetCr3.asm \
-       bs3-cmn-RegGetCr4.asm \
-       bs3-cmn-RegSetCr0.asm \
-       bs3-cmn-RegSetCr2.asm \
-       bs3-cmn-RegSetCr3.asm \
-       bs3-cmn-RegSetCr4.asm \
-       bs3-cmn-RegGetDr0.asm \
-       bs3-cmn-RegGetDr1.asm \
-       bs3-cmn-RegGetDr2.asm \
-       bs3-cmn-RegGetDr3.asm \
-       bs3-cmn-RegGetDr6.asm \
-       bs3-cmn-RegGetDr7.asm \
-       bs3-cmn-RegGetDrX.asm \
-       bs3-cmn-RegSetDr0.asm \
-       bs3-cmn-RegSetDr1.asm \
-       bs3-cmn-RegSetDr2.asm \
-       bs3-cmn-RegSetDr3.asm \
-       bs3-cmn-RegSetDr6.asm \
-       bs3-cmn-RegSetDr7.asm \
-       bs3-cmn-RegSetDrX.asm \
-       bs3-cmn-RegGetTr.asm \
-       bs3-cmn-RegSetTr.asm \
-       bs3-cmn-RegGetLdtr.asm \
-       bs3-cmn-RegSetLdtr.asm \
        bs3-cmn-ExtCtxInit.c \
        bs3-cmn-ExtCtxSave.asm \
        bs3-cmn-ExtCtxRestore.asm \
@@ -190,7 +164,6 @@ VBOX_BS3KIT_COMMON_SOURCES = \
 	bs3-cmn-TestSendCmdWithU32.asm \
 	bs3-cmn-TestIsVmmDevTestingPresent.asm \
 	bs3-cmn-TestCheckRegCtxEx.c \
-	bs3-cmn-TestHostPrintf.c \
 	bs3-cmn-TestPrintf.c \
 	bs3-cmn-TrapReInit.c \
 	bs3-cmn-TrapRmV86Init.c \
@@ -201,7 +174,6 @@ VBOX_BS3KIT_COMMON_SOURCES = \
 	bs3-cmn-Trap32SetGate.c \
 	bs3-cmn-Trap64Init.c \
 	bs3-cmn-Trap64SetGate.c \
-	bs3-cmn-TrapSetDpl.c \
 	bs3-cmn-TrapDefaultHandler.c \
 	bs3-cmn-TrapHandlersData.asm \
 	bs3-cmn-TrapPrintFrame.c \
@@ -229,7 +201,6 @@ VBOX_BS3KIT_COMMON_SOURCES = \
        ../../../Runtime/common/asm/ASMSerializeInstruction-rdtscp.asm \
        ../../../Runtime/common/asm/ASMCpuIdExSlow.asm \
        ../../../Runtime/common/asm/ASMCpuId.asm \
-       ../../../Runtime/common/asm/ASMCpuId_Idx_ECX.asm \
        ../../../Runtime/common/asm/ASMGetXcr0.asm \
        ../../../Runtime/common/asm/ASMSetXcr0.asm \
 

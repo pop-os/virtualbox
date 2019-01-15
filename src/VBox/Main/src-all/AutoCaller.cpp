@@ -1,10 +1,12 @@
 /* $Id: AutoCaller.cpp $ */
+
 /** @file
+ *
  * VirtualBox object state implementation
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,12 +17,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#define LOG_GROUP LOG_GROUP_MAIN
 #include <iprt/semaphore.h>
 
 #include "VirtualBoxBase.h"
 #include "AutoCaller.h"
-#include "LoggingNew.h"
+#include "Logging.h"
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -311,7 +312,7 @@ void ObjectState::autoInitSpanDestructor(State aNewState, HRESULT aFailedRC, com
     setState(aNewState);
 }
 
-ObjectState::State ObjectState::autoUninitSpanConstructor(bool fTry)
+ObjectState::State ObjectState::autoUninitSpanConstructor()
 {
     AutoWriteLock stateLock(mStateLock COMMA_LOCKVAL_SRC_POS);
 
@@ -327,9 +328,6 @@ ObjectState::State ObjectState::autoUninitSpanConstructor(bool fTry)
         /* Another thread has already started uninitialization, wait for its
          * completion. This is necessary to make sure that when this method
          * returns, the object state is well-defined (NotReady). */
-
-        if (fTry)
-            return Ready;
 
         /* lazy semaphore creation */
         if (mInitUninitSem == NIL_RTSEMEVENTMULTI)
@@ -362,9 +360,6 @@ ObjectState::State ObjectState::autoUninitSpanConstructor(bool fTry)
     /* wait for already existing callers to drop to zero */
     if (mCallers > 0)
     {
-        if (fTry)
-            return Ready;
-
         /* lazy creation */
         Assert(mZeroCallersSem == NIL_RTSEMEVENT);
         RTSemEventCreate(&mZeroCallersSem);
@@ -522,24 +517,19 @@ AutoReinitSpan::~AutoReinitSpan()
  *
  * @param aObj  |this| pointer of the VirtualBoxBase object whose uninit()
  *              method is being called.
- * @param fTry  @c true if the wait for other callers should be skipped,
- *              requiring checking if the uninit span is actually operational.
  */
-AutoUninitSpan::AutoUninitSpan(VirtualBoxBase *aObj, bool fTry /* = false */)
+AutoUninitSpan::AutoUninitSpan(VirtualBoxBase *aObj)
     : mObj(aObj),
       mInitFailed(false),
-      mUninitDone(false),
-      mUninitFailed(false)
+      mUninitDone(false)
 {
     Assert(mObj);
     ObjectState::State state;
-    state = mObj->getObjectState().autoUninitSpanConstructor(fTry);
+    state = mObj->getObjectState().autoUninitSpanConstructor();
     if (state == ObjectState::InitFailed)
         mInitFailed = true;
     else if (state == ObjectState::NotReady)
         mUninitDone = true;
-    else if (state == ObjectState::Ready)
-        mUninitFailed = true;
 }
 
 /**
@@ -548,7 +538,7 @@ AutoUninitSpan::AutoUninitSpan(VirtualBoxBase *aObj, bool fTry /* = false */)
 AutoUninitSpan::~AutoUninitSpan()
 {
     /* do nothing if already uninitialized */
-    if (mUninitDone || mUninitFailed)
+    if (mUninitDone)
         return;
 
     mObj->getObjectState().autoUninitSpanDestructor();
@@ -562,7 +552,7 @@ AutoUninitSpan::~AutoUninitSpan()
 void AutoUninitSpan::setSucceeded()
 {
     /* do nothing if already uninitialized */
-    if (mUninitDone || mUninitFailed)
+    if (mUninitDone)
         return;
 
     mObj->getObjectState().autoUninitSpanDestructor();

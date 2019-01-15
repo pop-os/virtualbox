@@ -1,10 +1,10 @@
 /* $Id: QILineEdit.h $ */
 /** @file
- * VBox Qt GUI - Qt extensions: QILineEdit class declaration.
+ * VBox Qt GUI - QILineEdit class declarations.
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,42 +15,28 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_extensions_QILineEdit_h
-#define FEQT_INCLUDED_SRC_extensions_QILineEdit_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __QILineEdit_h__
+#define __QILineEdit_h__
 
 /* Qt includes */
 #include <QLineEdit>
 
-/* GUI includes: */
-#include "UILibraryDefs.h"
-
-/** QLineEdit extension with advanced functionality. */
-class SHARED_LIBRARY_STUFF QILineEdit : public QLineEdit
+class QILineEdit: public QLineEdit
 {
-    Q_OBJECT;
-
 public:
 
-    /** Constructs label-separator passing @a pParent to the base-class. */
-    QILineEdit(QWidget *pParent = 0)
-        : QLineEdit(pParent) {}
-    /** Constructs label-separator passing @a pParent to the base-class.
-      * @param  strContents  Brings the line-edit text. */
-    QILineEdit(const QString &strContents, QWidget *pParent = 0)
-        : QLineEdit(strContents, pParent) {}
+    QILineEdit (QWidget *aParent = 0)
+        :QLineEdit (aParent) {}
+    QILineEdit (const QString &aContents, QWidget *aParent = 0)
+        :QLineEdit (aContents, aParent) {}
 
-    /** Forces line-edit to adjust minimum width acording to passed @a strText. */
-    void setMinimumWidthByText(const QString &strText);
-    /** Forces line-edit to adjust fixed width acording to passed @a strText. */
-    void setFixedWidthByText(const QString &strText);
+    void setMinimumWidthByText (const QString &aText);
+    void setFixedWidthByText (const QString &aText);
 
 private:
 
-    /** Calculates suitable @a strText size. */
-    QSize featTextWidth(const QString &strText) const;
+    QSize featTextWidth (const QString &aText) const;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_extensions_QILineEdit_h */
+#endif /* __QILineEdit_h__ */
+

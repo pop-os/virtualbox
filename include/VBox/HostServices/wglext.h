@@ -1,9 +1,5 @@
-
-#ifndef VBOX_INCLUDED_HostServices_wglext_h
-#define VBOX_INCLUDED_HostServices_wglext_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __wglext_h_
+#define __wglext_h_
 
 #ifdef __cplusplus
 extern "C" {
@@ -649,4 +645,4 @@ typedef BOOL (WINAPI * PFNWGLQUERYFRAMETRACKINGI3DPROC) (DWORD *pFrameCount, DWO
 }
 #endif
 
-#endif /* !VBOX_INCLUDED_HostServices_wglext_h */
+#endif

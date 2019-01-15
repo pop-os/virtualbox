@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,19 +15,16 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsUSBFilterDetails_h
-#define FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsUSBFilterDetails_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __UIMachineSettingsUSBFilterDetails_h__
+#define __UIMachineSettingsUSBFilterDetails_h__
 
 #include "UIMachineSettingsUSBFilterDetails.gen.h"
 #include "QIWithRetranslateUI.h"
 #include "QIDialog.h"
 #include "UIMachineSettingsUSB.h"
 
-class SHARED_LIBRARY_STUFF UIMachineSettingsUSBFilterDetails : public QIWithRetranslateUI2<QIDialog>,
-                                                               public Ui::UIMachineSettingsUSBFilterDetails
+class UIMachineSettingsUSBFilterDetails : public QIWithRetranslateUI2<QIDialog>,
+                                          public Ui::UIMachineSettingsUSBFilterDetails
 {
     Q_OBJECT;
 
@@ -40,4 +37,5 @@ private:
     void retranslateUi();
 };
 
-#endif /* !FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsUSBFilterDetails_h */
+#endif /* __UIMachineSettingsUSBFilterDetails_h__ */
+

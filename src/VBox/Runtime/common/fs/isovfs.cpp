@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,7 +46,6 @@
 #include <iprt/vfs.h>
 #include <iprt/vfslowlevel.h>
 #include <iprt/uni.h>
-#include <iprt/utf16.h>
 #include <iprt/formats/iso9660.h>
 #include <iprt/formats/udf.h>
 
@@ -461,7 +460,6 @@ typedef RTFSISOVDSINFO *PRTFSISOVDSINFO;
 *********************************************************************************************************************************/
 static void rtFsIsoDirShrd_AddOpenChild(PRTFSISODIRSHRD pDir, PRTFSISOCORE pChild);
 static void rtFsIsoDirShrd_RemoveOpenChild(PRTFSISODIRSHRD pDir, PRTFSISOCORE pChild);
-static int  rtFsIsoDir_NewWithShared(PRTFSISOVOL pThis, PRTFSISODIRSHRD pShared, PRTVFSDIR phVfsDir);
 static int  rtFsIsoDir_New9660(PRTFSISOVOL pThis, PRTFSISODIRSHRD pParentDir, PCISO9660DIRREC pDirRec,
                                uint32_t cDirRecs, uint64_t offDirRec, PRTVFSDIR phVfsDir);
 static int  rtFsIsoDir_NewUdf(PRTFSISOVOL pThis, PRTFSISODIRSHRD pParentDir, PCUDFFILEIDDESC pFid, PRTVFSDIR phVfsDir);
@@ -2028,6 +2026,16 @@ static DECLCALLBACK(int) rtFsIsoFile_Read(void *pvThis, RTFOFF off, PCRTSGBUF pS
 
 
 /**
+ * @interface_method_impl{RTVFSIOSTREAMOPS,pfnWrite}
+ */
+static DECLCALLBACK(int) rtFsIsoFile_Write(void *pvThis, RTFOFF off, PCRTSGBUF pSgBuf, bool fBlocking, size_t *pcbWritten)
+{
+    RT_NOREF(pvThis, off, pSgBuf, fBlocking, pcbWritten);
+    return VERR_WRITE_PROTECT;
+}
+
+
+/**
  * @interface_method_impl{RTVFSIOSTREAMOPS,pfnFlush}
  */
 static DECLCALLBACK(int) rtFsIsoFile_Flush(void *pvThis)
@@ -2075,6 +2083,37 @@ static DECLCALLBACK(int) rtFsIsoFile_Tell(void *pvThis, PRTFOFF poffActual)
     PRTFSISOFILEOBJ pThis = (PRTFSISOFILEOBJ)pvThis;
     *poffActual = pThis->offFile;
     return VINF_SUCCESS;
+}
+
+
+/**
+ * @interface_method_impl{RTVFSOBJSETOPS,pfnMode}
+ */
+static DECLCALLBACK(int) rtFsIsoFile_SetMode(void *pvThis, RTFMODE fMode, RTFMODE fMask)
+{
+    RT_NOREF(pvThis, fMode, fMask);
+    return VERR_WRITE_PROTECT;
+}
+
+
+/**
+ * @interface_method_impl{RTVFSOBJSETOPS,pfnSetTimes}
+ */
+static DECLCALLBACK(int) rtFsIsoFile_SetTimes(void *pvThis, PCRTTIMESPEC pAccessTime, PCRTTIMESPEC pModificationTime,
+                                                 PCRTTIMESPEC pChangeTime, PCRTTIMESPEC pBirthTime)
+{
+    RT_NOREF(pvThis, pAccessTime, pModificationTime, pChangeTime, pBirthTime);
+    return VERR_WRITE_PROTECT;
+}
+
+
+/**
+ * @interface_method_impl{RTVFSOBJSETOPS,pfnSetOwner}
+ */
+static DECLCALLBACK(int) rtFsIsoFile_SetOwner(void *pvThis, RTUID uid, RTGID gid)
+{
+    RT_NOREF(pvThis, uid, gid);
+    return VERR_WRITE_PROTECT;
 }
 
 
@@ -2141,7 +2180,7 @@ DECL_HIDDEN_CONST(const RTVFSFILEOPS) g_rtFsIsoFileOps =
         RTVFSIOSTREAMOPS_VERSION,
         RTVFSIOSTREAMOPS_FEAT_NO_SG,
         rtFsIsoFile_Read,
-        NULL /*Write*/,
+        rtFsIsoFile_Write,
         rtFsIsoFile_Flush,
         rtFsIsoFile_PollOne,
         rtFsIsoFile_Tell,
@@ -2154,15 +2193,13 @@ DECL_HIDDEN_CONST(const RTVFSFILEOPS) g_rtFsIsoFileOps =
     { /* ObjSet */
         RTVFSOBJSETOPS_VERSION,
         RT_UOFFSETOF(RTVFSFILEOPS, ObjSet) - RT_UOFFSETOF(RTVFSFILEOPS, Stream.Obj),
-        NULL /*SetMode*/,
-        NULL /*SetTimes*/,
-        NULL /*SetOwner*/,
+        rtFsIsoFile_SetMode,
+        rtFsIsoFile_SetTimes,
+        rtFsIsoFile_SetOwner,
         RTVFSOBJSETOPS_VERSION
     },
     rtFsIsoFile_Seek,
     rtFsIsoFile_QuerySize,
-    NULL /*SetSize*/,
-    NULL /*QueryMaxSize*/,
     RTVFSFILEOPS_VERSION
 };
 
@@ -2171,7 +2208,7 @@ DECL_HIDDEN_CONST(const RTVFSFILEOPS) g_rtFsIsoFileOps =
  * Instantiates a new file, from ISO 9660 info.
  *
  * @returns IPRT status code.
- * @param   pThis           The ISO volume instance.
+ * @param   pThis           The FAT volume instance.
  * @param   pParentDir      The parent directory (shared part).
  * @param   pDirRec         The directory record.
  * @param   cDirRecs        Number of directory records if more than one.
@@ -2242,7 +2279,7 @@ static int rtFsIsoFile_New9660(PRTFSISOVOL pThis, PRTFSISODIRSHRD pParentDir, PC
  * Instantiates a new file, from UDF info.
  *
  * @returns IPRT status code.
- * @param   pThis           The ISO volume instance.
+ * @param   pThis           The FAT volume instance.
  * @param   pParentDir      The parent directory (shared part).
  * @param   pFid            The file ID descriptor.  (Points to parent directory
  *                          content.)
@@ -2821,66 +2858,160 @@ static DECLCALLBACK(int) rtFsIsoDir_QueryInfo(void *pvThis, PRTFSOBJINFO pObjInf
 
 
 /**
- * @interface_method_impl{RTVFSDIROPS,pfnOpen}
+ * @interface_method_impl{RTVFSOBJSETOPS,pfnMode}
  */
-static DECLCALLBACK(int) rtFsIsoDir_Open(void *pvThis, const char *pszEntry, uint64_t fOpen,
-                                         uint32_t fFlags, PRTVFSOBJ phVfsObj)
+static DECLCALLBACK(int) rtFsIsoDir_SetMode(void *pvThis, RTFMODE fMode, RTFMODE fMask)
+{
+    RT_NOREF(pvThis, fMode, fMask);
+    return VERR_WRITE_PROTECT;
+}
+
+
+/**
+ * @interface_method_impl{RTVFSOBJSETOPS,pfnSetTimes}
+ */
+static DECLCALLBACK(int) rtFsIsoDir_SetTimes(void *pvThis, PCRTTIMESPEC pAccessTime, PCRTTIMESPEC pModificationTime,
+                                                 PCRTTIMESPEC pChangeTime, PCRTTIMESPEC pBirthTime)
+{
+    RT_NOREF(pvThis, pAccessTime, pModificationTime, pChangeTime, pBirthTime);
+    return VERR_WRITE_PROTECT;
+}
+
+
+/**
+ * @interface_method_impl{RTVFSOBJSETOPS,pfnSetOwner}
+ */
+static DECLCALLBACK(int) rtFsIsoDir_SetOwner(void *pvThis, RTUID uid, RTGID gid)
+{
+    RT_NOREF(pvThis, uid, gid);
+    return VERR_WRITE_PROTECT;
+}
+
+
+/**
+ * @interface_method_impl{RTVFSOBJOPS,pfnTraversalOpen}
+ */
+static DECLCALLBACK(int) rtFsIsoDir_TraversalOpen(void *pvThis, const char *pszEntry, PRTVFSDIR phVfsDir,
+                                                  PRTVFSSYMLINK phVfsSymlink, PRTVFS phVfsMounted)
+{
+    /*
+     * We may have symbolic links if rock ridge is being used, though currently
+     * we won't have nested mounts.
+     */
+    int rc;
+    if (phVfsMounted)
+        *phVfsMounted = NIL_RTVFS;
+    if (phVfsDir || phVfsSymlink)
+    {
+        if (phVfsSymlink)
+            *phVfsSymlink = NIL_RTVFSSYMLINK;
+        if (phVfsDir)
+            *phVfsDir = NIL_RTVFSDIR;
+
+        PRTFSISODIROBJ      pThis = (PRTFSISODIROBJ)pvThis;
+        PRTFSISODIRSHRD     pShared = pThis->pShared;
+        if (pShared->Core.pVol->enmType != RTFSISOVOLTYPE_UDF)
+        {
+            /*
+             * ISO 9660
+             */
+            PCISO9660DIRREC     pDirRec;
+            uint64_t            offDirRec;
+            uint32_t            cDirRecs;
+            RTFMODE             fMode;
+            uint32_t            uVersion;
+            rc = rtFsIsoDir_FindEntry9660(pShared, pszEntry, &offDirRec, &pDirRec, &cDirRecs, &fMode, &uVersion);
+            Log2(("rtFsIsoDir_TraversalOpen: FindEntry9660(,%s,) -> %Rrc\n", pszEntry, rc));
+            if (RT_SUCCESS(rc))
+            {
+                switch (fMode & RTFS_TYPE_MASK)
+                {
+                    case RTFS_TYPE_DIRECTORY:
+                        if (phVfsDir)
+                            rc = rtFsIsoDir_New9660(pShared->Core.pVol, pShared, pDirRec, cDirRecs, offDirRec, phVfsDir);
+                        else
+                            rc = VERR_NOT_SYMLINK;
+                        break;
+
+                    case RTFS_TYPE_SYMLINK:
+                        rc = VERR_NOT_IMPLEMENTED;
+                        break;
+                    case RTFS_TYPE_FILE:
+                    case RTFS_TYPE_DEV_BLOCK:
+                    case RTFS_TYPE_DEV_CHAR:
+                    case RTFS_TYPE_FIFO:
+                    case RTFS_TYPE_SOCKET:
+                        rc = VERR_NOT_A_DIRECTORY;
+                        break;
+                    default:
+                    case RTFS_TYPE_WHITEOUT:
+                        rc = VERR_PATH_NOT_FOUND;
+                        break;
+                }
+            }
+            else if (rc == VERR_FILE_NOT_FOUND)
+                rc = VERR_PATH_NOT_FOUND;
+        }
+        else
+        {
+            /*
+             * UDF
+             */
+            PCUDFFILEIDDESC pFid;
+            rc = rtFsIsoDir_FindEntryUdf(pShared, pszEntry, &pFid);
+            Log2(("rtFsIsoDir_TraversalOpen: FindEntryUdf(,%s,) -> %Rrc\n", pszEntry, rc));
+            if (RT_SUCCESS(rc))
+            {
+                if (!(pFid->fFlags & UDF_FILE_FLAGS_DELETED))
+                {
+                    if (pFid->fFlags & UDF_FILE_FLAGS_DIRECTORY)
+                    {
+                        if (phVfsDir)
+                            rc = rtFsIsoDir_NewUdf(pShared->Core.pVol, pShared, pFid, phVfsDir);
+                        else
+                            rc = VERR_NOT_SYMLINK;
+                    }
+                    else if (phVfsSymlink)
+                    {
+                        /** @todo symlink support */
+                        rc = VERR_NOT_A_DIRECTORY;
+                    }
+                    else
+                        rc = VERR_NOT_A_DIRECTORY;
+                }
+                /* We treat UDF_FILE_FLAGS_DELETED like RTFS_TYPE_WHITEOUT for now. */
+                else
+                    rc = VERR_PATH_NOT_FOUND;
+            }
+        }
+    }
+    else
+        rc = VERR_PATH_NOT_FOUND;
+    return rc;
+}
+
+
+/**
+ * @interface_method_impl{RTVFSDIROPS,pfnOpenFile}
+ */
+static DECLCALLBACK(int) rtFsIsoDir_OpenFile(void *pvThis, const char *pszFilename, uint32_t fOpen, PRTVFSFILE phVfsFile)
 {
     PRTFSISODIROBJ  pThis   = (PRTFSISODIROBJ)pvThis;
     PRTFSISODIRSHRD pShared = pThis->pShared;
-    int rc;
 
     /*
      * We cannot create or replace anything, just open stuff.
      */
-    if (   (fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_OPEN
-        || (fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_OPEN_CREATE)
-    { /* likely */ }
-    else
+    if (   (fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_CREATE
+        || (fOpen & RTFILE_O_ACTION_MASK) == RTFILE_O_CREATE_REPLACE)
         return VERR_WRITE_PROTECT;
 
     /*
-     * Special cases '.' and '..'
+     * Try open file.
      */
-    if (pszEntry[0] == '.')
-    {
-        PRTFSISODIRSHRD pSharedToOpen;
-        if (pszEntry[1] == '\0')
-            pSharedToOpen = pShared;
-        else if (pszEntry[1] == '.' && pszEntry[2] == '\0')
-        {
-            pSharedToOpen = pShared->Core.pParentDir;
-            if (!pSharedToOpen)
-                pSharedToOpen = pShared;
-        }
-        else
-            pSharedToOpen = NULL;
-        if (pSharedToOpen)
-        {
-            if (fFlags & RTVFSOBJ_F_OPEN_DIRECTORY)
-            {
-                rtFsIsoDirShrd_Retain(pSharedToOpen);
-                RTVFSDIR hVfsDir;
-                rc = rtFsIsoDir_NewWithShared(pShared->Core.pVol, pSharedToOpen, &hVfsDir);
-                if (RT_SUCCESS(rc))
-                {
-                    *phVfsObj = RTVfsObjFromDir(hVfsDir);
-                    RTVfsDirRelease(hVfsDir);
-                    AssertStmt(*phVfsObj != NIL_RTVFSOBJ, rc = VERR_INTERNAL_ERROR_3);
-                }
-            }
-            else
-                rc = VERR_IS_A_DIRECTORY;
-            return rc;
-        }
-    }
-
-    /*
-     * Try open whatever it is.
-     */
+    int rc;
     if (pShared->Core.pVol->enmType != RTFSISOVOLTYPE_UDF)
     {
-
         /*
          * ISO 9660
          */
@@ -2889,43 +3020,14 @@ static DECLCALLBACK(int) rtFsIsoDir_Open(void *pvThis, const char *pszEntry, uin
         uint32_t        cDirRecs;
         RTFMODE         fMode;
         uint32_t        uVersion;
-        rc = rtFsIsoDir_FindEntry9660(pShared, pszEntry, &offDirRec, &pDirRec, &cDirRecs, &fMode, &uVersion);
-        Log2(("rtFsIsoDir_Open: FindEntry9660(,%s,) -> %Rrc\n", pszEntry, rc));
+        rc = rtFsIsoDir_FindEntry9660(pShared, pszFilename, &offDirRec, &pDirRec, &cDirRecs, &fMode, &uVersion);
+        Log2(("rtFsIsoDir_OpenFile: FindEntry9660(,%s,) -> %Rrc\n", pszFilename, rc));
         if (RT_SUCCESS(rc))
         {
             switch (fMode & RTFS_TYPE_MASK)
             {
                 case RTFS_TYPE_FILE:
-                    if (fFlags & RTVFSOBJ_F_OPEN_FILE)
-                    {
-                        RTVFSFILE hVfsFile;
-                        rc = rtFsIsoFile_New9660(pShared->Core.pVol, pShared, pDirRec, cDirRecs,
-                                                 offDirRec, fOpen, uVersion, &hVfsFile);
-                        if (RT_SUCCESS(rc))
-                        {
-                            *phVfsObj = RTVfsObjFromFile(hVfsFile);
-                            RTVfsFileRelease(hVfsFile);
-                            AssertStmt(*phVfsObj != NIL_RTVFSOBJ, rc = VERR_INTERNAL_ERROR_3);
-                        }
-                    }
-                    else
-                        rc = VERR_IS_A_FILE;
-                    break;
-
-                case RTFS_TYPE_DIRECTORY:
-                    if (fFlags & RTVFSOBJ_F_OPEN_DIRECTORY)
-                    {
-                        RTVFSDIR hVfsDir;
-                        rc = rtFsIsoDir_New9660(pShared->Core.pVol, pShared, pDirRec, cDirRecs, offDirRec, &hVfsDir);
-                        if (RT_SUCCESS(rc))
-                        {
-                            *phVfsObj = RTVfsObjFromDir(hVfsDir);
-                            RTVfsDirRelease(hVfsDir);
-                            AssertStmt(*phVfsObj != NIL_RTVFSOBJ, rc = VERR_INTERNAL_ERROR_3);
-                        }
-                    }
-                    else
-                        rc = VERR_IS_A_DIRECTORY;
+                    rc = rtFsIsoFile_New9660(pShared->Core.pVol, pShared, pDirRec, cDirRecs, offDirRec, fOpen, uVersion, phVfsFile);
                     break;
 
                 case RTFS_TYPE_SYMLINK:
@@ -2935,6 +3037,10 @@ static DECLCALLBACK(int) rtFsIsoDir_Open(void *pvThis, const char *pszEntry, uin
                 case RTFS_TYPE_SOCKET:
                 case RTFS_TYPE_WHITEOUT:
                     rc = VERR_NOT_IMPLEMENTED;
+                    break;
+
+                case RTFS_TYPE_DIRECTORY:
+                    rc = VERR_NOT_A_FILE;
                     break;
 
                 default:
@@ -2949,44 +3055,16 @@ static DECLCALLBACK(int) rtFsIsoDir_Open(void *pvThis, const char *pszEntry, uin
          * UDF
          */
         PCUDFFILEIDDESC pFid;
-        rc = rtFsIsoDir_FindEntryUdf(pShared, pszEntry, &pFid);
-        Log2(("rtFsIsoDir_Open: FindEntryUdf(,%s,) -> %Rrc\n", pszEntry, rc));
+        rc = rtFsIsoDir_FindEntryUdf(pShared, pszFilename, &pFid);
+        Log2(("rtFsIsoDir_OpenFile: FindEntryUdf(,%s,) -> %Rrc\n", pszFilename, rc));
         if (RT_SUCCESS(rc))
         {
             if (!(pFid->fFlags & UDF_FILE_FLAGS_DELETED))
             {
                 if (!(pFid->fFlags & UDF_FILE_FLAGS_DIRECTORY))
-                {
-                    if (fFlags & RTVFSOBJ_F_OPEN_FILE)
-                    {
-                        RTVFSFILE hVfsFile;
-                        rc = rtFsIsoFile_NewUdf(pShared->Core.pVol, pShared, pFid, fOpen, &hVfsFile);
-                        if (RT_SUCCESS(rc))
-                        {
-                            *phVfsObj = RTVfsObjFromFile(hVfsFile);
-                            RTVfsFileRelease(hVfsFile);
-                            AssertStmt(*phVfsObj != NIL_RTVFSOBJ, rc = VERR_INTERNAL_ERROR_3);
-                        }
-                    }
-                    else
-                        rc = VERR_IS_A_FILE;
-                }
+                    rc = rtFsIsoFile_NewUdf(pShared->Core.pVol, pShared, pFid, fOpen, phVfsFile);
                 else
-                {
-                    if (fFlags & RTVFSOBJ_F_OPEN_DIRECTORY)
-                    {
-                        RTVFSDIR hVfsDir;
-                        rc = rtFsIsoDir_NewUdf(pShared->Core.pVol, pShared, pFid, &hVfsDir);
-                        if (RT_SUCCESS(rc))
-                        {
-                            *phVfsObj = RTVfsObjFromDir(hVfsDir);
-                            RTVfsDirRelease(hVfsDir);
-                            AssertStmt(*phVfsObj != NIL_RTVFSOBJ, rc = VERR_INTERNAL_ERROR_3);
-                        }
-                    }
-                    else
-                        rc = VERR_IS_A_DIRECTORY;
-                }
+                    rc = VERR_NOT_A_FILE;
             }
             /* We treat UDF_FILE_FLAGS_DELETED like RTFS_TYPE_WHITEOUT for now. */
             else
@@ -2994,7 +3072,81 @@ static DECLCALLBACK(int) rtFsIsoDir_Open(void *pvThis, const char *pszEntry, uin
         }
     }
     return rc;
+}
 
+
+/**
+ * @interface_method_impl{RTVFSDIROPS,pfnOpenDir}
+ */
+static DECLCALLBACK(int) rtFsIsoDir_OpenDir(void *pvThis, const char *pszSubDir, uint32_t fFlags, PRTVFSDIR phVfsDir)
+{
+    PRTFSISODIROBJ  pThis   = (PRTFSISODIROBJ)pvThis;
+    PRTFSISODIRSHRD pShared = pThis->pShared;
+    AssertReturn(!fFlags, VERR_INVALID_FLAGS);
+
+    /*
+     * Try open file.
+     */
+    int rc;
+    if (pShared->Core.pVol->enmType != RTFSISOVOLTYPE_UDF)
+    {
+        /*
+         * ISO 9660
+         */
+        PCISO9660DIRREC pDirRec;
+        uint64_t        offDirRec;
+        uint32_t        cDirRecs;
+        RTFMODE         fMode;
+        uint32_t        uVersion;
+        rc = rtFsIsoDir_FindEntry9660(pShared, pszSubDir, &offDirRec, &pDirRec, &cDirRecs, &fMode, &uVersion);
+        Log2(("rtFsIsoDir_OpenDir: FindEntry9660(,%s,) -> %Rrc\n", pszSubDir, rc));
+        if (RT_SUCCESS(rc))
+        {
+            switch (fMode & RTFS_TYPE_MASK)
+            {
+                case RTFS_TYPE_DIRECTORY:
+                    rc = rtFsIsoDir_New9660(pShared->Core.pVol, pShared, pDirRec, cDirRecs, offDirRec, phVfsDir);
+                    break;
+
+                case RTFS_TYPE_FILE:
+                case RTFS_TYPE_SYMLINK:
+                case RTFS_TYPE_DEV_BLOCK:
+                case RTFS_TYPE_DEV_CHAR:
+                case RTFS_TYPE_FIFO:
+                case RTFS_TYPE_SOCKET:
+                case RTFS_TYPE_WHITEOUT:
+                    rc = VERR_NOT_A_DIRECTORY;
+                    break;
+
+                default:
+                    rc = VERR_PATH_NOT_FOUND;
+                    break;
+            }
+        }
+    }
+    else
+    {
+        /*
+         * UDF
+         */
+        PCUDFFILEIDDESC pFid;
+        rc = rtFsIsoDir_FindEntryUdf(pShared, pszSubDir, &pFid);
+        Log2(("rtFsIsoDir_OpenDir: FindEntryUdf(,%s,) -> %Rrc\n", pszSubDir, rc));
+        if (RT_SUCCESS(rc))
+        {
+            if (!(pFid->fFlags & UDF_FILE_FLAGS_DELETED))
+            {
+                if (pFid->fFlags & UDF_FILE_FLAGS_DIRECTORY)
+                    rc = rtFsIsoDir_NewUdf(pShared->Core.pVol, pShared, pFid, phVfsDir);
+                else
+                    rc = VERR_NOT_A_DIRECTORY;
+            }
+            /* We treat UDF_FILE_FLAGS_DELETED like RTFS_TYPE_WHITEOUT for now. */
+            else
+                rc = VERR_PATH_NOT_FOUND;
+        }
+    }
+    return rc;
 }
 
 
@@ -3026,6 +3178,71 @@ static DECLCALLBACK(int) rtFsIsoDir_CreateSymlink(void *pvThis, const char *pszS
 {
     RT_NOREF(pvThis, pszSymlink, pszTarget, enmType, phVfsSymlink);
     return VERR_WRITE_PROTECT;
+}
+
+
+/**
+ * @interface_method_impl{RTVFSDIROPS,pfnQueryEntryInfo}
+ */
+static DECLCALLBACK(int) rtFsIsoDir_QueryEntryInfo(void *pvThis, const char *pszEntry,
+                                                   PRTFSOBJINFO pObjInfo, RTFSOBJATTRADD enmAddAttr)
+{
+    PRTFSISODIROBJ      pThis   = (PRTFSISODIROBJ)pvThis;
+    PRTFSISODIRSHRD     pShared = pThis->pShared;
+    RTFSISOCORE         TmpObj;
+    int                 rc;
+    if (pShared->Core.pVol->enmType != RTFSISOVOLTYPE_UDF)
+    {
+        /*
+         * Try locate the entry.
+         */
+        PCISO9660DIRREC     pDirRec;
+        uint64_t            offDirRec;
+        uint32_t            cDirRecs;
+        RTFMODE             fMode;
+        uint32_t            uVersion;
+        rc = rtFsIsoDir_FindEntry9660(pShared, pszEntry, &offDirRec, &pDirRec, &cDirRecs, &fMode, &uVersion);
+        Log2(("rtFsIsoDir_QueryEntryInfo: FindEntry9660(,%s,) -> %Rrc\n", pszEntry, rc));
+        if (RT_SUCCESS(rc))
+        {
+            /*
+             * To avoid duplicating code in rtFsIsoCore_InitFrom9660DirRec and
+             * rtFsIsoCore_QueryInfo, we create a dummy RTFSISOCORE on the stack.
+             */
+            RT_ZERO(TmpObj);
+            rc = rtFsIsoCore_InitFrom9660DirRec(&TmpObj, pDirRec, cDirRecs, offDirRec, uVersion, pShared->Core.pVol);
+            if (RT_SUCCESS(rc))
+            {
+                rc = rtFsIsoCore_QueryInfo(&TmpObj, pObjInfo, enmAddAttr);
+                rtFsIsoCore_Destroy(&TmpObj);
+            }
+        }
+    }
+    else
+    {
+        /*
+         * Try locate the entry.
+         */
+        PCUDFFILEIDDESC pFid;
+        rc = rtFsIsoDir_FindEntryUdf(pShared, pszEntry, &pFid);
+        Log2(("rtFsIsoDir_QueryEntryInfo: FindEntryUdf(,%s,) -> %Rrc\n", pszEntry, rc));
+        if (RT_SUCCESS(rc))
+        {
+            /*
+             * To avoid duplicating code in rtFsIsoCore_InitFromUdfIcbAndFileIdDesc and
+             * rtFsIsoCore_QueryInfo, we create a dummy RTFSISOCORE on the stack.
+             */
+            RT_ZERO(TmpObj);
+            uintptr_t offInDir = (uintptr_t)pFid - (uintptr_t)pShared->pbDir;
+            rc = rtFsIsoCore_InitFromUdfIcbAndFileIdDesc(&TmpObj, &pFid->Icb, pFid, offInDir, pShared->Core.pVol);
+            if (RT_SUCCESS(rc))
+            {
+                rc = rtFsIsoCore_QueryInfo(&TmpObj, pObjInfo, enmAddAttr);
+                rtFsIsoCore_Destroy(&TmpObj);
+            }
+        }
+    }
+    return rc;
 }
 
 
@@ -3414,7 +3631,7 @@ static DECLCALLBACK(int) rtFsIsoDir_ReadDir(void *pvThis, PRTDIRENTRYEX pDirEntr
 
 
 /**
- * ISO file operations.
+ * FAT file operations.
  */
 static const RTVFSDIROPS g_rtFsIsoDirOps =
 {
@@ -3431,19 +3648,18 @@ static const RTVFSDIROPS g_rtFsIsoDirOps =
     { /* ObjSet */
         RTVFSOBJSETOPS_VERSION,
         RT_UOFFSETOF(RTVFSDIROPS, ObjSet) - RT_UOFFSETOF(RTVFSDIROPS, Obj),
-        NULL /*SetMode*/,
-        NULL /*SetTimes*/,
-        NULL /*SetOwner*/,
+        rtFsIsoDir_SetMode,
+        rtFsIsoDir_SetTimes,
+        rtFsIsoDir_SetOwner,
         RTVFSOBJSETOPS_VERSION
     },
-    rtFsIsoDir_Open,
-    NULL /* pfnFollowAbsoluteSymlink */,
-    NULL /* pfnOpenFile */,
-    NULL /* pfnOpenDir */,
+    rtFsIsoDir_TraversalOpen,
+    rtFsIsoDir_OpenFile,
+    rtFsIsoDir_OpenDir,
     rtFsIsoDir_CreateDir,
     rtFsIsoDir_OpenSymlink,
     rtFsIsoDir_CreateSymlink,
-    NULL /* pfnQueryEntryInfo */,
+    rtFsIsoDir_QueryEntryInfo,
     rtFsIsoDir_UnlinkEntry,
     rtFsIsoDir_RenameEntry,
     rtFsIsoDir_RewindDir,
@@ -3569,7 +3785,7 @@ static void rtFsIsoDirShrd_Log9660Content(PRTFSISODIRSHRD pThis)
  * Instantiates a new shared directory structure, given 9660 records.
  *
  * @returns IPRT status code.
- * @param   pThis           The ISO volume instance.
+ * @param   pThis           The FAT volume instance.
  * @param   pParentDir      The parent directory.  This is NULL for the root
  *                          directory.
  * @param   pDirRec         The directory record.  Will access @a cDirRecs
@@ -3716,7 +3932,7 @@ static void rtFsIsoDirShrd_LogUdfContent(PRTFSISODIRSHRD pThis)
  * Instantiates a new shared directory structure, given UDF descriptors.
  *
  * @returns IPRT status code.
- * @param   pThis           The ISO volume instance.
+ * @param   pThis           The FAT volume instance.
  * @param   pParentDir      The parent directory.  This is NULL for the root
  *                          directory.
  * @param   pAllocDesc      The allocation descriptor for the directory ICB.
@@ -3780,7 +3996,7 @@ static int rtFsIsoDirShrd_NewUdf(PRTFSISOVOL pThis, PRTFSISODIRSHRD pParentDir, 
  * Instantiates a new directory with a shared structure presupplied.
  *
  * @returns IPRT status code.
- * @param   pThis           The ISO volume instance.
+ * @param   pThis           The FAT volume instance.
  * @param   pShared         Referenced pointer to the shared structure.  The
  *                          reference is always CONSUMED.
  * @param   phVfsDir        Where to return the directory handle.
@@ -3816,7 +4032,7 @@ static int rtFsIsoDir_NewWithShared(PRTFSISOVOL pThis, PRTFSISODIRSHRD pShared, 
  * structure as necessary.
  *
  * @returns IPRT status code.
- * @param   pThis           The ISO volume instance.
+ * @param   pThis           The FAT volume instance.
  * @param   pParentDir      The parent directory.  This is NULL for the root
  *                          directory.
  * @param   pDirRec         The directory record.
@@ -3849,7 +4065,7 @@ static int  rtFsIsoDir_New9660(PRTFSISOVOL pThis, PRTFSISODIRSHRD pParentDir, PC
  * structure as necessary.
  *
  * @returns IPRT status code.
- * @param   pThis           The ISO volume instance.
+ * @param   pThis           The FAT volume instance.
  * @param   pParentDir      The parent directory.
  * @param   pFid            The file ID descriptor for the directory.
  * @param   phVfsDir        Where to return the directory handle.
@@ -3924,9 +4140,9 @@ static DECLCALLBACK(int) rtFsIsoVol_OpenRoot(void *pvThis, PRTVFSDIR phVfsDir)
 
 
 /**
- * @interface_method_impl{RTVFSOPS,pfnQueryRangeState}
+ * @interface_method_impl{RTVFSOPS,pfnIsRangeInUse}
  */
-static DECLCALLBACK(int) rtFsIsoVol_QueryRangeState(void *pvThis, uint64_t off, size_t cb, bool *pfUsed)
+static DECLCALLBACK(int) rtFsIsoVol_IsRangeInUse(void *pvThis, RTFOFF off, size_t cb, bool *pfUsed)
 {
     RT_NOREF(pvThis, off, cb, pfUsed);
     return VERR_NOT_IMPLEMENTED;
@@ -3946,7 +4162,7 @@ DECL_HIDDEN_CONST(const RTVFSOPS) g_rtFsIsoVolOps =
     RTVFSOPS_VERSION,
     0 /* fFeatures */,
     rtFsIsoVol_OpenRoot,
-    rtFsIsoVol_QueryRangeState,
+    rtFsIsoVol_IsRangeInUse,
     RTVFSOPS_VERSION
 };
 
@@ -5588,7 +5804,7 @@ static int rtFsIsoVolHandleSupplementaryVolDesc(PRTFSISOVOL pThis, PCISO9660SUPV
  * @returns IPRT status code.
  * @param   pThis           The ISO VFS instance to initialize.
  * @param   hVfsSelf        The ISO VFS handle (no reference consumed).
- * @param   hVfsBacking     The file backing the alleged ISO file system.
+ * @param   hVfsBacking     The file backing the alleged FAT file system.
  *                          Reference is consumed (via rtFsIsoVol_Close).
  * @param   fFlags          Flags, RTFSISO9660_F_XXX.
  * @param   pErrInfo        Where to return additional error info.  Can be NULL.
@@ -5856,7 +6072,7 @@ RTDECL(int) RTFsIso9660VolOpen(RTVFSFILE hVfsFileIn, uint32_t fFlags, PRTVFS phV
     AssertReturn(cRefs != UINT32_MAX, VERR_INVALID_HANDLE);
 
     /*
-     * Create a new ISO VFS instance and try initialize it using the given input file.
+     * Create a new FAT VFS instance and try initialize it using the given input file.
      */
     RTVFS hVfs   = NIL_RTVFS;
     void *pvThis = NULL;

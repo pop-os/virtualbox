@@ -3,7 +3,7 @@
 ;
 
 ;
-; Copyright (C) 2006-2019 Oracle Corporation
+; Copyright (C) 2006-2017 Oracle Corporation
 ;
 ; This file is part of VirtualBox Open Source Edition (OSE), as
 ; available from http://www.virtualbox.org. This file is free software;
@@ -256,33 +256,29 @@ struc CPUMCTX
     .pXStateRC      RTRCPTR_RES 1
     .aoffXState         resw    64
     .fWorldSwitcher     resd    1
-    .fExtrn             resq    1
     alignb 8
     .hwvirt.svm.uMsrHSavePa            resq          1
     .hwvirt.svm.GCPhysVmcb             resq          1
     .hwvirt.svm.pVmcbR0                RTR0PTR_RES   1
-    alignb 8
     .hwvirt.svm.pVmcbR3                RTR3PTR_RES   1
-    alignb 8
+%if HC_ARCH_BITS == 32
+    .hwvirt.svm.abPadding0             resb          8
+%endif
     .hwvirt.svm.HostState              resb        184
-    .hwvirt.svm.uPrevPauseTick         resq          1
+    .hwvirt.svm.fGif                   resb          1
+    .hwvirt.svm.u8Padding0             resb          1
     .hwvirt.svm.cPauseFilter           resw          1
     .hwvirt.svm.cPauseFilterThreshold  resw          1
     .hwvirt.svm.fInterceptEvents       resb          1
-    alignb 8
+    .hwvirt.svm.fHMCachedVmcb          resb          1
     .hwvirt.svm.pvMsrBitmapR0          RTR0PTR_RES   1
-    alignb 8
     .hwvirt.svm.pvMsrBitmapR3          RTR3PTR_RES   1
-    alignb 8
     .hwvirt.svm.pvIoBitmapR0           RTR0PTR_RES   1
-    alignb 8
     .hwvirt.svm.pvIoBitmapR3           RTR3PTR_RES   1
-    alignb 8
     .hwvirt.svm.HCPhysVmcb             RTHCPHYS_RES  1
-    .hwvirt.svm.u64Padding0            resq         19
-    .hwvirt.enmHwvirt                  resd          1
-    .hwvirt.fGif                       resb          1
-    alignb 8
+%if HC_ARCH_BITS == 32
+    .hwvirt.svm.abPadding2             resb          16
+%endif
     .hwvirt.fLocalForcedActions        resd          1
     alignb 64
 endstruc

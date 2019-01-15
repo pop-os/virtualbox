@@ -10,7 +10,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -66,36 +66,9 @@ struct VBOXHGCMCALLHANDLE_TYPEDEF
 };
 
 /** Call completion callback for guest calls. */
-static DECLCALLBACK(int) callComplete(VBOXHGCMCALLHANDLE callHandle, int32_t rc)
+static DECLCALLBACK(void) callComplete(VBOXHGCMCALLHANDLE callHandle, int32_t rc)
 {
     callHandle->rc = rc;
-    return VINF_SUCCESS;
-}
-
-static DECLCALLBACK(int) stamRegisterV(void *pvInstance, void *pvSample, STAMTYPE enmType, STAMVISIBILITY enmVisibility,
-                                       STAMUNIT enmUnit, const char *pszDesc, const char *pszName, va_list va)
-{
-    RT_NOREF(pvInstance, pvSample, enmType, enmVisibility, enmUnit, pszDesc, pszName, va);
-    return VINF_SUCCESS;
-}
-
-static DECLCALLBACK(int) stamDeregisterV(void *pvInstance, const char *pszPatFmt, va_list va)
-{
-    RT_NOREF(pvInstance, pszPatFmt, va);
-    return VINF_SUCCESS;
-}
-
-static DECLCALLBACK(int) infoRegister(void *pvInstance, const char *pszName, const char *pszDesc,
-                                      PFNDBGFHANDLEREXT pfnHandler, void *pvUser)
-{
-    RT_NOREF(pvInstance, pszName, pszDesc, pfnHandler, pvUser);
-    return VINF_SUCCESS;
-}
-
-static DECLCALLBACK(int) infoDeregister(void *pvInstance, const char *pszName)
-{
-    RT_NOREF(pvInstance, pszName);
-    return VINF_SUCCESS;
 }
 
 /**
@@ -105,14 +78,10 @@ static DECLCALLBACK(int) infoDeregister(void *pvInstance, const char *pszName)
  */
 void initTable(VBOXHGCMSVCFNTABLE *pTable, VBOXHGCMSVCHELPERS *pHelpers)
 {
-    pTable->cbSize               = sizeof (VBOXHGCMSVCFNTABLE);
-    pTable->u32Version           = VBOX_HGCM_SVC_VERSION;
-    pHelpers->pfnCallComplete    = callComplete;
-    pHelpers->pfnStamRegisterV   = stamRegisterV;
-    pHelpers->pfnStamDeregisterV = stamDeregisterV;
-    pHelpers->pfnInfoRegister    = infoRegister;
-    pHelpers->pfnInfoDeregister  = infoDeregister;
-    pTable->pHelpers             = pHelpers;
+    pTable->cbSize              = sizeof (VBOXHGCMSVCFNTABLE);
+    pTable->u32Version          = VBOX_HGCM_SVC_VERSION;
+    pHelpers->pfnCallComplete   = callComplete;
+    pTable->pHelpers            = pHelpers;
 }
 
 #define LLUIFY(a) ((unsigned long long)(a))
@@ -647,7 +616,6 @@ static SHFLROOT initWithWritableMapping(RTTEST hTest,
                                   SHFL_CPARMS_MAP_FOLDER)];
     union TESTSHFLSTRING FolderName;
     union TESTSHFLSTRING Mapping;
-    union TESTSHFLSTRING AutoMountPoint;
     VBOXHGCMCALLHANDLE_TYPEDEF callHandle = { VINF_SUCCESS };
     int rc;
 
@@ -658,24 +626,22 @@ static SHFLROOT initWithWritableMapping(RTTEST hTest,
     RT_BZERO(psvcTable->pvService, psvcTable->cbClient);
     fillTestShflString(&FolderName, pcszFolderName);
     fillTestShflString(&Mapping, pcszMapping);
-    fillTestShflString(&AutoMountPoint, "");
-    HGCMSvcSetPv(&aParms[0], &FolderName,   RT_UOFFSETOF(SHFLSTRING, String)
+    aParms[0].setPointer(&FolderName,   RT_UOFFSETOF(SHFLSTRING, String)
                                       + FolderName.string.u16Size);
-    HGCMSvcSetPv(&aParms[1], &Mapping,   RT_UOFFSETOF(SHFLSTRING, String)
+    aParms[1].setPointer(&Mapping,   RT_UOFFSETOF(SHFLSTRING, String)
                                    + Mapping.string.u16Size);
-    HGCMSvcSetU32(&aParms[2], 1);
-    HGCMSvcSetPv(&aParms[3], &AutoMountPoint, SHFLSTRING_HEADER_SIZE + AutoMountPoint.string.u16Size);
+    aParms[2].setUInt32(1);
     rc = psvcTable->pfnHostCall(psvcTable->pvService, SHFL_FN_ADD_MAPPING,
                                 SHFL_CPARMS_ADD_MAPPING, aParms);
     AssertReleaseRC(rc);
-    HGCMSvcSetPv(&aParms[0], &Mapping,   RT_UOFFSETOF(SHFLSTRING, String)
+    aParms[0].setPointer(&Mapping,   RT_UOFFSETOF(SHFLSTRING, String)
                                    + Mapping.string.u16Size);
-    HGCMSvcSetU32(&aParms[1], 0);  /* root */
-    HGCMSvcSetU32(&aParms[2], '/');  /* delimiter */
-    HGCMSvcSetU32(&aParms[3], fCaseSensitive);
+    aParms[1].setUInt32(0);  /* root */
+    aParms[2].setUInt32('/');  /* delimiter */
+    aParms[3].setUInt32(fCaseSensitive);
     psvcTable->pfnCall(psvcTable->pvService, &callHandle, 0,
                        psvcTable->pvService, SHFL_FN_MAP_FOLDER,
-                       SHFL_CPARMS_MAP_FOLDER, aParms, 0);
+                       SHFL_CPARMS_MAP_FOLDER, aParms);
     AssertReleaseRC(callHandle.rc);
     return aParms[1].u.uint32;
 }
@@ -692,13 +658,13 @@ static void unmapAndRemoveMapping(RTTEST hTest, VBOXHGCMSVCFNTABLE *psvcTable,
     union TESTSHFLSTRING FolderName;
     int rc;
 
-    HGCMSvcSetU32(&aParms[0], root);
+    aParms[0].setUInt32(root);
     psvcTable->pfnCall(psvcTable->pvService, &callHandle, 0,
                        psvcTable->pvService, SHFL_FN_UNMAP_FOLDER,
-                       SHFL_CPARMS_UNMAP_FOLDER, aParms, 0);
+                       SHFL_CPARMS_UNMAP_FOLDER, aParms);
     AssertReleaseRC(callHandle.rc);
     fillTestShflString(&FolderName, pcszFolderName);
-    HGCMSvcSetPv(&aParms[0], &FolderName,   RT_UOFFSETOF(SHFLSTRING, String)
+    aParms[0].setPointer(&FolderName,   RT_UOFFSETOF(SHFLSTRING, String)
                                       + FolderName.string.u16Size);
     rc = psvcTable->pfnHostCall(psvcTable->pvService, SHFL_FN_REMOVE_MAPPING,
                                 SHFL_CPARMS_REMOVE_MAPPING, aParms);
@@ -717,13 +683,13 @@ static int createFile(VBOXHGCMSVCFNTABLE *psvcTable, SHFLROOT Root,
     fillTestShflString(&Path, pcszFilename);
     RT_ZERO(CreateParms);
     CreateParms.CreateFlags = fCreateFlags;
-    HGCMSvcSetU32(&aParms[0], Root);
-    HGCMSvcSetPv(&aParms[1], &Path,   RT_UOFFSETOF(SHFLSTRING, String)
+    aParms[0].setUInt32(Root);
+    aParms[1].setPointer(&Path,   RT_UOFFSETOF(SHFLSTRING, String)
                                 + Path.string.u16Size);
-    HGCMSvcSetPv(&aParms[2], &CreateParms, sizeof(CreateParms));
+    aParms[2].setPointer(&CreateParms, sizeof(CreateParms));
     psvcTable->pfnCall(psvcTable->pvService, &callHandle, 0,
                        psvcTable->pvService, SHFL_FN_CREATE,
-                       RT_ELEMENTS(aParms), aParms, 0);
+                       RT_ELEMENTS(aParms), aParms);
     if (RT_FAILURE(callHandle.rc))
         return callHandle.rc;
     if (pHandle)
@@ -740,14 +706,14 @@ static int readFile(VBOXHGCMSVCFNTABLE *psvcTable, SHFLROOT Root,
     VBOXHGCMSVCPARM aParms[SHFL_CPARMS_READ];
     VBOXHGCMCALLHANDLE_TYPEDEF callHandle = { VINF_SUCCESS };
 
-    HGCMSvcSetU32(&aParms[0], Root);
-    HGCMSvcSetU64(&aParms[1], (uint64_t) hFile);
-    HGCMSvcSetU64(&aParms[2], offSeek);
-    HGCMSvcSetU32(&aParms[3], cbRead);
-    HGCMSvcSetPv(&aParms[4], pvBuf, cbBuf);
+    aParms[0].setUInt32(Root);
+    aParms[1].setUInt64((uint64_t) hFile);
+    aParms[2].setUInt64(offSeek);
+    aParms[3].setUInt32(cbRead);
+    aParms[4].setPointer(pvBuf, cbBuf);
     psvcTable->pfnCall(psvcTable->pvService, &callHandle, 0,
                        psvcTable->pvService, SHFL_FN_READ,
-                       RT_ELEMENTS(aParms), aParms, 0);
+                       RT_ELEMENTS(aParms), aParms);
     if (pcbRead)
         *pcbRead = aParms[3].u.uint32;
     return callHandle.rc;
@@ -760,14 +726,14 @@ static int writeFile(VBOXHGCMSVCFNTABLE *psvcTable, SHFLROOT Root,
     VBOXHGCMSVCPARM aParms[SHFL_CPARMS_WRITE];
     VBOXHGCMCALLHANDLE_TYPEDEF callHandle = { VINF_SUCCESS };
 
-    HGCMSvcSetU32(&aParms[0], Root);
-    HGCMSvcSetU64(&aParms[1], (uint64_t) hFile);
-    HGCMSvcSetU64(&aParms[2], offSeek);
-    HGCMSvcSetU32(&aParms[3], cbWrite);
-    HGCMSvcSetPv(&aParms[4], (void *)pvBuf, cbBuf);
+    aParms[0].setUInt32(Root);
+    aParms[1].setUInt64((uint64_t) hFile);
+    aParms[2].setUInt64(offSeek);
+    aParms[3].setUInt32(cbWrite);
+    aParms[4].setPointer((void *)pvBuf, cbBuf);
     psvcTable->pfnCall(psvcTable->pvService, &callHandle, 0,
                        psvcTable->pvService, SHFL_FN_WRITE,
-                       RT_ELEMENTS(aParms), aParms, 0);
+                       RT_ELEMENTS(aParms), aParms);
     if (pcbWritten)
         *pcbWritten = aParms[3].u.uint32;
     return callHandle.rc;
@@ -779,11 +745,11 @@ static int flushFile(VBOXHGCMSVCFNTABLE *psvcTable, SHFLROOT root,
     VBOXHGCMSVCPARM aParms[SHFL_CPARMS_FLUSH];
     VBOXHGCMCALLHANDLE_TYPEDEF callHandle = { VINF_SUCCESS };
 
-    HGCMSvcSetU32(&aParms[0], root);
-    HGCMSvcSetU64(&aParms[1], handle);
+    aParms[0].setUInt32(root);
+    aParms[1].setUInt64(handle);
     psvcTable->pfnCall(psvcTable->pvService, &callHandle, 0,
                        psvcTable->pvService, SHFL_FN_FLUSH,
-                       SHFL_CPARMS_FLUSH, aParms, 0);
+                       SHFL_CPARMS_FLUSH, aParms);
     return callHandle.rc;
 }
 
@@ -796,24 +762,24 @@ static int listDir(VBOXHGCMSVCFNTABLE *psvcTable, SHFLROOT root,
     union TESTSHFLSTRING Path;
     VBOXHGCMCALLHANDLE_TYPEDEF callHandle = { VINF_SUCCESS };
 
-    HGCMSvcSetU32(&aParms[0], root);
-    HGCMSvcSetU64(&aParms[1], handle);
-    HGCMSvcSetU32(&aParms[2], fFlags);
-    HGCMSvcSetU32(&aParms[3], cbBuf);
+    aParms[0].setUInt32(root);
+    aParms[1].setUInt64(handle);
+    aParms[2].setUInt32(fFlags);
+    aParms[3].setUInt32(cbBuf);
     if (pcszPath)
     {
         fillTestShflString(&Path, pcszPath);
-        HGCMSvcSetPv(&aParms[4], &Path,   RT_UOFFSETOF(SHFLSTRING, String)
+        aParms[4].setPointer(&Path,   RT_UOFFSETOF(SHFLSTRING, String)
                                     + Path.string.u16Size);
     }
     else
-        HGCMSvcSetPv(&aParms[4], NULL, 0);
-    HGCMSvcSetPv(&aParms[5], pvBuf, cbBuf);
-    HGCMSvcSetU32(&aParms[6], resumePoint);
-    HGCMSvcSetU32(&aParms[7], 0);
+        aParms[4].setPointer(NULL, 0);
+    aParms[5].setPointer(pvBuf, cbBuf);
+    aParms[6].setUInt32(resumePoint);
+    aParms[7].setUInt32(0);
     psvcTable->pfnCall(psvcTable->pvService, &callHandle, 0,
                        psvcTable->pvService, SHFL_FN_LIST,
-                       RT_ELEMENTS(aParms), aParms, 0);
+                       RT_ELEMENTS(aParms), aParms);
     if (pcFiles)
         *pcFiles = aParms[7].u.uint32;
     return callHandle.rc;
@@ -826,14 +792,14 @@ static int sfInformation(VBOXHGCMSVCFNTABLE *psvcTable, SHFLROOT root,
     VBOXHGCMSVCPARM aParms[SHFL_CPARMS_INFORMATION];
     VBOXHGCMCALLHANDLE_TYPEDEF callHandle = { VINF_SUCCESS };
 
-    HGCMSvcSetU32(&aParms[0], root);
-    HGCMSvcSetU64(&aParms[1], handle);
-    HGCMSvcSetU32(&aParms[2], fFlags);
-    HGCMSvcSetU32(&aParms[3], cb);
-    HGCMSvcSetPv(&aParms[4], pInfo, cb);
+    aParms[0].setUInt32(root);
+    aParms[1].setUInt64(handle);
+    aParms[2].setUInt32(fFlags);
+    aParms[3].setUInt32(cb);
+    aParms[4].setPointer(pInfo, cb);
     psvcTable->pfnCall(psvcTable->pvService, &callHandle, 0,
                        psvcTable->pvService, SHFL_FN_INFORMATION,
-                       RT_ELEMENTS(aParms), aParms, 0);
+                       RT_ELEMENTS(aParms), aParms);
     return callHandle.rc;
 }
 
@@ -844,14 +810,14 @@ static int lockFile(VBOXHGCMSVCFNTABLE *psvcTable, SHFLROOT root,
     VBOXHGCMSVCPARM aParms[SHFL_CPARMS_LOCK];
     VBOXHGCMCALLHANDLE_TYPEDEF callHandle = { VINF_SUCCESS };
 
-    HGCMSvcSetU32(&aParms[0], root);
-    HGCMSvcSetU64(&aParms[1], handle);
-    HGCMSvcSetU64(&aParms[2], offLock);
-    HGCMSvcSetU64(&aParms[3], cbLock);
-    HGCMSvcSetU32(&aParms[4], fFlags);
+    aParms[0].setUInt32(root);
+    aParms[1].setUInt64(handle);
+    aParms[2].setUInt64(offLock);
+    aParms[3].setUInt64(cbLock);
+    aParms[4].setUInt32(fFlags);
     psvcTable->pfnCall(psvcTable->pvService, &callHandle, 0,
                        psvcTable->pvService, SHFL_FN_LOCK,
-                       RT_ELEMENTS(aParms), aParms, 0);
+                       RT_ELEMENTS(aParms), aParms);
     return callHandle.rc;
 }
 

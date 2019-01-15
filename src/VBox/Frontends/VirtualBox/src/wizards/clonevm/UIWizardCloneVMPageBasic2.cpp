@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,15 +15,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QVBoxLayout>
-#include <QRadioButton>
-#include <QButtonGroup>
+# include <QVBoxLayout>
+# include <QRadioButton>
+# include <QButtonGroup>
 
 /* GUI includes: */
-#include "UIWizardCloneVMPageBasic2.h"
-#include "UIWizardCloneVM.h"
-#include "QIRichTextLabel.h"
+# include "UIWizardCloneVMPageBasic2.h"
+# include "UIWizardCloneVM.h"
+# include "QIRichTextLabel.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 UIWizardCloneVMPage2::UIWizardCloneVMPage2(bool fAdditionalInfo)
@@ -64,8 +70,7 @@ UIWizardCloneVMPageBasic2::UIWizardCloneVMPageBasic2(bool fAdditionalInfo)
     }
 
     /* Setup connections: */
-    connect(m_pButtonGroup, static_cast<void(QButtonGroup::*)(QAbstractButton *)>(&QButtonGroup::buttonClicked),
-            this, &UIWizardCloneVMPageBasic2::sltButtonClicked);
+    connect(m_pButtonGroup, SIGNAL(buttonClicked(QAbstractButton *)), this, SLOT(sltButtonClicked(QAbstractButton *)));
 
     /* Register fields: */
     registerField("linkedClone", this, "linkedClone");

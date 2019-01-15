@@ -1,10 +1,10 @@
 /* $Id: QIArrowSplitter.h $ */
 /** @file
- * VBox Qt GUI - Qt extensions: QIArrowSplitter class declaration.
+ * VBox Qt GUI - QIArrowSplitter class declaration.
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,18 +15,14 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_extensions_QIArrowSplitter_h
-#define FEQT_INCLUDED_SRC_extensions_QIArrowSplitter_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___QIArrowSplitter_h___
+#define ___QIArrowSplitter_h___
 
 /* Qt includes: */
 #include <QWidget>
 
 /* GUI includes: */
 #include "QIWithRetranslateUI.h"
-#include "UILibraryDefs.h"
 
 /* Forward declarations: */
 class QVBoxLayout;
@@ -40,18 +36,18 @@ typedef QList<QStringPair> QStringPairList;
 
 /** QWidget extension
   * allowing to toggle visibility for any other child widget. */
-class SHARED_LIBRARY_STUFF QIArrowSplitter : public QIWithRetranslateUI<QWidget>
+class QIArrowSplitter : public QIWithRetranslateUI<QWidget>
 {
     Q_OBJECT;
 
 signals:
 
-    /** Notifies listeners about size-hint change. */
+    /** Notifies listeners about size-hint change: */
     void sigSizeHintChange();
 
 public:
 
-    /** Constructs arrow splitter passing @a pParent to the base-class. */
+    /** Constructor, passes @a pParent to the QWidget constructor. */
     QIArrowSplitter(QWidget *pParent = 0);
 
     /** Returns minimum size-hint. */
@@ -80,35 +76,33 @@ public slots:
     /** Navigates through details-list forward. */
     void sltSwitchDetailsPageNext();
 
-protected:
-
-    /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
-
 private:
 
-    /** Prepares all. */
+    /** Prepare routine. */
     void prepare();
+
+    /** Retranslation routine. */
+    void retranslateUi();
 
     /** Updates details. */
     void updateDetails();
 
-    /** Holds the main-layout instance. */
+    /** Holds the main-layout. */
     QVBoxLayout *m_pMainLayout;
 
-    /** Holds the switch-button instance. */
+    /** Holds the switch-button. */
     QIArrowButtonSwitch *m_pSwitchButton;
-    /** Holds the back-button instance. */
-    QIArrowButtonPress  *m_pBackButton;
-    /** Holds the next-button instance. */
-    QIArrowButtonPress  *m_pNextButton;
+    /** Holds the back-button. */
+    QIArrowButtonPress *m_pBackButton;
+    /** Holds the next-button. */
+    QIArrowButtonPress *m_pNextButton;
 
     /** Holds the details-browser. */
     QIDetailsBrowser *m_pDetailsBrowser;
     /** Holds details-list. */
-    QStringPairList   m_details;
+    QStringPairList m_details;
     /** Holds details-list index. */
-    int               m_iDetailsIndex;
+    int m_iDetailsIndex;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_extensions_QIArrowSplitter_h */
+#endif /* !___QIArrowSplitter_h___ */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsStorage_h
-#define FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsStorage_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIMachineSettingsStorage_h___
+#define ___UIMachineSettingsStorage_h___
 
 /* Qt includes: */
 #ifdef VBOX_WS_MAC
@@ -136,7 +133,7 @@ enum PixmapType
 };
 
 /* Abstract Controller Type */
-class SHARED_LIBRARY_STUFF AbstractControllerType
+class AbstractControllerType
 {
 public:
 
@@ -163,7 +160,7 @@ protected:
 };
 
 /* IDE Controller Type */
-class SHARED_LIBRARY_STUFF IDEControllerType : public AbstractControllerType
+class IDEControllerType : public AbstractControllerType
 {
 public:
 
@@ -176,7 +173,7 @@ private:
 };
 
 /* SATA Controller Type */
-class SHARED_LIBRARY_STUFF SATAControllerType : public AbstractControllerType
+class SATAControllerType : public AbstractControllerType
 {
 public:
 
@@ -189,7 +186,7 @@ private:
 };
 
 /* SCSI Controller Type */
-class SHARED_LIBRARY_STUFF SCSIControllerType : public AbstractControllerType
+class SCSIControllerType : public AbstractControllerType
 {
 public:
 
@@ -202,7 +199,7 @@ private:
 };
 
 /* Floppy Controller Type */
-class SHARED_LIBRARY_STUFF FloppyControllerType : public AbstractControllerType
+class FloppyControllerType : public AbstractControllerType
 {
 public:
 
@@ -215,7 +212,7 @@ private:
 };
 
 /* SAS Controller Type */
-class SHARED_LIBRARY_STUFF SASControllerType : public AbstractControllerType
+class SASControllerType : public AbstractControllerType
 {
 public:
 
@@ -228,7 +225,7 @@ private:
 };
 
 /* USB Controller Type */
-class SHARED_LIBRARY_STUFF USBStorageControllerType : public AbstractControllerType
+class USBStorageControllerType : public AbstractControllerType
 {
 public:
 
@@ -241,7 +238,7 @@ private:
 };
 
 /* NVMe Controller Type */
-class SHARED_LIBRARY_STUFF NVMeStorageControllerType : public AbstractControllerType
+class NVMeStorageControllerType : public AbstractControllerType
 {
 public:
 
@@ -254,7 +251,7 @@ private:
 };
 
 /* Abstract Item */
-class SHARED_LIBRARY_STUFF AbstractItem : public QITreeViewItem
+class AbstractItem : public QITreeViewItem
 {
     Q_OBJECT;
 
@@ -274,13 +271,13 @@ public:
 
     AbstractItem* parent() const;
     QUuid id() const;
-    QUuid machineId() const;
+    QString machineId() const;
 
-    void setMachineId (const QUuid &uMchineId);
+    void setMachineId (const QString &aMchineId);
 
     virtual ItemType rtti() const = 0;
     virtual AbstractItem* childItem (int aIndex) const = 0;
-    virtual AbstractItem* childItemById (const QUuid &uId) const = 0;
+    virtual AbstractItem* childItemById (const QUuid &aId) const = 0;
     virtual int posOfChild (AbstractItem *aItem) const = 0;
     virtual QString tip() const = 0;
     virtual QPixmap pixmap (ItemState aState = State_DefaultItem) = 0;
@@ -292,12 +289,12 @@ protected:
 
     AbstractItem *m_pParentItem;
     QUuid         mId;
-    QUuid         mMachineId;
+    QString       mMachineId;
 };
 Q_DECLARE_METATYPE (AbstractItem::ItemType);
 
 /* Root Item */
-class SHARED_LIBRARY_STUFF RootItem : public AbstractItem
+class RootItem : public AbstractItem
 {
 public:
 
@@ -310,7 +307,7 @@ private:
 
     ItemType rtti() const;
     AbstractItem* childItem (int aIndex) const;
-    AbstractItem* childItemById (const QUuid &uId) const;
+    AbstractItem* childItemById (const QUuid &aId) const;
     int posOfChild (AbstractItem *aItem) const;
     int childCount() const;
     QString text() const;
@@ -323,7 +320,7 @@ private:
 };
 
 /* Controller Item */
-class SHARED_LIBRARY_STUFF ControllerItem : public AbstractItem
+class ControllerItem : public AbstractItem
 {
 public:
 
@@ -355,7 +352,7 @@ private:
 
     ItemType rtti() const;
     AbstractItem* childItem (int aIndex) const;
-    AbstractItem* childItemById (const QUuid &uId) const;
+    AbstractItem* childItemById (const QUuid &aId) const;
     int posOfChild (AbstractItem *aItem) const;
     int childCount() const;
     QString text() const;
@@ -373,7 +370,7 @@ private:
 };
 
 /* Attachment Item */
-class SHARED_LIBRARY_STUFF AttachmentItem : public AbstractItem
+class AttachmentItem : public AbstractItem
 {
 public:
 
@@ -383,7 +380,7 @@ public:
     SlotsList attSlots() const;
     KDeviceType attDeviceType() const;
     DeviceTypeList attDeviceTypes() const;
-    QUuid attMediumId() const;
+    QString attMediumId() const;
     bool attIsHostDrive() const;
     bool attIsPassthrough() const;
     bool attIsTempEject() const;
@@ -392,7 +389,7 @@ public:
 
     void setAttSlot (const StorageSlot &aAttSlot);
     void setAttDevice (KDeviceType aAttDeviceType);
-    void setAttMediumId (const QUuid &uAttMediumId);
+    void setAttMediumId (const QString &aAttMediumId);
     void setAttIsPassthrough (bool aPassthrough);
     void setAttIsTempEject (bool aTempEject);
     void setAttIsNonRotational (bool aNonRotational);
@@ -412,7 +409,7 @@ private:
 
     ItemType rtti() const;
     AbstractItem* childItem (int aIndex) const;
-    AbstractItem* childItemById (const QUuid &uId) const;
+    AbstractItem* childItemById (const QUuid &aId) const;
     int posOfChild (AbstractItem *aItem) const;
     int childCount() const;
     QString text() const;
@@ -424,7 +421,7 @@ private:
     KDeviceType mAttDeviceType;
 
     StorageSlot mAttSlot;
-    QUuid mAttMediumId;
+    QString mAttMediumId;
     bool mAttIsHostDrive;
     bool mAttIsPassthrough;
     bool mAttIsTempEject;
@@ -445,7 +442,7 @@ private:
 };
 
 /* Storage Model */
-class SHARED_LIBRARY_STUFF StorageModel : public QAbstractItemModel
+class StorageModel : public QAbstractItemModel
 {
     Q_OBJECT;
 
@@ -542,12 +539,12 @@ public:
     bool setData (const QModelIndex &aIndex, const QVariant &aValue, int aRole);
 
     QModelIndex addController (const QString &aCtrName, KStorageBus aBusType, KStorageControllerType aCtrType);
-    void delController (const QUuid &uCtrId);
+    void delController (const QUuid &aCtrId);
 
-    QModelIndex addAttachment (const QUuid &uCtrId, KDeviceType aDeviceType, const QUuid &uMediumId);
-    void delAttachment (const QUuid &uCtrId, const QUuid &uAttId);
+    QModelIndex addAttachment (const QUuid &aCtrId, KDeviceType aDeviceType, const QString &strMediumId);
+    void delAttachment (const QUuid &aCtrId, const QUuid &aAttId);
 
-    void setMachineId (const QUuid &uMachineId);
+    void setMachineId (const QString &aMachineId);
 
     void sort(int iColumn = 0, Qt::SortOrder order = Qt::AscendingOrder);
     QModelIndex attachmentBySlot(QModelIndex controllerIndex, StorageSlot attachmentStorageSlot);
@@ -585,7 +582,7 @@ private:
 Q_DECLARE_METATYPE (StorageModel::ToolTipType);
 
 /* Storage Delegate */
-class SHARED_LIBRARY_STUFF StorageDelegate : public QItemDelegate
+class StorageDelegate : public QItemDelegate
 {
     Q_OBJECT;
 
@@ -600,8 +597,8 @@ private:
 
 
 /** Machine settings: Storage page. */
-class SHARED_LIBRARY_STUFF UIMachineSettingsStorage : public UISettingsPageMachine,
-                                                      public Ui::UIMachineSettingsStorage
+class UIMachineSettingsStorage : public UISettingsPageMachine,
+                                 public Ui::UIMachineSettingsStorage
 {
     Q_OBJECT;
 
@@ -656,10 +653,10 @@ protected:
 
 private slots:
 
-    /** Handles enumeration of medium with @a uMediumId. */
-    void sltHandleMediumEnumerated(const QUuid &uMediumId);
-    /** Handles removing of medium with @a uMediumId. */
-    void sltHandleMediumDeleted(const QUuid &uMediumId);
+    /** Handles enumeration of medium with @a strMediumId. */
+    void sltHandleMediumEnumerated(const QString &strMediumId);
+    /** Handles removing of medium with @a strMediumId. */
+    void sltHandleMediumDeleted(const QString &strMediumId);
 
     /** Handles command to add controller. */
     void sltAddController();
@@ -706,7 +703,7 @@ private slots:
     void sltChooseExistingMedium();
     /** Mounts existing host-drive. */
     void sltChooseHostDrive();
-    /** Mounts one of recent media. */
+    /** Mounts one of recent mediums. */
     void sltChooseRecentMedium();
 
     /** Updates action states. */
@@ -743,9 +740,6 @@ private:
     void prepareStorageWidgets();
     /** Prepares connections. */
     void prepareConnections();
-    /** Opens medium selector dialog and retrieves uuid of a selected medium (if any). */
-    QUuid openMediumSelectorDialog(UIMediumDeviceType  enmMediumType,
-                                   const QString &strMachineName, const QString &strMachineSettingsFilePath);
     /** Cleanups all. */
     void cleanup();
 
@@ -755,7 +749,7 @@ private:
     void addAttachmentWrapper(KDeviceType enmDevice);
 
     /** Creates new hard-drive. */
-    QUuid getWithNewHDWizard();
+    QString getWithNewHDWizard();
 
     /** Updates additions details according to passed @a enmType. */
     void updateAdditionalDetails(KDeviceType enmType);
@@ -771,7 +765,7 @@ private:
     /** Adds 'Choose Host Drive' actions into passed @a pOpenMediumMenu. */
     void addChooseHostDriveActions(QMenu *pOpenMediumMenu);
     /** Adds 'Choose Recent Medium' actions of passed @a enmRecentMediumType into passed @a pOpenMediumMenu. */
-    void addRecentMediumActions(QMenu *pOpenMediumMenu, UIMediumDeviceType enmRecentMediumType);
+    void addRecentMediumActions(QMenu *pOpenMediumMenu, UIMediumType enmRecentMediumType);
 
     /** Saves existing storage data from the cache. */
     bool saveStorageData();
@@ -797,11 +791,9 @@ private:
     bool isAttachmentCouldBeUpdated(const UISettingsCacheMachineStorageAttachment &attachmentCache) const;
 
     /** Holds the machine ID. */
-    QUuid  m_uMachineId;
+    QString  m_strMachineId;
     /** Holds the machine settings file-path. */
     QString  m_strMachineSettingsFilePath;
-    /** Holds the machine settings file-path. */
-    QString  m_strMachineName;
     /** Holds the machine guest OS type ID. */
     QString  m_strMachineGuestOSTypeId;
 
@@ -851,5 +843,5 @@ private:
     UISettingsCacheMachineStorage *m_pCache;
 };
 
+#endif /* !___UIMachineSettingsStorage_h___ */
 
-#endif /* !FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsStorage_h */

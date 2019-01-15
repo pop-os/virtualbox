@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015-2019 Oracle Corporation
+ * Copyright (C) 2015-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -271,11 +271,6 @@ VMM_INT_DECL(VBOXSTRICTRC) gimKvmWriteMsr(PVMCPU pVCpu, uint32_t idMsr, PCCPUMMS
                     pKvmCpu->fSystemTimeFlags = (SystemTime.fFlags & GIM_KVM_SYSTEM_TIME_FLAGS_GUEST_PAUSED);
             }
 
-            /* We ASSUME that ring-0/raw-mode have updated these. */
-            /** @todo Get logically atomic NanoTS/TSC pairs in ring-3. */
-            Assert(pKvmCpu->uTsc);
-            Assert(pKvmCpu->uVirtNanoTS);
-
             /* Enable and populate the system-time struct. */
             pKvmCpu->u64SystemTimeMsr      = uRawValue;
             pKvmCpu->GCPhysSystemTime      = MSR_GIM_KVM_SYSTEM_TIME_GUEST_GPA(uRawValue);
@@ -355,23 +350,23 @@ VMM_INT_DECL(bool) gimKvmShouldTrapXcptUD(PVMCPU pVCpu)
 
 
 /**
- * Checks the instruction and executes the hypercall if it's a valid hypercall
- * instruction.
- *
- * This interface is used by \#UD handlers and IEM.
+ * Checks the currently disassembled instruction and executes the hypercall if
+ * it's a hypercall instruction.
  *
  * @returns Strict VBox status code.
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   pCtx        Pointer to the guest-CPU context.
- * @param   uDisOpcode  The disassembler opcode.
- * @param   cbInstr     The instruction length.
+ * @param   pDis        Pointer to the disassembled instruction state at RIP.
  *
  * @thread  EMT(pVCpu).
+ *
+ * @todo    Make this function static when @bugref{7270#c168} is addressed.
  */
-VMM_INT_DECL(VBOXSTRICTRC) gimKvmHypercallEx(PVMCPU pVCpu, PCPUMCTX pCtx, unsigned uDisOpcode, uint8_t cbInstr)
+VMM_INT_DECL(VBOXSTRICTRC) gimKvmExecHypercallInstr(PVMCPU pVCpu, PCPUMCTX pCtx, PDISCPUSTATE pDis)
 {
     Assert(pVCpu);
     Assert(pCtx);
+    Assert(pDis);
     VMCPU_ASSERT_EMT(pVCpu);
 
     /*
@@ -382,8 +377,8 @@ VMM_INT_DECL(VBOXSTRICTRC) gimKvmHypercallEx(PVMCPU pVCpu, PCPUMCTX pCtx, unsign
      * it to the host-native one whenever we encounter it so subsequent calls
      * will not require disassembly (when coming from HM).
      */
-    if (   uDisOpcode == OP_VMCALL
-        || uDisOpcode == OP_VMMCALL)
+    if (   pDis->pCurInstr->uOpcode == OP_VMCALL
+        || pDis->pCurInstr->uOpcode == OP_VMMCALL)
     {
         /*
          * Perform the hypercall.
@@ -403,15 +398,22 @@ VMM_INT_DECL(VBOXSTRICTRC) gimKvmHypercallEx(PVMCPU pVCpu, PCPUMCTX pCtx, unsign
              */
             PVM      pVM  = pVCpu->CTX_SUFF(pVM);
             PCGIMKVM pKvm = &pVM->gim.s.u.Kvm;
-            if (   uDisOpcode != pKvm->uOpcodeNative
-                && !VM_IS_RAW_MODE_ENABLED(pVM)
-                && cbInstr == sizeof(pKvm->abOpcodeNative) )
+            if (   pDis->pCurInstr->uOpcode != pKvm->uOpCodeNative
+                && HMIsEnabled(pVM))
             {
                 /** @todo r=ramshankar: we probably should be doing this in an
                  *        EMT rendezvous. */
-                /** @todo Add stats for patching. */
-                int rc = PGMPhysSimpleWriteGCPtr(pVCpu, pCtx->rip, pKvm->abOpcodeNative, sizeof(pKvm->abOpcodeNative));
+                uint8_t abHypercall[3];
+                size_t  cbWritten = 0;
+                int rc = VMMPatchHypercall(pVM, &abHypercall, sizeof(abHypercall), &cbWritten);
                 AssertRC(rc);
+                Assert(sizeof(abHypercall) == pDis->cbInstr);
+                Assert(sizeof(abHypercall) == cbWritten);
+
+                rc = PGMPhysSimpleWriteGCPtr(pVCpu, pCtx->rip, &abHypercall, sizeof(abHypercall));
+                AssertRC(rc);
+
+                /** @todo Add stats for patching. */
             }
         }
         else
@@ -470,13 +472,13 @@ VMM_INT_DECL(VBOXSTRICTRC) gimKvmXcptUD(PVMCPU pVCpu, PCPUMCTX pCtx, PDISCPUSTAT
         {
             if (pcbInstr)
                 *pcbInstr = (uint8_t)cbInstr;
-            return gimKvmHypercallEx(pVCpu, pCtx, Dis.pCurInstr->uOpcode, Dis.cbInstr);
+            return gimKvmExecHypercallInstr(pVCpu, pCtx, &Dis);
         }
 
         Log(("GIM: KVM: Failed to disassemble instruction at CS:RIP=%04x:%08RX64. rc=%Rrc\n", pCtx->cs.Sel, pCtx->rip, rc));
         return rc;
     }
 
-    return gimKvmHypercallEx(pVCpu, pCtx, pDis->pCurInstr->uOpcode, pDis->cbInstr);
+    return gimKvmExecHypercallInstr(pVCpu, pCtx, pDis);
 }
 

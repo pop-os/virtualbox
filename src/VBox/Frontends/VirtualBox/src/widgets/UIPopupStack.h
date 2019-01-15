@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,120 +15,96 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_widgets_UIPopupStack_h
-#define FEQT_INCLUDED_SRC_widgets_UIPopupStack_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __UIPopupStack_h__
+#define __UIPopupStack_h__
 
 /* Qt includes: */
 #include <QWidget>
 #include <QMap>
 
 /* GUI includes: */
-#include "UILibraryDefs.h"
 #include "UIPopupCenter.h"
 
 /* Forward declaration: */
-class QEvent;
-class QObject;
-class QScrollArea;
-class QShowEvent;
-class QSize;
-class QString;
 class QVBoxLayout;
+class QScrollArea;
 class UIPopupStackViewport;
 
-/** QWidget extension providing GUI with popup-stack prototype class. */
-class SHARED_LIBRARY_STUFF UIPopupStack : public QWidget
+/* Popup-stack prototype class: */
+class UIPopupStack : public QWidget
 {
     Q_OBJECT;
 
 signals:
 
-    /** Notifies about popup-stack viewport size change. */
+    /* Notifier: Layout stuff: */
     void sigProposeStackViewportSize(QSize newSize);
 
-    /** Asks to close popup-pane with @a strID and @a iResultCode. */
-    void sigPopupPaneDone(QString strID, int iResultCode);
+    /* Notifier: Popup-pane stuff: */
+    void sigPopupPaneDone(QString strPopupPaneID, int iResultCode);
 
-    /** Asks to close popup-stack with @a strID. */
+    /* Notifier: Popup-stack stuff: */
     void sigRemove(QString strID);
 
 public:
 
-    /** Constructs popup-stack with passed @a strID and @a enmOrientation. */
-    UIPopupStack(const QString &strID, UIPopupStackOrientation enmOrientation);
+    /* Constructor: */
+    UIPopupStack(const QString &strID, UIPopupStackOrientation orientation);
 
-    /** Returns whether pane with passed @a strID exists. */
-    bool exists(const QString &strID) const;
-    /** Creates pane with passed @a strID, @a strMessage, @a strDetails and @a buttonDescriptions. */
-    void createPopupPane(const QString &strID,
+    /* API: Popup-pane stuff: */
+    bool exists(const QString &strPopupPaneID) const;
+    void createPopupPane(const QString &strPopupPaneID,
                          const QString &strMessage, const QString &strDetails,
                          const QMap<int, QString> &buttonDescriptions);
-    /** Updates pane with passed @a strID, @a strMessage and @a strDetails. */
-    void updatePopupPane(const QString &strID,
+    void updatePopupPane(const QString &strPopupPaneID,
                          const QString &strMessage, const QString &strDetails);
-    /** Recalls pane with passed @a strID. */
-    void recallPopupPane(const QString &strID);
-    /** Defines stack @a enmOrientation. */
-    void setOrientation(UIPopupStackOrientation enmOrientation);
+    void recallPopupPane(const QString &strPopupPaneID);
+    void setOrientation(UIPopupStackOrientation orientation);
 
-    /** Defines stack @a pParent*/
+    /* API: Parent stuff: */
     void setParent(QWidget *pParent);
-    /** Defines stack @a pParent and @a enmFlags. */
-    void setParent(QWidget *pParent, Qt::WindowFlags enmFlags);
-
-protected:
-
-    /** Pre-handles standard Qt @a pEvent for passed @a pObject. */
-    virtual bool eventFilter(QObject *pObject, QEvent *pEvent) /* override */;
-
-    /** Handles show @a pEvent. */
-    virtual void showEvent(QShowEvent *pEvent) /* override */;
+    void setParent(QWidget *pParent, Qt::WindowFlags flags);
 
 private slots:
 
-    /** Adjusts geometry. */
+    /* Handler: Layout stuff: */
     void sltAdjustGeometry();
 
-    /** Handles removal of the popup-pane with @a strID. */
-    void sltPopupPaneRemoved(QString strID);
-    /** Handles removal of all the popup-panes. */
+    /* Handlers: Popup-pane stuff: */
+    void sltPopupPaneRemoved(QString strPopupPaneID);
     void sltPopupPanesRemoved();
 
 private:
 
-    /** Prepares all. */
+    /* Helpers: Prepare stuff: */
     void prepare();
-    /** Prepares contents. */
     void prepareContent();
 
-    /** Propagates size. */
+    /* Handler: Event-filter stuff: */
+    bool eventFilter(QObject *pWatched, QEvent *pEvent);
+
+    /* Handler: Event stuff: */
+    void showEvent(QShowEvent *pEvent);
+
+    /* Helper: Layout stuff: */
     void propagateSize();
 
-    /** Returns @a pParent menu-bar height. */
+    /* Static helpers: Prepare stuff: */
     static int parentMenuBarHeight(QWidget *pParent);
-    /** Returns @a pParent status-bar height. */
     static int parentStatusBarHeight(QWidget *pParent);
 
-    /** Holds the stack ID. */
-    QString                 m_strID;
-    /** Holds the stack orientation. */
-    UIPopupStackOrientation m_enmOrientation;
+    /* Variable: General stuff: */
+    QString m_strID;
+    UIPopupStackOrientation m_orientation;
 
-    /** Holds the main-layout instance. */
-    QVBoxLayout          *m_pMainLayout;
-    /** Holds the scroll-area instance. */
-    QScrollArea          *m_pScrollArea;
-    /** Holds the scroll-viewport instance. */
+    /* Variables: Widget stuff: */
+    QVBoxLayout *m_pMainLayout;
+    QScrollArea *m_pScrollArea;
     UIPopupStackViewport *m_pScrollViewport;
 
-    /** Holds the parent menu-bar height. */
+    /* Variables: Layout stuff: */
     int m_iParentMenuBarHeight;
-    /** Holds the parent status-bar height. */
     int m_iParentStatusBarHeight;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_widgets_UIPopupStack_h */
-
+#endif /* __UIPopupStack_h__ */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -57,7 +57,10 @@
 #include <iprt/thread.h>
 #include <iprt/time.h>
 #include <iprt/uuid.h>
-#include <iprt/zip.h>
+
+#ifndef RT_OS_WINDOWS
+# include <iprt/zip.h>
+#endif
 
 #include "TestExecServiceInternal.h"
 
@@ -158,9 +161,7 @@ typedef TXSEXEC *PTXSEXEC;
 static const PCTXSTRANSPORT g_apTransports[] =
 {
     &g_TcpTransport,
-#ifndef RT_OS_OS2
-    &g_SerialTransport,
-#endif
+    //&g_SerialTransport,
     //&g_FileSysTransport,
     //&g_GuestPropTransport,
     //&g_TestDevTransport,
@@ -196,9 +197,6 @@ static bool                 g_fDisplayOutput = true;
 /** Whether to terminate or not.
  * @todo implement signals and stuff.  */
 static bool volatile        g_fTerminate = false;
-/** Verbosity level. */
-uint32_t                    g_cVerbose = 1;
-
 
 /**
  * Calculates the checksum value, zero any padding space and send the packet.
@@ -743,6 +741,7 @@ static int txsWaitForAck(PCTXSPKTHDR pPktHdr)
     return rc;
 }
 
+#ifndef RT_OS_WINDOWS
 /**
  * Unpacks a tar file.
  *
@@ -797,6 +796,7 @@ static int txsDoUnpackFile(PCTXSPKTHDR pPktHdr)
 
     return rc;
 }
+#endif
 
 /**
  * Downloads a file to the client.
@@ -2762,8 +2762,6 @@ static int txsDoExec(PCTXSPKTHDR pPktHdr)
  */
 static RTEXITCODE txsMainLoop(void)
 {
-    if (g_cVerbose > 0)
-        RTMsgInfo("txsMainLoop: start...\n");
     RTEXITCODE enmExitCode = RTEXITCODE_SUCCESS;
     while (!g_fTerminate)
     {
@@ -2774,8 +2772,6 @@ static RTEXITCODE txsMainLoop(void)
         int rc = txsRecvPkt(&pPktHdr, true /*fAutoRetryOnFailure*/);
         if (RT_FAILURE(rc))
             continue;
-        if (g_cVerbose > 0)
-            RTMsgInfo("txsMainLoop: CMD: %.8s...", pPktHdr->achOpcode);
 
         /*
          * Do a string switch on the opcode bit.
@@ -2837,19 +2833,17 @@ static RTEXITCODE txsMainLoop(void)
             rc = txsDoPutFile(pPktHdr);
         else if (txsIsSameOpcode(pPktHdr, "GET FILE"))
             rc = txsDoGetFile(pPktHdr);
+#ifndef RT_OS_WINDOWS
         else if (txsIsSameOpcode(pPktHdr, "UNPKFILE"))
             rc = txsDoUnpackFile(pPktHdr);
+#endif
         /* Misc: */
         else
             rc = txsReplyUnknown(pPktHdr);
 
-        if (g_cVerbose > 0)
-            RTMsgInfo("txsMainLoop: CMD: %.8s -> %Rrc", pPktHdr->achOpcode, rc);
         RTMemFree(pPktHdr);
     }
 
-    if (g_cVerbose > 0)
-        RTMsgInfo("txsMainLoop: end\n");
     return enmExitCode;
 }
 
@@ -2901,9 +2895,6 @@ static RTEXITCODE txsFinalizeScratch(void)
  */
 static RTEXITCODE txsAutoUpdateStage2(int argc, char **argv, bool *pfExit, const char *pszUpgrading)
 {
-    if (g_cVerbose > 0)
-        RTMsgInfo("Auto update stage 2...");
-
     /*
      * Copy the current executable onto the original.
      * Note that we're racing the original program on some platforms, thus the
@@ -2988,9 +2979,6 @@ static RTEXITCODE txsAutoUpdateStage2(int argc, char **argv, bool *pfExit, const
  */
 static RTEXITCODE txsAutoUpdateStage1(int argc, char **argv, uint32_t cSecsCdWait, bool *pfExit)
 {
-    if (g_cVerbose > 1)
-        RTMsgInfo("Auto update stage 1...");
-
     /*
      * Figure names of the current service image and the potential upgrade.
      */
@@ -3033,11 +3021,7 @@ static RTEXITCODE txsAutoUpdateStage1(int argc, char **argv, uint32_t cSecsCdWai
         }
         uint64_t cNsElapsed = RTTimeNanoTS() - nsStart;
         if (cNsElapsed >= cSecsCdWait * RT_NS_1SEC_64)
-        {
-            if (g_cVerbose > 0)
-                RTMsgInfo("Auto update: Giving up waiting for media.");
             return RTEXITCODE_SUCCESS;
-        }
         RTThreadSleep(500);
     }
 
@@ -3078,8 +3062,6 @@ static RTEXITCODE txsAutoUpdateStage1(int argc, char **argv, uint32_t cSecsCdWai
         if (fSame)
         {
             RTFileReadAllFree(pvUpgrade, cbUpgrade);
-            if (g_cVerbose > 0)
-                RTMsgInfo("Auto update: Not necessary.");
             return RTEXITCODE_SUCCESS;
         }
     }
@@ -3319,8 +3301,6 @@ static RTEXITCODE txsParseArgv(int argc, char **argv, bool *pfExit)
         { "--no-display-output",'D', RTGETOPT_REQ_NOTHING },
         { "--foreground",       'f', RTGETOPT_REQ_NOTHING },
         { "--daemonized",       'Z', RTGETOPT_REQ_NOTHING },
-        { "--quiet",            'q', RTGETOPT_REQ_NOTHING },
-        { "--verbose",          'v', RTGETOPT_REQ_NOTHING },
     };
 
     size_t cOptions = RT_ELEMENTS(s_aBaseOptions);
@@ -3412,16 +3392,8 @@ static RTEXITCODE txsParseArgv(int argc, char **argv, bool *pfExit)
                 cSecsCdWait = Val.u32;
                 break;
 
-            case 'q':
-                g_cVerbose = 0;
-                break;
-
-            case 'v':
-                g_cVerbose++;
-                break;
-
             case 'V':
-                RTPrintf("$Revision: 127855 $\n");
+                RTPrintf("$Revision: 125570 $\n");
                 *pfExit = true;
                 return RTEXITCODE_SUCCESS;
 
@@ -3475,8 +3447,6 @@ static RTEXITCODE txsParseArgv(int argc, char **argv, bool *pfExit)
      */
     if (fDaemonize && !*pfExit)
     {
-        if (g_cVerbose > 0)
-            RTMsgInfo("Daemonizing...");
         rc = RTProcDaemonize(argv, "--daemonized");
         if (RT_FAILURE(rc))
             return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTProcDaemonize: %Rrc\n", rc);
@@ -3511,8 +3481,6 @@ int main(int argc, char **argv)
     rc = RTUuidCreate(&g_InstanceUuid);
     if (RT_FAILURE(rc))
         return RTMsgErrorExit(RTEXITCODE_FAILURE, "RTUuidCreate failed: %Rrc", rc);
-    if (g_cVerbose > 0)
-        RTMsgInfo("Instance UUID: %RTuuid", &g_InstanceUuid);
 
     /*
      * Finalize the scratch directory and initialize the transport layer.

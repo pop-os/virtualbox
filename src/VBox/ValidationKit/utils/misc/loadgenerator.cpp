@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,7 +28,6 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#include <iprt/errcore.h>
 #include <iprt/thread.h>
 #include <iprt/time.h>
 #include <iprt/initterm.h>
@@ -306,7 +305,7 @@ int main(int argc, char **argv)
                 return 1;
 
             case 'V':
-                RTPrintf("$Revision: 127855 $\n");
+                RTPrintf("$Revision: 118412 $\n");
                 return 0;
 
             case VINF_GETOPT_NOT_OPTION:

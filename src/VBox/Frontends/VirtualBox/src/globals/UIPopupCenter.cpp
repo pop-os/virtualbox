@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,67 +15,74 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* GUI includes: */
-#include "QIMessageBox.h"
-#include "VBoxGlobal.h"
-#include "UIErrorString.h"
-#include "UIExtraDataManager.h"
-#include "UIHostComboEditor.h"
-#include "UIPopupCenter.h"
-#include "UIPopupStack.h"
+# include "UIPopupCenter.h"
+# include "UIPopupStack.h"
+# include "UIMachineWindow.h"
+# include "QIMessageBox.h"
+# include "VBoxGlobal.h"
+# include "UIHostComboEditor.h"
+# include "UIExtraDataManager.h"
+# include "UIErrorString.h"
 
 /* COM includes: */
-#include "CAudioAdapter.h"
-#include "CConsole.h"
-#include "CEmulatedUSB.h"
-#include "CMachine.h"
-#include "CNetworkAdapter.h"
-#include "CVRDEServer.h"
+# include "CAudioAdapter.h"
+# include "CConsole.h"
+# include "CEmulatedUSB.h"
+# include "CMachine.h"
+# include "CNetworkAdapter.h"
+# include "CVRDEServer.h"
 
 /* Other VBox includes: */
-#include <VBox/sup.h>
+# include <VBox/sup.h>
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 /* static */
-UIPopupCenter* UIPopupCenter::s_pInstance = 0;
-UIPopupCenter* UIPopupCenter::instance() { return s_pInstance; }
+UIPopupCenter* UIPopupCenter::m_spInstance = 0;
+UIPopupCenter* UIPopupCenter::instance() { return m_spInstance; }
 
 /* static */
 void UIPopupCenter::create()
 {
     /* Make sure instance is NOT created yet: */
-    if (s_pInstance)
+    if (m_spInstance)
         return;
 
     /* Create instance: */
     new UIPopupCenter;
     /* Prepare instance: */
-    s_pInstance->prepare();
+    m_spInstance->prepare();
 }
 
 /* static */
 void UIPopupCenter::destroy()
 {
     /* Make sure instance is NOT destroyed yet: */
-    if (!s_pInstance)
+    if (!m_spInstance)
         return;
 
     /* Cleanup instance: */
-    s_pInstance->cleanup();
+    m_spInstance->cleanup();
     /* Destroy instance: */
-    delete s_pInstance;
+    delete m_spInstance;
 }
 
 UIPopupCenter::UIPopupCenter()
 {
     /* Assign instance: */
-    s_pInstance = this;
+    m_spInstance = this;
 }
 
 UIPopupCenter::~UIPopupCenter()
 {
     /* Unassign instance: */
-    s_pInstance = 0;
+    m_spInstance = 0;
 }
 
 void UIPopupCenter::prepare()
@@ -85,13 +92,13 @@ void UIPopupCenter::prepare()
 void UIPopupCenter::cleanup()
 {
     /* Make sure all the popup-stack types destroyed: */
-    foreach (const QString &strTypeID, m_stackTypes.keys())
-        m_stackTypes.remove(strTypeID);
+    foreach (const QString &strPopupStackTypeID, m_stackTypes.keys())
+        m_stackTypes.remove(strPopupStackTypeID);
     /* Make sure all the popup-stacks destroyed: */
-    foreach (const QString &strID, m_stacks.keys())
+    foreach (const QString &strPopupStackID, m_stacks.keys())
     {
-        delete m_stacks[strID];
-        m_stacks.remove(strID);
+        delete m_stacks[strPopupStackID];
+        m_stacks.remove(strPopupStackID);
     }
 }
 
@@ -127,7 +134,7 @@ void UIPopupCenter::hidePopupStack(QWidget *pParent)
     unassignPopupStackParent(pPopupStack, pParent);
 }
 
-void UIPopupCenter::setPopupStackType(QWidget *pParent, UIPopupStackType enmType)
+void UIPopupCenter::setPopupStackType(QWidget *pParent, UIPopupStackType newStackType)
 {
     /* Make sure parent is set! */
     AssertPtrReturnVoid(pParent);
@@ -136,18 +143,18 @@ void UIPopupCenter::setPopupStackType(QWidget *pParent, UIPopupStackType enmType
     const QString strPopupStackID(popupStackID(pParent));
 
     /* Looking for current popup-stack type, create if it doesn't exists: */
-    UIPopupStackType &enmCurrentType = m_stackTypes[strPopupStackID];
+    UIPopupStackType &stackType = m_stackTypes[strPopupStackID];
 
     /* Make sure stack-type has changed: */
-    if (enmCurrentType == enmType)
+    if (stackType == newStackType)
         return;
 
     /* Remember new stack type: */
     LogRelFlow(("UIPopupCenter::setPopupStackType: Changing type of popup-stack with ID = '%s' from '%s' to '%s'.\n",
                 strPopupStackID.toLatin1().constData(),
-                enmCurrentType == UIPopupStackType_Separate ? "separate window" : "embedded widget",
-                enmType == UIPopupStackType_Separate ? "separate window" : "embedded widget"));
-    enmCurrentType = enmType;
+                stackType == UIPopupStackType_Separate ? "separate window" : "embedded widget",
+                newStackType == UIPopupStackType_Separate ? "separate window" : "embedded widget"));
+    stackType = newStackType;
 }
 
 void UIPopupCenter::setPopupStackOrientation(QWidget *pParent, UIPopupStackOrientation newStackOrientation)
@@ -177,65 +184,65 @@ void UIPopupCenter::setPopupStackOrientation(QWidget *pParent, UIPopupStackOrien
         m_stacks[strPopupStackID]->setOrientation(stackOrientation);
 }
 
-void UIPopupCenter::message(QWidget *pParent, const QString &strID,
+void UIPopupCenter::message(QWidget *pParent, const QString &strPopupPaneID,
                             const QString &strMessage, const QString &strDetails,
-                            const QString &strButtonText1 /* = QString() */,
-                            const QString &strButtonText2 /* = QString() */,
-                            bool fProposeAutoConfirmation /* = false */)
+                            const QString &strButtonText1 /* = QString()*/,
+                            const QString &strButtonText2 /* = QString()*/,
+                            bool fProposeAutoConfirmation /* = false*/)
 {
-    showPopupPane(pParent, strID,
+    showPopupPane(pParent, strPopupPaneID,
                   strMessage, strDetails,
                   strButtonText1, strButtonText2,
                   fProposeAutoConfirmation);
 }
 
-void UIPopupCenter::popup(QWidget *pParent, const QString &strID,
+void UIPopupCenter::popup(QWidget *pParent, const QString &strPopupPaneID,
                           const QString &strMessage)
 {
-    message(pParent, strID, strMessage, QString());
+    message(pParent, strPopupPaneID, strMessage, QString());
 }
 
-void UIPopupCenter::alert(QWidget *pParent, const QString &strID,
+void UIPopupCenter::alert(QWidget *pParent, const QString &strPopupPaneID,
                           const QString &strMessage,
-                          bool fProposeAutoConfirmation /* = false */)
+                          bool fProposeAutoConfirmation /* = false*/)
 {
-    message(pParent, strID, strMessage, QString(),
+    message(pParent, strPopupPaneID, strMessage, QString(),
             QApplication::translate("UIMessageCenter", "Close") /* 1st button text */,
             QString() /* 2nd button text */,
             fProposeAutoConfirmation);
 }
 
-void UIPopupCenter::alertWithDetails(QWidget *pParent, const QString &strID,
+void UIPopupCenter::alertWithDetails(QWidget *pParent, const QString &strPopupPaneID,
                                      const QString &strMessage,
                                      const QString &strDetails,
-                                     bool fProposeAutoConfirmation /* = false */)
+                                     bool fProposeAutoConfirmation /* = false*/)
 {
-    message(pParent, strID, strMessage, strDetails,
+    message(pParent, strPopupPaneID, strMessage, strDetails,
             QApplication::translate("UIMessageCenter", "Close") /* 1st button text */,
             QString() /* 2nd button text */,
             fProposeAutoConfirmation);
 }
 
-void UIPopupCenter::question(QWidget *pParent, const QString &strID,
+void UIPopupCenter::question(QWidget *pParent, const QString &strPopupPaneID,
                              const QString &strMessage,
-                             const QString &strButtonText1 /* = QString() */,
-                             const QString &strButtonText2 /* = QString() */,
-                             bool fProposeAutoConfirmation /* = false */)
+                             const QString &strButtonText1 /* = QString()*/,
+                             const QString &strButtonText2 /* = QString()*/,
+                             bool fProposeAutoConfirmation /* = false*/)
 {
-    message(pParent, strID, strMessage, QString(),
+    message(pParent, strPopupPaneID, strMessage, QString(),
             strButtonText1, strButtonText2,
             fProposeAutoConfirmation);
 }
 
-void UIPopupCenter::recall(QWidget *pParent, const QString &strID)
+void UIPopupCenter::recall(QWidget *pParent, const QString &strPopupPaneID)
 {
-    hidePopupPane(pParent, strID);
+    hidePopupPane(pParent, strPopupPaneID);
 }
 
-void UIPopupCenter::showPopupPane(QWidget *pParent, const QString &strID,
+void UIPopupCenter::showPopupPane(QWidget *pParent, const QString &strPopupPaneID,
                                   const QString &strMessage, const QString &strDetails,
-                                  QString strButtonText1 /* = QString() */, QString strButtonText2 /* = QString() */,
-                                  bool fProposeAutoConfirmation /* = false */)
+                                  QString strButtonText1 /* = QString()*/, QString strButtonText2 /* = QString()*/,
+                                  bool fProposeAutoConfirmation /* = false*/)
 {
     /* Make sure parent is set! */
     AssertPtrReturnVoid(pParent);
@@ -265,7 +272,7 @@ void UIPopupCenter::showPopupPane(QWidget *pParent, const QString &strID,
     if ((iButton1 || iButton2) && fProposeAutoConfirmation)
     {
         const QStringList confirmedPopupList = gEDataManager->suppressedMessages();
-        if (   confirmedPopupList.contains(strID)
+        if (   confirmedPopupList.contains(strPopupPaneID)
             || confirmedPopupList.contains("allPopupPanes")
             || confirmedPopupList.contains("all") )
         {
@@ -274,7 +281,7 @@ void UIPopupCenter::showPopupPane(QWidget *pParent, const QString &strID,
                 iResultCode |= (iButton1 & AlertButtonMask);
             else if (iButton2 & AlertButtonOption_Default)
                 iResultCode |= (iButton2 & AlertButtonMask);
-            emit sigPopupPaneDone(strID, iResultCode);
+            emit sigPopupPaneDone(strPopupPaneID, iResultCode);
             return;
         }
     }
@@ -299,10 +306,10 @@ void UIPopupCenter::showPopupPane(QWidget *pParent, const QString &strID,
     }
 
     /* If there is already popup-pane with such ID: */
-    if (pPopupStack->exists(strID))
+    if (pPopupStack->exists(strPopupPaneID))
     {
         /* Just update existing one: */
-        pPopupStack->updatePopupPane(strID, strMessage, strDetails);
+        pPopupStack->updatePopupPane(strPopupPaneID, strMessage, strDetails);
     }
     /* If there is no popup-pane with such ID: */
     else
@@ -316,14 +323,14 @@ void UIPopupCenter::showPopupPane(QWidget *pParent, const QString &strID,
         if (fProposeAutoConfirmation)
             buttonDescriptions[AlertButton_Cancel | AlertOption_AutoConfirmed] = QString();
         /* Create new one: */
-        pPopupStack->createPopupPane(strID, strMessage, strDetails, buttonDescriptions);
+        pPopupStack->createPopupPane(strPopupPaneID, strMessage, strDetails, buttonDescriptions);
     }
 
     /* Show popup-stack: */
     showPopupStack(pParent);
 }
 
-void UIPopupCenter::hidePopupPane(QWidget *pParent, const QString &strID)
+void UIPopupCenter::hidePopupPane(QWidget *pParent, const QString &strPopupPaneID)
 {
     /* Make sure parent is set! */
     AssertPtrReturnVoid(pParent);
@@ -335,27 +342,27 @@ void UIPopupCenter::hidePopupPane(QWidget *pParent, const QString &strID)
 
     /* Make sure corresponding popup-pane *exists*: */
     UIPopupStack *pPopupStack = m_stacks[strPopupStackID];
-    if (!pPopupStack->exists(strID))
+    if (!pPopupStack->exists(strPopupPaneID))
         return;
 
     /* Recall corresponding popup-pane: */
-    pPopupStack->recallPopupPane(strID);
+    pPopupStack->recallPopupPane(strPopupPaneID);
 }
 
-void UIPopupCenter::sltPopupPaneDone(QString strID, int iResultCode)
+void UIPopupCenter::sltPopupPaneDone(QString strPopupPaneID, int iResultCode)
 {
     /* Remember auto-confirmation fact (if necessary): */
     if (iResultCode & AlertOption_AutoConfirmed)
-        gEDataManager->setSuppressedMessages(gEDataManager->suppressedMessages() << strID);
+        gEDataManager->setSuppressedMessages(gEDataManager->suppressedMessages() << strPopupPaneID);
 
     /* Notify listeners: */
-    emit sigPopupPaneDone(strID, iResultCode);
+    emit sigPopupPaneDone(strPopupPaneID, iResultCode);
 }
 
-void UIPopupCenter::sltRemovePopupStack(QString strID)
+void UIPopupCenter::sltRemovePopupStack(QString strPopupStackID)
 {
     /* Make sure corresponding popup-stack *exists*: */
-    if (!m_stacks.contains(strID))
+    if (!m_stacks.contains(strPopupStackID))
     {
         AssertMsgFailed(("Popup-stack already destroyed!\n"));
         return;
@@ -363,8 +370,8 @@ void UIPopupCenter::sltRemovePopupStack(QString strID)
 
     /* Delete popup-stack asyncronously.
      * To avoid issues with events which already posted: */
-    UIPopupStack *pPopupStack = m_stacks[strID];
-    m_stacks.remove(strID);
+    UIPopupStack *pPopupStack = m_stacks[strPopupStackID];
+    m_stacks.remove(strPopupStackID);
     pPopupStack->deleteLater();
 }
 
@@ -375,7 +382,7 @@ QString UIPopupCenter::popupStackID(QWidget *pParent)
     AssertPtrReturn(pParent, QString());
 
     /* Special handling for Runtime UI: */
-    if (pParent->inherits("UIMachineWindow"))
+    if (qobject_cast<UIMachineWindow*>(pParent))
         return QString("UIMachineWindow");
 
     /* Common handling for other cases: */
@@ -383,7 +390,7 @@ QString UIPopupCenter::popupStackID(QWidget *pParent)
 }
 
 /* static */
-void UIPopupCenter::assignPopupStackParent(UIPopupStack *pPopupStack, QWidget *pParent, UIPopupStackType enmStackType)
+void UIPopupCenter::assignPopupStackParent(UIPopupStack *pPopupStack, QWidget *pParent, UIPopupStackType stackType)
 {
     /* Make sure parent is set! */
     AssertPtrReturnVoid(pParent);
@@ -392,7 +399,7 @@ void UIPopupCenter::assignPopupStackParent(UIPopupStack *pPopupStack, QWidget *p
     pParent->window()->installEventFilter(pPopupStack);
 
     /* Assign parent depending on passed *stack* type: */
-    switch (enmStackType)
+    switch (stackType)
     {
         case UIPopupStackType_Embedded:
         {
@@ -563,14 +570,14 @@ void UIPopupCenter::cannotDetachWebCam(QWidget *pParent, const CEmulatedUSB &com
                      UIErrorString::formatErrorInfo(comDispatcher));
 }
 
-void UIPopupCenter::cannotToggleRecording(QWidget *pParent, const CMachine &comMachine, bool fEnable)
+void UIPopupCenter::cannotToggleVideoCapture(QWidget *pParent, const CMachine &comMachine, bool fEnable)
 {
     /* Get machine-name preserving error-info: */
     QString strMachineName(CMachine(comMachine).GetName());
-    alertWithDetails(pParent, "cannotToggleRecording",
+    alertWithDetails(pParent, "cannotToggleVideoCapture",
                      fEnable ?
-                     QApplication::translate("UIMessageCenter", "Failed to enable recording for the virtual machine <b>%1</b>.").arg(strMachineName) :
-                     QApplication::translate("UIMessageCenter", "Failed to disable recording for the virtual machine <b>%1</b>.").arg(strMachineName),
+                     QApplication::translate("UIMessageCenter", "Failed to enable video capturing for the virtual machine <b>%1</b>.").arg(strMachineName) :
+                     QApplication::translate("UIMessageCenter", "Failed to disable video capturing for the virtual machine <b>%1</b>.").arg(strMachineName),
                      UIErrorString::formatErrorInfo(comMachine));
 }
 
@@ -631,7 +638,7 @@ void UIPopupCenter::cannotMountImage(QWidget *pParent, const QString &strMachine
                                   .arg(strMediumName, strMachineName));
 }
 
-void UIPopupCenter::cannotOpenMedium(QWidget *pParent, const CVirtualBox &comVBox, UIMediumDeviceType /* enmType */, const QString &strLocation)
+void UIPopupCenter::cannotOpenMedium(QWidget *pParent, const CVirtualBox &comVBox, UIMediumType /* enmType */, const QString &strLocation)
 {
     alertWithDetails(pParent, "cannotOpenMedium",
                      QApplication::translate("UIMessageCenter",

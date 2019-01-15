@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_nocrt_x86_math_h
-#define IPRT_INCLUDED_nocrt_x86_math_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_nocrt_x86_math_h
+#define ___iprt_nocrt_x86_math_h
 
 #include <iprt/asm.h>
 
@@ -100,5 +97,5 @@ DECLINLINE(double) inline_sqrt(double rd)
 
 #endif /* RT_INLINE_ASM_GNU_STYLE */
 
-#endif /* !IPRT_INCLUDED_nocrt_x86_math_h */
+#endif
 

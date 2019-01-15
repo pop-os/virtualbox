@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,7 +39,8 @@ DECLINLINE(void) crWarning(const char *format, ... ) {}
 # include "cr_bmpscale.h"
 #endif
 
-#include <iprt/errcore.h>
+#include <iprt/cdefs.h>
+#include <iprt/types.h>
 #include <iprt/mem.h>
 
 

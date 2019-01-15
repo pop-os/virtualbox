@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,7 +34,6 @@
 #include <iprt/err.h>
 #include <iprt/string.h>
 #include <iprt/crypto/digest.h>
-#include <iprt/crypto/key.h>
 #include <iprt/crypto/pkix.h>
 #include <iprt/crypto/store.h>
 #include <iprt/crypto/x509.h>
@@ -482,30 +481,26 @@ static int rtCrPkcs7VerifySignerInfo(PCRTCRPKCS7SIGNERINFO pSignerInfo, PCRTCRPK
          */
         if (RT_SUCCESS(rc))
         {
-            RTCRKEY hKey;
-            rc = RTCrKeyCreateFromSubjectPublicKeyInfo(&hKey, &pSignerCert->TbsCertificate.SubjectPublicKeyInfo,
-                                                       pErrInfo, "pkcs7");
+            RTCRPKIXSIGNATURE hSignature;
+            rc = RTCrPkixSignatureCreateByObjId(&hSignature,
+                                                &pSignerCert->TbsCertificate.SubjectPublicKeyInfo.Algorithm.Algorithm,
+                                                false /*fSigning*/,
+                                                &pSignerCert->TbsCertificate.SubjectPublicKeyInfo.SubjectPublicKey,
+                                                &pSignerInfo->DigestEncryptionAlgorithm.Parameters);
             if (RT_SUCCESS(rc))
             {
-                RTCRPKIXSIGNATURE hSignature;
-                rc = RTCrPkixSignatureCreateByObjId(&hSignature, &pSignerInfo->DigestEncryptionAlgorithm.Algorithm,
-                                                    hKey, &pSignerInfo->DigestEncryptionAlgorithm.Parameters, false /*fSigning*/);
-                RTCrKeyRelease(hKey);
-                if (RT_SUCCESS(rc))
-                {
-                    /** @todo Check that DigestEncryptionAlgorithm is compatible with hSignature
-                     *        (this is not vital). */
-                    rc = RTCrPkixSignatureVerifyOctetString(hSignature, hDigest, &pSignerInfo->EncryptedDigest);
-                    if (RT_FAILURE(rc))
-                        rc = RTErrInfoSetF(pErrInfo, VERR_CR_PKCS7_SIGNATURE_VERIFICATION_FAILED,
-                                           "Signature verficiation failed: %Rrc", rc);
-                    RTCrPkixSignatureRelease(hSignature);
-                }
-                else
-                    rc = RTErrInfoSetF(pErrInfo, rc, "Failure to instantiate public key algorithm [IPRT]: %s (%s)",
-                                       pSignerCert->TbsCertificate.SubjectPublicKeyInfo.Algorithm.Algorithm.szObjId,
-                                       pSignerInfo->DigestEncryptionAlgorithm.Algorithm.szObjId);
+                /** @todo Check that DigestEncryptionAlgorithm is compatible with hSignature
+                 *        (this is not vital). */
+                rc = RTCrPkixSignatureVerifyOctetString(hSignature, hDigest, &pSignerInfo->EncryptedDigest);
+                if (RT_FAILURE(rc))
+                    rc = RTErrInfoSetF(pErrInfo, VERR_CR_PKCS7_SIGNATURE_VERIFICATION_FAILED,
+                                       "Signature verficiation failed: %Rrc", rc);
+                RTCrPkixSignatureRelease(hSignature);
             }
+            else
+                rc = RTErrInfoSetF(pErrInfo, rc, "Failure to instantiate public key algorithm [IPRT]: %s (%s)",
+                                   pSignerCert->TbsCertificate.SubjectPublicKeyInfo.Algorithm.Algorithm.szObjId,
+                                   pSignerInfo->DigestEncryptionAlgorithm.Algorithm.szObjId);
         }
 
         RTCrDigestRelease(hDigest);

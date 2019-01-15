@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,11 +17,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_INCLUDED_SRC_VBoxSDL_Helper_h
-#define VBOX_INCLUDED_SRC_VBoxSDL_Helper_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __H_HELPER
+#define __H_HELPER
 
 #if defined(VBOX_WITH_XPCOM) && !defined(RT_OS_DARWIN) && !defined(RT_OS_OS2)
 
@@ -53,5 +50,5 @@ void terminateXPCOMQueueThread(void);
 
 #endif /* defined(VBOX_WITH_XPCOM) && !defined(RT_OS_DARWIN) && !defined(RT_OS_OS2) */
 
-#endif /* !VBOX_INCLUDED_SRC_VBoxSDL_Helper_h */
+#endif // __H_HELPER
 

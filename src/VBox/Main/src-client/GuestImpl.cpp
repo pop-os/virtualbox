@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -808,33 +808,36 @@ HRESULT Guest::setCredentials(const com::Utf8Str &aUserName, const com::Utf8Str 
     /* Check for magic domain names which are used to pass encryption keys to the disk. */
     if (Utf8Str(aDomain) == "@@disk")
         return mParent->i_setDiskEncryptionKeys(aPassword);
-    if (Utf8Str(aDomain) == "@@mem")
+    else if (Utf8Str(aDomain) == "@@mem")
     {
         /** @todo */
         return E_NOTIMPL;
     }
-
-    /* forward the information to the VMM device */
-    VMMDev *pVMMDev = mParent->i_getVMMDev();
-    if (pVMMDev)
+    else
     {
-        PPDMIVMMDEVPORT pVMMDevPort = pVMMDev->getVMMDevPort();
-        if (pVMMDevPort)
+        /* forward the information to the VMM device */
+        VMMDev *pVMMDev = mParent->i_getVMMDev();
+        if (pVMMDev)
         {
-            uint32_t u32Flags = VMMDEV_SETCREDENTIALS_GUESTLOGON;
-            if (!aAllowInteractiveLogon)
-                u32Flags = VMMDEV_SETCREDENTIALS_NOLOCALLOGON;
+            PPDMIVMMDEVPORT pVMMDevPort = pVMMDev->getVMMDevPort();
+            if (pVMMDevPort)
+            {
+                uint32_t u32Flags = VMMDEV_SETCREDENTIALS_GUESTLOGON;
+                if (!aAllowInteractiveLogon)
+                    u32Flags = VMMDEV_SETCREDENTIALS_NOLOCALLOGON;
 
-            pVMMDevPort->pfnSetCredentials(pVMMDevPort,
-                                           aUserName.c_str(),
-                                           aPassword.c_str(),
-                                           aDomain.c_str(),
-                                           u32Flags);
-            return S_OK;
+                pVMMDevPort->pfnSetCredentials(pVMMDevPort,
+                                               aUserName.c_str(),
+                                               aPassword.c_str(),
+                                               aDomain.c_str(),
+                                               u32Flags);
+                return S_OK;
+            }
         }
     }
 
-    return setError(VBOX_E_VM_ERROR, tr("VMM device is not available (is the VM running?)"));
+    return setError(VBOX_E_VM_ERROR,
+                    tr("VMM device is not available (is the VM running?)"));
 }
 
 // public methods only for internal purposes

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2019 Oracle Corporation
+ * Copyright (C) 2014-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VMM_INCLUDED_SRC_include_GIMInternal_h
-#define VMM_INCLUDED_SRC_include_GIMInternal_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___GIMInternal_h
+#define ___GIMInternal_h
 
 #include <VBox/vmm/gim.h>
 #include <VBox/vmm/pgm.h>
@@ -119,5 +116,5 @@ VMMR3_INT_DECL(int)           gimR3DebugWrite(PVM pVM, void *pvWrite, size_t *pc
 
 RT_C_DECLS_END
 
-#endif /* !VMM_INCLUDED_SRC_include_GIMInternal_h */
+#endif
 

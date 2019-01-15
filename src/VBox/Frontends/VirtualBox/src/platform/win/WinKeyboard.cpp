@@ -1,10 +1,10 @@
 /* $Id: WinKeyboard.cpp $ */
 /** @file
- * VBox Qt GUI - Declarations of utility functions for handling Windows Keyboard specific tasks.
+ * VBox Qt GUI - Windows keyboard handling..
  */
 
 /*
- * Copyright (C) 2014-2019 Oracle Corporation
+ * Copyright (C) 2014-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,17 +15,12 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Defines: */
 #define LOG_GROUP LOG_GROUP_GUI
 
-/* GUI includes: */
 #include "WinKeyboard.h"
-
-/* Other VBox includes: */
 #include <iprt/assert.h>
 #include <VBox/log.h>
 
-/* External includes: */
 #include <stdio.h>
 
 

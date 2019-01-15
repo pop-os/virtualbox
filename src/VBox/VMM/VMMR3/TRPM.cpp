@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -86,7 +86,6 @@
 #include <VBox/vmm/stam.h>
 #include <VBox/vmm/csam.h>
 #include <VBox/vmm/patm.h>
-#include <VBox/vmm/iem.h>
 #include "TRPMInternal.h"
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/em.h>
@@ -504,7 +503,7 @@ VMMR3DECL(int) TRPMR3Init(PVM pVM)
     pVM->trpm.s.hShadowIdtWriteHandlerType = NIL_PGMVIRTHANDLERTYPE;
     pVM->trpm.s.hGuestIdtWriteHandlerType  = NIL_PGMVIRTHANDLERTYPE;
 #ifdef VBOX_WITH_RAW_MODE
-    if (VM_IS_RAW_MODE_ENABLED(pVM))
+    if (!HMIsEnabled(pVM))
     {
 # ifdef TRPM_TRACK_SHADOW_IDT_CHANGES
         rc = PGMR3HandlerVirtualTypeRegister(pVM, PGMVIRTHANDLERKIND_HYPERVISOR, false /*fRelocUserRC*/,
@@ -542,7 +541,7 @@ VMMR3DECL(int) TRPMR3Init(PVM pVM)
      * Statistics.
      */
 #ifdef VBOX_WITH_RAW_MODE
-    if (VM_IS_RAW_MODE_ENABLED(pVM))
+    if (!HMIsEnabled(pVM))
     {
         STAM_REG(pVM, &pVM->trpm.s.StatRCWriteGuestIDTFault,    STAMTYPE_COUNTER, "/TRPM/RC/IDTWritesFault",    STAMUNIT_OCCURENCES,     "Guest IDT writes the we returned to R3 to handle.");
         STAM_REG(pVM, &pVM->trpm.s.StatRCWriteGuestIDTHandled,  STAMTYPE_COUNTER, "/TRPM/RC/IDTWritesHandled",  STAMUNIT_OCCURENCES,     "Guest IDT writes that we handled successfully.");
@@ -581,7 +580,7 @@ VMMR3DECL(int) TRPMR3Init(PVM pVM)
                         i < 0x20 ? "/TRPM/ForwardRaw/TRAP/%02X" : "/TRPM/ForwardRaw/IRQ/%02X", i);
 
 #  ifdef VBOX_WITH_RAW_MODE
-    if (VM_IS_RAW_MODE_ENABLED(pVM))
+    if (!HMIsEnabled(pVM))
     {
         rc = MMHyperAlloc(pVM, sizeof(STAMCOUNTER) * 256, sizeof(STAMCOUNTER), MM_TAG_TRPM, (void **)&pVM->trpm.s.paStatHostIrqR3);
         AssertRCReturn(rc, rc);
@@ -594,7 +593,7 @@ VMMR3DECL(int) TRPMR3Init(PVM pVM)
 # endif
 
 #ifdef VBOX_WITH_RAW_MODE
-    if (VM_IS_RAW_MODE_ENABLED(pVM))
+    if (!HMIsEnabled(pVM))
     {
         STAM_REG(pVM, &pVM->trpm.s.StatForwardProfR3,       STAMTYPE_PROFILE_ADV, "/TRPM/ForwardRaw/ProfR3",   STAMUNIT_TICKS_PER_CALL, "Profiling TRPMForwardTrap.");
         STAM_REG(pVM, &pVM->trpm.s.StatForwardProfRZ,       STAMTYPE_PROFILE_ADV, "/TRPM/ForwardRaw/ProfRZ",   STAMUNIT_TICKS_PER_CALL, "Profiling TRPMForwardTrap.");
@@ -612,7 +611,7 @@ VMMR3DECL(int) TRPMR3Init(PVM pVM)
     /*
      * Default action when entering raw mode for the first time
      */
-    if (VM_IS_RAW_MODE_ENABLED(pVM))
+    if (!HMIsEnabled(pVM))
     {
         PVMCPU pVCpu = &pVM->aCpus[0];  /* raw mode implies on VCPU */
         VMCPU_FF_SET(pVCpu, VMCPU_FF_TRPM_SYNC_IDT);
@@ -634,7 +633,7 @@ VMMR3DECL(int) TRPMR3Init(PVM pVM)
 VMMR3DECL(void) TRPMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
 {
 #ifdef VBOX_WITH_RAW_MODE
-    if (!VM_IS_RAW_MODE_ENABLED(pVM))
+    if (HMIsEnabled(pVM))
         return;
 
     /* Only applies to raw mode which supports only 1 VCPU. */
@@ -822,7 +821,7 @@ VMMR3DECL(void) TRPMR3Reset(PVM pVM)
     /*
      * Default action when entering raw mode for the first time
      */
-    if (VM_IS_RAW_MODE_ENABLED(pVM))
+    if (!HMIsEnabled(pVM))
     {
         PVMCPU pVCpu = &pVM->aCpus[0];  /* raw mode implies on VCPU */
         VMCPU_FF_SET(pVCpu, VMCPU_FF_TRPM_SYNC_IDT);
@@ -905,7 +904,7 @@ static DECLCALLBACK(int) trpmR3Save(PVM pVM, PSSMHANDLE pSSM)
         SSMR3PutGCUIntPtr(pSSM, pTrpmCpu->uSavedCR2);
         SSMR3PutGCUInt(pSSM,    pTrpmCpu->uPrevVector);
     }
-    SSMR3PutBool(pSSM,      !VM_IS_RAW_MODE_ENABLED(pVM));
+    SSMR3PutBool(pSSM,      HMIsEnabled(pVM));
     PVMCPU pVCpu0 = &pVM->aCpus[0]; NOREF(pVCpu0); /* raw mode implies 1 VCPU */
     SSMR3PutUInt(pSSM,      VM_WHEN_RAW_MODE(VMCPU_FF_IS_SET(pVCpu0, VMCPU_FF_TRPM_SYNC_IDT), 0));
     SSMR3PutMem(pSSM,       &pTrpm->au32IdtPatched[0], sizeof(pTrpm->au32IdtPatched));
@@ -1078,7 +1077,7 @@ VMMR3DECL(int) TRPMR3SyncIDT(PVM pVM, PVMCPU pVCpu)
     const bool  fRawRing0 = EMIsRawRing0Enabled(pVM);
     int         rc;
 
-    AssertReturn(VM_IS_RAW_MODE_ENABLED(pVM), VERR_TRPM_HM_IPE);
+    AssertReturn(!HMIsEnabled(pVM), VERR_TRPM_HM_IPE);
 
     if (fRawRing0 && CSAMIsEnabled(pVM))
     {
@@ -1183,7 +1182,7 @@ int trpmR3ClearPassThroughHandler(PVM pVM, unsigned iTrap)
 {
     /* Only applies to raw mode which supports only 1 VCPU. */
     PVMCPU pVCpu = &pVM->aCpus[0];
-    Assert(VM_IS_RAW_MODE_ENABLED(pVM));
+    Assert(!HMIsEnabled(pVM));
 
     /** @todo cleanup trpmR3ClearPassThroughHandler()! */
     RTRCPTR aGCPtrs[TRPM_HANDLER_MAX];
@@ -1244,7 +1243,7 @@ int trpmR3ClearPassThroughHandler(PVM pVM, unsigned iTrap)
  */
 VMMR3DECL(uint32_t) TRPMR3QueryGateByHandler(PVM pVM, RTRCPTR GCPtr)
 {
-    AssertReturn(VM_IS_RAW_MODE_ENABLED(pVM), ~0U);
+    AssertReturn(!HMIsEnabled(pVM), ~0U);
 
     for (uint32_t iTrap = 0; iTrap < RT_ELEMENTS(pVM->trpm.s.aGuestTrapHandler); iTrap++)
     {
@@ -1275,7 +1274,7 @@ VMMR3DECL(uint32_t) TRPMR3QueryGateByHandler(PVM pVM, RTRCPTR GCPtr)
 VMMR3DECL(RTRCPTR) TRPMR3GetGuestTrapHandler(PVM pVM, unsigned iTrap)
 {
     AssertReturn(iTrap < RT_ELEMENTS(pVM->trpm.s.aIdt), TRPM_INVALID_HANDLER);
-    AssertReturn(VM_IS_RAW_MODE_ENABLED(pVM), TRPM_INVALID_HANDLER);
+    AssertReturn(!HMIsEnabled(pVM), TRPM_INVALID_HANDLER);
 
     return pVM->trpm.s.aGuestTrapHandler[iTrap];
 }
@@ -1294,7 +1293,7 @@ VMMR3DECL(int) TRPMR3SetGuestTrapHandler(PVM pVM, unsigned iTrap, RTRCPTR pHandl
 {
     /* Only valid in raw mode which implies 1 VCPU */
     Assert(PATMIsEnabled(pVM) && pVM->cCpus == 1);
-    AssertReturn(VM_IS_RAW_MODE_ENABLED(pVM), VERR_TRPM_HM_IPE);
+    AssertReturn(!HMIsEnabled(pVM), VERR_TRPM_HM_IPE);
     PVMCPU pVCpu = &pVM->aCpus[0];
 
     /*
@@ -1488,28 +1487,25 @@ VMMR3DECL(bool) TRPMR3IsGateHandler(PVM pVM, RTRCPTR GCPtr)
 #endif /* VBOX_WITH_RAW_MODE */
 
 /**
- * Inject event (such as external irq or trap).
+ * Inject event (such as external irq or trap)
  *
  * @returns VBox status code.
  * @param   pVM         The cross context VM structure.
  * @param   pVCpu       The cross context virtual CPU structure.
  * @param   enmEvent    Trpm event type
- * @param   pfInjected  Where to store whether the event was injected or not.
  */
-VMMR3DECL(int) TRPMR3InjectEvent(PVM pVM, PVMCPU pVCpu, TRPMEVENT enmEvent, bool *pfInjected)
+VMMR3DECL(int) TRPMR3InjectEvent(PVM pVM, PVMCPU pVCpu, TRPMEVENT enmEvent)
 {
 #ifdef VBOX_WITH_RAW_MODE
     PCPUMCTX pCtx = CPUMQueryGuestCtxPtr(pVCpu);
     Assert(!PATMIsPatchGCAddr(pVM, pCtx->eip));
 #endif
     Assert(!VMCPU_FF_IS_SET(pVCpu, VMCPU_FF_INHIBIT_INTERRUPTS));
-    Assert(pfInjected);
-    *pfInjected = false;
 
     /* Currently only useful for external hardware interrupts. */
     Assert(enmEvent == TRPM_HARDWARE_INT);
 
-#if defined(TRPM_FORWARD_TRAPS_IN_GC)
+#if defined(TRPM_FORWARD_TRAPS_IN_GC) && !defined(IEM_VERIFICATION_MODE)
 
 # ifdef LOG_ENABLED
     DBGFR3_INFO_LOG(pVM, pVCpu, "cpumguest", "TRPMInject");
@@ -1521,21 +1517,13 @@ VMMR3DECL(int) TRPMR3InjectEvent(PVM pVM, PVMCPU pVCpu, TRPMEVENT enmEvent, bool
     Log(("TRPMR3InjectEvent: CPU%d u8Interrupt=%d (%#x) rc=%Rrc\n", pVCpu->idCpu, u8Interrupt, u8Interrupt, rc));
     if (RT_SUCCESS(rc))
     {
-        if (EMIsSupervisorCodeRecompiled(pVM) || !VM_IS_RAW_MODE_ENABLED(pVM))
+        if (HMIsEnabled(pVM) || EMIsSupervisorCodeRecompiled(pVM))
         {
+            rc = TRPMAssertTrap(pVCpu, u8Interrupt, enmEvent);
+            AssertRC(rc);
             STAM_COUNTER_INC(&pVM->trpm.s.paStatForwardedIRQR3[u8Interrupt]);
-            if (!VM_IS_NEM_ENABLED(pVM))
-            {
-                rc = TRPMAssertTrap(pVCpu, u8Interrupt, enmEvent);
-                AssertRC(rc);
-                return HMR3IsActive(pVCpu) ? VINF_EM_RESCHEDULE_HM : VINF_EM_RESCHEDULE_REM;
-            }
-            VBOXSTRICTRC rcStrict = IEMInjectTrap(pVCpu, u8Interrupt, enmEvent, 0, 0, 0);
-            if (rcStrict == VINF_SUCCESS)
-                return VINF_EM_RESCHEDULE;
-            return VBOXSTRICTRC_TODO(rcStrict);
+            return HMR3IsActive(pVCpu) ? VINF_EM_RESCHEDULE_HM : VINF_EM_RESCHEDULE_REM;
         }
-
         /* If the guest gate is not patched, then we will check (again) if we can patch it. */
         if (pVM->trpm.s.aGuestTrapHandler[u8Interrupt] == TRPM_INVALID_HANDLER)
         {
@@ -1553,7 +1541,7 @@ VMMR3DECL(int) TRPMR3InjectEvent(PVM pVM, PVMCPU pVCpu, TRPMEVENT enmEvent, bool
                 rc = TRPMForwardTrap(pVCpu, CPUMCTX2CORE(pCtx), u8Interrupt, 0, TRPM_TRAP_NO_ERRORCODE, enmEvent, -1);
                 if (rc == VINF_SUCCESS /* Don't use RT_SUCCESS */)
                 {
-                    Assert(!VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_TRPM_SYNC_IDT | VMCPU_FF_SELM_SYNC_TSS));
+                    Assert(!VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_SELM_SYNC_GDT | VMCPU_FF_SELM_SYNC_LDT | VMCPU_FF_TRPM_SYNC_IDT | VMCPU_FF_SELM_SYNC_TSS));
 
                     STAM_COUNTER_INC(&pVM->trpm.s.paStatForwardedIRQR3[u8Interrupt]);
                     return VINF_EM_RESCHEDULE_RAW;
@@ -1570,9 +1558,7 @@ VMMR3DECL(int) TRPMR3InjectEvent(PVM pVM, PVMCPU pVCpu, TRPMEVENT enmEvent, bool
     {
         /* Can happen if the interrupt is masked by TPR or APIC is disabled. */
         AssertMsg(rc == VERR_APIC_INTR_MASKED_BY_TPR || rc == VERR_NO_DATA, ("PDMGetInterrupt failed. rc=%Rrc\n", rc));
-        return HMR3IsActive(pVCpu)    ? VINF_EM_RESCHEDULE_HM
-             : VM_IS_NEM_ENABLED(pVM) ? VINF_EM_RESCHEDULE
-             :                          VINF_EM_RESCHEDULE_REM; /* (Heed the halted state if this is changed!) */
+        return HMR3IsActive(pVCpu) ? VINF_EM_RESCHEDULE_HM : VINF_EM_RESCHEDULE_REM; /* (Heed the halted state if this is changed!) */
     }
 
     /** @todo check if it's safe to translate the patch address to the original guest address.
@@ -1583,39 +1569,15 @@ VMMR3DECL(int) TRPMR3InjectEvent(PVM pVM, PVMCPU pVCpu, TRPMEVENT enmEvent, bool
     /* Fall back to the recompiler */
     return VINF_EM_RESCHEDULE_REM; /* (Heed the halted state if this is changed!) */
 
-#else  /* !TRPM_FORWARD_TRAPS_IN_GC */
+#else  /* !TRPM_FORWARD_TRAPS_IN_GC || IEM_VERIFICATION_MODE */
     RT_NOREF(pVM, enmEvent);
     uint8_t u8Interrupt = 0;
     int rc = PDMGetInterrupt(pVCpu, &u8Interrupt);
     Log(("TRPMR3InjectEvent: u8Interrupt=%d (%#x) rc=%Rrc\n", u8Interrupt, u8Interrupt, rc));
     if (RT_SUCCESS(rc))
     {
-#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
-        /* Handle the "acknowledge interrupt on exit" VM-exit intercept. */
-        if (CPUMIsGuestInVmxNonRootMode(pCtx))
-        {
-            if (   CPUMIsGuestVmxExitCtlsSet(pVCpu, pCtx, VMX_EXIT_CTLS_ACK_EXT_INT)
-                && CPUMIsGuestVmxPinCtlsSet(pVCpu, pCtx, VMX_PIN_CTLS_EXT_INT_EXIT))
-            {
-                VBOXSTRICTRC rcStrict = IEMExecVmxVmexitExtInt(pVCpu, u8Interrupt, false /* fIntPending */);
-                Assert(rcStrict != VINF_PGM_CHANGE_MODE);
-                if (rcStrict != VINF_VMX_INTERCEPT_NOT_ACTIVE)
-                    return VBOXSTRICTRC_TODO(rcStrict);
-            }
-        }
-#endif
-        *pfInjected = true;
-        if (!VM_IS_NEM_ENABLED(pVM))
-        {
-            rc = TRPMAssertTrap(pVCpu, u8Interrupt, TRPM_HARDWARE_INT);
-            AssertRC(rc);
-        }
-        else
-        {
-            VBOXSTRICTRC rcStrict = IEMInjectTrap(pVCpu, u8Interrupt, enmEvent, 0, 0, 0);
-            if (rcStrict != VINF_SUCCESS)
-                return VBOXSTRICTRC_TODO(rcStrict);
-        }
+        rc = TRPMAssertTrap(pVCpu, u8Interrupt, TRPM_HARDWARE_INT);
+        AssertRC(rc);
         STAM_COUNTER_INC(&pVM->trpm.s.paStatForwardedIRQR3[u8Interrupt]);
     }
     else
@@ -1623,10 +1585,9 @@ VMMR3DECL(int) TRPMR3InjectEvent(PVM pVM, PVMCPU pVCpu, TRPMEVENT enmEvent, bool
         /* Can happen if the interrupt is masked by TPR or APIC is disabled. */
         AssertMsg(rc == VERR_APIC_INTR_MASKED_BY_TPR || rc == VERR_NO_DATA, ("PDMGetInterrupt failed. rc=%Rrc\n", rc));
     }
-    return HMR3IsActive(pVCpu)    ? VINF_EM_RESCHEDULE_HM
-         : VM_IS_NEM_ENABLED(pVM) ? VINF_EM_RESCHEDULE
-         :                          VINF_EM_RESCHEDULE_REM; /* (Heed the halted state if this is changed!) */
-#endif /* !TRPM_FORWARD_TRAPS_IN_GC */
+    return HMR3IsActive(pVCpu) ? VINF_EM_RESCHEDULE_HM : VINF_EM_RESCHEDULE_REM; /* (Heed the halted state if this is changed!) */
+#endif /* !TRPM_FORWARD_TRAPS_IN_GC || IEM_VERIFICATION_MODE */
+
 }
 
 

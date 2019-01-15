@@ -1,10 +1,10 @@
 /* $Id: UIFilePathSelector.cpp $ */
 /** @file
- * VBox Qt GUI - UIFilePathSelector class implementation.
+ * VBox Qt GUI - VirtualBox Qt extensions: UIFilePathSelector class implementation.
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,29 +15,35 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QAction>
-#include <QApplication>
-#include <QClipboard>
-#include <QDir>
-#include <QFocusEvent>
-#include <QHBoxLayout>
-#include <QLineEdit>
-#ifdef VBOX_WS_WIN
-# include <QListView>
-#endif
+# include <QAction>
+# include <QApplication>
+# include <QClipboard>
+# include <QDir>
+# include <QFocusEvent>
+# include <QHBoxLayout>
+# include <QLineEdit>
+# ifdef VBOX_WS_WIN
+#  include <QListView>
+# endif /* VBOX_WS_WIN */
 
 /* GUI includes: */
-#include "QIFileDialog.h"
-#include "QILabel.h"
-#include "QILineEdit.h"
-#include "QIToolButton.h"
-#include "VBoxGlobal.h"
-#include "UIIconPool.h"
-#include "UIFilePathSelector.h"
+# include "QIFileDialog.h"
+# include "QILabel.h"
+# include "QILineEdit.h"
+# include "QIToolButton.h"
+# include "UIIconPool.h"
+# include "UIFilePathSelector.h"
+# include "VBoxGlobal.h"
 
 /* Other VBox includes: */
-#include <iprt/assert.h>
+# include <iprt/assert.h>
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 /** Returns first position of difference between passed strings. */
@@ -167,20 +173,6 @@ void UIFilePathSelector::setToolTip(const QString &strToolTip)
 
     /* Remember if the tool-tip overriden: */
     m_fToolTipOverriden = !toolTip().isEmpty();
-}
-
-void UIFilePathSelector::setDefaultPath(const QString &strDefaultPath)
-{
-    if (m_strDefaultPath == strDefaultPath)
-        return;
-    m_strDefaultPath = strDefaultPath;
-    if (currentIndex() == ResetId)
-        setPath(m_strDefaultPath);
-}
-
-const QString& UIFilePathSelector::defaultPath() const
-{
-    return m_strDefaultPath;
 }
 
 void UIFilePathSelector::setPath(const QString &strPath, bool fRefreshText /* = true */)
@@ -328,10 +320,7 @@ void UIFilePathSelector::onActivated(int iIndex)
         }
         case ResetId:
         {
-            if (m_strDefaultPath.isEmpty())
-                changePath(QString::null);
-            else
-                changePath(m_strDefaultPath);
+            changePath(QString::null);
             break;
         }
         default:
@@ -577,3 +566,4 @@ void UIFilePathSelector::refreshText()
         setItemData(PathId, toolTip(), Qt::ToolTipRole);
     }
 }
+

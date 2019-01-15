@@ -8,7 +8,7 @@ VirtualBox Validation Kit - Storage benchmark.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2019 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,17 +27,14 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 117942 $"
 
 
 # Standard Python imports.
 import os;
 import socket;
 import sys;
-if sys.version_info[0] >= 3:
-    from io       import StringIO as StringIO;      # pylint: disable=import-error,no-name-in-module
-else:
-    from StringIO import StringIO as StringIO;      # pylint: disable=import-error,no-name-in-module
+import StringIO;
 
 # Only the main script needs to modify the path.
 try:    __file__
@@ -56,7 +53,6 @@ from testdriver import vboxwrappers;
 
 import remoteexecutor;
 import storagecfg;
-
 
 def _ControllerTypeToName(eControllerType):
     """ Translate a controller type to a name. """
@@ -99,7 +95,7 @@ class FioTest(object):
         if sIoEngine is None:
             return False;
 
-        cfgBuf = StringIO();
+        cfgBuf = StringIO.StringIO();
         cfgBuf.write('[global]\n');
         cfgBuf.write('bs=' + self.dCfg.get('RecordSize', '4k') + '\n');
         cfgBuf.write('ioengine=' + sIoEngine + '\n');
@@ -1071,7 +1067,7 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
                 sMountPoint = self.prepareStorage(self.oStorCfg, self.fUseRamDisk, 2 * cbDisk);
                 if sMountPoint is not None:
                     # Create a directory where every normal user can write to.
-                    self.oStorCfg.mkDirOnVolume(sMountPoint, 'test', 0o777);
+                    self.oStorCfg.mkDirOnVolume(sMountPoint, 'test', 0777);
                     sDiskPath = sMountPoint + '/test';
                 else:
                     fRc = False;
@@ -1093,13 +1089,8 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
             # Reconfigure the VM
             oSession = self.openSession(oVM);
             if oSession is not None:
-                #
-                # Disable audio controller which shares the interrupt line with the BusLogic controller and is suspected to cause
-                # rare test failures because the device initialization fails.
-                #
-                fRc = oSession.setupAudio(vboxcon.AudioControllerType_AC97, False);
                 # Attach HD
-                fRc = fRc and oSession.ensureControllerAttached(_ControllerTypeToName(eStorageController));
+                fRc = oSession.ensureControllerAttached(_ControllerTypeToName(eStorageController));
                 fRc = fRc and oSession.setStorageControllerType(eStorageController, _ControllerTypeToName(eStorageController));
 
                 if sHostIoCache == 'hostiocache':
@@ -1150,8 +1141,8 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
                             sCfgmPath = 'VBoxInternal/Devices/%s/0/LUN#%u/Config' % (sDrv, iLun);
 
                         sIoLogFile = '%s/%s.iolog' % (self.sIoLogPath, sDrv);
-                        print(sCfgmPath);
-                        print(sIoLogFile);
+                        print sCfgmPath;
+                        print sIoLogFile;
                         oSession.o.machine.setExtraData('%s/IoLog' % (sCfgmPath,), sIoLogFile);
                     except:
                         reporter.logXcpt();
@@ -1181,16 +1172,7 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
                     oStorCfgVm = storagecfg.StorageCfg(oExecVm, 'linux', self.getGuestDisk(oSession, oTxsSession, \
                                                                                            eStorageController));
 
-                    iTry = 0;
-                    while iTry < 3:
-                        sMountPoint = self.prepareStorage(oStorCfgVm);
-                        if sMountPoint is not None:
-                            reporter.log('Prepared storage on %s try' % (iTry + 1,));
-                            break;
-                        else:
-                            iTry = iTry + 1;
-                            self.sleep(5);
-
+                    sMountPoint = self.prepareStorage(oStorCfgVm);
                     if sMountPoint is not None:
                         self.testBenchmark('linux', sIoTest, sMountPoint, oExecVm, dTestSet, \
                                            cMsTimeout = 3 * 3600 * 1000); # 3 hours max (Benchmark and QED takes a lot of time)
@@ -1329,7 +1311,7 @@ class tdStorageBenchmark(vbox.TestDriver):                                      
                     if sMountPoint is None:
                         reporter.testFailure('Failed to prepare host storage');
                         fRc = False;
-                    self.oStorCfg.mkDirOnVolume(sMountPoint, 'test', 0o777);
+                    self.oStorCfg.mkDirOnVolume(sMountPoint, 'test', 0777);
                     sMountPoint = sMountPoint + '/test';
                     reporter.testDone();
 

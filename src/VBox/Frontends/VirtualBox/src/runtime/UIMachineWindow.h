@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_runtime_UIMachineWindow_h
-#define FEQT_INCLUDED_SRC_runtime_UIMachineWindow_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __UIMachineWindow_h__
+#define __UIMachineWindow_h__
 
 /* Qt includes: */
 #include <QMainWindow>
@@ -37,10 +34,7 @@
 
 /* Forward declarations: */
 class QCloseEvent;
-class QEvent;
-class QHideEvent;
 class QGridLayout;
-class QShowEvent;
 class QSpacerItem;
 class UIActionPool;
 class UISession;
@@ -130,13 +124,8 @@ protected:
     /* Translate stuff: */
     void retranslateUi();
 
-    /** Handles any Qt @a pEvent. */
-    virtual bool event(QEvent *pEvent) /* override */;
-
-    /** Handles show @a pEvent. */
-    virtual void showEvent(QShowEvent *pEvent) /* override */;
-    /** Handles hide @a pEvent. */
-    virtual void hideEvent(QHideEvent *pEvent) /* override */;
+    /** Show event handler. */
+    void showEvent(QShowEvent *pShowEvent);
 
     /** Close event handler. */
     void closeEvent(QCloseEvent *pCloseEvent);
@@ -212,5 +201,5 @@ protected:
     friend class UIMachineLogicSeamless;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_runtime_UIMachineWindow_h */
+#endif // __UIMachineWindow_h__
 

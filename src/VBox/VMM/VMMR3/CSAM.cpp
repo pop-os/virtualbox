@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -348,7 +348,7 @@ VMMR3_INT_DECL(int) CSAMR3Init(PVM pVM)
     /*
      * We only need a saved state dummy loader if HM is enabled.
      */
-    if (!VM_IS_RAW_MODE_ENABLED(pVM))
+    if (HMIsEnabled(pVM))
     {
         pVM->fCSAMEnabled = false;
         return SSMR3RegisterStub(pVM, "CSAM", 0);
@@ -482,7 +482,7 @@ static int csamReinit(PVM pVM)
      */
     AssertRelease(!(RT_UOFFSETOF(VM, csam.s) & 31));
     AssertRelease(sizeof(pVM->csam.s) <= sizeof(pVM->csam.padding));
-    AssertRelease(VM_IS_RAW_MODE_ENABLED(pVM));
+    AssertRelease(!HMIsEnabled(pVM));
 
     /*
      * Setup any fixed pointers and offsets.
@@ -522,7 +522,7 @@ static int csamReinit(PVM pVM)
  */
 VMMR3_INT_DECL(void) CSAMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
 {
-    if (offDelta && VM_IS_RAW_MODE_ENABLED(pVM))
+    if (offDelta && !HMIsEnabled(pVM))
     {
         /* Adjust pgdir and page bitmap pointers. */
         pVM->csam.s.pPDBitmapGC   = MMHyperR3ToRC(pVM, pVM->csam.s.pPDGCBitmapHC);
@@ -550,7 +550,7 @@ VMMR3_INT_DECL(void) CSAMR3Relocate(PVM pVM, RTGCINTPTR offDelta)
  */
 VMMR3_INT_DECL(int) CSAMR3Term(PVM pVM)
 {
-    if (!VM_IS_RAW_MODE_ENABLED(pVM))
+    if (HMIsEnabled(pVM))
         return VINF_SUCCESS;
 
     int rc;
@@ -578,7 +578,7 @@ VMMR3_INT_DECL(int) CSAMR3Term(PVM pVM)
  */
 VMMR3_INT_DECL(int) CSAMR3Reset(PVM pVM)
 {
-    if (!VM_IS_RAW_MODE_ENABLED(pVM))
+    if (HMIsEnabled(pVM))
         return VINF_SUCCESS;
 
     /* Clear page bitmaps. */
@@ -1843,7 +1843,7 @@ static int csamFlushPage(PVM pVM, RTRCPTR addr, bool fRemovePage)
 
     if (!CSAMIsEnabled(pVM))
         return VINF_SUCCESS;
-    Assert(VM_IS_RAW_MODE_ENABLED(pVM));
+    Assert(!HMIsEnabled(pVM));
 
     PVMCPU pVCpu = VMMGetCpu0(pVM);
 
@@ -1961,7 +1961,7 @@ VMMR3_INT_DECL(int) CSAMR3RemovePage(PVM pVM, RTRCPTR addr)
     PCSAMPAGEREC pPageRec;
     int          rc;
 
-    AssertReturn(VM_IS_RAW_MODE_ENABLED(pVM), VERR_CSAM_HM_IPE);
+    AssertReturn(!HMIsEnabled(pVM), VERR_CSAM_HM_IPE);
 
     addr = addr & PAGE_BASE_GC_MASK;
 
@@ -2142,7 +2142,7 @@ VMMR3DECL(int) CSAMR3MonitorPage(PVM pVM, RTRCPTR pPageAddrGC, CSAMTAG enmTag)
     bool         fMonitorInvalidation;
     Assert(pVM->cCpus == 1);
     PVMCPU       pVCpu = VMMGetCpu0(pVM);
-    Assert(VM_IS_RAW_MODE_ENABLED(pVM));
+    Assert(!HMIsEnabled(pVM));
 
     /* Dirty pages must be handled before calling this function!. */
     Assert(!pVM->csam.s.cDirtyPages);
@@ -2265,7 +2265,7 @@ VMMR3DECL(int) CSAMR3MonitorPage(PVM pVM, RTRCPTR pPageAddrGC, CSAMTAG enmTag)
  */
 VMMR3DECL(int) CSAMR3UnmonitorPage(PVM pVM, RTRCPTR pPageAddrGC, CSAMTAG enmTag)
 {
-    Assert(VM_IS_RAW_MODE_ENABLED(pVM));
+    Assert(!HMIsEnabled(pVM));
 
     pPageAddrGC &= PAGE_BASE_GC_MASK;
 
@@ -2490,7 +2490,7 @@ VMMR3_INT_DECL(int) CSAMR3MarkCode(PVM pVM, RTRCPTR pInstr, uint32_t cbInstr, bo
 
     Assert(!fScanned);   /* other case not implemented. */
     Assert(!PATMIsPatchGCAddr(pVM, pInstr));
-    Assert(VM_IS_RAW_MODE_ENABLED(pVM));
+    Assert(!HMIsEnabled(pVM));
 
     if (csamIsCodeScanned(pVM, pInstr, &pPage) == false)
     {
@@ -2514,8 +2514,8 @@ VMMR3_INT_DECL(int) CSAMR3MarkCode(PVM pVM, RTRCPTR pInstr, uint32_t cbInstr, bo
  */
 VMMR3_INT_DECL(int) CSAMR3CheckCodeEx(PVM pVM, PCPUMCTX pCtx, RTRCPTR pInstrGC)
 {
-    Assert(VM_IS_RAW_MODE_ENABLED(pVM));
-    if (!EMIsRawRing0Enabled(pVM) || PATMIsPatchGCAddr(pVM, pInstrGC) == true)
+    Assert(!HMIsEnabled(pVM));
+    if (EMIsRawRing0Enabled(pVM) == false || PATMIsPatchGCAddr(pVM, pInstrGC) == true)
     {
         // No use
         return VINF_SUCCESS;
@@ -2543,9 +2543,9 @@ VMMR3_INT_DECL(int) CSAMR3CheckCode(PVM pVM, RTRCPTR pInstrGC)
 {
     int rc;
     PCSAMPAGE pPage = NULL;
-    Assert(VM_IS_RAW_MODE_ENABLED(pVM));
+    Assert(!HMIsEnabled(pVM));
 
-    if (    !EMIsRawRing0Enabled(pVM)
+    if (    EMIsRawRing0Enabled(pVM) == false
         ||  PATMIsPatchGCAddr(pVM, pInstrGC) == true)
     {
         /* Not active. */
@@ -2661,7 +2661,7 @@ static int csamR3FlushCodePages(PVM pVM)
  */
 VMMR3_INT_DECL(int) CSAMR3DoPendingAction(PVM pVM, PVMCPU pVCpu)
 {
-    AssertReturn(VM_IS_RAW_MODE_ENABLED(pVM), VERR_CSAM_HM_IPE);
+    AssertReturn(!HMIsEnabled(pVM), VERR_CSAM_HM_IPE);
 
     csamR3FlushDirtyPages(pVM);
     csamR3FlushCodePages(pVM);
@@ -2691,8 +2691,8 @@ VMMR3_INT_DECL(int) CSAMR3CheckGates(PVM pVM, uint32_t iGate, uint32_t cGates)
     PVBOXIDTE   pGuestIdte;
     int         rc;
 
-    AssertReturn(VM_IS_RAW_MODE_ENABLED(pVM), VERR_CSAM_HM_IPE);
-    if (!EMIsRawRing0Enabled(pVM))
+    AssertReturn(!HMIsEnabled(pVM), VERR_CSAM_HM_IPE);
+    if (EMIsRawRing0Enabled(pVM) == false)
     {
         /* Enabling interrupt gates only works when raw ring 0 is enabled. */
         //AssertFailed();
@@ -2899,7 +2899,7 @@ VMMR3_INT_DECL(int) CSAMR3CheckGates(PVM pVM, uint32_t iGate, uint32_t cGates)
  */
 VMMR3DECL(int) CSAMR3RecordCallAddress(PVM pVM, RTRCPTR GCPtrCall)
 {
-    Assert(VM_IS_RAW_MODE_ENABLED(pVM));
+    Assert(!HMIsEnabled(pVM));
     for (unsigned i=0;i<RT_ELEMENTS(pVM->csam.s.pvCallInstruction);i++)
     {
         if (pVM->csam.s.pvCallInstruction[i] == GCPtrCall)
@@ -2944,7 +2944,7 @@ VMMR3DECL(int) CSAMR3SetScanningEnabled(PUVM pUVM, bool fEnabled)
     PVM pVM = pUVM->pVM;
     VM_ASSERT_VALID_EXT_RETURN(pVM, VERR_INVALID_VM_HANDLE);
 
-    if (!VM_IS_RAW_MODE_ENABLED(pVM))
+    if (HMIsEnabled(pVM))
     {
         Assert(!pVM->fCSAMEnabled);
         return VINF_SUCCESS;

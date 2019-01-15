@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef GA_INCLUDED_SRC_freebsd_vboxvfs_vboxvfs_h
-#define GA_INCLUDED_SRC_freebsd_vboxvfs_vboxvfs_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBOXVFS_H___
+#define ___VBOXVFS_H___
 
 #define VBOXVFS_VFSNAME "vboxvfs"
 #define VBOXVFS_VERSION 1
@@ -91,5 +88,5 @@ struct sf_reg_info {
 
 #endif  /* KERNEL */
 
-#endif /* !GA_INCLUDED_SRC_freebsd_vboxvfs_vboxvfs_h */
+#endif /* !___VBOXVFS_H___ */
 

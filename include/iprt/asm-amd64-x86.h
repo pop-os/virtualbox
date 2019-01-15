@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_asm_amd64_x86_h
-#define IPRT_INCLUDED_asm_amd64_x86_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_asm_amd64_x86_h
+#define ___iprt_asm_amd64_x86_h
 
 #include <iprt/types.h>
 #include <iprt/assert.h>
@@ -88,7 +85,7 @@
 
 
 /*
- * Undefine all symbols we have Watcom C/C++ #pragma aux'es for.
+ * Include #pragma aux definitions for Watcom C/C++.
  */
 #if defined(__WATCOMC__) && ARCH_BITS == 16
 # include "asm-amd64-x86-watcom-16.h"
@@ -187,7 +184,7 @@ typedef RTGDTRALIGNED RT_FAR *PRGDTRALIGNED;
  * @param   pIdtr   Where to store the IDTR contents.
  */
 #if RT_INLINE_ASM_EXTERNAL
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMGetIDTR(PRTIDTR pIdtr);
+DECLASM(void) ASMGetIDTR(PRTIDTR pIdtr);
 #else
 DECLINLINE(void) ASMGetIDTR(PRTIDTR pIdtr)
 {
@@ -214,7 +211,7 @@ DECLINLINE(void) ASMGetIDTR(PRTIDTR pIdtr)
  * @returns IDTR limit.
  */
 #if RT_INLINE_ASM_EXTERNAL
-RT_ASM_DECL_PRAGMA_WATCOM(uint16_t) ASMGetIdtrLimit(void);
+DECLASM(uint16_t) ASMGetIdtrLimit(void);
 #else
 DECLINLINE(uint16_t) ASMGetIdtrLimit(void)
 {
@@ -237,7 +234,7 @@ DECLINLINE(uint16_t) ASMGetIdtrLimit(void)
  * @param   pIdtr   Where to load the IDTR contents from
  */
 #if RT_INLINE_ASM_EXTERNAL
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMSetIDTR(const RTIDTR RT_FAR *pIdtr);
+DECLASM(void) ASMSetIDTR(const RTIDTR RT_FAR *pIdtr);
 #else
 DECLINLINE(void) ASMSetIDTR(const RTIDTR RT_FAR *pIdtr)
 {
@@ -264,7 +261,7 @@ DECLINLINE(void) ASMSetIDTR(const RTIDTR RT_FAR *pIdtr)
  * @param   pGdtr   Where to store the GDTR contents.
  */
 #if RT_INLINE_ASM_EXTERNAL
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMGetGDTR(PRTGDTR pGdtr);
+DECLASM(void) ASMGetGDTR(PRTGDTR pGdtr);
 #else
 DECLINLINE(void) ASMGetGDTR(PRTGDTR pGdtr)
 {
@@ -291,7 +288,7 @@ DECLINLINE(void) ASMGetGDTR(PRTGDTR pGdtr)
  * @param   pGdtr   Where to load the GDTR contents from
  */
 #if RT_INLINE_ASM_EXTERNAL
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMSetGDTR(const RTGDTR RT_FAR *pGdtr);
+DECLASM(void) ASMSetGDTR(const RTGDTR RT_FAR *pGdtr);
 #else
 DECLINLINE(void) ASMSetGDTR(const RTGDTR RT_FAR *pGdtr)
 {
@@ -319,7 +316,7 @@ DECLINLINE(void) ASMSetGDTR(const RTGDTR RT_FAR *pGdtr)
  * @returns cs.
  */
 #if RT_INLINE_ASM_EXTERNAL
-RT_ASM_DECL_PRAGMA_WATCOM(RTSEL) ASMGetCS(void);
+DECLASM(RTSEL) ASMGetCS(void);
 #else
 DECLINLINE(RTSEL) ASMGetCS(void)
 {
@@ -343,7 +340,7 @@ DECLINLINE(RTSEL) ASMGetCS(void)
  * @returns DS.
  */
 #if RT_INLINE_ASM_EXTERNAL
-RT_ASM_DECL_PRAGMA_WATCOM(RTSEL) ASMGetDS(void);
+DECLASM(RTSEL) ASMGetDS(void);
 #else
 DECLINLINE(RTSEL) ASMGetDS(void)
 {
@@ -367,7 +364,7 @@ DECLINLINE(RTSEL) ASMGetDS(void)
  * @returns ES.
  */
 #if RT_INLINE_ASM_EXTERNAL
-RT_ASM_DECL_PRAGMA_WATCOM(RTSEL) ASMGetES(void);
+DECLASM(RTSEL) ASMGetES(void);
 #else
 DECLINLINE(RTSEL) ASMGetES(void)
 {
@@ -391,7 +388,7 @@ DECLINLINE(RTSEL) ASMGetES(void)
  * @returns FS.
  */
 #if RT_INLINE_ASM_EXTERNAL
-RT_ASM_DECL_PRAGMA_WATCOM(RTSEL) ASMGetFS(void);
+DECLASM(RTSEL) ASMGetFS(void);
 #else
 DECLINLINE(RTSEL) ASMGetFS(void)
 {
@@ -415,7 +412,7 @@ DECLINLINE(RTSEL) ASMGetFS(void)
  * @returns GS.
  */
 #if RT_INLINE_ASM_EXTERNAL
-RT_ASM_DECL_PRAGMA_WATCOM(RTSEL) ASMGetGS(void);
+DECLASM(RTSEL) ASMGetGS(void);
 #else
 DECLINLINE(RTSEL) ASMGetGS(void)
 {
@@ -439,7 +436,7 @@ DECLINLINE(RTSEL) ASMGetGS(void)
  * @returns SS.
  */
 #if RT_INLINE_ASM_EXTERNAL
-RT_ASM_DECL_PRAGMA_WATCOM(RTSEL) ASMGetSS(void);
+DECLASM(RTSEL) ASMGetSS(void);
 #else
 DECLINLINE(RTSEL) ASMGetSS(void)
 {
@@ -463,7 +460,7 @@ DECLINLINE(RTSEL) ASMGetSS(void)
  * @returns TR.
  */
 #if RT_INLINE_ASM_EXTERNAL
-RT_ASM_DECL_PRAGMA_WATCOM(RTSEL) ASMGetTR(void);
+DECLASM(RTSEL) ASMGetTR(void);
 #else
 DECLINLINE(RTSEL) ASMGetTR(void)
 {
@@ -487,7 +484,7 @@ DECLINLINE(RTSEL) ASMGetTR(void)
  * @returns LDTR.
  */
 #if RT_INLINE_ASM_EXTERNAL
-RT_ASM_DECL_PRAGMA_WATCOM(RTSEL) ASMGetLDTR(void);
+DECLASM(RTSEL) ASMGetLDTR(void);
 #else
 DECLINLINE(RTSEL) ASMGetLDTR(void)
 {
@@ -516,7 +513,7 @@ DECLINLINE(RTSEL) ASMGetLDTR(void)
  *          always have bits 0:7 as 0 (on both Intel & AMD).
  */
 #if RT_INLINE_ASM_EXTERNAL
-RT_ASM_DECL_PRAGMA_WATCOM(uint32_t) ASMGetSegAttr(uint32_t uSel);
+DECLASM(uint32_t) ASMGetSegAttr(uint32_t uSel);
 #else
 DECLINLINE(uint32_t) ASMGetSegAttr(uint32_t uSel)
 {
@@ -552,7 +549,7 @@ DECLINLINE(uint32_t) ASMGetSegAttr(uint32_t uSel)
  * @returns [RE]FLAGS.
  */
 #if RT_INLINE_ASM_EXTERNAL && RT_INLINE_ASM_USES_INTRIN < 15
-RT_ASM_DECL_PRAGMA_WATCOM(RTCCUINTREG) ASMGetFlags(void);
+DECLASM(RTCCUINTREG) ASMGetFlags(void);
 #else
 DECLINLINE(RTCCUINTREG) ASMGetFlags(void)
 {
@@ -591,7 +588,7 @@ DECLINLINE(RTCCUINTREG) ASMGetFlags(void)
  * @param   uFlags      The new [RE]FLAGS value.
  */
 #if RT_INLINE_ASM_EXTERNAL && RT_INLINE_ASM_USES_INTRIN < 15
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMSetFlags(RTCCUINTREG uFlags);
+DECLASM(void) ASMSetFlags(RTCCUINTREG uFlags);
 #else
 DECLINLINE(void) ASMSetFlags(RTCCUINTREG uFlags)
 {
@@ -630,7 +627,7 @@ DECLINLINE(void) ASMSetFlags(RTCCUINTREG uFlags)
  * @param   fOrEfl      Flags to be set.
  */
 #if RT_INLINE_ASM_EXTERNAL && RT_INLINE_ASM_USES_INTRIN < 15
-RT_ASM_DECL_PRAGMA_WATCOM(RTCCUINTREG) ASMChangeFlags(RTCCUINTREG fAndEfl, RTCCUINTREG fOrEfl);
+DECLASM(RTCCUINTREG) ASMChangeFlags(RTCCUINTREG fAndEfl, RTCCUINTREG fOrEfl);
 #else
 DECLINLINE(RTCCUINTREG) ASMChangeFlags(RTCCUINTREG fAndEfl, RTCCUINTREG fOrEfl)
 {
@@ -697,7 +694,7 @@ DECLINLINE(RTCCUINTREG) ASMChangeFlags(RTCCUINTREG fAndEfl, RTCCUINTREG fOrEfl)
  * @param   fOrEfl      The flags to be set (ORed in).
  */
 #if RT_INLINE_ASM_EXTERNAL && RT_INLINE_ASM_USES_INTRIN < 15
-RT_ASM_DECL_PRAGMA_WATCOM(RTCCUINTREG) ASMAddFlags(RTCCUINTREG fOrEfl);
+DECLASM(RTCCUINTREG) ASMAddFlags(RTCCUINTREG fOrEfl);
 #else
 DECLINLINE(RTCCUINTREG) ASMAddFlags(RTCCUINTREG fOrEfl)
 {
@@ -752,7 +749,7 @@ DECLINLINE(RTCCUINTREG) ASMAddFlags(RTCCUINTREG fOrEfl)
  * @param   fAndEfl      The flags to keep.
  */
 #if RT_INLINE_ASM_EXTERNAL && RT_INLINE_ASM_USES_INTRIN < 15
-RT_ASM_DECL_PRAGMA_WATCOM(RTCCUINTREG) ASMClearFlags(RTCCUINTREG fAndEfl);
+DECLASM(RTCCUINTREG) ASMClearFlags(RTCCUINTREG fAndEfl);
 #else
 DECLINLINE(RTCCUINTREG) ASMClearFlags(RTCCUINTREG fAndEfl)
 {
@@ -807,7 +804,7 @@ DECLINLINE(RTCCUINTREG) ASMClearFlags(RTCCUINTREG fAndEfl)
  * @returns TSC.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(uint64_t) ASMReadTSC(void);
+DECLASM(uint64_t) ASMReadTSC(void);
 #else
 DECLINLINE(uint64_t) ASMReadTSC(void)
 {
@@ -839,7 +836,7 @@ DECLINLINE(uint64_t) ASMReadTSC(void)
  * @param   puAux   Where to store the AUX value.
  */
 #if RT_INLINE_ASM_EXTERNAL && RT_INLINE_ASM_USES_INTRIN < 15
-RT_ASM_DECL_PRAGMA_WATCOM(uint64_t) ASMReadTscWithAux(uint32_t RT_FAR *puAux);
+DECLASM(uint64_t) ASMReadTscWithAux(uint32_t RT_FAR *puAux);
 #else
 DECLINLINE(uint64_t) ASMReadTscWithAux(uint32_t RT_FAR *puAux)
 {
@@ -1042,7 +1039,7 @@ DECLASM(uint32_t) ASMCpuIdExSlow(uint32_t uOperator, uint32_t uInitEBX, uint32_t
  * @remark  We're using void pointers to ease the use of special bitfield structures and such.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMCpuId_ECX_EDX(uint32_t uOperator, void RT_FAR *pvECX, void RT_FAR *pvEDX);
+DECLASM(void) ASMCpuId_ECX_EDX(uint32_t uOperator, void RT_FAR *pvECX, void RT_FAR *pvEDX);
 #else
 DECLINLINE(void) ASMCpuId_ECX_EDX(uint32_t uOperator, void RT_FAR *pvECX, void RT_FAR *pvEDX)
 {
@@ -1059,7 +1056,7 @@ DECLINLINE(void) ASMCpuId_ECX_EDX(uint32_t uOperator, void RT_FAR *pvECX, void R
  * @returns EAX after cpuid operation.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(uint32_t) ASMCpuId_EAX(uint32_t uOperator);
+DECLASM(uint32_t) ASMCpuId_EAX(uint32_t uOperator);
 #else
 DECLINLINE(uint32_t) ASMCpuId_EAX(uint32_t uOperator)
 {
@@ -1111,7 +1108,7 @@ DECLINLINE(uint32_t) ASMCpuId_EAX(uint32_t uOperator)
  * @returns EBX after cpuid operation.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(uint32_t) ASMCpuId_EBX(uint32_t uOperator);
+DECLASM(uint32_t) ASMCpuId_EBX(uint32_t uOperator);
 #else
 DECLINLINE(uint32_t) ASMCpuId_EBX(uint32_t uOperator)
 {
@@ -1168,7 +1165,7 @@ DECLINLINE(uint32_t) ASMCpuId_EBX(uint32_t uOperator)
  * @returns ECX after cpuid operation.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(uint32_t) ASMCpuId_ECX(uint32_t uOperator);
+DECLASM(uint32_t) ASMCpuId_ECX(uint32_t uOperator);
 #else
 DECLINLINE(uint32_t) ASMCpuId_ECX(uint32_t uOperator)
 {
@@ -1225,7 +1222,7 @@ DECLINLINE(uint32_t) ASMCpuId_ECX(uint32_t uOperator)
  * @returns EDX after cpuid operation.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(uint32_t) ASMCpuId_EDX(uint32_t uOperator);
+DECLASM(uint32_t) ASMCpuId_EDX(uint32_t uOperator);
 #else
 DECLINLINE(uint32_t) ASMCpuId_EDX(uint32_t uOperator)
 {
@@ -1333,7 +1330,7 @@ DECLINLINE(bool) ASMHasCpuId(void)
  * @returns the APIC ID.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(uint8_t) ASMGetApicId(void);
+DECLASM(uint8_t) ASMGetApicId(void);
 #else
 DECLINLINE(uint8_t) ASMGetApicId(void)
 {
@@ -1510,24 +1507,6 @@ DECLINLINE(bool) ASMIsValidExtRange(uint32_t uEAX)
 
 
 /**
- * Checks whether ASMCpuId_EAX(0x40000000) indicates a valid range.
- *
- * This only succeeds if there are at least two leaves in the range.
- *
- * @returns true/false.
- * @param   uEAX    The EAX value of CPUID leaf 0x40000000.
- *
- * @note    Unlike ASMIsValidStdRange() and ASMIsValidExtRange(), a single leaf
- *          is okay here.  So, you always need to check the range.
- * @remarks The upper range limit is take from the intel docs.
- */
-DECLINLINE(bool) ASMIsValidHypervisorRange(uint32_t uEAX)
-{
-    return uEAX >= UINT32_C(0x40000000) && uEAX <= UINT32_C(0x4fffffff);
-}
-
-
-/**
  * Extracts the CPU family from ASMCpuId(1) or ASMCpuId(0x80000001)
  *
  * @returns Family.
@@ -1601,7 +1580,7 @@ DECLINLINE(uint32_t) ASMGetCpuStepping(uint32_t uEAX)
  * @returns cr0.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(RTCCUINTXREG) ASMGetCR0(void);
+DECLASM(RTCCUINTXREG) ASMGetCR0(void);
 #else
 DECLINLINE(RTCCUINTXREG) ASMGetCR0(void)
 {
@@ -1637,7 +1616,7 @@ DECLINLINE(RTCCUINTXREG) ASMGetCR0(void)
  * @param   uCR0 The new CR0 value.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMSetCR0(RTCCUINTXREG uCR0);
+DECLASM(void) ASMSetCR0(RTCCUINTXREG uCR0);
 #else
 DECLINLINE(void) ASMSetCR0(RTCCUINTXREG uCR0)
 {
@@ -1671,7 +1650,7 @@ DECLINLINE(void) ASMSetCR0(RTCCUINTXREG uCR0)
  * @returns cr2.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(RTCCUINTXREG) ASMGetCR2(void);
+DECLASM(RTCCUINTXREG) ASMGetCR2(void);
 #else
 DECLINLINE(RTCCUINTXREG) ASMGetCR2(void)
 {
@@ -1707,7 +1686,7 @@ DECLINLINE(RTCCUINTXREG) ASMGetCR2(void)
  * @param   uCR2 The new CR0 value.
  */
 #if RT_INLINE_ASM_EXTERNAL
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMSetCR2(RTCCUINTXREG uCR2);
+DECLASM(void) ASMSetCR2(RTCCUINTXREG uCR2);
 #else
 DECLINLINE(void) ASMSetCR2(RTCCUINTXREG uCR2)
 {
@@ -1738,7 +1717,7 @@ DECLINLINE(void) ASMSetCR2(RTCCUINTXREG uCR2)
  * @returns cr3.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(RTCCUINTXREG) ASMGetCR3(void);
+DECLASM(RTCCUINTXREG) ASMGetCR3(void);
 #else
 DECLINLINE(RTCCUINTXREG) ASMGetCR3(void)
 {
@@ -1775,7 +1754,7 @@ DECLINLINE(RTCCUINTXREG) ASMGetCR3(void)
  * @param   uCR3    New CR3 value.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMSetCR3(RTCCUINTXREG uCR3);
+DECLASM(void) ASMSetCR3(RTCCUINTXREG uCR3);
 #else
 DECLINLINE(void) ASMSetCR3(RTCCUINTXREG uCR3)
 {
@@ -1808,7 +1787,7 @@ DECLINLINE(void) ASMSetCR3(RTCCUINTXREG uCR3)
  * Reloads the CR3 register.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMReloadCR3(void);
+DECLASM(void) ASMReloadCR3(void);
 #else
 DECLINLINE(void) ASMReloadCR3(void)
 {
@@ -1847,7 +1826,7 @@ DECLINLINE(void) ASMReloadCR3(void)
  * @returns cr4.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(RTCCUINTXREG) ASMGetCR4(void);
+DECLASM(RTCCUINTXREG) ASMGetCR4(void);
 #else
 DECLINLINE(RTCCUINTXREG) ASMGetCR4(void)
 {
@@ -1889,7 +1868,7 @@ DECLINLINE(RTCCUINTXREG) ASMGetCR4(void)
  * @param   uCR4    New CR4 value.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMSetCR4(RTCCUINTXREG uCR4);
+DECLASM(void) ASMSetCR4(RTCCUINTXREG uCR4);
 #else
 DECLINLINE(void) ASMSetCR4(RTCCUINTXREG uCR4)
 {
@@ -1998,7 +1977,7 @@ DECLASM(void) ASMFxRstor(struct X86FXSTATE const RT_FAR *pXStateArea);
  * Enables interrupts (EFLAGS.IF).
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMIntEnable(void);
+DECLASM(void) ASMIntEnable(void);
 #else
 DECLINLINE(void) ASMIntEnable(void)
 {
@@ -2017,7 +1996,7 @@ DECLINLINE(void) ASMIntEnable(void)
  * Disables interrupts (!EFLAGS.IF).
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMIntDisable(void);
+DECLASM(void) ASMIntDisable(void);
 #else
 DECLINLINE(void) ASMIntDisable(void)
 {
@@ -2036,7 +2015,7 @@ DECLINLINE(void) ASMIntDisable(void)
  * Disables interrupts and returns previous xFLAGS.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(RTCCUINTREG) ASMIntDisableFlags(void);
+DECLASM(RTCCUINTREG) ASMIntDisableFlags(void);
 #else
 DECLINLINE(RTCCUINTREG) ASMIntDisableFlags(void)
 {
@@ -2084,7 +2063,7 @@ DECLINLINE(bool) ASMIntAreEnabled(void)
  * Halts the CPU until interrupted.
  */
 #if RT_INLINE_ASM_EXTERNAL && RT_INLINE_ASM_USES_INTRIN < 14
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMHalt(void);
+DECLASM(void) ASMHalt(void);
 #else
 DECLINLINE(void) ASMHalt(void)
 {
@@ -2108,7 +2087,7 @@ DECLINLINE(void) ASMHalt(void)
  * @param   uRegister   Register to read.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(uint64_t) ASMRdMsr(uint32_t uRegister);
+DECLASM(uint64_t) ASMRdMsr(uint32_t uRegister);
 #else
 DECLINLINE(uint64_t) ASMRdMsr(uint32_t uRegister)
 {
@@ -2145,7 +2124,7 @@ DECLINLINE(uint64_t) ASMRdMsr(uint32_t uRegister)
  * @param   u64Val      Value to write.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMWrMsr(uint32_t uRegister, uint64_t u64Val);
+DECLASM(void) ASMWrMsr(uint32_t uRegister, uint64_t u64Val);
 #else
 DECLINLINE(void) ASMWrMsr(uint32_t uRegister, uint64_t u64Val)
 {
@@ -2182,7 +2161,7 @@ DECLINLINE(void) ASMWrMsr(uint32_t uRegister, uint64_t u64Val)
  * @param   uXDI        RDI/EDI value.
  */
 #if RT_INLINE_ASM_EXTERNAL
-RT_ASM_DECL_PRAGMA_WATCOM(uint64_t) ASMRdMsrEx(uint32_t uRegister, RTCCUINTXREG uXDI);
+DECLASM(uint64_t) ASMRdMsrEx(uint32_t uRegister, RTCCUINTXREG uXDI);
 #else
 DECLINLINE(uint64_t) ASMRdMsrEx(uint32_t uRegister, RTCCUINTXREG uXDI)
 {
@@ -2220,7 +2199,7 @@ DECLINLINE(uint64_t) ASMRdMsrEx(uint32_t uRegister, RTCCUINTXREG uXDI)
  * @param   u64Val      Value to write.
  */
 #if RT_INLINE_ASM_EXTERNAL
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMWrMsrEx(uint32_t uRegister, RTCCUINTXREG uXDI, uint64_t u64Val);
+DECLASM(void) ASMWrMsrEx(uint32_t uRegister, RTCCUINTXREG uXDI, uint64_t u64Val);
 #else
 DECLINLINE(void) ASMWrMsrEx(uint32_t uRegister, RTCCUINTXREG uXDI, uint64_t u64Val)
 {
@@ -2257,7 +2236,7 @@ DECLINLINE(void) ASMWrMsrEx(uint32_t uRegister, RTCCUINTXREG uXDI, uint64_t u64V
  * @param   uRegister   Register to read.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(uint32_t) ASMRdMsr_Low(uint32_t uRegister);
+DECLASM(uint32_t) ASMRdMsr_Low(uint32_t uRegister);
 #else
 DECLINLINE(uint32_t) ASMRdMsr_Low(uint32_t uRegister)
 {
@@ -2292,7 +2271,7 @@ DECLINLINE(uint32_t) ASMRdMsr_Low(uint32_t uRegister)
  * @param   uRegister   Register to read.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(uint32_t) ASMRdMsr_High(uint32_t uRegister);
+DECLASM(uint32_t) ASMRdMsr_High(uint32_t uRegister);
 #else
 DECLINLINE(uint32_t) ASMRdMsr_High(uint32_t uRegister)
 {
@@ -2326,7 +2305,7 @@ DECLINLINE(uint32_t) ASMRdMsr_High(uint32_t uRegister)
  * @returns dr0.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(RTCCUINTXREG) ASMGetDR0(void);
+DECLASM(RTCCUINTXREG) ASMGetDR0(void);
 #else
 DECLINLINE(RTCCUINTXREG) ASMGetDR0(void)
 {
@@ -2362,7 +2341,7 @@ DECLINLINE(RTCCUINTXREG) ASMGetDR0(void)
  * @returns dr1.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(RTCCUINTXREG) ASMGetDR1(void);
+DECLASM(RTCCUINTXREG) ASMGetDR1(void);
 #else
 DECLINLINE(RTCCUINTXREG) ASMGetDR1(void)
 {
@@ -2398,7 +2377,7 @@ DECLINLINE(RTCCUINTXREG) ASMGetDR1(void)
  * @returns dr2.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(RTCCUINTXREG) ASMGetDR2(void);
+DECLASM(RTCCUINTXREG) ASMGetDR2(void);
 #else
 DECLINLINE(RTCCUINTXREG) ASMGetDR2(void)
 {
@@ -2434,7 +2413,7 @@ DECLINLINE(RTCCUINTXREG) ASMGetDR2(void)
  * @returns dr3.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(RTCCUINTXREG) ASMGetDR3(void);
+DECLASM(RTCCUINTXREG) ASMGetDR3(void);
 #else
 DECLINLINE(RTCCUINTXREG) ASMGetDR3(void)
 {
@@ -2470,7 +2449,7 @@ DECLINLINE(RTCCUINTXREG) ASMGetDR3(void)
  * @returns dr6.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(RTCCUINTXREG) ASMGetDR6(void);
+DECLASM(RTCCUINTXREG) ASMGetDR6(void);
 #else
 DECLINLINE(RTCCUINTXREG) ASMGetDR6(void)
 {
@@ -2506,7 +2485,7 @@ DECLINLINE(RTCCUINTXREG) ASMGetDR6(void)
  * @returns DR6.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(RTCCUINTXREG) ASMGetAndClearDR6(void);
+DECLASM(RTCCUINTXREG) ASMGetAndClearDR6(void);
 #else
 DECLINLINE(RTCCUINTXREG) ASMGetAndClearDR6(void)
 {
@@ -2555,7 +2534,7 @@ DECLINLINE(RTCCUINTXREG) ASMGetAndClearDR6(void)
  * @returns dr7.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(RTCCUINTXREG) ASMGetDR7(void);
+DECLASM(RTCCUINTXREG) ASMGetDR7(void);
 #else
 DECLINLINE(RTCCUINTXREG) ASMGetDR7(void)
 {
@@ -2591,7 +2570,7 @@ DECLINLINE(RTCCUINTXREG) ASMGetDR7(void)
  * @param   uDRVal   Debug register value to write
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMSetDR0(RTCCUINTXREG uDRVal);
+DECLASM(void) ASMSetDR0(RTCCUINTXREG uDRVal);
 #else
 DECLINLINE(void) ASMSetDR0(RTCCUINTXREG uDRVal)
 {
@@ -2625,7 +2604,7 @@ DECLINLINE(void) ASMSetDR0(RTCCUINTXREG uDRVal)
  * @param   uDRVal   Debug register value to write
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMSetDR1(RTCCUINTXREG uDRVal);
+DECLASM(void) ASMSetDR1(RTCCUINTXREG uDRVal);
 #else
 DECLINLINE(void) ASMSetDR1(RTCCUINTXREG uDRVal)
 {
@@ -2659,7 +2638,7 @@ DECLINLINE(void) ASMSetDR1(RTCCUINTXREG uDRVal)
  * @param   uDRVal   Debug register value to write
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMSetDR2(RTCCUINTXREG uDRVal);
+DECLASM(void) ASMSetDR2(RTCCUINTXREG uDRVal);
 #else
 DECLINLINE(void) ASMSetDR2(RTCCUINTXREG uDRVal)
 {
@@ -2693,7 +2672,7 @@ DECLINLINE(void) ASMSetDR2(RTCCUINTXREG uDRVal)
  * @param   uDRVal   Debug register value to write
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMSetDR3(RTCCUINTXREG uDRVal);
+DECLASM(void) ASMSetDR3(RTCCUINTXREG uDRVal);
 #else
 DECLINLINE(void) ASMSetDR3(RTCCUINTXREG uDRVal)
 {
@@ -2727,7 +2706,7 @@ DECLINLINE(void) ASMSetDR3(RTCCUINTXREG uDRVal)
  * @param   uDRVal   Debug register value to write
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMSetDR6(RTCCUINTXREG uDRVal);
+DECLASM(void) ASMSetDR6(RTCCUINTXREG uDRVal);
 #else
 DECLINLINE(void) ASMSetDR6(RTCCUINTXREG uDRVal)
 {
@@ -2761,7 +2740,7 @@ DECLINLINE(void) ASMSetDR6(RTCCUINTXREG uDRVal)
  * @param   uDRVal   Debug register value to write
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMSetDR7(RTCCUINTXREG uDRVal);
+DECLASM(void) ASMSetDR7(RTCCUINTXREG uDRVal);
 #else
 DECLINLINE(void) ASMSetDR7(RTCCUINTXREG uDRVal)
 {
@@ -2796,7 +2775,7 @@ DECLINLINE(void) ASMSetDR7(RTCCUINTXREG uDRVal)
  * @param   u8      8-bit integer to write.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMOutU8(RTIOPORT Port, uint8_t u8);
+DECLASM(void) ASMOutU8(RTIOPORT Port, uint8_t u8);
 #else
 DECLINLINE(void) ASMOutU8(RTIOPORT Port, uint8_t u8)
 {
@@ -2827,7 +2806,7 @@ DECLINLINE(void) ASMOutU8(RTIOPORT Port, uint8_t u8)
  * @param   Port    I/O port to read from.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(uint8_t) ASMInU8(RTIOPORT Port);
+DECLASM(uint8_t) ASMInU8(RTIOPORT Port);
 #else
 DECLINLINE(uint8_t) ASMInU8(RTIOPORT Port)
 {
@@ -2860,7 +2839,7 @@ DECLINLINE(uint8_t) ASMInU8(RTIOPORT Port)
  * @param   u16     16-bit integer to write.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMOutU16(RTIOPORT Port, uint16_t u16);
+DECLASM(void) ASMOutU16(RTIOPORT Port, uint16_t u16);
 #else
 DECLINLINE(void) ASMOutU16(RTIOPORT Port, uint16_t u16)
 {
@@ -2891,7 +2870,7 @@ DECLINLINE(void) ASMOutU16(RTIOPORT Port, uint16_t u16)
  * @param   Port    I/O port to read from.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(uint16_t) ASMInU16(RTIOPORT Port);
+DECLASM(uint16_t) ASMInU16(RTIOPORT Port);
 #else
 DECLINLINE(uint16_t) ASMInU16(RTIOPORT Port)
 {
@@ -2924,7 +2903,7 @@ DECLINLINE(uint16_t) ASMInU16(RTIOPORT Port)
  * @param   u32     32-bit integer to write.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMOutU32(RTIOPORT Port, uint32_t u32);
+DECLASM(void) ASMOutU32(RTIOPORT Port, uint32_t u32);
 #else
 DECLINLINE(void) ASMOutU32(RTIOPORT Port, uint32_t u32)
 {
@@ -2955,7 +2934,7 @@ DECLINLINE(void) ASMOutU32(RTIOPORT Port, uint32_t u32)
  * @param   Port    I/O port to read from.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(uint32_t) ASMInU32(RTIOPORT Port);
+DECLASM(uint32_t) ASMInU32(RTIOPORT Port);
 #else
 DECLINLINE(uint32_t) ASMInU32(RTIOPORT Port)
 {
@@ -2989,7 +2968,7 @@ DECLINLINE(uint32_t) ASMInU32(RTIOPORT Port)
  * @param   c       The number of items to write.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMOutStrU8(RTIOPORT Port, uint8_t const RT_FAR *pau8, size_t c);
+DECLASM(void) ASMOutStrU8(RTIOPORT Port, uint8_t const RT_FAR *pau8, size_t c);
 #else
 DECLINLINE(void) ASMOutStrU8(RTIOPORT Port, uint8_t const RT_FAR *pau8, size_t c)
 {
@@ -3025,7 +3004,7 @@ DECLINLINE(void) ASMOutStrU8(RTIOPORT Port, uint8_t const RT_FAR *pau8, size_t c
  * @param   c       The number of items to read.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMInStrU8(RTIOPORT Port, uint8_t RT_FAR *pau8, size_t c);
+DECLASM(void) ASMInStrU8(RTIOPORT Port, uint8_t RT_FAR *pau8, size_t c);
 #else
 DECLINLINE(void) ASMInStrU8(RTIOPORT Port, uint8_t RT_FAR *pau8, size_t c)
 {
@@ -3061,7 +3040,7 @@ DECLINLINE(void) ASMInStrU8(RTIOPORT Port, uint8_t RT_FAR *pau8, size_t c)
  * @param   c       The number of items to write.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMOutStrU16(RTIOPORT Port, uint16_t const RT_FAR *pau16, size_t c);
+DECLASM(void) ASMOutStrU16(RTIOPORT Port, uint16_t const RT_FAR *pau16, size_t c);
 #else
 DECLINLINE(void) ASMOutStrU16(RTIOPORT Port, uint16_t const RT_FAR *pau16, size_t c)
 {
@@ -3097,7 +3076,7 @@ DECLINLINE(void) ASMOutStrU16(RTIOPORT Port, uint16_t const RT_FAR *pau16, size_
  * @param   c       The number of items to read.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMInStrU16(RTIOPORT Port, uint16_t RT_FAR *pau16, size_t c);
+DECLASM(void) ASMInStrU16(RTIOPORT Port, uint16_t RT_FAR *pau16, size_t c);
 #else
 DECLINLINE(void) ASMInStrU16(RTIOPORT Port, uint16_t RT_FAR *pau16, size_t c)
 {
@@ -3133,7 +3112,7 @@ DECLINLINE(void) ASMInStrU16(RTIOPORT Port, uint16_t RT_FAR *pau16, size_t c)
  * @param   c       The number of items to write.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMOutStrU32(RTIOPORT Port, uint32_t const RT_FAR *pau32, size_t c);
+DECLASM(void) ASMOutStrU32(RTIOPORT Port, uint32_t const RT_FAR *pau32, size_t c);
 #else
 DECLINLINE(void) ASMOutStrU32(RTIOPORT Port, uint32_t const RT_FAR *pau32, size_t c)
 {
@@ -3169,7 +3148,7 @@ DECLINLINE(void) ASMOutStrU32(RTIOPORT Port, uint32_t const RT_FAR *pau32, size_
  * @param   c       The number of items to read.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMInStrU32(RTIOPORT Port, uint32_t RT_FAR *pau32, size_t c);
+DECLASM(void) ASMInStrU32(RTIOPORT Port, uint32_t RT_FAR *pau32, size_t c);
 #else
 DECLINLINE(void) ASMInStrU32(RTIOPORT Port, uint32_t RT_FAR *pau32, size_t c)
 {
@@ -3203,7 +3182,7 @@ DECLINLINE(void) ASMInStrU32(RTIOPORT Port, uint32_t RT_FAR *pau32, size_t c)
  * @param   uPtr    Address of the page to invalidate.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMInvalidatePage(RTCCUINTXREG uPtr);
+DECLASM(void) ASMInvalidatePage(RTCCUINTXREG uPtr);
 #else
 DECLINLINE(void) ASMInvalidatePage(RTCCUINTXREG uPtr)
 {
@@ -3233,7 +3212,7 @@ DECLINLINE(void) ASMInvalidatePage(RTCCUINTXREG uPtr)
  * Write back the internal caches and invalidate them.
  */
 #if RT_INLINE_ASM_EXTERNAL && !RT_INLINE_ASM_USES_INTRIN
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMWriteBackAndInvalidateCaches(void);
+DECLASM(void) ASMWriteBackAndInvalidateCaches(void);
 #else
 DECLINLINE(void) ASMWriteBackAndInvalidateCaches(void)
 {
@@ -3257,7 +3236,7 @@ DECLINLINE(void) ASMWriteBackAndInvalidateCaches(void)
  * flushing dirty cache lines. Use with extreme care.
  */
 #if RT_INLINE_ASM_EXTERNAL
-RT_ASM_DECL_PRAGMA_WATCOM(void) ASMInvalidateInternalCaches(void);
+DECLASM(void) ASMInvalidateInternalCaches(void);
 #else
 DECLINLINE(void) ASMInvalidateInternalCaches(void)
 {
@@ -3376,23 +3355,8 @@ DECLINLINE(void) ASMSetAC(void)
 #endif
 }
 
-#endif /* !_MSC_VER || !RT_ARCH_AMD64 */
-
-
-/*
- * Include #pragma aux definitions for Watcom C/C++.
- */
-#if defined(__WATCOMC__) && ARCH_BITS == 16
-# define IPRT_ASM_AMD64_X86_WATCOM_16_INSTANTIATE
-# undef IPRT_INCLUDED_asm_amd64_x86_watcom_16_h
-# include "asm-amd64-x86-watcom-16.h"
-#elif defined(__WATCOMC__) && ARCH_BITS == 32
-# define IPRT_ASM_AMD64_X86_WATCOM_32_INSTANTIATE
-# undef IPRT_INCLUDED_asm_amd64_x86_watcom_32_h
-# include "asm-amd64-x86-watcom-32.h"
-#endif
-
+#endif /* !_MSC_VER) || !RT_ARCH_AMD64 */
 
 /** @} */
-#endif /* !IPRT_INCLUDED_asm_amd64_x86_h */
+#endif
 

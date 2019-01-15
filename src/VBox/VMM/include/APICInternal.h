@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,16 +15,12 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VMM_INCLUDED_SRC_include_APICInternal_h
-#define VMM_INCLUDED_SRC_include_APICInternal_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___APICInternal_h
+#define ___APICInternal_h
 
 #include <VBox/sup.h>
 #include <VBox/types.h>
 #include <VBox/vmm/apic.h>
-#include <VBox/vmm/pdmdev.h>
 
 /** @defgroup grp_apic_int       Internal
  * @ingroup grp_apic
@@ -1025,29 +1021,29 @@ AssertCompileMemberOffset(X2APICPAGE, self_ipi,    X2APIC_OFF_SELF_IPI);
  */
 typedef enum APICMSRACCESS
 {
-    /** MSR read while not in x2APIC. */
+    /* MSR read while not in x2APIC. */
     APICMSRACCESS_INVALID_READ_MODE = 0,
-    /** MSR write while not in x2APIC. */
+    /* MSR write while not in x2APIC. */
     APICMSRACCESS_INVALID_WRITE_MODE,
-    /** MSR read for a reserved/unknown/invalid MSR. */
+    /* MSR read for a reserved/unknown/invalid MSR. */
     APICMSRACCESS_READ_RSVD_OR_UNKNOWN,
-    /** MSR write for a reserved/unknown/invalid MSR. */
+    /* MSR write for a reserved/unknown/invalid MSR. */
     APICMSRACCESS_WRITE_RSVD_OR_UNKNOWN,
-    /** MSR read for a write-only MSR. */
+    /* MSR read for a write-only MSR. */
     APICMSRACCESS_READ_WRITE_ONLY,
-    /** MSR write for a read-only MSR. */
+    /* MSR write for a read-only MSR. */
     APICMSRACCESS_WRITE_READ_ONLY,
-    /** MSR read to reserved bits. */
+    /* MSR read to reserved bits. */
     APICMSRACCESS_READ_RSVD_BITS,
-    /** MSR write to reserved bits. */
+    /* MSR write to reserved bits. */
     APICMSRACCESS_WRITE_RSVD_BITS,
-    /** MSR write with invalid value. */
+    /* MSR write with invalid value. */
     APICMSRACCESS_WRITE_INVALID,
     /** MSR write disallowed due to incompatible config. */
     APICMSRACCESS_WRITE_DISALLOWED_CONFIG,
     /** MSR read disallowed due to incompatible config. */
     APICMSRACCESS_READ_DISALLOWED_CONFIG,
-    /** Count of enum members (don't use). */
+    /* Count of enum members (don't use). */
     APICMSRACCESS_COUNT
 } APICMSRACCESS;
 
@@ -1298,7 +1294,7 @@ typedef struct APICCPU
     /** Whether the LINT1 interrupt line is active. */
     bool volatile               fActiveLint1;
     /** Alignment padding. */
-    uint8_t                     auAlignment2[6];
+    uint8_t                     auAlignment0[6];
     /** The source tags corresponding to each interrupt vector (debugging). */
     uint32_t                    auSrcTags[256];
     /** @} */
@@ -1312,7 +1308,7 @@ typedef struct APICCPU
     /** The timer - RC ptr. */
     PTMTIMERRC                  pTimerRC;
     /** Alignment padding. */
-    RTRCPTR                     RCPtrAlignment3;
+    RTRCPTR                     RCPtrAlignment2;
     /** The timer critical sect protecting @a u64TimerInitial  */
     PDMCRITSECT                 TimerCritSect;
     /** The time stamp when the timer was initialized. */
@@ -1323,14 +1319,6 @@ typedef struct APICCPU
     uint32_t                    uHintedTimerShift;
     /** The timer description. */
     char                        szTimerDesc[32];
-    /** @} */
-
-    /** @name Log Max counters
-     * @{ */
-    uint32_t                    cLogMaxAccessError;
-    uint32_t                    cLogMaxSetApicBaseAddr;
-    uint32_t                    cLogMaxGetApicBaseAddr;
-    uint32_t                    uAlignment4;
     /** @} */
 
 #ifdef VBOX_WITH_STATISTICS
@@ -1460,12 +1448,14 @@ VMM_INT_DECL(void)            apicStartTimer(PVMCPU pVCpu, uint32_t uInitialCoun
 VMM_INT_DECL(void)            apicStopTimer(PVMCPU pVCpu);
 VMM_INT_DECL(void)            apicSetInterruptFF(PVMCPU pVCpu, PDMAPICIRQ enmType);
 VMM_INT_DECL(void)            apicClearInterruptFF(PVMCPU pVCpu, PDMAPICIRQ enmType);
-void                          apicInitIpi(PVMCPU pVCpu);
-void                          apicResetCpu(PVMCPU pVCpu, bool fResetApicBaseMsr);
+
+#ifdef IN_RING3
+VMMR3_INT_DECL(void)          apicR3ResetCpu(PVMCPU pVCpu, bool fResetApicBaseMsr);
+#endif
 
 RT_C_DECLS_END
 
 /** @} */
 
-#endif /* !VMM_INCLUDED_SRC_include_APICInternal_h */
+#endif
 

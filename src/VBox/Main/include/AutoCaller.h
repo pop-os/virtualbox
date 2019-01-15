@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,11 +16,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef MAIN_INCLUDED_AutoCaller_h
-#define MAIN_INCLUDED_AutoCaller_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ____H_AUTOCALLER
+#define ____H_AUTOCALLER
 
 #include "ObjectState.h"
 
@@ -478,7 +475,7 @@ class AutoUninitSpan
 {
 public:
 
-    AutoUninitSpan(VirtualBoxBase *aObj, bool fTry = false);
+    AutoUninitSpan(VirtualBoxBase *aObj);
     ~AutoUninitSpan();
 
     /** |true| when uninit() is called as a result of init() failure */
@@ -486,9 +483,6 @@ public:
 
     /** |true| when uninit() has already been called (so the object is NotReady) */
     bool uninitDone() { return mUninitDone; }
-
-    /** |true| when uninit() has failed, relevant only if it was a "try uninit" */
-    bool uninitFailed() { return mUninitFailed; }
 
     void setSucceeded();
 
@@ -500,7 +494,6 @@ private:
     VirtualBoxBase *mObj;
     bool mInitFailed : 1;
     bool mUninitDone : 1;
-    bool mUninitFailed : 1;
 };
 
-#endif /* !MAIN_INCLUDED_AutoCaller_h */
+#endif // !____H_AUTOCALLER

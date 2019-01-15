@@ -8,7 +8,7 @@ VirtualBox Validation Kit - IAppliance Test #1
 
 __copyright__ = \
 """
-Copyright (C) 2010-2019 Oracle Corporation
+Copyright (C) 2010-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 118780 $"
 
 
 # Standard Python imports.
@@ -37,27 +37,42 @@ import tarfile
 
 # Only the main script needs to modify the path.
 try:    __file__
-except: __file__ = sys.argv[0]
-g_ksValidationKitDir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.append(g_ksValidationKitDir)
+except: __file__ = sys.argv[0];
+g_ksValidationKitDir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))));
+sys.path.append(g_ksValidationKitDir);
 
 # Validation Kit imports.
-from testdriver import base;
 from testdriver import reporter;
+from testdriver import base;
+from testdriver import vbox;
 from testdriver import vboxwrappers;
 
 
-class SubTstDrvAppliance1(base.SubTestDriverBase):
+class tdAppliance1(vbox.TestDriver):
     """
-    Sub-test driver for IAppliance Test #1.
+    IAppliance Test #1.
     """
 
-    def __init__(self, oTstDrv):
-        base.SubTestDriverBase.__init__(self, 'appliance', oTstDrv);
+    def __init__(self):
+        vbox.TestDriver.__init__(self);
+        self.asRsrcs            = None;
 
-    def testIt(self):
+
+    #
+    # Overridden methods.
+    #
+
+    def actionConfig(self):
         """
-        Execute the sub-testcase.
+        Import the API.
+        """
+        if not self.importVBoxApi():
+            return False;
+        return True;
+
+    def actionExecute(self):
+        """
+        Execute the testcase.
         """
         fRc = True;
 
@@ -75,7 +90,7 @@ class SubTstDrvAppliance1(base.SubTestDriverBase):
             # t4 is a VM with with two gzipped disk, SHA256 and a (self) signed manifest (--privateKey=./tdAppliance1-t4.pem).
             'tdAppliance1-t4.ova',
             'tdAppliance1-t4-ovftool-4.1.0.ova',
-            # t5 is a VM with with one gzipped disk, SHA1 and a manifest signed by a valid (2016) DigiCert code signing cert.
+            # t5 is a VM with with one gzipped disk, SHA1 and a manifest signed by a valid (2016) DigiCert code signing certificate.
             'tdAppliance1-t5.ova',
             'tdAppliance1-t5-ovftool-4.1.0.ova',
             # t6 is a VM with with one gzipped disk, SHA1 and a manifest signed by a certificate issued by the t4 certificate,
@@ -105,7 +120,7 @@ class SubTstDrvAppliance1(base.SubTestDriverBase):
 
     def testImportOva(self, sOva):
         """ xxx """
-        oVirtualBox = self.oTstDrv.oVBoxMgr.getVirtualBox();
+        oVirtualBox = self.oVBoxMgr.getVirtualBox();
 
         #
         # Import it as OVA.
@@ -114,10 +129,10 @@ class SubTstDrvAppliance1(base.SubTestDriverBase):
             oAppliance = oVirtualBox.createAppliance();
         except:
             return reporter.errorXcpt('IVirtualBox::createAppliance failed');
+        print("oAppliance=%s" % (oAppliance,));
 
         try:
-            oProgress = vboxwrappers.ProgressWrapper(oAppliance.read(sOva), self.oTstDrv.oVBoxMgr, self.oTstDrv,
-                                                     'read "%s"' % (sOva,));
+            oProgress = vboxwrappers.ProgressWrapper(oAppliance.read(sOva), self.oVBoxMgr, self, 'read "%s"' % (sOva,));
         except:
             return reporter.errorXcpt('IAppliance::read("%s") failed' % (sOva,));
         oProgress.wait();
@@ -132,7 +147,7 @@ class SubTstDrvAppliance1(base.SubTestDriverBase):
         #
         try:
             oProgress = vboxwrappers.ProgressWrapper(oAppliance.importMachines([]),
-                                                     self.oTstDrv.oVBoxMgr, self.oTstDrv, 'importMachines "%s"' % (sOva,));
+                                                     self.oVBoxMgr, self, 'importMachines "%s"' % (sOva,));
         except:
             return reporter.errorXcpt('IAppliance::importMachines failed on "%s"' % (sOva,));
         oProgress.wait();
@@ -148,18 +163,18 @@ class SubTstDrvAppliance1(base.SubTestDriverBase):
 
     def testImportOvaAsOvf(self, sOva):
         """
-        Unpacks the OVA into a subdirectory in the scratch area and imports it as an OVF.
+        Unpacts the OVA into a subdirectory in the scratch area and imports it as an OVF.
         """
-        oVirtualBox = self.oTstDrv.oVBoxMgr.getVirtualBox();
+        oVirtualBox = self.oVBoxMgr.getVirtualBox();
 
-        sTmpDir = os.path.join(self.oTstDrv.sScratchPath, os.path.split(sOva)[1] + '-ovf');
+        sTmpDir = os.path.join(self.sScratchPath, os.path.split(sOva)[1] + '-ovf');
         sOvf    = os.path.join(sTmpDir, os.path.splitext(os.path.split(sOva)[1])[0] + '.ovf');
 
         #
         # Unpack
         #
         try:
-            os.mkdir(sTmpDir, 0o755);
+            os.mkdir(sTmpDir, 0x1ed); # 0755 = 0x1ed
             oTarFile = tarfile.open(sOva, 'r:*');
             oTarFile.extractall(sTmpDir);
             oTarFile.close();
@@ -173,10 +188,10 @@ class SubTstDrvAppliance1(base.SubTestDriverBase):
             oAppliance2 = oVirtualBox.createAppliance();
         except:
             return reporter.errorXcpt('IVirtualBox::createAppliance failed (#2)');
+        print("oAppliance2=%s" % (oAppliance2,));
 
         try:
-            oProgress = vboxwrappers.ProgressWrapper(oAppliance2.read(sOvf), self.oTstDrv.oVBoxMgr, self.oTstDrv,
-                                                     'read "%s"' % (sOvf,));
+            oProgress = vboxwrappers.ProgressWrapper(oAppliance2.read(sOvf), self.oVBoxMgr, self, 'read "%s"' % (sOvf,));
         except:
             return reporter.errorXcpt('IAppliance::read("%s") failed' % (sOvf,));
         oProgress.wait();
@@ -190,7 +205,7 @@ class SubTstDrvAppliance1(base.SubTestDriverBase):
 
         try:
             oProgress = vboxwrappers.ProgressWrapper(oAppliance2.importMachines([]),
-                                                     self.oTstDrv.oVBoxMgr, self.oTstDrv, 'importMachines "%s"' % (sOvf,));
+                                                     self.oVBoxMgr, self, 'importMachines "%s"' % (sOvf,));
         except:
             return reporter.errorXcpt('IAppliance::importMachines failed on "%s"' % (sOvf,));
         oProgress.wait();
@@ -199,8 +214,6 @@ class SubTstDrvAppliance1(base.SubTestDriverBase):
 
         return True;
 
-
 if __name__ == '__main__':
-    from tests.api.tdApi1 import tdApi1;
-    sys.exit(tdApi1([SubTstDrvAppliance1]).main(sys.argv));
+    sys.exit(tdAppliance1().main(sys.argv));
 

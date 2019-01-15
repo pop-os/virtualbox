@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_INCLUDED_SRC_NAT_dhcp6_h
-#define VBOX_INCLUDED_SRC_NAT_dhcp6_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef _DHCP6_H_
+#define _DHCP6_H_
 
 /* UDP ports */
 #define DHCP6_CLIENT_PORT       546
@@ -48,4 +45,4 @@
 #define DHCP6_OPTION_DNS_SERVERS        23 /* RFC 3646 */
 #define DHCP6_OPTION_DOMAIN_LIST        24 /* RFC 3646 */
 
-#endif /* !VBOX_INCLUDED_SRC_NAT_dhcp6_h */
+#endif  /* _DHCP6_H_ */

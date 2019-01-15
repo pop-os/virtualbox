@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,8 +30,7 @@
 # define WARN AssertMsgFailed
 #endif
 
-#define FLOAT_FMT_STR "%d.%02u"
-#define FLOAT_FMT_ARGS(r) (int)(r), ((unsigned)(RT_ABS(r) * 100) % 100U)
+
 
 static int crVrScrCompositorRectsAssignBuffer(PVBOXVR_SCR_COMPOSITOR pCompositor, uint32_t cRects)
 {
@@ -714,9 +713,6 @@ VBOXVREGDECL(int) CrVrScrCompositorEntryRegionsGet(PCVBOXVR_SCR_COMPOSITOR pComp
                                                    PCRTRECT *ppaSrcRegions, PCRTRECT *ppaDstRegions,
                                                    PCRTRECT *ppaDstUnstretchedRects)
 {
-    crDebug("CrVrScrCompositorEntryRegionsGet ENTER, pCompositor(0x%X) StretchX=" FLOAT_FMT_STR ", StretchY=" FLOAT_FMT_STR,
-        pCompositor, FLOAT_FMT_ARGS(pCompositor->StretchX), FLOAT_FMT_ARGS(pCompositor->StretchY));
-
     if (CrVrScrCompositorEntryIsUsed(pEntry))
     {
         int rc = crVrScrCompositorRectsCheckInit(pCompositor);
@@ -916,10 +912,6 @@ VBOXVREGDECL(void) CrVrScrCompositorSetStretching(PVBOXVR_SCR_COMPOSITOR pCompos
 {
     if (pCompositor->StretchX == StretchX && pCompositor->StretchY == StretchY)
         return;
-
-    crDebug("CrVrScrCompositorSetStretching, stretch factors change (" FLOAT_FMT_STR ", " FLOAT_FMT_STR ") => (" FLOAT_FMT_STR ", " FLOAT_FMT_STR ")",
-            FLOAT_FMT_ARGS(pCompositor->StretchX), FLOAT_FMT_ARGS(pCompositor->StretchY),
-            FLOAT_FMT_ARGS(StretchX), FLOAT_FMT_ARGS(StretchY));
 
     pCompositor->StretchX = StretchX;
     pCompositor->StretchY = StretchY;

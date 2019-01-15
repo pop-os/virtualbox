@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -148,8 +148,6 @@ for i in additions/VBoxGuestAdditions.iso; do
   mv $i $RPM_BUILD_ROOT/usr/share/virtualbox; done
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VirtualBox
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/virtualbox
-ln -s VBox $RPM_BUILD_ROOT/usr/bin/VirtualBoxVM
-ln -s VBox $RPM_BUILD_ROOT/usr/bin/virtualboxvm
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxManage
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxmanage
 test -f VBoxSDL && ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxSDL
@@ -194,13 +192,8 @@ if [ -d $RPM_BUILD_ROOT/usr/lib/virtualbox/legacy ]; then
   rmdir $RPM_BUILD_ROOT/usr/lib/virtualbox/legacy
 fi
 ln -s ../VBoxVMM.so $RPM_BUILD_ROOT/usr/lib/virtualbox/components/VBoxVMM.so
-for i in VBoxHeadless VBoxNetDHCP VBoxNetNAT VBoxNetAdpCtl; do
+for i in VirtualBox VBoxHeadless VBoxNetDHCP VBoxNetNAT VBoxNetAdpCtl; do
   chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/$i; done
-if test -e $RPM_BUILD_ROOT/usr/lib/virtualbox/VirtualBoxVM; then
-  chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/VirtualBoxVM
-else
-  chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/VirtualBox
-fi
 if [ -f $RPM_BUILD_ROOT/usr/lib/virtualbox/VBoxVolInfo ]; then
   chmod 4511 $RPM_BUILD_ROOT/usr/lib/virtualbox/VBoxVolInfo
 fi

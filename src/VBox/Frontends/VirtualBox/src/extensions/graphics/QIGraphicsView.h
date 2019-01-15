@@ -1,10 +1,10 @@
 /* $Id: QIGraphicsView.h $ */
 /** @file
- * VBox Qt GUI - Qt extensions: QIGraphicsView class declaration.
+ * VBox Qt GUI - QIGraphicsView class declaration.
  */
 
 /*
- * Copyright (C) 2015-2019 Oracle Corporation
+ * Copyright (C) 2015-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,36 +15,26 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_extensions_graphics_QIGraphicsView_h
-#define FEQT_INCLUDED_SRC_extensions_graphics_QIGraphicsView_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___QIGraphicsView_h___
+#define ___QIGraphicsView_h___
 
 /* Qt includes: */
 #include <QGraphicsView>
 
-/* GUI includes: */
-#include "UILibraryDefs.h"
-
-/* Forward declarations: */
-class QEvent;
-class QWidget;
-
-/** QGraphicsView extension with advanced functionality. */
-class SHARED_LIBRARY_STUFF QIGraphicsView : public QGraphicsView
+/** General QGraphicsView extension. */
+class QIGraphicsView : public QGraphicsView
 {
     Q_OBJECT;
 
 public:
 
-    /** Constructs graphics-view passing @a pParent to the base-class. */
+    /** Constructor, passes @a pParent to the QGraphicsView constructor. */
     QIGraphicsView(QWidget *pParent = 0);
 
 protected:
 
-    /** Handles any Qt @a pEvent. */
-    virtual bool event(QEvent *pEvent) /* override */;
+    /** General @a pEvent handler. */
+    bool event(QEvent *pEvent);
 
 private:
 
@@ -52,4 +42,5 @@ private:
     int m_iVerticalScrollBarPosition;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_extensions_graphics_QIGraphicsView_h */
+#endif /* !___QIGraphicsView_h___ */
+

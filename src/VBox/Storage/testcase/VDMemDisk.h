@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,12 +14,8 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-
-#ifndef VBOX_INCLUDED_SRC_testcase_VDMemDisk_h
-#define VBOX_INCLUDED_SRC_testcase_VDMemDisk_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __VDMemDisk_h__
+#define __VDMemDisk_h__
 
 #include <iprt/sg.h>
 
@@ -130,4 +126,4 @@ int VDMemDiskReadFromFile(PVDMEMDISK pMemDisk, const char *pcszFilename);
  */
 int VDMemDiskCmp(PVDMEMDISK pMemDisk, uint64_t off, size_t cbCmp, PRTSGBUF pSgBuf);
 
-#endif /* !VBOX_INCLUDED_SRC_testcase_VDMemDisk_h */
+#endif /* __VDMemDisk_h__ */

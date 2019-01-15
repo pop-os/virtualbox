@@ -1,9 +1,10 @@
 /** @file
- * Guest property service - Common header for host service and guest clients.
+ * Guest property service:
+ * Common header for host service and guest clients.
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,103 +24,111 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef VBOX_INCLUDED_HostServices_GuestPropertySvc_h
-#define VBOX_INCLUDED_HostServices_GuestPropertySvc_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBox_HostService_GuestPropertyService_h
+#define ___VBox_HostService_GuestPropertyService_h
 
 #include <VBox/VMMDevCoreTypes.h>
 #include <VBox/VBoxGuestCoreTypes.h>
 #include <VBox/log.h>
-#include <iprt/err.h>
-#include <iprt/assertcompile.h>
+#include <VBox/hgcmsvc.h>
+#include <iprt/assert.h>
 #include <iprt/string.h>
 
+/** Everything defined in this file lives in this namespace. */
+namespace guestProp {
 
-/** Maximum length for property names. */
-#define GUEST_PROP_MAX_NAME_LEN             64
-/** Maximum length for property values. */
-#define GUEST_PROP_MAX_VALUE_LEN            128
-/** Maximum number of properties per guest. */
-#define GUEST_PROP_MAX_PROPS                256
-/** Maximum size for enumeration patterns. */
-#define GUEST_PROP_MAX_PATTERN_LEN          1024
-/** Maximum number of changes we remember for guest notifications. */
-#define GUEST_PROP_MAX_GUEST_NOTIFICATIONS  256
-/** Maximum number of current pending waits per client. */
-#define GUEST_PROP_MAX_GUEST_CONCURRENT_WAITS 16
+/******************************************************************************
+* Typedefs, constants and inlines                                             *
+******************************************************************************/
 
+/** Maximum length for property names */
+enum { MAX_NAME_LEN = 64 };
+/** Maximum length for property values */
+enum { MAX_VALUE_LEN = 128 };
+/** Maximum number of properties per guest */
+enum { MAX_PROPS = 256 };
+/** Maximum size for enumeration patterns */
+enum { MAX_PATTERN_LEN = 1024 };
+/** Maximum number of changes we remember for guest notifications */
+enum { MAX_GUEST_NOTIFICATIONS = 256 };
 
-/** @name GUEST_PROP_F_XXX - The guest property flag values which are currently accepted.
- * @{
+/**
+ * The guest property flag values which are currently accepted.
  */
-#define GUEST_PROP_F_NILFLAG          UINT32_C(0)
-/** Transient until VM gets shut down. */
-#define GUEST_PROP_F_TRANSIENT        RT_BIT_32(1)
-#define GUEST_PROP_F_RDONLYGUEST      RT_BIT_32(2)
-#define GUEST_PROP_F_RDONLYHOST       RT_BIT_32(3)
-/** Transient until VM gets a reset / restarts.
- *  Implies TRANSIENT. */
-#define GUEST_PROP_F_TRANSRESET       RT_BIT_32(4)
-#define GUEST_PROP_F_READONLY         (GUEST_PROP_F_RDONLYGUEST | GUEST_PROP_F_RDONLYHOST)
-#define GUEST_PROP_F_ALLFLAGS         (GUEST_PROP_F_TRANSIENT | GUEST_PROP_F_READONLY | GUEST_PROP_F_TRANSRESET)
-/** @} */
+enum ePropFlags
+{
+    NILFLAG          = 0,
+    /** Transient until VM gets shut down. */
+    TRANSIENT        = RT_BIT(1),
+    RDONLYGUEST      = RT_BIT(2),
+    RDONLYHOST       = RT_BIT(3),
+    /** Transient until VM gets a reset / restarts.
+     *  Implies TRANSIENT. */
+    TRANSRESET       = RT_BIT(4),
+    READONLY         = RDONLYGUEST | RDONLYHOST,
+    ALLFLAGS         = TRANSIENT | READONLY | TRANSRESET
+};
 
 /**
  * Get the name of a flag as a string.
  * @returns the name, or NULL if fFlag is invalid.
- * @param   fFlag       The flag, GUEST_PROP_F_XXX.
- * @param   pcchName    Where to return the name length.
+ * @param   fFlag  the flag.  Must be a value from the ePropFlags enumeration
+ *                 list.
  */
-DECLINLINE(const char *) GuestPropFlagNameAndLen(uint32_t fFlag, size_t *pcchName)
+DECLINLINE(const char *) flagName(uint32_t fFlag)
 {
     switch (fFlag)
     {
-        case GUEST_PROP_F_TRANSIENT:
-            *pcchName = sizeof("TRANSIENT") - 1;
+        case TRANSIENT:
             return "TRANSIENT";
-        case GUEST_PROP_F_RDONLYGUEST:
-            *pcchName = sizeof("RDONLYGUEST") - 1;
+        case RDONLYGUEST:
             return "RDONLYGUEST";
-        case GUEST_PROP_F_RDONLYHOST:
-            *pcchName = sizeof("RDONLYHOST") - 1;
+        case RDONLYHOST:
             return "RDONLYHOST";
-        case GUEST_PROP_F_READONLY:
-            *pcchName = sizeof("READONLY") - 1;
+        case READONLY:
             return "READONLY";
-        case GUEST_PROP_F_TRANSRESET:
-            *pcchName = sizeof("TRANSRESET") - 1;
+        case TRANSRESET:
             return "TRANSRESET";
         default:
-            *pcchName = 0;
-            return NULL;
+            break;
     }
+    return NULL;
+}
+
+/**
+ * Get the length of a flag name as returned by flagName.
+ * @returns the length, or 0 if fFlag is invalid.
+ * @param   fFlag  the flag.  Must be a value from the ePropFlags enumeration
+ *                 list.
+ */
+DECLINLINE(size_t) flagNameLen(uint32_t fFlag)
+{
+    const char *pcszName = flagName(fFlag);
+    return RT_LIKELY(pcszName != NULL) ? strlen(pcszName) : 0;
 }
 
 /**
  * Maximum length for the property flags field.  We only ever return one of
  * RDONLYGUEST, RDONLYHOST and RDONLY
  */
-#define GUEST_PROP_MAX_FLAGS_LEN    sizeof("TRANSIENT, RDONLYGUEST, TRANSRESET")
+enum { MAX_FLAGS_LEN = sizeof("TRANSIENT, RDONLYGUEST, TRANSRESET") };
 
 /**
  * Parse a guest properties flags string for flag names and make sure that
  * there is no junk text in the string.
- *
  * @returns  IPRT status code
- * @retval   VERR_INVALID_PARAMETER if the flag string is not valid
+ * @returns  VERR_INVALID_PARAM if the flag string is not valid
  * @param    pcszFlags  the flag string to parse
  * @param    pfFlags    where to store the parse result.  May not be NULL.
  * @note     This function is also inline because it must be accessible from
  *           several modules and it does not seem reasonable to put it into
  *           its own library.
  */
-DECLINLINE(int) GuestPropValidateFlags(const char *pcszFlags, uint32_t *pfFlags)
+DECLINLINE(int) validateFlags(const char *pcszFlags, uint32_t *pfFlags)
 {
     static const uint32_t s_aFlagList[] =
     {
-        GUEST_PROP_F_TRANSIENT, GUEST_PROP_F_READONLY, GUEST_PROP_F_RDONLYGUEST, GUEST_PROP_F_RDONLYHOST, GUEST_PROP_F_TRANSRESET
+        TRANSIENT, READONLY, RDONLYGUEST, RDONLYHOST, TRANSRESET
     };
     const char *pcszNext = pcszFlags;
     int rc = VINF_SUCCESS;
@@ -128,34 +137,29 @@ DECLINLINE(int) GuestPropValidateFlags(const char *pcszFlags, uint32_t *pfFlags)
 
     if (pcszFlags)
     {
-        while (*pcszNext == ' ')
+        while (' ' == *pcszNext)
             ++pcszNext;
         while ((*pcszNext != '\0') && RT_SUCCESS(rc))
         {
-            unsigned i;
-            rc = VERR_PARSE_ERROR;
-            for (i = 0; i < RT_ELEMENTS(s_aFlagList); ++i)
-            {
-                size_t      cchFlagName;
-                const char *pszFlagName = GuestPropFlagNameAndLen(s_aFlagList[i], &cchFlagName);
-                if (RTStrNICmpAscii(pcszNext, pszFlagName, cchFlagName) == 0)
-                {
-                    char ch;
-                    fFlags |= s_aFlagList[i];
-                    pcszNext += cchFlagName;
-                    while ((ch = *pcszNext) == ' ')
-                        ++pcszNext;
-                    rc = VINF_SUCCESS;
-                    if (ch == ',')
-                    {
-                        ++pcszNext;
-                        while (*pcszNext == ' ')
-                            ++pcszNext;
-                    }
-                    else if (ch != '\0')
-                        rc = VERR_PARSE_ERROR;
+            unsigned i = 0;
+            for (; i < RT_ELEMENTS(s_aFlagList); ++i)
+                if (RTStrNICmp(pcszNext, flagName(s_aFlagList[i]),
+                               flagNameLen(s_aFlagList[i])) == 0)
                     break;
-                }
+            if (RT_ELEMENTS(s_aFlagList) == i)
+                rc = VERR_PARSE_ERROR;
+            else
+            {
+                fFlags |= s_aFlagList[i];
+                pcszNext += flagNameLen(s_aFlagList[i]);
+                while (' ' == *pcszNext)
+                    ++pcszNext;
+                if (',' == *pcszNext)
+                    ++pcszNext;
+                else if (*pcszNext != '\0')
+                    rc = VERR_PARSE_ERROR;
+                while (' ' == *pcszNext)
+                    ++pcszNext;
             }
         }
     }
@@ -164,140 +168,154 @@ DECLINLINE(int) GuestPropValidateFlags(const char *pcszFlags, uint32_t *pfFlags)
     return rc;
 }
 
-
 /**
  * Write out flags to a string.
  * @returns  IPRT status code
  * @param    fFlags    the flags to write out
  * @param    pszFlags  where to write the flags string.  This must point to
- *                     a buffer of size (at least) GUEST_PROP_MAX_FLAGS_LEN.
+ *                     a buffer of size (at least) MAX_FLAGS_LEN.
  */
-DECLINLINE(int) GuestPropWriteFlags(uint32_t fFlags, char *pszFlags)
+DECLINLINE(int) writeFlags(uint32_t fFlags, char *pszFlags)
 {
     /* Putting READONLY before the other RDONLY flags keeps the result short. */
     static const uint32_t s_aFlagList[] =
     {
-        GUEST_PROP_F_TRANSIENT, GUEST_PROP_F_READONLY, GUEST_PROP_F_RDONLYGUEST, GUEST_PROP_F_RDONLYHOST, GUEST_PROP_F_TRANSRESET
+        TRANSIENT, READONLY, RDONLYGUEST, RDONLYHOST, TRANSRESET
     };
     int rc = VINF_SUCCESS;
 
     AssertLogRelReturn(VALID_PTR(pszFlags), VERR_INVALID_POINTER);
-    if ((fFlags & ~GUEST_PROP_F_ALLFLAGS) == GUEST_PROP_F_NILFLAG)
+    if ((fFlags & ~ALLFLAGS) == NILFLAG)
     {
-        char *pszNext;
-        unsigned i;
-
         /* TRANSRESET implies TRANSIENT.  For compatability with old clients we
            always set TRANSIENT when TRANSRESET appears. */
-        if (fFlags & GUEST_PROP_F_TRANSRESET)
-            fFlags |= GUEST_PROP_F_TRANSIENT;
+        if (fFlags & TRANSRESET)
+            fFlags |= TRANSIENT;
 
-        pszNext = pszFlags;
-        for (i = 0; i < RT_ELEMENTS(s_aFlagList); ++i)
+        char *pszNext = pszFlags;
+        for (unsigned i = 0; i < RT_ELEMENTS(s_aFlagList); ++i)
         {
             if (s_aFlagList[i] == (fFlags & s_aFlagList[i]))
             {
-                size_t      cchFlagName;
-                const char *pszFlagName = GuestPropFlagNameAndLen(s_aFlagList[i], &cchFlagName);
-                memcpy(pszNext, pszFlagName, cchFlagName);
-                pszNext += cchFlagName;
+                strcpy(pszNext, flagName(s_aFlagList[i]));
+                pszNext += flagNameLen(s_aFlagList[i]);
                 fFlags &= ~s_aFlagList[i];
-                if (fFlags != GUEST_PROP_F_NILFLAG)
+                if (fFlags != NILFLAG)
                 {
-                    *pszNext++ = ',';
-                    *pszNext++ = ' ';
+                    strcpy(pszNext, ", ");
+                    pszNext += 2;
                 }
             }
         }
         *pszNext = '\0';
 
-        Assert((uintptr_t)(pszNext - pszFlags) < GUEST_PROP_MAX_FLAGS_LEN);
-        Assert(fFlags == GUEST_PROP_F_NILFLAG); /* bad s_aFlagList */
+        Assert(fFlags == NILFLAG); /* bad s_aFlagList */
     }
     else
         rc = VERR_INVALID_PARAMETER;
     return rc;
 }
 
-
-/** @name The service functions which are callable by host.
- * @{
+/**
+ * The service functions which are callable by host.
  */
-/** Set properties in a block.
- * The parameters are pointers to NULL-terminated arrays containing the
- * parameters.  These are, in order, name, value, timestamp, flags.  Strings are
- * stored as pointers to mutable utf8 data.  All parameters must be supplied. */
-#define GUEST_PROP_FN_HOST_SET_PROPS        1
-/** Get the value attached to a guest property.
- * The parameter format matches that of GET_PROP. */
-#define GUEST_PROP_FN_HOST_GET_PROP         2
-/** Set the value attached to a guest property.
- * The parameter format matches that of SET_PROP. */
-#define GUEST_PROP_FN_HOST_SET_PROP         3
-/** Set the value attached to a guest property.
- * The parameter format matches that of SET_PROP_VALUE. */
-#define GUEST_PROP_FN_HOST_SET_PROP_VALUE   4
-/** Remove a guest property.
- * The parameter format matches that of DEL_PROP. */
-#define GUEST_PROP_FN_HOST_DEL_PROP         5
-/** Enumerate guest properties.
- * The parameter format matches that of ENUM_PROPS. */
-#define GUEST_PROP_FN_HOST_ENUM_PROPS       6
-/** Set global flags for the service.
- * Currently RDONLYGUEST is supported.  Takes one 32-bit unsigned integer
- * parameter for the flags. */
-#define GUEST_PROP_FN_HOST_SET_GLOBAL_FLAGS 7
-/** @} */
+enum eHostFn
+{
+    /**
+     * Set properties in a block.  The parameters are pointers to
+     * NULL-terminated arrays containing the parameters.  These are, in order,
+     * name, value, timestamp, flags.  Strings are stored as pointers to
+     * mutable utf8 data.  All parameters must be supplied.
+     */
+    SET_PROPS_HOST = 1,
+    /**
+     * Get the value attached to a guest property
+     * The parameter format matches that of GET_PROP.
+     */
+    GET_PROP_HOST = 2,
+    /**
+     * Set the value attached to a guest property
+     * The parameter format matches that of SET_PROP.
+     */
+    SET_PROP_HOST = 3,
+    /**
+     * Set the value attached to a guest property
+     * The parameter format matches that of SET_PROP_VALUE.
+     */
+    SET_PROP_VALUE_HOST = 4,
+    /**
+     * Remove a guest property.
+     * The parameter format matches that of DEL_PROP.
+     */
+    DEL_PROP_HOST = 5,
+    /**
+     * Enumerate guest properties.
+     * The parameter format matches that of ENUM_PROPS.
+     */
+    ENUM_PROPS_HOST = 6,
 
+    /**
+     * Set global flags for the service.  Currently RDONLYGUEST is supported.
+     * Takes one 32-bit unsigned integer parameter for the flags.
+     */
+    SET_GLOBAL_FLAGS_HOST = 7,
 
-/** @name The service functions which are called by guest.
- *
- * @note The numbers may not change!
- * @{
- */
-/** Get a guest property */
-#define GUEST_PROP_FN_GET_PROP              1
-/** Set a guest property */
-#define GUEST_PROP_FN_SET_PROP              2
-/** Set just the value of a guest property */
-#define GUEST_PROP_FN_SET_PROP_VALUE        3
-/** Delete a guest property */
-#define GUEST_PROP_FN_DEL_PROP              4
-/** Enumerate guest properties */
-#define GUEST_PROP_FN_ENUM_PROPS            5
-/** Poll for guest notifications */
-#define GUEST_PROP_FN_GET_NOTIFICATION      6
-/** @} */
-
+    /**
+     * Return the pointer to a debug info function enumerating all guest properties.
+     */
+    GET_DBGF_INFO_FN = 8
+};
 
 /**
- * Data structure to pass to the service extension callback.
- * We use this to notify the host of changes to properties.
+ * The service functions which are called by guest.  The numbers may not change,
+ * so we hardcode them.
  */
-typedef struct GUESTPROPHOSTCALLBACKDATA
+enum eGuestFn
 {
-    /** Magic number to identify the structure (GUESTPROPHOSTCALLBACKDATA_MAGIC). */
-    uint32_t        u32Magic;
-    /** The name of the property that was changed */
-    const char     *pcszName;
-    /** The new property value, or NULL if the property was deleted */
-    const char     *pcszValue;
-    /** The timestamp of the modification */
-    uint64_t       u64Timestamp;
-    /** The flags field of the modified property */
-    const char     *pcszFlags;
-} GUESTPROPHOSTCALLBACKDATA;
-/** Poitner to a data structure to pass to the service extension callback. */
-typedef GUESTPROPHOSTCALLBACKDATA *PGUESTPROPHOSTCALLBACKDATA;
+    /** Get a guest property */
+    GET_PROP = 1,
+    /** Set a guest property */
+    SET_PROP = 2,
+    /** Set just the value of a guest property */
+    SET_PROP_VALUE = 3,
+    /** Delete a guest property */
+    DEL_PROP = 4,
+    /** Enumerate guest properties */
+    ENUM_PROPS = 5,
+    /** Poll for guest notifications */
+    GET_NOTIFICATION = 6
+};
 
-/** Magic number for sanity checking the HOSTCALLBACKDATA structure */
-#define GUESTPROPHOSTCALLBACKDATA_MAGIC     UINT32_C(0x69c87a78)
+/**
+ * Data structure to pass to the service extension callback.  We use this to
+ * notify the host of changes to properties.
+ */
+typedef struct _HOSTCALLBACKDATA
+{
+    /** Magic number to identify the structure */
+    uint32_t u32Magic;
+    /** The name of the property that was changed */
+    const char *pcszName;
+    /** The new property value, or NULL if the property was deleted */
+    const char *pcszValue;
+    /** The timestamp of the modification */
+    uint64_t u64Timestamp;
+    /** The flags field of the modified property */
+    const char *pcszFlags;
+} HOSTCALLBACKDATA, *PHOSTCALLBACKDATA;
+
+enum
+{
+    /** Magic number for sanity checking the HOSTCALLBACKDATA structure */
+    HOSTCALLBACKMAGIC = 0x69c87a78
+};
 
 /**
  * HGCM parameter structures.  Packing is explicitly defined as this is a wire format.
  */
+#pragma pack (1)
 /** The guest is requesting the value of a property */
-typedef struct GuestPropMsgGetProperty
+typedef struct _GetProperty
 {
     VBGLIOCHGCMCALL hdr;
 
@@ -329,11 +347,10 @@ typedef struct GuestPropMsgGetProperty
      * (OUT uint32_t)
      */
     HGCMFunctionParameter size;
-} GuestPropMsgGetProperty;
-AssertCompileSize(GuestPropMsgGetProperty, 40 + 4 * (ARCH_BITS == 64 ? 16 : 12));
+} GetProperty;
 
 /** The guest is requesting to change a property */
-typedef struct GuestPropMsgSetProperty
+typedef struct _SetProperty
 {
     VBGLIOCHGCMCALL hdr;
 
@@ -356,15 +373,14 @@ typedef struct GuestPropMsgSetProperty
     /**
      * The property flags (IN pointer)
      * This is a comma-separated list of the format flag=value
-     * The length must be less than or equal to GUEST_PROP_MAX_FLAGS_LEN and only
+     * The length must be less than or equal to MAX_FLAGS_LEN and only
      * known flag names and values will be accepted.
      */
     HGCMFunctionParameter flags;
-} GuestPropMsgSetProperty;
-AssertCompileSize(GuestPropMsgSetProperty, 40 + 3 * (ARCH_BITS == 64 ? 16 : 12));
+} SetProperty;
 
 /** The guest is requesting to change the value of a property */
-typedef struct GuestPropMsgSetPropertyValue
+typedef struct _SetPropertyValue
 {
     VBGLIOCHGCMCALL hdr;
 
@@ -383,11 +399,10 @@ typedef struct GuestPropMsgSetPropertyValue
      * MAX_VALUE_LEN.
      */
     HGCMFunctionParameter value;
-} GuestPropMsgSetPropertyValue;
-AssertCompileSize(GuestPropMsgSetPropertyValue, 40 + 2 * (ARCH_BITS == 64 ? 16 : 12));
+} SetPropertyValue;
 
 /** The guest is requesting to remove a property */
-typedef struct GuestPropMsgDelProperty
+typedef struct _DelProperty
 {
     VBGLIOCHGCMCALL hdr;
 
@@ -398,11 +413,10 @@ typedef struct GuestPropMsgDelProperty
      *  - Zero terminated
      */
     HGCMFunctionParameter name;
-} GuestPropMsgDelProperty;
-AssertCompileSize(GuestPropMsgDelProperty, 40 + 1 * (ARCH_BITS == 64 ? 16 : 12));
+} DelProperty;
 
 /** The guest is requesting to enumerate properties */
-typedef struct GuestPropMsgEnumProperties
+typedef struct _EnumProperties
 {
     VBGLIOCHGCMCALL hdr;
 
@@ -429,8 +443,7 @@ typedef struct GuestPropMsgEnumProperties
      * too small, the size of buffer needed.  (OUT uint32_t)
      */
     HGCMFunctionParameter size;
-} GuestPropMsgEnumProperties;
-AssertCompileSize(GuestPropMsgEnumProperties, 40 + 3 * (ARCH_BITS == 64 ? 16 : 12));
+} EnumProperties;
 
 /**
  * The guest is polling for notifications on changes to properties, specifying
@@ -453,7 +466,7 @@ AssertCompileSize(GuestPropMsgEnumProperties, 40 + 3 * (ARCH_BITS == 64 ? 16 : 1
  * parameter should be set to zero.  On subsequent calls, it should be set to
  * the outgoing timestamp from the previous call.
  */
-typedef struct GuestPropMsgGetNotification
+typedef struct _GetNotification
 {
     VBGLIOCHGCMCALL hdr;
 
@@ -489,9 +502,10 @@ typedef struct GuestPropMsgGetNotification
      * Undefined on failure.
      */
     HGCMFunctionParameter size;
-} GuestPropMsgGetNotification;
-AssertCompileSize(GuestPropMsgGetNotification, 40 + 4 * (ARCH_BITS == 64 ? 16 : 12));
+} GetNotification;
+#pragma pack ()
 
+} /* namespace guestProp */
 
-#endif /* !VBOX_INCLUDED_HostServices_GuestPropertySvc_h */
+#endif  /* !___VBox_HostService_GuestPropertySvc_h */
 

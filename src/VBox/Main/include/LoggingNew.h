@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,16 +15,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef MAIN_INCLUDED_LoggingNew_h
-#define MAIN_INCLUDED_LoggingNew_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ____H_LOGGINGNEW
+#define ____H_LOGGINGNEW
 
-#ifdef MAIN_INCLUDED_Logging_h
+#ifdef ____H_LOGGING
 # error "You must include LoggingNew.h as the first include!"
 #endif
-#define MAIN_INCLUDED_Logging_h /* Prevent Logging.h from being included. */
+#define ____H_LOGGING /* Prevent Logging.h from being included. */
 
 #ifndef LOG_GROUP
 # error "You must define LOG_GROUP immediately before including LoggingNew.h!"
@@ -36,15 +33,6 @@
 
 #include <VBox/log.h>
 
-
-#ifndef VBOXSVC_LOG_DEFAULT
-# define VBOXSVC_LOG_DEFAULT "all"
-#endif
-
-#ifndef VBOXSDS_LOG_DEFAULT
-# define VBOXSDS_LOG_DEFAULT "all"
-#endif
-
-#endif /* !MAIN_INCLUDED_LoggingNew_h */
+#endif // !____H_LOGGINGNEW
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */
 

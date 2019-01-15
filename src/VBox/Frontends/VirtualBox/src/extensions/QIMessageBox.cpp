@@ -1,10 +1,10 @@
 /* $Id: QIMessageBox.cpp $ */
 /** @file
- * VBox Qt GUI - Qt extensions: QIMessageBox class implementation.
+ * VBox Qt GUI - QIMessageBox class implementation.
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,25 +15,31 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QCheckBox>
-#include <QClipboard>
-#include <QHBoxLayout>
-#include <QLabel>
-#include <QMimeData>
-#include <QPushButton>
-#include <QStyle>
-#include <QVBoxLayout>
+# include <QVBoxLayout>
+# include <QHBoxLayout>
+# include <QClipboard>
+# include <QLabel>
+# include <QCheckBox>
+# include <QPushButton>
+# include <QStyle>
+# include <QMimeData>
 
 /* GUI includes: */
-#include "QIArrowSplitter.h"
-#include "QIDialogButtonBox.h"
-#include "QILabel.h"
-#include "QIMessageBox.h"
-#include "UIIconPool.h"
+# include "QIMessageBox.h"
+# include "QILabel.h"
+# include "QIArrowSplitter.h"
+# include "QIDialogButtonBox.h"
+# include "UIIconPool.h"
 
 /* Other VBox includes: */
-#include <iprt/assert.h>
+# include <iprt/assert.h>
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 QIMessageBox::QIMessageBox(const QString &strTitle, const QString &strMessage, AlertIconType iconType,
@@ -114,30 +120,6 @@ void QIMessageBox::setButtonText(int iButton, const QString &strText)
         case 1: if (m_pButton2) m_pButton2->setText(strText); break;
         case 2: if (m_pButton3) m_pButton3->setText(strText); break;
         default: break;
-    }
-}
-
-void QIMessageBox::polishEvent(QShowEvent *pPolishEvent)
-{
-    /* Tune text-label size: */
-    m_pLabelText->useSizeHintForWidth(m_pLabelText->width());
-    m_pLabelText->updateGeometry();
-
-    /* Call to base-class: */
-    QIDialog::polishEvent(pPolishEvent);
-
-    /* Update size finally: */
-    sltUpdateSize();
-}
-
-void QIMessageBox::closeEvent(QCloseEvent *pCloseEvent)
-{
-    if (m_fDone)
-        pCloseEvent->accept();
-    else
-    {
-        pCloseEvent->ignore();
-        reject();
     }
 }
 
@@ -304,7 +286,7 @@ void QIMessageBox::prepareFocus()
     }
 }
 
-QPushButton *QIMessageBox::createButton(int iButton)
+QPushButton* QIMessageBox::createButton(int iButton)
 {
     /* Not for AlertButton_NoButton: */
     if (iButton == 0)
@@ -334,6 +316,30 @@ QPushButton *QIMessageBox::createButton(int iButton)
 
     /* Return button: */
     return pButton;
+}
+
+void QIMessageBox::polishEvent(QShowEvent *pPolishEvent)
+{
+    /* Tune text-label size: */
+    m_pLabelText->useSizeHintForWidth(m_pLabelText->width());
+    m_pLabelText->updateGeometry();
+
+    /* Call to base-class: */
+    QIDialog::polishEvent(pPolishEvent);
+
+    /* Update size finally: */
+    sltUpdateSize();
+}
+
+void QIMessageBox::closeEvent(QCloseEvent *pCloseEvent)
+{
+    if (m_fDone)
+        pCloseEvent->accept();
+    else
+    {
+        pCloseEvent->ignore();
+        reject();
+    }
 }
 
 void QIMessageBox::updateDetailsContainer()
@@ -374,3 +380,4 @@ QPixmap QIMessageBox::standardPixmap(AlertIconType iconType, QWidget *pWidget /*
     int iSize = pStyle->pixelMetric(QStyle::PM_MessageBoxIconSize, 0, pWidget);
     return icon.pixmap(iSize, iSize);
 }
+

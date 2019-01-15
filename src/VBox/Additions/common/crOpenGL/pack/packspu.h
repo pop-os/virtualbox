@@ -4,11 +4,8 @@
  * See the file LICENSE.txt for information on redistributing this software.
  */
 
-#ifndef GA_INCLUDED_SRC_common_crOpenGL_pack_packspu_h
-#define GA_INCLUDED_SRC_common_crOpenGL_pack_packspu_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef CR_PACKSPU_H
+#define CR_PACKSPU_H
 
 #ifdef WINDOWS
 #define PACKSPU_APIENTRY __stdcall
@@ -182,4 +179,4 @@ extern ThreadInfo *packspuNewCtxThread( struct VBOXUHGSMI *pHgsmi );
 
 #define MAGIC_OFFSET 3000
 
-#endif /* !GA_INCLUDED_SRC_common_crOpenGL_pack_packspu_h */
+#endif /* CR_PACKSPU_H */

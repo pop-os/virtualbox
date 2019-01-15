@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,11 +16,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef GA_INCLUDED_SRC_x11_VBoxClient_VBoxClient_h
-#define GA_INCLUDED_SRC_x11_VBoxClient_VBoxClient_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___vboxclient_vboxclient_h
+# define ___vboxclient_vboxclient_h
 
 #include <VBox/log.h>
 #include <iprt/cpp/utils.h>
@@ -85,4 +82,4 @@ extern struct VBCLSERVICE **VBClCheck3DService();
 extern struct VBCLSERVICE **VBClDisplaySVGAService();
 extern struct VBCLSERVICE **VBClDisplaySVGAX11Service();
 
-#endif /* !GA_INCLUDED_SRC_x11_VBoxClient_VBoxClient_h */
+#endif /* !___vboxclient_vboxclient_h */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,25 +15,27 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Qt includes: */
-#include <QVBoxLayout>
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* GUI includes: */
-#include "QILabelSeparator.h"
-#include "QIRichTextLabel.h"
-#include "VBoxGlobal.h"
-#include "UIMessageCenter.h"
-#include "UIWizardExportApp.h"
-#include "UIWizardExportAppDefs.h"
-#include "UIWizardExportAppPageBasic1.h"
+/* Qt includes: */
+# include <QVBoxLayout>
+
+/* Local includes: */
+# include "UIWizardExportAppPageBasic1.h"
+# include "UIWizardExportApp.h"
+# include "UIWizardExportAppDefs.h"
+# include "VBoxGlobal.h"
+# include "UIMessageCenter.h"
+# include "QILabelSeparator.h"
+# include "QIRichTextLabel.h"
 
 /* COM includes: */
-#include "CMachine.h"
+# include "CMachine.h"
 
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/*********************************************************************************************************************************
-*   Class UIWizardExportAppPage1 implementation.                                                                                 *
-*********************************************************************************************************************************/
 
 UIWizardExportAppPage1::UIWizardExportAppPage1()
 {
@@ -41,12 +43,12 @@ UIWizardExportAppPage1::UIWizardExportAppPage1()
 
 void UIWizardExportAppPage1::populateVMSelectorItems(const QStringList &selectedVMNames)
 {
-    /* Add all VM items into VM selector: */
+    /* Add all VM items into 'VM Selector': */
     foreach (const CMachine &machine, vboxGlobal().virtualBox().GetMachines())
     {
         QPixmap pixIcon;
         QString strName;
-        QUuid uUuid;
+        QString strUuid;
         bool fInSaveState = false;
         bool fEnabled = false;
         const QStyle *pStyle = QApplication::style();
@@ -57,7 +59,7 @@ void UIWizardExportAppPage1::populateVMSelectorItems(const QStringList &selected
             if (pixIcon.isNull())
                 pixIcon = vboxGlobal().vmGuestOSTypePixmapDefault(machine.GetOSTypeId());
             strName = machine.GetName();
-            uUuid = machine.GetId();
+            strUuid = machine.GetId();
             fEnabled = machine.GetSessionState() == KSessionState_Unlocked;
             fInSaveState = machine.GetState() == KMachineState_Saved;
         }
@@ -68,7 +70,7 @@ void UIWizardExportAppPage1::populateVMSelectorItems(const QStringList &selected
             strName = VBoxGlobal::hasAllowedExtension(fi.completeSuffix(), VBoxFileExts) ? fi.completeBaseName() : fi.fileName();
             pixIcon = QPixmap(":/os_other.png").scaled(iIconMetric, iIconMetric, Qt::IgnoreAspectRatio, Qt::SmoothTransformation);
         }
-        QListWidgetItem *pItem = new UIVMListWidgetItem(pixIcon, strName, uUuid, fInSaveState, m_pVMSelector);
+        QListWidgetItem *pItem = new VMListWidgetItem(pixIcon, strName, strUuid, fInSaveState, m_pVMSelector);
         if (!fEnabled)
             pItem->setFlags(0);
         m_pVMSelector->addItem(pItem);
@@ -100,53 +102,35 @@ QStringList UIWizardExportAppPage1::machineNames() const
     return machineNames;
 }
 
-QList<QUuid> UIWizardExportAppPage1::machineIDs() const
+QStringList UIWizardExportAppPage1::machineIDs() const
 {
     /* Prepare list: */
-    QList<QUuid> machineIDs;
+    QStringList machineIDs;
     /* Iterate over all the selected items: */
     foreach (QListWidgetItem *pItem, m_pVMSelector->selectedItems())
-        machineIDs.append(static_cast<UIVMListWidgetItem*>(pItem)->uuid());
+        machineIDs << static_cast<VMListWidgetItem*>(pItem)->uuid();
     /* Return result list: */
     return machineIDs;
 }
 
-
-/*********************************************************************************************************************************
-*   Class UIWizardExportAppPageBasic1 implementation.                                                                            *
-*********************************************************************************************************************************/
-
 UIWizardExportAppPageBasic1::UIWizardExportAppPageBasic1(const QStringList &selectedVMNames)
 {
-    /* Create main layout: */
+    /* Create widgets: */
     QVBoxLayout *pMainLayout = new QVBoxLayout(this);
-    if (pMainLayout)
     {
-        /* Create label: */
-        m_pLabel = new QIRichTextLabel;
-        if (m_pLabel)
-        {
-            /* Add into layout: */
-            pMainLayout->addWidget(m_pLabel);
-        }
-
-        /* Create VM selector: */
-        m_pVMSelector = new QListWidget;
-        if (m_pVMSelector)
+        m_pLabel = new QIRichTextLabel(this);
+        m_pVMSelector = new QListWidget(this);
         {
             m_pVMSelector->setAlternatingRowColors(true);
             m_pVMSelector->setSelectionMode(QAbstractItemView::ExtendedSelection);
-
-            /* Add into layout: */
-            pMainLayout->addWidget(m_pVMSelector);
         }
+        pMainLayout->addWidget(m_pLabel);
+        pMainLayout->addWidget(m_pVMSelector);
+        populateVMSelectorItems(selectedVMNames);
     }
 
-    /* Populate VM selector items: */
-    populateVMSelectorItems(selectedVMNames);
-
     /* Setup connections: */
-    connect(m_pVMSelector, &QListWidget::itemSelectionChanged, this, &UIWizardExportAppPageBasic1::completeChanged);
+    connect(m_pVMSelector, SIGNAL(itemSelectionChanged()), this, SIGNAL(completeChanged()));
 
     /* Register fields: */
     registerField("machineNames", this, "machineNames");
@@ -172,7 +156,7 @@ void UIWizardExportAppPageBasic1::initializePage()
 
 bool UIWizardExportAppPageBasic1::isComplete() const
 {
-    /* There should be at least one VM selected: */
+    /* There should be at least one vm selected: */
     return m_pVMSelector->selectedItems().size() > 0;
 }
 
@@ -181,13 +165,13 @@ bool UIWizardExportAppPageBasic1::validatePage()
     /* Initial result: */
     bool fResult = true;
 
-    /* Ask user about machines which are in Saved state currently: */
+    /* Ask user about machines which are in save state currently: */
     QStringList savedMachines;
-    QList<QListWidgetItem*> items = m_pVMSelector->selectedItems();
-    for (int i=0; i < items.size(); ++i)
+    QList<QListWidgetItem*> pItems = m_pVMSelector->selectedItems();
+    for (int i=0; i < pItems.size(); ++i)
     {
-        if (static_cast<UIVMListWidgetItem*>(items.at(i))->isInSaveState())
-            savedMachines << items.at(i)->text();
+        if (static_cast<VMListWidgetItem*>(pItems.at(i))->isInSaveState())
+            savedMachines << pItems.at(i)->text();
     }
     if (!savedMachines.isEmpty())
         fResult = msgCenter().confirmExportMachinesInSaveState(savedMachines, this);
@@ -195,3 +179,10 @@ bool UIWizardExportAppPageBasic1::validatePage()
     /* Return result: */
     return fResult;
 }
+
+int UIWizardExportAppPageBasic1::nextId() const
+{
+    /* Skip next (2nd, storage-type) page for now! */
+    return UIWizardExportApp::Page3;
+}
+

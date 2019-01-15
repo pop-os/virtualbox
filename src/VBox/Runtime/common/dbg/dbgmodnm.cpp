@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -53,14 +53,6 @@ typedef struct RTDBGMODNM
 /** Pointer to instance data NM map reader. */
 typedef RTDBGMODNM *PRTDBGMODNM;
 
-
-
-/** @interface_method_impl{RTDBGMODVTDBG,pfnUnwindFrame} */
-static DECLCALLBACK(int) rtDbgModNm_UnwindFrame(PRTDBGMODINT pMod, RTDBGSEGIDX iSeg, RTUINTPTR off, PRTDBGUNWINDSTATE pState)
-{
-    RT_NOREF(pMod, iSeg, off, pState);
-    return VERR_DBG_NO_UNWIND_INFO;
-}
 
 
 /** @interface_method_impl{RTDBGMODVTDBG,pfnLineByAddr} */
@@ -562,8 +554,6 @@ DECL_HIDDEN_CONST(RTDBGMODVTDBG) const g_rtDbgModVtDbgNm =
     /*.pfnLineCount = */        rtDbgModNm_LineCount,
     /*.pfnLineByOrdinal = */    rtDbgModNm_LineByOrdinal,
     /*.pfnLineByAddr = */       rtDbgModNm_LineByAddr,
-
-    /*.pfnUnwindFrame = */      rtDbgModNm_UnwindFrame,
 
     /*.u32EndMagic = */         RTDBGMODVTDBG_MAGIC
 };

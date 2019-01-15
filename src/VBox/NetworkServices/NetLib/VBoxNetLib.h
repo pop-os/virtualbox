@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_INCLUDED_SRC_NetLib_VBoxNetLib_h
-#define VBOX_INCLUDED_SRC_NetLib_VBoxNetLib_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBoxNetUDP_h___
+#define ___VBoxNetUDP_h___
 
 #include <iprt/net.h>
 #include <VBox/intnet.h>
@@ -68,5 +65,5 @@ int     VBoxNetIntIfSend(PSUPDRVSESSION pSession, INTNETIFHANDLE hIf, PINTNETBUF
 
 RT_C_DECLS_END
 
-#endif /* !VBOX_INCLUDED_SRC_NetLib_VBoxNetLib_h */
+#endif
 

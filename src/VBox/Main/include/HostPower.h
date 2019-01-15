@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,11 +16,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef MAIN_INCLUDED_HostPower_h
-#define MAIN_INCLUDED_HostPower_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ____H_HOSTPOWER
+#define ____H_HOSTPOWER
 
 #ifdef RT_OS_DARWIN /* first, so we can undef pVM in iprt/cdefs.h */
 # include <IOKit/pwr_mgt/IOPMLib.h>
@@ -122,5 +119,5 @@ private:
 };
 # endif
 
-#endif /* !MAIN_INCLUDED_HostPower_h */
+#endif /* !____H_HOSTPOWER */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

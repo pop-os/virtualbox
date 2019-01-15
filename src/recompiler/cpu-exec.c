@@ -349,6 +349,9 @@ int cpu_exec(CPUState *env1)
                                  env->error_code,
                                  env->exception_next_eip,
                                  env->exception_is_int == EXCEPTION_IS_INT_VALUE_HARDWARE_IRQ);
+#  ifdef IEM_VERIFICATION_MODE /* Ugly hacks */
+                    cpu_loop_exit();
+#  endif
                     /* successfully delivered */
                     env->old_exception = -1;
 #  ifdef VBOX
@@ -446,6 +449,10 @@ int cpu_exec(CPUState *env1)
                         }
                         /* Clear CPU_INTERRUPT_SINGLE_INSTR and leave CPU_INTERRUPT_SINGLE_INSTR_IN_FLIGHT set. */
                         ASMAtomicAndS32((int32_t volatile *)&env->interrupt_request, ~CPU_INTERRUPT_SINGLE_INSTR);
+#  ifdef IEM_VERIFICATION_MODE
+                        env->exception_index = ret = EXCP_SINGLE_INSTR;
+                        cpu_loop_exit();
+#  endif
                     }
 # endif /* VBOX */
 

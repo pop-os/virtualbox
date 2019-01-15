@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,13 +15,9 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-
-/*********************************************************************************************************************************
-*   Header Files                                                                                                                 *
-*********************************************************************************************************************************/
-#define LOG_GROUP LOG_GROUP_SHARED_CROPENGL
-
 #define __STDC_CONSTANT_MACROS  /* needed for a definition in iprt/string.h */
+
+#define LOG_GROUP LOG_GROUP_SHARED_CROPENGL
 
 #include <iprt/assert.h>
 #include <iprt/asm.h>
@@ -32,7 +28,6 @@
 #include <iprt/string.h>
 #include <iprt/thread.h>
 
-#include <VBox/err.h>
 #include <VBox/hgcmsvc.h>
 #include <VBox/log.h>
 #include <VBox/com/array.h>
@@ -46,22 +41,18 @@
 #include "cr_mem.h"
 #include "cr_server.h"
 
-#ifndef RT_OS_WINDOWS
-# define DWORD int
-# define WINAPI
-#endif
-
-
-/*********************************************************************************************************************************
-*   Global Variables                                                                                                             *
-*********************************************************************************************************************************/
 PVBOXHGCMSVCHELPERS g_pHelpers;
 static IConsole* g_pConsole = NULL;
 static uint32_t g_u32ScreenCount = 0;
 static PVM g_pVM = NULL;
 static uint32_t g_u32fCrHgcmDisabled = 0;
 
-static const char *gszVBoxOGLSSMMagic = "***OpenGL state data***";
+#ifndef RT_OS_WINDOWS
+# define DWORD int
+# define WINAPI
+#endif
+
+static const char* gszVBoxOGLSSMMagic = "***OpenGL state data***";
 
 /* Used to process guest calls exceeding maximum allowed HGCM call size in a sequence of smaller calls */
 typedef struct _CRVBOXSVCBUFFER_t {
@@ -119,9 +110,11 @@ static DECLCALLBACK(int) svcUnload (void *)
     return rc;
 }
 
-static DECLCALLBACK(int) svcConnect (void *, uint32_t u32ClientID, void *pvClient, uint32_t fRequestor, bool fRestoring)
+static DECLCALLBACK(int) svcConnect (void *, uint32_t u32ClientID, void *pvClient)
 {
-    RT_NOREF(pvClient, fRequestor, fRestoring);
+    int rc = VINF_SUCCESS;
+
+    NOREF(pvClient);
 
     if (g_u32fCrHgcmDisabled)
     {
@@ -131,7 +124,7 @@ static DECLCALLBACK(int) svcConnect (void *, uint32_t u32ClientID, void *pvClien
 
     Log(("SHARED_CROPENGL svcConnect: u32ClientID = %d\n", u32ClientID));
 
-    int rc = crVBoxServerAddClient(u32ClientID);
+    rc = crVBoxServerAddClient(u32ClientID);
 
     return rc;
 }
@@ -207,10 +200,11 @@ static DECLCALLBACK(int) svcSaveState(void *, uint32_t u32ClientID, void *pvClie
     return VINF_SUCCESS;
 }
 
-static DECLCALLBACK(int) svcLoadState(void *, uint32_t u32ClientID, void *pvClient, PSSMHANDLE pSSM, uint32_t uVersion)
+static DECLCALLBACK(int) svcLoadState(void *, uint32_t u32ClientID, void *pvClient, PSSMHANDLE pSSM)
 {
-    RT_NOREF(pvClient, uVersion);
     int rc = VINF_SUCCESS;
+
+    NOREF(pvClient);
 
     Log(("SHARED_CROPENGL svcLoadState: u32ClientID = %d\n", u32ClientID));
 
@@ -420,11 +414,11 @@ static void svcFreeBuffer(CRVBOXSVCBUFFER_t* pBuffer)
     RTMemFree(pBuffer);
 }
 
-static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID, void *pvClient,
-                                   uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[], uint64_t tsArrival)
+static DECLCALLBACK(void) svcCall (void *, VBOXHGCMCALLHANDLE callHandle, uint32_t u32ClientID, void *pvClient, uint32_t u32Function, uint32_t cParms, VBOXHGCMSVCPARM paParms[])
 {
-    RT_NOREF(pvClient, tsArrival);
     int rc = VINF_SUCCESS;
+
+    NOREF(pvClient);
 
     if (g_u32fCrHgcmDisabled)
     {
@@ -1556,7 +1550,6 @@ extern "C" DECLCALLBACK(DECLEXPORT(int)) VBoxHGCMSvcLoad (VBOXHGCMSVCFNTABLE *pt
             ptable->pfnHostCall   = svcHostCall;
             ptable->pfnSaveState  = svcSaveState;
             ptable->pfnLoadState  = svcLoadState;
-            ptable->pfnNotify     = NULL;
             ptable->pvService     = NULL;
 
             if (!crVBoxServerInit())

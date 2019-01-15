@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,11 +16,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_INCLUDED_SRC_Audio_VBoxMMNotificationClient_h
-#define VBOX_INCLUDED_SRC_Audio_VBoxMMNotificationClient_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBOX_MMNOTIFICATIONCLIENT_H___
+#define ___VBOX_MMNOTIFICATIONCLIENT_H___
 
 #include <iprt/critsect.h>
 #include <iprt/win/windows.h>
@@ -87,5 +84,5 @@ private:
     IFACEMETHODIMP_(ULONG) AddRef();
     /** @} */
 };
-#endif /* !VBOX_INCLUDED_SRC_Audio_VBoxMMNotificationClient_h */
+#endif /* !___VBOX_MMNOTIFICATIONCLIENT_H___ */
 

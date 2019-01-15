@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1319,8 +1319,6 @@ uint64_t DrvAudioHlpFramesToNano(uint32_t cFrames, const PPDMAUDIOPCMPROPS pProp
 /**
  * Returns the amount of bytes for a given time (in ms) and PCM properties.
  *
- * Note: The result will return an amount of bytes which is aligned to the audio frame size.
- *
  * @return  uint32_t            Calculated amount of bytes.
  * @param   uMs                 Time (in ms) to calculate amount of bytes for.
  * @param   pProps              PCM properties to calculate amount of bytes for.
@@ -1332,21 +1330,11 @@ uint32_t DrvAudioHlpMilliToBytes(uint64_t uMs, const PPDMAUDIOPCMPROPS pProps)
     if (!uMs)
         return 0;
 
-    const uint32_t uBytesPerFrame = DrvAudioHlpPCMPropsBytesPerFrame(pProps);
-
-    uint32_t uBytes = ((double)drvAudioHlpBytesPerSec(pProps) / (double)RT_MS_1SEC) * uMs;
-    if (uBytes % uBytesPerFrame) /* Any remainder? Make the returned bytes an integral number to the given frames. */
-        uBytes = uBytes + (uBytesPerFrame - uBytes % uBytesPerFrame);
-
-    Assert(uBytes % uBytesPerFrame == 0); /* Paranoia. */
-
-    return uBytes;
+    return ((double)drvAudioHlpBytesPerSec(pProps) / (double)RT_MS_1SEC) * uMs;
 }
 
 /**
  * Returns the amount of bytes for a given time (in ns) and PCM properties.
- *
- * Note: The result will return an amount of bytes which is aligned to the audio frame size.
  *
  * @return  uint32_t            Calculated amount of bytes.
  * @param   uNs                 Time (in ns) to calculate amount of bytes for.
@@ -1359,15 +1347,7 @@ uint32_t DrvAudioHlpNanoToBytes(uint64_t uNs, const PPDMAUDIOPCMPROPS pProps)
     if (!uNs)
         return 0;
 
-    const uint32_t uBytesPerFrame = DrvAudioHlpPCMPropsBytesPerFrame(pProps);
-
-    uint32_t uBytes = ((double)drvAudioHlpBytesPerSec(pProps) / (double)RT_NS_1SEC) * uNs;
-    if (uBytes % uBytesPerFrame) /* Any remainder? Make the returned bytes an integral number to the given frames. */
-        uBytes = uBytes + (uBytesPerFrame - uBytes % uBytesPerFrame);
-
-    Assert(uBytes % uBytesPerFrame == 0); /* Paranoia. */
-
-    return uBytes;
+    return ((double)drvAudioHlpBytesPerSec(pProps) / (double)RT_NS_1SEC) * uNs;
 }
 
 /**

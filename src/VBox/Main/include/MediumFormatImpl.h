@@ -1,10 +1,12 @@
 /* $Id: MediumFormatImpl.h $ */
+
 /** @file
+ *
  * MediumFormat COM class implementation
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +17,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef MAIN_INCLUDED_MediumFormatImpl_h
-#define MAIN_INCLUDED_MediumFormatImpl_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef MEDIUMFORMAT_IMPL_H_
+#define MEDIUMFORMAT_IMPL_H_
 
 #include "MediumFormatWrap.h"
 
@@ -67,8 +66,6 @@ public:
     /** Const, no need to lock */
     const Utf8Str &i_getId() const { return m.strId; }
     /** Const, no need to lock */
-    const Utf8Str &i_getName() const { return m.strName; }
-    /** Const, no need to lock */
     const StrArray &i_getFileExtensions() const { return m.maFileExtensions; }
     /** Const, no need to lock */
     MediumFormatCapabilities_T i_getCapabilities() const { return m.capabilities; }
@@ -110,6 +107,6 @@ private:
     Data m;
 };
 
-#endif /* !MAIN_INCLUDED_MediumFormatImpl_h */
+#endif // MEDIUMFORMAT_IMPL_H_
 
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

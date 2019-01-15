@@ -1,9 +1,5 @@
-
-#ifndef VBOX_INCLUDED_SRC_Graphics_BIOS_vbe_h
-#define VBOX_INCLUDED_SRC_Graphics_BIOS_vbe_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef vbe_h_included
+#define vbe_h_included
 
 #include "vgabios.h"
 
@@ -114,4 +110,4 @@ typedef struct ModeInfoBlock
 #define VBE_RETURN_STATUS_NOT_SUPPORTED                  0x02
 #define VBE_RETURN_STATUS_INVALID                        0x03
 
-#endif /* !VBOX_INCLUDED_SRC_Graphics_BIOS_vbe_h */
+#endif

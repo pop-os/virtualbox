@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VMM_INCLUDED_SRC_include_PGMInline_h
-#define VMM_INCLUDED_SRC_include_PGMInline_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___PGMInline_h
+#define ___PGMInline_h
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
@@ -35,9 +32,6 @@
 #include <VBox/log.h>
 #include <VBox/vmm/gmm.h>
 #include <VBox/vmm/hm.h>
-#ifndef IN_RC
-# include <VBox/vmm/nem.h>
-#endif
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/avl.h>
@@ -519,39 +513,6 @@ DECLINLINE(int) pgmPhysPageQueryTlbeWithPage(PVM pVM, PPGMPAGE pPage, RTGCPHYS G
     return rc;
 }
 
-
-/**
- * Calculates NEM page protection flags.
- */
-DECL_FORCE_INLINE(uint32_t) pgmPhysPageCalcNemProtection(PPGMPAGE pPage, PGMPAGETYPE enmType)
-{
-    /*
-     * Deal with potentially writable pages first.
-     */
-    if (PGMPAGETYPE_IS_RWX(enmType))
-    {
-        if (!PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage))
-        {
-            if (PGM_PAGE_IS_ALLOCATED(pPage))
-                return NEM_PAGE_PROT_READ | NEM_PAGE_PROT_EXECUTE | NEM_PAGE_PROT_WRITE;
-            return NEM_PAGE_PROT_READ | NEM_PAGE_PROT_EXECUTE;
-        }
-        if (!PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(pPage))
-            return NEM_PAGE_PROT_READ | NEM_PAGE_PROT_EXECUTE;
-    }
-    /*
-     * Potentially readable & executable pages.
-     */
-    else if (   PGMPAGETYPE_IS_ROX(enmType)
-             && !PGM_PAGE_HAS_ACTIVE_ALL_HANDLERS(pPage))
-        return NEM_PAGE_PROT_READ | NEM_PAGE_PROT_EXECUTE;
-
-    /*
-     * The rest is needs special access handling.
-     */
-    return NEM_PAGE_PROT_NONE;
-}
-
 #endif /* !IN_RC */
 
 /**
@@ -584,18 +545,6 @@ DECLINLINE(void) pgmPhysPageWriteMonitor(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhy
         else
             Assert(PGM_PAGE_GET_PDE_TYPE(pFirstPage) == PGM_PAGE_PDE_TYPE_PDE_DISABLED);
     }
-
-#ifndef IN_RC
-    /* Tell NEM. */
-    if (VM_IS_NEM_ENABLED(pVM))
-    {
-        uint8_t     u2State = PGM_PAGE_GET_NEM_STATE(pPage);
-        PGMPAGETYPE enmType = (PGMPAGETYPE)PGM_PAGE_GET_TYPE(pPage);
-        NEMHCNotifyPhysPageProtChanged(pVM, GCPhysPage, PGM_PAGE_GET_HCPHYS(pPage),
-                                       pgmPhysPageCalcNemProtection(pPage, enmType), enmType, &u2State);
-        PGM_PAGE_SET_NEM_STATE(pPage, u2State);
-    }
-#endif
 }
 
 
@@ -1503,12 +1452,12 @@ DECLINLINE(bool) pgmPoolIsPageLocked(PPGMPOOLPAGE pPage)
 DECL_FORCE_INLINE(bool) pgmMapAreMappingsEnabled(PVM pVM)
 {
 #ifdef PGM_WITHOUT_MAPPINGS
-    /* Only raw-mode has mappings. */
-    Assert(!VM_IS_RAW_MODE_ENABLED(pVM)); NOREF(pVM);
+    /* There are no mappings in VT-x and AMD-V mode. */
+    Assert(HMIsEnabled(pVM)); NOREF(pVM);
     return false;
 #else
-    Assert(pVM->cCpus == 1 || !VM_IS_RAW_MODE_ENABLED(pVM));
-    return VM_IS_RAW_MODE_ENABLED(pVM);
+    Assert(pVM->cCpus == 1 || HMIsEnabled(pVM));
+    return !HMIsEnabled(pVM);
 #endif
 }
 
@@ -1522,8 +1471,8 @@ DECL_FORCE_INLINE(bool) pgmMapAreMappingsEnabled(PVM pVM)
 DECL_FORCE_INLINE(bool) pgmMapAreMappingsFloating(PVM pVM)
 {
 #ifdef PGM_WITHOUT_MAPPINGS
-    /* Only raw-mode has mappings. */
-    Assert(!VM_IS_RAW_MODE_ENABLED(pVM)); NOREF(pVM);
+    /* There are no mappings in VT-x and AMD-V mode. */
+    Assert(HMIsEnabled(pVM)); NOREF(pVM);
     return false;
 #else
     return !pVM->pgm.s.fMappingsFixed
@@ -1533,5 +1482,5 @@ DECL_FORCE_INLINE(bool) pgmMapAreMappingsFloating(PVM pVM)
 
 /** @} */
 
-#endif /* !VMM_INCLUDED_SRC_include_PGMInline_h */
+#endif
 

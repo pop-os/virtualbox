@@ -1,10 +1,10 @@
 /* $Id: QILabelSeparator.cpp $ */
 /** @file
- * VBox Qt GUI - Qt extensions: QILabelSeparator class implementation.
+ * VBox Qt GUI - VirtualBox Qt extensions: QILabelSeparator class implementation.
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,79 +15,69 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Qt includes: */
-#include <QHBoxLayout>
-#include <QLabel>
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* GUI includes: */
-#include "QILabelSeparator.h"
+/* Global includes */
+# include <QLabel>
+# include <QHBoxLayout>
+
+/* Local includes */
+# include "QILabelSeparator.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
-QILabelSeparator::QILabelSeparator(QWidget *pParent /* = 0 */, Qt::WindowFlags fFlags /* = 0 */)
-    : QWidget(pParent, fFlags)
-    , m_pLabel(0)
+QILabelSeparator::QILabelSeparator (QWidget *aParent /* = NULL */, Qt::WindowFlags aFlags /* = 0 */)
+    : QWidget (aParent, aFlags)
+    , mLabel (0)
 {
-    prepare();
+    init();
 }
 
-QILabelSeparator::QILabelSeparator(const QString &strText, QWidget *pParent /* = 0 */, Qt::WindowFlags fFlags /* = 0 */)
-    : QWidget(pParent, fFlags)
-    , m_pLabel(0)
+QILabelSeparator::QILabelSeparator (const QString &aText, QWidget *aParent /* = NULL */, Qt::WindowFlags aFlags /* = 0 */)
+    : QWidget (aParent, aFlags)
+    , mLabel (0)
 {
-    prepare();
-    setText(strText);
+    init();
+    setText (aText);
 }
 
 QString QILabelSeparator::text() const
 {
-    return m_pLabel->text();
+    return mLabel->text();
 }
 
-void QILabelSeparator::setBuddy(QWidget *pBuddy)
+void QILabelSeparator::setBuddy (QWidget *aBuddy)
 {
-    m_pLabel->setBuddy(pBuddy);
+    mLabel->setBuddy (aBuddy);
 }
 
 void QILabelSeparator::clear()
 {
-    m_pLabel->clear();
+    mLabel->clear();
 }
 
-void QILabelSeparator::setText(const QString &strText)
+void QILabelSeparator::setText (const QString &aText)
 {
-    m_pLabel->setText(strText);
+    mLabel->setText (aText);
 }
 
-void QILabelSeparator::prepare()
+void QILabelSeparator::init()
 {
-    /* Create layout: */
-    QHBoxLayout *pLayout = new QHBoxLayout(this);
-    if (pLayout)
-    {
-        /* Configure layout: */
-        pLayout->setContentsMargins(0, 0, 0, 0);
+    mLabel = new QLabel();
+    QFrame *separator = new QFrame();
+    separator->setFrameShape (QFrame::HLine);
+    separator->setFrameShadow (QFrame::Sunken);
+    separator->setEnabled (false);
+    separator->setContentsMargins (0, 0, 0, 0);
+    // separator->setStyleSheet ("QFrame {border: 1px outset black; }");
+    separator->setSizePolicy (QSizePolicy::MinimumExpanding, QSizePolicy::Preferred);
 
-        /* Create label: */
-        m_pLabel = new QLabel;
-        if (m_pLabel)
-        {
-            /* Add into layout: */
-            pLayout->addWidget(m_pLabel);
-        }
-
-        /* Create separator: */
-        QFrame *pSeparator = new QFrame;
-        {
-            /* Configure separator: */
-            pSeparator->setFrameShape(QFrame::HLine);
-            pSeparator->setFrameShadow(QFrame::Sunken);
-            pSeparator->setEnabled(false);
-            pSeparator->setContentsMargins(0, 0, 0, 0);
-            // pSeparator->setStyleSheet("QFrame {border: 1px outset black; }");
-            pSeparator->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Preferred);
-
-            /* Add into layout: */
-            pLayout->addWidget(pSeparator, Qt::AlignBottom);
-        }
-    }
+    QHBoxLayout *pLayout = new QHBoxLayout (this);
+    pLayout->setContentsMargins(0, 0, 0, 0);
+    pLayout->addWidget (mLabel);
+    pLayout->addWidget (separator, Qt::AlignBottom);
 }
+

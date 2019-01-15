@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_INCLUDED_SRC_NetLib_cpp_utils_h
-#define VBOX_INCLUDED_SRC_NetLib_cpp_utils_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___NETLIB_CPP_UTILS_H___
+#define ___NETLIB_CPP_UTILS_H___
 
 #include <iprt/types.h>
 
@@ -43,5 +40,5 @@ DECLINLINE(bool) operator== (const RTMAC &lhs, const RTMAC &rhs)
         && lhs.au16[2] == rhs.au16[2];
 }
 
-#endif /* !VBOX_INCLUDED_SRC_NetLib_cpp_utils_h */
+#endif
 

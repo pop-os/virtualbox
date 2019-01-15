@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,7 +25,6 @@
 #include <VBox/vmm/vmm.h>
 #include <VBox/vmm/iom.h>
 #include <VBox/vmm/em.h>
-#include <VBox/vmm/nem.h>
 #ifdef VBOX_WITH_REM
 # include <VBox/vmm/rem.h>
 #endif
@@ -75,6 +74,8 @@
      || (a_rcStrict) == ((a_fWrite) ? VINF_IOM_R3_MMIO_WRITE : VINF_IOM_R3_MMIO_READ) \
      || (a_rcStrict) == VINF_IOM_R3_MMIO_READ_WRITE \
      || ((a_rcStrict) == VINF_IOM_R3_MMIO_COMMIT_WRITE && (a_fWrite)) \
+     \
+     || ((a_fWrite) ? (a_rcStrict) == VINF_EM_RAW_EMULATE_IO_BLOCK : false) \
      \
      || (a_rcStrict) == VINF_EM_RAW_EMULATE_INSTR  \
      || (a_rcStrict) == VINF_EM_DBG_STOP \
@@ -314,7 +315,7 @@ pgmPhysRomWriteHandler(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, void *pvPhys, voi
 
                     AssertMsg(    rc == VINF_SUCCESS
                               || (  rc == VINF_PGM_SYNC_CR3
-                                  && VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL))
+                                  && VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_PGM_SYNC_CR3 | VMCPU_FF_PGM_SYNC_CR3_NON_GLOBAL))
                               , ("%Rrc\n", rc));
                     rc = VINF_SUCCESS;
                 }
@@ -637,7 +638,6 @@ void pgmPhysInvalidatePageMapTLBEntry(PVM pVM, RTGCPHYS GCPhys)
     /** @todo clear the RC TLB whenever we add it. */
 }
 
-
 /**
  * Makes sure that there is at least one handy page ready for use.
  *
@@ -724,7 +724,6 @@ static int pgmPhysEnsureHandyPage(PVM pVM)
 }
 
 
-
 /**
  * Replace a zero or shared page with new page that we can write to.
  *
@@ -765,9 +764,8 @@ int pgmPhysAllocPage(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys)
     /*
      * Try allocate a large page if applicable.
      */
-    if (   PGMIsUsingLargePages(pVM)
-        && PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_RAM
-        && !VM_IS_NEM_ENABLED(pVM)) /** @todo NEM: Implement large pages support. */
+    if (    PGMIsUsingLargePages(pVM)
+        &&  PGM_PAGE_GET_TYPE(pPage) == PGMPAGETYPE_RAM)
     {
         RTGCPHYS GCPhysBase = GCPhys & X86_PDE2M_PAE_PG_MASK;
         PPGMPAGE pBasePage;
@@ -877,31 +875,6 @@ int pgmPhysAllocPage(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys)
     if (    fFlushTLBs
         &&  rc != VINF_PGM_GCPHYS_ALIASED)
         PGM_INVL_ALL_VCPU_TLBS(pVM);
-
-#ifndef IN_RC
-    /*
-     * Notify NEM about the mapping change for this page.
-     *
-     * Note! Shadow ROM pages are complicated as they can definitely be
-     *       allocated while not visible, so play safe.
-     */
-    if (VM_IS_NEM_ENABLED(pVM))
-    {
-        PGMPAGETYPE enmType = (PGMPAGETYPE)PGM_PAGE_GET_TYPE(pPage);
-        if (   enmType != PGMPAGETYPE_ROM_SHADOW
-            || pgmPhysGetPage(pVM, GCPhys) == pPage)
-        {
-            uint8_t u2State = PGM_PAGE_GET_NEM_STATE(pPage);
-            rc2 = NEMHCNotifyPhysPageAllocated(pVM, GCPhys & ~(RTGCPHYS)X86_PAGE_OFFSET_MASK, HCPhys,
-                                               pgmPhysPageCalcNemProtection(pPage, enmType), enmType, &u2State);
-            if (RT_SUCCESS(rc))
-                PGM_PAGE_SET_NEM_STATE(pPage, u2State);
-            else
-                rc = rc2;
-        }
-    }
-#endif
-
     return rc;
 }
 
@@ -927,7 +900,6 @@ int pgmPhysAllocLargePage(PVM pVM, RTGCPHYS GCPhys)
 {
     RTGCPHYS GCPhysBase = GCPhys & X86_PDE2M_PAE_PG_MASK;
     LogFlow(("pgmPhysAllocLargePage: %RGp base %RGp\n", GCPhys, GCPhysBase));
-    Assert(!VM_IS_NEM_ENABLED(pVM)); /** @todo NEM: Large page support. */
 
     /*
      * Prereqs.
@@ -1015,8 +987,6 @@ int pgmPhysRecheckLargePage(PVM pVM, RTGCPHYS GCPhys, PPGMPAGE pLargePage)
 {
     STAM_REL_COUNTER_INC(&pVM->pgm.s.StatLargePageRecheck);
 
-    Assert(!VM_IS_NEM_ENABLED(pVM)); /** @todo NEM: Large page support. */
-
     GCPhys &= X86_PDE2M_PAE_PG_MASK;
 
     /* Check the base page. */
@@ -1065,7 +1035,6 @@ int pgmPhysRecheckLargePage(PVM pVM, RTGCPHYS GCPhys, PPGMPAGE pLargePage)
 
 #endif /* PGM_WITH_LARGE_PAGES */
 
-
 /**
  * Deal with a write monitored page.
  *
@@ -1073,14 +1042,10 @@ int pgmPhysRecheckLargePage(PVM pVM, RTGCPHYS GCPhys, PPGMPAGE pLargePage)
  *
  * @param   pVM         The cross context VM structure.
  * @param   pPage       The physical page tracking structure.
- * @param   GCPhys      The guest physical address of the page.
- *                      PGMPhysReleasePageMappingLock() passes NIL_RTGCPHYS in a
- *                      very unlikely situation where it is okay that we let NEM
- *                      fix the page access in a lazy fasion.
  *
  * @remarks Called from within the PGM critical section.
  */
-void pgmPhysPageMakeWriteMonitoredWritable(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys)
+void pgmPhysPageMakeWriteMonitoredWritable(PVM pVM, PPGMPAGE pPage)
 {
     Assert(PGM_PAGE_GET_STATE(pPage) == PGM_PAGE_STATE_WRITE_MONITORED);
     PGM_PAGE_SET_WRITTEN_TO(pVM, pPage);
@@ -1088,25 +1053,6 @@ void pgmPhysPageMakeWriteMonitoredWritable(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCP
     Assert(pVM->pgm.s.cMonitoredPages > 0);
     pVM->pgm.s.cMonitoredPages--;
     pVM->pgm.s.cWrittenToPages++;
-
-#ifndef IN_RC
-    /*
-     * Notify NEM about the protection change so we won't spin forever.
-     *
-     * Note! NEM need to be handle to lazily correct page protection as we cannot
-     *       really get it 100% right here it seems.  The page pool does this too.
-     */
-    if (VM_IS_NEM_ENABLED(pVM) && GCPhys != NIL_RTGCPHYS)
-    {
-        uint8_t     u2State = PGM_PAGE_GET_NEM_STATE(pPage);
-        PGMPAGETYPE enmType = (PGMPAGETYPE)PGM_PAGE_GET_TYPE(pPage);
-        NEMHCNotifyPhysPageProtChanged(pVM, GCPhys, PGM_PAGE_GET_HCPHYS(pPage),
-                                       pgmPhysPageCalcNemProtection(pPage, enmType), enmType, &u2State);
-        PGM_PAGE_SET_NEM_STATE(pPage, u2State);
-    }
-#else
-    RT_NOREF(GCPhys);
-#endif
 }
 
 
@@ -1130,7 +1076,7 @@ int pgmPhysPageMakeWritable(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys)
     switch (PGM_PAGE_GET_STATE(pPage))
     {
         case PGM_PAGE_STATE_WRITE_MONITORED:
-            pgmPhysPageMakeWriteMonitoredWritable(pVM, pPage, GCPhys);
+            pgmPhysPageMakeWriteMonitoredWritable(pVM, pPage);
             RT_FALL_THRU();
         default: /* to shut up GCC */
         case PGM_PAGE_STATE_ALLOCATED:
@@ -1305,7 +1251,15 @@ static int pgmPhysPageMapCommon(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys, PPPGMP
             *ppv = pVM->pgm.s.CTXALLSUFF(pvZeroPg);
         }
         else
+# ifdef VBOX_WITH_2ND_IEM_STEP
             *ppv = pVM->pgm.s.CTXALLSUFF(pvZeroPg);
+# else
+        {
+            /* This kind of screws up the TLB entry if accessed from a different section afterwards. */
+            static uint8_t s_abPlayItSafe[0x1000*2];  /* I don't dare return the zero page at the moment. */
+            *ppv = (uint8_t *)((uintptr_t)&s_abPlayItSafe[0x1000] & ~(uintptr_t)0xfff);
+        }
+# endif
         *ppMap = NULL;
         return VINF_SUCCESS;
     }
@@ -2097,10 +2051,14 @@ VMMDECL(void) PGMPhysReleasePageMappingLock(PVM pVM, PPGMPAGEMAPLOCK pLock)
             PGM_PAGE_DEC_WRITE_LOCKS(pPage);
         }
 
-        if (PGM_PAGE_GET_STATE(pPage) != PGM_PAGE_STATE_WRITE_MONITORED)
-        { /* probably extremely likely */ }
-        else
-            pgmPhysPageMakeWriteMonitoredWritable(pVM, pPage, NIL_RTGCPHYS);
+        if (PGM_PAGE_GET_STATE(pPage) == PGM_PAGE_STATE_WRITE_MONITORED)
+        {
+            PGM_PAGE_SET_WRITTEN_TO(pVM, pPage);
+            PGM_PAGE_SET_STATE(pVM, pPage, PGM_PAGE_STATE_ALLOCATED);
+            Assert(pVM->pgm.s.cMonitoredPages > 0);
+            pVM->pgm.s.cMonitoredPages--;
+            pVM->pgm.s.cWrittenToPages++;
+        }
     }
     else
     {
@@ -2241,7 +2199,7 @@ int pgmPhysCr3ToHCPtr(PVM pVM, RTGCPHYS GCPhys, PRTR3PTR pR3Ptr)
  */
 VMMDECL(int) PGMPhysGCPtr2GCPhys(PVMCPU pVCpu, RTGCPTR GCPtr, PRTGCPHYS pGCPhys)
 {
-    int rc = PGMGstGetPage(pVCpu, (RTGCUINTPTR)GCPtr, NULL, pGCPhys);
+    int rc = PGM_GST_PFN(GetPage,pVCpu)(pVCpu, (RTGCUINTPTR)GCPtr, NULL, pGCPhys);
     if (pGCPhys && RT_SUCCESS(rc))
         *pGCPhys |= (RTGCUINTPTR)GCPtr & PAGE_OFFSET_MASK;
     return rc;
@@ -2262,7 +2220,7 @@ VMM_INT_DECL(int) PGMPhysGCPtr2HCPhys(PVMCPU pVCpu, RTGCPTR GCPtr, PRTHCPHYS pHC
 {
     PVM pVM = pVCpu->CTX_SUFF(pVM);
     RTGCPHYS GCPhys;
-    int rc = PGMGstGetPage(pVCpu, (RTGCUINTPTR)GCPtr, NULL, &GCPhys);
+    int rc = PGM_GST_PFN(GetPage,pVCpu)(pVCpu, (RTGCUINTPTR)GCPtr, NULL, &GCPhys);
     if (RT_SUCCESS(rc))
         rc = PGMPhysGCPhys2HCPhys(pVM, GCPhys | ((RTGCUINTPTR)GCPtr & PAGE_OFFSET_MASK), pHCPhys);
     return rc;
@@ -3110,6 +3068,8 @@ static VBOXSTRICTRC pgmPhysWriteHandler(PVM pVM, PPGMPAGE pPage, RTGCPHYS GCPhys
  * @retval  VINF_IOM_R3_MMIO_READ_WRITE in RC and R0.
  * @retval  VINF_IOM_R3_MMIO_COMMIT_WRITE in RC and R0.
  *
+ * @retval  VINF_EM_RAW_EMULATE_IO_BLOCK in R0 only.
+ *
  * @retval  VINF_EM_RAW_EMULATE_INSTR_GDT_FAULT in RC only - write completed.
  * @retval  VINF_EM_RAW_EMULATE_INSTR_LDT_FAULT in RC only.
  * @retval  VINF_EM_RAW_EMULATE_INSTR_TSS_FAULT in RC only.
@@ -3668,7 +3628,7 @@ VMMDECL(VBOXSTRICTRC) PGMPhysReadGCPtr(PVMCPU pVCpu, void *pvDst, RTGCPTR GCPtrS
     if (((RTGCUINTPTR)GCPtrSrc & PAGE_OFFSET_MASK) + cb <= PAGE_SIZE)
     {
         /* Convert virtual to physical address + flags */
-        rc = PGMGstGetPage(pVCpu, (RTGCUINTPTR)GCPtrSrc, &fFlags, &GCPhys);
+        rc = PGM_GST_PFN(GetPage,pVCpu)(pVCpu, (RTGCUINTPTR)GCPtrSrc, &fFlags, &GCPhys);
         AssertMsgRCReturn(rc, ("GetPage failed with %Rrc for %RGv\n", rc, GCPtrSrc), rc);
         GCPhys |= (RTGCUINTPTR)GCPtrSrc & PAGE_OFFSET_MASK;
 
@@ -3688,7 +3648,7 @@ VMMDECL(VBOXSTRICTRC) PGMPhysReadGCPtr(PVMCPU pVCpu, void *pvDst, RTGCPTR GCPtrS
     for (;;)
     {
         /* Convert virtual to physical address + flags */
-        rc = PGMGstGetPage(pVCpu, (RTGCUINTPTR)GCPtrSrc, &fFlags, &GCPhys);
+        rc = PGM_GST_PFN(GetPage,pVCpu)(pVCpu, (RTGCUINTPTR)GCPtrSrc, &fFlags, &GCPhys);
         AssertMsgRCReturn(rc, ("GetPage failed with %Rrc for %RGv\n", rc, GCPtrSrc), rc);
         GCPhys |= (RTGCUINTPTR)GCPtrSrc & PAGE_OFFSET_MASK;
 
@@ -3759,7 +3719,7 @@ VMMDECL(VBOXSTRICTRC) PGMPhysWriteGCPtr(PVMCPU pVCpu, RTGCPTR GCPtrDst, const vo
     if (((RTGCUINTPTR)GCPtrDst & PAGE_OFFSET_MASK) + cb <= PAGE_SIZE)
     {
         /* Convert virtual to physical address + flags */
-        rc = PGMGstGetPage(pVCpu, (RTGCUINTPTR)GCPtrDst, &fFlags, &GCPhys);
+        rc = PGM_GST_PFN(GetPage,pVCpu)(pVCpu, (RTGCUINTPTR)GCPtrDst, &fFlags, &GCPhys);
         AssertMsgRCReturn(rc, ("GetPage failed with %Rrc for %RGv\n", rc, GCPtrDst), rc);
         GCPhys |= (RTGCUINTPTR)GCPtrDst & PAGE_OFFSET_MASK;
 
@@ -3783,7 +3743,7 @@ VMMDECL(VBOXSTRICTRC) PGMPhysWriteGCPtr(PVMCPU pVCpu, RTGCPTR GCPtrDst, const vo
     for (;;)
     {
         /* Convert virtual to physical address + flags */
-        rc = PGMGstGetPage(pVCpu, (RTGCUINTPTR)GCPtrDst, &fFlags, &GCPhys);
+        rc = PGM_GST_PFN(GetPage,pVCpu)(pVCpu, (RTGCUINTPTR)GCPtrDst, &fFlags, &GCPhys);
         AssertMsgRCReturn(rc, ("GetPage failed with %Rrc for %RGv\n", rc, GCPtrDst), rc);
         GCPhys |= (RTGCUINTPTR)GCPtrDst & PAGE_OFFSET_MASK;
 
@@ -3869,7 +3829,7 @@ VMMDECL(int) PGMPhysInterpretedRead(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, void *p
          */
         RTGCPHYS GCPhys;
         uint64_t fFlags;
-        rc = PGMGstGetPage(pVCpu, GCPtrSrc, &fFlags, &GCPhys);
+        rc = PGM_GST_PFN(GetPage,pVCpu)(pVCpu, GCPtrSrc, &fFlags, &GCPhys);
         if (RT_SUCCESS(rc))
         {
             /** @todo we should check reserved bits ... */
@@ -3911,10 +3871,10 @@ VMMDECL(int) PGMPhysInterpretedRead(PVMCPU pVCpu, PCPUMCTXCORE pCtxCore, void *p
         RTGCPHYS GCPhys1;
         uint64_t fFlags2;
         RTGCPHYS GCPhys2;
-        rc = PGMGstGetPage(pVCpu, GCPtrSrc, &fFlags1, &GCPhys1);
+        rc = PGM_GST_PFN(GetPage,pVCpu)(pVCpu, GCPtrSrc, &fFlags1, &GCPhys1);
         if (RT_SUCCESS(rc))
         {
-            rc = PGMGstGetPage(pVCpu, GCPtrSrc + cb1, &fFlags2, &GCPhys2);
+            rc = PGM_GST_PFN(GetPage,pVCpu)(pVCpu, GCPtrSrc + cb1, &fFlags2, &GCPhys2);
             if (RT_SUCCESS(rc))
             {
                 /** @todo we should check reserved bits ... */
@@ -4047,7 +4007,7 @@ VMMDECL(int) PGMPhysInterpretedReadNoHandlers(PVMCPU pVCpu, PCPUMCTXCORE pCtxCor
          */
         RTGCPHYS    GCPhys;
         uint64_t    fFlags;
-        rc = PGMGstGetPage(pVCpu, GCPtrSrc, &fFlags, &GCPhys);
+        rc = PGM_GST_PFN(GetPage,pVCpu)(pVCpu, GCPtrSrc, &fFlags, &GCPhys);
         if (RT_SUCCESS(rc))
         {
             if (1) /** @todo we should check reserved bits ... */
@@ -4093,10 +4053,10 @@ VMMDECL(int) PGMPhysInterpretedReadNoHandlers(PVMCPU pVCpu, PCPUMCTXCORE pCtxCor
         RTGCPHYS    GCPhys1;
         uint64_t    fFlags2;
         RTGCPHYS    GCPhys2;
-        rc = PGMGstGetPage(pVCpu, GCPtrSrc, &fFlags1, &GCPhys1);
+        rc = PGM_GST_PFN(GetPage,pVCpu)(pVCpu, GCPtrSrc, &fFlags1, &GCPhys1);
         if (RT_SUCCESS(rc))
         {
-            rc = PGMGstGetPage(pVCpu, GCPtrSrc + cb1, &fFlags2, &GCPhys2);
+            rc = PGM_GST_PFN(GetPage,pVCpu)(pVCpu, GCPtrSrc + cb1, &fFlags2, &GCPhys2);
             if (RT_SUCCESS(rc))
             {
                 if (1) /** @todo we should check reserved bits ... */
@@ -4243,7 +4203,7 @@ VMMDECL(int) PGMPhysInterpretedWriteNoHandlers(PVMCPU pVCpu, PCPUMCTXCORE pCtxCo
          */
         RTGCPHYS    GCPhys;
         uint64_t    fFlags;
-        rc = PGMGstGetPage(pVCpu, GCPtrDst, &fFlags, &GCPhys);
+        rc = PGM_GST_PFN(GetPage,pVCpu)(pVCpu, GCPtrDst, &fFlags, &GCPhys);
         if (RT_SUCCESS(rc))
         {
             if (    (fFlags & X86_PTE_RW)                   /** @todo Also check reserved bits. */
@@ -4292,10 +4252,10 @@ VMMDECL(int) PGMPhysInterpretedWriteNoHandlers(PVMCPU pVCpu, PCPUMCTXCORE pCtxCo
         RTGCPHYS    GCPhys1;
         uint64_t    fFlags2;
         RTGCPHYS    GCPhys2;
-        rc = PGMGstGetPage(pVCpu, GCPtrDst, &fFlags1, &GCPhys1);
+        rc = PGM_GST_PFN(GetPage,pVCpu)(pVCpu, GCPtrDst, &fFlags1, &GCPhys1);
         if (RT_SUCCESS(rc))
         {
-            rc = PGMGstGetPage(pVCpu, GCPtrDst + cb1, &fFlags2, &GCPhys2);
+            rc = PGM_GST_PFN(GetPage,pVCpu)(pVCpu, GCPtrDst + cb1, &fFlags2, &GCPhys2);
             if (RT_SUCCESS(rc))
             {
                 if (    (   (fFlags1 & X86_PTE_RW)  /** @todo Also check reserved bits. */
@@ -4738,151 +4698,4 @@ VMM_INT_DECL(int) PGMPhysIemQueryAccess(PVM pVM, RTGCPHYS GCPhys, bool fWritable
     pgmUnlock(pVM);
     return rc;
 }
-
-#ifndef IN_RC
-
-/**
- * Interface used by NEM to check what to do on a memory access exit.
- *
- * @returns VBox status code.
- * @param   pVM             The cross context VM structure.
- * @param   pVCpu           The cross context per virtual CPU structure.
- *                          Optional.
- * @param   GCPhys          The guest physical address.
- * @param   fMakeWritable   Whether to try make the page writable or not.  If it
- *                          cannot be made writable, NEM_PAGE_PROT_WRITE won't
- *                          be returned and the return code will be unaffected
- * @param   pInfo           Where to return the page information.  This is
- *                          initialized even on failure.
- * @param   pfnChecker      Page in-sync checker callback.  Optional.
- * @param   pvUser          User argument to pass to pfnChecker.
- */
-VMM_INT_DECL(int) PGMPhysNemPageInfoChecker(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, bool fMakeWritable, PPGMPHYSNEMPAGEINFO pInfo,
-                                            PFNPGMPHYSNEMCHECKPAGE pfnChecker, void *pvUser)
-{
-    pgmLock(pVM);
-
-    PPGMPAGE pPage;
-    int rc = pgmPhysGetPageEx(pVM, GCPhys, &pPage);
-    if (RT_SUCCESS(rc))
-    {
-        /* Try make it writable if requested. */
-        pInfo->u2OldNemState = PGM_PAGE_GET_NEM_STATE(pPage);
-        if (fMakeWritable)
-            switch (PGM_PAGE_GET_STATE(pPage))
-            {
-                case PGM_PAGE_STATE_SHARED:
-                case PGM_PAGE_STATE_WRITE_MONITORED:
-                case PGM_PAGE_STATE_ZERO:
-                    rc = pgmPhysPageMakeWritable(pVM, pPage, GCPhys);
-                    if (rc == VERR_PGM_PHYS_PAGE_RESERVED)
-                        rc = VINF_SUCCESS;
-                    break;
-            }
-
-        /* Fill in the info. */
-        pInfo->HCPhys       = PGM_PAGE_GET_HCPHYS(pPage);
-        pInfo->u2NemState   = PGM_PAGE_GET_NEM_STATE(pPage);
-        pInfo->fHasHandlers = PGM_PAGE_HAS_ACTIVE_HANDLERS(pPage) ? 1 : 0;
-        PGMPAGETYPE const enmType = (PGMPAGETYPE)PGM_PAGE_GET_TYPE(pPage);
-        pInfo->enmType      = enmType;
-        pInfo->fNemProt     = pgmPhysPageCalcNemProtection(pPage, enmType);
-        switch (PGM_PAGE_GET_STATE(pPage))
-        {
-            case PGM_PAGE_STATE_ALLOCATED:
-                pInfo->fZeroPage = 0;
-                break;
-
-            case PGM_PAGE_STATE_ZERO:
-                pInfo->fZeroPage = 1;
-                break;
-
-            case PGM_PAGE_STATE_WRITE_MONITORED:
-                pInfo->fZeroPage = 0;
-                break;
-
-            case PGM_PAGE_STATE_SHARED:
-                pInfo->fZeroPage = 0;
-                break;
-
-            case PGM_PAGE_STATE_BALLOONED:
-                pInfo->fZeroPage = 1;
-                break;
-
-            default:
-                pInfo->fZeroPage = 1;
-                AssertFailedStmt(rc = VERR_PGM_PHYS_PAGE_GET_IPE);
-        }
-
-        /* Call the checker and update NEM state. */
-        if (pfnChecker)
-        {
-            rc = pfnChecker(pVM, pVCpu, GCPhys, pInfo, pvUser);
-            PGM_PAGE_SET_NEM_STATE(pPage, pInfo->u2NemState);
-        }
-
-        /* Done. */
-        pgmUnlock(pVM);
-    }
-    else
-    {
-        pgmUnlock(pVM);
-
-        pInfo->HCPhys       = NIL_RTHCPHYS;
-        pInfo->fNemProt     = NEM_PAGE_PROT_NONE;
-        pInfo->u2NemState   = 0;
-        pInfo->fHasHandlers = 0;
-        pInfo->fZeroPage    = 0;
-        pInfo->enmType      = PGMPAGETYPE_INVALID;
-    }
-
-    return rc;
-}
-
-
-/**
- * NEM helper that performs @a pfnCallback on pages with NEM state @a uMinState
- * or higher.
- *
- * @returns VBox status code from callback.
- * @param   pVM             The cross context VM structure.
- * @param   pVCpu           The cross context per CPU structure.  This is
- *                          optional as its only for passing to callback.
- * @param   uMinState       The minimum NEM state value to call on.
- * @param   pfnCallback     The callback function.
- * @param   pvUser          User argument for the callback.
- */
-VMM_INT_DECL(int) PGMPhysNemEnumPagesByState(PVM pVM, PVMCPU pVCpu, uint8_t uMinState,
-                                             PFNPGMPHYSNEMENUMCALLBACK pfnCallback, void *pvUser)
-{
-    /*
-     * Just brute force this problem.
-     */
-    pgmLock(pVM);
-    int rc = VINF_SUCCESS;
-    for (PPGMRAMRANGE pRam = pVM->pgm.s.CTX_SUFF(pRamRangesX); pRam; pRam = pRam->CTX_SUFF(pNext))
-    {
-        uint32_t const cPages = pRam->cb >> X86_PAGE_SHIFT;
-        for (uint32_t iPage = 0; iPage < cPages; iPage++)
-        {
-            uint8_t u2State = PGM_PAGE_GET_NEM_STATE(&pRam->aPages[iPage]);
-            if (u2State < uMinState)
-            { /* likely */ }
-            else
-            {
-                rc = pfnCallback(pVM, pVCpu, pRam->GCPhys + ((RTGCPHYS)iPage << X86_PAGE_SHIFT), &u2State, pvUser);
-                if (RT_SUCCESS(rc))
-                    PGM_PAGE_SET_NEM_STATE(&pRam->aPages[iPage], u2State);
-                else
-                    break;
-            }
-        }
-    }
-    pgmUnlock(pVM);
-
-    return rc;
-
-}
-
-#endif /* !IN_RC */
 

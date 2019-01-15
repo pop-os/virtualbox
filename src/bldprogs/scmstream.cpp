@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -240,16 +240,6 @@ void ScmStreamRewindForWriting(PSCMSTREAM pStream)
     pStream->fWriteOrRead   = true;
     pStream->fFullyLineated = true;
     pStream->rc             = VINF_SUCCESS;
-
-    /* Initialize the first line with a zero length so ScmStreamWrite won't misbehave. */
-    if (pStream->cLinesAllocated == 0)
-        scmStreamGrowLines(pStream, 1);
-    if (pStream->cLinesAllocated > 0)
-    {
-        pStream->paLines[0].off    = 0;
-        pStream->paLines[0].cch    = 0;
-        pStream->paLines[0].enmEol = SCMEOL_NONE;
-    }
 }
 
 /**
@@ -628,13 +618,13 @@ int ScmStreamSeekRelative(PSCMSTREAM pStream, ssize_t offRelative)
  */
 int ScmStreamSeekByLine(PSCMSTREAM pStream, size_t iLine)
 {
+    AssertReturn(!pStream->fWriteOrRead, VERR_ACCESS_DENIED);
     if (RT_FAILURE(pStream->rc))
         return pStream->rc;
 
     /* Must be fully delineated. (lazy bird) */
     if (RT_UNLIKELY(!pStream->fFullyLineated))
     {
-        AssertReturn(!pStream->fWriteOrRead, VERR_ACCESS_DENIED);
         int rc = scmStreamLineate(pStream);
         if (RT_FAILURE(rc))
             return rc;
@@ -643,19 +633,11 @@ int ScmStreamSeekByLine(PSCMSTREAM pStream, size_t iLine)
     /* Ok, do the job. */
     if (iLine < pStream->cLines)
     {
-        pStream->iLine = iLine;
         pStream->off   = pStream->paLines[iLine].off;
-        if (pStream->fWriteOrRead)
-        {
-            pStream->cb     = pStream->paLines[iLine].off;
-            pStream->cLines = iLine;
-            pStream->paLines[iLine].cch    = 0;
-            pStream->paLines[iLine].enmEol = SCMEOL_NONE;
-        }
+        pStream->iLine = iLine;
     }
     else
     {
-        AssertReturn(!pStream->fWriteOrRead, VERR_ACCESS_DENIED);
         pStream->off   = pStream->cb;
         pStream->iLine = pStream->cLines;
     }
@@ -926,7 +908,6 @@ bool ScmStreamIsWhiteLine(PSCMSTREAM pStream, size_t iLine)
     return cchLine == 0;
 }
 
-
 /**
  * Try figure out the end of line style of the give stream.
  *
@@ -958,7 +939,6 @@ SCMEOL ScmStreamGetEol(PSCMSTREAM pStream)
     return enmEol;
 }
 
-
 /**
  * Get the end of line indicator type for a line.
  *
@@ -980,7 +960,6 @@ SCMEOL ScmStreamGetEolByLine(PSCMSTREAM pStream, size_t iLine)
 #endif
     return enmEol;
 }
-
 
 /**
  * Appends a line to the stream.
@@ -1300,7 +1279,7 @@ int ScmStreamCopyLines(PSCMSTREAM pDst, PSCMSTREAM pSrc, size_t cLines)
         size_t      cchLine;
         const char *pchLine = ScmStreamGetLine(pSrc, &cchLine, &enmEol);
         if (!pchLine)
-            return pDst->rc = RT_FAILURE(pSrc->rc) ? pSrc->rc : VERR_EOF;
+            return pDst->rc = (RT_FAILURE(pSrc->rc) ? pSrc->rc : VERR_EOF);
 
         int rc = ScmStreamPutLine(pDst, pchLine, cchLine, enmEol);
         if (RT_FAILURE(rc))
@@ -1354,7 +1333,6 @@ bool ScmStreamCMatchingWordM1(PSCMSTREAM pStream, const char *pszWord, size_t cc
     pStream->off += cchWord - 1;
     return true;
 }
-
 
 /**
  * Get's the C word starting at the current position.

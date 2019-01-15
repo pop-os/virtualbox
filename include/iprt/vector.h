@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -64,11 +64,8 @@
  *       (or passing them as anonymously) makes it easier to take care of this.
  */
 
-#ifndef IPRT_INCLUDED_vector_h
-#define IPRT_INCLUDED_vector_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_vector_h
+#define ___iprt_vector_h
 
 /*******************************************************************************
 *   Header Files                                                               *
@@ -76,7 +73,7 @@
 
 #include <iprt/assert.h>
 #include <iprt/cdefs.h>
-#include <iprt/errcore.h>
+#include <iprt/err.h>
 #include <iprt/mem.h>  /** @todo Should the caller include this if they need
                         *        it? */
 
@@ -375,5 +372,5 @@ DECLINLINE(void *) rtvecReallocDefTag(void *pv, size_t cbNew)
     RTVEC_DECL_ALLOCATOR_DELETE_BY_VALUE(name, type, rtvecReallocDefTag,   \
                                          pfnDelete)
 
-#endif /* !IPRT_INCLUDED_vector_h */
+#endif /* !___iprt_vector_h */
 

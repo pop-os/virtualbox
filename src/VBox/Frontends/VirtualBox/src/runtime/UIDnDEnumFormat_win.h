@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2019 Oracle Corporation
+ * Copyright (C) 2014-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_runtime_UIDnDEnumFormat_win_h
-#define FEQT_INCLUDED_SRC_runtime_UIDnDEnumFormat_win_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIDnDEnumFormat_win_h___
+#define ___UIDnDEnumFormat_win_h___
 
 
 class UIDnDEnumFormatEtc : public IEnumFORMATETC
@@ -53,5 +50,5 @@ private:
     FORMATETC * m_pFormatEtc;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_runtime_UIDnDEnumFormat_win_h */
+#endif /* ___UIDnDEnumFormat_win_h___ */
 

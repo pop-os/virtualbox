@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_alloca_h
-#define IPRT_INCLUDED_alloca_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_alloca_h
+#define ___iprt_alloca_h
 
 #if defined(IN_RC) || defined(IN_RING0_AGNOSTIC)
 # error "No alloca() in raw-mode and agnostic ring-0 context as it may have external dependencies like libgcc."
@@ -59,5 +56,5 @@
 # endif
 #endif
 
-#endif /* !IPRT_INCLUDED_alloca_h */
+#endif
 

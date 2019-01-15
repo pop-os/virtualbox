@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_wizards_clonevd_UIWizardCloneVDPageBasic1_h
-#define FEQT_INCLUDED_SRC_wizards_clonevd_UIWizardCloneVDPageBasic1_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIWizardCloneVDPageBasic1_h___
+#define ___UIWizardCloneVDPageBasic1_h___
 
 /* GUI includes: */
 #include "UIWizardPage.h"
@@ -29,9 +26,9 @@
 #include "CMedium.h"
 
 /* Forward declarations: */
-class QIRichTextLabel;
+class VBoxMediaComboBox;
 class QIToolButton;
-class UIMediaComboBox;
+class QIRichTextLabel;
 
 
 /** 1st page of the Clone Virtual Disk Image wizard (base part): */
@@ -51,7 +48,7 @@ protected:
     void setSourceVirtualDisk(const CMedium &comSourceVirtualDisk);
 
     /** Holds the source media combo-box instance. */
-    UIMediaComboBox *m_pSourceDiskSelector;
+    VBoxMediaComboBox *m_pSourceDiskSelector;
     /** Holds the open-source-disk button instance. */
     QIToolButton      *m_pSourceDiskOpenButton;
 };
@@ -94,5 +91,5 @@ private:
     QIRichTextLabel *m_pLabel;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_wizards_clonevd_UIWizardCloneVDPageBasic1_h */
+#endif /* !___UIWizardCloneVDPageBasic1_h___ */
 

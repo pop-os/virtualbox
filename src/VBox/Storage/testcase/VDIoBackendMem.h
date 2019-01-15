@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,12 +15,8 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-
-#ifndef VBOX_INCLUDED_SRC_testcase_VDIoBackendMem_h
-#define VBOX_INCLUDED_SRC_testcase_VDIoBackendMem_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __VDIoBackendMem_h__
+#define __VDIoBackendMem_h__
 
 #include <iprt/sg.h>
 
@@ -79,4 +75,4 @@ int VDIoBackendMemTransfer(PVDIOBACKENDMEM pIoBackend, PVDMEMDISK pMemDisk,
                            VDIOTXDIR enmTxDir, uint64_t off, size_t cbTransfer,
                            PRTSGBUF pSgBuf, PFNVDIOCOMPLETE pfnComplete, void *pvUser);
 
-#endif /* !VBOX_INCLUDED_SRC_testcase_VDIoBackendMem_h */
+#endif /* __VDIoBackendMem_h__ */

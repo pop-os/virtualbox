@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -62,11 +62,8 @@
  * This part has no R0 or RC components.
  */
 
-#ifndef VBOX_INCLUDED_SRC_Storage_VBoxSCSI_h
-#define VBOX_INCLUDED_SRC_Storage_VBoxSCSI_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___Storage_VBoxSCSI_h
+#define ___Storage_VBoxSCSI_h
 
 /*******************************************************************************
 *   Header Files                                                               *
@@ -154,5 +151,5 @@ DECLHIDDEN(int) vboxscsiR3SaveExec(PVBOXSCSI pVBoxSCSI, PSSMHANDLE pSSM);
 RT_C_DECLS_END
 #endif /* IN_RING3 */
 
-#endif /* !VBOX_INCLUDED_SRC_Storage_VBoxSCSI_h */
+#endif /* !___Storage_VBoxSCSI_h */
 

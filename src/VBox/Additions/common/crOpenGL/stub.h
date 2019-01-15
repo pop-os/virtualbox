@@ -27,11 +27,9 @@
  *
  */
 
-#ifndef GA_INCLUDED_SRC_common_crOpenGL_stub_h
-#define GA_INCLUDED_SRC_common_crOpenGL_stub_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+
+#ifndef CR_STUB_H
+#define CR_STUB_H
 
 #include "chromium.h"
 #include "cr_version.h"
@@ -367,4 +365,4 @@ extern void APIENTRY glBoundsInfoCR(const CRrecti *, const GLbyte *, GLint, GLin
 # define CR_CTX_CON(_pCtx) (0)
 #endif
 
-#endif /* !GA_INCLUDED_SRC_common_crOpenGL_stub_h */
+#endif /* CR_STUB_H */

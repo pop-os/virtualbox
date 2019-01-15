@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_crypto_rsa_h
-#define IPRT_INCLUDED_crypto_rsa_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_crypto_spc_h
+#define ___iprt_crypto_spc_h
 
 #include <iprt/asn1.h>
 #include <iprt/crypto/x509.h>
@@ -146,5 +143,5 @@ RTASN1TYPE_STANDARD_PROTOTYPES(RTCRRSADIGESTINFO, RTDECL, RTCrRsaDigestInfo, Seq
 
 RT_C_DECLS_END
 
-#endif /* !IPRT_INCLUDED_crypto_rsa_h */
+#endif
 

@@ -1,10 +1,11 @@
 /** $Id: VDScript.cpp $ */
 /** @file
+ *
  * VBox HDD container test utility - scripting engine.
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,12 +44,11 @@
  */
 
 #define LOGGROUP LOGGROUP_DEFAULT
-#include <iprt/ctype.h>
-#include <iprt/errcore.h>
+#include <iprt/string.h>
 #include <iprt/list.h>
 #include <iprt/mem.h>
+#include <iprt/ctype.h>
 #include <iprt/stream.h>
-#include <iprt/string.h>
 
 #include <VBox/log.h>
 

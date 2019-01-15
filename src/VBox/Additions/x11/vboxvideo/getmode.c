@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -260,10 +260,8 @@ static void acpiEventHandler(int fd, void *pvData)
 
 void vbvxSetUpLinuxACPI(ScreenPtr pScreen)
 {
-    static const char s_szDevInput[] = "/dev/input/";
-    struct dirent *pDirent;
-    char szFile[sizeof(s_szDevInput) + sizeof(pDirent->d_name) + 16];
     VBOXPtr pVBox = VBOXGetRec(xf86Screens[pScreen->myNum]);
+    struct dirent *pDirent;
     DIR *pDir;
     int fd = -1;
 
@@ -272,18 +270,16 @@ void vbvxSetUpLinuxACPI(ScreenPtr pScreen)
     pDir = opendir("/dev/input");
     if (pDir == NULL)
         return;
-    memcpy(szFile, s_szDevInput, sizeof(s_szDevInput));
     for (pDirent = readdir(pDir); pDirent != NULL; pDirent = readdir(pDir))
     {
         if (strncmp(pDirent->d_name, "event", sizeof("event") - 1) == 0)
         {
 #define BITS_PER_BLOCK (sizeof(unsigned long) * 8)
+            char szFile[64] = "/dev/input/";
             char szDevice[64] = "";
             unsigned long afKeys[KEY_MAX / BITS_PER_BLOCK];
-            size_t const cchName = strlen(pDirent->d_name);
-            if (cchName + sizeof(s_szDevInput) > sizeof(szFile))
-                continue;
-            memcpy(&szFile[sizeof(s_szDevInput) - 1], pDirent->d_name, cchName + 1);
+
+            strncat(szFile, pDirent->d_name, sizeof(szFile) - sizeof("/dev/input/"));
             if (fd != -1)
                 close(fd);
             fd = open(szFile, O_RDONLY | O_NONBLOCK);

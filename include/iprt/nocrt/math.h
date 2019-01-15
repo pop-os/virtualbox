@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,11 +39,8 @@
  * ====================================================
  */
 
-#ifndef IPRT_INCLUDED_nocrt_math_h
-#define IPRT_INCLUDED_nocrt_math_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_nocrt_math_h
+#define ___iprt_nocrt_math_h
 
 #if !defined(__GNUC__) /* && !defined(__YOUR_COMPILER__) */
 # error "IPRT: Adjust this header for your compiler"
@@ -823,5 +820,5 @@ RT_C_DECLS_END
 # include <iprt/nocrt/x86/math.h>
 #endif
 
-#endif /* !IPRT_INCLUDED_nocrt_math_h */
+#endif
 

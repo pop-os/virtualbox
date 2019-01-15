@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,117 +19,71 @@
  * This class is based on the original QLabel implementation.
  */
 
-#ifndef FEQT_INCLUDED_SRC_extensions_QILabel_h
-#define FEQT_INCLUDED_SRC_extensions_QILabel_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __QILabel_h__
+#define __QILabel_h__
 
-/* Qt includes: */
+/* Global includes */
 #include <QLabel>
 
-/* GUI includes: */
-#include "UILibraryDefs.h"
-
-/** QLabel subclass extending it with advanced functionality. */
-class SHARED_LIBRARY_STUFF QILabel : public QLabel
+class QILabel: public QLabel
 {
     Q_OBJECT;
 
 public:
 
-    /** Constructs label passing @a pParent and @a enmFlags to the base-class. */
-    QILabel(QWidget *pParent = 0, Qt::WindowFlags enmFlags = 0);
-    /** Constructs label passing @a strText, @a pParent and @a enmFlags to the base-class. */
-    QILabel(const QString &strText, QWidget *pParent = 0, Qt::WindowFlags enmFlags = 0);
+    QILabel (QWidget *aParent = 0, Qt::WindowFlags aFlags = 0);
+    QILabel (const QString &aText, QWidget *aParent = 0, Qt::WindowFlags aFlags = 0);
 
-    /** Returns whether label full-size focusing selection is enabled. */
-    bool fullSizeSelection() const { return m_fFullSizeSelection; }
-    /** Defines whether label full-size focusing selection is @a fEnabled. */
-    void setFullSizeSelection(bool fEnabled);
+    /* Focusing extensions */
+    bool fullSizeSelection() const;
+    void setFullSizeSelection (bool aEnabled);
 
-    /** Defines whether label should use size-hint based on passed @a iWidthHint. */
-    void useSizeHintForWidth(int iWidthHint) const;
-    /** Returns size-hint. */
+    /* Size-Hint extensions */
+    void useSizeHintForWidth (int aWidthHint) const;
     QSize sizeHint() const;
-    /** Returns minimum size-hint. */
     QSize minimumSizeHint() const;
 
-    /** Returns text. */
-    QString text() const { return m_strText; }
+    /* Default QLabel methods */
+    QString text() const;
 
 public slots:
 
-    /** Clears text. */
     void clear();
-    /** Defines text. */
-    void setText(const QString &strText);
-    /** Copies text into clipboard. */
+    void setText (const QString &aText);
     void copy();
 
 protected:
 
-    /** Handles resize @a pEvent. */
-    void resizeEvent(QResizeEvent *pEvent);
-
-    /** Handles mouse-press @a pEvent. */
-    void mousePressEvent(QMouseEvent *pEvent);
-    /** Handles mouse-release @a pEvent. */
-    void mouseReleaseEvent(QMouseEvent *pEvent);
-    /** Handles mouse-move @a pEvent. */
-    void mouseMoveEvent(QMouseEvent *pEvent);
-
-    /** Handles context-menu @a pEvent. */
-    void contextMenuEvent(QContextMenuEvent *pEvent);
-
-    /** Handles focus-in @a pEvent. */
-    void focusInEvent(QFocusEvent *pEvent);
-    /** Handles focus-out @a pEvent. */
-    void focusOutEvent(QFocusEvent *pEvent);
-
-    /** Handles paint @a pEvent. */
-    void paintEvent(QPaintEvent *pEvent);
+    void resizeEvent (QResizeEvent *aEvent);
+    void mousePressEvent (QMouseEvent *aEvent);
+    void mouseReleaseEvent (QMouseEvent *aEvent);
+    void mouseMoveEvent (QMouseEvent *aEvent);
+    void contextMenuEvent (QContextMenuEvent *aEvent);
+    void focusInEvent (QFocusEvent *aEvent);
+    void focusOutEvent (QFocusEvent *aEvent);
+    void paintEvent (QPaintEvent *aEvent);
 
 private:
 
-    /** Performs initialization. */
     void init();
 
-    /** Updates size-hint. */
     void updateSizeHint() const;
-    /** Defines full-text. */
-    void setFullText(const QString &strText);
-    /** Updates text. */
+    void setFullText (const QString &aText);
     void updateText();
-    /** Compresses passed @a strText. */
-    QString compressText(const QString &strText) const;
-    /** Returns text without HTML tags. */
-    static QString removeHtmlTags(const QString &strText);
-    /** Converts passed @a strType to text-elide mode flag. */
-    static Qt::TextElideMode toTextElideMode(const QString& strType);
+    QString removeHtmlTags (QString aText) const;
+    Qt::TextElideMode toTextElideMode (const QString& aStr) const;
+    QString compressText (const QString &aText) const;
 
-    /** Holds the text. */
-    QString m_strText;
-
-    /** Holds whether label full-size focusing selection is enabled. */
-    bool m_fFullSizeSelection;
-    /** Holds whether we started D&D. */
-    bool m_fStartDragging;
-
-    /** Holds whether the size-hint is valid. */
-    mutable bool  m_fHintValid;
-    /** Holds the width-hint. */
-    mutable int   m_iWidthHint;
-    /** Holds the size-hint. */
-    mutable QSize m_ownSizeHint;
-
-    /** Holds the Copy action instance. */
-    QAction *m_pCopyAction;
-
-    /** Holds text-copy reg-exp. */
-    static const QRegExp s_regExpCopy;
-    /** Holds text-elide reg-exp. */
-    static QRegExp       s_regExpElide;
+    QString mText;
+    bool mFullSizeSelection;
+    static const QRegExp mCopyRegExp;
+    static QRegExp mElideRegExp;
+    mutable bool mIsHintValid;
+    mutable int mWidthHint;
+    mutable QSize mOwnSizeHint;
+    bool mStartDragging;
+    QAction *mCopyAction;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_extensions_QILabel_h */
+#endif // __QILabel_h__
+

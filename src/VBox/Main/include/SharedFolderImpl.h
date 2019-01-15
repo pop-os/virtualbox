@@ -1,10 +1,11 @@
 /* $Id: SharedFolderImpl.h $ */
 /** @file
+ *
  * VirtualBox COM class implementation
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +16,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef MAIN_INCLUDED_SharedFolderImpl_h
-#define MAIN_INCLUDED_SharedFolderImpl_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ____H_SHAREDFOLDERIMPL
+#define ____H_SHAREDFOLDERIMPL
 
 #include "SharedFolderWrap.h"
 #include <VBox/shflsvc.h>
@@ -37,13 +35,10 @@ public:
     void FinalRelease();
 
     // public initializer/uninitializer for internal purposes only
-    HRESULT init(Machine *aMachine, const com::Utf8Str &aName, const com::Utf8Str &aHostPath,
-                 bool aWritable, bool aAutoMount, const com::Utf8Str &aAutoMountPoint, bool fFailOnError);
+    HRESULT init(Machine *aMachine, const com::Utf8Str &aName, const com::Utf8Str &aHostPath, bool aWritable, bool aAutoMount, bool fFailOnError);
     HRESULT initCopy(Machine *aMachine, SharedFolder *aThat);
-    HRESULT init(Console *aConsole, const com::Utf8Str &aName, const com::Utf8Str &aHostPath,
-                 bool aWritable, bool aAutoMount, const com::Utf8Str &aAutoMountPoint, bool fFailOnError);
-//     HRESULT init(VirtualBox *aVirtualBox, const Utf8Str &aName, const Utf8Str &aHostPath,
-//                  bool aWritable, const com::Utf8Str &aAutoMountPoint, bool aAutoMount, bool fFailOnError);
+    HRESULT init(Console *aConsole, const com::Utf8Str &aName, const com::Utf8Str &aHostPath, bool aWritable, bool aAutoMount, bool fFailOnError);
+//     HRESULT init(VirtualBox *aVirtualBox, const Utf8Str &aName, const Utf8Str &aHostPath, bool aWritable, bool aAutoMount, bool fFailOnError);
     void uninit();
 
     // public methods for internal purposes only
@@ -53,13 +48,13 @@ public:
      * Public internal method. Returns the shared folder's name. Needs caller! Locking not necessary.
      * @return
      */
-    const Utf8Str &i_getName() const;
+    const Utf8Str& i_getName() const;
 
     /**
      * Public internal method. Returns the shared folder's host path. Needs caller! Locking not necessary.
      * @return
      */
-    const Utf8Str &i_getHostPath() const;
+    const Utf8Str& i_getHostPath() const;
 
     /**
      * Public internal method. Returns true if the shared folder is writable. Needs caller and locking!
@@ -73,11 +68,6 @@ public:
      */
     bool i_isAutoMounted() const;
 
-    /**
-     * Public internal method for getting the auto mount point.
-     */
-    const Utf8Str &i_getAutoMountPoint() const;
-
 protected:
 
     HRESULT i_protectedInit(VirtualBoxBase *aParent,
@@ -85,7 +75,6 @@ protected:
                             const Utf8Str &aHostPath,
                             bool aWritable,
                             bool aAutoMount,
-                            const com::Utf8Str &aAutoMountPoint,
                             bool fFailOnError);
 private:
 
@@ -94,11 +83,7 @@ private:
     HRESULT getHostPath(com::Utf8Str &aHostPath);
     HRESULT getAccessible(BOOL *aAccessible);
     HRESULT getWritable(BOOL *aWritable);
-    HRESULT setWritable(BOOL aWritable);
     HRESULT getAutoMount(BOOL *aAutoMount);
-    HRESULT setAutoMount(BOOL aAutoMount);
-    HRESULT getAutoMountPoint(com::Utf8Str &aAutoMountPoint);
-    HRESULT setAutoMountPoint(com::Utf8Str const &aAutoMountPoint);
     HRESULT getLastAccessError(com::Utf8Str &aLastAccessError);
 
     VirtualBoxBase * const mParent;
@@ -115,5 +100,5 @@ private:
     Data *m;
 };
 
-#endif /* !MAIN_INCLUDED_SharedFolderImpl_h */
+#endif // ____H_SHAREDFOLDERIMPL
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

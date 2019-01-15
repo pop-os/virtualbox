@@ -1,10 +1,11 @@
 /* $Id: HostVideoInputDeviceImpl.cpp $ */
 /** @file
+ *
  * Host video capture device implementation.
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,15 +16,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#define LOG_GROUP LOG_GROUP_MAIN_HOSTVIDEOINPUTDEVICE
 #include "HostVideoInputDeviceImpl.h"
-#include "LoggingNew.h"
+#include "Logging.h"
 #include "VirtualBoxImpl.h"
 #ifdef VBOX_WITH_EXTPACK
 # include "ExtPackManagerImpl.h"
 #endif
 
-#include <iprt/err.h>
 #include <iprt/ldr.h>
 #include <iprt/path.h>
 
@@ -184,16 +183,16 @@ static HRESULT fillDeviceList(VirtualBox *pVirtualBox, HostVideoInputDeviceList 
     {
         PFNVBOXHOSTWEBCAMLIST pfn = NULL;
         RTLDRMOD hmod = NIL_RTLDRMOD;
-        int vrc = loadHostWebcamLibrary(strLibrary.c_str(), &hmod, &pfn);
+        int rc = loadHostWebcamLibrary(strLibrary.c_str(), &hmod, &pfn);
 
-        LogRel(("Load [%s] vrc=%Rrc\n", strLibrary.c_str(), vrc));
+        LogRel(("Load [%s] rc %Rrc\n", strLibrary.c_str(), rc));
 
-        if (RT_SUCCESS(vrc))
+        if (RT_SUCCESS(rc))
         {
             uint64_t u64Result = S_OK;
-            vrc = pfn(hostWebcamAdd, pList, &u64Result);
-            Log(("VBoxHostWebcamList vrc %Rrc, result 0x%08X\n", vrc, u64Result));
-            if (RT_FAILURE(vrc))
+            rc = pfn(hostWebcamAdd, pList, &u64Result);
+            Log(("VBoxHostWebcamList rc %Rrc, result 0x%08X\n", rc, u64Result));
+            if (RT_FAILURE(rc))
             {
                 hr = (HRESULT)u64Result;
             }
@@ -204,8 +203,9 @@ static HRESULT fillDeviceList(VirtualBox *pVirtualBox, HostVideoInputDeviceList 
 
         if (SUCCEEDED(hr))
         {
-            if (RT_FAILURE(vrc))
-                hr = pVirtualBox->setErrorBoth(VBOX_E_IPRT_ERROR, vrc, "Failed to get webcam list: %Rrc", vrc);
+            if (RT_FAILURE(rc))
+                hr = pVirtualBox->setError(VBOX_E_IPRT_ERROR,
+                         "Failed to get webcam list: %Rrc", rc);
         }
     }
 

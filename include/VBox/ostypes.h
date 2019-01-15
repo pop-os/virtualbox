@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef VBOX_INCLUDED_ostypes_h
-#define VBOX_INCLUDED_ostypes_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBox_ostypes_h
+#define ___VBox_ostypes_h
 
 #include <iprt/cdefs.h>
 
@@ -55,7 +52,6 @@ typedef enum VBOXOSTYPE
     VBOXOSTYPE_WinMe            = 0x23000,
     VBOXOSTYPE_WinNT            = 0x30000,
     VBOXOSTYPE_WinNT_x64        = 0x30100,
-    VBOXOSTYPE_WinNT3x          = 0x30800,
     VBOXOSTYPE_WinNT4           = 0x31000,
     VBOXOSTYPE_Win2k            = 0x32000,
     VBOXOSTYPE_WinXP            = 0x33000,
@@ -171,4 +167,4 @@ typedef enum VBOXOSFAMILY
 
 RT_C_DECLS_END
 
-#endif /* !VBOX_INCLUDED_ostypes_h */
+#endif

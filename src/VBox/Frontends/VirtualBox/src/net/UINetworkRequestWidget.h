@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,15 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_net_UINetworkRequestWidget_h
-#define FEQT_INCLUDED_SRC_net_UINetworkRequestWidget_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __UINetworkRequestWidget_h__
+#define __UINetworkRequestWidget_h__
 
-/* GUI inludes: */
+/* Local inludes: */
 #include "QIWithRetranslateUI.h"
-#include "UILibraryDefs.h"
 #include "UIPopupBox.h"
 
 /* Forward declarations: */
@@ -36,67 +32,60 @@ class QIRichTextLabel;
 class UINetworkRequest;
 class QTimer;
 
-/** UIPopupBox reimplementation to reflect network-request status. */
-class SHARED_LIBRARY_STUFF UINetworkRequestWidget : public QIWithRetranslateUI<UIPopupBox>
+/* UIPopupBox reimplementation to reflect network-request status: */
+class UINetworkRequestWidget : public QIWithRetranslateUI<UIPopupBox>
 {
     Q_OBJECT;
 
 signals:
 
-    /** Asks to retry network-request. */
+    /* Signal to retry network-request: */
     void sigRetry();
-    /** Asks to cancel network-request. */
+    /* Signal to cancel network-request: */
     void sigCancel();
 
 protected:
 
-    /** Allows creation of UINetworkRequestWidget to UINetworkManagerDialog only. */
+    /* Allow creation of UINetworkRequestWidget to UINetworkManagerDialog only: */
     friend class UINetworkManagerDialog;
-    /** Constructs @a pNetworkRequest widget passing @a pParent to the base-class. */
+    /* Constructor: */
     UINetworkRequestWidget(UINetworkManagerDialog *pParent, UINetworkRequest *pNetworkRequest);
-
-    /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
 
 private slots:
 
-    /** Updates current network-request progess as @a iReceived of @a iTotal. */
+    /* Updates current network-request progess: */
     void sltSetProgress(qint64 iReceived, qint64 iTotal);
 
-    /** Sets current network-request progress to 'started'. */
+    /* Set current network-request progress to 'started': */
     void sltSetProgressToStarted();
-    /** Sets current network-request progress to 'finished'. */
+    /* Set current network-request progress to 'finished': */
     void sltSetProgressToFinished();
-    /** Sets current network-request progress to 'failed' because of @a strError. */
+    /* Set current network-request progress to 'failed': */
     void sltSetProgressToFailed(const QString &strError);
 
-    /** Handles frozen progress. */
+    /* Handle frozen progress: */
     void sltTimeIsOut();
 
 private:
 
+    /* Translation stuff: */
+    void retranslateUi();
+
     /** Composes error text on the basis of the passed @a strErrorText. */
     static const QString composeErrorText(QString strErrorText);
 
-    /** Holds the contents widget instance. */
-    QWidget         *m_pContentWidget;
-    /** Holds the main layout instance. */
-    QGridLayout     *m_pMainLayout;
-    /** Holds the progress-bar instance. */
-    QProgressBar    *m_pProgressBar;
-    /** Holds the Retry button instance. */
-    QIToolButton    *m_pRetryButton;
-    /** Holds the Cancel button instance. */
-    QIToolButton    *m_pCancelButton;
-    /** Holds the error-pane instance. */
+    /* Widgets: */
+    QWidget *m_pContentWidget;
+    QGridLayout *m_pMainLayout;
+    QProgressBar *m_pProgressBar;
+    QIToolButton *m_pRetryButton;
+    QIToolButton *m_pCancelButton;
     QIRichTextLabel *m_pErrorPane;
 
-    /** Holds the network request reference. */
+    /* Objects: */
     UINetworkRequest *m_pNetworkRequest;
-
-    /** Holds the timeout timer instance. */
     QTimer *m_pTimer;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_net_UINetworkRequestWidget_h */
+#endif // __UINetworkRequestWidget_h__
 

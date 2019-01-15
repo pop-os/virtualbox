@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,7 +23,7 @@
 #include "DisplayImpl.h"
 #include "KeyboardImpl.h"
 #include "MouseImpl.h"
-#ifdef VBOX_WITH_AUDIO_VRDE
+#ifdef VBOX_WITH_VRDE_AUDIO
 #include "DrvAudioVRDE.h"
 #endif
 #ifdef VBOX_WITH_EXTPACK
@@ -932,25 +932,19 @@ DECLCALLBACK(int) ConsoleVRDPServer::VRDPCallbackClientLogon(void *pvCallback, u
 
 DECLCALLBACK(void) ConsoleVRDPServer::VRDPCallbackClientConnect(void *pvCallback, uint32_t u32ClientId)
 {
-    ConsoleVRDPServer *pServer = static_cast<ConsoleVRDPServer*>(pvCallback);
+    ConsoleVRDPServer *server = static_cast<ConsoleVRDPServer*>(pvCallback);
 
-    pServer->mConsole->i_VRDPClientConnect(u32ClientId);
+    server->mConsole->i_VRDPClientConnect(u32ClientId);
 
     /* Should the server report usage of an interface for each client?
      * Similar to Intercept.
      */
-    int c = ASMAtomicIncS32(&pServer->mcClients);
+    int c = ASMAtomicIncS32(&server->mcClients);
     if (c == 1)
     {
         /* Features which should be enabled only if there is a client. */
-        pServer->remote3DRedirect(true);
+        server->remote3DRedirect(true);
     }
-
-#ifdef VBOX_WITH_AUDIO_VRDE
-    AudioVRDE *pVRDE = pServer->mConsole->i_getAudioVRDE();
-    if (pVRDE)
-        pVRDE->onVRDEClientConnect(u32ClientId);
-#endif
 }
 
 DECLCALLBACK(void) ConsoleVRDPServer::VRDPCallbackClientDisconnect(void *pvCallback, uint32_t u32ClientId,
@@ -966,13 +960,10 @@ DECLCALLBACK(void) ConsoleVRDPServer::VRDPCallbackClientDisconnect(void *pvCallb
         LogFunc(("Disconnected client %u\n", u32ClientId));
         ASMAtomicWriteU32(&pServer->mu32AudioInputClientId, 0);
 
-#ifdef VBOX_WITH_AUDIO_VRDE
+#ifdef VBOX_WITH_VRDE_AUDIO
         AudioVRDE *pVRDE = pServer->mConsole->i_getAudioVRDE();
         if (pVRDE)
-        {
             pVRDE->onVRDEInputIntercept(false /* fIntercept */);
-            pVRDE->onVRDEClientDisconnect(u32ClientId);
-        }
 #endif
     }
 
@@ -1032,7 +1023,7 @@ DECLCALLBACK(int) ConsoleVRDPServer::VRDPCallbackIntercept(void *pvCallback, uin
             {
                 LogFunc(("Intercepting audio input by client %RU32\n", u32ClientId));
 
-#ifdef VBOX_WITH_AUDIO_VRDE
+#ifdef VBOX_WITH_VRDE_AUDIO
                 AudioVRDE *pVRDE = pServer->mConsole->i_getAudioVRDE();
                 if (pVRDE)
                     pVRDE->onVRDEInputIntercept(true /* fIntercept */);
@@ -1307,7 +1298,7 @@ DECLCALLBACK(void) ConsoleVRDPServer::VRDECallbackAudioIn(void *pvCallback,
     ConsoleVRDPServer *pServer = static_cast<ConsoleVRDPServer*>(pvCallback);
     AssertPtrReturnVoid(pServer);
 
-#ifdef VBOX_WITH_AUDIO_VRDE
+#ifdef VBOX_WITH_VRDE_AUDIO
     AudioVRDE *pVRDE = pServer->mConsole->i_getAudioVRDE();
     if (!pVRDE) /* Nothing to do, bail out early. */
         return;
@@ -1333,7 +1324,7 @@ DECLCALLBACK(void) ConsoleVRDPServer::VRDECallbackAudioIn(void *pvCallback,
     }
 #else
     RT_NOREF(pvCtx, u32Event, pvData, cbData);
-#endif /* VBOX_WITH_AUDIO_VRDE */
+#endif /* VBOX_WITH_VRDE_AUDIO */
 }
 
 ConsoleVRDPServer::ConsoleVRDPServer(Console *console)
@@ -3210,11 +3201,15 @@ AuthResult ConsoleVRDPServer::Authenticate(const Guid &uuid, AuthGuestJudgement 
 
         Utf8Str filename = authLibrary;
 
-        int vrc = AuthLibLoad(&mAuthLibCtx, filename.c_str());
-        if (RT_FAILURE(vrc))
+        int rc = AuthLibLoad(&mAuthLibCtx, filename.c_str());
+
+        if (RT_FAILURE(rc))
         {
-            mConsole->setErrorBoth(E_FAIL, vrc, mConsole->tr("Could not load the external authentication library '%s' (%Rrc)"),
-                                   filename.c_str(), vrc);
+            mConsole->setError(E_FAIL,
+                               mConsole->tr("Could not load the external authentication library '%s' (%Rrc)"),
+                               filename.c_str(),
+                               rc);
+
             return AuthResultAccessDenied;
         }
     }

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,24 +15,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_widgets_UIPopupPaneDetails_h
-#define FEQT_INCLUDED_SRC_widgets_UIPopupPaneDetails_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIPopupPaneDetails_h___
+#define ___UIPopupPaneDetails_h___
 
 /* Qt includes: */
 #include <QWidget>
-
-/* GUI includes: */
-#include "UILibraryDefs.h"
 
 /* Forward declarations: */
 class QTextEdit;
 class UIAnimation;
 
-/** QWidget extension providing GUI with popup-pane details-pane prototype class. */
-class SHARED_LIBRARY_STUFF UIPopupPaneDetails : public QWidget
+/* Popup-pane text-pane prototype class: */
+class UIPopupPaneDetails : public QWidget
 {
     Q_OBJECT;
     Q_PROPERTY(QSize collapsedSizeHint READ collapsedSizeHint);
@@ -41,100 +35,74 @@ class SHARED_LIBRARY_STUFF UIPopupPaneDetails : public QWidget
 
 signals:
 
-    /** Notifies about focus enter. */
+    /* Notifiers: Parent propagation stuff: */
     void sigFocusEnter();
-    /** Notifies about focus enter. */
     void sigFocusLeave();
 
-    /** Notifies about size-hint change. */
+    /* Notifier: Layout stuff: */
     void sigSizeHintChanged();
 
 public:
 
-    /** Constructs details-pane passing @a pParent to the base-class.
-      * @param  strText   Brings the details text.
-      * @param  fFcoused  Brings whether the pane is focused. */
+    /* Constructor: */
     UIPopupPaneDetails(QWidget *pParent, const QString &strText, bool fFocused);
 
-    /** Defines the details @a strText. */
+    /* API: Text stuff: */
     void setText(const QString &strText);
 
-    /** Returns the details minimum size-hint. */
+    /* API: Layout stuff: */
     QSize minimumSizeHint() const;
-    /** Defines the details @a minimumSizeHint. */
     void setMinimumSizeHint(const QSize &minimumSizeHint);
-    /** Lays the content out. */
     void layoutContent();
 
-    /** Returns the collapsed size-hint. */
+    /* Property: Focus stuff: */
     QSize collapsedSizeHint() const { return m_collapsedSizeHint; }
-    /** Returns the expanded size-hint. */
     QSize expandedSizeHint() const { return m_expandedSizeHint; }
 
 public slots:
 
-    /** Handles proposal for @a iWidth. */
+    /* Handlers: Layout stuff: */
     void sltHandleProposalForWidth(int iWidth);
-    /** Handles proposal for @a iHeight. */
     void sltHandleProposalForHeight(int iHeight);
 
-    /** Handles focus enter. */
+    /* Handlers: Focus stuff: */
     void sltFocusEnter();
-    /** Handles focus leave. */
     void sltFocusLeave();
 
 private:
 
-    /** Prepares all. */
+    /* Helpers: Prepare stuff: */
     void prepare();
-    /** Prepares content. */
     void prepareContent();
-    /** Prepares animations. */
     void prepareAnimation();
 
-    /** Updates size-hint. */
+    /* Helper: Layout stuff: */
     void updateSizeHint();
-    /** Updates visibility. */
     void updateVisibility();
 
-    /** Adjusts @a font. */
+    /* Static helper: Font stuff: */
     static QFont tuneFont(QFont font);
 
-    /** Holds the layout margin. */
+    /* Variables: Layout stuff: */
     const int m_iLayoutMargin;
-    /** Holds the layout spacing. */
     const int m_iLayoutSpacing;
-
-    /** Holds the text-editor size-hint. */
     QSize m_textEditSizeHint;
-    /** Holds the collapsed size-hint. */
     QSize m_collapsedSizeHint;
-    /** Holds the expanded size-hint. */
     QSize m_expandedSizeHint;
-    /** Holds the minimum size-hint. */
     QSize m_minimumSizeHint;
 
-    /** Holds the text. */
+    /* Variables: Widget stuff: */
     QString m_strText;
-
-    /** Holds the text-editor instance. */
     QTextEdit *m_pTextEdit;
-
-    /** Holds the desired textr-editor width. */
     int m_iDesiredTextEditWidth;
-    /** Holds the maximum pane height. */
     int m_iMaximumPaneHeight;
-    /** Holds the desired textr-editor height. */
     int m_iMaximumTextEditHeight;
-    /** Holds the text content margin. */
     int m_iTextContentMargin;
 
-    /** Holds whether details-pane is focused. */
+    /* Variables: Focus stuff: */
     bool m_fFocused;
-
-    /** Holds the animation instance. */
     UIAnimation *m_pAnimation;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_widgets_UIPopupPaneDetails_h */
+#endif /* !___UIPopupPaneDetails_h___ */
 

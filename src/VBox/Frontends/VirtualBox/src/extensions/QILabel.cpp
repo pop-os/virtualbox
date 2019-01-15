@@ -1,10 +1,10 @@
 /* $Id: QILabel.cpp $ */
 /** @file
- * VBox Qt GUI - Qt extensions: QILabel class implementation.
+ * VBox Qt GUI - VirtualBox Qt extensions: QILabel class implementation.
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,52 +19,61 @@
  * This class is based on the original QLabel implementation.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QApplication>
-#include <QClipboard>
-#include <QContextMenuEvent>
-#include <QDrag>
-#include <QFocusEvent>
-#include <QMenu>
-#include <QMimeData>
-#include <QMouseEvent>
-#include <QPainter>
-#include <QStyleOptionFocusRect>
+# include <QApplication>
+# include <QClipboard>
+# include <QContextMenuEvent>
+# include <QFocusEvent>
+# include <QMenu>
+# include <QMimeData>
+# include <QMouseEvent>
+# include <QPainter>
+# include <QStyleOptionFocusRect>
+# include <QDrag>
 
 /* GUI includes: */
-#include "QILabel.h"
+# include "QILabel.h"
 
-/* Type definitions: */
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
+
+/* Some constant regular expressions */
+const QRegExp QILabel::mCopyRegExp = QRegExp ("<[^>]*>");
+QRegExp QILabel::mElideRegExp = QRegExp ("(<compact\\s+elipsis=\"(start|middle|end)\"?>([^<]*)</compact>)");
+
 #define HOR_PADDING 1
 
-
-/* static */
-const QRegExp QILabel::s_regExpCopy = QRegExp("<[^>]*>");
-QRegExp QILabel::s_regExpElide = QRegExp("(<compact\\s+elipsis=\"(start|middle|end)\"?>([^<]*)</compact>)");
-
-QILabel::QILabel(QWidget *pParent /* = 0 */, Qt::WindowFlags enmFlags /* = 0 */)
-    : QLabel(pParent, enmFlags)
+QILabel::QILabel (QWidget *aParent /* = 0 */, Qt::WindowFlags aFlags /* = 0 */)
+    : QLabel (aParent, aFlags)
 {
     init();
 }
 
-QILabel::QILabel(const QString &strText, QWidget *pParent /* = 0 */, Qt::WindowFlags enmFlags /* = 0 */)
-    : QLabel(pParent, enmFlags)
+QILabel::QILabel (const QString &aText, QWidget *aParent /* = 0 */, Qt::WindowFlags aFlags /* = 0 */)
+    : QLabel (aParent, aFlags)
 {
     init();
-    setFullText(strText);
+    setFullText (aText);
 }
 
-void QILabel::setFullSizeSelection(bool fEnabled)
+bool QILabel::fullSizeSelection () const
 {
-    /* Remember new value: */
-    m_fFullSizeSelection = fEnabled;
-    if (m_fFullSizeSelection)
+    return mFullSizeSelection;
+}
+
+void QILabel::setFullSizeSelection (bool aEnabled)
+{
+    mFullSizeSelection = aEnabled;
+    if (mFullSizeSelection)
     {
         /* Enable mouse interaction only */
-        setTextInteractionFlags(Qt::LinksAccessibleByMouse);
+        setTextInteractionFlags (Qt::LinksAccessibleByMouse);
         /* The label should be able to get the focus */
-        setFocusPolicy(Qt::StrongFocus);
+        setFocusPolicy (Qt::StrongFocus);
         /* Change the appearance in the focus state a little bit.
          * Note: Unfortunately QLabel, precisely the text of a QLabel isn't
          * styleable. The trolls have forgotten the simplest case ... So this
@@ -72,287 +81,257 @@ void QILabel::setFullSizeSelection(bool fEnabled)
          * events below. Next broken feature is drawing a simple dotted line
          * around the label. So this is done manually in the paintEvent. Not
          * sure if the stylesheet stuff is ready for production environments. */
-        setStyleSheet(QString("QLabel::focus {\
-                              background-color: palette(highlight);\
-                              }\
-                              QLabel {\
-                              padding: 0px %1px 0px %1px;\
-                              }").arg(HOR_PADDING));
+        setStyleSheet (QString ("QLabel::focus {\
+                                background-color: palette(highlight);\
+                                }\
+                                QLabel {\
+                                padding: 0px %1px 0px %1px;\
+                                }").arg (HOR_PADDING));
     }
     else
     {
         /* Text should be selectable/copyable */
-        setTextInteractionFlags(Qt::TextBrowserInteraction);
+        setTextInteractionFlags (Qt::TextBrowserInteraction);
         /* No Focus an the label */
-        setFocusPolicy(Qt::NoFocus);
+        setFocusPolicy (Qt::NoFocus);
         /* No focus style change */
-        setStyleSheet("");
+        setStyleSheet ("");
     }
 }
 
-void QILabel::useSizeHintForWidth(int iWidthHint) const
+void QILabel::useSizeHintForWidth (int aWidthHint) const
 {
-    /* Remember new value: */
-    m_iWidthHint = iWidthHint;
+    mWidthHint = aWidthHint;
     updateSizeHint();
 }
 
 QSize QILabel::sizeHint() const
 {
-    /* Update size-hint if it's invalid: */
-    if (!m_fHintValid)
+    if (!mIsHintValid)
         updateSizeHint();
 
-    /* If there is an updated sizeHint() present - using it: */
-    return m_ownSizeHint.isValid() ? m_ownSizeHint : QLabel::sizeHint();
+    /* If there is an updated sizeHint() present - using it. */
+    return mOwnSizeHint.isValid() ? mOwnSizeHint : QLabel::sizeHint();
 }
 
 QSize QILabel::minimumSizeHint() const
 {
-    /* Update size-hint if it's invalid: */
-    if (!m_fHintValid)
+    if (!mIsHintValid)
         updateSizeHint();
 
     /* If there is an updated minimumSizeHint() present - using it. */
-    return m_ownSizeHint.isValid() ? m_ownSizeHint : QLabel::minimumSizeHint();
+    return mOwnSizeHint.isValid() ? mOwnSizeHint : QLabel::minimumSizeHint();
+}
+
+QString QILabel::text() const
+{
+    return mText;
 }
 
 void QILabel::clear()
 {
     QLabel::clear();
-    setFullText("");
+    setFullText ("");
 }
 
-void QILabel::setText(const QString &strText)
+void QILabel::setText (const QString &aText)
 {
-    /* Call to wrapper below: */
-    setFullText(strText);
+    setFullText (aText);
 
     /* If QILabel forced to be fixed vertically */
     if (minimumHeight() == maximumHeight())
     {
         /* Check if new text requires label growing */
-        QSize sh(width(), heightForWidth(width()));
+        QSize sh (width(), heightForWidth (width()));
         if (sh.height() > minimumHeight())
-            setFixedHeight(sh.height());
+            setFixedHeight (sh.height());
     }
 }
 
 void QILabel::copy()
 {
-    /* Strip the text of all HTML subsets: */
-    QString strText = removeHtmlTags(m_strText);
+    QString text = removeHtmlTags (mText);
     /* Copy the current text to the global and selection clipboard. */
-    QApplication::clipboard()->setText(strText, QClipboard::Clipboard);
-    QApplication::clipboard()->setText(strText, QClipboard::Selection);
+    QApplication::clipboard()->setText (text, QClipboard::Clipboard);
+    QApplication::clipboard()->setText (text, QClipboard::Selection);
 }
 
-void QILabel::resizeEvent(QResizeEvent *pEvent)
+void QILabel::resizeEvent (QResizeEvent *aEvent)
 {
-    /* Call to base-class: */
-    QLabel::resizeEvent(pEvent);
+    QLabel::resizeEvent (aEvent);
     /* Recalculate the elipsis of the text after every resize. */
     updateText();
 }
 
-void QILabel::mousePressEvent(QMouseEvent *pEvent)
+void QILabel::mousePressEvent (QMouseEvent *aEvent)
 {
-    /* Start dragging: */
-    if (pEvent->button() == Qt::LeftButton && geometry().contains(pEvent->pos()) && m_fFullSizeSelection)
-        m_fStartDragging = true;
-    /* Call to base-class: */
+    if (aEvent->button() == Qt::LeftButton && geometry().contains (aEvent->pos()) && mFullSizeSelection)
+        mStartDragging = true;
     else
-        QLabel::mousePressEvent(pEvent);
+        QLabel::mousePressEvent (aEvent);
 }
 
-void QILabel::mouseReleaseEvent(QMouseEvent *pEvent)
+void QILabel::mouseReleaseEvent (QMouseEvent *aEvent)
 {
-    /* Reset dragging: */
-    m_fStartDragging = false;
-    /* Call to base-class: */
-    QLabel::mouseReleaseEvent(pEvent);
+    mStartDragging = false;
+    QLabel::mouseReleaseEvent (aEvent);
 }
 
-void QILabel::mouseMoveEvent(QMouseEvent *pEvent)
+void QILabel::mouseMoveEvent (QMouseEvent *aEvent)
 {
-    /* If we have an order to start dragging: */
-    if (m_fStartDragging)
+    if (mStartDragging)
     {
-        /* Reset dragging: */
-        m_fStartDragging = false;
-        /* Create a drag object out of the given data: */
-        QDrag *pDrag = new QDrag(this);
-        QMimeData *pMimeData = new QMimeData;
-        pMimeData->setText(removeHtmlTags(m_strText));
-        pDrag->setMimeData(pMimeData);
-        /* Start the dragging finally: */
-        pDrag->exec();
+        mStartDragging = false;
+        /* Create a drag object out of the given data. */
+        QDrag *drag = new QDrag (this);
+        QMimeData *mimeData = new QMimeData;
+        mimeData->setText (removeHtmlTags (mText));
+        drag->setMimeData (mimeData);
+        /* Start the dragging */
+        drag->exec();
     }
-    /* Call to base-class: */
     else
-        QLabel::mouseMoveEvent(pEvent);
+        QLabel::mouseMoveEvent (aEvent);
 }
 
-void QILabel::contextMenuEvent(QContextMenuEvent *pEvent)
+void QILabel::contextMenuEvent (QContextMenuEvent *aEvent)
 {
-    /* If we have an order for full-size selection: */
-    if (m_fFullSizeSelection)
+    if (mFullSizeSelection)
     {
-        /* Create a context menu for the copy to clipboard action: */
+        /* Create a context menu for the copy to clipboard action. */
         QMenu menu;
-        m_pCopyAction->setText(tr("&Copy"));
-        menu.addAction(m_pCopyAction);
-        menu.exec(pEvent->globalPos());
+        mCopyAction->setText (tr ("&Copy"));
+        menu.addAction (mCopyAction);
+        menu.exec (aEvent->globalPos());
     }
-    /* Call to base-class: */
     else
-        QLabel::contextMenuEvent(pEvent);
+        QLabel::contextMenuEvent (aEvent);
 }
 
-void QILabel::focusInEvent(QFocusEvent *)
+void QILabel::focusInEvent (QFocusEvent * /* aEvent */)
 {
-    /* If we have an order for full-size selection: */
-    if (m_fFullSizeSelection)
+    if (mFullSizeSelection)
     {
-        /* Set the text color to the current used highlight text color: */
+        /* Set the text color to the current used highlight text color. */
         QPalette pal = qApp->palette();
-        pal.setBrush(QPalette::WindowText, pal.brush(QPalette::HighlightedText));
-        setPalette(pal);
+        pal.setBrush (QPalette::WindowText, pal.brush (QPalette::HighlightedText));
+        setPalette (pal);
     }
 }
 
-void QILabel::focusOutEvent(QFocusEvent *pEvent)
+void QILabel::focusOutEvent (QFocusEvent *aEvent)
 {
-    /* Reset to the default palette: */
-    if (m_fFullSizeSelection && pEvent->reason() != Qt::PopupFocusReason)
-        setPalette(qApp->palette());
+    /* Reset to the default palette */
+    if (mFullSizeSelection && aEvent->reason() != Qt::PopupFocusReason)
+        setPalette (qApp->palette());
 }
 
-void QILabel::paintEvent(QPaintEvent *pEvent)
+void QILabel::paintEvent (QPaintEvent *aEvent)
 {
-    /* Call to base-class: */
-    QLabel::paintEvent(pEvent);
+    QLabel::paintEvent (aEvent);
 
-    /* If we have an order for full-size selection and have focus: */
-    if (m_fFullSizeSelection && hasFocus())
+    if (mFullSizeSelection && hasFocus())
     {
-        /* Paint a focus rect based on the current style: */
-        QPainter painter(this);
+        QPainter painter (this);
+        /* Paint a focus rect based on the current style. */
         QStyleOptionFocusRect option;
-        option.initFrom(this);
-        style()->drawPrimitive(QStyle::PE_FrameFocusRect, &option, &painter, this);
+        option.initFrom (this);
+        style()->drawPrimitive (QStyle::PE_FrameFocusRect, &option, &painter, this);
     }
 }
 
 void QILabel::init()
 {
-    /* Initial setup: */
-    m_fHintValid = false;
-    m_iWidthHint = -1;
-    m_fStartDragging = false;
-    setFullSizeSelection(false);
-    setOpenExternalLinks(true);
+    /* Initial setup */
+    mIsHintValid = false;
+    mWidthHint = -1;
+    mStartDragging = false;
+    setFullSizeSelection (false);
+    setOpenExternalLinks (true);
 
-    /* Create invisible copy action: */
-    m_pCopyAction = new QAction(this);
-    if (m_pCopyAction)
-    {
-        /* Configure action: */
-        m_pCopyAction->setShortcut(QKeySequence(QKeySequence::Copy));
-        m_pCopyAction->setShortcutContext(Qt::WidgetShortcut);
-        connect(m_pCopyAction, &QAction::triggered, this, &QILabel::copy);
-        /* Add action to label: */
-        addAction(m_pCopyAction);
-    }
+    /* Create invisible copy action */
+    mCopyAction = new QAction (this);
+    addAction (mCopyAction);
+    mCopyAction->setShortcut (QKeySequence (QKeySequence::Copy));
+    mCopyAction->setShortcutContext (Qt::WidgetShortcut);
+    connect(mCopyAction, &QAction::triggered, this, &QILabel::copy);
 }
 
 void QILabel::updateSizeHint() const
 {
-    /* Recalculate size-hint if necessary: */
-    m_ownSizeHint = m_iWidthHint == -1 ? QSize() : QSize(m_iWidthHint, heightForWidth(m_iWidthHint));
-    m_fHintValid = true;
+    mOwnSizeHint = mWidthHint == -1 ? QSize() : QSize (mWidthHint, heightForWidth (mWidthHint));
+    mIsHintValid = true;
 }
 
-void QILabel::setFullText(const QString &strText)
+void QILabel::setFullText (const QString &aText)
 {
-    /* Reapply size-policy: */
     QSizePolicy sp = sizePolicy();
-    sp.setHeightForWidth(wordWrap());
-    setSizePolicy(sp);
+    sp.setHeightForWidth (wordWrap());
+    setSizePolicy (sp);
+    mIsHintValid = false;
 
-    /* Reset size-hint validity: */
-    m_fHintValid = false;
-
-    /* Remember new value: */
-    m_strText = strText;
+    mText = aText;
     updateText();
 }
 
 void QILabel::updateText()
 {
-    /* Compress text: */
-    const QString strCompText = compressText(m_strText);
+    QString comp = compressText (mText);
 
-    /* Assign it: */
-    QLabel::setText(strCompText);
-
-    /* Only set the tool-tip if the text is shortened in any way: */
-    if (removeHtmlTags(strCompText) != removeHtmlTags(m_strText))
-        setToolTip(removeHtmlTags(m_strText));
+    QLabel::setText (comp);
+    /* Only set the tooltip if the text is shortened in any way. */
+    if (removeHtmlTags (comp) != removeHtmlTags (mText))
+        setToolTip (removeHtmlTags (mText));
     else
-        setToolTip("");
+        setToolTip ("");
 }
 
-QString QILabel::compressText(const QString &strText) const
+QString QILabel::removeHtmlTags (QString aText) const
 {
-    /* Prepare result: */
-    QStringList result;
+    /* Remove all HTML tags from the text and return it. */
+    return QString(aText).remove (mCopyRegExp);
+}
+
+Qt::TextElideMode QILabel::toTextElideMode (const QString& aStr) const
+{
+    /* Converts a string to a Qt elide mode */
+    Qt::TextElideMode mode = Qt::ElideNone;
+    if (aStr == "start")
+        mode = Qt::ElideLeft;
+    else if (aStr == "middle")
+        mode = Qt::ElideMiddle;
+    else if (aStr == "end")
+        mode  = Qt::ElideRight;
+    return mode;
+}
+
+QString QILabel::compressText (const QString &aText) const
+{
+    QStringList strResult;
     QFontMetrics fm = fontMetrics();
-    /* Split up any multi-line text: */
-    foreach (QString strLine, strText.split(QRegExp("<br */?>")))
+    /* Split up any multi line text */
+    QStringList strList = aText.split (QRegExp ("<br */?>"));
+    foreach (QString text, strList)
     {
-        /* Search for the compact tag: */
-        if (s_regExpElide.indexIn(strLine) > -1)
+        /* Search for the compact tag */
+        if (mElideRegExp.indexIn (text) > -1)
         {
-            /* USe the untouchable text to work on: */
-            const QString strWork = strLine;
-            /* Grep out the necessary info of the regexp: */
-            const QString strCompact   = s_regExpElide.cap(1);
-            const QString strElideMode = s_regExpElide.cap(2);
-            const QString strElide     = s_regExpElide.cap(3);
-            /* Remove the whole compact tag (also the text): */
-            const QString strFlat = removeHtmlTags(QString(strWork).remove(strCompact));
-            /* What size will the text have without the compact text: */
-            const int iFlatWidth = fm.width(strFlat);
-            /* Create the shortened text: */
-            const QString strNew = fm.elidedText(strElide, toTextElideMode(strElideMode), width() - (2 * HOR_PADDING) - iFlatWidth);
-            /* Replace the compact part with the shortened text in the initial string: */
-            strLine = QString(strWork).replace(strCompact, strNew);
+            QString workStr = text;
+            /* Grep out the necessary info of the regexp */
+            QString compactStr = mElideRegExp.cap (1);
+            QString elideModeStr = mElideRegExp.cap (2);
+            QString elideStr = mElideRegExp.cap (3);
+            /* Remove the whole compact tag (also the text) */
+            QString flatStr = removeHtmlTags (QString (workStr).remove (compactStr));
+            /* What size will the text have without the compact text */
+            int flatWidth = fm.width (flatStr);
+            /* Create the shortened text */
+            QString newStr = fm.elidedText (elideStr, toTextElideMode (elideModeStr), width() - (2 * HOR_PADDING) - flatWidth);
+            /* Replace the compact part with the shortened text in the initial string */
+            text = QString (workStr).replace (compactStr, newStr);
         }
-        /* Append the line: */
-        result << strLine;
+        strResult << text;
     }
-    /* Return result: */
-    return result.join("<br />");
+    return strResult.join ("<br />");
 }
 
-/* static */
-QString QILabel::removeHtmlTags(const QString &strText)
-{
-    /* Remove all HTML tags from the text and return it: */
-    return QString(strText).remove(s_regExpCopy);
-}
-
-/* static */
-Qt::TextElideMode QILabel::toTextElideMode(const QString &strType)
-{
-    /* Converts a string-represented type to a Qt elide mode: */
-    Qt::TextElideMode enmMode = Qt::ElideNone;
-    if (strType == "start")
-        enmMode = Qt::ElideLeft;
-    else if (strType == "middle")
-        enmMode = Qt::ElideMiddle;
-    else if (strType == "end")
-        enmMode  = Qt::ElideRight;
-    return enmMode;
-}

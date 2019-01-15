@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_INCLUDED_SRC_VBoxManage_VBoxManageGuestCtrl_h
-#define VBOX_INCLUDED_SRC_VBoxManage_VBoxManageGuestCtrl_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___H_VBOXMANAGE_GUESTCTRL
+#define ___H_VBOXMANAGE_GUESTCTRL
 
 #ifndef VBOX_ONLY_DOCS
 
@@ -232,5 +229,5 @@ protected:
 };
 #endif /* !VBOX_ONLY_DOCS */
 
-#endif /* !VBOX_INCLUDED_SRC_VBoxManage_VBoxManageGuestCtrl_h */
+#endif /* !___H_VBOXMANAGE_GUESTCTRL */
 

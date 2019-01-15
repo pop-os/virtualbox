@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2018-2019 Oracle Corporation
+ * Copyright (C) 2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,14 +23,12 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_tracelog_h
-#define IPRT_INCLUDED_tracelog_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_tracelog_h
+#define ___iprt_tracelog_h
 
 #include <iprt/sg.h>
 #include <iprt/types.h>
+#include <iprt/err.h>
 
 RT_C_DECLS_BEGIN
 
@@ -609,5 +607,5 @@ RT_C_DECLS_END
 
 /** @} */
 
-#endif /* !IPRT_INCLUDED_tracelog_h */
+#endif
 

@@ -7,7 +7,7 @@ VirtualBox Validation Kit - Storage test configuration API.
 
 __copyright__ = \
 """
-Copyright (C) 2016-2019 Oracle Corporation
+Copyright (C) 2016-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,15 +26,11 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 114607 $"
 
 # Standard Python imports.
 import os;
 import re;
-
-# Validation Kit imports.
-from common import utils;
-
 
 class StorageDisk(object):
     """
@@ -314,7 +310,7 @@ class StorageConfigOsLinux(StorageConfigOs):
         """
         fRc = True;
         sBlkDev = None;
-        if sPool in self.dSimplePools:
+        if self.dSimplePools.has_key(sPool):
             sDiskPath = self.dSimplePools.get(sPool);
             if sDiskPath.find('zram') != -1:
                 sBlkDev = sDiskPath;
@@ -322,7 +318,7 @@ class StorageConfigOsLinux(StorageConfigOs):
                 # Create a partition with the requested size
                 sFdiskScript = ';\n'; # Single partition filling everything
                 if cbVol is not None:
-                    sFdiskScript = ',' + str(cbVol // 512) + '\n'; # Get number of sectors
+                    sFdiskScript = ',' + str(cbVol / 512) + '\n'; # Get number of sectors
                 fRc = oExec.execBinaryNoStdOut('sfdisk', ('--no-reread', '--wipe', 'always', '-q', '-f', sDiskPath), \
                                                sFdiskScript);
                 if fRc:
@@ -356,7 +352,7 @@ class StorageConfigOsLinux(StorageConfigOs):
         fRc = oExec.execBinaryNoStdOut('umount', (sMountPoint,));
         self.dMounts.pop(sPool + '/' + sVol);
         oExec.rmDir(sMountPoint);
-        if sPool in self.dSimplePools:
+        if self.dSimplePools.has_key(sPool):
             # Wipe partition table
             sDiskPath = self.dSimplePools.get(sPool);
             if sDiskPath.find('zram') == -1:
@@ -371,7 +367,7 @@ class StorageConfigOsLinux(StorageConfigOs):
         Destroys the given storage pool.
         """
         fRc = True;
-        if sPool in self.dSimplePools:
+        if self.dSimplePools.has_key(sPool):
             self.dSimplePools.pop(sPool);
         else:
             fRc = oExec.execBinaryNoStdOut('vgremove', (sPool,));
@@ -433,7 +429,7 @@ class StorageCfg(object):
 
         if fRc:
             self.oStorOs = oStorOs;
-            if utils.isString(oDiskCfg):
+            if isinstance(oDiskCfg, basestring):
                 self.lstDisks = oStorOs.getDisksMatchingRegExp(oDiskCfg);
             else:
                 # Assume a list of of disks and add.
@@ -564,7 +560,7 @@ class StorageCfg(object):
 
         fRc = True;
         sMountPoint = None;
-        if sPool in self.dPools:
+        if self.dPools.has_key(sPool):
             sVol = 'vol' + str(self.iVolId);
             sMountPoint = self.oStorOs.getMntBase() + '/' + sVol;
             self.iVolId += 1;
@@ -594,7 +590,7 @@ class StorageCfg(object):
 
         return fRc;
 
-    def mkDirOnVolume(self, sMountPoint, sDir, fMode = 0o700):
+    def mkDirOnVolume(self, sMountPoint, sDir, fMode = 0700):
         """
         Creates a new directory on the volume pointed to by the given mount point.
         """

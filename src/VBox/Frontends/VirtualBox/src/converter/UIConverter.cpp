@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2019 Oracle Corporation
+ * Copyright (C) 2012-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,33 +15,37 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else
 /* GUI includes: */
-#include "UIConverter.h"
+# include "UIConverter.h"
+#endif
 
 
 /* static */
-UIConverter* UIConverter::s_pInstance = 0;
+UIConverter* UIConverter::m_spInstance = 0;
 
 /* static */
 void UIConverter::prepare()
 {
     /* Make sure instance WAS NOT created yet: */
-    if (s_pInstance)
+    if (m_spInstance)
         return;
 
     /* Prepare instance: */
-    s_pInstance = new UIConverter;
+    m_spInstance = new UIConverter;
 }
 
 /* static */
 void UIConverter::cleanup()
 {
     /* Make sure instance WAS NOT destroyed yet: */
-    if (!s_pInstance)
+    if (!m_spInstance)
         return;
 
     /* Cleanup instance: */
-    delete s_pInstance;
-    s_pInstance = 0;
+    delete m_spInstance;
+    m_spInstance = 0;
 }
 

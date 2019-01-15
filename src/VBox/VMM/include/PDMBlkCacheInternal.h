@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VMM_INCLUDED_SRC_include_PDMBlkCacheInternal_h
-#define VMM_INCLUDED_SRC_include_PDMBlkCacheInternal_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___PDMBlkCacheInternal_h
+#define ___PDMBlkCacheInternal_h
 
 #include <VBox/vmm/cfgm.h>
 #include <VBox/vmm/stam.h>
@@ -265,8 +262,6 @@ typedef struct PDMBLKCACHE
 
     /** Flag whether the cache was suspended. */
     volatile bool                 fSuspended;
-    /** Number of outstanding I/O transfers. */
-    volatile uint32_t             cIoXfersActive;
 
 } PDMBLKCACHE, *PPDMBLKCACHE;
 #ifdef VBOX_WITH_STATISTICS
@@ -330,5 +325,5 @@ typedef struct PDMBLKCACHEWAITER
 
 RT_C_DECLS_END
 
-#endif /* !VMM_INCLUDED_SRC_include_PDMBlkCacheInternal_h */
+#endif
 

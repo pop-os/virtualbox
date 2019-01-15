@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,20 +22,14 @@
 #define LOG_GROUP LOG_GROUP_DBGF /// @todo add new log group.
 #include "DBGPlugIns.h"
 #include <VBox/vmm/dbgf.h>
-#include <VBox/vmm/cpumctx.h>
-#include <VBox/vmm/mm.h>
 #include <VBox/err.h>
 #include <VBox/param.h>
-#include <iprt/ctype.h>
 #include <iprt/ldr.h>
 #include <iprt/mem.h>
-#include <iprt/path.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
-#include <iprt/utf16.h>
 #include <iprt/formats/pecoff.h>
 #include <iprt/formats/mz.h>
-#include <iprt/nt/nt-structures.h>
 
 
 /*********************************************************************************************************************************
@@ -59,8 +53,6 @@ typedef struct NTMTE32
                     InInitializationOrderModuleList;
     uint32_t        DllBase;
     uint32_t        EntryPoint;
-    /** @note This field is not a size in NT 3.1. It's NULL for images loaded by the
-     *        boot loader, for other images it looks like some kind of pointer.  */
     uint32_t        SizeOfImage;
     struct
     {
@@ -202,9 +194,6 @@ typedef struct DBGDIGGERWINNT
     bool                fValid;
     /** 32-bit (true) or 64-bit (false) */
     bool                f32Bit;
-    /** Set if NT 3.1 was detected.
-     * This implies both Misc.VirtualSize and NTMTE32::SizeOfImage are zero. */
-    bool                fNt31;
 
     /** The NT version. */
     DBGDIGGERWINNTVER   enmVer;
@@ -267,7 +256,7 @@ typedef DBGDIGGERWINNTRDR *PDBGDIGGERWINNTRDR;
 /** Validates a 32-bit Windows NT kernel address */
 #define WINNT32_VALID_ADDRESS(Addr)         ((Addr) >         UINT32_C(0x80000000) && (Addr) <         UINT32_C(0xfffff000))
 /** Validates a 64-bit Windows NT kernel address */
-#define WINNT64_VALID_ADDRESS(Addr)         ((Addr) > UINT64_C(0xffff800000000000) && (Addr) < UINT64_C(0xfffffffffffff000))
+ #define WINNT64_VALID_ADDRESS(Addr)         ((Addr) > UINT64_C(0xffff800000000000) && (Addr) < UINT64_C(0xfffffffffffff000))
 /** Validates a kernel address. */
 #define WINNT_VALID_ADDRESS(pThis, Addr)    ((pThis)->f32Bit ? WINNT32_VALID_ADDRESS(Addr) : WINNT64_VALID_ADDRESS(Addr))
 /** Versioned and bitness wrapper. */
@@ -297,246 +286,435 @@ static const RTUTF16 g_wszKernelNames[][WINNT_KERNEL_BASE_NAME_LEN + 1] =
 
 
 
+/** @callback_method_impl{PFNRTLDRRDRMEMREAD} */
+static DECLCALLBACK(int) dbgDiggerWinNtRdr_Read(void *pvBuf, size_t cb, size_t off, void *pvUser)
+{
+    PDBGDIGGERWINNTRDR pThis = (PDBGDIGGERWINNTRDR)pvUser;
+    uint32_t           offFile = (uint32_t)off;
+    AssertReturn(offFile == off, VERR_INVALID_PARAMETER);
+
+    uint32_t i = pThis->iHint;
+    if (pThis->aMappings[i].offFile > offFile)
+    {
+        i = pThis->cMappings;
+        while (i-- > 0)
+            if (offFile >= pThis->aMappings[i].offFile)
+                break;
+        pThis->iHint = i;
+    }
+
+    while (cb > 0)
+    {
+        uint32_t offNextMap =  i + 1 < pThis->cMappings ? pThis->aMappings[i + 1].offFile : pThis->cbImage;
+        uint32_t offMap     = offFile - pThis->aMappings[i].offFile;
+
+        /* Read file bits backed by memory. */
+        if (offMap < pThis->aMappings[i].cbMem)
+        {
+            uint32_t cbToRead = pThis->aMappings[i].cbMem - offMap;
+            if (cbToRead > cb)
+                cbToRead = (uint32_t)cb;
+
+            DBGFADDRESS Addr = pThis->ImageAddr;
+            DBGFR3AddrAdd(&Addr, pThis->aMappings[i].offMem + offMap);
+
+            int rc = DBGFR3MemRead(pThis->pUVM, 0 /*idCpu*/, &Addr, pvBuf, cbToRead);
+            if (RT_FAILURE(rc))
+                return rc;
+
+            /* Apply SizeOfImage patch? */
+            if (   pThis->offSizeOfImage != UINT32_MAX
+                && offFile            < pThis->offSizeOfImage + 4
+                && offFile + cbToRead > pThis->offSizeOfImage)
+            {
+                uint32_t SizeOfImage = pThis->cbCorrectImageSize;
+                uint32_t cbPatch     = sizeof(SizeOfImage);
+                int32_t  offPatch    = pThis->offSizeOfImage - offFile;
+                uint8_t *pbPatch     = (uint8_t *)pvBuf + offPatch;
+                if (offFile + cbToRead < pThis->offSizeOfImage + cbPatch)
+                    cbPatch = offFile + cbToRead - pThis->offSizeOfImage;
+                while (cbPatch-- > 0)
+                {
+                    if (offPatch >= 0)
+                        *pbPatch = (uint8_t)SizeOfImage;
+                    offPatch++;
+                    pbPatch++;
+                    SizeOfImage >>= 8;
+                }
+            }
+
+            /* Done? */
+            if (cbToRead == cb)
+                break;
+
+            offFile += cbToRead;
+            cb      -= cbToRead;
+            pvBuf    = (char *)pvBuf + cbToRead;
+        }
+
+        /* Mind the gap. */
+        if (offNextMap > offFile)
+        {
+            uint32_t cbZero = offNextMap - offFile;
+            if (cbZero > cb)
+            {
+                RT_BZERO(pvBuf, cb);
+                break;
+            }
+
+            RT_BZERO(pvBuf, cbZero);
+            offFile += cbZero;
+            cb      -= cbZero;
+            pvBuf   = (char *)pvBuf + cbZero;
+        }
+
+        pThis->iHint = ++i;
+    }
+
+    return VINF_SUCCESS;
+}
+
+
+/** @callback_method_impl{PFNRTLDRRDRMEMDTOR} */
+static DECLCALLBACK(void) dbgDiggerWinNtRdr_Dtor(void *pvUser, size_t cbImage)
+{
+    PDBGDIGGERWINNTRDR pThis = (PDBGDIGGERWINNTRDR)pvUser;
+    RT_NOREF(cbImage);
+
+    VMR3ReleaseUVM(pThis->pUVM);
+    pThis->pUVM = NULL;
+    RTMemFree(pvUser);
+}
+
+
+/**
+ * Checks if the section headers look okay.
+ *
+ * @returns true / false.
+ * @param   paShs               Pointer to the section headers.
+ * @param   cShs                Number of headers.
+ * @param   cbImage             The image size reported by NT.
+ * @param   uRvaRsrc            The RVA of the resource directory. UINT32_MAX if
+ *                              no resource directory.
+ * @param   cbSectAlign         The section alignment specified in the header.
+ * @param   pcbImageCorrect     The corrected image size.  This is derived from
+ *                              cbImage and virtual range of the section tables.
+ *
+ *                              The problem is that NT may choose to drop the
+ *                              last pages in images it loads early, starting at
+ *                              the resource directory.  These images will have
+ *                              a page aligned cbImage.
+ */
+static bool dbgDiggerWinNtCheckSectHdrsAndImgSize(PCIMAGE_SECTION_HEADER paShs, uint32_t cShs, uint32_t cbImage,
+                                                  uint32_t uRvaRsrc, uint32_t cbSectAlign, uint32_t *pcbImageCorrect)
+{
+    *pcbImageCorrect = cbImage;
+
+    for (uint32_t i = 0; i < cShs; i++)
+    {
+        if (!paShs[i].Name[0])
+        {
+            Log(("DigWinNt: Section header #%u has no name\n", i));
+            return false;
+        }
+
+        if (paShs[i].Characteristics & IMAGE_SCN_TYPE_NOLOAD)
+            continue;
+
+        /* Check that sizes are within the same range and that both sizes and
+           addresses are within reasonable limits. */
+        if (   RT_ALIGN(paShs[i].Misc.VirtualSize, _64K) < RT_ALIGN(paShs[i].SizeOfRawData, _64K)
+            || paShs[i].Misc.VirtualSize >= _1G
+            || paShs[i].SizeOfRawData    >= _1G)
+        {
+            Log(("DigWinNt: Section header #%u has a VirtualSize=%#x and SizeOfRawData=%#x, that's too much data!\n",
+                 i, paShs[i].Misc.VirtualSize, paShs[i].SizeOfRawData));
+            return false;
+        }
+        uint32_t uRvaEnd = paShs[i].VirtualAddress + paShs[i].Misc.VirtualSize;
+        if (uRvaEnd >= _1G || uRvaEnd < paShs[i].VirtualAddress)
+        {
+            Log(("DigWinNt: Section header #%u has a VirtualSize=%#x and VirtualAddr=%#x, %#x in total, that's too much!\n",
+                 i, paShs[i].Misc.VirtualSize, paShs[i].VirtualAddress, uRvaEnd));
+            return false;
+        }
+
+        /* Check for images chopped off around '.rsrc'. */
+        if (    cbImage < uRvaEnd
+            &&  uRvaEnd >= uRvaRsrc)
+            cbImage = RT_ALIGN(uRvaEnd, cbSectAlign);
+
+        /* Check that the section is within the image. */
+        if (uRvaEnd > cbImage)
+        {
+            Log(("DigWinNt: Section header #%u has a virtual address range beyond the image: %#x TO %#x cbImage=%#x\n",
+                 i, paShs[i].VirtualAddress, uRvaEnd, cbImage));
+            return false;
+        }
+    }
+
+    Assert(*pcbImageCorrect == cbImage || !(*pcbImageCorrect & 0xfff));
+    *pcbImageCorrect = cbImage;
+    return true;
+}
+
+
+/**
+ * Create a loader module for the in-guest-memory PE module.
+ */
+static int dbgDiggerWinNtCreateLdrMod(PDBGDIGGERWINNT pThis, PUVM pUVM, const char *pszName, PCDBGFADDRESS pImageAddr,
+                                      uint32_t cbImage, uint8_t *pbBuf, size_t cbBuf,
+                                      uint32_t offHdrs, PCNTHDRS pHdrs, PRTLDRMOD phLdrMod)
+{
+    /*
+     * Allocate and create a reader instance.
+     */
+    uint32_t const      cShs = WINNT_UNION(pThis, pHdrs, FileHeader.NumberOfSections);
+    PDBGDIGGERWINNTRDR  pRdr = (PDBGDIGGERWINNTRDR)RTMemAlloc(RT_UOFFSETOF_DYN(DBGDIGGERWINNTRDR, aMappings[cShs + 2]));
+    if (!pRdr)
+        return VERR_NO_MEMORY;
+
+    VMR3RetainUVM(pUVM);
+    pRdr->pUVM               = pUVM;
+    pRdr->ImageAddr          = *pImageAddr;
+    pRdr->cbImage            = cbImage;
+    pRdr->cbCorrectImageSize = cbImage;
+    pRdr->offSizeOfImage     = UINT32_MAX;
+    pRdr->iHint              = 0;
+
+    /*
+     * Use the section table to construct a more accurate view of the file/
+     * image if it's in the buffer (it should be).
+     */
+    uint32_t uRvaRsrc = UINT32_MAX;
+    if (WINNT_UNION(pThis, pHdrs, OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE]).Size > 0)
+        uRvaRsrc = WINNT_UNION(pThis, pHdrs, OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_RESOURCE]).VirtualAddress;
+    uint32_t offShs = offHdrs
+                    + (  pThis->f32Bit
+                       ? pHdrs->vX_32.FileHeader.SizeOfOptionalHeader + RT_OFFSETOF(IMAGE_NT_HEADERS32, OptionalHeader)
+                       : pHdrs->vX_64.FileHeader.SizeOfOptionalHeader + RT_OFFSETOF(IMAGE_NT_HEADERS64, OptionalHeader));
+    uint32_t cbShs  = cShs * sizeof(IMAGE_SECTION_HEADER);
+    PCIMAGE_SECTION_HEADER paShs = (PCIMAGE_SECTION_HEADER)(pbBuf + offShs);
+    if (   offShs + cbShs <= RT_MIN(cbImage, cbBuf)
+        && dbgDiggerWinNtCheckSectHdrsAndImgSize(paShs, cShs, cbImage, uRvaRsrc,
+                                                 WINNT_UNION(pThis, pHdrs, OptionalHeader.SectionAlignment),
+                                                 &pRdr->cbCorrectImageSize))
+    {
+        pRdr->cMappings = 0;
+
+        for (uint32_t i = 0; i < cShs; i++)
+            if (   paShs[i].SizeOfRawData    > 0
+                && paShs[i].PointerToRawData > 0)
+            {
+                uint32_t j = 1;
+                if (!pRdr->cMappings)
+                    pRdr->cMappings++;
+                else
+                {
+                    while (j < pRdr->cMappings && pRdr->aMappings[j].offFile < paShs[i].PointerToRawData)
+                        j++;
+                    if (j < pRdr->cMappings)
+                        memmove(&pRdr->aMappings[j + 1], &pRdr->aMappings[j], (pRdr->cMappings - j) * sizeof(pRdr->aMappings));
+                }
+                pRdr->aMappings[j].offFile = paShs[i].PointerToRawData;
+                pRdr->aMappings[j].offMem  = paShs[i].VirtualAddress;
+                pRdr->aMappings[j].cbMem   = i + 1 < cShs
+                                           ? paShs[i + 1].VirtualAddress - paShs[i].VirtualAddress
+                                           : paShs[i].Misc.VirtualSize;
+                if (j == pRdr->cMappings)
+                    pRdr->cbImage = paShs[i].PointerToRawData + paShs[i].SizeOfRawData;
+                pRdr->cMappings++;
+            }
+
+        /* Insert the mapping of the headers that isn't covered by the section table. */
+        pRdr->aMappings[0].offFile = 0;
+        pRdr->aMappings[0].offMem  = 0;
+        pRdr->aMappings[0].cbMem   = pRdr->cMappings ? pRdr->aMappings[1].offFile : pRdr->cbImage;
+
+        int j = pRdr->cMappings - 1;
+        while (j-- > 0)
+        {
+            uint32_t cbFile = pRdr->aMappings[j + 1].offFile - pRdr->aMappings[j].offFile;
+            if (pRdr->aMappings[j].cbMem > cbFile)
+                pRdr->aMappings[j].cbMem = cbFile;
+        }
+    }
+    else
+    {
+        /*
+         * Fallback, fake identity mapped file data.
+         */
+        pRdr->cMappings = 1;
+        pRdr->aMappings[0].offFile = 0;
+        pRdr->aMappings[0].offMem  = 0;
+        pRdr->aMappings[0].cbMem   = pRdr->cbImage;
+    }
+
+    /* Enable the SizeOfImage patching if necessary. */
+    if (pRdr->cbCorrectImageSize != cbImage)
+    {
+        Log(("DigWinNT: The image is really %#x bytes long, not %#x as mapped by NT!\n", pRdr->cbCorrectImageSize, cbImage));
+        pRdr->offSizeOfImage = pThis->f32Bit
+                             ? offHdrs + RT_OFFSETOF(IMAGE_NT_HEADERS32, OptionalHeader.SizeOfImage)
+                             : offHdrs + RT_OFFSETOF(IMAGE_NT_HEADERS64, OptionalHeader.SizeOfImage);
+    }
+
+    /*
+     * Call the loader to open the PE image for debugging.
+     * Note! It always calls pfnDtor.
+     */
+    RTLDRMOD hLdrMod;
+    int rc = RTLdrOpenInMemory(pszName, RTLDR_O_FOR_DEBUG, RTLDRARCH_WHATEVER, pRdr->cbImage,
+                               dbgDiggerWinNtRdr_Read, dbgDiggerWinNtRdr_Dtor, pRdr,
+                               &hLdrMod);
+    if (RT_SUCCESS(rc))
+        *phLdrMod = hLdrMod;
+    else
+        *phLdrMod = NIL_RTLDRMOD;
+    return rc;
+}
+
+
 /**
  * Process a PE image found in guest memory.
  *
  * @param   pThis           The instance data.
  * @param   pUVM            The user mode VM handle.
- * @param   pszName         The module name.
- * @param   pszFilename     The image filename.
+ * @param   pszName         The image name.
  * @param   pImageAddr      The image address.
  * @param   cbImage         The size of the image.
+ * @param   pbBuf           Scratch buffer containing the first
+ *                          RT_MIN(cbBuf, cbImage) bytes of the image.
+ * @param   cbBuf           The scratch buffer size.
  */
-static void dbgDiggerWinNtProcessImage(PDBGDIGGERWINNT pThis, PUVM pUVM, const char *pszName, const char *pszFilename,
-                                       PCDBGFADDRESS pImageAddr, uint32_t cbImage)
+static void dbgDiggerWinNtProcessImage(PDBGDIGGERWINNT pThis, PUVM pUVM, const char *pszName,
+                                       PCDBGFADDRESS pImageAddr, uint32_t cbImage,
+                                       uint8_t *pbBuf, size_t cbBuf)
 {
     LogFlow(("DigWinNt: %RGp %#x %s\n", pImageAddr->FlatPtr, cbImage, pszName));
 
     /*
      * Do some basic validation first.
+     * This is the usual exteremely verbose and messy code...
      */
-    if (   (cbImage < sizeof(IMAGE_NT_HEADERS64) && !pThis->fNt31)
+    Assert(cbBuf >= sizeof(IMAGE_NT_HEADERS64));
+    if (   cbImage < sizeof(IMAGE_NT_HEADERS64)
         || cbImage >= _1M * 256)
     {
         Log(("DigWinNt: %s: Bad image size: %#x\n", pszName, cbImage));
         return;
     }
 
-    /*
-     * Use the common in-memory module reader to create a debug module.
-     */
-    RTERRINFOSTATIC ErrInfo;
-    RTDBGMOD        hDbgMod = NIL_RTDBGMOD;
-    int rc = DBGFR3ModInMem(pUVM, pImageAddr, pThis->fNt31 ? DBGFMODINMEM_F_PE_NT31 : 0, pszName, pszFilename,
-                            pThis->f32Bit ? RTLDRARCH_X86_32 : RTLDRARCH_AMD64, cbImage,
-                            &hDbgMod, RTErrInfoInitStatic(&ErrInfo));
-    if (RT_SUCCESS(rc))
+    /* Dig out the NT/PE headers. */
+    IMAGE_DOS_HEADER const *pMzHdr = (IMAGE_DOS_HEADER const *)pbBuf;
+    PCNTHDRS        pHdrs;
+    uint32_t        offHdrs;
+    if (pMzHdr->e_magic != IMAGE_DOS_SIGNATURE)
     {
-        /*
-         * Tag the module.
-         */
-        rc = RTDbgModSetTag(hDbgMod, DIG_WINNT_MOD_TAG);
-        AssertRC(rc);
-
-        /*
-         * Link the module.
-         */
-        RTDBGAS hAs = DBGFR3AsResolveAndRetain(pUVM, DBGF_AS_KERNEL);
-        if (hAs != NIL_RTDBGAS)
-            rc = RTDbgAsModuleLink(hAs, hDbgMod, pImageAddr->FlatPtr, RTDBGASLINK_FLAGS_REPLACE /*fFlags*/);
-        else
-            rc = VERR_INTERNAL_ERROR;
-        RTDbgModRelease(hDbgMod);
-        RTDbgAsRelease(hAs);
+        offHdrs = 0;
+        pHdrs   = (PCNTHDRS)pbBuf;
     }
-    else if (RTErrInfoIsSet(&ErrInfo.Core))
-        Log(("DigWinNt: %s: DBGFR3ModInMem failed: %Rrc - %s\n", pszName, rc, ErrInfo.Core.pszMsg));
+    else if (   pMzHdr->e_lfanew >= cbImage
+             || pMzHdr->e_lfanew < sizeof(*pMzHdr)
+             || pMzHdr->e_lfanew + sizeof(IMAGE_NT_HEADERS64) > cbImage)
+    {
+        Log(("DigWinNt: %s: PE header to far into image: %#x  cbImage=%#x\n", pszName, pMzHdr->e_lfanew, cbImage));
+        return;
+    }
+    else if (   pMzHdr->e_lfanew < cbBuf
+             && pMzHdr->e_lfanew + sizeof(IMAGE_NT_HEADERS64) <= cbBuf)
+    {
+        offHdrs = pMzHdr->e_lfanew;
+        pHdrs = (NTHDRS const *)(pbBuf + offHdrs);
+    }
     else
-        Log(("DigWinNt: %s: DBGFR3ModInMem failed: %Rrc\n", pszName, rc));
-}
-
-
-/**
- * Generate a debugger compatible module name from a filename.
- *
- * @returns Pointer to module name (doesn't need to be pszName).
- * @param   pszFilename         The source filename.
- * @param   pszName             Buffer to put the module name in.
- * @param   cbName              Buffer size.
- */
-static const char *dbgDiggerWintNtFilenameToModuleName(const char *pszFilename, char *pszName, size_t cbName)
-{
-    /* Skip to the filename part of the filename. :-) */
-    pszFilename = RTPathFilenameEx(pszFilename, RTPATH_STR_F_STYLE_DOS);
-
-    /* We try use 'nt' for the kernel. */
-    if (   RTStrICmpAscii(pszFilename, "ntoskrnl.exe") == 0
-        || RTStrICmpAscii(pszFilename, "ntkrnlmp.exe") == 0)
-        return "nt";
-
-
-    /* Drop the extension if .dll or .sys. */
-    size_t cchFilename = strlen(pszFilename);
-    if (   cchFilename > 4
-        && pszFilename[cchFilename - 4] == '.')
     {
-        if (   RTStrICmpAscii(&pszFilename[cchFilename - 4], ".sys") == 0
-            || RTStrICmpAscii(&pszFilename[cchFilename - 4], ".dll") == 0)
-            cchFilename -= 4;
+        Log(("DigWinNt: %s: PE header to far into image (lazy bird): %#x\n", pszName, pMzHdr->e_lfanew));
+        return;
+    }
+    if (pHdrs->vX_32.Signature != IMAGE_NT_SIGNATURE)
+    {
+        Log(("DigWinNt: %s: Bad PE signature: %#x\n", pszName, pHdrs->vX_32.Signature));
+        return;
     }
 
-    /* Copy and do replacements. */
-    if (cchFilename >= cbName)
-        cchFilename = cbName - 1;
-    size_t off;
-    for (off = 0; off < cchFilename; off++)
+    /* The file header is the same on both archs */
+    if (pHdrs->vX_32.FileHeader.Machine != (pThis->f32Bit ? IMAGE_FILE_MACHINE_I386 : IMAGE_FILE_MACHINE_AMD64))
     {
-        char ch = pszFilename[off];
-        if (!RT_C_IS_ALNUM(ch))
-            ch = '_';
-        pszName[off] = ch;
+        Log(("DigWinNt: %s: Invalid FH.Machine: %#x\n", pszName, pHdrs->vX_32.FileHeader.Machine));
+        return;
     }
-    pszName[off] = '\0';
-    return pszName;
-}
+    if (pHdrs->vX_32.FileHeader.SizeOfOptionalHeader != (pThis->f32Bit ? sizeof(IMAGE_OPTIONAL_HEADER32) : sizeof(IMAGE_OPTIONAL_HEADER64)))
+    {
+        Log(("DigWinNt: %s: Invalid FH.SizeOfOptionalHeader: %#x\n", pszName, pHdrs->vX_32.FileHeader.SizeOfOptionalHeader));
+        return;
+    }
+    if (WINNT_UNION(pThis, pHdrs, FileHeader.NumberOfSections) > 64)
+    {
+        Log(("DigWinNt: %s: Too many sections: %#x\n", pszName, WINNT_UNION(pThis, pHdrs, FileHeader.NumberOfSections)));
+        return;
+    }
 
+    const uint32_t TimeDateStamp = pHdrs->vX_32.FileHeader.TimeDateStamp;
 
-/**
- * @copydoc DBGFOSREG::pfnStackUnwindAssist
- */
-static DECLCALLBACK(int) dbgDiggerWinNtStackUnwindAssist(PUVM pUVM, void *pvData, VMCPUID idCpu, PDBGFSTACKFRAME pFrame,
-                                                         PRTDBGUNWINDSTATE pState, PCCPUMCTX pInitialCtx, RTDBGAS hAs,
-                                                         uint64_t *puScratch)
-{
-    Assert(pInitialCtx);
+    /* The optional header is not... */
+    if (WINNT_UNION(pThis, pHdrs, OptionalHeader.Magic) != (pThis->f32Bit ? IMAGE_NT_OPTIONAL_HDR32_MAGIC : IMAGE_NT_OPTIONAL_HDR64_MAGIC))
+    {
+        Log(("DigWinNt: %s: Invalid OH.Magic: %#x\n", pszName, WINNT_UNION(pThis, pHdrs, OptionalHeader.Magic)));
+        return;
+    }
+    uint32_t cbImageFromHdr = WINNT_UNION(pThis, pHdrs, OptionalHeader.SizeOfImage);
+    if (RT_ALIGN(cbImageFromHdr, _4K) != RT_ALIGN(cbImage, _4K))
+    {
+        Log(("DigWinNt: %s: Invalid OH.SizeOfImage: %#x, expected %#x\n", pszName, cbImageFromHdr, cbImage));
+        return;
+    }
+    if (WINNT_UNION(pThis, pHdrs, OptionalHeader.NumberOfRvaAndSizes) != IMAGE_NUMBEROF_DIRECTORY_ENTRIES)
+    {
+        Log(("DigWinNt: %s: Invalid OH.NumberOfRvaAndSizes: %#x\n", pszName, WINNT_UNION(pThis, pHdrs, OptionalHeader.NumberOfRvaAndSizes)));
+        return;
+    }
 
     /*
-     * We want to locate trap frames here.  The trap frame structure contains
-     * the 64-bit IRET frame, so given unwind information it's easy to identify
-     * using the return type and frame address.
+     * Create the module using the in memory image first, falling back
+     * on cached image.
      */
-    if (pFrame->fFlags & DBGFSTACKFRAME_FLAGS_64BIT)
+    RTLDRMOD hLdrMod;
+    int rc = dbgDiggerWinNtCreateLdrMod(pThis, pUVM, pszName, pImageAddr, cbImage, pbBuf, cbBuf, offHdrs, pHdrs,
+                                        &hLdrMod);
+    if (RT_FAILURE(rc))
+        hLdrMod = NIL_RTLDRMOD;
+
+    RTDBGMOD hMod;
+    rc = RTDbgModCreateFromPeImage(&hMod, pszName, NULL, hLdrMod,
+                                   cbImageFromHdr, TimeDateStamp, DBGFR3AsGetConfig(pUVM));
+    if (RT_FAILURE(rc))
     {
         /*
-         * Is this a trap frame?  If so, try read the trap frame.
+         * Final fallback is a container module.
          */
-        if (   pFrame->enmReturnType == RTDBGRETURNTYPE_IRET64
-            && !(pFrame->AddrFrame.FlatPtr & 0x7)
-            && WINNT64_VALID_ADDRESS(pFrame->AddrFrame.FlatPtr) )
-        {
-            KTRAP_FRAME_AMD64 TrapFrame;
-            RT_ZERO(TrapFrame);
-            uint64_t const uTrapFrameAddr = pFrame->AddrFrame.FlatPtr
-                                          - RT_UOFFSETOF(KTRAP_FRAME_AMD64, ErrCdOrXcptFrameOrS);
-            int rc = pState->pfnReadStack(pState, uTrapFrameAddr, sizeof(TrapFrame), &TrapFrame);
-            if (RT_SUCCESS(rc))
-            {
-                /* Valid?  Not too much else we can check here (EFlags isn't
-                   reliable in manually construct frames). */
-                if (TrapFrame.ExceptionActive <= 2)
-                {
-                    pFrame->fFlags |= DBGFSTACKFRAME_FLAGS_TRAP_FRAME;
+        rc = RTDbgModCreate(&hMod, pszName, cbImage, 0);
+        if (RT_FAILURE(rc))
+            return;
 
-                    /*
-                     * Add sure 'register' information from the frame to the frame.
-                     *
-                     * To avoid code duplication, we do this in two steps in a loop.
-                     * The first iteration only figures out how many registers we're
-                     * going to save and allocates room for them.  The second iteration
-                     * does the actual adding.
-                     */
-                    uint32_t      cRegs      = pFrame->cSureRegs;
-                    PDBGFREGVALEX paSureRegs = NULL;
-#define ADD_REG_NAMED(a_Type, a_ValMemb, a_Value, a_pszName) do { \
-                            if (paSureRegs) \
-                            { \
-                                paSureRegs[iReg].pszName         = a_pszName;\
-                                paSureRegs[iReg].enmReg          = DBGFREG_END; \
-                                paSureRegs[iReg].enmType         = a_Type; \
-                                paSureRegs[iReg].Value.a_ValMemb = (a_Value); \
-                            } \
-                            iReg++; \
-                        } while (0)
-#define MAYBE_ADD_GREG(a_Value, a_enmReg, a_idxReg) do { \
-                            if (!(pState->u.x86.Loaded.s.fRegs & RT_BIT(a_idxReg))) \
-                            { \
-                                if (paSureRegs) \
-                                { \
-                                    pState->u.x86.Loaded.s.fRegs    |= RT_BIT(a_idxReg); \
-                                    pState->u.x86.auRegs[a_idxReg]   = (a_Value); \
-                                    paSureRegs[iReg].Value.u64       = (a_Value); \
-                                    paSureRegs[iReg].enmReg          = a_enmReg; \
-                                    paSureRegs[iReg].enmType         = DBGFREGVALTYPE_U64; \
-                                    paSureRegs[iReg].pszName         = NULL; \
-                                } \
-                                iReg++; \
-                            } \
-                        } while (0)
-                    for (unsigned iLoop = 0; iLoop < 2; iLoop++)
-                    {
-                        uint32_t iReg = pFrame->cSureRegs;
-                        ADD_REG_NAMED(DBGFREGVALTYPE_U64, u64, uTrapFrameAddr, "TrapFrame");
-                        ADD_REG_NAMED(DBGFREGVALTYPE_U8,   u8, TrapFrame.ExceptionActive, "ExceptionActive");
-                        if (TrapFrame.ExceptionActive == 0)
-                        {
-                            ADD_REG_NAMED(DBGFREGVALTYPE_U8,   u8, TrapFrame.PreviousIrql, "PrevIrql");
-                            ADD_REG_NAMED(DBGFREGVALTYPE_U8,   u8, (uint8_t)TrapFrame.ErrCdOrXcptFrameOrS, "IntNo");
-                        }
-                        else if (   TrapFrame.ExceptionActive == 1
-                                 && TrapFrame.FaultIndicator == ((TrapFrame.ErrCdOrXcptFrameOrS >> 1) & 0x9))
-                            ADD_REG_NAMED(DBGFREGVALTYPE_U64, u64, TrapFrame.FaultAddrOrCtxRecOrTS, "cr2-probably");
-                        if (TrapFrame.SegCs & X86_SEL_RPL)
-                            ADD_REG_NAMED(DBGFREGVALTYPE_U8,   u8, 1, "UserMode");
-                        else
-                            ADD_REG_NAMED(DBGFREGVALTYPE_U8,   u8, 1, "KernelMode");
-                        if (TrapFrame.ExceptionActive <= 1)
-                        {
-                            MAYBE_ADD_GREG(TrapFrame.Rax, DBGFREG_RAX, X86_GREG_xAX);
-                            MAYBE_ADD_GREG(TrapFrame.Rcx, DBGFREG_RCX, X86_GREG_xCX);
-                            MAYBE_ADD_GREG(TrapFrame.Rdx, DBGFREG_RDX, X86_GREG_xDX);
-                            MAYBE_ADD_GREG(TrapFrame.R8,  DBGFREG_R8,  X86_GREG_x8);
-                            MAYBE_ADD_GREG(TrapFrame.R9,  DBGFREG_R9,  X86_GREG_x9);
-                            MAYBE_ADD_GREG(TrapFrame.R10, DBGFREG_R10, X86_GREG_x10);
-                            MAYBE_ADD_GREG(TrapFrame.R11, DBGFREG_R11, X86_GREG_x11);
-                        }
-                        else if (TrapFrame.ExceptionActive == 2)
-                        {
-                            MAYBE_ADD_GREG(TrapFrame.Rbx, DBGFREG_RBX, X86_GREG_xBX);
-                            MAYBE_ADD_GREG(TrapFrame.Rsi, DBGFREG_RSI, X86_GREG_xSI);
-                            MAYBE_ADD_GREG(TrapFrame.Rdi, DBGFREG_RDI, X86_GREG_xDI);
-                        }
-                        // MAYBE_ADD_GREG(TrapFrame.Rbp, DBGFREG_RBP, X86_GREG_xBP); - KiInterrupt[Sub]Dispatch* may leave this invalid.
-
-                        /* Done? */
-                        if (iLoop > 0)
-                        {
-                            Assert(cRegs == iReg);
-                            break;
-                        }
-
-                        /* Resize the array, zeroing the extension. */
-                        if (pFrame->cSureRegs)
-                            paSureRegs = (PDBGFREGVALEX)MMR3HeapRealloc(pFrame->paSureRegs, iReg * sizeof(paSureRegs[0]));
-                        else
-                            paSureRegs = (PDBGFREGVALEX)MMR3HeapAllocU(pUVM, MM_TAG_DBGF_STACK, iReg * sizeof(paSureRegs[0]));
-                        AssertReturn(paSureRegs, VERR_NO_MEMORY);
-
-                        pFrame->paSureRegs = paSureRegs;
-                        RT_BZERO(&paSureRegs[pFrame->cSureRegs], (iReg - pFrame->cSureRegs) * sizeof(paSureRegs[0]));
-                        cRegs = iReg;
-                    }
-#undef ADD_REG_NAMED
-#undef MAYBE_ADD_GREG
-
-                    /* Commit the register update. */
-                    pFrame->cSureRegs = cRegs;
-                }
-            }
-        }
+        rc = RTDbgModSymbolAdd(hMod, "Headers", 0 /*iSeg*/, 0, cbImage, 0 /*fFlags*/, NULL);
+        AssertRC(rc);
     }
 
-    RT_NOREF(pUVM, pvData, idCpu, hAs, pInitialCtx, puScratch);
-    return VINF_SUCCESS;
+    /* Tag the module. */
+    rc = RTDbgModSetTag(hMod, DIG_WINNT_MOD_TAG);
+    AssertRC(rc);
+
+    /*
+     * Link the module.
+     */
+    RTDBGAS hAs = DBGFR3AsResolveAndRetain(pUVM, DBGF_AS_KERNEL);
+    if (hAs != NIL_RTDBGAS)
+        rc = RTDbgAsModuleLink(hAs, hMod, pImageAddr->FlatPtr, RTDBGASLINK_FLAGS_REPLACE /*fFlags*/);
+    else
+        rc = VERR_INTERNAL_ERROR;
+    RTDbgModRelease(hMod);
+    RTDbgAsRelease(hAs);
 }
 
 
@@ -581,9 +759,21 @@ static DECLCALLBACK(void)  dbgDiggerWinNtTerm(PUVM pUVM, void *pvData)
     PDBGDIGGERWINNT pThis = (PDBGDIGGERWINNT)pvData;
     Assert(pThis->fValid);
 
+    pThis->fValid = false;
+}
+
+
+/**
+ * @copydoc DBGFOSREG::pfnRefresh
+ */
+static DECLCALLBACK(int)  dbgDiggerWinNtRefresh(PUVM pUVM, void *pvData)
+{
+    PDBGDIGGERWINNT pThis = (PDBGDIGGERWINNT)pvData;
+    NOREF(pThis);
+    Assert(pThis->fValid);
+
     /*
-     * As long as we're using our private LDR reader implementation,
-     * we must unlink and ditch the modules we created.
+     * For now we'll flush and reload everything.
      */
     RTDBGAS hDbgAs = DBGFR3AsResolveAndRetain(pUVM, DBGF_AS_KERNEL);
     if (hDbgAs != NIL_RTDBGAS)
@@ -605,24 +795,7 @@ static DECLCALLBACK(void)  dbgDiggerWinNtTerm(PUVM pUVM, void *pvData)
         RTDbgAsRelease(hDbgAs);
     }
 
-    pThis->fValid = false;
-}
-
-
-/**
- * @copydoc DBGFOSREG::pfnRefresh
- */
-static DECLCALLBACK(int)  dbgDiggerWinNtRefresh(PUVM pUVM, void *pvData)
-{
-    PDBGDIGGERWINNT pThis = (PDBGDIGGERWINNT)pvData;
-    NOREF(pThis);
-    Assert(pThis->fValid);
-
-    /*
-     * For now we'll flush and reload everything.
-     */
     dbgDiggerWinNtTerm(pUVM, pvData);
-
     return dbgDiggerWinNtInit(pUVM, pvData);
 }
 
@@ -649,25 +822,13 @@ static DECLCALLBACK(int)  dbgDiggerWinNtInit(PUVM pUVM, void *pvData)
      */
     DBGFR3AddrFromFlat(pUVM, &Addr, pThis->f32Bit ? NTKUSERSHAREDDATA_WINNT32 : NTKUSERSHAREDDATA_WINNT64);
     rc = DBGFR3MemRead(pUVM, 0 /*idCpu*/, &Addr, &u, PAGE_SIZE);
-    if (RT_SUCCESS(rc))
-    {
-        pThis->NtProductType  = u.UserSharedData.ProductTypeIsValid && u.UserSharedData.NtProductType <= kNtProductType_Server
-                              ? (NTPRODUCTTYPE)u.UserSharedData.NtProductType
-                              : kNtProductType_Invalid;
-        pThis->NtMajorVersion = u.UserSharedData.NtMajorVersion;
-        pThis->NtMinorVersion = u.UserSharedData.NtMinorVersion;
-    }
-    else if (pThis->fNt31)
-    {
-        pThis->NtProductType  = kNtProductType_WinNt;
-        pThis->NtMajorVersion = 3;
-        pThis->NtMinorVersion = 1;
-    }
-    else
-    {
-        Log(("DigWinNt: Error reading KUSER_SHARED_DATA: %Rrc\n", rc));
+    if (RT_FAILURE(rc))
         return rc;
-    }
+    pThis->NtProductType  = u.UserSharedData.ProductTypeIsValid && u.UserSharedData.NtProductType <= kNtProductType_Server
+                          ? (NTPRODUCTTYPE)u.UserSharedData.NtProductType
+                          : kNtProductType_Invalid;
+    pThis->NtMajorVersion = u.UserSharedData.NtMajorVersion;
+    pThis->NtMinorVersion = u.UserSharedData.NtMinorVersion;
 
     /*
      * Dig out the module chain.
@@ -701,19 +862,12 @@ static DECLCALLBACK(int)  dbgDiggerWinNtInit(PUVM pUVM, void *pvData)
             Log(("DigWinNt: Bad Mte at %RGv - FullDllName=%llx\n", Addr.FlatPtr, WINNT_UNION(pThis, &Mte, FullDllName.Buffer)));
             break;
         }
-        if (!WINNT_VALID_ADDRESS(pThis, WINNT_UNION(pThis, &Mte, DllBase)))
-        {
-            Log(("DigWinNt: Bad Mte at %RGv - DllBase=%llx\n", Addr.FlatPtr, WINNT_UNION(pThis, &Mte, DllBase) ));
-            break;
-        }
-
-        uint32_t const cbImageMte = !pThis->fNt31 ? WINNT_UNION(pThis, &Mte, SizeOfImage) : 0;
-        if (   !pThis->fNt31
-            && (   cbImageMte > _256M
-                || WINNT_UNION(pThis, &Mte, EntryPoint) - WINNT_UNION(pThis, &Mte, DllBase) > cbImageMte) )
+        if (    !WINNT_VALID_ADDRESS(pThis, WINNT_UNION(pThis, &Mte, DllBase))
+            ||  WINNT_UNION(pThis, &Mte, SizeOfImage) > _1M*256
+            ||  WINNT_UNION(pThis, &Mte, EntryPoint) - WINNT_UNION(pThis, &Mte, DllBase) > WINNT_UNION(pThis, &Mte, SizeOfImage) )
         {
             Log(("DigWinNt: Bad Mte at %RGv - EntryPoint=%llx SizeOfImage=%x DllBase=%llx\n",
-                 Addr.FlatPtr, WINNT_UNION(pThis, &Mte, EntryPoint), cbImageMte, WINNT_UNION(pThis, &Mte, DllBase)));
+                 Addr.FlatPtr, WINNT_UNION(pThis, &Mte, EntryPoint), WINNT_UNION(pThis, &Mte, SizeOfImage), WINNT_UNION(pThis, &Mte, DllBase)));
             break;
         }
 
@@ -736,20 +890,25 @@ static DECLCALLBACK(int)  dbgDiggerWinNtInit(PUVM pUVM, void *pvData)
         }
         if (RT_SUCCESS(rc))
         {
-            u.wsz[cbName / 2] = '\0';
-
-            char *pszFilename;
-            rc = RTUtf16ToUtf8(u.wsz, &pszFilename);
+            u.wsz[cbName/2] = '\0';
+            char *pszName;
+            rc = RTUtf16ToUtf8(u.wsz, &pszName);
             if (RT_SUCCESS(rc))
             {
-                char        szModName[128];
-                const char *pszModName = dbgDiggerWintNtFilenameToModuleName(pszFilename, szModName, sizeof(szModName));
-
                 /* Read the start of the PE image and pass it along to a worker. */
                 DBGFADDRESS ImageAddr;
                 DBGFR3AddrFromFlat(pUVM, &ImageAddr, WINNT_UNION(pThis, &Mte, DllBase));
-                dbgDiggerWinNtProcessImage(pThis, pUVM, pszModName, pszFilename, &ImageAddr, cbImageMte);
-                RTStrFree(pszFilename);
+                uint32_t    cbImageBuf = RT_MIN(sizeof(u), WINNT_UNION(pThis, &Mte, SizeOfImage));
+                rc = DBGFR3MemRead(pUVM, 0 /*idCpu*/, &ImageAddr, &u, cbImageBuf);
+                if (RT_SUCCESS(rc))
+                    dbgDiggerWinNtProcessImage(pThis,
+                                               pUVM,
+                                               pszName,
+                                               &ImageAddr,
+                                               WINNT_UNION(pThis, &Mte, SizeOfImage),
+                                               &u.au8[0],
+                                               sizeof(u));
+                RTStrFree(pszName);
             }
         }
 
@@ -778,8 +937,6 @@ static DECLCALLBACK(bool)  dbgDiggerWinNtProbe(PUVM pUVM, void *pvData)
         uint32_t            au32[8192/4];
         IMAGE_DOS_HEADER    MzHdr;
         RTUTF16             wsz[8192/2];
-        X86DESC64GATE       a32Gates[X86_XCPT_PF + 1];
-        X86DESC64GATE       a64Gates[X86_XCPT_PF + 1];
     } u;
 
     union
@@ -789,82 +946,21 @@ static DECLCALLBACK(bool)  dbgDiggerWinNtProbe(PUVM pUVM, void *pvData)
     } uMte, uMte2, uMte3;
 
     /*
-     * NT only runs in protected or long mode.
-     */
-    CPUMMODE const enmMode = DBGFR3CpuGetMode(pUVM, 0 /*idCpu*/);
-    if (enmMode != CPUMMODE_PROTECTED && enmMode != CPUMMODE_LONG)
-        return false;
-    bool const      f64Bit = enmMode == CPUMMODE_LONG;
-    uint64_t const  uStart = f64Bit ? UINT64_C(0xffff080000000000) : UINT32_C(0x80001000);
-    uint64_t const  uEnd   = f64Bit ? UINT64_C(0xffffffffffff0000) : UINT32_C(0xffff0000);
-
-    /*
-     * To approximately locate the kernel we examine the IDTR handlers.
-     *
-     * The exception/trap/fault handlers are all in NT kernel image, we pick
-     * KiPageFault here.
-     */
-    uint64_t uIdtrBase = 0;
-    uint16_t uIdtrLimit = 0;
-    int rc = DBGFR3RegCpuQueryXdtr(pUVM, 0, DBGFREG_IDTR, &uIdtrBase, &uIdtrLimit);
-    AssertRCReturn(rc, false);
-
-    const uint16_t cbMinIdtr = (X86_XCPT_PF + 1) * (f64Bit ? sizeof(X86DESC64GATE) : sizeof(X86DESCGATE));
-    if (uIdtrLimit < cbMinIdtr)
-        return false;
-
-    rc = DBGFR3MemRead(pUVM, 0 /*idCpu*/, DBGFR3AddrFromFlat(pUVM, &Addr, uIdtrBase), &u, cbMinIdtr);
-    if (RT_FAILURE(rc))
-        return false;
-
-    uint64_t uKrnlStart  = uStart;
-    uint64_t uKrnlEnd    = uEnd;
-    if (f64Bit)
-    {
-        uint64_t uHandler = u.a64Gates[X86_XCPT_PF].u16OffsetLow
-                          | ((uint32_t)u.a64Gates[X86_XCPT_PF].u16OffsetHigh << 16)
-                          | ((uint64_t)u.a64Gates[X86_XCPT_PF].u32OffsetTop  << 32);
-        if (uHandler < uStart || uHandler > uEnd)
-            return false;
-        uKrnlStart = (uHandler & ~(uint64_t)_4M) - _512M;
-        uKrnlEnd   = (uHandler + (uint64_t)_4M) & ~(uint64_t)_4M;
-    }
-    else
-    {
-        uint32_t uHandler = u.a32Gates[X86_XCPT_PF].u16OffsetLow
-                          | ((uint32_t)u.a64Gates[X86_XCPT_PF].u16OffsetHigh << 16);
-        if (uHandler < uStart || uHandler > uEnd)
-            return false;
-        uKrnlStart = (uHandler & ~(uint64_t)_4M) - _64M;
-        uKrnlEnd   = (uHandler + (uint64_t)_4M) & ~(uint64_t)_4M;
-    }
-
-    /*
      * Look for the PAGELK section name that seems to be a part of all kernels.
      * Then try find the module table entry for it.  Since it's the first entry
      * in the PsLoadedModuleList we can easily validate the list head and report
      * success.
-     *
-     * Note! We ASSUME the section name is 8 byte aligned.
      */
-    DBGFADDRESS KernelAddr;
-    for (DBGFR3AddrFromFlat(pUVM, &KernelAddr, uKrnlStart);
-         KernelAddr.FlatPtr < uKrnlEnd;
+    CPUMMODE        enmMode = DBGFR3CpuGetMode(pUVM, 0 /*idCpu*/);
+    uint64_t const  uStart  = enmMode == CPUMMODE_LONG ? UINT64_C(0xffff080000000000) : UINT32_C(0x80001000);
+    uint64_t const  uEnd    = enmMode == CPUMMODE_LONG ? UINT64_C(0xffffffffffff0000) : UINT32_C(0xffff0000);
+    DBGFADDRESS     KernelAddr;
+    for (DBGFR3AddrFromFlat(pUVM, &KernelAddr, uStart);
+         KernelAddr.FlatPtr < uEnd;
          KernelAddr.FlatPtr += PAGE_SIZE)
     {
-        bool fNt31 = false;
-        DBGFADDRESS const RetryAddress = KernelAddr;
-        rc = DBGFR3MemScan(pUVM, 0 /*idCpu*/, &KernelAddr, uEnd - KernelAddr.FlatPtr,
-                           8, "PAGELK\0", sizeof("PAGELK\0"), &KernelAddr);
-        if (   rc == VERR_DBGF_MEM_NOT_FOUND
-            && enmMode != CPUMMODE_LONG)
-        {
-            /* NT3.1 didn't have a PAGELK section, so look for _TEXT instead.  The
-               following VirtualSize is zero, so check for that too. */
-            rc = DBGFR3MemScan(pUVM, 0 /*idCpu*/, &RetryAddress, uEnd - RetryAddress.FlatPtr,
-                               8, "_TEXT\0\0\0\0\0\0", sizeof("_TEXT\0\0\0\0\0\0"), &KernelAddr);
-            fNt31 = true;
-        }
+        int rc = DBGFR3MemScan(pUVM, 0 /*idCpu*/, &KernelAddr, uEnd - KernelAddr.FlatPtr,
+                               1, "PAGELK\0", sizeof("PAGELK\0"), &KernelAddr);
         if (RT_FAILURE(rc))
             break;
         DBGFR3AddrSub(&KernelAddr, KernelAddr.FlatPtr & PAGE_OFFSET_MASK);
@@ -893,7 +989,7 @@ static DECLCALLBACK(bool)  dbgDiggerWinNtProbe(PUVM pUVM, void *pvData)
                     RT_ZERO(uMte);
                     uMte.v32.DllBase     = KernelAddr.FlatPtr;
                     uMte.v32.EntryPoint  = KernelAddr.FlatPtr + pHdrs->OptionalHeader.AddressOfEntryPoint;
-                    uMte.v32.SizeOfImage = !fNt31 ? pHdrs->OptionalHeader.SizeOfImage : 0; /* NT 3.1 didn't set the size. */
+                    uMte.v32.SizeOfImage = pHdrs->OptionalHeader.SizeOfImage;
                     DBGFADDRESS HitAddr;
                     rc = DBGFR3MemScan(pUVM, 0 /*idCpu*/, &KernelAddr, uEnd - KernelAddr.FlatPtr,
                                        4 /*align*/, &uMte.v32.DllBase, 3 * sizeof(uint32_t), &HitAddr);
@@ -936,7 +1032,6 @@ static DECLCALLBACK(bool)  dbgDiggerWinNtProbe(PUVM pUVM, void *pvData)
                                     pThis->KernelMteAddr            = MteAddr;
                                     pThis->PsLoadedModuleListAddr   = Addr;
                                     pThis->f32Bit                   = true;
-                                    pThis->fNt31                    = fNt31;
                                     return true;
                                 }
                             }
@@ -1022,7 +1117,6 @@ static DECLCALLBACK(bool)  dbgDiggerWinNtProbe(PUVM pUVM, void *pvData)
                                     pThis->KernelMteAddr            = MteAddr;
                                     pThis->PsLoadedModuleListAddr   = Addr;
                                     pThis->f32Bit                   = false;
-                                    pThis->fNt31                    = false;
                                     return true;
                                 }
                             }
@@ -1075,19 +1169,18 @@ static DECLCALLBACK(int)  dbgDiggerWinNtConstruct(PUVM pUVM, void *pvData)
 
 const DBGFOSREG g_DBGDiggerWinNt =
 {
-    /* .u32Magic = */               DBGFOSREG_MAGIC,
-    /* .fFlags = */                 0,
-    /* .cbData = */                 sizeof(DBGDIGGERWINNT),
-    /* .szName = */                 "WinNT",
-    /* .pfnConstruct = */           dbgDiggerWinNtConstruct,
-    /* .pfnDestruct = */            dbgDiggerWinNtDestruct,
-    /* .pfnProbe = */               dbgDiggerWinNtProbe,
-    /* .pfnInit = */                dbgDiggerWinNtInit,
-    /* .pfnRefresh = */             dbgDiggerWinNtRefresh,
-    /* .pfnTerm = */                dbgDiggerWinNtTerm,
-    /* .pfnQueryVersion = */        dbgDiggerWinNtQueryVersion,
-    /* .pfnQueryInterface = */      dbgDiggerWinNtQueryInterface,
-    /* .pfnStackUnwindAssist = */   dbgDiggerWinNtStackUnwindAssist,
-    /* .u32EndMagic = */            DBGFOSREG_MAGIC
+    /* .u32Magic = */           DBGFOSREG_MAGIC,
+    /* .fFlags = */             0,
+    /* .cbData = */             sizeof(DBGDIGGERWINNT),
+    /* .szName = */             "WinNT",
+    /* .pfnConstruct = */       dbgDiggerWinNtConstruct,
+    /* .pfnDestruct = */        dbgDiggerWinNtDestruct,
+    /* .pfnProbe = */           dbgDiggerWinNtProbe,
+    /* .pfnInit = */            dbgDiggerWinNtInit,
+    /* .pfnRefresh = */         dbgDiggerWinNtRefresh,
+    /* .pfnTerm = */            dbgDiggerWinNtTerm,
+    /* .pfnQueryVersion = */    dbgDiggerWinNtQueryVersion,
+    /* .pfnQueryInterface = */  dbgDiggerWinNtQueryInterface,
+    /* .u32EndMagic = */        DBGFOSREG_MAGIC
 };
 

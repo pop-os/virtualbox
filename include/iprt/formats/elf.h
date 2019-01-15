@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,11 +24,9 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_formats_elf_h
-#define IPRT_INCLUDED_formats_elf_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+
+#ifndef ___iprt_formats_elf_h
+#define ___iprt_formats_elf_h
 
 #if defined(RT_ARCH_AMD64)
 # include "elf64.h"
@@ -84,5 +82,5 @@ typedef Elf32_Sym           Elf_Sym;
 # error Unknown arch!
 #endif
 
-#endif /* !IPRT_INCLUDED_formats_elf_h */
+#endif
 

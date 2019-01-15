@@ -9,7 +9,7 @@ Interface used by the tinderbox server side software to add a fresh build.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2019 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -28,12 +28,12 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 118412 $"
 
 # Standard python imports
 import sys;
 import os;
-from optparse import OptionParser;  # pylint: disable=deprecated-module
+from optparse import OptionParser;
 
 # Add Test Manager's modules path
 g_ksTestManagerDir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))));

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2019 Oracle Corporation
+ * Copyright (C) 2005-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,7 +16,6 @@
  */
 
 
-#define LOG_GROUP LOG_GROUP_MAIN_HOSTUSBDEVICE
 #include <iprt/types.h> /* for UINT64_C */
 
 #include "HostUSBDeviceImpl.h"
@@ -25,9 +24,9 @@
 #include "VirtualBoxErrorInfoImpl.h"
 #include "USBProxyBackend.h"
 #include "USBIdDatabase.h"
-#include "LoggingNew.h"
 
 #include "AutoCaller.h"
+#include "Logging.h"
 
 #include <VBox/err.h>
 #include <iprt/cpp/utils.h>
@@ -474,16 +473,16 @@ HRESULT HostUSBDevice::i_requestCaptureForVM(SessionMachine *aMachine, bool aSet
     mMaskedIfs = aMaskedIfs;
     mCaptureFilename = aCaptureFilename;
     alock.release();
-    int vrc = mUSBProxyBackend->captureDevice(this);
-    if (RT_FAILURE(vrc))
+    int rc = mUSBProxyBackend->captureDevice(this);
+    if (RT_FAILURE(rc))
     {
         alock.acquire();
         i_failTransition(kHostUSBDeviceState_Invalid);
         mMachine.setNull();
-        if (vrc == VERR_SHARING_VIOLATION)
-            return setErrorBoth(E_FAIL, vrc,
-                                tr("USB device '%s' with UUID {%RTuuid} is in use by someone else"),
-                                mName, mId.raw());
+        if (rc == VERR_SHARING_VIOLATION)
+            return setError(E_FAIL,
+                            tr("USB device '%s' with UUID {%RTuuid} is in use by someone else"),
+                            mName, mId.raw());
         return E_FAIL;
     }
 
@@ -2545,7 +2544,9 @@ USBDeviceState_T HostUSBDevice::i_canonicalState() const
         case kHostUSBDeviceState_Capturing:
             Assert(   mPendingUniState == kHostUSBDeviceState_UsedByVM
                    || mPendingUniState == kHostUSBDeviceState_HeldByProxy);
-            return mPendingUniState == kHostUSBDeviceState_UsedByVM ? USBDeviceState_Captured : USBDeviceState_Held;
+            return mPendingUniState == kHostUSBDeviceState_UsedByVM
+                ? (USBDeviceState_T)USBDeviceState_Captured
+                : (USBDeviceState_T)USBDeviceState_Held;
             /* The cast ^^^^ is because xidl is using different enums for
                each of the values. *Very* nice idea... :-) */
 
@@ -2558,7 +2559,9 @@ USBDeviceState_T HostUSBDevice::i_canonicalState() const
         case kHostUSBDeviceState_ReleasingToHost:
             Assert(   mPrevUniState == kHostUSBDeviceState_UsedByVM
                    || mPrevUniState == kHostUSBDeviceState_HeldByProxy);
-            return mPrevUniState == kHostUSBDeviceState_UsedByVM ? USBDeviceState_Captured : USBDeviceState_Held;
+            return mPrevUniState == kHostUSBDeviceState_UsedByVM
+                ? (USBDeviceState_T)USBDeviceState_Captured
+                : (USBDeviceState_T)USBDeviceState_Held;
             /* The cast ^^^^ is because xidl is using different enums for
                each of the values. *Very* nice idea... :-) */
 

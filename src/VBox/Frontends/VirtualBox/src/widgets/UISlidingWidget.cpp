@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,17 +18,15 @@
 /* Qt includes: */
 #include <QEvent>
 #include <QHBoxLayout>
-#include <QVBoxLayout>
 
 /* GUI includes: */
 #include "UIAnimationFramework.h"
 #include "UISlidingWidget.h"
 
 
-UISlidingWidget::UISlidingWidget(Qt::Orientation enmOrientation, QWidget *pParent /* = 0 */)
+UISlidingWidget::UISlidingWidget(QWidget *pParent /* = 0 */)
     : QWidget(pParent)
-    , m_enmOrientation(enmOrientation)
-    , m_enmState(State_Start)
+    , m_fStateIsFinal(false)
     , m_pAnimation(0)
     , m_pWidget(0)
     , m_pLayout(0)
@@ -74,7 +72,7 @@ void UISlidingWidget::setWidgets(QWidget *pWidget1, QWidget *pWidget2)
     /* Update animation: */
     updateAnimation();
     /* Update widget geometry: */
-    m_pWidget->setGeometry(m_enmState == State_Final ? m_finalWidgetGeometry : m_startWidgetGeometry);
+    m_pWidget->setGeometry(m_fStateIsFinal ? m_finalWidgetGeometry : m_startWidgetGeometry);
 }
 
 bool UISlidingWidget::event(QEvent *pEvent)
@@ -108,7 +106,7 @@ void UISlidingWidget::resizeEvent(QResizeEvent *pEvent)
     /* Update animation: */
     updateAnimation();
     /* Update widget geometry: */
-    m_pWidget->setGeometry(m_enmState == State_Final ? m_finalWidgetGeometry : m_startWidgetGeometry);
+    m_pWidget->setGeometry(m_fStateIsFinal ? m_finalWidgetGeometry : m_startWidgetGeometry);
 }
 
 void UISlidingWidget::prepare()
@@ -118,11 +116,7 @@ void UISlidingWidget::prepare()
     if (m_pWidget)
     {
         /* Create layout: */
-        switch (m_enmOrientation)
-        {
-            case Qt::Horizontal: m_pLayout = new QHBoxLayout(m_pWidget); break;
-            case Qt::Vertical:   m_pLayout = new QVBoxLayout(m_pWidget); break;
-        }
+        m_pLayout = new QHBoxLayout(m_pWidget);
         if (m_pLayout)
         {
             /* Configure layout: */
@@ -134,31 +128,16 @@ void UISlidingWidget::prepare()
     /* Update animation: */
     updateAnimation();
     /* Update widget geometry: */
-    m_pWidget->setGeometry(m_enmState == State_Final ? m_finalWidgetGeometry : m_startWidgetGeometry);
+    m_pWidget->setGeometry(m_fStateIsFinal ? m_finalWidgetGeometry : m_startWidgetGeometry);
 }
 
 void UISlidingWidget::updateAnimation()
 {
     /* Recalculate sub-window geometry animation boundaries based on size-hint: */
-    switch (m_enmOrientation)
-    {
-        case Qt::Horizontal:
-        {
-            m_startWidgetGeometry = QRect(  0,           0,
-                                            2 * width(), height());
-            m_finalWidgetGeometry = QRect(- width(),     0,
-                                            2 * width(), height());
-            break;
-        }
-        case Qt::Vertical:
-        {
-            m_startWidgetGeometry = QRect(0,         0,
-                                          width(),   2 * height());
-            m_finalWidgetGeometry = QRect(0,       - height(),
-                                          width(),   2 * height());
-            break;
-        }
-    }
+    m_startWidgetGeometry = QRect(  0,           0,
+                                    2 * width(), height());
+    m_finalWidgetGeometry = QRect(- width(),     0,
+                                    2 * width(), height());
 
     /* Update animation finally: */
     if (m_pAnimation)
@@ -176,3 +155,4 @@ QRect UISlidingWidget::widgetGeometry() const
     /* Return widget geometry: */
     return m_pWidget->geometry();
 }
+

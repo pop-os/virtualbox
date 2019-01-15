@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,27 +15,15 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_extradata_UIExtraDataDefs_h
-#define FEQT_INCLUDED_SRC_extradata_UIExtraDataDefs_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIExtraDataDefs_h___
+#define ___UIExtraDataDefs_h___
 
 /* Qt includes: */
-#include <QMap>
 #include <QMetaType>
 #include <QObject>
 
-/* GUI includes: */
-#include "UILibraryDefs.h"
-
 /* Other VBox includes: */
 #include <iprt/cdefs.h>
-
-
-/** Typedef for QPair of QStrings. */
-typedef QPair<QString, QString> QIStringPair;
-typedef QList<QIStringPair> QIStringPairList;
 
 
 /** Extra-data namespace. */
@@ -44,392 +32,342 @@ namespace UIExtraDataDefs
     /** @name General
       * @{ */
         /** Holds event handling type. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_EventHandlingType;
+        extern const char* GUI_EventHandlingType;
     /** @} */
 
     /** @name Messaging
       * @{ */
         /** Holds the list of supressed messages for the Message/Popup center frameworks. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_SuppressMessages;
+        extern const char* GUI_SuppressMessages;
         /** Holds the list of messages for the Message/Popup center frameworks with inverted check-box state. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_InvertMessageOption;
+        extern const char* GUI_InvertMessageOption;
 #if !defined(VBOX_BLEEDING_EDGE) && !defined(DEBUG)
         /** Holds version for which user wants to prevent BETA build warning. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_PreventBetaWarning;
-#endif
+        extern const char* GUI_PreventBetaWarning;
+#endif /* !defined(VBOX_BLEEDING_EDGE) && !defined(DEBUG) */
     /** @} */
 
 #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
     /** @name Application Update
       * @{ */
         /** Holds whether Application Update functionality enabled. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_PreventApplicationUpdate;
+        extern const char* GUI_PreventApplicationUpdate;
         /** Holds Application Update data. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_UpdateDate;
+        extern const char* GUI_UpdateDate;
         /** Holds Application Update check counter. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_UpdateCheckCount;
+        extern const char* GUI_UpdateCheckCount;
     /** @} */
 #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
 
     /** @name Progress
       * @{ */
         /** Holds whether legacy progress handling method is requested. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Progress_LegacyMode;
+        extern const char* GUI_Progress_LegacyMode;
     /** @} */
 
     /** @name Settings
       * @{ */
         /** Holds GUI feature list. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Customizations;
+        extern const char* GUI_Customizations;
         /** Holds restricted Global Settings pages. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RestrictedGlobalSettingsPages;
+        extern const char* GUI_RestrictedGlobalSettingsPages;
         /** Holds restricted Machine Settings pages. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RestrictedMachineSettingsPages;
+        extern const char* GUI_RestrictedMachineSettingsPages;
     /** @} */
 
     /** @name Settings: General
       * @{ */
         /** Holds whether host screen-saver should be disabled. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_HostScreenSaverDisabled;
+        extern const char* GUI_HostScreenSaverDisabled;
     /** @} */
 
     /** @name Settings: Language
       * @{ */
         /** Holds GUI language ID. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_LanguageID;
+        extern const char* GUI_LanguageID;
     /** @} */
 
     /** @name Settings: Display
       * @{ */
         /** Holds maximum guest-screen resolution policy/value. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_MaxGuestResolution;
+        extern const char* GUI_MaxGuestResolution;
         /** Holds whether hovered machine-window should be activated. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_ActivateHoveredMachineWindow;
+        extern const char* GUI_ActivateHoveredMachineWindow;
     /** @} */
 
     /** @name Settings: Keyboard
       * @{ */
         /** Holds Selector UI shortcut overrides. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Input_SelectorShortcuts;
+        extern const char* GUI_Input_SelectorShortcuts;
         /** Holds Runtime UI shortcut overrides. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Input_MachineShortcuts;
+        extern const char* GUI_Input_MachineShortcuts;
         /** Holds Runtime UI host-key combination. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Input_HostKeyCombination;
+        extern const char* GUI_Input_HostKeyCombination;
         /** Holds whether Runtime UI auto-capture is enabled. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Input_AutoCapture;
+        extern const char* GUI_Input_AutoCapture;
         /** Holds Runtime UI remapped scan codes. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RemapScancodes;
+        extern const char* GUI_RemapScancodes;
     /** @} */
 
     /** @name Settings: Proxy
       * @{ */
         /** Holds VBox proxy settings. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_ProxySettings;
+        extern const char* GUI_ProxySettings;
     /** @} */
 
     /** @name Settings: Storage
       * @{ */
         /** Holds recent folder for hard-drives. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RecentFolderHD;
+        extern const char* GUI_RecentFolderHD;
         /** Holds recent folder for optical-disks. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RecentFolderCD;
+        extern const char* GUI_RecentFolderCD;
         /** Holds recent folder for floppy-disks. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RecentFolderFD;
-        /** Holds recent folder for VISO creation content. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RecentFolderVISOContent;
+        extern const char* GUI_RecentFolderFD;
         /** Holds the list of recently used hard-drives. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RecentListHD;
+        extern const char* GUI_RecentListHD;
         /** Holds the list of recently used optical-disks. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RecentListCD;
+        extern const char* GUI_RecentListCD;
         /** Holds the list of recently used floppy-disks. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RecentListFD;
+        extern const char* GUI_RecentListFD;
     /** @} */
 
     /** @name VirtualBox Manager
       * @{ */
         /** Holds selector-window geometry. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_LastSelectorWindowPosition;
+        extern const char* GUI_LastSelectorWindowPosition;
         /** Holds selector-window splitter hints. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_SplitterSizes;
+        extern const char* GUI_SplitterSizes;
         /** Holds whether selector-window tool-bar visible. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Toolbar;
+        extern const char* GUI_Toolbar;
         /** Holds whether selector-window tool-bar text visible. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Toolbar_Text;
+        extern const char* GUI_Toolbar_Text;
         /** Holds the selector-window machine tools order. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Toolbar_MachineTools_Order;
+        extern const char* GUI_Toolbar_MachineTools_Order;
         /** Holds the selector-window global tools order. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Toolbar_GlobalTools_Order;
-        /** Holds the last selected tool set of VirtualBox Manager. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Tools_LastItemsSelected;
+        extern const char* GUI_Toolbar_GlobalTools_Order;
         /** Holds whether selector-window status-bar visible. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Statusbar;
+        extern const char* GUI_Statusbar;
         /** Prefix used by composite extra-data keys,
           * which holds selector-window chooser-pane' groups definitions. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_GroupDefinitions;
+        extern const char* GUI_GroupDefinitions;
         /** Holds last item chosen in selector-window chooser-pane. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_LastItemSelected;
+        extern const char* GUI_LastItemSelected;
         /** Holds selector-window details-pane' elements. */
-        /// @todo remove GUI_DetailsPageBoxes in 6.2
-        SHARED_LIBRARY_STUFF extern const char *GUI_DetailsPageBoxes;
-        /// @todo remove GUI_PreviewUpdate in 6.2
+        extern const char* GUI_DetailsPageBoxes;
         /** Holds selector-window details-pane' preview update interval. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_PreviewUpdate;
-        /** Holds VirtualBox Manager Details-pane elements. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Details_Elements;
-        /** Holds VirtualBox Manager Details-pane / Preview element update interval. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Details_Elements_Preview_UpdateInterval;
+        extern const char* GUI_PreviewUpdate;
     /** @} */
 
     /** @name Snapshot Manager
       * @{ */
         /** Holds whether Snapshot Manager details expanded. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_SnapshotManager_Details_Expanded;
+        extern const char* GUI_SnapshotManager_Details_Expanded;
     /** @} */
 
     /** @name Virtual Media Manager
       * @{ */
         /** Holds whether Virtual Media Manager details expanded. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_VirtualMediaManager_Details_Expanded;
+        extern const char* GUI_VirtualMediaManager_Details_Expanded;
     /** @} */
 
     /** @name Host Network Manager
       * @{ */
         /** Holds whether Host Network Manager details expanded. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_HostNetworkManager_Details_Expanded;
+        extern const char* GUI_HostNetworkManager_Details_Expanded;
     /** @} */
-
-    /** @name Cloud Profile Manager
-      * @{ */
-        /** Holds whether Cloud Profile Manager details expanded. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_CloudProfileManager_Details_Expanded;
-    /** @} */
-
-#ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
-    /** @name Extra-data Manager
-      * @{ */
-        /** Holds extra-data manager geometry. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_ExtraDataManager_Geometry;
-        /** Holds extra-data manager splitter hints. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_ExtraDataManager_SplitterHints;
-    /** @} */
-#endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
 
     /** @name Wizards
       * @{ */
         /** Holds wizard types for which descriptions should be hidden. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_HideDescriptionForWizards;
+        extern const char* GUI_HideDescriptionForWizards;
     /** @} */
 
     /** @name Virtual Machine
       * @{ */
         /** Holds whether machine shouldn't be shown in selector-window chooser-pane. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_HideFromManager;
+        extern const char* GUI_HideFromManager;
         /** Holds whether machine shouldn't be shown in selector-window details-pane. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_HideDetails;
+        extern const char* GUI_HideDetails;
         /** Holds whether machine reconfiguration disabled. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_PreventReconfiguration;
+        extern const char* GUI_PreventReconfiguration;
         /** Holds whether machine snapshot operations disabled. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_PreventSnapshotOperations;
+        extern const char* GUI_PreventSnapshotOperations;
         /** Holds whether this machine is first time started. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_FirstRun;
+        extern const char* GUI_FirstRun;
         /** Except Mac OS X: Holds redefined machine-window icon names. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_MachineWindowIcons;
+        extern const char* GUI_MachineWindowIcons;
 #ifndef VBOX_WS_MAC
         /** Except Mac OS X: Holds redefined machine-window name postfix. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_MachineWindowNamePostfix;
-#endif
+        extern const char* GUI_MachineWindowNamePostfix;
+#endif /* !VBOX_WS_MAC */
         /** Prefix used by composite extra-data keys,
           * which holds normal machine-window geometry per screen-index. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_LastNormalWindowPosition;
+        extern const char* GUI_LastNormalWindowPosition;
         /** Prefix used by composite extra-data keys,
           * which holds scaled machine-window geometry per screen-index. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_LastScaleWindowPosition;
+        extern const char* GUI_LastScaleWindowPosition;
         /** Holds machine-window geometry maximized state flag. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Geometry_State_Max;
+        extern const char* GUI_Geometry_State_Max;
 #ifndef VBOX_WS_MAC
         /** Holds Runtime UI menu-bar availability status. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_MenuBar_Enabled;
-#endif
+        extern const char* GUI_MenuBar_Enabled;
+#endif /* !VBOX_WS_MAC */
         /** Holds Runtime UI menu-bar context-menu availability status. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_MenuBar_ContextMenu_Enabled;
+        extern const char* GUI_MenuBar_ContextMenu_Enabled;
         /** Holds restricted Runtime UI menu types. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RestrictedRuntimeMenus;
+        extern const char* GUI_RestrictedRuntimeMenus;
         /** Holds restricted Runtime UI action types for 'Application' menu. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RestrictedRuntimeApplicationMenuActions;
+        extern const char* GUI_RestrictedRuntimeApplicationMenuActions;
         /** Holds restricted Runtime UI action types for Machine menu. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RestrictedRuntimeMachineMenuActions;
+        extern const char* GUI_RestrictedRuntimeMachineMenuActions;
         /** Holds restricted Runtime UI action types for View menu. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RestrictedRuntimeViewMenuActions;
+        extern const char* GUI_RestrictedRuntimeViewMenuActions;
         /** Holds restricted Runtime UI action types for Input menu. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RestrictedRuntimeInputMenuActions;
+        extern const char* GUI_RestrictedRuntimeInputMenuActions;
         /** Holds restricted Runtime UI action types for Devices menu. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RestrictedRuntimeDevicesMenuActions;
+        extern const char* GUI_RestrictedRuntimeDevicesMenuActions;
 #ifdef VBOX_WITH_DEBUGGER_GUI
         /** Holds restricted Runtime UI action types for Debugger menu. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RestrictedRuntimeDebuggerMenuActions;
-#endif
+        extern const char* GUI_RestrictedRuntimeDebuggerMenuActions;
+#endif /* VBOX_WITH_DEBUGGER_GUI */
 #ifdef VBOX_WS_MAC
         /** Mac OS X: Holds restricted Runtime UI action types for 'Window' menu. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RestrictedRuntimeWindowMenuActions;
-#endif
+        extern const char* GUI_RestrictedRuntimeWindowMenuActions;
+#endif /* VBOX_WS_MAC */
         /** Holds restricted Runtime UI action types for Help menu. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RestrictedRuntimeHelpMenuActions;
+        extern const char* GUI_RestrictedRuntimeHelpMenuActions;
         /** Holds restricted Runtime UI visual-states. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RestrictedVisualStates;
+        extern const char* GUI_RestrictedVisualStates;
         /** Holds whether full screen visual-state is requested. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Fullscreen;
+        extern const char* GUI_Fullscreen;
         /** Holds whether seamless visual-state is requested. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Seamless;
+        extern const char* GUI_Seamless;
         /** Holds whether scaled visual-state is requested. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Scale;
+        extern const char* GUI_Scale;
 #ifdef VBOX_WS_X11
         /** Holds whether legacy full-screen mode is requested. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Fullscreen_LegacyMode;
+        extern const char* GUI_Fullscreen_LegacyMode;
         /** Holds whether internal machine-window names should be unique. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_DistinguishMachineWindowGroups;
+        extern const char* GUI_DistinguishMachineWindowGroups;
 #endif /* VBOX_WS_X11 */
         /** Holds whether guest-screen auto-resize according machine-window size is enabled. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_AutoresizeGuest;
+        extern const char* GUI_AutoresizeGuest;
         /** Prefix used by composite extra-data keys,
           * which holds last guest-screen visibility status per screen-index. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_LastVisibilityStatusForGuestScreen;
+        extern const char* GUI_LastVisibilityStatusForGuestScreen;
         /** Prefix used by composite extra-data keys,
           * which holds last guest-screen size-hint per screen-index. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_LastGuestSizeHint;
+        extern const char* GUI_LastGuestSizeHint;
         /** Prefix used by composite extra-data keys,
           * which holds host-screen index per guest-screen index. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_VirtualScreenToHostScreen;
+        extern const char* GUI_VirtualScreenToHostScreen;
         /** Holds whether automatic mounting/unmounting of guest-screens enabled. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_AutomountGuestScreens;
+        extern const char* GUI_AutomountGuestScreens;
 #ifdef VBOX_WITH_VIDEOHWACCEL
         /** Holds whether 2D acceleration should use linear sretch. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Accelerate2D_StretchLinear;
+        extern const char* GUI_Accelerate2D_StretchLinear;
         /** Holds whether 2D acceleration should use YV12 pixel format. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Accelerate2D_PixformatYV12;
+        extern const char* GUI_Accelerate2D_PixformatYV12;
         /** Holds whether 2D acceleration should use UYVY pixel format. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Accelerate2D_PixformatUYVY;
+        extern const char* GUI_Accelerate2D_PixformatUYVY;
         /** Holds whether 2D acceleration should use YUY2 pixel format. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Accelerate2D_PixformatYUY2;
+        extern const char* GUI_Accelerate2D_PixformatYUY2;
         /** Holds whether 2D acceleration should use AYUV pixel format. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Accelerate2D_PixformatAYUV;
+        extern const char* GUI_Accelerate2D_PixformatAYUV;
 #endif /* VBOX_WITH_VIDEOHWACCEL */
+        /** Holds whether Runtime UI should use unscaled HiDPI output. */
+        extern const char* GUI_HiDPI_UnscaledOutput;
+        /** Holds Runtime UI HiDPI optimization type. */
+        extern const char* GUI_HiDPI_Optimization;
 #ifndef VBOX_WS_MAC
         /** Holds whether mini-toolbar is enabled for full and seamless screens. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_ShowMiniToolBar;
+        extern const char* GUI_ShowMiniToolBar;
         /** Holds whether mini-toolbar should auto-hide itself. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_MiniToolBarAutoHide;
+        extern const char* GUI_MiniToolBarAutoHide;
         /** Holds mini-toolbar alignment. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_MiniToolBarAlignment;
+        extern const char* GUI_MiniToolBarAlignment;
 #endif /* !VBOX_WS_MAC */
         /** Holds Runtime UI status-bar availability status. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_StatusBar_Enabled;
+        extern const char* GUI_StatusBar_Enabled;
         /** Holds Runtime UI status-bar context-menu availability status. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_StatusBar_ContextMenu_Enabled;
+        extern const char* GUI_StatusBar_ContextMenu_Enabled;
         /** Holds restricted Runtime UI status-bar indicators. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RestrictedStatusBarIndicators;
+        extern const char* GUI_RestrictedStatusBarIndicators;
         /** Holds Runtime UI status-bar indicator order. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_StatusBar_IndicatorOrder;
+        extern const char* GUI_StatusBar_IndicatorOrder;
 #ifdef VBOX_WS_MAC
         /** Mac OS X: Holds whether Dock icon should be updated at runtime. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RealtimeDockIconUpdateEnabled;
+        extern const char* GUI_RealtimeDockIconUpdateEnabled;
         /** Mac OS X: Holds guest-screen which Dock icon should reflect at runtime. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RealtimeDockIconUpdateMonitor;
+        extern const char* GUI_RealtimeDockIconUpdateMonitor;
         /** Mac OS X: Holds whether Dock icon should have overlay disabled. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_DockIconDisableOverlay;
+        extern const char* GUI_DockIconDisableOverlay;
 #endif /* VBOX_WS_MAC */
         /** Holds whether machine should pass CAD to guest. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_PassCAD;
+        extern const char* GUI_PassCAD;
         /** Holds the mouse capture policy. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_MouseCapturePolicy;
+        extern const char* GUI_MouseCapturePolicy;
         /** Holds redefined guru-meditation handler type. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_GuruMeditationHandler;
+        extern const char* GUI_GuruMeditationHandler;
         /** Holds whether machine should perform HID LEDs synchronization. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_HidLedsSync;
+        extern const char* GUI_HidLedsSync;
         /** Holds the scale-factor. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_ScaleFactor;
+        extern const char* GUI_ScaleFactor;
         /** Holds the scaling optimization type. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Scaling_Optimization;
+        extern const char* GUI_Scaling_Optimization;
     /** @} */
 
     /** @name Virtual Machine: Information dialog
       * @{ */
         /** Holds information-window geometry. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_InformationWindowGeometry;
+        extern const char* GUI_InformationWindowGeometry;
         /** Holds information-window elements. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_InformationWindowElements;
-    /** @} */
-
-    /** @name Guest Control UI related data
-      * @{ */
-        extern const char *GUI_GuestControl_FileManagerDialogGeometry;
-        extern const char *GUI_GuestControl_FileManagerVisiblePanels;
-        extern const char *GUI_GuestControl_ProcessControlSplitterHints;
-        extern const char *GUI_GuestControl_ProcessControlDialogGeometry;
-    /** @} */
-
-    /** @name File Manager options
-      * @{ */
-        extern const char *GUI_GuestControl_FileManagerOptions;
-        extern const char *GUI_GuestControl_FileManagerListDirectoriesFirst;
-        extern const char *GUI_GuestControl_FileManagerShowDeleteConfirmation;
-        extern const char *GUI_GuestControl_FileManagerShowHumanReadableSizes;
-        extern const char *GUI_GuestControl_FileManagerShowHiddenObjects;
+        extern const char* GUI_InformationWindowElements;
     /** @} */
 
     /** @name Virtual Machine: Close dialog
       * @{ */
         /** Holds default machine close action. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_DefaultCloseAction;
+        extern const char* GUI_DefaultCloseAction;
         /** Holds restricted machine close actions. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_RestrictedCloseActions;
+        extern const char* GUI_RestrictedCloseActions;
         /** Holds last machine close action. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_LastCloseAction;
+        extern const char* GUI_LastCloseAction;
         /** Holds machine close hook script name as simple string. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_CloseActionHook;
+        extern const char* GUI_CloseActionHook;
     /** @} */
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
     /** @name Virtual Machine: Debug UI
       * @{ */
         /** Holds whether debugger UI enabled. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Dbg_Enabled;
+        extern const char* GUI_Dbg_Enabled;
         /** Holds whether debugger UI should be auto-shown. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_Dbg_AutoShow;
+        extern const char* GUI_Dbg_AutoShow;
     /** @} */
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
-    /** @name Virtual Machine: Log-viewer
+#ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
+    /** @name VirtualBox: Extra-data Manager window
       * @{ */
-        /** Holds log-viewer geometry. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_LogWindowGeometry;
+        /** Holds extra-data manager geometry. */
+        extern const char* GUI_ExtraDataManager_Geometry;
+        /** Holds extra-data manager splitter hints. */
+        extern const char* GUI_ExtraDataManager_SplitterHints;
     /** @} */
-    /** @name Virtual Machine: Log-viewer widget options
+#endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
+
+    /** @name Virtual Machine: Log dialog
       * @{ */
-        SHARED_LIBRARY_STUFF extern const char *GUI_LogViewerOptions;
-        /** Holds log-viewer wrap line flag. */
-        SHARED_LIBRARY_STUFF extern const char *GUI_LogViewerWrapLinesEnabled;
-        SHARED_LIBRARY_STUFF extern const char *GUI_LogViewerShowLineNumbersDisabled;
-        SHARED_LIBRARY_STUFF extern const char *GUI_LogViewerNoFontStyleName;
-    /** @} */
-
-
-    /** @name Old key support stuff.
-      * @{ */
-        /** Prepares obsolete keys map. */
-        SHARED_LIBRARY_STUFF QMap<QString, QString> prepareObsoleteKeysMap();
-
-        /** Holds the obsolete keys map. */
-        SHARED_LIBRARY_STUFF extern QMap<QString, QString> g_mapOfObsoleteKeys;
+        /** Holds log-window geometry. */
+        extern const char* GUI_LogWindowGeometry;
     /** @} */
 }
 
-
 /** Extra-data meta definitions. */
-class SHARED_LIBRARY_STUFF UIExtraDataMetaDefs : public QObject
+class UIExtraDataMetaDefs : public QObject
 {
     Q_OBJECT;
-
-    /* Menu related stuff: */
     Q_ENUMS(MenuType);
     Q_ENUMS(MenuApplicationActionType);
     Q_ENUMS(MenuHelpActionType);
@@ -439,10 +377,10 @@ class SHARED_LIBRARY_STUFF UIExtraDataMetaDefs : public QObject
     Q_ENUMS(RuntimeMenuDevicesActionType);
 #ifdef VBOX_WITH_DEBUGGER_GUI
     Q_ENUMS(RuntimeMenuDebuggerActionType);
-#endif
-#ifdef VBOX_WS_MAC
+#endif /* VBOX_WITH_DEBUGGER_GUI */
+#ifdef RT_OS_DARWIN
     Q_ENUMS(MenuWindowActionType);
-#endif
+#endif /* RT_OS_DARWIN */
 
 public:
 
@@ -457,10 +395,10 @@ public:
         MenuType_Devices     = RT_BIT(4),
 #ifdef VBOX_WITH_DEBUGGER_GUI
         MenuType_Debug       = RT_BIT(5),
-#endif
-#ifdef VBOX_WS_MAC
+#endif /* VBOX_WITH_DEBUGGER_GUI */
+#ifdef RT_OS_DARWIN
         MenuType_Window      = RT_BIT(6),
-#endif
+#endif /* RT_OS_DARWIN */
         MenuType_Help        = RT_BIT(7),
         MenuType_All         = 0xFF
     };
@@ -469,14 +407,14 @@ public:
     enum MenuApplicationActionType
     {
         MenuApplicationActionType_Invalid              = 0,
-#ifdef VBOX_WS_MAC
+#ifdef RT_OS_DARWIN
         MenuApplicationActionType_About                = RT_BIT(0),
-#endif
+#endif /* RT_OS_DARWIN */
         MenuApplicationActionType_Preferences          = RT_BIT(1),
 #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
         MenuApplicationActionType_NetworkAccessManager = RT_BIT(2),
         MenuApplicationActionType_CheckForUpdates      = RT_BIT(3),
-#endif
+#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
         MenuApplicationActionType_ResetWarnings        = RT_BIT(4),
         MenuApplicationActionType_Close                = RT_BIT(5),
         MenuApplicationActionType_All                  = 0xFFFF
@@ -491,29 +429,27 @@ public:
         MenuHelpActionType_BugTracker           = RT_BIT(2),
         MenuHelpActionType_Forums               = RT_BIT(3),
         MenuHelpActionType_Oracle               = RT_BIT(4),
-#ifndef VBOX_WS_MAC
+#ifndef RT_OS_DARWIN
         MenuHelpActionType_About                = RT_BIT(5),
-#endif
+#endif /* !RT_OS_DARWIN */
         MenuHelpActionType_All                  = 0xFFFF
     };
 
     /** Runtime UI: Menu "Machine": Action types. */
     enum RuntimeMenuMachineActionType
     {
-        RuntimeMenuMachineActionType_Invalid                       = 0,
-        RuntimeMenuMachineActionType_SettingsDialog                = RT_BIT(0),
-        RuntimeMenuMachineActionType_TakeSnapshot                  = RT_BIT(1),
-        RuntimeMenuMachineActionType_InformationDialog             = RT_BIT(2),
-        RuntimeMenuMachineActionType_FileManagerDialog             = RT_BIT(3),
-        RuntimeMenuMachineActionType_GuestProcessControlDialog     = RT_BIT(4),
-        RuntimeMenuMachineActionType_Pause                         = RT_BIT(5),
-        RuntimeMenuMachineActionType_Reset                         = RT_BIT(6),
-        RuntimeMenuMachineActionType_Detach                        = RT_BIT(7),
-        RuntimeMenuMachineActionType_SaveState                     = RT_BIT(8),
-        RuntimeMenuMachineActionType_Shutdown                      = RT_BIT(9),
-        RuntimeMenuMachineActionType_PowerOff                      = RT_BIT(10),
-        RuntimeMenuMachineActionType_Nothing                       = RT_BIT(11),
-        RuntimeMenuMachineActionType_All                           = 0xFFFF
+        RuntimeMenuMachineActionType_Invalid           = 0,
+        RuntimeMenuMachineActionType_SettingsDialog    = RT_BIT(0),
+        RuntimeMenuMachineActionType_TakeSnapshot      = RT_BIT(1),
+        RuntimeMenuMachineActionType_InformationDialog = RT_BIT(2),
+        RuntimeMenuMachineActionType_Pause             = RT_BIT(3),
+        RuntimeMenuMachineActionType_Reset             = RT_BIT(4),
+        RuntimeMenuMachineActionType_Detach            = RT_BIT(5),
+        RuntimeMenuMachineActionType_SaveState         = RT_BIT(6),
+        RuntimeMenuMachineActionType_Shutdown          = RT_BIT(7),
+        RuntimeMenuMachineActionType_PowerOff          = RT_BIT(8),
+        RuntimeMenuMachineActionType_Nothing           = RT_BIT(9),
+        RuntimeMenuMachineActionType_All               = 0xFFFF
     };
 
     /** Runtime UI: Menu "View": Action types. */
@@ -523,27 +459,27 @@ public:
         RuntimeMenuViewActionType_Fullscreen           = RT_BIT(0),
         RuntimeMenuViewActionType_Seamless             = RT_BIT(1),
         RuntimeMenuViewActionType_Scale                = RT_BIT(2),
-#ifndef VBOX_WS_MAC
+#ifndef RT_OS_DARWIN
         RuntimeMenuViewActionType_MinimizeWindow       = RT_BIT(3),
-#endif
+#endif /* !RT_OS_DARWIN */
         RuntimeMenuViewActionType_AdjustWindow         = RT_BIT(4),
         RuntimeMenuViewActionType_GuestAutoresize      = RT_BIT(5),
         RuntimeMenuViewActionType_TakeScreenshot       = RT_BIT(6),
-        RuntimeMenuViewActionType_Recording            = RT_BIT(7),
-        RuntimeMenuViewActionType_RecordingSettings    = RT_BIT(8),
-        RuntimeMenuViewActionType_StartRecording       = RT_BIT(9),
+        RuntimeMenuViewActionType_VideoCapture         = RT_BIT(7),
+        RuntimeMenuViewActionType_VideoCaptureSettings = RT_BIT(8),
+        RuntimeMenuViewActionType_StartVideoCapture    = RT_BIT(9),
         RuntimeMenuViewActionType_VRDEServer           = RT_BIT(10),
         RuntimeMenuViewActionType_MenuBar              = RT_BIT(11),
         RuntimeMenuViewActionType_MenuBarSettings      = RT_BIT(12),
-#ifndef VBOX_WS_MAC
+#ifndef RT_OS_DARWIN
         RuntimeMenuViewActionType_ToggleMenuBar        = RT_BIT(13),
-#endif
+#endif /* !RT_OS_DARWIN */
         RuntimeMenuViewActionType_StatusBar            = RT_BIT(14),
         RuntimeMenuViewActionType_StatusBarSettings    = RT_BIT(15),
         RuntimeMenuViewActionType_ToggleStatusBar      = RT_BIT(16),
-        RuntimeMenuViewActionType_Resize               = RT_BIT(17),
-        RuntimeMenuViewActionType_Remap                = RT_BIT(18),
-        RuntimeMenuViewActionType_Rescale              = RT_BIT(19),
+        RuntimeMenuViewActionType_ScaleFactor          = RT_BIT(17),
+        RuntimeMenuViewActionType_Resize               = RT_BIT(18),
+        RuntimeMenuViewActionType_Multiscreen          = RT_BIT(19),
         RuntimeMenuViewActionType_All                  = 0xFFFF
     };
 
@@ -556,14 +492,13 @@ public:
         RuntimeMenuInputActionType_TypeCAD            = RT_BIT(2),
 #ifdef VBOX_WS_X11
         RuntimeMenuInputActionType_TypeCABS           = RT_BIT(3),
-#endif
+#endif /* VBOX_WS_X11 */
         RuntimeMenuInputActionType_TypeCtrlBreak      = RT_BIT(4),
         RuntimeMenuInputActionType_TypeInsert         = RT_BIT(5),
         RuntimeMenuInputActionType_TypePrintScreen    = RT_BIT(6),
         RuntimeMenuInputActionType_TypeAltPrintScreen = RT_BIT(7),
         RuntimeMenuInputActionType_Mouse              = RT_BIT(8),
         RuntimeMenuInputActionType_MouseIntegration   = RT_BIT(9),
-        RuntimeMenuInputActionType_TypeHostKeyCombo   = RT_BIT(10),
         RuntimeMenuInputActionType_All                = 0xFFFF
     };
 
@@ -605,7 +540,7 @@ public:
     };
 #endif /* VBOX_WITH_DEBUGGER_GUI */
 
-#ifdef VBOX_WS_MAC
+#ifdef RT_OS_DARWIN
     /** Menu "Window": Action types. */
     enum MenuWindowActionType
     {
@@ -614,138 +549,8 @@ public:
         MenuWindowActionType_Switch   = RT_BIT(1),
         MenuWindowActionType_All      = 0xFFFF
     };
-#endif /* VBOX_WS_MAC */
-
-
-    /** VirtualBox Manager UI: Details element: "General" option types. */
-    enum DetailsElementOptionTypeGeneral
-    {
-        DetailsElementOptionTypeGeneral_Invalid  = 0,
-        DetailsElementOptionTypeGeneral_Name     = RT_BIT(0),
-        DetailsElementOptionTypeGeneral_OS       = RT_BIT(1),
-        DetailsElementOptionTypeGeneral_Location = RT_BIT(2),
-        DetailsElementOptionTypeGeneral_Groups   = RT_BIT(3),
-        DetailsElementOptionTypeGeneral_Default  = 0xFFFF
-    };
-    Q_ENUM(DetailsElementOptionTypeGeneral);
-
-    /** VirtualBox Manager UI: Details element: "System" option types. */
-    enum DetailsElementOptionTypeSystem
-    {
-        DetailsElementOptionTypeSystem_Invalid         = 0,
-        DetailsElementOptionTypeSystem_RAM             = RT_BIT(0),
-        DetailsElementOptionTypeSystem_CPUCount        = RT_BIT(1),
-        DetailsElementOptionTypeSystem_CPUExecutionCap = RT_BIT(2),
-        DetailsElementOptionTypeSystem_BootOrder       = RT_BIT(3),
-        DetailsElementOptionTypeSystem_ChipsetType     = RT_BIT(4),
-        DetailsElementOptionTypeSystem_Firmware        = RT_BIT(5),
-        DetailsElementOptionTypeSystem_Acceleration    = RT_BIT(6),
-        DetailsElementOptionTypeSystem_Default         = 0xFFFF
-    };
-    Q_ENUM(DetailsElementOptionTypeSystem);
-
-    /** VirtualBox Manager UI: Details element: "Display" option types. */
-    enum DetailsElementOptionTypeDisplay
-    {
-        DetailsElementOptionTypeDisplay_Invalid            = 0,
-        DetailsElementOptionTypeDisplay_VRAM               = RT_BIT(0),
-        DetailsElementOptionTypeDisplay_ScreenCount        = RT_BIT(1),
-        DetailsElementOptionTypeDisplay_ScaleFactor        = RT_BIT(2),
-        DetailsElementOptionTypeDisplay_GraphicsController = RT_BIT(3),
-        DetailsElementOptionTypeDisplay_Acceleration       = RT_BIT(4),
-        DetailsElementOptionTypeDisplay_VRDE               = RT_BIT(5),
-        DetailsElementOptionTypeDisplay_Recording          = RT_BIT(6),
-        DetailsElementOptionTypeDisplay_Default            = 0xFFFF
-    };
-    Q_ENUM(DetailsElementOptionTypeDisplay);
-
-    /** VirtualBox Manager UI: Details element: "Storage" option types. */
-    enum DetailsElementOptionTypeStorage
-    {
-        DetailsElementOptionTypeStorage_Invalid        = 0,
-        DetailsElementOptionTypeStorage_HardDisks      = RT_BIT(0),
-        DetailsElementOptionTypeStorage_OpticalDevices = RT_BIT(1),
-        DetailsElementOptionTypeStorage_FloppyDevices  = RT_BIT(2),
-        DetailsElementOptionTypeStorage_Default        = 0xFFFF
-    };
-    Q_ENUM(DetailsElementOptionTypeStorage);
-
-    /** VirtualBox Manager UI: Details element: "Audio" option types. */
-    enum DetailsElementOptionTypeAudio
-    {
-        DetailsElementOptionTypeAudio_Invalid    = 0,
-        DetailsElementOptionTypeAudio_Driver     = RT_BIT(0),
-        DetailsElementOptionTypeAudio_Controller = RT_BIT(1),
-        DetailsElementOptionTypeAudio_IO         = RT_BIT(2),
-        DetailsElementOptionTypeAudio_Default    = 0xFFFF
-    };
-    Q_ENUM(DetailsElementOptionTypeAudio);
-
-    /** VirtualBox Manager UI: Details element: "Network" option types. */
-    enum DetailsElementOptionTypeNetwork
-    {
-        DetailsElementOptionTypeNetwork_Invalid         = 0,
-        DetailsElementOptionTypeNetwork_NotAttached     = RT_BIT(0),
-        DetailsElementOptionTypeNetwork_NAT             = RT_BIT(1),
-        DetailsElementOptionTypeNetwork_BridgetAdapter  = RT_BIT(2),
-        DetailsElementOptionTypeNetwork_InternalNetwork = RT_BIT(3),
-        DetailsElementOptionTypeNetwork_HostOnlyAdapter = RT_BIT(4),
-        DetailsElementOptionTypeNetwork_GenericDriver   = RT_BIT(5),
-        DetailsElementOptionTypeNetwork_Default         = 0xFFFF
-    };
-    Q_ENUM(DetailsElementOptionTypeNetwork);
-
-    /** VirtualBox Manager UI: Details element: "Serial" option types. */
-    enum DetailsElementOptionTypeSerial
-    {
-        DetailsElementOptionTypeSerial_Invalid      = 0,
-        DetailsElementOptionTypeSerial_Disconnected = RT_BIT(0),
-        DetailsElementOptionTypeSerial_HostPipe     = RT_BIT(1),
-        DetailsElementOptionTypeSerial_HostDevice   = RT_BIT(2),
-        DetailsElementOptionTypeSerial_RawFile      = RT_BIT(3),
-        DetailsElementOptionTypeSerial_TCP          = RT_BIT(4),
-        DetailsElementOptionTypeSerial_Default      = 0xFFFF
-    };
-    Q_ENUM(DetailsElementOptionTypeSerial);
-
-    /** VirtualBox Manager UI: Details element: "USB" option types. */
-    enum DetailsElementOptionTypeUsb
-    {
-        DetailsElementOptionTypeUsb_Invalid       = 0,
-        DetailsElementOptionTypeUsb_Controller    = RT_BIT(0),
-        DetailsElementOptionTypeUsb_DeviceFilters = RT_BIT(1),
-        DetailsElementOptionTypeUsb_Default       = 0xFFFF
-    };
-    Q_ENUM(DetailsElementOptionTypeUsb);
-
-    /** VirtualBox Manager UI: Details element: "SharedFolders" option types. */
-    enum DetailsElementOptionTypeSharedFolders
-    {
-        DetailsElementOptionTypeSharedFolders_Invalid = 0,
-        DetailsElementOptionTypeSharedFolders_Default = 0xFFFF
-    };
-    Q_ENUM(DetailsElementOptionTypeSharedFolders);
-
-    /** VirtualBox Manager UI: Details element: "UserInterface" option types. */
-    enum DetailsElementOptionTypeUserInterface
-    {
-        DetailsElementOptionTypeUserInterface_Invalid     = 0,
-        DetailsElementOptionTypeUserInterface_MenuBar     = RT_BIT(0),
-        DetailsElementOptionTypeUserInterface_StatusBar   = RT_BIT(1),
-        DetailsElementOptionTypeUserInterface_MiniToolbar = RT_BIT(2),
-        DetailsElementOptionTypeUserInterface_Default     = 0xFFFF
-    };
-    Q_ENUM(DetailsElementOptionTypeUserInterface);
-
-    /** VirtualBox Manager UI: Details element: "Description" option types. */
-    enum DetailsElementOptionTypeDescription
-    {
-        DetailsElementOptionTypeDescription_Invalid = 0,
-        DetailsElementOptionTypeDescription_Default = 0xFFFF
-    };
-    Q_ENUM(DetailsElementOptionTypeDescription);
+#endif /* RT_OS_DARWIN */
 };
-
 
 /** Common UI: Event handling types. */
 enum EventHandlingType
@@ -753,7 +558,6 @@ enum EventHandlingType
     EventHandlingType_Active,
     EventHandlingType_Passive
 };
-
 
 /** Common UI: GUI feature types. */
 enum GUIFeatureType
@@ -765,7 +569,6 @@ enum GUIFeatureType
     GUIFeatureType_All         = 0xFF
 };
 
-
 /** Common UI: Global settings page types. */
 enum GlobalSettingsPageType
 {
@@ -774,18 +577,17 @@ enum GlobalSettingsPageType
     GlobalSettingsPageType_Input,
 #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
     GlobalSettingsPageType_Update,
-#endif
+#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
     GlobalSettingsPageType_Language,
     GlobalSettingsPageType_Display,
     GlobalSettingsPageType_Network,
     GlobalSettingsPageType_Extensions,
 #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
     GlobalSettingsPageType_Proxy,
-#endif
+#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
     GlobalSettingsPageType_Max
 };
 Q_DECLARE_METATYPE(GlobalSettingsPageType);
-
 
 /** Common UI: Machine settings page types. */
 enum MachineSettingsPageType
@@ -806,7 +608,6 @@ enum MachineSettingsPageType
 };
 Q_DECLARE_METATYPE(MachineSettingsPageType);
 
-
 /** Common UI: Wizard types. */
 enum WizardType
 {
@@ -820,7 +621,6 @@ enum WizardType
     WizardType_CloneVD
 };
 
-
 /** Common UI: Wizard modes. */
 enum WizardMode
 {
@@ -830,40 +630,25 @@ enum WizardMode
 };
 
 
-/** Tool item classes. */
-enum UIToolClass
+/** Selector UI: Machine tool types. */
+enum ToolTypeMachine
 {
-    UIToolClass_Invalid,
-    UIToolClass_Global,
-    UIToolClass_Machine
+    ToolTypeMachine_Invalid,
+    ToolTypeMachine_Desktop,
+    ToolTypeMachine_Details,
+    ToolTypeMachine_Snapshots,
 };
+Q_DECLARE_METATYPE(ToolTypeMachine);
 
-
-/** Tool item types. */
-enum UIToolType
+/** Selector UI: Global tool types. */
+enum ToolTypeGlobal
 {
-    UIToolType_Invalid,
-    /* Global types: */
-    UIToolType_Welcome,
-    UIToolType_Media,
-    UIToolType_Network,
-    UIToolType_Cloud,
-    /* Machine types: */
-    UIToolType_Error,
-    UIToolType_Details,
-    UIToolType_Snapshots,
-    UIToolType_Logs,
+    ToolTypeGlobal_Invalid,
+    ToolTypeGlobal_Desktop,
+    ToolTypeGlobal_VirtualMedia,
+    ToolTypeGlobal_HostNetwork,
 };
-Q_DECLARE_METATYPE(UIToolType);
-
-
-/** Contains stuff related to tools handling. */
-namespace UIToolStuff
-{
-    /** Returns whether passed @a enmType is of passed @a enmClass. */
-    SHARED_LIBRARY_STUFF bool isTypeOfClass(UIToolType enmType, UIToolClass enmClass);
-}
-
+Q_DECLARE_METATYPE(ToolTypeGlobal);
 
 /** Selector UI: Details-element types. */
 enum DetailsElementType
@@ -880,11 +665,9 @@ enum DetailsElementType
     DetailsElementType_USB,
     DetailsElementType_SF,
     DetailsElementType_UI,
-    DetailsElementType_Description,
-    DetailsElementType_Max
+    DetailsElementType_Description
 };
 Q_DECLARE_METATYPE(DetailsElementType);
-
 
 /** Selector UI: Preview update interval types. */
 enum PreviewUpdateIntervalType
@@ -911,7 +694,6 @@ enum UIVisualStateType
 };
 Q_DECLARE_METATYPE(UIVisualStateType);
 
-
 /** Runtime UI: Indicator types. */
 enum IndicatorType
 {
@@ -924,7 +706,7 @@ enum IndicatorType
     IndicatorType_USB,
     IndicatorType_SharedFolders,
     IndicatorType_Display,
-    IndicatorType_Recording,
+    IndicatorType_VideoCapture,
     IndicatorType_Features,
     IndicatorType_Mouse,
     IndicatorType_Keyboard,
@@ -932,7 +714,6 @@ enum IndicatorType
     IndicatorType_Max
 };
 Q_DECLARE_METATYPE(IndicatorType);
-
 
 /** Runtime UI: Machine close actions. */
 enum MachineCloseAction
@@ -947,7 +728,6 @@ enum MachineCloseAction
 };
 Q_DECLARE_METATYPE(MachineCloseAction);
 
-
 /** Runtime UI: Mouse capture policy types. */
 enum MouseCapturePolicy
 {
@@ -956,15 +736,13 @@ enum MouseCapturePolicy
     MouseCapturePolicy_Disabled
 };
 
-
-/** Runtime UI: Guru Meditation handler types. */
+/** Guru Meditation handler types. */
 enum GuruMeditationHandlerType
 {
     GuruMeditationHandlerType_Default,
     GuruMeditationHandlerType_PowerOff,
     GuruMeditationHandlerType_Ignore
 };
-
 
 /** Runtime UI: Scaling optimization types. */
 enum ScalingOptimizationType
@@ -973,6 +751,12 @@ enum ScalingOptimizationType
     ScalingOptimizationType_Performance
 };
 
+/** Runtime UI: HiDPI optimization types. */
+enum HiDPIOptimizationType
+{
+    HiDPIOptimizationType_None,
+    HiDPIOptimizationType_Performance
+};
 
 #ifndef VBOX_WS_MAC
 /** Runtime UI: Mini-toolbar alignment. */
@@ -982,7 +766,6 @@ enum MiniToolbarAlignment
     MiniToolbarAlignment_Top
 };
 #endif /* !VBOX_WS_MAC */
-
 
 /** Runtime UI: Information-element types. */
 enum InformationElementType
@@ -1006,7 +789,6 @@ enum InformationElementType
 };
 Q_DECLARE_METATYPE(InformationElementType);
 
-
 /** Runtime UI: Maximum guest-screen resolution policy types.
   * @note This policy determines which guest-screen resolutions we wish to
   *       handle. We also accept anything smaller than the current resolution. */
@@ -1020,5 +802,5 @@ enum MaxGuestResolutionPolicy
     MaxGuestResolutionPolicy_Automatic
 };
 
+#endif /* !___UIExtraDataDefs_h___ */
 
-#endif /* !FEQT_INCLUDED_SRC_extradata_UIExtraDataDefs_h */

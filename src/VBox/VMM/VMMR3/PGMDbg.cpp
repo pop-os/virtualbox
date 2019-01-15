@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -866,69 +866,49 @@ VMMR3_INT_DECL(int) PGMR3DbgScanVirtual(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, RT
     PFNPGMR3DBGFIXEDMEMSCAN pfnMemScan;
     pgmR3DbgSelectMemScanFunction(&pfnMemScan, (uint32_t)GCPtrAlign, cbNeedle);
 
-    VMSTATE         enmVMState              = pVM->enmVMState;
-    uint32_t const  cYieldCountDownReload   = VMSTATE_IS_RUNNING(enmVMState) ? 4096 : 65536;
-    uint32_t        cYieldCountDown         = cYieldCountDownReload;
-    RTGCPHYS        GCPhysPrev              = NIL_RTGCPHYS;
-    bool            fFullWalk               = true;
-    PGMPTWALKGST    Walk;
-    RT_ZERO(Walk);
-
+    uint32_t        cYieldCountDown = 4096;
     pgmLock(pVM);
     for (;; offPage = 0)
     {
-        int rc;
-        if (fFullWalk)
-            rc = pgmGstPtWalk(pVCpu, GCPtr, &Walk);
-        else
-            rc = pgmGstPtWalkNext(pVCpu, GCPtr, &Walk);
+        PGMPTWALKGST Walk;
+        int rc = pgmGstPtWalk(pVCpu, GCPtr, &Walk);
         if (RT_SUCCESS(rc) && Walk.u.Core.fSucceeded)
         {
-            fFullWalk = false;
-
-            /* Skip if same page as previous one (W10 optimization). */
-            if (   Walk.u.Core.GCPhys != GCPhysPrev
-                || cbPrev != 0)
+            PPGMPAGE pPage = pgmPhysGetPage(pVM, Walk.u.Core.GCPhys);
+            if (   pPage
+                && (   !PGM_PAGE_IS_ZERO(pPage)
+                    || fAllZero)
+                && !PGM_PAGE_IS_MMIO_OR_ALIAS(pPage)
+                && !PGM_PAGE_IS_BALLOONED(pPage))
             {
-                PPGMPAGE pPage = pgmPhysGetPage(pVM, Walk.u.Core.GCPhys);
-                if (   pPage
-                    && (   !PGM_PAGE_IS_ZERO(pPage)
-                        || fAllZero)
-                    && !PGM_PAGE_IS_MMIO_OR_ALIAS(pPage)
-                    && !PGM_PAGE_IS_BALLOONED(pPage))
+                void const *pvPage;
+                PGMPAGEMAPLOCK Lock;
+                rc = PGMPhysGCPhys2CCPtrReadOnly(pVM, Walk.u.Core.GCPhys, &pvPage, &Lock);
+                if (RT_SUCCESS(rc))
                 {
-                    GCPhysPrev = Walk.u.Core.GCPhys;
-                    void const *pvPage;
-                    PGMPAGEMAPLOCK Lock;
-                    rc = PGMPhysGCPhys2CCPtrReadOnly(pVM, Walk.u.Core.GCPhys, &pvPage, &Lock);
-                    if (RT_SUCCESS(rc))
+                    int32_t offHit = offPage;
+                    bool    fRc;
+                    if (GCPtrAlign < PAGE_SIZE)
                     {
-                        int32_t offHit = offPage;
-                        bool    fRc;
-                        if (GCPtrAlign < PAGE_SIZE)
-                        {
-                            uint32_t cbSearch = cPages > 0
-                                              ? PAGE_SIZE                          - (uint32_t)offPage
-                                              : (GCPtrLast & PAGE_OFFSET_MASK) + 1 - (uint32_t)offPage;
-                            fRc = pgmR3DbgScanPage((uint8_t const *)pvPage, &offHit, cbSearch, (uint32_t)GCPtrAlign,
-                                                   pabNeedle, cbNeedle, pfnMemScan, &abPrev[0], &cbPrev);
-                        }
-                        else
-                            fRc = memcmp(pvPage, pabNeedle, cbNeedle) == 0
-                               && (GCPtrLast - GCPtr) >= cbNeedle;
-                        PGMPhysReleasePageMappingLock(pVM, &Lock);
-                        if (fRc)
-                        {
-                            *pGCPtrHit = GCPtr + offHit;
-                            pgmUnlock(pVM);
-                            return VINF_SUCCESS;
-                        }
+                        uint32_t cbSearch = cPages > 0
+                                          ? PAGE_SIZE                          - (uint32_t)offPage
+                                          : (GCPtrLast & PAGE_OFFSET_MASK) + 1 - (uint32_t)offPage;
+                        fRc = pgmR3DbgScanPage((uint8_t const *)pvPage, &offHit, cbSearch, (uint32_t)GCPtrAlign,
+                                               pabNeedle, cbNeedle, pfnMemScan, &abPrev[0], &cbPrev);
                     }
                     else
-                        cbPrev = 0; /* ignore error. */
+                        fRc = memcmp(pvPage, pabNeedle, cbNeedle) == 0
+                           && (GCPtrLast - GCPtr) >= cbNeedle;
+                    PGMPhysReleasePageMappingLock(pVM, &Lock);
+                    if (fRc)
+                    {
+                        *pGCPtrHit = GCPtr + offHit;
+                        pgmUnlock(pVM);
+                        return VINF_SUCCESS;
+                    }
                 }
                 else
-                    cbPrev = 0;
+                    cbPrev = 0; /* ignore error. */
             }
             else
                 cbPrev = 0;
@@ -985,7 +965,6 @@ VMMR3_INT_DECL(int) PGMR3DbgScanVirtual(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, RT
             }
             if (cPages <= cPagesCanSkip)
                 break;
-            fFullWalk = true;
             if (cPagesCanSkip >= cIncPages)
             {
                 cPages -= cPagesCanSkip;
@@ -1003,8 +982,8 @@ VMMR3_INT_DECL(int) PGMR3DbgScanVirtual(PVM pVM, PVMCPU pVCpu, RTGCPTR GCPtr, RT
         /* Yield the PGM lock every now and then. */
         if (!--cYieldCountDown)
         {
-            fFullWalk = PDMR3CritSectYield(&pVM->pgm.s.CritSectX);
-            cYieldCountDown = cYieldCountDownReload;
+            PDMR3CritSectYield(&pVM->pgm.s.CritSectX);
+            cYieldCountDown = 4096;
         }
     }
     pgmUnlock(pVM);

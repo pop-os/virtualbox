@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -556,7 +556,7 @@ RTDECL(int) RTStrToInt64Ex(const char *pszValue, char **ppszNext, unsigned uBase
     const char   *psz = pszValue;
     int           iShift;
     int           rc;
-    uint64_t      u64;
+    int64_t       i64;
     unsigned char uch;
 
     /*
@@ -604,34 +604,31 @@ RTDECL(int) RTStrToInt64Ex(const char *pszValue, char **ppszNext, unsigned uBase
      * Interpret the value.
      * Note: We only support ascii digits at this time... :-)
      */
-    iShift = g_auchShift[uBase];
+    iShift = g_auchShift[uBase]; /** @todo test this, it's probably not 100% right yet. */
     pszValue = psz; /* (Prefix and sign doesn't count in the digit counting.) */
     rc = VINF_SUCCESS;
-    u64 = 0;
+    i64 = 0;
     while ((uch = (unsigned char)*psz) != 0)
     {
         unsigned char chDigit = g_auchDigits[uch];
-        uint64_t u64Prev;
+        int64_t i64Prev;
 
         if (chDigit >= uBase)
             break;
 
-        u64Prev = u64;
-        u64 *= uBase;
-        u64 += chDigit;
-        if (u64Prev > u64 || (u64Prev >> iShift))
+        i64Prev = i64;
+        i64 *= uBase;
+        i64 += chDigit;
+        if (i64Prev > i64 || (i64Prev >> iShift))
             rc = VWRN_NUMBER_TOO_BIG;
         psz++;
     }
 
-    if (   !(u64 & RT_BIT_64(63))
-        || (!fPositive && u64 == RT_BIT_64(63)) )
-    { /* likely */ }
-    else
-        rc = VWRN_NUMBER_TOO_BIG;
+    if (!fPositive)
+        i64 = -i64;
 
     if (pi64)
-        *pi64 = fPositive ? u64 : -(int64_t)u64;
+        *pi64 = i64;
 
     if (psz == pszValue)
         rc = VERR_NO_DIGITS;

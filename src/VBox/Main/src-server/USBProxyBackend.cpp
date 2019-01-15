@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,7 +15,6 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#define LOG_GROUP LOG_GROUP_MAIN_USBPROXYBACKEND
 #include "USBProxyBackend.h"
 #include "USBProxyService.h"
 #include "HostUSBDeviceImpl.h"
@@ -24,10 +23,10 @@
 #include "VirtualBoxImpl.h"
 
 #include "AutoCaller.h"
-#include "LoggingNew.h"
+#include "Logging.h"
 
 #include <VBox/com/array.h>
-#include <iprt/errcore.h>
+#include <VBox/err.h>
 #include <iprt/asm.h>
 #include <iprt/semaphore.h>
 #include <iprt/thread.h>

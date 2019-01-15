@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,11 +24,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef VBOX_INCLUDED_SRC_Support_win_SUPHardenedVerify_win_h
-#define VBOX_INCLUDED_SRC_Support_win_SUPHardenedVerify_win_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___win_SUPHardenedVerify_win_h
+#define ___win_SUPHardenedVerify_win_h
 
 #include <iprt/types.h>
 #include <iprt/crypto/x509.h>
@@ -279,5 +276,5 @@ extern uint32_t         g_uNtVerCombined;
 
 RT_C_DECLS_END
 
-#endif /* !VBOX_INCLUDED_SRC_Support_win_SUPHardenedVerify_win_h */
+#endif
 

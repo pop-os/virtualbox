@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_platform_darwin_UIAbstractDockIconPreview_h
-#define FEQT_INCLUDED_SRC_platform_darwin_UIAbstractDockIconPreview_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIAbstractDockIconPreview_h___
+#define ___UIAbstractDockIconPreview_h___
 
 /* System includes */
 #include <ApplicationServices/ApplicationServices.h>
@@ -72,5 +69,5 @@ public:
     CGRect m_monitorRect;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_platform_darwin_UIAbstractDockIconPreview_h */
+#endif /* ___UIAbstractDockIconPreview_h___ */
 

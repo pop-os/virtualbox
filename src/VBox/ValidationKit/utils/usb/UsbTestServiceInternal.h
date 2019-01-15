@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2019 Oracle Corporation
+ * Copyright (C) 2016-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,11 +24,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef VBOX_INCLUDED_SRC_usb_UsbTestServiceInternal_h
-#define VBOX_INCLUDED_SRC_usb_UsbTestServiceInternal_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UsbTestServiceInternal_h___
+#define ___UsbTestServiceInternal_h___
 
 #include <iprt/getopt.h>
 #include <iprt/stream.h>
@@ -212,5 +209,5 @@ extern UTSTRANSPORT const g_TcpTransport;
 
 RT_C_DECLS_END
 
-#endif /* !VBOX_INCLUDED_SRC_usb_UsbTestServiceInternal_h */
+#endif
 

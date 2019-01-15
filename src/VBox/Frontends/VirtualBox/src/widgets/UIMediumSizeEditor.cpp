@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,22 +15,26 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QGridLayout>
-#include <QLabel>
-#include <QRegExpValidator>
-#include <QSlider>
+# include <QGridLayout>
+# include <QLabel>
+# include <QRegExpValidator>
+# include <QSlider>
 
 /* GUI includes: */
-#include "QILineEdit.h"
-#include "VBoxGlobal.h"
-#include "UIMediumSizeEditor.h"
+# include "QILineEdit.h"
+# include "UIMediumSizeEditor.h"
+# include "VBoxGlobal.h"
 
 /* COM includes: */
-#include "CSystemProperties.h"
+# include "CSystemProperties.h"
 
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-const qulonglong UIMediumSizeEditor::m_uSectorSize = 512;
 
 UIMediumSizeEditor::UIMediumSizeEditor(QWidget *pParent /* = 0 */)
     : QIWithRetranslateUI<QWidget>(pParent)
@@ -105,21 +109,11 @@ void UIMediumSizeEditor::sltSizeEditorChanged(const QString &strValue)
     emit sigSizeChanged(m_uSize);
 }
 
-void UIMediumSizeEditor::sltSizeEditorEditingFinished()
-{
-    qulonglong uSize = checkSectorSizeAlignment(m_uSize);
-
-    /* The size is already aligned to sector size: */
-    if (uSize == m_uSize)
-        return;
-    setMediumSize(uSize);
-}
-
 void UIMediumSizeEditor::prepare()
 {
     /* Create layout: */
     QGridLayout *pLayout = new QGridLayout(this);
-    if (pLayout)
+    AssertPtrReturnVoid(pLayout);
     {
         /* Configure layout: */
         pLayout->setContentsMargins(0, 0, 0, 0);
@@ -129,7 +123,7 @@ void UIMediumSizeEditor::prepare()
 
         /* Create size slider: */
         m_pSlider = new QSlider;
-        if (m_pSlider)
+        AssertPtrReturnVoid(m_pSlider);
         {
             /* Configure slider: */
             m_pSlider->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Fixed);
@@ -150,7 +144,7 @@ void UIMediumSizeEditor::prepare()
 
         /* Create minimum size label: */
         m_pLabelMinSize = new QLabel;
-        if (m_pLabelMinSize)
+        AssertPtrReturnVoid(m_pLabelMinSize);
         {
             /* Configure label: */
             m_pLabelMinSize->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
@@ -161,7 +155,7 @@ void UIMediumSizeEditor::prepare()
 
         /* Create maximum size label: */
         m_pLabelMaxSize = new QLabel;
-        if (m_pLabelMaxSize)
+        AssertPtrReturnVoid(m_pLabelMaxSize);
         {
             /* Configure label: */
             m_pLabelMaxSize->setAlignment(Qt::AlignRight | Qt::AlignVCenter);
@@ -172,7 +166,7 @@ void UIMediumSizeEditor::prepare()
 
         /* Create size editor: */
         m_pEditor = new QILineEdit;
-        if (m_pEditor)
+        AssertPtrReturnVoid(m_pEditor);
         {
             /* Configure editor: */
             m_pEditor->setSizePolicy(QSizePolicy::Minimum, QSizePolicy::Fixed);
@@ -181,8 +175,6 @@ void UIMediumSizeEditor::prepare()
             m_pEditor->setValidator(new QRegExpValidator(QRegExp(vboxGlobal().sizeRegexp()), this));
             connect(m_pEditor, &QILineEdit::textChanged,
                     this, &UIMediumSizeEditor::sltSizeEditorChanged);
-            connect(m_pEditor, &QILineEdit::editingFinished,
-                    this, &UIMediumSizeEditor::sltSizeEditorEditingFinished);
 
             /* Add into layout: */
             pLayout->addWidget(m_pEditor, 0, 2, Qt::AlignTop);
@@ -236,8 +228,8 @@ int UIMediumSizeEditor::log2i(qulonglong uValue)
 /* static */
 int UIMediumSizeEditor::sizeMBToSlider(qulonglong uValue, int iSliderScale)
 {
-    /* Make sure *any* slider value is multiple of m_uSectorSize: */
-    uValue /= m_uSectorSize;
+    /* Make sure *any* slider value is multiple of 512: */
+    uValue /= 512;
 
     /* Calculate result: */
     int iPower = log2i(uValue);
@@ -260,8 +252,8 @@ qulonglong UIMediumSizeEditor::sliderToSizeMB(int uValue, int iSliderScale)
     qulonglong uTickMBNext = qulonglong (1) << (iPower + 1);
     qulonglong uResult = uTickMB + (uTickMBNext - uTickMB) * iStep / iSliderScale;
 
-    /* Make sure *any* slider value is multiple of m_uSectorSize: */
-    uResult *= m_uSectorSize;
+    /* Make sure *any* slider value is multiple of 512: */
+    uResult *= 512;
 
     /* Return result: */
     return uResult;
@@ -274,10 +266,3 @@ void UIMediumSizeEditor::updateSizeToolTips(qulonglong uSize)
     m_pEditor->setToolTip(strToolTip);
 }
 
-qulonglong UIMediumSizeEditor::checkSectorSizeAlignment(qulonglong uSize)
-{
-    if (m_uSectorSize == 0 || uSize % m_uSectorSize == 0)
-        return uSize;
-    qulonglong uNewSize = (uSize / m_uSectorSize) * m_uSectorSize;
-    return uNewSize;
-}

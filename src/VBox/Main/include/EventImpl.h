@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef MAIN_INCLUDED_EventImpl_h
-#define MAIN_INCLUDED_EventImpl_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ____H_EVENTIMPL
+#define ____H_EVENTIMPL
 
 #include "EventWrap.h"
 #include "EventSourceWrap.h"
@@ -179,4 +176,4 @@ private:
 };
 
 
-#endif /* !MAIN_INCLUDED_EventImpl_h */
+#endif // ____H_EVENTIMPL

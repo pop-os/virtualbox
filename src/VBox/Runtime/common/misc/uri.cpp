@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,7 +32,6 @@
 
 #include <iprt/assert.h>
 #include <iprt/ctype.h>
-#include <iprt/err.h>
 #include <iprt/path.h>
 #include <iprt/string.h>
 
@@ -445,7 +444,7 @@ static int rtUriParse(const char *pszUri, PRTURIPARSED pParsed)
     {
         off += 2;
         pParsed->offAuthority = pParsed->offAuthorityUsername = pParsed->offAuthorityPassword = pParsed->offAuthorityHost = off;
-        pParsed->fFlags |= RTURIPARSED_F_HAS_AUTHORITY;
+        pParsed->fFlags |= RTURIPARSED_F_HAVE_AUTHORITY;
 
         /*
          * RFC-3986, section 3.2:
@@ -496,22 +495,19 @@ static int rtUriParse(const char *pszUri, PRTURIPARSED pParsed)
             {
                 size_t cchTmp = &pszUri[pParsed->offAuthorityHost + pParsed->cchAuthorityHost] - &pszColon[1];
                 pParsed->cchAuthorityHost -= cchTmp + 1;
-                pParsed->fFlags |= RTURIPARSED_F_HAS_PORT;
-                if (cchTmp > 0)
+
+                pParsed->uAuthorityPort = 0;
+                while (cchTmp-- > 0)
                 {
-                    pParsed->uAuthorityPort = 0;
-                    while (cchTmp-- > 0)
+                    ch = *++pszColon;
+                    if (   RT_C_IS_DIGIT(ch)
+                        && pParsed->uAuthorityPort < UINT32_MAX / UINT32_C(10))
                     {
-                        ch = *++pszColon;
-                        if (   RT_C_IS_DIGIT(ch)
-                            && pParsed->uAuthorityPort < UINT32_MAX / UINT32_C(10))
-                        {
-                            pParsed->uAuthorityPort *= 10;
-                            pParsed->uAuthorityPort += ch - '0';
-                        }
-                        else
-                            return VERR_URI_INVALID_PORT_NUMBER;
+                        pParsed->uAuthorityPort *= 10;
+                        pParsed->uAuthorityPort += ch - '0';
                     }
+                    else
+                        return VERR_URI_INVALID_PORT_NUMBER;
                 }
             }
         }
@@ -681,7 +677,7 @@ RTDECL(char *) RTUriParsedAuthority(const char *pszUri, PCRTURIPARSED pParsed)
     AssertPtrReturn(pszUri, NULL);
     AssertPtrReturn(pParsed, NULL);
     AssertReturn(pParsed->u32Magic == RTURIPARSED_MAGIC, NULL);
-    if (pParsed->cchAuthority || (pParsed->fFlags & RTURIPARSED_F_HAS_AUTHORITY))
+    if (pParsed->cchAuthority || (pParsed->fFlags & RTURIPARSED_F_HAVE_AUTHORITY))
         return rtUriPercentDecodeN(&pszUri[pParsed->offAuthority], pParsed->cchAuthority);
     return NULL;
 }

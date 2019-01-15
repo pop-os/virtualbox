@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2017-2019 Oracle Corporation
+ * Copyright (C) 2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,16 +23,13 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_cpp_path_h
-#define IPRT_INCLUDED_cpp_path_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_cpp_path_h
+#define ___iprt_cpp_path_h
 
+#include <iprt/types.h>
 #include <iprt/assert.h>
-#include <iprt/errcore.h>
-#include <iprt/path.h>
 #include <iprt/cpp/ministring.h>
+#include <iprt/path.h>
 
 
 /** @defgroup grp_rt_cpp_path    C++ Path Utilities
@@ -164,5 +161,5 @@ DECLINLINE(int) RTPathAppendCxx(RTCString &rStrDst, RTCString const &rStrAppend)
 
 /** @} */
 
-#endif /* !IPRT_INCLUDED_cpp_path_h */
+#endif
 

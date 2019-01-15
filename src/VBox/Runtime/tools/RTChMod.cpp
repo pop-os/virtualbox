@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,16 +28,16 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#include <iprt/buildconfig.h>
-#include <iprt/errcore.h>
-#include <iprt/file.h>
-#include <iprt/getopt.h>
+#include <iprt/path.h>
+#include <iprt/err.h>
 #include <iprt/initterm.h>
 #include <iprt/message.h>
-#include <iprt/path.h>
-#include <iprt/stream.h>
-#include <iprt/string.h>
+
 #include <iprt/vfs.h>
+#include <iprt/string.h>
+#include <iprt/stream.h>
+#include <iprt/getopt.h>
+#include <iprt/buildconfig.h>
 
 
 /*********************************************************************************************************************************
@@ -63,7 +63,6 @@ typedef enum RTCMDCHMODNOISE
     kRTCmdChModNoise_Changes,
     kRTCmdChModNoise_Verbose
 } RTCMDCHMODNOISE;
-
 
 typedef struct RTCMDCHMODOPTS
 {
@@ -131,32 +130,50 @@ static RTEXITCODE rtCmdChModOne(RTCMDCHMODOPTS const *pOpts, const char *pszPath
     }
     else
     {
-        RTVFSOBJ        hVfsObj;
+        /* Try via parent first as that's generally faster and more reliable. */
+        RTVFSDIR        hVfsDir;
+        const char     *pszChild;
         uint32_t        offError;
         RTERRINFOSTATIC ErrInfo;
-        rc = RTVfsChainOpenObj(pszPath, RTFILE_O_ACCESS_ATTR_READWRITE | RTFILE_O_DENY_NONE | RTFILE_O_OPEN,
-                               RTVFSOBJ_F_OPEN_ANY | RTVFSOBJ_F_CREATE_NOTHING | RTPATH_F_FOLLOW_LINK,
-                               &hVfsObj, &offError, RTErrInfoInitStatic(&ErrInfo));
+        rc = RTVfsChainOpenParentDir(pszPath, 0 /*fOpen*/, &hVfsDir, &pszChild, &offError, RTErrInfoInitStatic(&ErrInfo));
         if (RT_SUCCESS(rc))
         {
-            rc = RTVfsObjQueryInfo(hVfsObj, &ObjInfo, RTFSOBJATTRADD_NOTHING);
+            rc = RTVfsDirQueryPathInfo(hVfsDir, pszChild, &ObjInfo, RTFSOBJATTRADD_NOTHING, RTPATH_F_FOLLOW_LINK);
             if (RT_SUCCESS(rc))
             {
                 RTFMODE fNewMode = rtCmdMkModCalcNewMode(pOpts, ObjInfo.Attr.fMode);
                 fChanges = fNewMode != ObjInfo.Attr.fMode;
                 if (fChanges)
                 {
-                    rc = RTVfsObjSetMode(hVfsObj, fNewMode, RTCHMOD_SET_ALL_MASK);
+                    rc = VERR_NOT_IMPLEMENTED; //rc = RTVfsDirSetPathMode(hVfsDir, pszChild, fNewMode, RTPATH_F_FOLLOW_LINK);
                     if (RT_FAILURE(rc))
-                        RTMsgError("RTVfsObjSetMode failed on '%s' with fNewMode=%#x: %Rrc", pszPath, fNewMode, rc);
+                        RTMsgError("RTVfsDirSetPathMode failed on '%s' with fNewMode=%#x: %Rrc", pszPath, fNewMode, rc);
+                }
+            }
+            RTVfsDirRelease(hVfsDir);
+        }
+        /* If we have no child part, work on the chain as a whole. */
+        else if (   rc == VERR_VFS_CHAIN_TOO_SHORT_FOR_PARENT
+                 || rc == VERR_VFS_CHAIN_NOT_PATH_ONLY)
+        {
+            rc = RTVfsChainQueryInfo(pszPath, &ObjInfo, RTFSOBJATTRADD_NOTHING, RTPATH_F_FOLLOW_LINK,
+                                     &offError, RTErrInfoInitStatic(&ErrInfo));
+            if (RT_SUCCESS(rc))
+            {
+                RTFMODE fNewMode = rtCmdMkModCalcNewMode(pOpts, ObjInfo.Attr.fMode);
+                fChanges = fNewMode != ObjInfo.Attr.fMode;
+                if (fChanges)
+                {
+                    rc = VERR_NOT_IMPLEMENTED; //rc = RTVfsChainSetMode(pszPath, fNewMode, &offError, RTErrInfoInitStatic(&ErrInfo));
+                    if (RT_FAILURE(rc))
+                        RTMsgError("RTVfsChainSetMode failed on '%s' with fNewMode=%#x: %Rrc", pszPath, fNewMode, rc);
                 }
             }
             else
-                RTVfsChainMsgError("RTVfsObjQueryInfo", pszPath, rc, offError, &ErrInfo.Core);
-            RTVfsObjRelease(hVfsObj);
+                RTVfsChainMsgError("RTVfsChainQueryInfo", pszPath, rc, offError, &ErrInfo.Core);
         }
-        else
-            RTVfsChainMsgError("RTVfsChainOpenObject", pszPath, rc, offError, &ErrInfo.Core);
+        else /** @todo we could implement a fallback here so we don't require a final path element. */
+            RTVfsChainMsgError("RTVfsChainOpenParentDir", pszPath, rc, offError, &ErrInfo.Core);
     }
 
     if (RT_SUCCESS(rc))
@@ -201,17 +218,9 @@ static int rtCmdChModRecursive(RTCMDCHMODOPTS const *pOpts, const char *pszPath)
     }
 
     if (!RTFS_IS_DIRECTORY(ObjInfo.Attr.fMode))
-    {
-        /*
-         * Don't bother redoing the above work if its not necessary.
-         */
-        RTFMODE fNewMode = rtCmdMkModCalcNewMode(pOpts, ObjInfo.Attr.fMode);
-        if (fNewMode != ObjInfo.Attr.fMode)
-            return rtCmdChModOne(pOpts, pszPath);
-        if (pOpts->enmNoiseLevel >= kRTCmdChModNoise_Verbose)
-            RTPrintf("%s\n", pszPath);
-        return RTEXITCODE_SUCCESS;
-    }
+        return rtCmdChModOne(pOpts, pszPath);
+
+    /** @todo do root detection. */
 
     /*
      * For recursion we always use the VFS layer.

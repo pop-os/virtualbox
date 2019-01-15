@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,6 +26,14 @@
 
 
 /*********************************************************************************************************************************
+*   Defined Constants                                                                                                            *
+*********************************************************************************************************************************/
+#define ISDIGIT(c) ((c) >= '0' && (c) <= '9')
+/*#define MAX(a, b)  ((a) >= (b) ? (a) : (b))
+#define MIN(a, b)  ((a) < (b) ? (a) : (b)) */
+
+
+/*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #define LOG_GROUP RTLOGGROUP_STRING
@@ -35,15 +43,32 @@
 #include <iprt/assert.h>
 #ifdef IN_RING3
 # include <iprt/alloc.h>
-# include <iprt/errcore.h>
+# include <iprt/err.h>
 # include <iprt/uni.h>
-# include <iprt/utf16.h>
 #endif
-#include <iprt/ctype.h>
 #include <iprt/string.h>
 #include <iprt/stdarg.h>
 #include "internal/string.h"
 
+/* Wrappers for converting to iprt facilities. */
+#define SSToDS(ptr)     ptr
+#define kASSERT         Assert
+#define KENDIAN_LITTLE  1
+#define KENDIAN         KENDIAN_LITTLE
+#define KSIZE           size_t
+typedef struct
+{
+    uint32_t    ulLo;
+    uint32_t    ulHi;
+} KSIZE64;
+
+
+/*********************************************************************************************************************************
+*   Internal Functions                                                                                                           *
+*********************************************************************************************************************************/
+static unsigned _strnlen(const char *psz, unsigned cchMax);
+static unsigned _strnlenUtf16(PCRTUTF16 pwsz, unsigned cchMax);
+static int rtStrFormatNumber(char *psz, KSIZE64 ullValue, unsigned int uiBase, signed int cchWidth, signed int cchPrecision, unsigned int fFlags);
 
 
 /**
@@ -114,24 +139,44 @@ static unsigned _strnlenUni(PCRTUNICP pusz, unsigned cchMax)
 /**
  * Formats an integer number according to the parameters.
  *
- * @returns   Length of the number.
- * @param     psz            Pointer to output string.
- * @param     u64Value       Value.
+ * @returns   Length of the formatted number.
+ * @param     psz            Pointer to output string buffer of sufficient size.
+ * @param     u64Value       Value to format.
  * @param     uiBase         Number representation base.
- * @param     cchWidth       Width
+ * @param     cchWidth       Width.
  * @param     cchPrecision   Precision.
  * @param     fFlags         Flags (NTFS_*).
  */
 RTDECL(int) RTStrFormatNumber(char *psz, uint64_t u64Value, unsigned int uiBase, signed int cchWidth, signed int cchPrecision,
                               unsigned int fFlags)
 {
+    return rtStrFormatNumber(psz, *(KSIZE64 *)(void *)&u64Value, uiBase, cchWidth, cchPrecision, fFlags);
+}
+RT_EXPORT_SYMBOL(RTStrFormatNumber);
+
+
+
+/**
+ * Formats an integer number according to the parameters.
+ *
+ * @returns   Length of the number.
+ * @param     psz            Pointer to output string.
+ * @param     ullValue       Value. Using the high part is optional.
+ * @param     uiBase         Number representation base.
+ * @param     cchWidth       Width
+ * @param     cchPrecision   Precision.
+ * @param     fFlags         Flags (NTFS_*).
+ */
+static int rtStrFormatNumber(char *psz, KSIZE64 ullValue, unsigned int uiBase, signed int cchWidth, signed int cchPrecision,
+                             unsigned int fFlags)
+{
     const char     *pachDigits = "0123456789abcdef";
     char           *pszStart = psz;
     int             cchMax;
     int             cchValue;
+    unsigned long   ul;
     int             i;
     int             j;
-    char            chSign;
 
     /*
      * Validate and adjust input...
@@ -147,25 +192,14 @@ RTDECL(int) RTStrFormatNumber(char *psz, uint64_t u64Value, unsigned int uiBase,
         fFlags &= ~RTSTR_F_THOUSAND_SEP;
 
     /*
-     * Determine value length and sign.  Converts the u64Value to unsigned.
+     * Determine value length
      */
     cchValue = 0;
-    chSign = '\0';
-    if ((fFlags & RTSTR_F_64BIT) || (u64Value & UINT64_C(0xffffffff00000000)))
+    if (ullValue.ulHi || (fFlags & RTSTR_F_64BIT))
     {
-        uint64_t u64;
-        if (!(fFlags & RTSTR_F_VALSIGNED) || !(u64Value & RT_BIT_64(63)))
-            u64 = u64Value;
-        else if (u64Value != RT_BIT_64(63))
-        {
-            chSign = '-';
-            u64 = u64Value = -(int64_t)u64Value;
-        }
-        else
-        {
-            chSign = '-';
-            u64 = u64Value = RT_BIT_64(63);
-        }
+        uint64_t    u64 = *(uint64_t *)(void *)&ullValue;
+        if ((fFlags & RTSTR_F_VALSIGNED) && (ullValue.ulHi & 0x80000000))
+            u64 = -(int64_t)u64;
         do
         {
             cchValue++;
@@ -174,24 +208,12 @@ RTDECL(int) RTStrFormatNumber(char *psz, uint64_t u64Value, unsigned int uiBase,
     }
     else
     {
-        uint32_t u32 = (uint32_t)u64Value;
-        if (!(fFlags & RTSTR_F_VALSIGNED) || !(u32 & UINT32_C(0x80000000)))
-        { /* likley */ }
-        else if (u32 != UINT32_C(0x80000000))
-        {
-            chSign = '-';
-            u64Value = u32 = -(int32_t)u32;
-        }
-        else
-        {
-            chSign = '-';
-            u64Value = u32 = UINT32_C(0x80000000);
-        }
+        ul = (fFlags & RTSTR_F_VALSIGNED) && (ullValue.ulLo & 0x80000000) ? -(int32_t)ullValue.ulLo : ullValue.ulLo;
         do
         {
             cchValue++;
-            u32 /= uiBase;
-        } while (u32);
+            ul /= uiBase;
+        } while (ul);
     }
     if (fFlags & RTSTR_F_THOUSAND_SEP)
     {
@@ -207,8 +229,13 @@ RTDECL(int) RTStrFormatNumber(char *psz, uint64_t u64Value, unsigned int uiBase,
     i = 0;
     if (fFlags & RTSTR_F_VALSIGNED)
     {
-        if (chSign != '\0')
-            psz[i++] = chSign;
+        if ((ullValue.ulHi || (fFlags & RTSTR_F_64BIT) ? ullValue.ulHi : ullValue.ulLo) & 0x80000000)
+        {
+            ullValue.ulLo = -(int32_t)ullValue.ulLo;
+            if (ullValue.ulHi)
+                ullValue.ulHi = ~ullValue.ulHi;
+            psz[i++] = '-';
+        }
         else if (fFlags & (RTSTR_F_PLUS | RTSTR_F_BLANK))
             psz[i++] = (char)(fFlags & RTSTR_F_PLUS ? '+' : ' ');
     }
@@ -261,9 +288,9 @@ RTDECL(int) RTStrFormatNumber(char *psz, uint64_t u64Value, unsigned int uiBase,
      */
     psz += cchValue;
     i = -1;
-    if ((fFlags & RTSTR_F_64BIT) || (u64Value & UINT64_C(0xffffffff00000000)))
+    if (ullValue.ulHi || (fFlags & RTSTR_F_64BIT))
     {
-        uint64_t u64 = u64Value;
+        uint64_t    u64 = *(uint64_t *)(void *)&ullValue;
         if (fFlags & RTSTR_F_THOUSAND_SEP)
         {
             do
@@ -285,24 +312,24 @@ RTDECL(int) RTStrFormatNumber(char *psz, uint64_t u64Value, unsigned int uiBase,
     }
     else
     {
-        uint32_t u32 = (uint32_t)u64Value;
+        ul = (fFlags & RTSTR_F_VALSIGNED) && (ullValue.ulLo & 0x80000000) ? -(int32_t)ullValue.ulLo : ullValue.ulLo;
         if (fFlags & RTSTR_F_THOUSAND_SEP)
         {
             do
             {
                 if ((-i - 1) % 4 == 3)
                     psz[i--] = ' ';
-                psz[i--] = pachDigits[u32 % uiBase];
-                u32 /= uiBase;
-            } while (u32);
+                psz[i--] = pachDigits[ul % uiBase];
+                ul /= uiBase;
+            } while (ul);
         }
         else
         {
             do
             {
-                psz[i--] = pachDigits[u32 % uiBase];
-                u32 /= uiBase;
-            } while (u32);
+                psz[i--] = pachDigits[ul % uiBase];
+                ul /= uiBase;
+            } while (ul);
         }
     }
 
@@ -316,7 +343,6 @@ RTDECL(int) RTStrFormatNumber(char *psz, uint64_t u64Value, unsigned int uiBase,
     *psz = '\0';
     return (unsigned)(psz - pszStart);
 }
-RT_EXPORT_SYMBOL(RTStrFormatNumber);
 
 
 /**
@@ -339,7 +365,7 @@ RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRF
 {
     char        szTmp[64]; /* Worker functions assumes 64 byte buffer! Ugly but faster. */
     va_list     args;
-    size_t      cch = 0;
+    KSIZE       cch = 0;
     const char *pszStartOutput = pszFormat;
 
     va_copy(args, InArgs); /* make a copy so we can reference it (AMD64 / gcc). */
@@ -381,9 +407,9 @@ RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRF
                 }
 
                 /* width */
-                if (RT_C_IS_DIGIT(*pszFormat))
+                if (ISDIGIT(*pszFormat))
                 {
-                    for (cchWidth = 0; RT_C_IS_DIGIT(*pszFormat); pszFormat++)
+                    for (cchWidth = 0; ISDIGIT(*pszFormat); pszFormat++)
                     {
                         cchWidth *= 10;
                         cchWidth += *pszFormat - '0';
@@ -406,9 +432,9 @@ RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRF
                 if (*pszFormat == '.')
                 {
                     pszFormat++;
-                    if (RT_C_IS_DIGIT(*pszFormat))
+                    if (ISDIGIT(*pszFormat))
                     {
-                        for (cchPrecision = 0; RT_C_IS_DIGIT(*pszFormat); pszFormat++)
+                        for (cchPrecision = 0; ISDIGIT(*pszFormat); pszFormat++)
                         {
                             cchPrecision *= 10;
                             cchPrecision += *pszFormat - '0';
@@ -500,7 +526,7 @@ RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRF
 
                         szTmp[0] = (char)va_arg(args, int);
                         szTmp[1] = '\0';                     /* Some output functions wants terminated strings. */
-                        cch += pfnOutput(pvArgOutput, &szTmp[0], 1);
+                        cch += pfnOutput(pvArgOutput, SSToDS(&szTmp[0]), 1);
 
                         while (--cchWidth > 0)
                             cch += pfnOutput(pvArgOutput, " ", 1);
@@ -726,8 +752,8 @@ RTDECL(size_t) RTStrFormatV(PFNRTSTROUTPUT pfnOutput, void *pvArgOutput, PFNSTRF
                                 fFlags |= RTSTR_GET_BIT_FLAG(unsigned int);
                             }
                         }
-                        cchNum = RTStrFormatNumber((char *)&szTmp, u64Value, uBase, cchWidth, cchPrecision, fFlags);
-                        cch += pfnOutput(pvArgOutput, (char *)&szTmp, cchNum);
+                        cchNum = RTStrFormatNumber((char *)SSToDS(&szTmp), u64Value, uBase, cchWidth, cchPrecision, fFlags);
+                        cch += pfnOutput(pvArgOutput, (char *)SSToDS(&szTmp), cchNum);
                         break;
                     }
 

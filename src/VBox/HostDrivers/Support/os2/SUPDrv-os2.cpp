@@ -258,13 +258,9 @@ DECLASM(int) VBoxDrvIOCtlFast(uint16_t sfn, uint8_t iFunction)
     /*
      * Dispatch the fast IOCtl.
      */
-    int rc;
-    if ((unsigned)(iFunction - SUP_IOCTL_FAST_DO_FIRST) < (unsigned)32)
-        rc = supdrvIOCtlFast(iFunction, 0, &g_DevExt, pSession);
-    else
-        rc = VERR_INVALID_FUNCTION;
+    supdrvIOCtlFast(iFunction, 0, &g_DevExt, pSession);
     supdrvSessionRelease(pSession);
-    return rc;
+    return 0;
 }
 
 

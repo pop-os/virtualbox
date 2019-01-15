@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,11 +24,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef VBOX_INCLUDED_com_MultiResult_h
-#define VBOX_INCLUDED_com_MultiResult_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBox_com_MultiResult_h
+#define ___VBox_com_MultiResult_h
 
 #include "VBox/com/defs.h"
 #include "VBox/com/string.h"
@@ -264,5 +261,5 @@ private:
 
 /** @} */
 
-#endif /* !VBOX_INCLUDED_com_MultiResult_h */
+#endif /* !___VBox_com_MultiResult_h */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsSFDetails_h
-#define FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsSFDetails_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __UIMachineSettingsSFDetails_h__
+#define __UIMachineSettingsSFDetails_h__
 
 /* Includes */
 #include "UIMachineSettingsSFDetails.gen.h"
@@ -28,8 +25,8 @@
 #include "UIMachineSettingsSF.h"
 
 /* Shared folders details dialog: */
-class SHARED_LIBRARY_STUFF UIMachineSettingsSFDetails : public QIWithRetranslateUI2<QIDialog>,
-                                                        public Ui::UIMachineSettingsSFDetails
+class UIMachineSettingsSFDetails : public QIWithRetranslateUI2<QIDialog>,
+                                   public Ui::UIMachineSettingsSFDetails
 {
     Q_OBJECT;
 
@@ -58,9 +55,6 @@ public:
     void setAutoMount(bool fAutoMount);
     bool isAutoMounted() const;
 
-    void setAutoMountPoint(const QString &strAutoMountPoint);
-    QString autoMountPoint() const;
-
     void setPermanent(bool fPermanent);
     bool isPermanent() const;
 
@@ -80,4 +74,5 @@ private:
     QStringList  m_usedNames;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_settings_machine_UIMachineSettingsSFDetails_h */
+#endif // __UIMachineSettingsSFDetails_h__
+

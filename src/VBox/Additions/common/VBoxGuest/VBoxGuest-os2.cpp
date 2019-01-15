@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2019 Oracle Corporation
+ * Copyright (C) 2007-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -60,7 +60,6 @@
 #include "VBoxGuestInternal.h"
 #include <VBox/version.h>
 #include <iprt/assert.h>
-#include <iprt/err.h>
 #include <iprt/initterm.h>
 #include <iprt/log.h>
 #include <iprt/memobj.h>
@@ -134,8 +133,8 @@ DECLASM(int) vgdrvOS2DevHlpSetIRQ(uint8_t bIRQ);
  */
 DECLASM(int) vgdrvOS2Init(const char *pszArgs)
 {
-    //Log(("vgdrvOS2Init: pszArgs='%s' MMIO=0x%RX32 IOPort=0x%RX16 Int=%#x Bus=%#x Dev=%#x Fun=%d\n",
-    //     pszArgs, g_PhysMMIOBase, g_IOPortBase, g_bInterruptLine, g_bPciBusNo, g_bPciDevFunNo >> 3, g_bPciDevFunNo & 7));
+    Log(("vgdrvOS2Init: pszArgs='%s' MMIO=0x%RX32 IOPort=0x%RX16 Int=%#x Bus=%#x Dev=%#x Fun=%d\n",
+         pszArgs, g_PhysMMIOBase, g_IOPortBase, g_bInterruptLine, g_bPciBusNo, g_bPciDevFunNo >> 3, g_bPciDevFunNo & 7));
 
     /*
      * Initialize the runtime.
@@ -144,26 +143,9 @@ DECLASM(int) vgdrvOS2Init(const char *pszArgs)
     if (RT_SUCCESS(rc))
     {
         /*
-         * Process the command line.
+         * Process the commandline. Later.
          */
         bool fVerbose = true;
-        if (pszArgs)
-        {
-            char ch;
-            while ((ch = *pszArgs++) != '\0')
-                if (ch == '-' || ch == '/')
-                {
-                    ch = *pszArgs++;
-                    if (ch == 'Q' || ch == 'q')
-                        fVerbose = false;
-                    else if (ch == 'V' || ch == 'v')
-                        fVerbose = true;
-                    else if (ch == '\0')
-                        break;
-                    /*else: ignore stuff we don't know what is */
-                }
-                /* else: skip spaces and unknown stuff */
-        }
 
         /*
          * Map the MMIO memory if found.
@@ -204,11 +186,6 @@ DECLASM(int) vgdrvOS2Init(const char *pszArgs)
                     }
                     if (RT_SUCCESS(rc))
                     {
-                        /*
-                         * Read host configuration.
-                         */
-                        VGDrvCommonProcessOptionsFromHost(&g_DevExt);
-
                         /*
                          * Success
                          */
@@ -381,13 +358,7 @@ DECLASM(int) vgdrvOS2Open(uint16_t sfn)
     /*
      * Create a new session.
      */
-    uint32_t fRequestor = VMMDEV_REQUESTOR_USERMODE
-                        | VMMDEV_REQUESTOR_TRUST_NOT_GIVEN
-                        | VMMDEV_REQUESTOR_USR_ROOT  /* everyone is root on OS/2 */
-                        | VMMDEV_REQUESTOR_GRP_WHEEL /* and their admins */
-                        | VMMDEV_REQUESTOR_NO_USER_DEVICE /** @todo implement /dev/vboxuser? */
-                        | VMMDEV_REQUESTOR_CON_DONT_KNOW; /** @todo check screen group/whatever of process to see if console */
-    rc = VGDrvCommonCreateUserSession(&g_DevExt, fRequestor, &pSession);
+    rc = VGDrvCommonCreateUserSession(&g_DevExt, &pSession);
     if (RT_SUCCESS(rc))
     {
         pSession->sfn = sfn;
@@ -630,13 +601,6 @@ void VGDrvNativeISRMousePollEvent(PVBOXGUESTDEVEXT pDevExt)
 {
     /* No polling on OS/2 */
     NOREF(pDevExt);
-}
-
-
-bool VGDrvNativeProcessOption(PVBOXGUESTDEVEXT pDevExt, const char *pszName, const char *pszValue)
-{
-    RT_NOREF(pDevExt); RT_NOREF(pszName); RT_NOREF(pszValue);
-    return false;
 }
 
 

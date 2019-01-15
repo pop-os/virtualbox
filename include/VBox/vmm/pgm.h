@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,17 +23,15 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef VBOX_INCLUDED_vmm_pgm_h
-#define VBOX_INCLUDED_vmm_pgm_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBox_vmm_pgm_h
+#define ___VBox_vmm_pgm_h
 
 #include <VBox/types.h>
 #include <VBox/sup.h>
 #include <VBox/vmm/vmapi.h>
 #include <VBox/vmm/gmm.h>               /* for PGMMREGISTERSHAREDMODULEREQ */
 #include <iprt/x86.h>
+#include <VBox/VMMDev.h>                /* for VMMDEVSHAREDREGIONDESC */
 #include <VBox/param.h>
 
 RT_C_DECLS_BEGIN
@@ -352,16 +350,10 @@ typedef enum PGMMODE
     PGMMODE_AMD64,
     /** 64-bit AMD paging (long mode) with NX enabled. */
     PGMMODE_AMD64_NX,
-    /** 32-bit nested paging mode (shadow only; guest physical to host physical). */
-    PGMMODE_NESTED_32BIT,
-    /** PAE nested paging mode (shadow only; guest physical to host physical). */
-    PGMMODE_NESTED_PAE,
-    /** AMD64 nested paging mode (shadow only; guest physical to host physical). */
-    PGMMODE_NESTED_AMD64,
+    /** Nested paging mode (shadow only; guest physical to host physical). */
+    PGMMODE_NESTED,
     /** Extended paging (Intel) mode. */
     PGMMODE_EPT,
-    /** Special mode used by NEM to indicate no shadow paging necessary. */
-    PGMMODE_NONE,
     /** The max number of modes */
     PGMMODE_MAX,
     /** 32bit hackishness. */
@@ -378,13 +370,6 @@ typedef enum PGMMODE
  * @param enmMode   PGMMODE_*.
  */
 #define PGMMODE_IS_LONG_MODE(enmMode) ((enmMode) == PGMMODE_AMD64_NX || (enmMode) == PGMMODE_AMD64)
-
-/** Macro for checking if it's one of the AMD64 nested modes.
- * @param enmMode   PGMMODE_*.
- */
-#define PGMMODE_IS_NESTED(enmMode)  (   (enmMode) == PGMMODE_NESTED_32BIT \
-                                     || (enmMode) == PGMMODE_NESTED_PAE \
-                                     || (enmMode) == PGMMODE_NESTED_AMD64)
 
 /**
  * Is the ROM mapped (true) or is the shadow RAM mapped (false).
@@ -448,13 +433,11 @@ VMMDECL(int)        PGMFlushTLB(PVMCPU pVCpu, uint64_t cr3, bool fGlobal);
 VMMDECL(int)        PGMSyncCR3(PVMCPU pVCpu, uint64_t cr0, uint64_t cr3, uint64_t cr4, bool fGlobal);
 VMMDECL(int)        PGMUpdateCR3(PVMCPU pVCpu, uint64_t cr3);
 VMMDECL(int)        PGMChangeMode(PVMCPU pVCpu, uint64_t cr0, uint64_t cr4, uint64_t efer);
-VMM_INT_DECL(int)   PGMHCChangeMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmGuestMode);
 VMMDECL(void)       PGMCr0WpEnabled(PVMCPU pVCpu);
 VMMDECL(PGMMODE)    PGMGetGuestMode(PVMCPU pVCpu);
 VMMDECL(PGMMODE)    PGMGetShadowMode(PVMCPU pVCpu);
 VMMDECL(PGMMODE)    PGMGetHostMode(PVM pVM);
 VMMDECL(const char *) PGMGetModeName(PGMMODE enmMode);
-VMM_INT_DECL(RTGCPHYS) PGMGetGuestCR3Phys(PVMCPU pVCpu);
 VMM_INT_DECL(void)  PGMNotifyNxeChanged(PVMCPU pVCpu, bool fNxe);
 VMMDECL(bool)       PGMHasDirtyPages(PVM pVM);
 
@@ -532,16 +515,6 @@ typedef enum PGMPAGETYPE
     PGMPAGETYPE_END
 } PGMPAGETYPE;
 AssertCompile(PGMPAGETYPE_END == 8);
-
-/** @name PGM page type predicates.
- * @{ */
-#define PGMPAGETYPE_IS_READABLE(a_enmType)  ( (a_enmType) <= PGMPAGETYPE_ROM )
-#define PGMPAGETYPE_IS_WRITEABLE(a_enmType) ( (a_enmType) <= PGMPAGETYPE_ROM_SHADOW )
-#define PGMPAGETYPE_IS_RWX(a_enmType)       ( (a_enmType) <= PGMPAGETYPE_ROM_SHADOW )
-#define PGMPAGETYPE_IS_ROX(a_enmType)       ( (a_enmType) == PGMPAGETYPE_ROM )
-#define PGMPAGETYPE_IS_NP(a_enmType)        ( (a_enmType) == PGMPAGETYPE_MMIO )
-/** @} */
-
 
 VMM_INT_DECL(PGMPAGETYPE) PGMPhysGetPageType(PVM pVM, RTGCPHYS GCPhys);
 
@@ -680,68 +653,6 @@ VMM_INT_DECL(int)   PGMPhysIemGCPhys2PtrNoLock(PVM pVM, PVMCPU pVCpu, RTGCPHYS G
 #define PGMIEMGCPHYS2PTR_F_NO_MAPPINGR3 RT_BIT_32(7)    /**< No ring-3 mapping (IEMTLBE_F_NO_MAPPINGR3). */
 /** @} */
 
-/** Information returned by PGMPhysNemQueryPageInfo. */
-typedef struct PGMPHYSNEMPAGEINFO
-{
-    /** The host physical address of the page, NIL_HCPHYS if invalid page. */
-    RTHCPHYS            HCPhys;
-    /** The NEM access mode for the page, NEM_PAGE_PROT_XXX  */
-    uint32_t            fNemProt : 8;
-    /** The NEM state associated with the PAGE. */
-    uint32_t            u2NemState : 2;
-    /** The NEM state associated with the PAGE before pgmPhysPageMakeWritable was called. */
-    uint32_t            u2OldNemState : 2;
-    /** Set if the page has handler. */
-    uint32_t            fHasHandlers : 1;
-    /** Set if is the zero page backing it. */
-    uint32_t            fZeroPage : 1;
-    /** Set if the page has handler. */
-    PGMPAGETYPE         enmType;
-} PGMPHYSNEMPAGEINFO;
-/** Pointer to page information for NEM. */
-typedef PGMPHYSNEMPAGEINFO *PPGMPHYSNEMPAGEINFO;
-/**
- * Callback for checking that the page is in sync while under the PGM lock.
- *
- * NEM passes this callback to PGMPhysNemQueryPageInfo to check that the page is
- * in-sync between PGM and the native hypervisor API in an atomic fashion.
- *
- * @returns VBox status code.
- * @param   pVM         The cross context VM structure.
- * @param   pVCpu       The cross context per virtual CPU structure.  Optional,
- *                      see PGMPhysNemQueryPageInfo.
- * @param   GCPhys      The guest physical address (not A20 masked).
- * @param   pInfo       The page info structure.  This function updates the
- *                      u2NemState memory and the caller will update the PGMPAGE
- *                      copy accordingly.
- * @param   pvUser      Callback user argument.
- */
-typedef DECLCALLBACK(int) FNPGMPHYSNEMCHECKPAGE(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, PPGMPHYSNEMPAGEINFO pInfo, void *pvUser);
-/** Pointer to a FNPGMPHYSNEMCHECKPAGE function. */
-typedef FNPGMPHYSNEMCHECKPAGE *PFNPGMPHYSNEMCHECKPAGE;
-
-VMM_INT_DECL(int)   PGMPhysNemPageInfoChecker(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, bool fMakeWritable,
-                                              PPGMPHYSNEMPAGEINFO pInfo, PFNPGMPHYSNEMCHECKPAGE pfnChecker, void *pvUser);
-
-/**
- * Callback for use with PGMPhysNemEnumPagesByState.
- * @returns VBox status code.
- *          Failure status will stop enumeration immediately and return.
- * @param   pVM         The cross context VM structure.
- * @param   pVCpu       The cross context per virtual CPU structure.  Optional,
- *                      see PGMPhysNemEnumPagesByState.
- * @param   GCPhys      The guest physical address (not A20 masked).
- * @param   pu2NemState Pointer to variable with the NEM state.  This can be
- *                      update.
- * @param   pvUser      The user argument.
- */
-typedef DECLCALLBACK(int) FNPGMPHYSNEMENUMCALLBACK(PVM pVM, PVMCPU pVCpu, RTGCPHYS GCPhys, uint8_t *pu2NemState, void *pvUser);
-/** Pointer to a FNPGMPHYSNEMENUMCALLBACK function. */
-typedef FNPGMPHYSNEMENUMCALLBACK *PFNPGMPHYSNEMENUMCALLBACK;
-VMM_INT_DECL(int) PGMPhysNemEnumPagesByState(PVM pVM, PVMCPU VCpu, uint8_t uMinState,
-                                             PFNPGMPHYSNEMENUMCALLBACK pfnCallback, void *pvUser);
-
-
 #ifdef VBOX_STRICT
 VMMDECL(unsigned)   PGMAssertHandlerAndFlagsInSync(PVM pVM);
 VMMDECL(unsigned)   PGMAssertNoMappingConflicts(PVM pVM);
@@ -816,6 +727,7 @@ VMMR3_INT_DECL(void)    PGMR3ResetNoMorePhysWritesFlag(PVM pVM);
 VMMR3_INT_DECL(void)    PGMR3MemSetup(PVM pVM, bool fReset);
 VMMR3DECL(int)      PGMR3Term(PVM pVM);
 VMMR3DECL(int)      PGMR3LockCall(PVM pVM);
+VMMR3DECL(int)      PGMR3ChangeMode(PVM pVM, PVMCPU pVCpu, PGMMODE enmGuestMode);
 
 VMMR3DECL(int)      PGMR3PhysRegisterRam(PVM pVM, RTGCPHYS GCPhys, RTGCPHYS cb, const char *pszDesc);
 VMMR3DECL(int)      PGMR3PhysChangeMemBalloon(PVM pVM, bool fInflate, unsigned cPages, RTGCPHYS *paPhysPage);
@@ -954,5 +866,5 @@ VMMR3DECL(int)     PGMR3SharedModuleGetPageState(PVM pVM, RTGCPTR GCPtrPage, boo
 RT_C_DECLS_END
 
 /** @} */
-#endif /* !VBOX_INCLUDED_vmm_pgm_h */
+#endif
 

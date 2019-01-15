@@ -24,11 +24,8 @@
  * SUCH DAMAGE.
  */
 
-#ifndef IPRT_INCLUDED_formats_elf_i386_h
-#define IPRT_INCLUDED_formats_elf_i386_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_formats_elf_i386_h
+#define ___iprt_formats_elf_i386_h
 
 #if 0  /* later */
 
@@ -130,5 +127,5 @@ typedef struct {
 
 #define R_386_COUNT     38      /* Count of defined relocation types. */
 
-#endif /* !IPRT_INCLUDED_formats_elf_i386_h */
+#endif
 

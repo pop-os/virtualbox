@@ -19,7 +19,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,7 +52,6 @@
 #include <iprt/assert.h>
 #include <iprt/err.h>
 #include <iprt/file.h>
-#include <iprt/latin1.h>
 #include <iprt/log.h>
 #include <iprt/mem.h>
 #include <iprt/param.h>
@@ -577,7 +576,7 @@ DECLINLINE(int) rtDbgModCvAdjustSegAndOffset(PRTDBGMODCV pThis, uint32_t *piSeg,
  * @param   pchName             The symbol name (not necessarily terminated).
  * @param   cchName             The symbol name length.
  * @param   fFlags              Flags reserved for future exploits, MBZ.
- * @param   cbSym               Symbol size, 0 if not available.
+ * @param   cbSym               Symbol size, 0 if not avaiable.
  */
 static int rtDbgModCvAddSymbol(PRTDBGMODCV pThis, uint32_t iSeg, uint64_t off, const char *pchName,
                                uint32_t cchName, uint32_t fFlags, uint32_t cbSym)
@@ -592,7 +591,7 @@ static int rtDbgModCvAddSymbol(PRTDBGMODCV pThis, uint32_t iSeg, uint64_t off, c
         rc = rtDbgModCvAdjustSegAndOffset(pThis, &iSeg, &off);
         if (RT_SUCCESS(rc))
         {
-            rc = RTDbgModSymbolAdd(pThis->hCnt, pszName, iSeg, off, cbSym, RTDBGSYMBOLADD_F_ADJUST_SIZES_ON_CONFLICT, NULL);
+            rc = RTDbgModSymbolAdd(pThis->hCnt, pszName, iSeg, off, cbSym, 0 /*fFlags*/, NULL);
 
             /* Simple duplicate symbol mangling, just to get more details. */
             if (rc == VERR_DBG_DUPLICATE_SYMBOL && cchName < _2K)
@@ -609,9 +608,6 @@ static int rtDbgModCvAddSymbol(PRTDBGMODCV pThis, uint32_t iSeg, uint64_t off, c
                 }
 
             }
-            else if (rc == VERR_DBG_ADDRESS_CONFLICT && cbSym)
-                rc = RTDbgModSymbolAdd(pThis->hCnt, pszName, iSeg, off, cbSym,
-                                       RTDBGSYMBOLADD_F_REPLACE_SAME_ADDR | RTDBGSYMBOLADD_F_ADJUST_SIZES_ON_CONFLICT, NULL);
 
             Log(("Symbol: %04x:%08x %.*s [%Rrc]\n", iSeg, off, cchName, pchName, rc));
             if (rc == VERR_DBG_ADDRESS_CONFLICT || rc == VERR_DBG_DUPLICATE_SYMBOL)
@@ -1750,10 +1746,6 @@ static int rtDbgModCvLoadDirectory(PRTDBGMODCV pThis)
     {
         /*
          * 32-bit type (reading too much for NB04 is no problem).
-         *
-         * Note! The watcom linker (v1.9) seems to overwrite the directory
-         *       header and more under some conditions.  So, if this code fails
-         *       you might be so lucky as to have reproduce that issue...
          */
         RTCVDIRHDR32EX DirHdr;
         rc = rtDbgModCvReadAt(pThis, pThis->offDir, &DirHdr, sizeof(DirHdr));
@@ -1762,25 +1754,25 @@ static int rtDbgModCvLoadDirectory(PRTDBGMODCV pThis)
             if (   DirHdr.Core.cbHdr != sizeof(DirHdr.Core)
                 && DirHdr.Core.cbHdr != sizeof(DirHdr))
             {
-                Log(("Unexpected CV directory size: %#x [wlink screwup?]\n", DirHdr.Core.cbHdr));
+                Log(("Unexpected CV directory size: %#x\n", DirHdr.Core.cbHdr));
                 rc = VERR_CV_BAD_FORMAT;
             }
             if (   DirHdr.Core.cbHdr == sizeof(DirHdr)
                 && (   DirHdr.offNextDir != 0
                     || DirHdr.fFlags     != 0) )
             {
-                Log(("Extended CV directory headers fields are not zero: fFlags=%#x offNextDir=%#x [wlink screwup?]\n",
+                Log(("Extended CV directory headers fields are not zero: fFlags=%#x offNextDir=%#x\n",
                      DirHdr.fFlags, DirHdr.offNextDir));
                 rc = VERR_CV_BAD_FORMAT;
             }
             if (DirHdr.Core.cbEntry != sizeof(RTCVDIRENT32))
             {
-                Log(("Unexpected CV directory entry size: %#x (expected %#x) [wlink screwup?]\n", DirHdr.Core.cbEntry, sizeof(RTCVDIRENT32)));
+                Log(("Unexpected CV directory entry size: %#x (expected %#x)\n", DirHdr.Core.cbEntry, sizeof(RTCVDIRENT32)));
                 rc = VERR_CV_BAD_FORMAT;
             }
             if (DirHdr.Core.cEntries < 2 || DirHdr.Core.cEntries >= _512K)
             {
-                Log(("CV directory count is out of considered valid range: %#x [wlink screwup?]\n", DirHdr.Core.cEntries));
+                Log(("CV directory count is out of considered valid range: %#x\n", DirHdr.Core.cEntries));
                 rc = VERR_CV_BAD_FORMAT;
             }
             if (RT_SUCCESS(rc))
@@ -2414,14 +2406,6 @@ static int rtDbgModCvLoadCoffInfo(PRTDBGMODCV pThis)
  */
 
 
-/** @interface_method_impl{RTDBGMODVTDBG,pfnUnwindFrame} */
-static DECLCALLBACK(int) rtDbgModCv_UnwindFrame(PRTDBGMODINT pMod, RTDBGSEGIDX iSeg, RTUINTPTR off, PRTDBGUNWINDSTATE pState)
-{
-    RT_NOREF(pMod, iSeg, off, pState);
-    return VERR_DBG_NO_UNWIND_INFO;
-}
-
-
 /** @interface_method_impl{RTDBGMODVTDBG,pfnLineByAddr} */
 static DECLCALLBACK(int) rtDbgModCv_LineByAddr(PRTDBGMODINT pMod, RTDBGSEGIDX iSeg, RTUINTPTR off,
                                                   PRTINTPTR poffDisp, PRTDBGLINE pLineInfo)
@@ -2886,7 +2870,7 @@ static int rtDbgModCvProbeCommon(PRTDBGMODINT pDbgMod, PRTCVHDR pCvHdr, RTCVFILE
            the area defined by the debug info we got from the loader. */
         if (pCvHdr->off < cb && pCvHdr->off >= sizeof(*pCvHdr))
         {
-            Log(("RTDbgModCv: Found %c%c%c%c at %#x - size %#x, directory at %#x. file type %d\n",
+            Log(("RTDbgModCv: Found %c%c%c%c at %#RTfoff - size %#x, directory at %#x. file type %d\n",
                  RT_BYTE1(pCvHdr->u32Magic), RT_BYTE2(pCvHdr->u32Magic), RT_BYTE3(pCvHdr->u32Magic), RT_BYTE4(pCvHdr->u32Magic),
                  off, cb, pCvHdr->off, enmFileType));
 
@@ -3179,8 +3163,6 @@ DECL_HIDDEN_CONST(RTDBGMODVTDBG) const g_rtDbgModVtDbgCodeView =
     /*.pfnLineCount = */        rtDbgModCv_LineCount,
     /*.pfnLineByOrdinal = */    rtDbgModCv_LineByOrdinal,
     /*.pfnLineByAddr = */       rtDbgModCv_LineByAddr,
-
-    /*.pfnUnwindFrame = */      rtDbgModCv_UnwindFrame,
 
     /*.u32EndMagic = */         RTDBGMODVTDBG_MAGIC
 };

@@ -1,10 +1,10 @@
 /* $Id: QITabWidget.h $ */
 /** @file
- * VBox Qt GUI - Qt extensions: QITabWidget class declaration.
+ * VBox Qt GUI - Qt extensions: QITabWidget class declaration/implementation.
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,27 +15,30 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_extensions_QITabWidget_h
-#define FEQT_INCLUDED_SRC_extensions_QITabWidget_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __QITabWidget_h__
+#define __QITabWidget_h__
 
 /* Qt includes: */
 #include <QTabWidget>
 
-/* GUI includes: */
-#include "UILibraryDefs.h"
-
-/** QTabWidget extension with advanced functionality. */
-class SHARED_LIBRARY_STUFF QITabWidget : public QTabWidget
+/* QTabWidget reimplementation with MacOS X bug-fix. */
+class QITabWidget: public QTabWidget
 {
     Q_OBJECT;
 
 public:
 
-    /** Constructs tab-widget passing @a pParent to the base-class. */
-    QITabWidget(QWidget *pParent = 0);
+    /* Constructor: */
+    QITabWidget(QWidget *pParent = 0)
+        :QTabWidget(pParent)
+    {
+#ifdef VBOX_WS_MAC
+        /* I don't know why, but for some languages there is ElideRight the
+           default on Mac OS X. Fix this. */
+        setElideMode(Qt::ElideNone);
+#endif /* VBOX_WS_MAC */
+    }
 };
 
-#endif /* !FEQT_INCLUDED_SRC_extensions_QITabWidget_h */
+#endif /* __QITabWidget_h__ */
+

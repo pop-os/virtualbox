@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,19 +15,30 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+/// This class requires proper doxy.
+/// For now I'm keeping the old style consistent.
+
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* GUI includes: */
-#include "VBoxGlobal.h"
-#include "VBoxUtils.h"
-#include "UIDownloader.h"
-#include "UIMessageCenter.h"
-#include "UINetworkReply.h"
+# include <UINetworkReply.h>
+# include "UIDownloader.h"
+# include "VBoxGlobal.h"
+# include "UIMessageCenter.h"
+# include "VBoxUtils.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
+/* Starting routine: */
 void UIDownloader::start()
 {
     startDelayedAcknowledging();
 }
 
+/* Acknowledging start: */
 void UIDownloader::sltStartAcknowledging()
 {
     /* Set state to acknowledging: */
@@ -37,6 +48,7 @@ void UIDownloader::sltStartAcknowledging()
     createNetworkRequest(UINetworkRequestType_HEAD, m_sources);
 }
 
+/* Downloading start: */
 void UIDownloader::sltStartDownloading()
 {
     /* Set state to downloading: */
@@ -46,6 +58,7 @@ void UIDownloader::sltStartDownloading()
     createNetworkRequest(UINetworkRequestType_GET, QList<QUrl>() << m_source);
 }
 
+/* Verifying start: */
 void UIDownloader::sltStartVerifying()
 {
     /* Set state to verifying: */
@@ -55,6 +68,7 @@ void UIDownloader::sltStartVerifying()
     createNetworkRequest(UINetworkRequestType_GET, QList<QUrl>() << m_strPathSHA256SumsFile);
 }
 
+/* Constructor: */
 UIDownloader::UIDownloader()
     : m_state(UIDownloaderState_Null)
 {
@@ -64,6 +78,7 @@ UIDownloader::UIDownloader()
     connect(this, &UIDownloader::sigToStartVerifying,     this, &UIDownloader::sltStartVerifying,     Qt::QueuedConnection);
 }
 
+/* virtual override */
 const QString UIDownloader::description() const
 {
     /* Look for known state: */
@@ -78,16 +93,25 @@ const QString UIDownloader::description() const
     return QString();
 }
 
-void UIDownloader::processNetworkReplyProgress(qint64, qint64)
+/* Network-reply progress handler: */
+void UIDownloader::processNetworkReplyProgress(qint64 iReceived, qint64 iTotal)
 {
+    /* Unused variables: */
+    Q_UNUSED(iReceived);
+    Q_UNUSED(iTotal);
 }
 
-void UIDownloader::processNetworkReplyCanceled(UINetworkReply *)
+/* Network-reply canceled handler: */
+void UIDownloader::processNetworkReplyCanceled(UINetworkReply *pNetworkReply)
 {
+    /* Unused variables: */
+    Q_UNUSED(pNetworkReply);
+
     /* Delete downloader: */
     deleteLater();
 }
 
+/* Network-reply finished handler: */
 void UIDownloader::processNetworkReplyFinished(UINetworkReply *pNetworkReply)
 {
     /* Process reply: */
@@ -113,6 +137,7 @@ void UIDownloader::processNetworkReplyFinished(UINetworkReply *pNetworkReply)
     }
 }
 
+/* Handle acknowledging result: */
 void UIDownloader::handleAcknowledgingResult(UINetworkReply *pNetworkReply)
 {
     /* Get the final source: */
@@ -131,6 +156,7 @@ void UIDownloader::handleAcknowledgingResult(UINetworkReply *pNetworkReply)
     }
 }
 
+/* Handle downloading result: */
 void UIDownloader::handleDownloadingResult(UINetworkReply *pNetworkReply)
 {
     /* Handle downloaded object: */

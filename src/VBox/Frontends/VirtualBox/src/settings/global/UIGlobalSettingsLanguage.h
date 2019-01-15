@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsLanguage_h
-#define FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsLanguage_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIGlobalSettingsLanguage_h___
+#define ___UIGlobalSettingsLanguage_h___
 
 /* GUI includes: */
 #include "UISettingsPage.h"
@@ -29,9 +26,10 @@
 struct UIDataSettingsGlobalLanguage;
 typedef UISettingsCache<UIDataSettingsGlobalLanguage> UISettingsCacheGlobalLanguage;
 
+
 /** Global settings: Language page. */
-class SHARED_LIBRARY_STUFF UIGlobalSettingsLanguage : public UISettingsPageGlobal,
-                                                      public Ui::UIGlobalSettingsLanguage
+class UIGlobalSettingsLanguage : public UISettingsPageGlobal,
+                                 public Ui::UIGlobalSettingsLanguage
 {
     Q_OBJECT;
 
@@ -94,4 +92,5 @@ private:
     UISettingsCacheGlobalLanguage *m_pCache;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsLanguage_h */
+#endif /* !___UIGlobalSettingsLanguage_h___ */
+

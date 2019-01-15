@@ -7,7 +7,7 @@ Test Manager Web-UI - Content Base Classes.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2019 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -26,12 +26,11 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard python imports.
 import copy;
-import sys;
 
 # Validation Kit imports.
 from common                         import webutils;
@@ -40,10 +39,6 @@ from testmanager.webui.wuibase      import WuiDispatcherBase, WuiException;
 from testmanager.webui.wuihlpform   import WuiHlpForm;
 from testmanager.core               import db;
 from testmanager.core.base          import AttributeChangeEntryPre;
-
-# Python 3 hacks:
-if sys.version_info[0] >= 3:
-    unicode = str;  # pylint: disable=redefined-builtin,invalid-name
 
 
 class WuiHtmlBase(object): # pylint: disable=R0903
@@ -695,7 +690,7 @@ class WuiFormContentBase(WuiSingleContentBase): # pylint: disable=R0903
             self._populateForm(oForm, self._oData);
             if self._sRedirectTo is not None:
                 oForm.addTextHidden(self._oDisp.ksParamRedirectTo, self._sRedirectTo);
-        except WuiException as oXcpt:
+        except WuiException, oXcpt:
             sContent = unicode(oXcpt)
         else:
             sContent = oForm.finalize();

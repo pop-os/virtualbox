@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,11 +16,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef MAIN_INCLUDED_GuestDnDPrivate_h
-#define MAIN_INCLUDED_GuestDnDPrivate_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ____H_GUESTDNDPRIVATE
+#define ____H_GUESTDNDPRIVATE
 
 #include <iprt/dir.h>
 #include <iprt/file.h>
@@ -28,7 +25,6 @@
 
 #include <VBox/hgcmsvc.h> /* For PVBOXHGCMSVCPARM. */
 #include <VBox/GuestHost/DragAndDrop.h>
-#include <VBox/GuestHost/DragAndDropDefs.h>
 #include <VBox/HostServices/DragAndDropSvc.h>
 
 /**
@@ -168,7 +164,7 @@ public:
 
     int fromURIList(const DnDURIList &lstURI)
     {
-        return fromString(lstURI.GetRootEntries());
+        return fromString(lstURI.RootToString());
     }
 
 protected:
@@ -392,7 +388,7 @@ public:
 
 public:
 
-    int createIntermediate(DnDURIObject::Type enmType)
+    int createIntermediate(DnDURIObject::Type enmType = DnDURIObject::Unknown)
     {
         reset();
 
@@ -566,8 +562,8 @@ public:
         /** @todo Find objct in lstURI first! */
         switch (Obj.GetType())
         {
-            case DnDURIObject::Type_Directory:
-            case DnDURIObject::Type_File:
+            case DnDURIObject::Directory:
+            case DnDURIObject::File:
                 rc = VINF_SUCCESS;
                 break;
 
@@ -649,7 +645,7 @@ public:
                  *       operation, also to keep the accounting right. */
                 rc = lstURI.AppendURIPathsFromList(lstURIOrg, DNDURILIST_FLAGS_KEEP_OPEN);
                 if (RT_SUCCESS(rc))
-                    cObjToProcess = lstURI.GetTotalCount();
+                    cObjToProcess = lstURI.TotalCount();
             }
         }
 
@@ -661,10 +657,10 @@ public:
     {
         LogFlowFuncEnter();
 
-        int rc = lstURI.SetFromURIData(Data.getData(), Data.getSize(), 0 /* uFlags */);
+        int rc = lstURI.RootFromURIData(Data.getData(), Data.getSize(), 0 /* uFlags */);
         if (RT_SUCCESS(rc))
         {
-            const size_t cRootCount = lstURI.GetRootCount();
+            const size_t cRootCount = lstURI.RootCount();
             LogFlowFunc(("cRootCount=%zu, cObjToProcess=%RU64\n", cRootCount, cObjToProcess));
             if (cRootCount > cObjToProcess)
                 rc = VERR_INVALID_PARAMETER;
@@ -677,10 +673,10 @@ public:
     {
         const char *pszDroppedFilesDir = droppedFiles.GetDirAbs();
 
-        Utf8Str strURIs = lstURI.GetRootEntries(RTCString(pszDroppedFilesDir));
+        Utf8Str strURIs = lstURI.RootToString(RTCString(pszDroppedFilesDir));
         size_t cbData = strURIs.length();
 
-        LogFlowFunc(("%zu root URIs (%zu bytes)\n", lstURI.GetRootCount(), cbData));
+        LogFlowFunc(("%zu root URIs (%zu bytes)\n", lstURI.RootCount(), cbData));
 
         int rc;
 
@@ -800,7 +796,7 @@ typedef struct RECVDATACTX
     /** Desired drop action to perform on the host.
      *  Needed to tell the guest if data has to be
      *  deleted e.g. when moving instead of copying. */
-    VBOXDNDACTION                       mAction;
+    uint32_t                            mAction;
     /** Drag'n drop received from the guest.
      *  This can be arbitrary data or an URI list. */
     GuestDnDData                        mData;
@@ -889,7 +885,7 @@ public:
                 return VERR_NO_MEMORY;
         }
 
-        HGCMSvcSetPv(pParm, pvTmp, cbBuf);
+        pParm->setPointer(pvTmp, cbBuf);
         return VINF_SUCCESS;
     }
 
@@ -903,7 +899,7 @@ public:
         if (!pszTemp)
             return VERR_NO_MEMORY;
 
-        HGCMSvcSetStr(pParm, pszTemp);
+        pParm->setString(pszTemp);
         return VINF_SUCCESS;
     }
 
@@ -913,7 +909,7 @@ public:
         if (!pParm)
             return VERR_NO_MEMORY;
 
-        HGCMSvcSetU32(pParm, u32Val);
+        pParm->setUInt32(u32Val);
         return VINF_SUCCESS;
     }
 
@@ -923,7 +919,7 @@ public:
         if (!pParm)
             return VERR_NO_MEMORY;
 
-        HGCMSvcSetU64(pParm, u64Val);
+        pParm->setUInt64(u64Val);
         return VINF_SUCCESS;
     }
 
@@ -989,11 +985,11 @@ public:
     int notifyAboutGuestResponse(void) const;
     int waitForGuestResponse(RTMSINTERVAL msTimeout = 500) const;
 
-    void setActionsAllowed(VBOXDNDACTIONLIST a) { m_dndLstActionsAllowed = a; }
-    VBOXDNDACTIONLIST getActionsAllowed(void) const { return m_dndLstActionsAllowed; }
+    void setAllActions(uint32_t a) { m_allActions = a; }
+    uint32_t allActions(void) const { return m_allActions; }
 
-    void setActionDefault(VBOXDNDACTION a) { m_dndActionDefault = a; }
-    VBOXDNDACTION getActionDefault(void) const { return m_dndActionDefault; }
+    void setDefAction(uint32_t a) { m_defAction = a; }
+    uint32_t defAction(void) const { return m_defAction; }
 
     void setFormats(const GuestDnDMIMEList &lstFormats) { m_lstFormats = lstFormats; }
     GuestDnDMIMEList formats(void) const { return m_lstFormats; }
@@ -1021,9 +1017,10 @@ protected:
     RTSEMEVENT            m_EventSem;
     /** Default action to perform in case of a
      *  successful drop. */
-    VBOXDNDACTION         m_dndActionDefault;
-    /** Actions supported by the guest in case of a successful drop. */
-    VBOXDNDACTIONLIST     m_dndLstActionsAllowed;
+    uint32_t              m_defAction;
+    /** Actions supported by the guest in case of
+     *  a successful drop. */
+    uint32_t              m_allActions;
     /** Format(s) requested/supported from the guest. */
     GuestDnDMIMEList      m_lstFormats;
     /** Pointer to IGuest parent object. */
@@ -1096,10 +1093,10 @@ public:
     static com::Utf8Str             toFormatString(const GuestDnDMIMEList &lstFormats);
     static GuestDnDMIMEList         toFilteredFormatList(const GuestDnDMIMEList &lstFormatsSupported, const GuestDnDMIMEList &lstFormatsWanted);
     static GuestDnDMIMEList         toFilteredFormatList(const GuestDnDMIMEList &lstFormatsSupported, const com::Utf8Str &strFormatsWanted);
-    static DnDAction_T              toMainAction(VBOXDNDACTION dndAction);
-    static std::vector<DnDAction_T> toMainActions(VBOXDNDACTIONLIST dndActionList);
-    static VBOXDNDACTION            toHGCMAction(DnDAction_T enmAction);
-    static void                     toHGCMActions(DnDAction_T enmDefAction, VBOXDNDACTION *pDefAction, const std::vector<DnDAction_T> vecAllowedActions, VBOXDNDACTIONLIST *pLstAllowedActions);
+    static DnDAction_T              toMainAction(uint32_t uAction);
+    static std::vector<DnDAction_T> toMainActions(uint32_t uActions);
+    static uint32_t                 toHGCMAction(DnDAction_T enmAction);
+    static void                     toHGCMActions(DnDAction_T enmDefAction, uint32_t *puDefAction, const std::vector<DnDAction_T> vecAllowedActions, uint32_t *puAllowedActions);
     /** @}  */
 
 protected:
@@ -1195,5 +1192,5 @@ protected:
         GuestDnDMsgList             m_lstMsgOut;
     } mDataBase;
 };
-#endif /* !MAIN_INCLUDED_GuestDnDPrivate_h */
+#endif /* ____H_GUESTDNDPRIVATE */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef GA_INCLUDED_SRC_common_VBoxService_VBoxServiceVMInfo_h
-#define GA_INCLUDED_SRC_common_VBoxService_VBoxServiceVMInfo_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBoxServiceVMInfo_h
+#define ___VBoxServiceVMInfo_h
 
 
 extern int VGSvcUserUpdateF(PVBOXSERVICEVEPROPCACHE pCache, const char *pszUser, const char *pszDomain,
@@ -28,5 +25,5 @@ extern int VGSvcUserUpdateF(PVBOXSERVICEVEPROPCACHE pCache, const char *pszUser,
 
 extern uint32_t g_uVMInfoUserIdleThresholdMS;
 
-#endif /* !GA_INCLUDED_SRC_common_VBoxService_VBoxServiceVMInfo_h */
+#endif
 

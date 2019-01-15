@@ -21,7 +21,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -324,8 +324,7 @@ static int ich9pciConfigWrite(PDEVPCIROOT pPciRoot, PciAddress* pAddr,
         if (pPciDev)
         {
 #ifdef IN_RING3
-            rc = VBOXSTRICTRC_TODO(pPciDev->Int.s.pfnConfigWrite(pPciDev->Int.s.CTX_SUFF(pDevIns), pPciDev,
-                                                                 pAddr->iRegister, val, cb));
+            pPciDev->Int.s.pfnConfigWrite(pPciDev->Int.s.CTX_SUFF(pDevIns), pPciDev, pAddr->iRegister, val, cb);
 #else
             rc = rcReschedule;
 #endif
@@ -1003,7 +1002,6 @@ static DECLCALLBACK(void) ich9pcibridgeConfigWrite(PPDMDEVINSR3 pDevIns, uint8_t
         if (pPciDev)
         {
             LogFunc(("%s: addr=%02x val=%08x len=%d\n", pPciDev->pszNameR3, u32Address, u32Value, cb));
-            /** @todo return rc */
             pPciDev->Int.s.pfnConfigWrite(pPciDev->Int.s.CTX_SUFF(pDevIns), pPciDev, u32Address, u32Value, cb);
         }
     }
@@ -1798,12 +1796,11 @@ static bool ich9pciBiosInitDevicePrefetchableBARs(PDEVPCIROOT pPciRoot, PDEVPCIB
                 uNew = pPciRoot->uPciBiosMmio;
                 /* Align starting address to region size. */
                 uNew = (uNew + cbRegSize64 - 1) & ~(cbRegSize64 - 1);
-                /* Unconditionally exclude I/O-APIC/HPET/ROM. Pessimistic, but better than causing a mess. Okay for BIOS. */
+                /* Unconditionally exclude I/O-APIC/HPET/ROM. Pessimistic, but better than causing a mess. */
                 if (   !uNew
                     || (uNew <= UINT32_C(0xffffffff) && uNew + cbRegSize64 - 1 >= UINT32_C(0xfec00000))
                     || uNew >= _4G)
                 {
-                    Log2Func(("region #%u: Rejecting address range: %#x LB %#RX64\n", iRegion, uNew, cbRegSize64));
                     Assert(fDryrun);
                     return true;
                 }
@@ -2277,16 +2274,13 @@ static int devpciR3UnmapRegion(PPDMPCIDEV pDev, int iRegion)
 /**
  * Worker for devpciR3CommonDefaultConfigWrite that updates BAR and ROM mappings.
  *
- * @returns VINF_SUCCESS of DBGFSTOP result.
  * @param   pPciDev             The PCI device to update the mappings for.
  * @param   fP2PBridge          Whether this is a PCI to PCI bridge or not.
  */
-static VBOXSTRICTRC devpciR3UpdateMappings(PPDMPCIDEV pPciDev, bool fP2PBridge)
+static void devpciR3UpdateMappings(PPDMPCIDEV pPciDev, bool fP2PBridge)
 {
     /* safe, only needs to go to the config space array */
     uint16_t const u16Cmd = PDMPciDevGetWord(pPciDev, VBOX_PCI_COMMAND);
-    Log4(("devpciR3UpdateMappings: dev %u/%u (%s): u16Cmd=%#x\n",
-          pPciDev->uDevFn >> VBOX_PCI_DEVFN_DEV_SHIFT, pPciDev->uDevFn & VBOX_PCI_DEVFN_FUN_MASK, pPciDev->pszNameR3, u16Cmd));
     for (unsigned iRegion = 0; iRegion < VBOX_PCI_NUM_REGIONS; iRegion++)
     {
         /* Skip over BAR2..BAR5 for bridges, as they have a different meaning there. */
@@ -2317,10 +2311,6 @@ static VBOXSTRICTRC devpciR3UpdateMappings(PPDMPCIDEV pPciDev, bool fP2PBridge)
                         && uIoBase < uLast
                         && uIoBase > 0)
                         uNew = uIoBase;
-                    else
-                        Log4(("devpciR3UpdateMappings: dev %u/%u (%s): region #%u: Disregarding invalid I/O port range: %#RX32..%#RX64\n",
-                              pPciDev->uDevFn >> VBOX_PCI_DEVFN_DEV_SHIFT, pPciDev->uDevFn & VBOX_PCI_DEVFN_FUN_MASK,
-                              pPciDev->pszNameR3, iRegion, uIoBase, uLast));
                 }
             }
             /*
@@ -2331,13 +2321,7 @@ static VBOXSTRICTRC devpciR3UpdateMappings(PPDMPCIDEV pPciDev, bool fP2PBridge)
              *       Additionally addresses with the top 32 bits all set are excluded, to
              *       catch silly OSes which probe 64-bit BARs without disabling the
              *       corresponding transactions.
-             *
-             * Update: The pure paranoia above broke NT 3.51, so it was changed to only
-             *         exclude the 64KB BIOS mapping at the top.  NT 3.51 excludes the
-             *         top 256KB, btw.
              */
-            /** @todo Query upper boundrary from CPUM and PGMPhysRom instead of making
-             *        incorrect assumptions. */
             else if (u16Cmd & VBOX_PCI_COMMAND_MEMORY)
             {
                 /* safe, only needs to go to the config space array */
@@ -2355,30 +2339,17 @@ static VBOXSTRICTRC devpciR3UpdateMappings(PPDMPCIDEV pPciDev, bool fP2PBridge)
 
                     uint64_t uLast = uMemBase + cbRegion - 1;
                     if (   uMemBase < uLast
-                        && uMemBase > 0)
-                    {
-                        if (   (   uMemBase > UINT32_C(0xffffffff)
-                                || uLast    < UINT32_C(0xffff0000) ) /* UINT32_C(0xfec00000) - breaks NT3.51! */
-                            && uMemBase < UINT64_C(0xffffffff00000000) )
-                            uNew = uMemBase;
-                        else
-                            Log(("devpciR3UpdateMappings: dev %u/%u (%s): region #%u: Rejecting address range: %#RX64..%#RX64!\n",
-                                 pPciDev->uDevFn >> VBOX_PCI_DEVFN_DEV_SHIFT, pPciDev->uDevFn & VBOX_PCI_DEVFN_FUN_MASK,
-                                 pPciDev->pszNameR3, iRegion, uMemBase, uLast));
-                    }
-                    else
-                        Log2(("devpciR3UpdateMappings: dev %u/%u (%s): region #%u: Disregarding invalid address range: %#RX64..%#RX64\n",
-                              pPciDev->uDevFn >> VBOX_PCI_DEVFN_DEV_SHIFT, pPciDev->uDevFn & VBOX_PCI_DEVFN_FUN_MASK,
-                              pPciDev->pszNameR3, iRegion, uMemBase, uLast));
+                        && uMemBase > 0
+                        && !(   uMemBase <= UINT32_C(0xffffffff)
+                             && uLast    >= UINT32_C(0xfec00000))
+                        && uMemBase < UINT64_C(0xffffffff00000000) )
+                        uNew = uMemBase;
                 }
             }
 
             /*
              * Do real unmapping and/or mapping if the address change.
              */
-            Log4(("devpciR3UpdateMappings: dev %u/%u (%s): iRegion=%u addr=%#RX64 uNew=%#RX64\n",
-                  pPciDev->uDevFn >> VBOX_PCI_DEVFN_DEV_SHIFT, pPciDev->uDevFn & VBOX_PCI_DEVFN_FUN_MASK, pPciDev->pszNameR3,
-                  iRegion, pRegion->addr, uNew));
             if (uNew != pRegion->addr)
             {
                 LogRel2(("PCI: config dev %u/%u (%s) BAR%i: %#RX64 -> %#RX64 (LB %RX64 (%RU64))\n",
@@ -2400,8 +2371,6 @@ static VBOXSTRICTRC devpciR3UpdateMappings(PPDMPCIDEV pPciDev, bool fP2PBridge)
         }
         /* else: size == 0: unused region */
     }
-
-    return VINF_SUCCESS;
 }
 
 
@@ -2531,12 +2500,11 @@ DECLINLINE(bool) devpciR3IsConfigByteWritable(uint32_t uAddress, uint8_t bHeader
  * See paragraph 7.5 of PCI Express specification (p. 349) for
  * definition of registers and their writability policy.
  */
-DECLCALLBACK(VBOXSTRICTRC) devpciR3CommonDefaultConfigWrite(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev,
-                                                            uint32_t uAddress, uint32_t u32Value, unsigned cb)
+DECLCALLBACK(void) devpciR3CommonDefaultConfigWrite(PPDMDEVINS pDevIns, PPDMPCIDEV pPciDev,
+                                                    uint32_t uAddress, uint32_t u32Value, unsigned cb)
 {
     NOREF(pDevIns);
     Assert(cb <= 4);
-    VBOXSTRICTRC rcRet = VINF_SUCCESS;
 
     if (uAddress + cb <= 256)
     {
@@ -2663,7 +2631,7 @@ DECLCALLBACK(VBOXSTRICTRC) devpciR3CommonDefaultConfigWrite(PPDMDEVINS pDevIns, 
              * Update the region mappings if anything changed related to them (command, BARs, ROM).
              */
             if (fUpdateMappings)
-                rcRet = devpciR3UpdateMappings(pPciDev, fP2PBridge);
+                devpciR3UpdateMappings(pPciDev, fP2PBridge);
         }
     }
     else if (uAddress + cb <= _4K)
@@ -2671,8 +2639,6 @@ DECLCALLBACK(VBOXSTRICTRC) devpciR3CommonDefaultConfigWrite(PPDMDEVINS pDevIns, 
                 pPciDev->pszNameR3, pPciDev->Int.s.CTX_SUFF(pDevIns)->iInstance, uAddress));
     else
         AssertMsgFailed(("Write after end of PCI config space\n"));
-
-    return rcRet;
 }
 
 

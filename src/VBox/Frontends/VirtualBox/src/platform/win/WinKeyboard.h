@@ -1,10 +1,10 @@
 /* $Id: WinKeyboard.h $ */
 /** @file
- * VBox Qt GUI - Declarations of utility functions for handling Windows Keyboard specific tasks.
+ * VBox Qt GUI - Windows keyboard handling..
  */
 
 /*
- * Copyright (C) 2014-2019 Oracle Corporation
+ * Copyright (C) 2014-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,23 +15,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_platform_win_WinKeyboard_h
-#define FEQT_INCLUDED_SRC_platform_win_WinKeyboard_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___WinKeyboard_h___
+#define ___WinKeyboard_h___
 
-/* GUI includes: */
-#include "UILibraryDefs.h"
-
-/* Other VBox includes: */
+/* Platform includes: */
 #include <iprt/win/windows.h>
 
-SHARED_LIBRARY_STUFF void * WinHidDevicesKeepLedsState(void);
-SHARED_LIBRARY_STUFF void   WinHidDevicesApplyAndReleaseLedsState(void *pData);
-SHARED_LIBRARY_STUFF void   WinHidDevicesBroadcastLeds(bool fNumLockOn, bool fCapsLockOn, bool fScrollLockOn);
+void * WinHidDevicesKeepLedsState(void);
+void   WinHidDevicesApplyAndReleaseLedsState(void *pData);
+void   WinHidDevicesBroadcastLeds(bool fNumLockOn, bool fCapsLockOn, bool fScrollLockOn);
 
-SHARED_LIBRARY_STUFF bool winHidLedsInSync(bool fNumLockOn, bool fCapsLockOn, bool fScrollLockOn);
+bool winHidLedsInSync(bool fNumLockOn, bool fCapsLockOn, bool fScrollLockOn);
 
 /** Helper class to deal with Windows AltGr handling.
   *
@@ -44,7 +38,7 @@ SHARED_LIBRARY_STUFF bool winHidLedsInSync(bool fNumLockOn, bool fCapsLockOn, bo
   * event into the event stream.  While this does not let us filter out the
   * unwanted event at source, it should still make guest system keyboard handling
   * work correctly. */
-class SHARED_LIBRARY_STUFF WinAltGrMonitor
+class WinAltGrMonitor
 {
 public:
 
@@ -88,5 +82,5 @@ private:
     LONG m_timeOfLastKeyEvent;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_platform_win_WinKeyboard_h */
+#endif
 

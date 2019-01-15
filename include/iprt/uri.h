@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_uri_h
-#define IPRT_INCLUDED_uri_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_uri_h
+#define ___iprt_uri_h
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -99,7 +96,7 @@ typedef struct RTURIPARSED
     size_t      offAuthorityHost;
     /** The length of the host part of the authority. */
     size_t      cchAuthorityHost;
-    /** The authority port number, UINT32_MAX if not present or empty. */
+    /** The authority port number, UINT32_MAX if not present. */
     uint32_t    uAuthorityPort;
     /** @} */
 } RTURIPARSED;
@@ -112,11 +109,9 @@ typedef RTURIPARSED const *PCRTURIPARSED;
  * @{  */
 /** Set if the URI contains escaped characters. */
 #define RTURIPARSED_F_CONTAINS_ESCAPED_CHARS        UINT32_C(0x00000001)
-/** Set if the URI has an authority component.  Necessary since the authority
+/** Set if the URI have an authority component.  Necessary since the authority
  * component can have a zero length. */
-#define RTURIPARSED_F_HAS_AUTHORITY                 UINT32_C(0x00000002)
-/** Set if there is a port component. */
-#define RTURIPARSED_F_HAS_PORT                      UINT32_C(0x00000004)
+#define RTURIPARSED_F_HAVE_AUTHORITY                UINT32_C(0x00000002)
 /** @} */
 
 /**
@@ -366,5 +361,5 @@ RTDECL(int) RTUriFilePathEx(const char *pszUri, uint32_t fPathStyle, char **ppsz
 
 RT_C_DECLS_END
 
-#endif /* !IPRT_INCLUDED_uri_h */
+#endif
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -212,7 +212,8 @@ HRESULT EUSBWEBCAM::Initialize(Console *pConsole,
     if (SUCCEEDED(hrc) && RT_FAILURE(vrc))
     {
         LogFlowThisFunc(("%Rrc\n", vrc));
-        hrc = pConsole->setErrorBoth(VBOX_E_IPRT_ERROR, vrc, "Init emulated USB webcam (%Rrc)", vrc);
+        hrc = pConsole->setError(VBOX_E_IPRT_ERROR,
+                                 "Init emulated USB webcam (%Rrc)", vrc);
     }
 
     return hrc;
@@ -311,7 +312,8 @@ HRESULT EUSBWEBCAM::Attach(Console *pConsole,
     if (SUCCEEDED(hrc) && RT_FAILURE(vrc))
     {
         LogFlowThisFunc(("%Rrc\n", vrc));
-        hrc = pConsole->setErrorBoth(VBOX_E_VM_ERROR, vrc, "Attach emulated USB webcam (%Rrc)", vrc);
+        hrc = pConsole->setError(VBOX_E_IPRT_ERROR,
+                                 "Attach emulated USB webcam (%Rrc)", vrc);
     }
 
     return hrc;
@@ -329,7 +331,8 @@ HRESULT EUSBWEBCAM::Detach(Console *pConsole,
     if (SUCCEEDED(hrc) && RT_FAILURE(vrc))
     {
         LogFlowThisFunc(("%Rrc\n", vrc));
-        hrc = pConsole->setErrorBoth(VBOX_E_VM_ERROR, vrc, "Detach emulated USB webcam (%Rrc)", vrc);
+        hrc = pConsole->setError(VBOX_E_IPRT_ERROR,
+                                 "Detach emulated USB webcam (%Rrc)", vrc);
     }
 
     return hrc;

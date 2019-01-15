@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,27 +15,35 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* GUI includes: */
-#include "UIModalWindowManager.h"
-#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-# include "UINetworkManager.h"
-# include "UINetworkManagerDialog.h"
-#endif
-#include "UIProgressDialog.h"
+# include "UIModalWindowManager.h"
+# ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+#  include "UINetworkManagerDialog.h"
+#  include "UINetworkManager.h"
+# endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
+# include "UISelectorWindow.h"
+# include "UIProgressDialog.h"
+# include "VBoxGlobal.h"
 
 /* Other VBox includes: */
-#include <VBox/sup.h>
+# include <VBox/sup.h>
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 /* static */
-UIModalWindowManager *UIModalWindowManager::s_pInstance = 0;
-UIModalWindowManager *UIModalWindowManager::instance() { return s_pInstance; }
+UIModalWindowManager* UIModalWindowManager::m_spInstance = 0;
+UIModalWindowManager* UIModalWindowManager::instance() { return m_spInstance; }
 
 /* static */
 void UIModalWindowManager::create()
 {
     /* Make sure instance is NOT created yet: */
-    if (s_pInstance)
+    if (m_spInstance)
     {
         AssertMsgFailed(("UIModalWindowManager instance is already created!"));
         return;
@@ -49,38 +57,67 @@ void UIModalWindowManager::create()
 void UIModalWindowManager::destroy()
 {
     /* Make sure instance is NOT destroyed yet: */
-    if (!s_pInstance)
+    if (!m_spInstance)
     {
         AssertMsgFailed(("UIModalWindowManager instance is already destroyed!"));
         return;
     }
 
     /* Destroy instance: */
-    delete s_pInstance;
+    delete m_spInstance;
 }
 
 UIModalWindowManager::UIModalWindowManager()
-    : m_pMainWindowShown(0)
 {
     /* Assign instance: */
-    s_pInstance = this;
+    m_spInstance = this;
 }
 
 UIModalWindowManager::~UIModalWindowManager()
 {
     /* Unassign instance: */
-    s_pInstance = 0;
+    m_spInstance = 0;
+}
+
+QWidget* UIModalWindowManager::mainWindowShown() const
+{
+    /* It may happen that this method is called before VBoxGlobal initialization
+     * or after initialization had failed (for example, to show some message).
+     * Return NULL pointer in such cases: */
+    if (!VBoxGlobal::instance() || !vboxGlobal().isValid())
+        return 0;
+
+    /* For VM console process: */
+    if (vboxGlobal().isVMConsoleProcess())
+    {
+        /* It will be currently active machine-window if visible: */
+        if (vboxGlobal().activeMachineWindow() &&
+            vboxGlobal().activeMachineWindow()->isVisible())
+            return vboxGlobal().activeMachineWindow();
+    }
+    /* For VM selector process: */
+    else
+    {
+        /* It will be the selector window if visible: */
+        if (gpSelectorWindow &&
+            gpSelectorWindow->isVisible())
+            return gpSelectorWindow;
+    }
+
+    /* NULL by default: */
+    return 0;
 }
 
 #ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-QWidget *UIModalWindowManager::networkManagerOrMainWindowShown() const
+QWidget* UIModalWindowManager::networkManagerOrMainWindowShown() const
 {
-    /* Return main application window before network-manager initialization: */
+    /* It may happen that this method is called before network-manager initialization
+     * or when the network-manager is hidden, return main application window in this case: */
     return gNetworkManager && gNetworkManager->window()->isVisible() ? gNetworkManager->window() : mainWindowShown();
 }
 #endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
 
-QWidget *UIModalWindowManager::realParentWindow(QWidget *pWidget)
+QWidget* UIModalWindowManager::realParentWindow(QWidget *pWidget)
 {
     /* Null if widget pointer is null: */
     if (!pWidget)
@@ -123,7 +160,7 @@ bool UIModalWindowManager::isWindowOnTheTopOfTheModalWindowStack(QWidget *pWindo
     return contains(pWindow, true);
 }
 
-void UIModalWindowManager::registerNewParent(QWidget *pWindow, QWidget *pParentWindow /* = 0 */)
+void UIModalWindowManager::registerNewParent(QWidget *pWindow, QWidget *pParentWindow /* = 0*/)
 {
     /* Make sure passed-widget-pointer is not null: */
     if (!pWindow)
@@ -234,7 +271,7 @@ void UIModalWindowManager::sltRemoveFromStack(QObject *pObject)
     emit sigStackChanged();
 }
 
-bool UIModalWindowManager::contains(QWidget *pParentWindow, bool fAsTheTopOfStack /* = false */)
+bool UIModalWindowManager::contains(QWidget *pParentWindow, bool fAsTheTopOfStack /* = false*/)
 {
     /* False if passed-parent-widget pointer is null: */
     if (!pParentWindow)

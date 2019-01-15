@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -49,7 +49,6 @@ RTDECL(int)  RTErrConvertFromNtStatus(long lNativeCode)
         case STATUS_ALERTED:                return VERR_INTERRUPTED;
         case STATUS_USER_APC:               return VERR_INTERRUPTED;
 
-        case STATUS_INVALID_INFO_CLASS:     return VERR_INVALID_FUNCTION;
         case STATUS_DATATYPE_MISALIGNMENT:  return VERR_INVALID_POINTER;
         case STATUS_NO_MORE_FILES:          return VERR_NO_MORE_FILES;
         case STATUS_NO_MORE_ENTRIES:        return VERR_NO_MORE_FILES;
@@ -83,10 +82,7 @@ RTDECL(int)  RTErrConvertFromNtStatus(long lNativeCode)
         case STATUS_NOT_A_DIRECTORY:        return VERR_NOT_A_DIRECTORY;
         case STATUS_DIRECTORY_NOT_EMPTY:    return VERR_DIR_NOT_EMPTY;
         case STATUS_SHARING_VIOLATION:      return VERR_SHARING_VIOLATION;
-        case STATUS_NO_MEDIA_IN_DEVICE:     return VERR_DRIVE_IS_EMPTY;
 
-        case STATUS_REPARSE_POINT_NOT_RESOLVED:
-                                            return VERR_TOO_MANY_SYMLINKS;
         case STATUS_UNEXPECTED_NETWORK_ERROR:
                                             return VERR_NET_IO_ERROR;
         case STATUS_INVALID_IMAGE_HASH:     return VERR_LDR_IMAGE_HASH;

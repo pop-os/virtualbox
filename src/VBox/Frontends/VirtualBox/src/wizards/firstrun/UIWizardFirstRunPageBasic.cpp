@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,20 +15,26 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QHBoxLayout>
-#include <QVBoxLayout>
+# include <QVBoxLayout>
+# include <QHBoxLayout>
 
 /* GUI includes: */
-#include "QIRichTextLabel.h"
-#include "QIToolButton.h"
-#include "VBoxGlobal.h"
-#include "UIIconPool.h"
-#include "UIMediaComboBox.h"
-#include "UIMedium.h"
-#include "UIMessageCenter.h"
-#include "UIWizardFirstRun.h"
-#include "UIWizardFirstRunPageBasic.h"
+# include "UIWizardFirstRunPageBasic.h"
+# include "UIWizardFirstRun.h"
+# include "UIIconPool.h"
+# include "VBoxGlobal.h"
+# include "UIMessageCenter.h"
+# include "VBoxMediaComboBox.h"
+# include "QIToolButton.h"
+# include "QIRichTextLabel.h"
+# include "UIMedium.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 UIWizardFirstRunPage::UIWizardFirstRunPage(bool fBootHardDiskWasSet)
@@ -39,23 +45,23 @@ UIWizardFirstRunPage::UIWizardFirstRunPage(bool fBootHardDiskWasSet)
 void UIWizardFirstRunPage::onOpenMediumWithFileOpenDialog()
 {
     /* Get opened vboxMedium id: */
-    QUuid uMediumId = vboxGlobal().openMediumWithFileOpenDialog(m_pMediaSelector->type(), thisImp());
+    QString strMediumId = vboxGlobal().openMediumWithFileOpenDialog(m_pMediaSelector->type(), thisImp());
     /* Update medium-combo if necessary: */
-    if (!uMediumId.isNull())
-        m_pMediaSelector->setCurrentItem(uMediumId);
+    if (!strMediumId.isNull())
+        m_pMediaSelector->setCurrentItem(strMediumId);
 }
 
-QUuid UIWizardFirstRunPage::id() const
+QString UIWizardFirstRunPage::id() const
 {
     return m_pMediaSelector->id();
 }
 
-void UIWizardFirstRunPage::setId(const QUuid &uId)
+void UIWizardFirstRunPage::setId(const QString &strId)
 {
-    m_pMediaSelector->setCurrentItem(uId);
+    m_pMediaSelector->setCurrentItem(strId);
 }
 
-UIWizardFirstRunPageBasic::UIWizardFirstRunPageBasic(const QUuid &uMachineId, bool fBootHardDiskWasSet)
+UIWizardFirstRunPageBasic::UIWizardFirstRunPageBasic(const QString &strMachineId, bool fBootHardDiskWasSet)
     : UIWizardFirstRunPage(fBootHardDiskWasSet)
 {
     /* Create widgets: */
@@ -64,10 +70,10 @@ UIWizardFirstRunPageBasic::UIWizardFirstRunPageBasic(const QUuid &uMachineId, bo
         m_pLabel = new QIRichTextLabel(this);
         QHBoxLayout *pSourceDiskLayout = new QHBoxLayout;
         {
-            m_pMediaSelector = new UIMediaComboBox(this);
+            m_pMediaSelector = new VBoxMediaComboBox(this);
             {
-                m_pMediaSelector->setMachineId(uMachineId);
-                m_pMediaSelector->setType(UIMediumDeviceType_DVD);
+                m_pMediaSelector->setMachineId(strMachineId);
+                m_pMediaSelector->setType(UIMediumType_DVD);
                 m_pMediaSelector->repopulate();
             }
             m_pSelectMediaButton = new QIToolButton(this);
@@ -84,10 +90,8 @@ UIWizardFirstRunPageBasic::UIWizardFirstRunPageBasic(const QUuid &uMachineId, bo
     }
 
     /* Setup connections: */
-    connect(m_pMediaSelector, static_cast<void(UIMediaComboBox::*)(int)>(&UIMediaComboBox::currentIndexChanged),
-            this, &UIWizardFirstRunPageBasic::completeChanged);
-    connect(m_pSelectMediaButton, &QIToolButton::clicked,
-            this, &UIWizardFirstRunPageBasic::sltOpenMediumWithFileOpenDialog);
+    connect(m_pMediaSelector, SIGNAL(currentIndexChanged(int)), this, SIGNAL(completeChanged()));
+    connect(m_pSelectMediaButton, SIGNAL(clicked()), this, SLOT(sltOpenMediumWithFileOpenDialog()));
 
     /* Register fields: */
     registerField("source", this, "source");

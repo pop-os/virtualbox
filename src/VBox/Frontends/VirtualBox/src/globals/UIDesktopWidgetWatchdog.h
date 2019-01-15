@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015-2019 Oracle Corporation
+ * Copyright (C) 2015-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,28 +15,23 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_globals_UIDesktopWidgetWatchdog_h
-#define FEQT_INCLUDED_SRC_globals_UIDesktopWidgetWatchdog_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIDesktopWidgetWatchdog_h___
+#define ___UIDesktopWidgetWatchdog_h___
 
 /* Qt includes: */
 #include <QObject>
 #ifdef VBOX_WS_X11
 # include <QVector>
 # include <QRect>
-#endif
-
-/* GUI includes: */
-#include "UILibraryDefs.h"
+#endif /* VBOX_WS_X11 */
 
 /* Forward declarations: */
 class QScreen;
 
-/** Singleton QObject extension used as desktop-widget
-  * watchdog aware of the host-screen geometry changes. */
-class SHARED_LIBRARY_STUFF UIDesktopWidgetWatchdog : public QObject
+/** Singleton QObject extension used as
+  * a desktop-widget watchdog aware
+  * of the host-screen geometry changes. */
+class UIDesktopWidgetWatchdog : public QObject
 {
     Q_OBJECT;
 
@@ -59,12 +54,12 @@ signals:
 #ifdef VBOX_WS_X11
     /** Notifies about work-area recalculated for the host-screen with @a iHostScreenIndex. */
     void sigHostScreenWorkAreaRecalculated(int iHostScreenIndex);
-#endif
+#endif /* VBOX_WS_X11 */
 
 public:
 
     /** Returns the static instance of the desktop-widget watchdog. */
-    static UIDesktopWidgetWatchdog *instance() { return s_pInstance; }
+    static UIDesktopWidgetWatchdog *instance() { return m_spInstance; }
 
     /** Creates the static instance of the desktop-widget watchdog. */
     static void create();
@@ -78,9 +73,6 @@ public:
 
     /** Returns the number of host-screens currently available on the system. */
     int screenCount() const;
-
-    /** Returns primary screen index. */
-    int primaryScreen() const;
 
     /** Returns the index of the screen which contains contains @a pWidget. */
     int screenNumber(const QWidget *pWidget) const;
@@ -118,17 +110,12 @@ public:
     /** Returns device-pixel-ratio of the host-screen which contains @a pWidget. */
     double devicePixelRatio(QWidget *pWidget);
 
-    /** Returns actual device-pixel-ratio of the host-screen with @a iHostScreenIndex. */
-    double devicePixelRatioActual(int iHostScreenIndex = -1);
-    /** Returns actual device-pixel-ratio of the host-screen which contains @a pWidget. */
-    double devicePixelRatioActual(QWidget *pWidget);
-
 private slots:
 
 #if QT_VERSION == 0
     /** Stupid moc does not warn if it cannot find headers! */
     void QT_VERSION_NOT_DEFINED
-#else /* QT_VERSION != 0 */
+#else
     /** Handles @a pHostScreen adding. */
     void sltHostScreenAdded(QScreen *pHostScreen);
     /** Handles @a pHostScreen removing. */
@@ -137,12 +124,12 @@ private slots:
     void sltHandleHostScreenResized(const QRect &geometry);
     /** Handles host-screen work-area resize to passed @a availableGeometry. */
     void sltHandleHostScreenWorkAreaResized(const QRect &availableGeometry);
-#endif /* QT_VERSION != 0 */
+#endif
 
 #ifdef VBOX_WS_X11
     /** Handles @a availableGeometry calculation result for the host-screen with @a iHostScreenIndex. */
     void sltHandleHostScreenAvailableGeometryCalculated(int iHostScreenIndex, QRect availableGeometry);
-#endif
+#endif /* VBOX_WS_X11 */
 
 private:
 
@@ -152,7 +139,7 @@ private:
     void cleanup();
 
     /** Holds the static instance of the desktop-widget watchdog. */
-    static UIDesktopWidgetWatchdog *s_pInstance;
+    static UIDesktopWidgetWatchdog *m_spInstance;
 
 #ifdef VBOX_WS_X11
     /** Updates host-screen configuration according to new @a cHostScreenCount.
@@ -175,5 +162,5 @@ private:
 /** 'Official' name for the desktop-widget watchdog singleton. */
 #define gpDesktop UIDesktopWidgetWatchdog::instance()
 
-#endif /* !FEQT_INCLUDED_SRC_globals_UIDesktopWidgetWatchdog_h */
+#endif /* !___UIDesktopWidgetWatchdog_h___ */
 

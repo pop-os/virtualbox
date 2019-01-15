@@ -90,7 +90,6 @@ RTDECL(int)  RTSemEventMultiCreateEx(PRTSEMEVENTMULTI phEventMultiSem, uint32_t 
         *phEventMultiSem = pThis;
         return VINF_SUCCESS;
     }
-    RT_NOREF(hClass, pszNameFmt);
     return VERR_NO_MEMORY;
 }
 
@@ -178,8 +177,6 @@ RTDECL(int)  RTSemEventMultiReset(RTSEMEVENTMULTI hEventMultiSem)
 static int rtR0SemEventMultiOs2Wait(PRTSEMEVENTMULTIINTERNAL pThis, uint32_t fFlags, uint64_t uTimeout,
                                     PCRTLOCKVALSRCPOS pSrcPos)
 {
-    RT_NOREF(pSrcPos);
-
     /*
      * Validate and convert the input.
      */

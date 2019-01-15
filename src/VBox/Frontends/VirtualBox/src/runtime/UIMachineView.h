@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_runtime_UIMachineView_h
-#define FEQT_INCLUDED_SRC_runtime_UIMachineView_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIMachineView_h___
+#define ___UIMachineView_h___
 
 /* Qt includes: */
 #include <QAbstractScrollArea>
@@ -129,10 +126,16 @@ protected slots:
     void sltDesktopResized();
 
     /** Handles the scale-factor change. */
-    void sltHandleScaleFactorChange(const QUuid &uMachineID);
+    void sltHandleScaleFactorChange(const QString &strMachineID);
 
     /** Handles the scaling-optimization change. */
-    void sltHandleScalingOptimizationChange(const QUuid &uMachineID);
+    void sltHandleScalingOptimizationChange(const QString &strMachineID);
+
+    /** Handles the HiDPI-optimization change. */
+    void sltHandleHiDPIOptimizationChange(const QString &strMachineID);
+
+    /** Handles the unscaled HiDPI output mode change. */
+    void sltHandleUnscaledHiDPIOutputModeChange(const QString &strMachineID);
 
     /* Console callback handlers: */
     virtual void sltMachineStateChanged();
@@ -347,8 +350,10 @@ protected:
      * Not explicitly initialised (i.e. invalid by default). */
     QSize m_sizeHintOverride;
 
+#ifdef VBOX_WS_MAC
     /** Holds current host-screen number. */
     int m_iHostScreenNumber;
+#endif /* VBOX_WS_MAC */
 
     /** The policy for calculating the maximum guest resolution which we wish
      * to handle. */
@@ -440,4 +445,4 @@ protected:
     int m_iTimerId;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_runtime_UIMachineView_h */
+#endif // !___UIMachineView_h___

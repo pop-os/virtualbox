@@ -21,33 +21,6 @@
     </message>
 </context>
 <context>
-    <name>UIChooserItemGroup</name>
-    <message numerus="yes">
-        <source>%n group(s)</source>
-        <comment>Group item tool-tip / Group info</comment>
-        <translation type="unfinished">
-            <numerusform>%n group</numerusform>
-            <numerusform>%n groups</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>%n machine(s)</source>
-        <comment>Group item tool-tip / Machine info</comment>
-        <translation type="unfinished">
-            <numerusform>%n machine</numerusform>
-            <numerusform>%n machines</numerusform>
-        </translation>
-    </message>
-    <message numerus="yes">
-        <source>(%n running)</source>
-        <comment>Group item tool-tip / Running machine info</comment>
-        <translation type="unfinished">
-            <numerusform>(%n running)</numerusform>
-            <numerusform>(%n running)</numerusform>
-        </translation>
-    </message>
-</context>
-<context>
     <name>UIEncryptionDataModel</name>
     <message numerus="yes">
         <source>Used by the following %n hard drive(s):&lt;br&gt;%1</source>
@@ -173,6 +146,33 @@
         <translation type="vanished">
             <numerusform>Warning: You are taking a snapshot of a running machine which has %n immutable image attached to it. As long as you are working from this snapshot the immutable image will not be reset to avoid loss of data.</numerusform>
             <numerusform>Warning: You are taking a snapshot of a running machine which has %n immutable images attached to it. As long as you are working from this snapshot the immutable images will not be reset to avoid loss of data.</numerusform>
+        </translation>
+    </message>
+</context>
+<context>
+    <name>UIChooserItemGroup</name>
+    <message numerus="yes">
+        <source>%n group(s)</source>
+        <comment>Group item tool-tip / Group info</comment>
+        <translation type="unfinished">
+            <numerusform>%n group</numerusform>
+            <numerusform>%n groups</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>%n machine(s)</source>
+        <comment>Group item tool-tip / Machine info</comment>
+        <translation type="unfinished">
+            <numerusform>%n machine</numerusform>
+            <numerusform>%n machines</numerusform>
+        </translation>
+    </message>
+    <message numerus="yes">
+        <source>(%n running)</source>
+        <comment>Group item tool-tip / Running machine info</comment>
+        <translation type="unfinished">
+            <numerusform>(%n running)</numerusform>
+            <numerusform>(%n running)</numerusform>
         </translation>
     </message>
 </context>

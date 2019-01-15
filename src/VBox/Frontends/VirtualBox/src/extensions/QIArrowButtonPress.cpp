@@ -1,10 +1,10 @@
 /* $Id: QIArrowButtonPress.cpp $ */
 /** @file
- * VBox Qt GUI - Qt extensions: QIArrowButtonPress class implementation.
+ * VBox Qt GUI - QIArrowButtonPress class implementation.
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,17 +15,23 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Qt includes: */
-#include <QKeyEvent>
+# include <QKeyEvent>
 
 /* GUI includes: */
-#include "QIArrowButtonPress.h"
+# include "QIArrowButtonPress.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
-QIArrowButtonPress::QIArrowButtonPress(QIArrowButtonPress::ButtonType enmButtonType,
+QIArrowButtonPress::QIArrowButtonPress(QIArrowButtonPress::ButtonType buttonType,
                                        QWidget *pParent /* = 0 */)
     : QIWithRetranslateUI<QIRichToolButton>(pParent)
-    , m_enmButtonType(enmButtonType)
+    , m_buttonType(buttonType)
 {
     /* Retranslate UI: */
     retranslateUi();
@@ -34,7 +40,7 @@ QIArrowButtonPress::QIArrowButtonPress(QIArrowButtonPress::ButtonType enmButtonT
 void QIArrowButtonPress::retranslateUi()
 {
     /* Retranslate: */
-    switch (m_enmButtonType)
+    switch (m_buttonType)
     {
         case ButtonType_Back: setText(tr("&Back")); break;
         case ButtonType_Next: setText(tr("&Next")); break;
@@ -48,10 +54,11 @@ void QIArrowButtonPress::keyPressEvent(QKeyEvent *pEvent)
     switch (pEvent->key())
     {
         /* Animate-click for the Space key: */
-        case Qt::Key_PageUp:   if (m_enmButtonType == ButtonType_Next) return animateClick(); break;
-        case Qt::Key_PageDown: if (m_enmButtonType == ButtonType_Back) return animateClick(); break;
+        case Qt::Key_PageUp: if (m_buttonType == ButtonType_Next) return animateClick(); break;
+        case Qt::Key_PageDown: if (m_buttonType == ButtonType_Back) return animateClick(); break;
         default: break;
     }
     /* Call to base-class: */
     QIWithRetranslateUI<QIRichToolButton>::keyPressEvent(pEvent);
 }
+

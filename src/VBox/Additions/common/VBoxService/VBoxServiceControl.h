@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef GA_INCLUDED_SRC_common_VBoxService_VBoxServiceControl_h
-#define GA_INCLUDED_SRC_common_VBoxService_VBoxServiceControl_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBoxServiceControl_h
+#define ___VBoxServiceControl_h
 
 #include <iprt/critsect.h>
 #include <iprt/list.h>
@@ -101,11 +98,12 @@ typedef struct VBOXSERVICECTRLSESSIONTHREAD
     /** @todo Use a map later? */
     RTLISTNODE                      Node;
     /** The sessions's startup info. */
-    VBOXSERVICECTRLSESSIONSTARTUPINFO StartupInfo;
-    /** Critical section for thread-safe use. */
-    RTCRITSECT                      CritSect;
+    VBOXSERVICECTRLSESSIONSTARTUPINFO
+                                    StartupInfo;
     /** The worker thread. */
     RTTHREAD                        Thread;
+    /** Critical section for thread-safe use. */
+    RTCRITSECT                      CritSect;
     /** Process handle for forked child. */
     RTPROCESS                       hProcess;
     /** Shutdown indicator; will be set when the thread
@@ -134,10 +132,6 @@ typedef struct VBOXSERVICECTRLSESSIONTHREAD
     /** The other end of hNotificationPipeW. */
     RTPIPE                          hNotificationPipeR;
 #endif
-    /** Pipe for handing the secret key to the session process. */
-    RTPIPE                          hKeyPipe;
-    /** Secret key. */
-    uint8_t                         abKey[_4K];
 } VBOXSERVICECTRLSESSIONTHREAD;
 /** Pointer to thread data. */
 typedef VBOXSERVICECTRLSESSIONTHREAD *PVBOXSERVICECTRLSESSIONTHREAD;
@@ -249,10 +243,14 @@ typedef struct VBOXSERVICECTRLPROCESS
     /** Shutdown indicator; will be set when the thread
       * needs (or is asked) to shutdown. */
     bool volatile                   fShutdown;
-    /** Whether the guest process thread was stopped or not. */
+    /** Whether the guest process thread was stopped
+     *  or not. */
     bool volatile                   fStopped;
-    /** Whether the guest process thread was started or not. */
+    /** Whether the guest process thread was started
+     *  or not. */
     bool                            fStarted;
+    /** Client ID. */
+    uint32_t                        uClientID;
     /** Context ID. */
     uint32_t                        uContextID;
     /** Critical section for thread-safe use. */
@@ -277,12 +275,10 @@ typedef struct VBOXSERVICECTRLPROCESS
     /** StdOut pipe for addressing reads from
      *  guest process' stdout.*/
     RTPIPE                          hPipeStdErrR;
-
-    /** The write end of the notification pipe that is used to poke the thread
-     * monitoring the process.
+    /** The notification pipe associated with this guest process.
      *  This is NIL_RTPIPE for output pipes. */
     RTPIPE                          hNotificationPipeW;
-    /** The other end of hNotificationPipeW, read by vgsvcGstCtrlProcessProcLoop(). */
+    /** The other end of hNotificationPipeW. */
     RTPIPE                          hNotificationPipeR;
 } VBOXSERVICECTRLPROCESS;
 /** Pointer to thread data. */
@@ -292,8 +288,6 @@ RT_C_DECLS_BEGIN
 
 extern RTLISTANCHOR             g_lstControlSessionThreads;
 extern VBOXSERVICECTRLSESSION   g_Session;
-extern uint32_t                 g_idControlSvcClient;
-extern bool                     g_fControlSupportsOptimizations;
 
 
 /** @name Guest session thread handling.
@@ -330,5 +324,5 @@ extern int                      VGSvcGstCtrlProcessWait(const PVBOXSERVICECTRLPR
 
 RT_C_DECLS_END
 
-#endif /* !GA_INCLUDED_SRC_common_VBoxService_VBoxServiceControl_h */
+#endif
 

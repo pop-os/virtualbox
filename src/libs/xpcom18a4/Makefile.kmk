@@ -68,15 +68,10 @@ BLDDIRS  += \
 	$(PATH_TARGET)/VBox-xpcom-xpt-files/
 
 #
-# Always build the VBoxXPCOM import library.
-#
-IMPORT_LIBS += VBoxXPCOMImp
-
-#
 # We build several libraries so that any linker command line
 # length restrictions limit will be avoided. (Solaris, Mac?)
 #
-if !defined(VBOX_ONLY_SDK) && (!defined(VBOX_ONLY_EXTPACKS) || !defined(VBOX_ONLY_EXTPACKS_USE_IMPLIBS))
+ifndef VBOX_ONLY_SDK
 
 VBOX_XPCOM_LIBRARIES := \
 	VBox-xpcom-nspr \
@@ -137,7 +132,7 @@ PROGRAMS += \
  endif # VBOX_WITH_TESTCASES
 PROGRAMS += VBoxXPCOMIPCD
 
-endif # !VBOX_ONLY_SDK && (!defined(VBOX_ONLY_EXTPACKS) || !defined(VBOX_ONLY_EXTPACKS_USE_IMPLIBS))
+endif # !VBOX_ONLY_SDK
 
 
 
@@ -1079,16 +1074,6 @@ VBoxXPCOM-x86_LDFLAGS.solaris += -Wl,-z,allextract \
 
 
 #
-# VBoxXPCOMImp - Import library/hack.
-#
-ifdef VBOX_WITH_XPCOM_NAMESPACE_CLEANUP
-$(call VBOX_GENERATE_IMPORT_TARGET_FN,VBoxXPCOMImp,VBoxXPCOM,VBoxXPCOM-mangled.def)
-else
-$(call VBOX_GENERATE_IMPORT_TARGET_FN,VBoxXPCOMImp,VBoxXPCOM,VBoxXPCOM.def)
-endif
-
-
-#
 # IPC templates.
 #
 ifdef VBOX_IPC_RELEASE_LOG
@@ -1216,16 +1201,15 @@ endif
 #
 # Include sub-makefiles for the Python<->XPCOM and Java<->XPCOM bridges.
 #
-ifndef VBOX_ONLY_EXTPACKS
- # Find the Python headers for the Python<->XPCOM bridge if enabled.
- ifdef VBOX_WITH_PYTHON
-  include $(PATH_SUB_CURRENT)/python/Makefile.kmk
- endif
 
- ifdef VBOX_WITH_JXPCOM
-  include $(PATH_SUB_CURRENT)/java/Makefile.kmk
- endif
-endif # !VBOX_ONLY_EXTPACKS
+# Find the Python headers for the Python<->XPCOM bridge if enabled.
+ifdef VBOX_WITH_PYTHON
+ include $(PATH_SUB_CURRENT)/python/Makefile.kmk
+endif
+
+ifdef VBOX_WITH_JXPCOM
+ include $(PATH_SUB_CURRENT)/java/Makefile.kmk
+endif
 
 
 #
@@ -1442,7 +1426,7 @@ $(VBOX_XPIDL): | $(PATH_TARGET)/VBox-xpcom-idl-timestamp
 #
 # Generate linker map file filtering out unwanted global symbols.
 #
-$(PATH_TARGET)/xpcom-namespace-cleanup.map foo.map: $$(VBoxXPCOM_LIBS) $$(VBoxXPCOM_2_OBJS)
+$(PATH_TARGET)/xpcom-namespace-cleanup.map foo.map: $$(VBoxXPCOM_LIBS) $$(VBoxXPCOM_OBJS_)
 	$(call MSG_L1, Creating linker map $@ for scrubbing the symbol namespace)
 	$(QUIET)$(APPEND) -t $@ '{ local: *; global: '
 	$(QUIET)$(VBOX_NM) -p -g $^ \

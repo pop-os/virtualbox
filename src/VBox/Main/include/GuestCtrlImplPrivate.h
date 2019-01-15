@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef MAIN_INCLUDED_GuestCtrlImplPrivate_h
-#define MAIN_INCLUDED_GuestCtrlImplPrivate_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ____H_GUESTIMPLPRIVATE
+#define ____H_GUESTIMPLPRIVATE
 
 #include "ConsoleImpl.h"
 #include "Global.h"
@@ -33,7 +30,6 @@
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/string.h>
 #include <VBox/com/VirtualBox.h>
-#include <VBox/err.h> /* VERR_GSTCTL_GUEST_ERROR */
 
 #include <map>
 #include <vector>
@@ -614,19 +610,21 @@ struct GuestDirectoryOpenInfo
 struct GuestFileOpenInfo
 {
     /** The filename. */
-    Utf8Str                 mFilename;
+    Utf8Str                 mFileName;
     /** The file access mode. */
     FileAccessMode_T        mAccessMode;
+    /** String translation of mFileAccessMode for the GAs. */
+    const char             *mpszAccessMode;
     /** The file open action.  */
     FileOpenAction_T        mOpenAction;
+    /** String translation of mOpenAction for the GAs. */
+    const char             *mpszOpenAction;
     /** The file sharing mode. */
     FileSharingMode_T       mSharingMode;
     /** Octal creation mode. */
     uint32_t                mCreationMode;
     /** Extended open flags (currently none defined). */
     uint32_t                mfOpenEx;
-    /** Initial file offset. */
-    uint64_t                muOffset; /** @todo Remove this in the next protocol version. */
 };
 
 
@@ -636,44 +634,32 @@ struct GuestFileOpenInfo
  */
 struct GuestFsObjData
 {
-    /** @name Helper functions to extract the data from a certin VBoxService tool's guest stream block.
-     * @{ */
-    int FromLs(const GuestProcessStreamBlock &strmBlk, bool fLong);
-    int FromStat(const GuestProcessStreamBlock &strmBlk);
+    /** Helper function to extract the data from
+     *  a certin VBoxService tool's guest stream block. */
+    int FromLs(const GuestProcessStreamBlock &strmBlk);
     int FromMkTemp(const GuestProcessStreamBlock &strmBlk);
-    /** @}  */
+    int FromStat(const GuestProcessStreamBlock &strmBlk);
 
-    /** @name Static helper functions to work with time from stream block keys.
-     * @{ */
-    static PRTTIMESPEC TimeSpecFromKey(const GuestProcessStreamBlock &strmBlk, const Utf8Str &strKey, PRTTIMESPEC pTimeSpec);
-    static int64_t UnixEpochNsFromKey(const GuestProcessStreamBlock &strmBlk, const Utf8Str &strKey);
-    /** @}  */
-
-    /** @name helper functions to work with IPRT stuff.
-     * @{ */
-    RTFMODE GetFileMode(void) const;
-    /** @}  */
-
-    Utf8Str              mName;
-    FsObjType_T          mType;
-    Utf8Str              mFileAttrs;
-    int64_t              mObjectSize;
-    int64_t              mAllocatedSize;
     int64_t              mAccessTime;
+    int64_t              mAllocatedSize;
     int64_t              mBirthTime;
     int64_t              mChangeTime;
-    int64_t              mModificationTime;
-    Utf8Str              mUserName;
-    int32_t              mUID;
-    int32_t              mGID;
+    uint32_t             mDeviceNumber;
+    Utf8Str              mFileAttrs;
+    uint32_t             mGenerationID;
+    uint32_t             mGID;
     Utf8Str              mGroupName;
-    Utf8Str              mACL;
+    uint32_t             mNumHardLinks;
+    int64_t              mModificationTime;
+    Utf8Str              mName;
     int64_t              mNodeID;
     uint32_t             mNodeIDDevice;
-    uint32_t             mNumHardLinks;
-    uint32_t             mDeviceNumber;
-    uint32_t             mGenerationID;
+    int64_t              mObjectSize;
+    FsObjType_T          mType;
+    uint32_t             mUID;
     uint32_t             mUserFlags;
+    Utf8Str              mUserName;
+    Utf8Str              mACL;
 };
 
 
@@ -692,7 +678,8 @@ public:
 
     /** The session's friendly name. Optional. */
     Utf8Str                     mName;
-    /** The session's unique ID. Used to encode a context ID. */
+    /** The session's unique ID. Used to encode
+     *  a context ID. */
     uint32_t                    mID;
     /** Flag indicating if this is an internal session
      *  or not. Internal session are not accessible by
@@ -784,18 +771,23 @@ public:
     void DumpToLog(void) const;
 #endif
 
-    const char *GetString(const char *pszKey) const;
-    size_t      GetCount(void) const;
-    int         GetRc(void) const;
-    int         GetInt64Ex(const char *pszKey, int64_t *piVal) const;
-    int64_t     GetInt64(const char *pszKey) const;
-    int         GetUInt32Ex(const char *pszKey, uint32_t *puVal) const;
-    uint32_t    GetUInt32(const char *pszKey, uint32_t uDefault = 0) const;
-    int32_t     GetInt32(const char *pszKey, int32_t iDefault = 0) const;
+    int GetInt64Ex(const char *pszKey, int64_t *piVal) const;
 
-    bool        IsEmpty(void) { return mPairs.empty(); }
+    int64_t GetInt64(const char *pszKey) const;
 
-    int         SetValue(const char *pszKey, const char *pszValue);
+    size_t GetCount(void) const;
+
+    int GetRc(void) const;
+
+    const char* GetString(const char *pszKey) const;
+
+    int GetUInt32Ex(const char *pszKey, uint32_t *puVal) const;
+
+    uint32_t GetUInt32(const char *pszKey) const;
+
+    bool IsEmpty(void) { return mPairs.empty(); }
+
+    int SetValue(const char *pszKey, const char *pszValue);
 
 protected:
 
@@ -907,13 +899,27 @@ public:
 
     GuestWaitEventPayload(uint32_t uTypePayload,
                           const void *pvPayload, uint32_t cbPayload)
-        : uType(0),
-          cbData(0),
-          pvData(NULL)
     {
-        int rc = copyFrom(uTypePayload, pvPayload, cbPayload);
-        if (RT_FAILURE(rc))
-            throw rc;
+        if (cbPayload)
+        {
+            pvData = RTMemAlloc(cbPayload);
+            if (pvData)
+            {
+                uType = uTypePayload;
+
+                memcpy(pvData, pvPayload, cbPayload);
+                cbData = cbPayload;
+            }
+            else /* Throw IPRT error. */
+                throw VERR_NO_MEMORY;
+        }
+        else
+        {
+            uType = uTypePayload;
+
+            pvData = NULL;
+            cbData = 0;
+        }
     }
 
     virtual ~GuestWaitEventPayload(void)
@@ -933,7 +939,6 @@ public:
     {
         if (pvData)
         {
-            Assert(cbData);
             RTMemFree(pvData);
             cbData = 0;
             pvData = NULL;
@@ -943,7 +948,24 @@ public:
 
     int CopyFromDeep(const GuestWaitEventPayload &payload)
     {
-        return copyFrom(payload.uType, payload.pvData, payload.cbData);
+        Clear();
+
+        int rc = VINF_SUCCESS;
+        if (payload.cbData)
+        {
+            Assert(payload.cbData);
+            pvData = RTMemAlloc(payload.cbData);
+            if (pvData)
+            {
+                memcpy(pvData, payload.pvData, payload.cbData);
+                cbData = payload.cbData;
+                uType = payload.uType;
+            }
+            else
+                rc = VERR_NO_MEMORY;
+        }
+
+        return rc;
     }
 
     const void* Raw(void) const { return pvData; }
@@ -954,56 +976,6 @@ public:
 
     void* MutableRaw(void) { return pvData; }
 
-    Utf8Str ToString(void)
-    {
-        const char  *pszStr = (const char *)pvData;
-              size_t cbStr  = cbData;
-
-        if (RT_FAILURE(RTStrValidateEncodingEx(pszStr, cbStr,
-                                               RTSTR_VALIDATE_ENCODING_ZERO_TERMINATED | RTSTR_VALIDATE_ENCODING_EXACT_LENGTH)))
-        {
-            AssertFailed();
-            return "";
-        }
-
-        return Utf8Str(pszStr, cbStr);
-    }
-
-protected:
-
-    int copyFrom(uint32_t uTypePayload, const void *pvPayload, uint32_t cbPayload)
-    {
-        if (cbPayload > _64K) /* Paranoia. */
-            return VERR_TOO_MUCH_DATA;
-
-        Clear();
-
-        int rc = VINF_SUCCESS;
-
-        if (cbPayload)
-        {
-            pvData = RTMemAlloc(cbPayload);
-            if (pvData)
-            {
-                uType = uTypePayload;
-
-                memcpy(pvData, pvPayload, cbPayload);
-                cbData = cbPayload;
-            }
-            else
-                rc = VERR_NO_MEMORY;
-        }
-        else
-        {
-            uType = uTypePayload;
-
-            pvData = NULL;
-            cbData = 0;
-        }
-
-        return rc;
-    }
-
 protected:
 
     /** Type of payload. */
@@ -1011,7 +983,7 @@ protected:
     /** Size (in bytes) of payload. */
     uint32_t cbData;
     /** Pointer to actual payload data. */
-    void    *pvData;
+    void *pvData;
 };
 
 class GuestWaitEventBase
@@ -1073,10 +1045,8 @@ public:
 
     int                              Cancel(void);
     const ComPtr<IEvent>             Event(void) { return mEvent; }
-    bool                             HasGuestError(void) const { return mRc == VERR_GSTCTL_GUEST_ERROR; }
-    int                              GetGuestError(void) const { return mGuestRc; }
     int                              SignalExternal(IEvent *pEvent);
-    const GuestEventTypes           &Types(void) { return mEventTypes; }
+    const GuestEventTypes            Types(void) { return mEventTypes; }
     size_t                           TypeCount(void) { return mEventTypes.size(); }
 
 protected:
@@ -1116,7 +1086,6 @@ public:
     /** Signals a wait event without letting public guest events know,
      *  extended director's cut version. */
     int signalWaitEventInternalEx(PVBOXGUESTCTRLHOSTCBCTX pCbCtx, int rc, int guestRc, const GuestWaitEventPayload *pPayload);
-
 public:
 
     int baseInit(void);
@@ -1125,20 +1094,16 @@ public:
     int dispatchGeneric(PVBOXGUESTCTRLHOSTCBCTX pCtxCb, PVBOXGUESTCTRLHOSTCALLBACK pSvcCb);
     int generateContextID(uint32_t uSessionID, uint32_t uObjectID, uint32_t *puContextID);
     int registerWaitEvent(uint32_t uSessionID, uint32_t uObjectID, GuestWaitEvent **ppEvent);
-    int registerWaitEventEx(uint32_t uSessionID, uint32_t uObjectID, const GuestEventTypes &lstEvents, GuestWaitEvent **ppEvent);
+    int registerWaitEvent(uint32_t uSessionID, uint32_t uObjectID, const GuestEventTypes &lstEvents, GuestWaitEvent **ppEvent);
     int unregisterWaitEvent(GuestWaitEvent *pEvent);
     int waitForEvent(GuestWaitEvent *pEvent, uint32_t uTimeoutMS, VBoxEventType_T *pType, IEvent **ppEvent);
-
-public:
-
-    static FsObjType_T fileModeToFsObjType(RTFMODE fMode);
 
 protected:
 
     /** Pointer to the console object. Needed
      *  for HGCM (VMMDev) communication. */
     Console                 *mConsole;
-    /**  The next context ID counter component for this object. */
+    /** The next upcoming context ID for this object. */
     uint32_t                 mNextContextID;
     /** Local listener for handling the waiting events
      *  internally. */
@@ -1211,5 +1176,5 @@ protected:
     uint32_t                 mObjectID;
     /** @} */
 };
-#endif /* !MAIN_INCLUDED_GuestCtrlImplPrivate_h */
+#endif // !____H_GUESTIMPLPRIVATE
 

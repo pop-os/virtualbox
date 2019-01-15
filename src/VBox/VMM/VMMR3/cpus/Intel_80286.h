@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,11 +16,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_CPUDB_Intel_80286_h
-#define VBOX_CPUDB_Intel_80286_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef VBOX_CPUDB_Intel_80286
+#define VBOX_CPUDB_Intel_80286
 
 #ifndef CPUM_DB_STANDALONE
 /**
@@ -71,5 +68,5 @@ static CPUMDBENTRY const g_Entry_Intel_80286 =
     /*.paMsrRanges      = */ NULL,
 };
 
-#endif /* !VBOX_CPUDB_Intel_80286_h */
+#endif /* !VBOX_CPUDB_Intel_80286 */
 

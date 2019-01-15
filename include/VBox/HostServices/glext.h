@@ -1,9 +1,5 @@
-
-#ifndef VBOX_INCLUDED_HostServices_glext_h
-#define VBOX_INCLUDED_HostServices_glext_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __glext_h_
+#define __glext_h_
 
 #ifdef __cplusplus
 extern "C" {
@@ -7261,4 +7257,4 @@ typedef void (APIENTRYP PFNGLCLEARCOLORIUIEXTPROC) (GLuint red, GLuint green, GL
 }
 #endif
 
-#endif /* !VBOX_INCLUDED_HostServices_glext_h */
+#endif

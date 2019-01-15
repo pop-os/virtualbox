@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,7 +24,7 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#define LOG_GROUP LOG_GROUP_MAIN_HOST
+#define LOG_GROUP LOG_GROUP_MAIN
 #include <sys/types.h>
 
 #include <sys/sysctl.h>
@@ -53,7 +53,7 @@
 
 #include "HostNetworkInterfaceImpl.h"
 #include "netif.h"
-#include "LoggingNew.h"
+#include "Logging.h"
 
 #define ROUNDUP(a) \
     ((a) > 0 ? (1 + (((a) - 1) | (sizeof(long) - 1))) : sizeof(long))

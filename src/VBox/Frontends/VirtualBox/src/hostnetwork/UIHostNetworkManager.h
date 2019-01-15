@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_hostnetwork_UIHostNetworkManager_h
-#define FEQT_INCLUDED_SRC_hostnetwork_UIHostNetworkManager_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIHostNetworkManager_h___
+#define ___UIHostNetworkManager_h___
 
 /* Qt includes: */
 #include <QMainWindow>
@@ -34,7 +31,6 @@ class QAbstractButton;
 class QTreeWidgetItem;
 class QIDialogButtonBox;
 class QITreeWidget;
-class UIActionPool;
 class UIHostNetworkDetailsWidget;
 class UIItemHostNetwork;
 class UIToolBar;
@@ -55,15 +51,11 @@ signals:
 
 public:
 
-    /** Constructs Host Network Manager widget.
-      * @param  enmEmbedding  Brings the type of widget embedding.
-      * @param  pActionPool   Brings the action-pool reference.
-      * @param  fShowToolbar  Brings whether we should create/show toolbar. */
-    UIHostNetworkManagerWidget(EmbedTo enmEmbedding, UIActionPool *pActionPool,
-                               bool fShowToolbar = true, QWidget *pParent = 0);
+    /** Constructs Host Network Manager widget. */
+    UIHostNetworkManagerWidget(EmbedTo enmEmbedding, QWidget *pParent = 0);
 
     /** Returns the menu. */
-    QMenu *menu() const;
+    QMenu *menu() const { return m_pMenu; }
 
 #ifdef VBOX_WS_MAC
     /** Returns the toolbar. */
@@ -98,8 +90,8 @@ private slots:
 
     /** @name Menu/action stuff.
       * @{ */
-        /** Handles command to create host network. */
-        void sltCreateHostNetwork();
+        /** Handles command to add host network. */
+        void sltAddHostNetwork();
         /** Handles command to remove host network. */
         void sltRemoveHostNetwork();
         /** Handles command to make host network details @a fVisible. */
@@ -127,8 +119,12 @@ private:
       * @{ */
         /** Prepares all. */
         void prepare();
+        /** Prepares this. */
+        void prepareThis();
         /** Prepares actions. */
         void prepareActions();
+        /** Prepares menu. */
+        void prepareMenu();
         /** Prepares widgets. */
         void prepareWidgets();
         /** Prepares toolbar. */
@@ -161,16 +157,22 @@ private:
       * @{ */
         /** Holds the widget embedding type. */
         const EmbedTo m_enmEmbedding;
-        /** Holds the action-pool reference. */
-        UIActionPool *m_pActionPool;
-        /** Holds whether we should create/show toolbar. */
-        const bool    m_fShowToolbar;
     /** @} */
 
     /** @name Toolbar and menu variables.
       * @{ */
         /** Holds the toolbar instance. */
         UIToolBar *m_pToolBar;
+        /** Holds menu-bar menu object instance. */
+        QMenu     *m_pMenu;
+        /** Holds the Add action instance. */
+        QAction   *m_pActionAdd;
+        /** Holds the Remove action instance. */
+        QAction   *m_pActionRemove;
+        /** Holds the Details action instance. */
+        QAction   *m_pActionDetails;
+        /** Holds the Refresh action instance. */
+        QAction   *m_pActionRefresh;
     /** @} */
 
     /** @name Splitter variables.
@@ -186,20 +188,11 @@ private:
 /** QIManagerDialogFactory extension used as a factory for Host Network Manager dialog. */
 class UIHostNetworkManagerFactory : public QIManagerDialogFactory
 {
-public:
-
-    /** Constructs Media Manager factory acquiring additional arguments.
-      * @param  pActionPool  Brings the action-pool reference. */
-    UIHostNetworkManagerFactory(UIActionPool *pActionPool = 0);
-
 protected:
 
     /** Creates derived @a pDialog instance.
       * @param  pCenterWidget  Brings the widget reference to center according to. */
     virtual void create(QIManagerDialog *&pDialog, QWidget *pCenterWidget) /* override */;
-
-    /** Holds the action-pool reference. */
-    UIActionPool *m_pActionPool;
 };
 
 
@@ -226,9 +219,8 @@ private slots:
 private:
 
     /** Constructs Host Network Manager dialog.
-      * @param  pCenterWidget  Brings the widget reference to center according to.
-      * @param  pActionPool    Brings the action-pool reference. */
-    UIHostNetworkManager(QWidget *pCenterWidget, UIActionPool *pActionPool);
+      * @param  pCenterWidget  Brings the widget reference to center according to. */
+    UIHostNetworkManager(QWidget *pCenterWidget);
 
     /** @name Event-handling stuff.
       * @{ */
@@ -254,15 +246,9 @@ private:
         virtual UIHostNetworkManagerWidget *widget() /* override */;
     /** @} */
 
-    /** @name Action related variables.
-      * @{ */
-        /** Holds the action-pool reference. */
-        UIActionPool *m_pActionPool;
-    /** @} */
-
     /** Allow factory access to private/protected members: */
     friend class UIHostNetworkManagerFactory;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_hostnetwork_UIHostNetworkManager_h */
+#endif /* !___UIHostNetworkManager_h___ */
 

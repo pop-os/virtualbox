@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,12 +28,36 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
+#ifdef RT_OS_WINDOWS
+# include <iprt/win/windows.h>
+
+#else /* posix */
+# include <sys/time.h>
+#endif
+
 #include <iprt/time.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
 #include <iprt/initterm.h>
 #include <iprt/thread.h>
-#include <iprt/errcore.h>
+#include <iprt/err.h>
+
+
+DECLINLINE(uint64_t) OSNanoTS(void)
+{
+#ifdef RT_OS_WINDOWS
+    uint64_t u64; /* manual say larger integer, should be safe to assume it's the same. */
+    GetSystemTimeAsFileTime((LPFILETIME)&u64);
+    return u64 * 100;
+
+#else /* posix */
+
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return (uint64_t)tv.tv_sec  * (uint64_t)(1000 * 1000 * 1000)
+         + (uint64_t)(tv.tv_usec * 1000);
+#endif
+}
 
 
 
@@ -47,7 +71,7 @@ int main(int argc, char **argv)
         return 1;
     }
 
-    RTPrintf("tstTime-3: Testing difference between RTTimeNanoTS() and RTTimeSystemNanoTS()...\n");
+    RTPrintf("tstTime-3: Testing difference between RTTimeNanoTS() and OS time...\n");
 
     for (int i = 1; i < argc; i++)
     {
@@ -60,14 +84,14 @@ int main(int argc, char **argv)
         }
         RTPrintf("tstTime-3: %d - %RU64 seconds period...\n", i, cSeconds);
 
-        RTTimeNanoTS(); RTTimeSystemNanoTS(); RTThreadSleep(1);
+        RTTimeNanoTS(); OSNanoTS(); RTThreadSleep(1);
         uint64_t u64RTStartTS = RTTimeNanoTS();
-        uint64_t u64OSStartTS = RTTimeSystemNanoTS();
+        uint64_t u64OSStartTS = OSNanoTS();
 
         RTThreadSleep(cSeconds * 1000);
 
         uint64_t u64RTElapsedTS = RTTimeNanoTS();
-        uint64_t u64OSElapsedTS = RTTimeSystemNanoTS();
+        uint64_t u64OSElapsedTS = OSNanoTS();
         u64RTElapsedTS -= u64RTStartTS;
         u64OSElapsedTS -= u64OSStartTS;
 
@@ -78,4 +102,3 @@ int main(int argc, char **argv)
 
     return 0;
 }
-

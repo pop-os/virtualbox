@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2019 Oracle Corporation
+ * Copyright (C) 2014-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef MAIN_INCLUDED_QMTranslator_h
-#define MAIN_INCLUDED_QMTranslator_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ____H_QMTRANSLATOR
+#define ____H_QMTRANSLATOR
 
 class QMTranslator_Impl;
 
@@ -56,5 +53,5 @@ private:
     QMTranslator(const QMTranslator &);
 };
 
-#endif /* !MAIN_INCLUDED_QMTranslator_h */
+#endif /* !____H_QMTRANSLATOR */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

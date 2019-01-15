@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,46 +15,43 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_extensions_QIWidgetValidator_h
-#define FEQT_INCLUDED_SRC_extensions_QIWidgetValidator_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __QIWidgetValidator_h__
+#define __QIWidgetValidator_h__
 
 /* Qt includes: */
-#include <QMap>
-#include <QPixmap>
 #include <QValidator>
+#include <QPixmap>
+#include <QMap>
 
-/* GUI includes: */
-#include "UILibraryDefs.h"
+/* External includes: */
+#ifdef VBOX_WS_X11
+#include <limits.h>
+#endif /* VBOX_WS_X11 */
 
 /* Forward declarations: */
-class QPixmap;
-class QString;
 class UISettingsPage;
 
-
-/** QObject extension,
+/** QObject reimplementation,
   * providing passed QObject with validation routine. */
-class SHARED_LIBRARY_STUFF QObjectValidator : public QObject
+class QObjectValidator : public QObject
 {
     Q_OBJECT;
 
 signals:
 
-    /** Notifies listener(s) about validity changed to @a enmState. */
-    void sigValidityChange(QValidator::State enmState);
+    /** Notifies listener(s) about validity change. */
+    void sigValidityChange(QValidator::State state);
 
 public:
 
-    /** Constructs object validator passing @a pParent to the base-class.
-      * @param  pValidator  Brings the validator passed on to the OObject
-      *                     children and used to perform validation itself. */
+    /** Constructor.
+      * @param pParent    is passed on to the QObject constructor,
+      * @param pValidator is passed on to the OObject children
+      *                   and used to perform validation itself. */
     QObjectValidator(QValidator *pValidator, QObject *pParent = 0);
 
     /** Returns last validation state. */
-    QValidator::State state() const { return m_enmState; }
+    QValidator::State state() const { return m_state; }
 
 public slots:
 
@@ -66,34 +63,30 @@ private:
     /** Prepare routine. */
     void prepare();
 
-    /** Holds the validator reference. */
+    /** Holds validator. */
     QValidator *m_pValidator;
-
-    /** Holds the validation state. */
-    QValidator::State m_enmState;
+    /** Holds validation state. */
+    QValidator::State m_state;
 };
 
-
-/** QObject extension,
+/** QObject reimplementation,
   * which can group various QObjectValidator instances to operate on. */
-class SHARED_LIBRARY_STUFF QObjectValidatorGroup : public QObject
+class QObjectValidatorGroup : public QObject
 {
     Q_OBJECT;
 
 signals:
 
-    /** Notifies listener(s) about validity changed to @a fValid. */
+    /** Notifies listener(s) about validity change. */
     void sigValidityChange(bool fValid);
 
 public:
 
-    /** Constructs validation group passing @a pParent to the base-class. */
-    QObjectValidatorGroup(QObject *pParent)
-        : QObject(pParent)
-        , m_fResult(false)
-    {}
+    /** Constructor.
+      * @param pParent is passed on to the QObject constructor. */
+    QObjectValidatorGroup(QObject *pParent);
 
-    /** Adds @a pObjectValidator.
+    /** Adds object-validator.
       * @note The ownership of @a pObjectValidator is transferred to the group,
       *       and it's the group's responsibility to delete it. */
     void addObjectValidator(QObjectValidator *pObjectValidator);
@@ -103,127 +96,91 @@ public:
 
 private slots:
 
-    /** Performs validation for a passed @a enmState. */
-    void sltValidate(QValidator::State enmState);
+    /** Performs validation: */
+    void sltValidate(QValidator::State state);
 
 private:
 
     /** Converts QValidator::State to bool result. */
-    static bool toResult(QValidator::State enmState);
+    static bool toResult(QValidator::State state);
 
     /** Holds object-validators and their states. */
     QMap<QObjectValidator*, bool> m_group;
-
     /** Holds validation result. */
     bool m_fResult;
 };
 
-
-/** Page validator prototype. */
-class SHARED_LIBRARY_STUFF UIPageValidator : public QObject
+/* Page validator prototype: */
+class UIPageValidator : public QObject
 {
     Q_OBJECT;
 
 signals:
 
-    /** Notifies about validity change for @a pValidator. */
+    /* Notifier: Validation stuff: */
     void sigValidityChanged(UIPageValidator *pValidator);
 
-    /** Asks listener to show warning icon. */
+    /* Notifiers: Warning stuff: */
     void sigShowWarningIcon();
-    /** Asks listener to hide warning icon. */
     void sigHideWarningIcon();
 
 public:
 
-    /** Constructs page validator for a certain @a pPage,
-      * passing @a pParent to the base-class. */
-    UIPageValidator(QObject *pParent, UISettingsPage *pPage)
-        : QObject(pParent)
-        , m_pPage(pPage)
-        , m_fIsValid(true)
-    {}
+    /* Constructor: */
+    UIPageValidator(QObject *pParent, UISettingsPage *pPage);
 
-    /** Returns page. */
-    UISettingsPage *page() const { return m_pPage; }
-    /** Returns warning pixmap. */
+    /* API: Page stuff: */
+    UISettingsPage* page() const { return m_pPage; }
     QPixmap warningPixmap() const;
-    /** Returns internal name. */
     QString internalName() const;
 
-    /** Returns whether validator is valid. */
+    /* API: Validity stuff: */
     bool isValid() const { return m_fIsValid; }
-    /** Defines whether validator @a fIsValid. */
     void setValid(bool fIsValid) { m_fIsValid = fIsValid; }
 
-    /** Returns last message. */
+    /* API: Message stuff: */
     QString lastMessage() const { return m_strLastMessage; }
-    /** Defines @a strLastMessage. */
     void setLastMessage(const QString &strLastMessage);
 
 public slots:
 
-    /** Performs revalidation. */
+    /* API/Handler: Validation stuff: */
     void revalidate();
 
 private:
 
-    /** Holds the validated page. */
+    /* Variables: */
     UISettingsPage *m_pPage;
-
-    /** Holds whether the page is valid. */
     bool m_fIsValid;
-
-    /** Holds the last message. */
     QString m_strLastMessage;
 };
 
-
-/** QValidator extension,
-  * for long number validations. */
-class SHARED_LIBRARY_STUFF QIULongValidator : public QValidator
+class QIULongValidator : public QValidator
 {
 public:
 
-    /** Constructs long validator passing @a pParent to the base-class. */
-    QIULongValidator(QObject *pParent)
-        : QValidator(pParent)
-        , m_uBottom(0), m_uTop(ULONG_MAX)
-    {}
+    QIULongValidator (QObject *aParent)
+        : QValidator (aParent)
+        , mBottom (0), mTop (ULONG_MAX) {}
 
-    /** Constructs long validator passing @a pParent to the base-class.
-      * @param  uMinimum  Holds the minimum valid border.
-      * @param  uMaximum  Holds the maximum valid border. */
-    QIULongValidator(ulong uMinimum, ulong uMaximum,
-                     QObject *pParent)
-        : QValidator(pParent)
-        , m_uBottom(uMinimum), m_uTop(uMaximum)
-    {}
+    QIULongValidator (ulong aMinimum, ulong aMaximum,
+                      QObject *aParent)
+        : QValidator (aParent)
+        , mBottom (aMinimum), mTop (aMaximum) {}
 
-    /** Destructs long validator. */
-    virtual ~QIULongValidator() {}
+    ~QIULongValidator() {}
 
-    /** Performs validation for @a strInput at @a iPosition. */
-    State validate(QString &strInput, int &iPosition) const;
-
-    /** Defines @a uBottom. */
-    void setBottom(ulong uBottom) { setRange(uBottom, m_uTop); }
-    /** Defines @a uTop. */
-    void setTop(ulong uTop) { setRange(m_uBottom, uTop); }
-    /** Defines range based on passed @a uBottom and @a uTop. */
-    void setRange(ulong uBottom, ulong uTop) { m_uBottom = uBottom; m_uTop = uTop; }
-    /** Returns bottom. */
-    ulong bottom() const { return m_uBottom; }
-    /** Returns top. */
-    ulong top() const { return m_uTop; }
+    State validate (QString &aInput, int &aPos) const;
+    void setBottom (ulong aBottom) { setRange (aBottom, mTop); }
+    void setTop (ulong aTop) { setRange (mBottom, aTop); }
+    void setRange (ulong aBottom, ulong aTop) { mBottom = aBottom; mTop = aTop; }
+    ulong bottom() const { return mBottom; }
+    ulong top() const { return mTop; }
 
 private:
 
-    /** Holds the bottom. */
-    ulong m_uBottom;
-    /** Holds the top. */
-    ulong m_uTop;
+    ulong mBottom;
+    ulong mTop;
 };
 
-
-#endif /* !FEQT_INCLUDED_SRC_extensions_QIWidgetValidator_h */
+#endif // __QIWidgetValidator_h__

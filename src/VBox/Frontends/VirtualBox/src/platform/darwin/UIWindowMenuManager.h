@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,40 +15,37 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_platform_darwin_UIWindowMenuManager_h
-#define FEQT_INCLUDED_SRC_platform_darwin_UIWindowMenuManager_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIWindowMenuManager_h___
+#define ___UIWindowMenuManager_h___
 
 /* Qt includes: */
-#include <QHash>
 #include <QObject>
+#include <QHash>
 
 /* GUI includes: */
 #include "QIWithRetranslateUI.h"
 
 /* Forward declarations: */
-class QMenu;
 class UIMenuHelper;
+class QMenu;
 
 /** Singleton QObject extension
   * used as Mac OS X 'Window' menu Manager. */
-class SHARED_LIBRARY_STUFF UIWindowMenuManager : public QIWithRetranslateUI3<QObject>
+class UIWindowMenuManager : public QIWithRetranslateUI3<QObject>
 {
     Q_OBJECT;
 
 public:
 
-    /** Creates instance. */
+    /** Static constructor. */
     static void create();
-    /** Destroyes instance. */
+    /** Static destructor. */
     static void destroy();
-    /** Returns current instance. */
-    static UIWindowMenuManager *instance() { return s_pInstance; }
+    /** Static instance provider. */
+    static UIWindowMenuManager* instance() { return m_spInstance; }
 
     /** Creates 'Window' menu for passed @a pWindow. */
-    QMenu *createMenu(QWidget *pWindow);
+    QMenu* createMenu(QWidget *pWindow);
     /** Destroys 'Window' menu for passed @a pWindow. */
     void destroyMenu(QWidget *pWindow);
 
@@ -58,7 +55,7 @@ public:
     void removeWindow(QWidget *pWindow);
 
     /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
+    virtual void retranslateUi();
 
 protected:
 
@@ -68,21 +65,21 @@ protected:
     ~UIWindowMenuManager();
 
     /** Preprocesses any Qt @a pEvent for passed @a pObject. */
-    virtual bool eventFilter(QObject *pObject, QEvent *pEvent) /* override */;
+    virtual bool eventFilter(QObject *pObject, QEvent *pEvent);
 
 private:
 
     /** Holds the static instance. */
-    static UIWindowMenuManager *s_pInstance;
+    static UIWindowMenuManager *m_spInstance;
 
     /** Holds the list of the registered window references. */
-    QList<QWidget*>  m_windows;
+    QList<QWidget*> m_windows;
 
     /** Holds the hash of the registered menu-helper instances. */
-    QHash<QWidget*, UIMenuHelper*>  m_helpers;
+    QHash<QWidget*, UIMenuHelper*> m_helpers;
 };
 
-/** Singleton 'Window' menu Manager 'official' name. */
 #define gpWindowMenuManager UIWindowMenuManager::instance()
 
-#endif /* !FEQT_INCLUDED_SRC_platform_darwin_UIWindowMenuManager_h */
+#endif /* !___UIWindowMenuManager_h___ */
+

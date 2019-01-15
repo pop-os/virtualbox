@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,32 +15,25 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_globals_UIThreadPool_h
-#define FEQT_INCLUDED_SRC_globals_UIThreadPool_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___UIThreadPool_h___
+#define ___UIThreadPool_h___
 
 /* Qt includes: */
-#include <QMutex>
 #include <QObject>
+#include <QMutex>
 #include <QQueue>
 #include <QSet>
 #include <QVariant>
 #include <QVector>
 #include <QWaitCondition>
 
-/* GUI includes: */
-#include "UILibraryDefs.h"
-
 /* Forward declarations: */
-class UITask;
 class UIThreadWorker;
-
+class UITask;
 
 /** QObject extension used as worker-thread pool.
   * Schedules COM-related GUI tasks to multiple worker-threads. */
-class SHARED_LIBRARY_STUFF UIThreadPool : public QObject
+class UIThreadPool : public QObject
 {
     Q_OBJECT;
 
@@ -52,9 +45,9 @@ signals:
 public:
 
     /** Constructs worker-thread pool.
-      * @param  cMaxWorkers           Brings the maximum amount of worker-threads.
-      * @param  cMsWorkerIdleTimeout  Brings the maximum amount of time (in ms) which
-      *                               pool will wait for the worker-thread on cleanup. */
+      * @param cMaxWorkers          defines the maximum amount of worker-threads.
+      * @param cMsWorkerIdleTimeout defines the maximum amount of time (in ms) which
+      *                             pool will wait for the worker-thread on cleanup. */
     UIThreadPool(ulong cMaxWorkers = 3, ulong cMsWorkerIdleTimeout = 5000);
     /** Destructs worker-thread pool. */
     ~UIThreadPool();
@@ -66,8 +59,9 @@ public:
 
     /** Enqueues @a pTask into the task-queue. */
     void enqueueTask(UITask *pTask);
-    /** Returns dequeued top-most task from the task-queue. */
-    UITask *dequeueTask(UIThreadWorker *pWorker);
+    /** Returns dequeued top-most task from the task-queue.
+      * @remarks Called by the @a pWorker passed as a hint. */
+    UITask* dequeueTask(UIThreadWorker *pWorker);
 
 private slots:
 
@@ -83,32 +77,32 @@ private:
      * @{ */
         /** Holds the maximum amount of time (in ms) which
           * pool will wait for the worker-thread on cleanup. */
-        const ulong               m_cMsIdleTimeout;
+        const ulong m_cMsIdleTimeout;
         /** Holds the vector of worker-threads. */
-        QVector<UIThreadWorker*>  m_workers;
+        QVector<UIThreadWorker*> m_workers;
         /** Holds the number of worker-threads.
           * @remarks We cannot use the vector size since it may contain 0 pointers. */
-        int                       m_cWorkers;
+        int m_cWorkers;
         /** Holds the number of idle worker-threads. */
-        int                       m_cIdleWorkers;
+        int m_cIdleWorkers;
         /** Holds whether the 'termination sequence' is started
           * and all worker-threads should terminate ASAP. */
-        bool                      m_fTerminating;
+        bool m_fTerminating;
     /** @} */
 
     /** @name Task stuff
      * @{ */
         /** Holds the queue of pending tasks. */
-        QQueue<UITask*>  m_pendingTasks;
+        QQueue<UITask*> m_pendingTasks;
         /** Holds the set of executing tasks. */
-        QSet<UITask*>    m_executingTasks;
+        QSet<UITask*> m_executingTasks;
         /** Holds the condition variable that gets signalled when
           * queuing a new task and there are idle worker threads around.
           * @remarks Idle threads sits in dequeueTask waiting for this.
           *          Thus on thermination, setTerminating() will send a
           *          broadcast signal to wake up all workers (after
           *          setting m_fTerminating of course). */
-        QWaitCondition   m_taskCondition;
+        QWaitCondition m_taskCondition;
     /** @} */
 
     /** Holds the guard mutex object protecting
@@ -116,10 +110,9 @@ private:
     mutable QMutex m_everythingLocker;
 };
 
-
 /** QObject extension used as worker-thread task interface.
   * Describes task to be executed by the UIThreadWorker object. */
-class SHARED_LIBRARY_STUFF UITask : public QObject
+class UITask : public QObject
 {
     Q_OBJECT;
 
@@ -137,26 +130,26 @@ public:
         Type_DetailsPopulation = 2,
     };
 
-    /** Constructs the task of passed @a enmType. */
-    UITask(UITask::Type enmType) : m_enmType(enmType) {}
+    /** Constructs the task of passed @a type. */
+    UITask(UITask::Type type) : m_type(type) {}
 
     /** Returns the type of the task. */
-    UITask::Type type() const { return m_enmType; }
+    UITask::Type type() const { return m_type; }
 
     /** Starts the task. */
     void start();
 
 protected:
 
-    /** Contains the abstract task body. */
+    /** Contains the abstract task body.
+      * @remarks To be reimplemented in sub-class. */
     virtual void run() = 0;
 
 private:
 
     /** Holds the type of the task. */
-    const UITask::Type m_enmType;
+    const UITask::Type m_type;
 };
 
-
-#endif /* !FEQT_INCLUDED_SRC_globals_UIThreadPool_h */
+#endif /* !___UIThreadPool_h___ */
 

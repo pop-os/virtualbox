@@ -14,19 +14,18 @@ Q=\"
 Q="
 !endif
 CFLAGS = -q -3 -wx -zu -zl -s -oas -d1 -ms
-DEFS   = -DVBOX -DVBE -DVBOX_VERSION_STRING=$(Q)0.9.90$(Q) -DVBOX_VENDOR=$(Q)Oracle_Corporation$(Q) -DVBOX_PRODUCT=$(Q)Oracle_VM_VirtualBox$(Q) -DVBOX_BIOS_CPU=80386
+DEFS   = -DVBOX -DVBE -DVBOX_VERSION_STRING=$(Q)0.9.90$(Q) -DVBOX_VENDOR=$(Q)Oracle_Corporation$(Q) -DVBOX_PRODUCT=$(Q)Oracle_VM_VirtualBox$(Q)
 #DEFS   = -DVBOX -DVBOX_VERSION_STRING=$(Q)0.9$(Q) -DVBOX_VENDOR=$(Q)Oracle$(Q) -DVBOX_PRODUCT=$(Q)VirtualBox$(Q)
 
 AFLAGS = -q -0 -wx
 
-INCLS  = -I$(Q)../../../../../include$(Q) -I$(Q)../../../../../include/VBox/Graphics$(Q)
-AINCS  = -I$(Q)../../BiosCommonCode$(Q)
+INCLS  = -I$(Q)../../../../../include$(Q)
 
 .c.obj : .autodepend
 	wcc -fo=.obj $(CFLAGS) $(DEFS) $(INCLS) $<
 
 .asm.obj : .autodepend
-	wasm -fo=.obj $(AFLAGS) $(DEFS) $(AINCS) $<
+	wasm -fo=.obj $(AFLAGS) $(DEFS) $<
 
 OBJS = 	vgarom.obj vberom.obj vgabios.obj vbe.obj
 

@@ -1,9 +1,5 @@
-
 #ifndef __glxext_h_
 #define __glxext_h_
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -1029,4 +1025,4 @@ typedef void ( * PFNGLXCOPYIMAGESUBDATANVPROC) (Display *dpy, GLXContext srcCtx,
 }
 #endif
 
-#endif /* !__glxext_h_ */
+#endif

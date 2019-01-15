@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -66,7 +66,7 @@ static void rtAsn1Integer_UpdateNativeValue(PRTASN1INTEGER pThis)
     uint32_t offLast = pThis->Asn1Core.cb - 1;
     switch (pThis->Asn1Core.cb)
     {
-        default: AssertBreak(pThis->Asn1Core.cb > 8); /* paranoia */ RT_FALL_THRU();
+        default:
         case 8: pThis->uValue.u |= (uint64_t)pThis->Asn1Core.uData.pu8[offLast - 7] << 56; RT_FALL_THRU();
         case 7: pThis->uValue.u |= (uint64_t)pThis->Asn1Core.uData.pu8[offLast - 6] << 48; RT_FALL_THRU();
         case 6: pThis->uValue.u |= (uint64_t)pThis->Asn1Core.uData.pu8[offLast - 5] << 40; RT_FALL_THRU();

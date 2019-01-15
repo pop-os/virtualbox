@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -942,7 +942,7 @@ REMR3DECL(int) REMR3EmulateInstruction(PVM pVM, PVMCPU pVCpu)
     /* Make sure this flag is set; we might never execute remR3CanExecuteRaw in the AMD-V case.
      * CPU_RAW_HM makes sure we never execute interrupt handlers in the recompiler.
      */
-    if (!VM_IS_RAW_MODE_ENABLED(pVM))
+    if (HMIsEnabled(pVM))
         pVM->rem.s.Env.state |= CPU_RAW_HM;
 
     /* Skip the TB flush as that's rather expensive and not necessary for single instruction emulation. */
@@ -1137,7 +1137,7 @@ static int remR3RunLoggingStep(PVM pVM, PVMCPU pVCpu)
 #else
         pVM->rem.s.Env.interrupt_request = CPU_INTERRUPT_SINGLE_INSTR;
 #endif
-        if (VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_UPDATE_APIC | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC))
+        if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_UPDATE_APIC | VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC))
             pVM->rem.s.Env.interrupt_request |= CPU_INTERRUPT_HARD;
         RTLogPrintf("remR3RunLoggingStep: interrupt_request=%#x halted=%d exception_index=%#x\n",
                     pVM->rem.s.Env.interrupt_request,
@@ -1162,11 +1162,11 @@ static int remR3RunLoggingStep(PVM pVM, PVMCPU pVCpu)
              * The normal exit.
              */
             case EXCP_SINGLE_INSTR:
-                if (   !VM_FF_IS_ANY_SET(pVM, VM_FF_ALL_REM_MASK)
-                    && !VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_ALL_REM_MASK))
+                if (   !VM_FF_IS_PENDING(pVM, VM_FF_ALL_REM_MASK)
+                    && !VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_ALL_REM_MASK))
                     continue;
-                RTLogPrintf("remR3RunLoggingStep: rc=VINF_SUCCESS w/ FFs (%#x/%#RX64)\n",
-                            pVM->fGlobalForcedActions, (uint64_t)pVCpu->fLocalForcedActions);
+                RTLogPrintf("remR3RunLoggingStep: rc=VINF_SUCCESS w/ FFs (%#x/%#x)\n",
+                            pVM->fGlobalForcedActions, pVCpu->fLocalForcedActions);
                 rc = VINF_SUCCESS;
                 break;
 
@@ -1195,12 +1195,12 @@ static int remR3RunLoggingStep(PVM pVM, PVMCPU pVCpu)
 #ifdef REM_USE_QEMU_SINGLE_STEP_FOR_LOGGING
                 if (rc == VINF_EM_DBG_STEPPED)
                 {
-                    if (   !VM_FF_IS_ANY_SET(pVM, VM_FF_ALL_REM_MASK)
-                        && !VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_ALL_REM_MASK))
+                    if (   !VM_FF_IS_PENDING(pVM, VM_FF_ALL_REM_MASK)
+                        && !VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_ALL_REM_MASK))
                         continue;
 
-                    RTLogPrintf("remR3RunLoggingStep: rc=VINF_SUCCESS w/ FFs (%#x/%#RX64)\n",
-                                pVM->fGlobalForcedActions, (uint64_t)pVCpu->fLocalForcedActions);
+                    RTLogPrintf("remR3RunLoggingStep: rc=VINF_SUCCESS w/ FFs (%#x/%#x)\n",
+                                pVM->fGlobalForcedActions, pVCpu->fLocalForcedActions);
                     rc = VINF_SUCCESS;
                 }
 #endif
@@ -1411,6 +1411,10 @@ bool remR3CanExecuteRaw(CPUX86State *env, RTGCPTR eip, unsigned fFlags, int *piE
     /* !!! THIS MUST BE IN SYNC WITH emR3Reschedule !!! */
     uint32_t u32CR0;
 
+#ifdef IEM_VERIFICATION_MODE
+    return false;
+#endif
+
     /* Update counter. */
     env->pVM->rem.s.cCanExecuteRaw++;
 
@@ -1418,7 +1422,7 @@ bool remR3CanExecuteRaw(CPUX86State *env, RTGCPTR eip, unsigned fFlags, int *piE
     if (env->state & CPU_EMULATE_SINGLE_STEP)
         return false;
 
-    if (!VM_IS_RAW_MODE_ENABLED(env->pVM))
+    if (HMIsEnabled(env->pVM))
     {
 #ifdef RT_OS_WINDOWS
         PCPUMCTX pCtx = alloca(sizeof(*pCtx));
@@ -1426,7 +1430,6 @@ bool remR3CanExecuteRaw(CPUX86State *env, RTGCPTR eip, unsigned fFlags, int *piE
         CPUMCTX Ctx;
         PCPUMCTX pCtx = &Ctx;
 #endif
-        /** @todo NEM: scheduling.   */
 
         env->state |= CPU_RAW_HM;
 
@@ -1437,7 +1440,7 @@ bool remR3CanExecuteRaw(CPUX86State *env, RTGCPTR eip, unsigned fFlags, int *piE
             return false;
 
         /*
-         * Create partial context for HMCanExecuteGuest.
+         * Create partial context for HMR3CanExecuteGuest
          */
         pCtx->cr0            = env->cr[0];
         pCtx->cr3            = env->cr[3];
@@ -1512,12 +1515,11 @@ bool remR3CanExecuteRaw(CPUX86State *env, RTGCPTR eip, unsigned fFlags, int *piE
 
         pCtx->msrEFER        = env->efer;
 
-        /*
-         * Hardware accelerated mode:
+        /* Hardware accelerated raw-mode:
+         *
          * Typically only 32-bits protected mode, with paging enabled, code is allowed here.
          */
-        PVMCPU pVCpu = &env->pVM->aCpus[0];
-        if (HMCanExecuteGuest(pVCpu, pCtx))
+        if (HMR3CanExecuteGuest(env->pVM, pCtx) == true)
         {
             *piException = EXCP_EXECUTE_HM;
             return true;
@@ -1785,7 +1787,7 @@ void remR3FlushPage(CPUX86State *env, RTGCPTR GCPtr)
     pCtx->cr0 = env->cr[0];
     pCtx->cr3 = env->cr[3];
 #ifdef VBOX_WITH_RAW_MODE
-    if (((env->cr[4] ^ pCtx->cr4) & X86_CR4_VME) && VM_IS_RAW_MODE_ENABLED(pVM))
+    if (((env->cr[4] ^ pCtx->cr4) & X86_CR4_VME) && !HMIsEnabled(pVM))
         VMCPU_FF_SET(env->pVCpu, VMCPU_FF_SELM_SYNC_TSS);
 #endif
     pCtx->cr4 = env->cr[4];
@@ -1846,7 +1848,7 @@ void remR3ProtectCode(CPUX86State *env, RTGCPTR GCPtr)
         &&  !(env->state & CPU_EMULATE_SINGLE_INSTR)        /* ignore during single instruction execution */
         &&   (((env->hflags >> HF_CPL_SHIFT) & 3) == 0)     /* supervisor mode only */
         &&  !(env->eflags & VM_MASK)                        /* no V86 mode */
-        &&  VM_IS_RAW_MODE_ENABLED(env->pVM))
+        &&  !HMIsEnabled(env->pVM))
         CSAMR3MonitorPage(env->pVM, GCPtr, CSAM_TAG_REM);
 #endif
 }
@@ -1866,7 +1868,7 @@ void remR3UnprotectCode(CPUX86State *env, RTGCPTR GCPtr)
         &&  !(env->state & CPU_EMULATE_SINGLE_INSTR)        /* ignore during single instruction execution */
         &&   (((env->hflags >> HF_CPL_SHIFT) & 3) == 0)     /* supervisor mode only */
         &&  !(env->eflags & VM_MASK)                        /* no V86 mode */
-        &&  VM_IS_RAW_MODE_ENABLED(env->pVM))
+        &&  !HMIsEnabled(env->pVM))
         CSAMR3UnmonitorPage(env->pVM, GCPtr, CSAM_TAG_REM);
 #endif
 }
@@ -1908,7 +1910,7 @@ void remR3FlushTLB(CPUX86State *env, bool fGlobal)
     pCtx->cr0 = env->cr[0];
     pCtx->cr3 = env->cr[3];
 #ifdef VBOX_WITH_RAW_MODE
-    if (((env->cr[4] ^ pCtx->cr4) & X86_CR4_VME) && VM_IS_RAW_MODE_ENABLED(pVM))
+    if (((env->cr[4] ^ pCtx->cr4) & X86_CR4_VME) && !HMIsEnabled(pVM))
         VMCPU_FF_SET(env->pVCpu, VMCPU_FF_SELM_SYNC_TSS);
 #endif
     pCtx->cr4 = env->cr[4];
@@ -1957,7 +1959,7 @@ void remR3ChangeCpuMode(CPUX86State *env)
     pCtx->cr0 = env->cr[0];
     pCtx->cr3 = env->cr[3];
 #ifdef VBOX_WITH_RAW_MODE
-    if (((env->cr[4] ^ pCtx->cr4) & X86_CR4_VME) && VM_IS_RAW_MODE_ENABLED(pVM))
+    if (((env->cr[4] ^ pCtx->cr4) & X86_CR4_VME) && !HMIsEnabled(pVM))
         VMCPU_FF_SET(env->pVCpu, VMCPU_FF_SELM_SYNC_TSS);
 #endif
     pCtx->cr4 = env->cr[4];
@@ -2136,8 +2138,7 @@ REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu)
     pCtx = pVM->rem.s.pCtx = CPUMQueryGuestCtxPtr(pVCpu);
 
     Assert(pCtx);
-    if (   CPUMIsGuestInSvmNestedHwVirtMode(pCtx)
-        || CPUMIsGuestInVmxNonRootMode(pCtx))
+    if (CPUMIsGuestInNestedHwVirtMode(pCtx))
     {
         AssertMsgFailed(("Bad scheduling - can't exec. nested-guest in REM!\n"));
         return VERR_EM_CANNOT_EXEC_GUEST;
@@ -2539,7 +2540,7 @@ REMR3DECL(int)  REMR3State(PVM pVM, PVMCPU pVCpu)
     pVM->rem.s.Env.interrupt_request &= ~(CPU_INTERRUPT_HARD | CPU_INTERRUPT_EXITTB | CPU_INTERRUPT_TIMER);
     if (VMCPU_FF_TEST_AND_CLEAR(pVCpu, VMCPU_FF_UPDATE_APIC))
         APICUpdatePendingInterrupts(pVCpu);
-    if (VMCPU_FF_IS_ANY_SET(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC))
+    if (VMCPU_FF_IS_PENDING(pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC))
         pVM->rem.s.Env.interrupt_request |= CPU_INTERRUPT_HARD;
 
     /*
@@ -2662,7 +2663,7 @@ REMR3DECL(int) REMR3StateBack(PVM pVM, PVMCPU pVCpu)
     pCtx->cr2           = pVM->rem.s.Env.cr[2];
     pCtx->cr3           = pVM->rem.s.Env.cr[3];
 #ifdef VBOX_WITH_RAW_MODE
-    if (((pVM->rem.s.Env.cr[4] ^ pCtx->cr4) & X86_CR4_VME) && VM_IS_RAW_MODE_ENABLED(pVM))
+    if (((pVM->rem.s.Env.cr[4] ^ pCtx->cr4) & X86_CR4_VME) && !HMIsEnabled(pVM))
         VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS);
 #endif
     pCtx->cr4           = pVM->rem.s.Env.cr[4];
@@ -2676,7 +2677,7 @@ REMR3DECL(int) REMR3StateBack(PVM pVM, PVMCPU pVCpu)
         pCtx->gdtr.pGdt = pVM->rem.s.Env.gdt.base;
         STAM_COUNTER_INC(&gStatREMGDTChange);
 #ifdef VBOX_WITH_RAW_MODE
-        if (VM_IS_RAW_MODE_ENABLED(pVM))
+        if (!HMIsEnabled(pVM))
             VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT);
 #endif
     }
@@ -2687,7 +2688,7 @@ REMR3DECL(int) REMR3StateBack(PVM pVM, PVMCPU pVCpu)
         pCtx->idtr.pIdt = pVM->rem.s.Env.idt.base;
         STAM_COUNTER_INC(&gStatREMIDTChange);
 #ifdef VBOX_WITH_RAW_MODE
-        if (VM_IS_RAW_MODE_ENABLED(pVM))
+        if (!HMIsEnabled(pVM))
             VMCPU_FF_SET(pVCpu, VMCPU_FF_TRPM_SYNC_IDT);
 #endif
     }
@@ -2708,7 +2709,7 @@ REMR3DECL(int) REMR3StateBack(PVM pVM, PVMCPU pVCpu)
         pCtx->ldtr.Attr.u   = (pVM->rem.s.Env.ldt.flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
         STAM_COUNTER_INC(&gStatREMLDTRChange);
 #ifdef VBOX_WITH_RAW_MODE
-        if (VM_IS_RAW_MODE_ENABLED(pVM))
+        if (!HMIsEnabled(pVM))
             VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_LDT);
 #endif
     }
@@ -2734,7 +2735,7 @@ REMR3DECL(int) REMR3StateBack(PVM pVM, PVMCPU pVCpu)
         Assert(pCtx->tr.Attr.u & ~DESC_INTEL_UNUSABLE);
         STAM_COUNTER_INC(&gStatREMTRChange);
 #ifdef VBOX_WITH_RAW_MODE
-        if (VM_IS_RAW_MODE_ENABLED(pVM))
+        if (!HMIsEnabled(pVM))
             VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS);
 #endif
     }
@@ -2816,7 +2817,7 @@ REMR3DECL(int) REMR3StateBack(PVM pVM, PVMCPU pVCpu)
      * We're not longer in REM mode.
      */
     CPUMR3RemLeave(pVCpu,
-                      !VM_IS_RAW_MODE_ENABLED(pVM)
+                      HMIsEnabled(pVM)
                    || (  pVM->rem.s.Env.segs[R_SS].newselector
                        | pVM->rem.s.Env.segs[R_GS].newselector
                        | pVM->rem.s.Env.segs[R_FS].newselector
@@ -2913,7 +2914,7 @@ static void remR3StateUpdate(PVM pVM, PVMCPU pVCpu)
     pCtx->cr2           = pVM->rem.s.Env.cr[2];
     pCtx->cr3           = pVM->rem.s.Env.cr[3];
 #ifdef VBOX_WITH_RAW_MODE
-    if (((pVM->rem.s.Env.cr[4] ^ pCtx->cr4) & X86_CR4_VME) && VM_IS_RAW_MODE_ENABLED(pVM))
+    if (((pVM->rem.s.Env.cr[4] ^ pCtx->cr4) & X86_CR4_VME) && !HMIsEnabled(pVM))
         VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS);
 #endif
     pCtx->cr4           = pVM->rem.s.Env.cr[4];
@@ -2927,7 +2928,7 @@ static void remR3StateUpdate(PVM pVM, PVMCPU pVCpu)
         pCtx->gdtr.pGdt     = (RTGCPTR)pVM->rem.s.Env.gdt.base;
         STAM_COUNTER_INC(&gStatREMGDTChange);
 #ifdef VBOX_WITH_RAW_MODE
-        if (VM_IS_RAW_MODE_ENABLED(pVM))
+        if (!HMIsEnabled(pVM))
             VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_GDT);
 #endif
     }
@@ -2938,7 +2939,7 @@ static void remR3StateUpdate(PVM pVM, PVMCPU pVCpu)
         pCtx->idtr.pIdt     = (RTGCPTR)pVM->rem.s.Env.idt.base;
         STAM_COUNTER_INC(&gStatREMIDTChange);
 #ifdef VBOX_WITH_RAW_MODE
-        if (VM_IS_RAW_MODE_ENABLED(pVM))
+        if (!HMIsEnabled(pVM))
             VMCPU_FF_SET(pVCpu, VMCPU_FF_TRPM_SYNC_IDT);
 #endif
     }
@@ -2959,7 +2960,7 @@ static void remR3StateUpdate(PVM pVM, PVMCPU pVCpu)
         pCtx->ldtr.Attr.u   = (pVM->rem.s.Env.ldt.flags >> SEL_FLAGS_SHIFT) & SEL_FLAGS_SMASK;
         STAM_COUNTER_INC(&gStatREMLDTRChange);
 #ifdef VBOX_WITH_RAW_MODE
-        if (VM_IS_RAW_MODE_ENABLED(pVM))
+        if (!HMIsEnabled(pVM))
             VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_LDT);
 #endif
     }
@@ -2985,7 +2986,7 @@ static void remR3StateUpdate(PVM pVM, PVMCPU pVCpu)
         Assert(pCtx->tr.Attr.u & ~DESC_INTEL_UNUSABLE);
         STAM_COUNTER_INC(&gStatREMTRChange);
 #ifdef VBOX_WITH_RAW_MODE
-        if (VM_IS_RAW_MODE_ENABLED(pVM))
+        if (!HMIsEnabled(pVM))
             VMCPU_FF_SET(pVCpu, VMCPU_FF_SELM_SYNC_TSS);
 #endif
     }
@@ -4229,8 +4230,7 @@ const char *lookup_symbol(target_ulong orig_addr)
     DBGFADDRESS Addr;
 
     int rc = DBGFR3AsSymbolByAddr(pVM->pUVM, DBGF_AS_GLOBAL, DBGFR3AddrFromFlat(pVM->pUVM, &Addr, orig_addr),
-                                  RTDBGSYMADDR_FLAGS_LESS_OR_EQUAL | RTDBGSYMADDR_FLAGS_SKIP_ABS_IN_DEFERRED,
-                                  &off, &Sym, NULL /*phMod*/);
+                                  RTDBGSYMADDR_FLAGS_LESS_OR_EQUAL, &off, &Sym, NULL /*phMod*/);
     if (RT_SUCCESS(rc))
     {
         static char szSym[sizeof(Sym.szName) + 48];
@@ -4261,10 +4261,15 @@ const char *lookup_symbol(target_ulong orig_addr)
  */
 REMR3DECL(void) REMR3NotifyInterruptSet(PVM pVM, PVMCPU pVCpu)
 {
+#ifndef IEM_VERIFICATION_MODE
     LogFlow(("REMR3NotifyInterruptSet: fInRem=%d interrupts %s\n", pVM->rem.s.fInREM,
              (pVM->rem.s.Env.eflags & IF_MASK) && !(pVM->rem.s.Env.hflags & HF_INHIBIT_IRQ_MASK) ? "enabled" : "disabled"));
     if (pVM->rem.s.fInREM)
-        ASMAtomicOrS32((int32_t volatile *)&cpu_single_env->interrupt_request, CPU_INTERRUPT_EXTERNAL_HARD);
+    {
+        ASMAtomicOrS32((int32_t volatile *)&cpu_single_env->interrupt_request,
+                       CPU_INTERRUPT_EXTERNAL_HARD);
+    }
+#endif
 }
 
 
@@ -4295,6 +4300,7 @@ REMR3DECL(void) REMR3NotifyInterruptClear(PVM pVM, PVMCPU pVCpu)
  */
 REMR3DECL(void) REMR3NotifyTimerPending(PVM pVM, PVMCPU pVCpuDst)
 {
+#ifndef IEM_VERIFICATION_MODE
 #ifndef DEBUG_bird
     LogFlow(("REMR3NotifyTimerPending: fInRem=%d\n", pVM->rem.s.fInREM));
 #endif
@@ -4311,6 +4317,7 @@ REMR3DECL(void) REMR3NotifyTimerPending(PVM pVM, PVMCPU pVCpuDst)
     }
     else
         LogIt(RTLOGGRPFLAGS_LEVEL_5, LOG_GROUP_TM, ("REMR3NotifyTimerPending: !fInREM; cpu state=%d\n", VMCPU_GET_STATE(pVCpuDst)));
+#endif
 }
 
 
@@ -4322,9 +4329,14 @@ REMR3DECL(void) REMR3NotifyTimerPending(PVM pVM, PVMCPU pVCpuDst)
  */
 REMR3DECL(void) REMR3NotifyDmaPending(PVM pVM)
 {
+#ifndef IEM_VERIFICATION_MODE
     LogFlow(("REMR3NotifyDmaPending: fInRem=%d\n", pVM->rem.s.fInREM));
     if (pVM->rem.s.fInREM)
-        ASMAtomicOrS32((int32_t volatile *)&cpu_single_env->interrupt_request, CPU_INTERRUPT_EXTERNAL_DMA);
+    {
+        ASMAtomicOrS32((int32_t volatile *)&cpu_single_env->interrupt_request,
+                       CPU_INTERRUPT_EXTERNAL_DMA);
+    }
+#endif
 }
 
 
@@ -4336,9 +4348,14 @@ REMR3DECL(void) REMR3NotifyDmaPending(PVM pVM)
  */
 REMR3DECL(void) REMR3NotifyQueuePending(PVM pVM)
 {
+#ifndef IEM_VERIFICATION_MODE
     LogFlow(("REMR3NotifyQueuePending: fInRem=%d\n", pVM->rem.s.fInREM));
     if (pVM->rem.s.fInREM)
-        ASMAtomicOrS32((int32_t volatile *)&cpu_single_env->interrupt_request, CPU_INTERRUPT_EXTERNAL_EXIT);
+    {
+        ASMAtomicOrS32((int32_t volatile *)&cpu_single_env->interrupt_request,
+                       CPU_INTERRUPT_EXTERNAL_EXIT);
+    }
+#endif
 }
 
 
@@ -4350,9 +4367,14 @@ REMR3DECL(void) REMR3NotifyQueuePending(PVM pVM)
  */
 REMR3DECL(void) REMR3NotifyFF(PVM pVM)
 {
+#ifndef IEM_VERIFICATION_MODE
     LogFlow(("REMR3NotifyFF: fInRem=%d\n", pVM->rem.s.fInREM));
     if (pVM->rem.s.fInREM)
-        ASMAtomicOrS32((int32_t volatile *)&cpu_single_env->interrupt_request, CPU_INTERRUPT_EXTERNAL_EXIT);
+    {
+        ASMAtomicOrS32((int32_t volatile *)&cpu_single_env->interrupt_request,
+                       CPU_INTERRUPT_EXTERNAL_EXIT);
+    }
+#endif
 }
 
 
@@ -4483,7 +4505,7 @@ int cpu_get_pic_interrupt(CPUX86State *env)
              u8Interrupt, rc, env->segs[R_CS].selector, (uint64_t)env->eip, (uint64_t)env->eflags));
     if (RT_SUCCESS(rc))
     {
-        if (VMCPU_FF_IS_ANY_SET(env->pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC))
+        if (VMCPU_FF_IS_PENDING(env->pVCpu, VMCPU_FF_INTERRUPT_APIC | VMCPU_FF_INTERRUPT_PIC))
             env->interrupt_request |= CPU_INTERRUPT_HARD;
         return u8Interrupt;
     }

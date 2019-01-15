@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,43 +15,54 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Qt includes: */
-#include <QDir>
-#include <QFile>
-#include <QVariant>
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
-/* GUI includes: */
-#include "QIFileDialog.h"
-#include "VBoxGlobal.h"
-#include "UIDownloaderAdditions.h"
-#include "UIMessageCenter.h"
-#include "UIModalWindowManager.h"
-#include "UINetworkReply.h"
-#include "UIVersion.h"
+/* Global includes: */
+# include <QDir>
+# include <QFile>
+
+/* Local includes: */
+# include "UIDownloaderAdditions.h"
+# include "UINetworkReply.h"
+# include "QIFileDialog.h"
+# include "VBoxGlobal.h"
+# include "UIMessageCenter.h"
+# include "UIModalWindowManager.h"
+# include "UIVersion.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* Other VBox includes: */
 #include <iprt/sha.h>
 
 
 /* static */
-UIDownloaderAdditions *UIDownloaderAdditions::s_pInstance = 0;
+UIDownloaderAdditions* UIDownloaderAdditions::m_spInstance = 0;
 
 /* static */
-UIDownloaderAdditions *UIDownloaderAdditions::create()
+UIDownloaderAdditions* UIDownloaderAdditions::create()
 {
-    if (!s_pInstance)
-        s_pInstance = new UIDownloaderAdditions;
-    return s_pInstance;
+    if (!m_spInstance)
+        m_spInstance = new UIDownloaderAdditions;
+    return m_spInstance;
+}
+
+/* static */
+UIDownloaderAdditions* UIDownloaderAdditions::current()
+{
+    return m_spInstance;
 }
 
 UIDownloaderAdditions::UIDownloaderAdditions()
 {
     /* Prepare instance: */
-    if (!s_pInstance)
-        s_pInstance = this;
+    if (!m_spInstance)
+        m_spInstance = this;
 
     /* Get version number and adjust it for test and trunk builds. The server only has official releases. */
-    const QString strVersion = UIVersion(vboxGlobal().vboxVersionStringNormalized()).effectiveReleasedVersion().toString();
+    const QString strVersion = UIVersion(vboxGlobal().vboxVersionStringNormalized()).effectiveRelasedVersion().toString();
 
     /* Prepare source/target: */
     const QString strSourceName = QString("%1_%2.iso").arg(GUI_GuestAdditionsName, strVersion);
@@ -69,10 +80,11 @@ UIDownloaderAdditions::UIDownloaderAdditions()
 UIDownloaderAdditions::~UIDownloaderAdditions()
 {
     /* Cleanup instance: */
-    if (s_pInstance == this)
-        s_pInstance = 0;
+    if (m_spInstance == this)
+        m_spInstance = 0;
 }
 
+/* virtual override */
 const QString UIDownloaderAdditions::description() const
 {
     return UIDownloader::description().arg(tr("VirtualBox Guest Additions"));
@@ -85,6 +97,7 @@ bool UIDownloaderAdditions::askForDownloadingConfirmation(UINetworkReply *pReply
 
 void UIDownloaderAdditions::handleDownloadedObject(UINetworkReply *pReply)
 {
+    /* Read received data into the buffer: */
     m_receivedData = pReply->readAll();
 }
 

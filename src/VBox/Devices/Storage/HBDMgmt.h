@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015-2019 Oracle Corporation
+ * Copyright (C) 2015-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,12 +14,8 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-
-#ifndef VBOX_INCLUDED_SRC_Storage_HBDMgmt_h
-#define VBOX_INCLUDED_SRC_Storage_HBDMgmt_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __HBDMgmt_h
+#define __HBDMgmt_h
 
 #include <VBox/cdefs.h>
 
@@ -91,4 +87,4 @@ DECLHIDDEN(bool) HBDMgrIsBlockDeviceClaimed(HBDMGR hHbdMgr, const char *pszFilen
 
 RT_C_DECLS_END
 
-#endif /* !VBOX_INCLUDED_SRC_Storage_HBDMgmt_h */
+#endif /* __HBDMgmt_h */

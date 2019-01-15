@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,12 +14,8 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-
-#ifndef VBOX_INCLUDED_SRC_testcase_VDScript_h
-#define VBOX_INCLUDED_SRC_testcase_VDScript_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef _VDScript_h__
+#define _VDScript_h__
 
 /** Handle to the scripting context. */
 typedef struct VDSCRIPTCTXINT *VDSCRIPTCTX;
@@ -223,4 +219,4 @@ DECLHIDDEN(int) VDScriptCtxAsRegister(VDSCRIPTCTX hScriptCtx, const char *pszTyp
                                       PFNVDSCRIPTASREAD pfnRead, PFNVDSCRIPTASWRITE pfnWrite, void *pvUser,
                                       uint32_t fFlags);
 
-#endif /* !VBOX_INCLUDED_SRC_testcase_VDScript_h */
+#endif /* _VDScript_h__ */

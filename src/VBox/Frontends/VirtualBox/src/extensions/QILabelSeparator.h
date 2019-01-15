@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,55 +15,38 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_extensions_QILabelSeparator_h
-#define FEQT_INCLUDED_SRC_extensions_QILabelSeparator_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __QILabelSeparator_h__
+#define __QILabelSeparator_h__
 
-/* Qt includes: */
+/* Global includes */
 #include <QWidget>
 
-/* GUI inlcudes: */
-#include "UILibraryDefs.h"
-
-/* Forward declarations: */
+/* Global forwards */
 class QLabel;
-class QString;
-class QWidget;
 
-/** QWidget extension providing GUI with label-separator. */
-class SHARED_LIBRARY_STUFF QILabelSeparator : public QWidget
+class QILabelSeparator: public QWidget
 {
     Q_OBJECT;
 
 public:
 
-    /** Constructs label-separator passing @a pParent and @a fFlags to the base-class. */
-    QILabelSeparator(QWidget *pParent = 0, Qt::WindowFlags fFlags = 0);
-    /** Constructs label-separator passing @a pParent and @a fFlags to the base-class.
-      * @param  strText  Brings the label text. */
-    QILabelSeparator(const QString &strText, QWidget *pParent = 0, Qt::WindowFlags fFlags = 0);
+    QILabelSeparator (QWidget *aParent = 0, Qt::WindowFlags aFlags = 0);
+    QILabelSeparator (const QString &aText, QWidget *aParent = 0, Qt::WindowFlags aFlags = 0);
 
-    /** Returns the label text. */
     QString text() const;
-    /** Defines the label buddy. */
-    void setBuddy(QWidget *pBuddy);
+    void setBuddy (QWidget *aBuddy);
 
 public slots:
 
-    /** Clears the label text. */
     void clear();
-    /** Defines the label @a strText. */
-    void setText(const QString &strText);
+    void setText (const QString &aText);
 
 protected:
 
-    /** Prepares all. */
-    virtual void prepare();
+    virtual void init();
 
-    /** Holds the label instance. */
-    QLabel *m_pLabel;
+    QLabel *mLabel;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_extensions_QILabelSeparator_h */
+#endif // __QILabelSeparator_h__
+

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,11 +24,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_INTERNAL_ldr_h
-#define IPRT_INCLUDED_INTERNAL_ldr_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___internal_ldr_h
+#define ___internal_ldr_h
 
 #include <iprt/types.h>
 #include "internal/magics.h"
@@ -514,28 +511,6 @@ typedef struct RTLDROPS
      */
     DECLCALLBACKMEMBER(int, pfnHashImage)(PRTLDRMODINTERNAL pMod, RTDIGESTTYPE enmDigest, char *pszDigest, size_t cbDigest);
 
-        /**
-     * Try use unwind information to unwind one frame.
-     *
-     * @returns IPRT status code.  Last informational status from stack reader callback.
-     * @retval  VERR_DBG_NO_UNWIND_INFO if the module contains no unwind information.
-     * @retval  VERR_DBG_UNWIND_INFO_NOT_FOUND if no unwind information was found
-     *          for the location given by iSeg:off.
-     *
-     * @param   pMod        Pointer to the module structure.
-     * @param   pvBits      Pointer to the bits returned by
-     *                      RTLDROPS::pfnGetBits(), optional.
-     * @param   iSeg        The segment number of the program counter.  UINT32_MAX for RVA.
-     * @param   off         The offset into @a iSeg.  Together with @a iSeg
-     *                      this corresponds to the RTDBGUNWINDSTATE::uPc
-     *                      value pointed to by @a pState.
-     * @param   pState      The unwind state to work.
-     *
-     * @sa      RTLdrUnwindFrame, RTDbgModUnwindFrame
-     */
-    DECLCALLBACKMEMBER(int, pfnUnwindFrame)(PRTLDRMODINTERNAL pMod, void const *pvBits, uint32_t iSeg, RTUINTPTR off,
-                                            PRTDBGUNWINDSTATE pState);
-
     /** Dummy entry to make sure we've initialized it all. */
     RTUINT uDummy;
 } RTLDROPS;
@@ -632,8 +607,9 @@ DECLHIDDEN(int) rtldrkLdrOpen(PRTLDRREADER pReader, uint32_t fFlags, RTLDRARCH e
 
 
 DECLHIDDEN(int) rtLdrReadAt(RTLDRMOD hLdrMod, void *pvBuf, uint32_t iDbgInfo, RTFOFF off, size_t cb);
+DECLHIDDEN(const char *) rtLdrArchName(RTLDRARCH enmArch);
 
 RT_C_DECLS_END
 
-#endif /* !IPRT_INCLUDED_INTERNAL_ldr_h */
+#endif
 

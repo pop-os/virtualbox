@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_tcp_h
-#define IPRT_INCLUDED_tcp_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_tcp_h
+#define ___iprt_tcp_h
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -231,18 +228,6 @@ RTR3DECL(int) RTTcpClientClose(RTSOCKET hSocket);
  *                              further ado.
  */
 RTR3DECL(int) RTTcpClientCloseEx(RTSOCKET hSocket, bool fGracefulShutdown);
-
-/**
- * Creates connected pair of TCP sockets.
- *
- * @returns IPRT status code.
- * @param   phServer            Where to return the "server" side of the pair.
- * @param   phClient            Where to return the "client" side of the pair.
- * @param   fFlags              Reserved, must be zero.
- *
- * @note    There is no server or client side, but we gotta call it something.
- */
-RTR3DECL(int) RTTcpCreatePair(PRTSOCKET phServer, PRTSOCKET phClient, uint32_t fFlags);
 
 /**
  * Receive data from a socket.
@@ -491,5 +476,5 @@ RTR3DECL(int) RTTcpSgWriteLVNB(RTSOCKET hSocket, size_t cSegs, size_t *pcbWritte
 /** @} */
 RT_C_DECLS_END
 
-#endif /* !IPRT_INCLUDED_tcp_h */
+#endif
 

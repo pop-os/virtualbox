@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_wizards_clonevm_UIWizardCloneVMPageBasic3_h
-#define FEQT_INCLUDED_SRC_wizards_clonevm_UIWizardCloneVMPageBasic3_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __UIWizardCloneVMPageBasic3_h__
+#define __UIWizardCloneVMPageBasic3_h__
 
 /* GUI includes: */
 #include "UIWizardPage.h"
@@ -78,5 +75,5 @@ private:
     QIRichTextLabel *m_pLabel;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_wizards_clonevm_UIWizardCloneVMPageBasic3_h */
+#endif // __UIWizardCloneVMPageBasic3_h__
 

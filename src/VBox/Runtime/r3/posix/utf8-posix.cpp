@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -42,11 +42,11 @@
 /* iconv prototype changed with 165+ (thanks to PSARC/2010/160 Bugster 7037400) */
 #if defined(RT_OS_SOLARIS)
 # if !defined(_XPG6)
-#  define IPRT_XPG6_TMP_DEF
+#  define VBOX_XPG6_TMP_DEF
 #  define _XPG6
 # endif
 # if defined(__USE_LEGACY_PROTOTYPES__)
-#  define IPRT_LEGACY_PROTO_TMP_DEF
+#  define VBOX_LEGACY_PROTO_TMP_DEF
 #  undef __USE_LEGACY_PROTOTYPES__
 # endif
 #endif /* RT_OS_SOLARIS */
@@ -54,13 +54,13 @@
 # include <iconv.h>
 
 #if defined(RT_OS_SOLARIS)
-# if defined(IPRT_XPG6_TMP_DEF)
+# if defined(VBOX_XPG6_TMP_DEF)
 #  undef _XPG6
-#  undef IPRT_XPG6_TMP_DEF
+#  undef VBOX_XPG6_TMP_DEF
 # endif
-# if defined(IPRT_LEGACY_PROTO_TMP_DEF)
+# if defined(VBOX_LEGACY_PROTO_TMP_DEF)
 #  define __USE_LEGACY_PROTOTYPES__
-#  undef IPRT_LEGACY_PROTO_TMP_DEF
+#  undef VBOX_LEGACY_PROTO_TMP_DEF
 # endif
 #endif /* RT_OS_SOLARIS */
 

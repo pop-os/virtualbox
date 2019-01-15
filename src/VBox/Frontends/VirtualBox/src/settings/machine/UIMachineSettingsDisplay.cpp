@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,26 +15,25 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* GUI includes: */
-#include "QIWidgetValidator.h"
-#include "UIConverter.h"
-#include "UIDesktopWidgetWatchdog.h"
-#include "UIExtraDataManager.h"
-#include "UIMachineSettingsDisplay.h"
-#include "UIErrorString.h"
-#include "VBoxGlobal.h"
-#include "VBox2DHelpers.h"
+# include "QIWidgetValidator.h"
+# include "UIConverter.h"
+# include "UIDesktopWidgetWatchdog.h"
+# include "UIExtraDataManager.h"
+# include "UIMachineSettingsDisplay.h"
+# include "UIErrorString.h"
+# include "VBoxGlobal.h"
 
 /* COM includes: */
-#include "CRecordingSettings.h"
-#include "CRecordingScreenSettings.h"
-#include "CExtPack.h"
-#include "CExtPackManager.h"
-#include "CVRDEServer.h"
+# include "CExtPack.h"
+# include "CExtPackManager.h"
+# include "CVRDEServer.h"
 
-
-#define VIDEO_CAPTURE_BIT_RATE_MIN 32
-#define VIDEO_CAPTURE_BIT_RATE_MAX 2048
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 /** Machine settings: Display page data structure. */
@@ -44,25 +43,28 @@ struct UIDataSettingsMachineDisplay
     UIDataSettingsMachineDisplay()
         : m_iCurrentVRAM(0)
         , m_cGuestScreenCount(0)
+        , m_dScaleFactor(1.0)
+#ifdef VBOX_WS_MAC
+        , m_fUseUnscaledHiDPIOutput(false)
+#endif /* VBOX_WS_MAC */
         , m_f3dAccelerationEnabled(false)
 #ifdef VBOX_WITH_VIDEOHWACCEL
         , m_f2dAccelerationEnabled(false)
 #endif /* VBOX_WITH_VIDEOHWACCEL */
-        , m_graphicsControllerType(KGraphicsControllerType_Null)
         , m_fRemoteDisplayServerSupported(false)
         , m_fRemoteDisplayServerEnabled(false)
         , m_strRemoteDisplayPort(QString())
         , m_remoteDisplayAuthType(KAuthType_Null)
         , m_uRemoteDisplayTimeout(0)
         , m_fRemoteDisplayMultiConnAllowed(false)
-        , m_fRecordingEnabled(false)
-        , m_strRecordingFolder(QString())
-        , m_strRecordingFilePath(QString())
-        , m_iRecordingVideoFrameWidth(0)
-        , m_iRecordingVideoFrameHeight(0)
-        , m_iRecordingVideoFrameRate(0)
-        , m_iRecordingVideoBitRate(0)
-        , m_strRecordingVideoOptions(QString())
+        , m_fVideoCaptureEnabled(false)
+        , m_strVideoCaptureFolder(QString())
+        , m_strVideoCaptureFilePath(QString())
+        , m_iVideoCaptureFrameWidth(0)
+        , m_iVideoCaptureFrameHeight(0)
+        , m_iVideoCaptureFrameRate(0)
+        , m_iVideoCaptureBitRate(0)
+        , m_strVideoCaptureOptions(QString())
     {}
 
     /** Returns whether the @a other passed data is equal to this one. */
@@ -71,26 +73,28 @@ struct UIDataSettingsMachineDisplay
         return true
                && (m_iCurrentVRAM == other.m_iCurrentVRAM)
                && (m_cGuestScreenCount == other.m_cGuestScreenCount)
-               && (m_scaleFactors == other.m_scaleFactors)
+               && (m_dScaleFactor == other.m_dScaleFactor)
+#ifdef VBOX_WS_MAC
+               && (m_fUseUnscaledHiDPIOutput == other.m_fUseUnscaledHiDPIOutput)
+#endif /* VBOX_WS_MAC */
                && (m_f3dAccelerationEnabled == other.m_f3dAccelerationEnabled)
 #ifdef VBOX_WITH_VIDEOHWACCEL
                && (m_f2dAccelerationEnabled == other.m_f2dAccelerationEnabled)
 #endif /* VBOX_WITH_VIDEOHWACCEL */
-               && (m_graphicsControllerType == other.m_graphicsControllerType)
                && (m_fRemoteDisplayServerSupported == other.m_fRemoteDisplayServerSupported)
                && (m_fRemoteDisplayServerEnabled == other.m_fRemoteDisplayServerEnabled)
                && (m_strRemoteDisplayPort == other.m_strRemoteDisplayPort)
                && (m_remoteDisplayAuthType == other.m_remoteDisplayAuthType)
                && (m_uRemoteDisplayTimeout == other.m_uRemoteDisplayTimeout)
                && (m_fRemoteDisplayMultiConnAllowed == other.m_fRemoteDisplayMultiConnAllowed)
-               && (m_fRecordingEnabled == other.m_fRecordingEnabled)
-               && (m_strRecordingFilePath == other.m_strRecordingFilePath)
-               && (m_iRecordingVideoFrameWidth == other.m_iRecordingVideoFrameWidth)
-               && (m_iRecordingVideoFrameHeight == other.m_iRecordingVideoFrameHeight)
-               && (m_iRecordingVideoFrameRate == other.m_iRecordingVideoFrameRate)
-               && (m_iRecordingVideoBitRate == other.m_iRecordingVideoBitRate)
-               && (m_vecRecordingScreens == other.m_vecRecordingScreens)
-               && (m_strRecordingVideoOptions == other.m_strRecordingVideoOptions)
+               && (m_fVideoCaptureEnabled == other.m_fVideoCaptureEnabled)
+               && (m_strVideoCaptureFilePath == other.m_strVideoCaptureFilePath)
+               && (m_iVideoCaptureFrameWidth == other.m_iVideoCaptureFrameWidth)
+               && (m_iVideoCaptureFrameHeight == other.m_iVideoCaptureFrameHeight)
+               && (m_iVideoCaptureFrameRate == other.m_iVideoCaptureFrameRate)
+               && (m_iVideoCaptureBitRate == other.m_iVideoCaptureBitRate)
+               && (m_screens == other.m_screens)
+               && (m_strVideoCaptureOptions == other.m_strVideoCaptureOptions)
                ;
     }
 
@@ -99,43 +103,59 @@ struct UIDataSettingsMachineDisplay
     /** Returns whether the @a other passed data is different from this one. */
     bool operator!=(const UIDataSettingsMachineDisplay &other) const { return !equal(other); }
 
-    /** Recording options. */
-    enum RecordingOption
+    /** Video Capture Options. */
+    enum VideoCaptureOption
     {
-        RecordingOption_Unknown,
-        RecordingOption_AC,
-        RecordingOption_VC,
-        RecordingOption_AC_Profile
+        VideoCaptureOption_Unknown,
+        VideoCaptureOption_AC,
     };
 
     /** Returns enum value corresponding to passed @a strKey. */
-    static RecordingOption toRecordingOptionKey(const QString &strKey)
+    static VideoCaptureOption toVideoCaptureOptionKey(const QString &strKey)
     {
         /* Compare case-sensitive: */
-        QMap<QString, RecordingOption> keys;
-        keys["ac_enabled"] = RecordingOption_AC;
-        keys["vc_enabled"] = RecordingOption_VC;
-        keys["ac_profile"] = RecordingOption_AC_Profile;
-        /* Return known value or RecordingOption_Unknown otherwise: */
-        return keys.value(strKey, RecordingOption_Unknown);
+        QMap<QString, VideoCaptureOption> keys;
+        keys["ac_enabled"] = VideoCaptureOption_AC;
+        /* Return known value or VideoCaptureOption_Unknown otherwise: */
+        return keys.value(strKey, VideoCaptureOption_Unknown);
+    }
+
+    /** Returns bool value corresponding to passed @a strValue. */
+    static bool toVideoCaptureOptionValue(const QString &strValue)
+    {
+        /* Compare case-sensitive: */
+        QMap<QString, bool> values;
+        values["true"] = true;
+        values["false"] = false;
+        /* Return known value or true otherwise: */
+        return values.value(strValue, false);
     }
 
     /** Returns string representation for passed enum @a enmKey. */
-    static QString fromRecordingOptionKey(RecordingOption enmKey)
+    static QString fromVideoCaptureOptionKey(VideoCaptureOption enmKey)
     {
         /* Compare case-sensitive: */
-        QMap<RecordingOption, QString> values;
-        values[RecordingOption_AC] = "ac_enabled";
-        values[RecordingOption_VC] = "vc_enabled";
-        values[RecordingOption_AC_Profile] = "ac_profile";
+        QMap<VideoCaptureOption, QString> values;
+        values[VideoCaptureOption_AC] = "ac_enabled";
         /* Return known value or QString() otherwise: */
         return values.value(enmKey);
     }
 
-    /** Parses recording options. */
-    static void parseRecordingOptions(const QString &strOptions,
-                                      QList<RecordingOption> &outKeys,
-                                      QStringList &outValues)
+    /** Returns string representation for passed bool @a fValue. */
+    static QString fromVideoCaptureOptionValue(bool fValue)
+    {
+        /* Compare case-sensitive: */
+        QMap<bool, QString> values;
+        values[true] = "true";
+        values[false] = "false";
+        /* Return known value or "false" otherwise: */
+        return values.value(fValue, "false");
+    }
+
+    /** Parses Video Capture Options. */
+    static void parseVideoCaptureOptions(const QString &strOptions,
+                                         QList<VideoCaptureOption> &outKeys,
+                                         QList<bool> &outValues)
     {
         outKeys.clear();
         outValues.clear();
@@ -143,138 +163,115 @@ struct UIDataSettingsMachineDisplay
         foreach (const QString &strPair, aPairs)
         {
             const QStringList aPair = strPair.split('=');
-            if (aPair.size() != 2)
-                continue;
-            const RecordingOption enmKey = toRecordingOptionKey(aPair.value(0));
-            if (enmKey == RecordingOption_Unknown)
+            const VideoCaptureOption enmKey = toVideoCaptureOptionKey(aPair.value(0));
+            const bool fValue = toVideoCaptureOptionValue(aPair.value(1));
+            if (enmKey == VideoCaptureOption_Unknown)
                 continue;
             outKeys << enmKey;
-            outValues << aPair.value(1);
+            outValues << fValue;
         }
     }
 
-    /** Serializes recording options. */
-    static void serializeRecordingOptions(const QList<RecordingOption> &inKeys,
-                                          const QStringList &inValues,
-                                          QString &strOptions)
+    /** Serializes Video Capture Options. */
+    static void serializeVideoCaptureOptions(const QList<VideoCaptureOption> &inKeys,
+                                             const QList<bool> &inValues,
+                                             QString &strOptions)
     {
         QStringList aPairs;
         for (int i = 0; i < inKeys.size(); ++i)
         {
             QStringList aPair;
-            aPair << fromRecordingOptionKey(inKeys.value(i));
-            aPair << inValues.value(i);
+            aPair << fromVideoCaptureOptionKey(inKeys.value(i));
+            aPair << fromVideoCaptureOptionValue(inValues.value(i));
             aPairs << aPair.join('=');
         }
         strOptions = aPairs.join(',');
     }
 
-    /** Returns whether passed Recording @a enmOption is enabled. */
-    static bool isRecordingOptionEnabled(const QString &strOptions,
-                                         RecordingOption enmOption)
+    /** Returns whether passed Video Capture @a enmOption is enabled. */
+    static bool isVideoCaptureOptionEnabled(const QString &strOptions,
+                                            VideoCaptureOption enmOption)
     {
-        QList<RecordingOption> aKeys;
-        QStringList aValues;
-        parseRecordingOptions(strOptions, aKeys, aValues);
+        QList<VideoCaptureOption> aKeys;
+        QList<bool> aValues;
+        parseVideoCaptureOptions(strOptions, aKeys, aValues);
         int iIndex = aKeys.indexOf(enmOption);
         if (iIndex == -1)
             return false; /* If option is missing, assume disabled (false). */
-        if (aValues.value(iIndex).compare("true", Qt::CaseInsensitive) == 0)
-            return true;
-        return false;
+        return aValues.value(iIndex);
     }
 
-    /** Searches for ac_profile and return 1 for "low", 2 for "med", and 3 for "high". Returns 2
-        if ac_profile is missing */
-    static int getAudioQualityFromOptions(const QString &strOptions)
+    /** Defines whether passed Video Capture @a enmOption is @a fEnabled. */
+    static QString setVideoCaptureOptionEnabled(const QString &strOptions,
+                                                VideoCaptureOption enmOption,
+                                                bool fEnabled)
     {
-        QList<RecordingOption> aKeys;
-        QStringList aValues;
-        parseRecordingOptions(strOptions, aKeys, aValues);
-        int iIndex = aKeys.indexOf(RecordingOption_AC_Profile);
+        QList<VideoCaptureOption> aKeys;
+        QList<bool> aValues;
+        parseVideoCaptureOptions(strOptions, aKeys, aValues);
+        int iIndex = aKeys.indexOf(enmOption);
         if (iIndex == -1)
-            return 2;
-        if (aValues.value(iIndex).compare("low", Qt::CaseInsensitive) == 0)
-            return 1;
-        if (aValues.value(iIndex).compare("high", Qt::CaseInsensitive) == 0)
-            return 3;
-        return 2;
-    }
-
-    /** Sets the video recording options for @a enmOptions to @a values. */
-    static QString setRecordingOptions(const QString &strOptions,
-                                       const QVector<RecordingOption> &enmOptions,
-                                       const QStringList &values)
-    {
-        if (enmOptions.size() != values.size())
-            return QString();
-        QList<RecordingOption> aKeys;
-        QStringList aValues;
-        parseRecordingOptions(strOptions, aKeys, aValues);
-        for(int i = 0; i < values.size(); ++i)
         {
-            QString strValue = values[i];
-            int iIndex = aKeys.indexOf(enmOptions[i]);
-            if (iIndex == -1)
-            {
-                aKeys << enmOptions[i];
-                aValues << strValue;
-            }
-            else
-            {
-                aValues[iIndex] = strValue;
-            }
+            aKeys << enmOption;
+            aValues << fEnabled;
+        }
+        else
+        {
+            aValues[iIndex] = fEnabled;
         }
         QString strResult;
-        serializeRecordingOptions(aKeys, aValues, strResult);
+        serializeVideoCaptureOptions(aKeys, aValues, strResult);
         return strResult;
     }
 
     /** Holds the video RAM amount. */
-    int                      m_iCurrentVRAM;
+    int     m_iCurrentVRAM;
     /** Holds the guest screen count. */
-    int                      m_cGuestScreenCount;
+    int     m_cGuestScreenCount;
     /** Holds the guest screen scale-factor. */
-    QList<double>            m_scaleFactors;
+    double  m_dScaleFactor;
+#ifdef VBOX_WS_MAC
+    /** Holds whether automatic Retina scaling is disabled. */
+    bool    m_fUseUnscaledHiDPIOutput;
+#endif /* VBOX_WS_MAC */
     /** Holds whether the 3D acceleration is enabled. */
-    bool                     m_f3dAccelerationEnabled;
+    bool    m_f3dAccelerationEnabled;
 #ifdef VBOX_WITH_VIDEOHWACCEL
     /** Holds whether the 2D video acceleration is enabled. */
-    bool                     m_f2dAccelerationEnabled;
+    bool    m_f2dAccelerationEnabled;
 #endif /* VBOX_WITH_VIDEOHWACCEL */
-    /** Holds the graphics controller type. */
-    KGraphicsControllerType  m_graphicsControllerType;
-    /** Holds whether the remote display server is supported. */
-    bool                     m_fRemoteDisplayServerSupported;
-    /** Holds whether the remote display server is enabled. */
-    bool                     m_fRemoteDisplayServerEnabled;
-    /** Holds the remote display server port. */
-    QString                  m_strRemoteDisplayPort;
-    /** Holds the remote display server auth type. */
-    KAuthType                m_remoteDisplayAuthType;
-    /** Holds the remote display server timeout. */
-    ulong                    m_uRemoteDisplayTimeout;
-    /** Holds whether the remote display server allows multiple connections. */
-    bool                     m_fRemoteDisplayMultiConnAllowed;
 
-    /** Holds whether recording is enabled. */
-    bool m_fRecordingEnabled;
-    /** Holds the recording folder. */
-    QString m_strRecordingFolder;
-    /** Holds the recording file path. */
-    QString m_strRecordingFilePath;
-    /** Holds the recording frame width. */
-    int m_iRecordingVideoFrameWidth;
-    /** Holds the recording frame height. */
-    int m_iRecordingVideoFrameHeight;
-    /** Holds the recording frame rate. */
-    int m_iRecordingVideoFrameRate;
-    /** Holds the recording bit rate. */
-    int m_iRecordingVideoBitRate;
-    /** Holds which of the guest screens should be recorded. */
-    QVector<BOOL> m_vecRecordingScreens;
-    /** Holds the video recording options. */
-    QString m_strRecordingVideoOptions;
+    /** Holds whether the remote display server is supported. */
+    bool       m_fRemoteDisplayServerSupported;
+    /** Holds whether the remote display server is enabled. */
+    bool       m_fRemoteDisplayServerEnabled;
+    /** Holds the remote display server port. */
+    QString    m_strRemoteDisplayPort;
+    /** Holds the remote display server auth type. */
+    KAuthType  m_remoteDisplayAuthType;
+    /** Holds the remote display server timeout. */
+    ulong      m_uRemoteDisplayTimeout;
+    /** Holds whether the remote display server allows multiple connections. */
+    bool       m_fRemoteDisplayMultiConnAllowed;
+
+    /** Holds whether the video capture is enabled. */
+    bool m_fVideoCaptureEnabled;
+    /** Holds the video capture folder. */
+    QString m_strVideoCaptureFolder;
+    /** Holds the video capture file path. */
+    QString m_strVideoCaptureFilePath;
+    /** Holds the video capture frame width. */
+    int m_iVideoCaptureFrameWidth;
+    /** Holds the video capture frame height. */
+    int m_iVideoCaptureFrameHeight;
+    /** Holds the video capture frame rate. */
+    int m_iVideoCaptureFrameRate;
+    /** Holds the video capture bit rate. */
+    int m_iVideoCaptureBitRate;
+    /** Holds which of the guest screens should be captured. */
+    QVector<BOOL> m_screens;
+    /** Holds the video capture options. */
+    QString m_strVideoCaptureOptions;
 };
 
 
@@ -312,12 +309,12 @@ void UIMachineSettingsDisplay::setGuestOSType(CGuestOSType comGuestOSType)
 
 #ifdef VBOX_WITH_VIDEOHWACCEL
     /* Check if 2D video acceleration supported by the guest OS type: */
-    const QString strGuestOSTypeFamily = m_comGuestOSType.isNotNull() ? m_comGuestOSType.GetFamilyId() : QString();
+    const QString strGuestOSTypeFamily = m_comGuestOSType.GetFamilyId();
     m_f2DVideoAccelerationSupported = strGuestOSTypeFamily == "Windows";
 #endif
 #ifdef VBOX_WITH_CRHGSMI
     /* Check if WDDM mode supported by the guest OS type: */
-    const QString strGuestOSTypeId = m_comGuestOSType.isNotNull() ? m_comGuestOSType.GetId() : QString();
+    const QString strGuestOSTypeId = m_comGuestOSType.GetId();
     m_fWddmModeSupported = VBoxGlobal::isWddmCompatibleOsType(strGuestOSTypeId);
 #endif
 
@@ -354,51 +351,38 @@ void UIMachineSettingsDisplay::loadToCacheFrom(QVariant &data)
     /* Gather old 'Screen' data: */
     oldDisplayData.m_iCurrentVRAM = m_machine.GetVRAMSize();
     oldDisplayData.m_cGuestScreenCount = m_machine.GetMonitorCount();
-    oldDisplayData.m_scaleFactors = gEDataManager->scaleFactors(m_machine.GetId());
+    oldDisplayData.m_dScaleFactor = gEDataManager->scaleFactor(m_machine.GetId());
+#ifdef VBOX_WS_MAC
+    oldDisplayData.m_fUseUnscaledHiDPIOutput = gEDataManager->useUnscaledHiDPIOutput(m_machine.GetId());
+#endif
     oldDisplayData.m_f3dAccelerationEnabled = m_machine.GetAccelerate3DEnabled();
 #ifdef VBOX_WITH_VIDEOHWACCEL
     oldDisplayData.m_f2dAccelerationEnabled = m_machine.GetAccelerate2DVideoEnabled();
 #endif
-    oldDisplayData.m_graphicsControllerType = m_machine.GetGraphicsControllerType();
+
     /* Check whether remote display server is valid: */
-    const CVRDEServer &vrdeServer = m_machine.GetVRDEServer();
-    oldDisplayData.m_fRemoteDisplayServerSupported = !vrdeServer.isNull();
-    if (!vrdeServer.isNull())
+    const CVRDEServer &comServer = m_machine.GetVRDEServer();
+    oldDisplayData.m_fRemoteDisplayServerSupported = !comServer.isNull();
+    if (!comServer.isNull())
     {
         /* Gather old 'Remote Display' data: */
-        oldDisplayData.m_fRemoteDisplayServerEnabled = vrdeServer.GetEnabled();
-        oldDisplayData.m_strRemoteDisplayPort = vrdeServer.GetVRDEProperty("TCP/Ports");
-        oldDisplayData.m_remoteDisplayAuthType = vrdeServer.GetAuthType();
-        oldDisplayData.m_uRemoteDisplayTimeout = vrdeServer.GetAuthTimeout();
-        oldDisplayData.m_fRemoteDisplayMultiConnAllowed = vrdeServer.GetAllowMultiConnection();
+        oldDisplayData.m_fRemoteDisplayServerEnabled = comServer.GetEnabled();
+        oldDisplayData.m_strRemoteDisplayPort = comServer.GetVRDEProperty("TCP/Ports");
+        oldDisplayData.m_remoteDisplayAuthType = comServer.GetAuthType();
+        oldDisplayData.m_uRemoteDisplayTimeout = comServer.GetAuthTimeout();
+        oldDisplayData.m_fRemoteDisplayMultiConnAllowed = comServer.GetAllowMultiConnection();
     }
 
-    /* Gather old 'Recording' data: */
-    CRecordingSettings recordingSettings = m_machine.GetRecordingSettings();
-    Assert(recordingSettings.isNotNull());
-    oldDisplayData.m_fRecordingEnabled = recordingSettings.GetEnabled();
-
-    /* For now we're using the same settings for all screens; so get settings from screen 0 and work with that. */
-    CRecordingScreenSettings recordingScreen0Settings = recordingSettings.GetScreenSettings(0);
-    if (!recordingScreen0Settings.isNull())
-    {
-        oldDisplayData.m_strRecordingFolder = QFileInfo(m_machine.GetSettingsFilePath()).absolutePath();
-        oldDisplayData.m_strRecordingFilePath = recordingScreen0Settings.GetFilename();
-        oldDisplayData.m_iRecordingVideoFrameWidth = recordingScreen0Settings.GetVideoWidth();
-        oldDisplayData.m_iRecordingVideoFrameHeight = recordingScreen0Settings.GetVideoHeight();
-        oldDisplayData.m_iRecordingVideoFrameRate = recordingScreen0Settings.GetVideoFPS();
-        oldDisplayData.m_iRecordingVideoBitRate = recordingScreen0Settings.GetVideoRate();
-        oldDisplayData.m_strRecordingVideoOptions = recordingScreen0Settings.GetOptions();
-    }
-
-    CRecordingScreenSettingsVector recordingScreenSettingsVector = recordingSettings.GetScreens();
-    oldDisplayData.m_vecRecordingScreens.resize(recordingScreenSettingsVector.size());
-    for (int iScreenIndex = 0; iScreenIndex < recordingScreenSettingsVector.size(); ++iScreenIndex)
-    {
-        CRecordingScreenSettings recordingScreenSettings = recordingScreenSettingsVector.at(iScreenIndex);
-        if (!recordingScreenSettings.isNull())
-            oldDisplayData.m_vecRecordingScreens[iScreenIndex] = recordingScreenSettings.GetEnabled();
-    }
+    /* Gather old 'Video Capture' data: */
+    oldDisplayData.m_fVideoCaptureEnabled = m_machine.GetVideoCaptureEnabled();
+    oldDisplayData.m_strVideoCaptureFolder = QFileInfo(m_machine.GetSettingsFilePath()).absolutePath();
+    oldDisplayData.m_strVideoCaptureFilePath = m_machine.GetVideoCaptureFile();
+    oldDisplayData.m_iVideoCaptureFrameWidth = m_machine.GetVideoCaptureWidth();
+    oldDisplayData.m_iVideoCaptureFrameHeight = m_machine.GetVideoCaptureHeight();
+    oldDisplayData.m_iVideoCaptureFrameRate = m_machine.GetVideoCaptureFPS();
+    oldDisplayData.m_iVideoCaptureBitRate = m_machine.GetVideoCaptureRate();
+    oldDisplayData.m_screens = m_machine.GetVideoCaptureScreens();
+    oldDisplayData.m_strVideoCaptureOptions = m_machine.GetVideoCaptureOptions();
 
     /* Gather other old display data: */
     m_iInitialVRAM = RT_MIN(oldDisplayData.m_iCurrentVRAM, m_iMaxVRAM);
@@ -417,13 +401,14 @@ void UIMachineSettingsDisplay::getFromCache()
 
     /* Load old 'Screen' data from the cache: */
     m_pEditorVideoScreenCount->setValue(oldDisplayData.m_cGuestScreenCount);
-    m_pScaleFactorEditor->setScaleFactors(oldDisplayData.m_scaleFactors);
-    m_pScaleFactorEditor->setMonitorCount(oldDisplayData.m_cGuestScreenCount);
+    m_pEditorGuestScreenScale->setValue((int)(oldDisplayData.m_dScaleFactor * 100));
+#ifdef VBOX_WS_MAC
+    m_pCheckBoxUnscaledHiDPIOutput->setChecked(oldDisplayData.m_fUseUnscaledHiDPIOutput);
+#endif
     m_pCheckbox3D->setChecked(oldDisplayData.m_f3dAccelerationEnabled);
 #ifdef VBOX_WITH_VIDEOHWACCEL
     m_pCheckbox2DVideo->setChecked(oldDisplayData.m_f2dAccelerationEnabled);
 #endif
-    m_pComboGraphicsControllerType->setCurrentIndex(m_pComboGraphicsControllerType->findText(gpConverter->toString(oldDisplayData.m_graphicsControllerType)));
     // Should be the last one for this tab:
     m_pEditorVideoMemorySize->setValue(oldDisplayData.m_iCurrentVRAM);
 
@@ -438,29 +423,17 @@ void UIMachineSettingsDisplay::getFromCache()
         m_pCheckboxMultipleConn->setChecked(oldDisplayData.m_fRemoteDisplayMultiConnAllowed);
     }
 
-    /* Load old 'Recording' data from the cache: */
-    m_pCheckboxVideoCapture->setChecked(oldDisplayData.m_fRecordingEnabled);
-    m_pEditorVideoCapturePath->setHomeDir(oldDisplayData.m_strRecordingFolder);
-    m_pEditorVideoCapturePath->setPath(oldDisplayData.m_strRecordingFilePath);
-    m_pEditorVideoCaptureWidth->setValue(oldDisplayData.m_iRecordingVideoFrameWidth);
-    m_pEditorVideoCaptureHeight->setValue(oldDisplayData.m_iRecordingVideoFrameHeight);
-    m_pEditorVideoCaptureFrameRate->setValue(oldDisplayData.m_iRecordingVideoFrameRate);
-    m_pEditorVideoCaptureBitRate->setValue(oldDisplayData.m_iRecordingVideoBitRate);
-    m_pScrollerVideoCaptureScreens->setValue(oldDisplayData.m_vecRecordingScreens);
-
-    /* Load data from old 'Recording option': */
-    bool fRecordAudio = UIDataSettingsMachineDisplay::isRecordingOptionEnabled(oldDisplayData.m_strRecordingVideoOptions,
-                                                                                UIDataSettingsMachineDisplay::RecordingOption_AC);
-    bool fRecordVideo = UIDataSettingsMachineDisplay::isRecordingOptionEnabled(oldDisplayData.m_strRecordingVideoOptions,
-                                                                                UIDataSettingsMachineDisplay::RecordingOption_VC);
-    if (fRecordAudio && fRecordVideo)
-        m_pComboBoxCaptureMode->setCurrentIndex(m_pComboBoxCaptureMode->findText(gpConverter->toString(UISettingsDefs::RecordingMode_VideoAudio)));
-    else if (fRecordAudio && !fRecordVideo)
-        m_pComboBoxCaptureMode->setCurrentIndex(m_pComboBoxCaptureMode->findText(gpConverter->toString(UISettingsDefs::RecordingMode_AudioOnly)));
-    else
-        m_pComboBoxCaptureMode->setCurrentIndex(m_pComboBoxCaptureMode->findText(gpConverter->toString(UISettingsDefs::RecordingMode_VideoOnly)));
-
-    m_pSliderAudioCaptureQuality->setValue(UIDataSettingsMachineDisplay::getAudioQualityFromOptions(oldDisplayData.m_strRecordingVideoOptions));
+    /* Load old 'Video Capture' data from the cache: */
+    m_pCheckboxVideoCapture->setChecked(oldDisplayData.m_fVideoCaptureEnabled);
+    m_pEditorVideoCapturePath->setHomeDir(oldDisplayData.m_strVideoCaptureFolder);
+    m_pEditorVideoCapturePath->setPath(oldDisplayData.m_strVideoCaptureFilePath);
+    m_pEditorVideoCaptureWidth->setValue(oldDisplayData.m_iVideoCaptureFrameWidth);
+    m_pEditorVideoCaptureHeight->setValue(oldDisplayData.m_iVideoCaptureFrameHeight);
+    m_pEditorVideoCaptureFrameRate->setValue(oldDisplayData.m_iVideoCaptureFrameRate);
+    m_pEditorVideoCaptureBitRate->setValue(oldDisplayData.m_iVideoCaptureBitRate);
+    m_pScrollerVideoCaptureScreens->setValue(oldDisplayData.m_screens);
+    m_pCheckBoxVideoCaptureWithAudio->setChecked(UIDataSettingsMachineDisplay::isVideoCaptureOptionEnabled(oldDisplayData.m_strVideoCaptureOptions,
+                                                                                                           UIDataSettingsMachineDisplay::VideoCaptureOption_AC));
 
     /* Polish page finally: */
     polishPage();
@@ -477,12 +450,15 @@ void UIMachineSettingsDisplay::putToCache()
     /* Gather new 'Screen' data: */
     newDisplayData.m_iCurrentVRAM = m_pEditorVideoMemorySize->value();
     newDisplayData.m_cGuestScreenCount = m_pEditorVideoScreenCount->value();
-    newDisplayData.m_scaleFactors = m_pScaleFactorEditor->scaleFactors();
+    newDisplayData.m_dScaleFactor = (double)m_pEditorGuestScreenScale->value() / 100;
+#ifdef VBOX_WS_MAC
+    newDisplayData.m_fUseUnscaledHiDPIOutput = m_pCheckBoxUnscaledHiDPIOutput->isChecked();
+#endif
     newDisplayData.m_f3dAccelerationEnabled = m_pCheckbox3D->isChecked();
 #ifdef VBOX_WITH_VIDEOHWACCEL
     newDisplayData.m_f2dAccelerationEnabled = m_pCheckbox2DVideo->isChecked();
 #endif
-    newDisplayData.m_graphicsControllerType = gpConverter->fromString<KGraphicsControllerType>(m_pComboGraphicsControllerType->currentText());
+
     /* If remote display server is supported: */
     newDisplayData.m_fRemoteDisplayServerSupported = m_pCache->base().m_fRemoteDisplayServerSupported;
     if (newDisplayData.m_fRemoteDisplayServerSupported)
@@ -495,44 +471,18 @@ void UIMachineSettingsDisplay::putToCache()
         newDisplayData.m_fRemoteDisplayMultiConnAllowed = m_pCheckboxMultipleConn->isChecked();
     }
 
-    /* Gather new 'Recording' data: */
-    newDisplayData.m_fRecordingEnabled = m_pCheckboxVideoCapture->isChecked();
-    newDisplayData.m_strRecordingFolder = m_pCache->base().m_strRecordingFolder;
-    newDisplayData.m_strRecordingFilePath = m_pEditorVideoCapturePath->path();
-    newDisplayData.m_iRecordingVideoFrameWidth = m_pEditorVideoCaptureWidth->value();
-    newDisplayData.m_iRecordingVideoFrameHeight = m_pEditorVideoCaptureHeight->value();
-    newDisplayData.m_iRecordingVideoFrameRate = m_pEditorVideoCaptureFrameRate->value();
-    newDisplayData.m_iRecordingVideoBitRate = m_pEditorVideoCaptureBitRate->value();
-    newDisplayData.m_vecRecordingScreens = m_pScrollerVideoCaptureScreens->value();
-
-    /* Update recording options */
-    const UISettingsDefs::RecordingMode enmRecordingMode =
-        gpConverter->fromString<UISettingsDefs::RecordingMode>(m_pComboBoxCaptureMode->currentText());
-    QStringList optionValues;
-    /* Option value for video recording: */
-    optionValues.push_back(     (enmRecordingMode == UISettingsDefs::RecordingMode_VideoAudio)
-                             || (enmRecordingMode == UISettingsDefs::RecordingMode_VideoOnly)
-                           ? "true" : "false");
-    /* Option value for audio recording: */
-    optionValues.push_back(     (enmRecordingMode == UISettingsDefs::RecordingMode_VideoAudio)
-                             || (enmRecordingMode == UISettingsDefs::RecordingMode_AudioOnly)
-                           ? "true" : "false");
-
-    if (m_pSliderAudioCaptureQuality->value() == 1)
-        optionValues.push_back("low");
-    else if (m_pSliderAudioCaptureQuality->value() == 2)
-        optionValues.push_back("med");
-    else
-        optionValues.push_back("high");
-
-    QVector<UIDataSettingsMachineDisplay::RecordingOption> recordingOptionsVector;
-    recordingOptionsVector.push_back(UIDataSettingsMachineDisplay::RecordingOption_VC);
-    recordingOptionsVector.push_back(UIDataSettingsMachineDisplay::RecordingOption_AC);
-    recordingOptionsVector.push_back(UIDataSettingsMachineDisplay::RecordingOption_AC_Profile);
-
-    newDisplayData.m_strRecordingVideoOptions = UIDataSettingsMachineDisplay::setRecordingOptions(m_pCache->base().m_strRecordingVideoOptions,
-                                                                                                   recordingOptionsVector,
-                                                                                                   optionValues);
+    /* Gather new 'Video Capture' data: */
+    newDisplayData.m_fVideoCaptureEnabled = m_pCheckboxVideoCapture->isChecked();
+    newDisplayData.m_strVideoCaptureFolder = m_pCache->base().m_strVideoCaptureFolder;
+    newDisplayData.m_strVideoCaptureFilePath = m_pEditorVideoCapturePath->path();
+    newDisplayData.m_iVideoCaptureFrameWidth = m_pEditorVideoCaptureWidth->value();
+    newDisplayData.m_iVideoCaptureFrameHeight = m_pEditorVideoCaptureHeight->value();
+    newDisplayData.m_iVideoCaptureFrameRate = m_pEditorVideoCaptureFrameRate->value();
+    newDisplayData.m_iVideoCaptureBitRate = m_pEditorVideoCaptureBitRate->value();
+    newDisplayData.m_screens = m_pScrollerVideoCaptureScreens->value();
+    newDisplayData.m_strVideoCaptureOptions = UIDataSettingsMachineDisplay::setVideoCaptureOptionEnabled(m_pCache->base().m_strVideoCaptureOptions,
+                                                                                                         UIDataSettingsMachineDisplay::VideoCaptureOption_AC,
+                                                                                                         m_pCheckBoxVideoCaptureWithAudio->isChecked());
 
     /* Cache new display data: */
     m_pCache->cacheCurrentData(newDisplayData);
@@ -588,7 +538,7 @@ bool UIMachineSettingsDisplay::validate(QList<UIValidationMessage> &messages)
             /* 2D acceleration video RAM amount test: */
             else if (m_pCheckbox2DVideo->isChecked() && m_f2DVideoAccelerationSupported)
             {
-                uNeedBytes += VBox2DHelpers::required2DOffscreenVideoMemory();
+                uNeedBytes += VBoxGlobal::required2DOffscreenVideoMemory();
                 if ((quint64)m_pEditorVideoMemorySize->value() * _1M < uNeedBytes)
                 {
                     message.second << tr("The virtual machine is currently assigned less than <b>%1</b> of video memory "
@@ -677,13 +627,16 @@ void UIMachineSettingsDisplay::setOrderAfter(QWidget *pWidget)
     setTabOrder(m_pSliderVideoMemorySize, m_pEditorVideoMemorySize);
     setTabOrder(m_pEditorVideoMemorySize, m_pSliderVideoScreenCount);
     setTabOrder(m_pSliderVideoScreenCount, m_pEditorVideoScreenCount);
+    setTabOrder(m_pEditorVideoScreenCount, m_pSliderGuestScreenScale);
+    setTabOrder(m_pSliderGuestScreenScale, m_pEditorGuestScreenScale);
+    setTabOrder(m_pEditorGuestScreenScale, m_pCheckBoxUnscaledHiDPIOutput);
+    setTabOrder(m_pCheckBoxUnscaledHiDPIOutput, m_pCheckbox3D);
 #ifdef VBOX_WITH_VIDEOHWACCEL
     setTabOrder(m_pCheckbox3D, m_pCheckbox2DVideo);
-    setTabOrder(m_pCheckbox2DVideo, m_pComboGraphicsControllerType);
+    setTabOrder(m_pCheckbox2DVideo, m_pCheckboxRemoteDisplay);
 #else /* VBOX_WITH_VIDEOHWACCEL */
-    setTabOrder(m_pCheckbox3D, m_pComboGraphicsControllerType);
+    setTabOrder(m_pCheckbox3D, m_pCheckboxRemoteDisplay);
 #endif /* !VBOX_WITH_VIDEOHWACCEL */
-    setTabOrder(m_pComboGraphicsControllerType, m_pCheckboxRemoteDisplay);
 
     /* Remote Display tab-order: */
     setTabOrder(m_pCheckboxRemoteDisplay, m_pEditorRemoteDisplayPort);
@@ -691,7 +644,7 @@ void UIMachineSettingsDisplay::setOrderAfter(QWidget *pWidget)
     setTabOrder(m_pComboRemoteDisplayAuthMethod, m_pEditorRemoteDisplayTimeout);
     setTabOrder(m_pEditorRemoteDisplayTimeout, m_pCheckboxMultipleConn);
 
-    /* Recording tab-order: */
+    /* Video Capture tab-order: */
     setTabOrder(m_pCheckboxMultipleConn, m_pCheckboxVideoCapture);
     setTabOrder(m_pCheckboxVideoCapture, m_pEditorVideoCapturePath);
     setTabOrder(m_pEditorVideoCapturePath, m_pComboVideoCaptureSize);
@@ -715,17 +668,15 @@ void UIMachineSettingsDisplay::retranslateUi()
     m_pLabelVideoMemorySizeMax->setText(tr("%1 MB").arg(m_iMaxVRAMVisible));
     m_pLabelVideoScreenCountMin->setText(QString::number(1));
     m_pLabelVideoScreenCountMax->setText(QString::number(qMin(sys.GetMaxGuestMonitors(), (ULONG)8)));
-    m_pComboGraphicsControllerType->setItemText(0, gpConverter->toString(KGraphicsControllerType_Null));
-    m_pComboGraphicsControllerType->setItemText(1, gpConverter->toString(KGraphicsControllerType_VBoxVGA));
-    m_pComboGraphicsControllerType->setItemText(2, gpConverter->toString(KGraphicsControllerType_VMSVGA));
-    m_pComboGraphicsControllerType->setItemText(3, gpConverter->toString(KGraphicsControllerType_VBoxSVGA));
+    m_pLabelGuestScreenScaleMin->setText(tr("%1%").arg(100));
+    m_pLabelGuestScreenScaleMax->setText(tr("%1%").arg(200));
 
     /* Remote Display stuff: */
     m_pComboRemoteDisplayAuthMethod->setItemText(0, gpConverter->toString(KAuthType_Null));
     m_pComboRemoteDisplayAuthMethod->setItemText(1, gpConverter->toString(KAuthType_External));
     m_pComboRemoteDisplayAuthMethod->setItemText(2, gpConverter->toString(KAuthType_Guest));
 
-    /* Recording stuff: */
+    /* Video Capture stuff: */
     m_pEditorVideoCaptureFrameRate->setSuffix(QString(" %1").arg(tr("fps")));
     m_pEditorVideoCaptureBitRate->setSuffix(QString(" %1").arg(tr("kbps")));
     m_pComboVideoCaptureSize->setItemText(0, tr("User Defined"));
@@ -734,15 +685,8 @@ void UIMachineSettingsDisplay::retranslateUi()
     m_pLabelVideoCaptureQualityMin->setText(tr("low", "quality"));
     m_pLabelVideoCaptureQualityMed->setText(tr("medium", "quality"));
     m_pLabelVideoCaptureQualityMax->setText(tr("high", "quality"));
-    m_pLabelAudioCaptureQualityMin->setText(tr("low", "quality"));
-    m_pLabelAudioCaptureQualityMed->setText(tr("medium", "quality"));
-    m_pLabelAudioCaptureQualityMax->setText(tr("high", "quality"));
 
-    m_pComboBoxCaptureMode->setItemText(0, gpConverter->toString(UISettingsDefs::RecordingMode_VideoAudio));
-    m_pComboBoxCaptureMode->setItemText(1, gpConverter->toString(UISettingsDefs::RecordingMode_VideoOnly));
-    m_pComboBoxCaptureMode->setItemText(2, gpConverter->toString(UISettingsDefs::RecordingMode_AudioOnly));
-
-    updateRecordingFileSizeHint();
+    updateVideoCaptureFileSizeHint();
 }
 
 void UIMachineSettingsDisplay::polishPage()
@@ -761,15 +705,25 @@ void UIMachineSettingsDisplay::polishPage()
     m_pLabelVideoScreenCountMin->setEnabled(isMachineOffline());
     m_pLabelVideoScreenCountMax->setEnabled(isMachineOffline());
     m_pEditorVideoScreenCount->setEnabled(isMachineOffline());
-    m_pScaleFactorEditor->setEnabled(isMachineInValidMode());
+    m_pLabelGuestScreenScale->setEnabled(isMachineInValidMode());
+    m_pSliderGuestScreenScale->setEnabled(isMachineInValidMode());
+    m_pLabelGuestScreenScaleMin->setEnabled(isMachineInValidMode());
+    m_pLabelGuestScreenScaleMax->setEnabled(isMachineInValidMode());
+    m_pEditorGuestScreenScale->setEnabled(isMachineInValidMode());
+#ifdef VBOX_WS_MAC
+    m_pLabelHiDPI->setEnabled(isMachineInValidMode());
+    m_pCheckBoxUnscaledHiDPIOutput->setEnabled(isMachineInValidMode());
+#else /* !VBOX_WS_MAC */
+    m_pLabelHiDPI->hide();
+    m_pCheckBoxUnscaledHiDPIOutput->hide();
+#endif /* !VBOX_WS_MAC */
     m_pLabelVideoOptions->setEnabled(isMachineOffline());
     m_pCheckbox3D->setEnabled(isMachineOffline());
 #ifdef VBOX_WITH_VIDEOHWACCEL
-    m_pCheckbox2DVideo->setEnabled(isMachineOffline() && VBox2DHelpers::isAcceleration2DVideoAvailable());
+    m_pCheckbox2DVideo->setEnabled(isMachineOffline() && VBoxGlobal::isAcceleration2DVideoAvailable());
 #else /* !VBOX_WITH_VIDEOHWACCEL */
     m_pCheckbox2DVideo->hide();
 #endif /* !VBOX_WITH_VIDEOHWACCEL */
-    m_pComboGraphicsControllerType->setEnabled(isMachineOffline());
 
     /* Polish 'Remote Display' availability: */
     m_pTabWidget->setTabEnabled(1, oldDisplayData.m_fRemoteDisplayServerSupported);
@@ -778,9 +732,9 @@ void UIMachineSettingsDisplay::polishPage()
     m_pLabelRemoteDisplayOptions->setEnabled(isMachineOffline() || isMachineSaved());
     m_pCheckboxMultipleConn->setEnabled(isMachineOffline() || isMachineSaved());
 
-    /* Polish 'Recording' availability: */
+    /* Polish 'Video Capture' availability: */
     m_pContainerVideoCapture->setEnabled(isMachineInValidMode());
-    sltHandleRecordingCheckboxToggle();
+    sltHandleVideoCaptureCheckboxToggle();
 }
 
 void UIMachineSettingsDisplay::sltHandleVideoMemorySizeSliderChange()
@@ -815,7 +769,7 @@ void UIMachineSettingsDisplay::sltHandleGuestScreenCountSliderChange()
     /* Update Video RAM requirements: */
     checkVRAMRequirements();
 
-    /* Update recording tab screen count: */
+    /* Update Video Capture tab screen count: */
     updateGuestScreenCount();
 
     /* Revalidate: */
@@ -832,31 +786,66 @@ void UIMachineSettingsDisplay::sltHandleGuestScreenCountEditorChange()
     /* Update Video RAM requirements: */
     checkVRAMRequirements();
 
-    /* Update recording tab screen count: */
+    /* Update Video Capture tab screen count: */
     updateGuestScreenCount();
 
     /* Revalidate: */
     revalidate();
 }
 
-void UIMachineSettingsDisplay::sltHandleRecordingCheckboxToggle()
+void UIMachineSettingsDisplay::sltHandleGuestScreenScaleSliderChange()
 {
-    /* Recording options should be enabled only if:
-     * 1. Machine is in 'offline' or 'saved' state and check-box is checked,
-     * 2. Machine is in 'online' state, check-box is checked, and video recording is *disabled* currently. */
-    const bool fIsRecordingOptionsEnabled = ((isMachineOffline() || isMachineSaved()) && m_pCheckboxVideoCapture->isChecked()) ||
-                                               (isMachineOnline() && !m_pCache->base().m_fRecordingEnabled && m_pCheckboxVideoCapture->isChecked());
-
-    m_pLabelCaptureMode->setEnabled(fIsRecordingOptionsEnabled);
-    m_pComboBoxCaptureMode->setEnabled(fIsRecordingOptionsEnabled);
-
-    m_pLabelVideoCapturePath->setEnabled(fIsRecordingOptionsEnabled);
-    m_pEditorVideoCapturePath->setEnabled(fIsRecordingOptionsEnabled);
-
-    enableDisableRecordingWidgets();
+    /* Apply proposed scale-factor: */
+    m_pEditorGuestScreenScale->blockSignals(true);
+    m_pEditorGuestScreenScale->setValue(m_pSliderGuestScreenScale->value());
+    m_pEditorGuestScreenScale->blockSignals(false);
 }
 
-void UIMachineSettingsDisplay::sltHandleRecordingVideoFrameSizeComboboxChange()
+void UIMachineSettingsDisplay::sltHandleGuestScreenScaleEditorChange()
+{
+    /* Apply proposed scale-factor: */
+    m_pSliderGuestScreenScale->blockSignals(true);
+    m_pSliderGuestScreenScale->setValue(m_pEditorGuestScreenScale->value());
+    m_pSliderGuestScreenScale->blockSignals(false);
+}
+
+void UIMachineSettingsDisplay::sltHandleVideoCaptureCheckboxToggle()
+{
+    /* Video Capture options should be enabled only if:
+     * 1. Machine is in 'offline' or 'saved' state and check-box is checked,
+     * 2. Machine is in 'online' state, check-box is checked, and video recording is *disabled* currently. */
+    const bool fIsVideoCaptureOptionsEnabled = ((isMachineOffline() || isMachineSaved()) && m_pCheckboxVideoCapture->isChecked()) ||
+                                               (isMachineOnline() && !m_pCache->base().m_fVideoCaptureEnabled && m_pCheckboxVideoCapture->isChecked());
+
+    /* Video Capture Screens option should be enabled only if:
+     * Machine is in *any* valid state and check-box is checked. */
+    const bool fIsVideoCaptureScreenOptionEnabled = isMachineInValidMode() && m_pCheckboxVideoCapture->isChecked();
+
+    m_pLabelVideoCapturePath->setEnabled(fIsVideoCaptureOptionsEnabled);
+    m_pEditorVideoCapturePath->setEnabled(fIsVideoCaptureOptionsEnabled);
+
+    m_pLabelVideoCaptureSize->setEnabled(fIsVideoCaptureOptionsEnabled);
+    m_pComboVideoCaptureSize->setEnabled(fIsVideoCaptureOptionsEnabled);
+    m_pEditorVideoCaptureWidth->setEnabled(fIsVideoCaptureOptionsEnabled);
+    m_pEditorVideoCaptureHeight->setEnabled(fIsVideoCaptureOptionsEnabled);
+
+    m_pLabelVideoCaptureFrameRate->setEnabled(fIsVideoCaptureOptionsEnabled);
+    m_pContainerSliderVideoCaptureFrameRate->setEnabled(fIsVideoCaptureOptionsEnabled);
+    m_pEditorVideoCaptureFrameRate->setEnabled(fIsVideoCaptureOptionsEnabled);
+
+    m_pLabelVideoCaptureRate->setEnabled(fIsVideoCaptureOptionsEnabled);
+    m_pContainerSliderVideoCaptureQuality->setEnabled(fIsVideoCaptureOptionsEnabled);
+    m_pEditorVideoCaptureBitRate->setEnabled(fIsVideoCaptureOptionsEnabled);
+
+    m_pLabelVideoCaptureExtended->setEnabled(fIsVideoCaptureOptionsEnabled);
+    m_pCheckBoxVideoCaptureWithAudio->setEnabled(fIsVideoCaptureOptionsEnabled);
+
+    m_pLabelVideoCaptureScreens->setEnabled(fIsVideoCaptureScreenOptionEnabled);
+    m_pLabelVideoCaptureSizeHint->setEnabled(fIsVideoCaptureScreenOptionEnabled);
+    m_pScrollerVideoCaptureScreens->setEnabled(fIsVideoCaptureScreenOptionEnabled);
+}
+
+void UIMachineSettingsDisplay::sltHandleVideoCaptureFrameSizeComboboxChange()
 {
     /* Get the proposed size: */
     const int iCurrentIndex = m_pComboVideoCaptureSize->currentIndex();
@@ -871,43 +860,43 @@ void UIMachineSettingsDisplay::sltHandleRecordingVideoFrameSizeComboboxChange()
     m_pEditorVideoCaptureHeight->setValue(videoCaptureSize.height());
 }
 
-void UIMachineSettingsDisplay::sltHandleRecordingVideoFrameWidthEditorChange()
+void UIMachineSettingsDisplay::sltHandleVideoCaptureFrameWidthEditorChange()
 {
     /* Look for preset: */
     lookForCorrespondingFrameSizePreset();
     /* Update quality and bit-rate: */
-    sltHandleRecordingVideoQualitySliderChange();
+    sltHandleVideoCaptureQualitySliderChange();
 }
 
-void UIMachineSettingsDisplay::sltHandleRecordingVideoFrameHeightEditorChange()
+void UIMachineSettingsDisplay::sltHandleVideoCaptureFrameHeightEditorChange()
 {
     /* Look for preset: */
     lookForCorrespondingFrameSizePreset();
     /* Update quality and bit-rate: */
-    sltHandleRecordingVideoQualitySliderChange();
+    sltHandleVideoCaptureQualitySliderChange();
 }
 
-void UIMachineSettingsDisplay::sltHandleRecordingVideoFrameRateSliderChange()
+void UIMachineSettingsDisplay::sltHandleVideoCaptureFrameRateSliderChange()
 {
     /* Apply proposed frame-rate: */
     m_pEditorVideoCaptureFrameRate->blockSignals(true);
     m_pEditorVideoCaptureFrameRate->setValue(m_pSliderVideoCaptureFrameRate->value());
     m_pEditorVideoCaptureFrameRate->blockSignals(false);
     /* Update quality and bit-rate: */
-    sltHandleRecordingVideoQualitySliderChange();
+    sltHandleVideoCaptureQualitySliderChange();
 }
 
-void UIMachineSettingsDisplay::sltHandleRecordingVideoFrameRateEditorChange()
+void UIMachineSettingsDisplay::sltHandleVideoCaptureFrameRateEditorChange()
 {
     /* Apply proposed frame-rate: */
     m_pSliderVideoCaptureFrameRate->blockSignals(true);
     m_pSliderVideoCaptureFrameRate->setValue(m_pEditorVideoCaptureFrameRate->value());
     m_pSliderVideoCaptureFrameRate->blockSignals(false);
     /* Update quality and bit-rate: */
-    sltHandleRecordingVideoQualitySliderChange();
+    sltHandleVideoCaptureQualitySliderChange();
 }
 
-void UIMachineSettingsDisplay::sltHandleRecordingVideoQualitySliderChange()
+void UIMachineSettingsDisplay::sltHandleVideoCaptureQualitySliderChange()
 {
     /* Calculate/apply proposed bit-rate: */
     m_pEditorVideoCaptureBitRate->blockSignals(true);
@@ -916,10 +905,10 @@ void UIMachineSettingsDisplay::sltHandleRecordingVideoQualitySliderChange()
                                                             m_pEditorVideoCaptureFrameRate->value(),
                                                             m_pSliderVideoCaptureQuality->value()));
     m_pEditorVideoCaptureBitRate->blockSignals(false);
-    updateRecordingFileSizeHint();
+    updateVideoCaptureFileSizeHint();
 }
 
-void UIMachineSettingsDisplay::sltHandleRecordingVideoBitRateEditorChange()
+void UIMachineSettingsDisplay::sltHandleVideoCaptureBitRateEditorChange()
 {
     /* Calculate/apply proposed quality: */
     m_pSliderVideoCaptureQuality->blockSignals(true);
@@ -928,12 +917,7 @@ void UIMachineSettingsDisplay::sltHandleRecordingVideoBitRateEditorChange()
                                                             m_pEditorVideoCaptureFrameRate->value(),
                                                             m_pEditorVideoCaptureBitRate->value()));
     m_pSliderVideoCaptureQuality->blockSignals(false);
-    updateRecordingFileSizeHint();
-}
-
-void UIMachineSettingsDisplay::sltHandleRecordingComboBoxChange()
-{
-    enableDisableRecordingWidgets();
+    updateVideoCaptureFileSizeHint();
 }
 
 void UIMachineSettingsDisplay::prepare()
@@ -951,8 +935,8 @@ void UIMachineSettingsDisplay::prepare()
         prepareTabScreen();
         /* Prepare 'Remote Display' tab: */
         prepareTabRemoteDisplay();
-        /* Prepare 'Recording' tab: */
-        prepareTabRecording();
+        /* Prepare 'Video Capture' tab: */
+        prepareTabVideoCapture();
         /* Prepare connections: */
         prepareConnections();
     }
@@ -988,7 +972,7 @@ void UIMachineSettingsDisplay::prepareTabScreen()
         AssertPtrReturnVoid(m_pEditorVideoMemorySize);
         {
             /* Configure editor: */
-            vboxGlobal().setMinimumWidthAccordingSymbolCount(m_pEditorVideoMemorySize, 7);
+            vboxGlobal().setMinimumWidthAccordingSymbolCount(m_pEditorVideoMemorySize, 4);
             m_pEditorVideoMemorySize->setMinimum(m_iMinVRAM);
             m_pEditorVideoMemorySize->setMaximum(m_iMaxVRAMVisible);
         }
@@ -1015,25 +999,30 @@ void UIMachineSettingsDisplay::prepareTabScreen()
         {
             /* Configure editor: */
             const uint cMaxGuestScreens = sys.GetMaxGuestMonitors();
+            vboxGlobal().setMinimumWidthAccordingSymbolCount(m_pEditorVideoScreenCount, 3);
             m_pEditorVideoScreenCount->setMinimum(1);
             m_pEditorVideoScreenCount->setMaximum(cMaxGuestScreens);
         }
 
-        /* Scale-factor editor created in the .ui file. */
-        AssertPtrReturnVoid(m_pScaleFactorEditor);
+        /* Scale-factor slider created in the .ui file. */
+        AssertPtrReturnVoid(m_pSliderGuestScreenScale);
         {
-            /* Configure editor: */
-            m_pScaleFactorEditor->setSpinBoxWidthHint(m_pEditorVideoMemorySize->minimumWidth());
+            /* Configure slider: */
+            m_pSliderGuestScreenScale->setMinimum(100);
+            m_pSliderGuestScreenScale->setMaximum(200);
+            m_pSliderGuestScreenScale->setPageStep(10);
+            m_pSliderGuestScreenScale->setSingleStep(1);
+            m_pSliderGuestScreenScale->setTickInterval(10);
+            m_pSliderGuestScreenScale->setSnappingEnabled(true);
         }
 
-        /* Graphics controller combo-box created in the .ui file. */
-        AssertPtrReturnVoid(m_pComboGraphicsControllerType);
+        /* Scale-factor editor created in the .ui file. */
+        AssertPtrReturnVoid(m_pEditorGuestScreenScale);
         {
-            /* Configure combo-box: */
-            m_pComboGraphicsControllerType->insertItem(0, ""); /* KGraphicsControllerType_Null */
-            m_pComboGraphicsControllerType->insertItem(1, ""); /* KGraphicsControllerType_VBoxVGA */
-            m_pComboGraphicsControllerType->insertItem(2, ""); /* KGraphicsControllerType_VMSVGA */
-            m_pComboGraphicsControllerType->insertItem(3, ""); /* KGraphicsControllerType_VBoxSVGA */
+            /* Configure editor: */
+            m_pEditorGuestScreenScale->setMinimum(100);
+            m_pEditorGuestScreenScale->setMaximum(200);
+            vboxGlobal().setMinimumWidthAccordingSymbolCount(m_pEditorGuestScreenScale, 5);
         }
     }
 }
@@ -1068,18 +1057,10 @@ void UIMachineSettingsDisplay::prepareTabRemoteDisplay()
     }
 }
 
-void UIMachineSettingsDisplay::prepareTabRecording()
+void UIMachineSettingsDisplay::prepareTabVideoCapture()
 {
     /* Tab and it's layout created in the .ui file. */
     {
-        /* Capture mode selection combo box. */
-        AssertPtrReturnVoid(m_pComboBoxCaptureMode);
-        {
-            m_pComboBoxCaptureMode->insertItem(0, ""); /* UISettingsDefs::RecordingMode_VideoAudio */
-            m_pComboBoxCaptureMode->insertItem(1, ""); /* UISettingsDefs::RecordingMode_VideoOnly */
-            m_pComboBoxCaptureMode->insertItem(2, ""); /* UISettingsDefs::RecordingMode_AudioOnly */
-        }
-
         /* File-path selector created in the .ui file. */
         AssertPtrReturnVoid(m_pEditorVideoCapturePath);
         {
@@ -1161,7 +1142,7 @@ void UIMachineSettingsDisplay::prepareTabRecording()
         AssertPtrReturnVoid(m_pContainerLayoutSliderVideoCaptureQuality);
         AssertPtrReturnVoid(m_pSliderVideoCaptureQuality);
         {
-            /* Configure quality related widget: */
+            /* Configure combo-box: */
             m_pContainerLayoutSliderVideoCaptureQuality->setColumnStretch(1, 4);
             m_pContainerLayoutSliderVideoCaptureQuality->setColumnStretch(3, 5);
             m_pSliderVideoCaptureQuality->setMinimum(1);
@@ -1180,22 +1161,8 @@ void UIMachineSettingsDisplay::prepareTabRecording()
         {
             /* Configure editor: */
             vboxGlobal().setMinimumWidthAccordingSymbolCount(m_pEditorVideoCaptureBitRate, 5);
-            m_pEditorVideoCaptureBitRate->setMinimum(VIDEO_CAPTURE_BIT_RATE_MIN);
-            m_pEditorVideoCaptureBitRate->setMaximum(VIDEO_CAPTURE_BIT_RATE_MAX);
-        }
-
-         /* Frame-rate slider created in the .ui file. */
-        AssertPtrReturnVoid(m_pSliderAudioCaptureQuality);
-        {
-            /* Configure slider: */
-            m_pSliderAudioCaptureQuality->setMinimum(1);
-            m_pSliderAudioCaptureQuality->setMaximum(3);
-            m_pSliderAudioCaptureQuality->setPageStep(1);
-            m_pSliderAudioCaptureQuality->setSingleStep(1);
-            m_pSliderAudioCaptureQuality->setTickInterval(1);
-            m_pSliderAudioCaptureQuality->setSnappingEnabled(true);
-            m_pSliderAudioCaptureQuality->setOptimalHint(1, 2);
-            m_pSliderAudioCaptureQuality->setWarningHint(2, 3);
+            m_pEditorVideoCaptureBitRate->setMinimum(32);
+            m_pEditorVideoCaptureBitRate->setMaximum(2048);
         }
     }
 }
@@ -1207,7 +1174,8 @@ void UIMachineSettingsDisplay::prepareConnections()
     connect(m_pEditorVideoMemorySize, SIGNAL(valueChanged(int)), this, SLOT(sltHandleVideoMemorySizeEditorChange()));
     connect(m_pSliderVideoScreenCount, SIGNAL(valueChanged(int)), this, SLOT(sltHandleGuestScreenCountSliderChange()));
     connect(m_pEditorVideoScreenCount, SIGNAL(valueChanged(int)), this, SLOT(sltHandleGuestScreenCountEditorChange()));
-
+    connect(m_pSliderGuestScreenScale, SIGNAL(valueChanged(int)), this, SLOT(sltHandleGuestScreenScaleSliderChange()));
+    connect(m_pEditorGuestScreenScale, SIGNAL(valueChanged(int)), this, SLOT(sltHandleGuestScreenScaleEditorChange()));
     connect(m_pCheckbox3D, SIGNAL(stateChanged(int)), this, SLOT(revalidate()));
 #ifdef VBOX_WITH_VIDEOHWACCEL
     connect(m_pCheckbox2DVideo, SIGNAL(stateChanged(int)), this, SLOT(revalidate()));
@@ -1218,18 +1186,15 @@ void UIMachineSettingsDisplay::prepareConnections()
     connect(m_pEditorRemoteDisplayPort, SIGNAL(textChanged(const QString &)), this, SLOT(revalidate()));
     connect(m_pEditorRemoteDisplayTimeout, SIGNAL(textChanged(const QString &)), this, SLOT(revalidate()));
 
-    /* Configure 'Recording' connections: */
-    connect(m_pCheckboxVideoCapture, SIGNAL(toggled(bool)), this, SLOT(sltHandleRecordingCheckboxToggle()));
-    connect(m_pComboVideoCaptureSize, SIGNAL(currentIndexChanged(int)), this, SLOT(sltHandleRecordingVideoFrameSizeComboboxChange()));
-    connect(m_pEditorVideoCaptureWidth, SIGNAL(valueChanged(int)), this, SLOT(sltHandleRecordingVideoFrameWidthEditorChange()));
-    connect(m_pEditorVideoCaptureHeight, SIGNAL(valueChanged(int)), this, SLOT(sltHandleRecordingVideoFrameHeightEditorChange()));
-    connect(m_pSliderVideoCaptureFrameRate, SIGNAL(valueChanged(int)), this, SLOT(sltHandleRecordingVideoFrameRateSliderChange()));
-    connect(m_pEditorVideoCaptureFrameRate, SIGNAL(valueChanged(int)), this, SLOT(sltHandleRecordingVideoFrameRateEditorChange()));
-    connect(m_pSliderVideoCaptureQuality, SIGNAL(valueChanged(int)), this, SLOT(sltHandleRecordingVideoQualitySliderChange()));
-    connect(m_pEditorVideoCaptureBitRate, SIGNAL(valueChanged(int)), this, SLOT(sltHandleRecordingVideoBitRateEditorChange()));
-
-    connect(m_pComboBoxCaptureMode, static_cast<void(QComboBox::*)(int)>(&QComboBox::currentIndexChanged),
-                this, &UIMachineSettingsDisplay::sltHandleRecordingComboBoxChange);
+    /* Configure 'Video Capture' connections: */
+    connect(m_pCheckboxVideoCapture, SIGNAL(toggled(bool)), this, SLOT(sltHandleVideoCaptureCheckboxToggle()));
+    connect(m_pComboVideoCaptureSize, SIGNAL(currentIndexChanged(int)), this, SLOT(sltHandleVideoCaptureFrameSizeComboboxChange()));
+    connect(m_pEditorVideoCaptureWidth, SIGNAL(valueChanged(int)), this, SLOT(sltHandleVideoCaptureFrameWidthEditorChange()));
+    connect(m_pEditorVideoCaptureHeight, SIGNAL(valueChanged(int)), this, SLOT(sltHandleVideoCaptureFrameHeightEditorChange()));
+    connect(m_pSliderVideoCaptureFrameRate, SIGNAL(valueChanged(int)), this, SLOT(sltHandleVideoCaptureFrameRateSliderChange()));
+    connect(m_pEditorVideoCaptureFrameRate, SIGNAL(valueChanged(int)), this, SLOT(sltHandleVideoCaptureFrameRateEditorChange()));
+    connect(m_pSliderVideoCaptureQuality, SIGNAL(valueChanged(int)), this, SLOT(sltHandleVideoCaptureQualitySliderChange()));
+    connect(m_pEditorVideoCaptureBitRate, SIGNAL(valueChanged(int)), this, SLOT(sltHandleVideoCaptureBitRateEditorChange()));
 }
 
 void UIMachineSettingsDisplay::cleanup()
@@ -1267,7 +1232,7 @@ void UIMachineSettingsDisplay::checkVRAMRequirements()
 #ifdef VBOX_WITH_VIDEOHWACCEL
     if (m_pCheckbox2DVideo->isChecked() && m_f2DVideoAccelerationSupported)
     {
-        uNeedMBytes += VBox2DHelpers::required2DOffscreenVideoMemory() / _1M;
+        uNeedMBytes += VBoxGlobal::required2DOffscreenVideoMemory() / _1M;
     }
 #endif
 
@@ -1295,7 +1260,7 @@ bool UIMachineSettingsDisplay::shouldWeWarnAboutLowVRAM()
 
     QStringList excludingOSList = QStringList()
         << "Other" << "DOS" << "Netware" << "L4" << "QNX" << "JRockitVE";
-    if (m_comGuestOSType.isNull() || excludingOSList.contains(m_comGuestOSType.GetId()))
+    if (excludingOSList.contains(m_comGuestOSType.GetId()))
         fResult = false;
 
     return fResult;
@@ -1328,13 +1293,12 @@ void UIMachineSettingsDisplay::lookForCorrespondingFrameSizePreset()
 void UIMachineSettingsDisplay::updateGuestScreenCount()
 {
     /* Update copy of the cached item to get the desired result: */
-    QVector<BOOL> screens = m_pCache->base().m_vecRecordingScreens;
+    QVector<BOOL> screens = m_pCache->base().m_screens;
     screens.resize(m_pEditorVideoScreenCount->value());
     m_pScrollerVideoCaptureScreens->setValue(screens);
-    m_pScaleFactorEditor->setMonitorCount(m_pEditorVideoScreenCount->value());
 }
 
-void UIMachineSettingsDisplay::updateRecordingFileSizeHint()
+void UIMachineSettingsDisplay::updateVideoCaptureFileSizeHint()
 {
     m_pLabelVideoCaptureSizeHint->setText(tr("<i>About %1MB per 5 minute video</i>").arg(m_pEditorVideoCaptureBitRate->value() * 300 / 8 / 1024));
 }
@@ -1389,7 +1353,7 @@ bool UIMachineSettingsDisplay::saveDisplayData()
             fSuccess = saveRemoteDisplayData();
         /* Save 'Video Capture' data from the cache: */
         if (fSuccess)
-            fSuccess = saveRecordingData();
+            fSuccess = saveVideoCaptureData();
     }
     /* Return result: */
     return fSuccess;
@@ -1433,18 +1397,12 @@ bool UIMachineSettingsDisplay::saveScreenData()
             fSuccess = m_machine.isOk();
         }
 #endif
-        /* Save the Graphics Controller Type: */
-        if (fSuccess && isMachineOffline() && newDisplayData.m_graphicsControllerType != oldDisplayData.m_graphicsControllerType)
-        {
-            m_machine.SetGraphicsControllerType(newDisplayData.m_graphicsControllerType);
-            fSuccess = m_machine.isOk();
-        }
 
         /* Get machine ID for further activities: */
-        QUuid uMachineId;
+        QString strMachineId;
         if (fSuccess)
         {
-            uMachineId = m_machine.GetId();
+            strMachineId = m_machine.GetId();
             fSuccess = m_machine.isOk();
         }
 
@@ -1453,10 +1411,13 @@ bool UIMachineSettingsDisplay::saveScreenData()
             notifyOperationProgressError(UIErrorString::formatErrorInfo(m_machine));
 
         /* Save guest-screen scale-factor: */
-        if (fSuccess && newDisplayData.m_scaleFactors != oldDisplayData.m_scaleFactors)
-        {
-            gEDataManager->setScaleFactors(newDisplayData.m_scaleFactors, uMachineId);
-        }
+        if (fSuccess && newDisplayData.m_dScaleFactor != oldDisplayData.m_dScaleFactor)
+            /* fSuccess = */ gEDataManager->setScaleFactor(newDisplayData.m_dScaleFactor, strMachineId);
+#ifdef VBOX_WS_MAC
+        /* Save whether Unscaled HiDPI Output is enabled: : */
+        if (fSuccess && newDisplayData.m_fUseUnscaledHiDPIOutput != oldDisplayData.m_fUseUnscaledHiDPIOutput)
+            /* fSuccess = */ gEDataManager->setUseUnscaledHiDPIOutput(newDisplayData.m_fUseUnscaledHiDPIOutput, strMachineId);
+#endif
     }
     /* Return result: */
     return fSuccess;
@@ -1525,11 +1486,11 @@ bool UIMachineSettingsDisplay::saveRemoteDisplayData()
     return fSuccess;
 }
 
-bool UIMachineSettingsDisplay::saveRecordingData()
+bool UIMachineSettingsDisplay::saveVideoCaptureData()
 {
     /* Prepare result: */
     bool fSuccess = true;
-    /* Save 'Recording' data from the cache: */
+    /* Save 'Video Capture' data from the cache: */
     if (fSuccess)
     {
         /* Get old display data from the cache: */
@@ -1537,179 +1498,127 @@ bool UIMachineSettingsDisplay::saveRecordingData()
         /* Get new display data from the cache: */
         const UIDataSettingsMachineDisplay &newDisplayData = m_pCache->data();
 
-        CRecordingSettings recordingSettings = m_machine.GetRecordingSettings();
-        Assert(recordingSettings.isNotNull());
-
-        /** @todo r=andy Make the code below more compact -- too much redundancy here. */
-
-        /* Save new 'Recording' data for online case: */
+        /* Save new 'Video Capture' data for online case: */
         if (isMachineOnline())
         {
-            /* If 'Recording' was *enabled*: */
-            if (oldDisplayData.m_fRecordingEnabled)
+            /* If 'Video Capture' was *enabled*: */
+            if (oldDisplayData.m_fVideoCaptureEnabled)
             {
-                /* Save whether recording is enabled: */
-                if (fSuccess && newDisplayData.m_fRecordingEnabled != oldDisplayData.m_fRecordingEnabled)
-                {
-                    recordingSettings.SetEnabled(newDisplayData.m_fRecordingEnabled);
-                    fSuccess = recordingSettings.isOk();
-                }
-
                 // We can still save the *screens* option.
-                /* Save recording screens: */
-                if (fSuccess)
+                // And finally we should *disable* 'Video Capture' if necessary.
+                /* Save video capture screens: */
+                if (fSuccess && newDisplayData.m_screens != oldDisplayData.m_screens)
                 {
-                    CRecordingScreenSettingsVector RecordScreenSettingsVector = recordingSettings.GetScreens();
-                    for (int iScreenIndex = 0; fSuccess && iScreenIndex < RecordScreenSettingsVector.size(); ++iScreenIndex)
-                    {
-                        if (newDisplayData.m_vecRecordingScreens[iScreenIndex] == oldDisplayData.m_vecRecordingScreens[iScreenIndex])
-                            continue;
-
-                        CRecordingScreenSettings recordingScreenSettings = RecordScreenSettingsVector.at(iScreenIndex);
-                        recordingScreenSettings.SetEnabled(newDisplayData.m_vecRecordingScreens[iScreenIndex]);
-                        fSuccess = recordingScreenSettings.isOk();
-                    }
+                    m_machine.SetVideoCaptureScreens(newDisplayData.m_screens);
+                    fSuccess = m_machine.isOk();
+                }
+                /* Save whether video capture is enabled: */
+                if (fSuccess && newDisplayData.m_fVideoCaptureEnabled != oldDisplayData.m_fVideoCaptureEnabled)
+                {
+                    m_machine.SetVideoCaptureEnabled(newDisplayData.m_fVideoCaptureEnabled);
+                    fSuccess = m_machine.isOk();
                 }
             }
-            /* If 'Recording' was *disabled*: */
+            /* If 'Video Capture' was *disabled*: */
             else
             {
-                CRecordingScreenSettingsVector recordingScreenSettingsVector = recordingSettings.GetScreens();
-                for (int iScreenIndex = 0; fSuccess && iScreenIndex < recordingScreenSettingsVector.size(); ++iScreenIndex)
+                // We should save all the options *before* 'Video Capture' activation.
+                // And finally we should *enable* Video Capture if necessary.
+                /* Save video capture file path: */
+                if (fSuccess && newDisplayData.m_strVideoCaptureFilePath != oldDisplayData.m_strVideoCaptureFilePath)
                 {
-                    CRecordingScreenSettings recordingScreenSettings = recordingScreenSettingsVector.at(iScreenIndex);
-
-                    // We should save all the options *before* 'Recording' activation.
-                    // And finally we should *enable* Recording if necessary.
-                    /* Save recording file path: */
-                    if (fSuccess && newDisplayData.m_strRecordingFilePath != oldDisplayData.m_strRecordingFilePath)
-                    {
-                        recordingScreenSettings.SetFilename(newDisplayData.m_strRecordingFilePath);
-                        Assert(recordingScreenSettings.isOk());
-                        fSuccess = recordingScreenSettings.isOk();
-                    }
-                    /* Save recording frame width: */
-                    if (fSuccess && newDisplayData.m_iRecordingVideoFrameWidth != oldDisplayData.m_iRecordingVideoFrameWidth)
-                    {
-                        recordingScreenSettings.SetVideoWidth(newDisplayData.m_iRecordingVideoFrameWidth);
-                        Assert(recordingScreenSettings.isOk());
-                        fSuccess = recordingScreenSettings.isOk();
-                    }
-                    /* Save recording frame height: */
-                    if (fSuccess && newDisplayData.m_iRecordingVideoFrameHeight != oldDisplayData.m_iRecordingVideoFrameHeight)
-                    {
-                        recordingScreenSettings.SetVideoHeight(newDisplayData.m_iRecordingVideoFrameHeight);
-                        Assert(recordingScreenSettings.isOk());
-                        fSuccess = recordingScreenSettings.isOk();
-                    }
-                    /* Save recording frame rate: */
-                    if (fSuccess && newDisplayData.m_iRecordingVideoFrameRate != oldDisplayData.m_iRecordingVideoFrameRate)
-                    {
-                        recordingScreenSettings.SetVideoFPS(newDisplayData.m_iRecordingVideoFrameRate);
-                        Assert(recordingScreenSettings.isOk());
-                        fSuccess = recordingScreenSettings.isOk();
-                    }
-                    /* Save recording frame bit rate: */
-                    if (fSuccess && newDisplayData.m_iRecordingVideoBitRate != oldDisplayData.m_iRecordingVideoBitRate)
-                    {
-                        recordingScreenSettings.SetVideoRate(newDisplayData.m_iRecordingVideoBitRate);
-                        Assert(recordingScreenSettings.isOk());
-                        fSuccess = recordingScreenSettings.isOk();
-                    }
-                    /* Save recording options: */
-                    if (fSuccess && newDisplayData.m_strRecordingVideoOptions != oldDisplayData.m_strRecordingVideoOptions)
-                    {
-                        recordingScreenSettings.SetOptions(newDisplayData.m_strRecordingVideoOptions);
-                        Assert(recordingScreenSettings.isOk());
-                        fSuccess = recordingScreenSettings.isOk();
-                    }
-                    /* Finally, save the screen's recording state: */
-                    /* Note: Must come last, as modifying options with an enabled recording state is not possible. */
-                    if (fSuccess && newDisplayData.m_vecRecordingScreens != oldDisplayData.m_vecRecordingScreens)
-                    {
-                        recordingScreenSettings.SetEnabled(newDisplayData.m_vecRecordingScreens[iScreenIndex]);
-                        Assert(recordingScreenSettings.isOk());
-                        fSuccess = recordingScreenSettings.isOk();
-                    }
+                    m_machine.SetVideoCaptureFile(newDisplayData.m_strVideoCaptureFilePath);
+                    fSuccess = m_machine.isOk();
                 }
-
-                /* Save whether recording is enabled:
-                 * Do this last, as after enabling recording no changes via API aren't allowed anymore. */
-                if (fSuccess && newDisplayData.m_fRecordingEnabled != oldDisplayData.m_fRecordingEnabled)
+                /* Save video capture frame width: */
+                if (fSuccess && newDisplayData.m_iVideoCaptureFrameWidth != oldDisplayData.m_iVideoCaptureFrameWidth)
                 {
-                    recordingSettings.SetEnabled(newDisplayData.m_fRecordingEnabled);
-                    Assert(recordingSettings.isOk());
-                    fSuccess = recordingSettings.isOk();
+                    m_machine.SetVideoCaptureWidth(newDisplayData.m_iVideoCaptureFrameWidth);
+                    fSuccess = m_machine.isOk();
+                }
+                /* Save video capture frame height: */
+                if (fSuccess && newDisplayData.m_iVideoCaptureFrameHeight != oldDisplayData.m_iVideoCaptureFrameHeight)
+                {
+                    m_machine.SetVideoCaptureHeight(newDisplayData.m_iVideoCaptureFrameHeight);
+                    fSuccess = m_machine.isOk();
+                }
+                /* Save video capture frame rate: */
+                if (fSuccess && newDisplayData.m_iVideoCaptureFrameRate != oldDisplayData.m_iVideoCaptureFrameRate)
+                {
+                    m_machine.SetVideoCaptureFPS(newDisplayData.m_iVideoCaptureFrameRate);
+                    fSuccess = m_machine.isOk();
+                }
+                /* Save video capture frame bit rate: */
+                if (fSuccess && newDisplayData.m_iVideoCaptureBitRate != oldDisplayData.m_iVideoCaptureBitRate)
+                {
+                    m_machine.SetVideoCaptureRate(newDisplayData.m_iVideoCaptureBitRate);
+                    fSuccess = m_machine.isOk();
+                }
+                /* Save video capture screens: */
+                if (fSuccess && newDisplayData.m_screens != oldDisplayData.m_screens)
+                {
+                    m_machine.SetVideoCaptureScreens(newDisplayData.m_screens);
+                    fSuccess = m_machine.isOk();
+                }
+                /* Save whether video capture is enabled: */
+                if (fSuccess && newDisplayData.m_fVideoCaptureEnabled != oldDisplayData.m_fVideoCaptureEnabled)
+                {
+                    m_machine.SetVideoCaptureEnabled(newDisplayData.m_fVideoCaptureEnabled);
+                    fSuccess = m_machine.isOk();
                 }
             }
         }
-        /* Save new 'Recording' data for offline case: */
+        /* Save new 'Video Capture' data for offline case: */
         else
         {
-            CRecordingScreenSettingsVector recordingScreenSettingsVector = recordingSettings.GetScreens();
-            for (int iScreenIndex = 0; fSuccess && iScreenIndex < recordingScreenSettingsVector.size(); ++iScreenIndex)
+            // For 'offline', 'powered off' and 'saved' states the order is irrelevant.
+            /* Save whether video capture is enabled: */
+            if (fSuccess && newDisplayData.m_fVideoCaptureEnabled != oldDisplayData.m_fVideoCaptureEnabled)
             {
-                CRecordingScreenSettings recordingScreenSettings = recordingScreenSettingsVector.at(iScreenIndex);
-
-                /* Save recording file path: */
-                if (fSuccess && newDisplayData.m_strRecordingFilePath != oldDisplayData.m_strRecordingFilePath)
-                {
-                    recordingScreenSettings.SetFilename(newDisplayData.m_strRecordingFilePath);
-                    Assert(recordingScreenSettings.isOk());
-                    fSuccess = recordingScreenSettings.isOk();
-                }
-                /* Save recording frame width: */
-                if (fSuccess && newDisplayData.m_iRecordingVideoFrameWidth != oldDisplayData.m_iRecordingVideoFrameWidth)
-                {
-                    recordingScreenSettings.SetVideoWidth(newDisplayData.m_iRecordingVideoFrameWidth);
-                    Assert(recordingScreenSettings.isOk());
-                    fSuccess = recordingScreenSettings.isOk();
-                }
-                /* Save recording frame height: */
-                if (fSuccess && newDisplayData.m_iRecordingVideoFrameHeight != oldDisplayData.m_iRecordingVideoFrameHeight)
-                {
-                    recordingScreenSettings.SetVideoHeight(newDisplayData.m_iRecordingVideoFrameHeight);
-                    Assert(recordingScreenSettings.isOk());
-                    fSuccess = recordingScreenSettings.isOk();
-                }
-                /* Save recording frame rate: */
-                if (fSuccess && newDisplayData.m_iRecordingVideoFrameRate != oldDisplayData.m_iRecordingVideoFrameRate)
-                {
-                    recordingScreenSettings.SetVideoFPS(newDisplayData.m_iRecordingVideoFrameRate);
-                    Assert(recordingScreenSettings.isOk());
-                    fSuccess = recordingScreenSettings.isOk();
-                }
-                /* Save recording frame bit rate: */
-                if (fSuccess && newDisplayData.m_iRecordingVideoBitRate != oldDisplayData.m_iRecordingVideoBitRate)
-                {
-                    recordingScreenSettings.SetVideoRate(newDisplayData.m_iRecordingVideoBitRate);
-                    Assert(recordingScreenSettings.isOk());
-                    fSuccess = recordingScreenSettings.isOk();
-                }
-                /* Save capture options: */
-                if (fSuccess && newDisplayData.m_strRecordingVideoOptions != oldDisplayData.m_strRecordingVideoOptions)
-                {
-                    recordingScreenSettings.SetOptions(newDisplayData.m_strRecordingVideoOptions);
-                    Assert(recordingScreenSettings.isOk());
-                    fSuccess = recordingScreenSettings.isOk();
-                }
-                /* Finally, save the screen's recording state: */
-                /* Note: Must come last, as modifying options with an enabled recording state is not possible. */
-                if (fSuccess && newDisplayData.m_vecRecordingScreens != oldDisplayData.m_vecRecordingScreens)
-                {
-                    recordingScreenSettings.SetEnabled(newDisplayData.m_vecRecordingScreens[iScreenIndex]);
-                    Assert(recordingScreenSettings.isOk());
-                    fSuccess = recordingScreenSettings.isOk();
-                }
+                m_machine.SetVideoCaptureEnabled(newDisplayData.m_fVideoCaptureEnabled);
+                fSuccess = m_machine.isOk();
             }
-
-            /* Save whether recording is enabled:
-             * Do this last, as after enabling recording no changes via API aren't allowed anymore. */
-            if (fSuccess && newDisplayData.m_fRecordingEnabled != oldDisplayData.m_fRecordingEnabled)
+            /* Save video capture file path: */
+            if (fSuccess && newDisplayData.m_strVideoCaptureFilePath != oldDisplayData.m_strVideoCaptureFilePath)
             {
-                recordingSettings.SetEnabled(newDisplayData.m_fRecordingEnabled);
-                Assert(recordingSettings.isOk());
-                fSuccess = recordingSettings.isOk();
+                m_machine.SetVideoCaptureFile(newDisplayData.m_strVideoCaptureFilePath);
+                fSuccess = m_machine.isOk();
+            }
+            /* Save video capture frame width: */
+            if (fSuccess && newDisplayData.m_iVideoCaptureFrameWidth != oldDisplayData.m_iVideoCaptureFrameWidth)
+            {
+                m_machine.SetVideoCaptureWidth(newDisplayData.m_iVideoCaptureFrameWidth);
+                fSuccess = m_machine.isOk();
+            }
+            /* Save video capture frame height: */
+            if (fSuccess && newDisplayData.m_iVideoCaptureFrameHeight != oldDisplayData.m_iVideoCaptureFrameHeight)
+            {
+                m_machine.SetVideoCaptureHeight(newDisplayData.m_iVideoCaptureFrameHeight);
+                fSuccess = m_machine.isOk();
+            }
+            /* Save video capture frame rate: */
+            if (fSuccess && newDisplayData.m_iVideoCaptureFrameRate != oldDisplayData.m_iVideoCaptureFrameRate)
+            {
+                m_machine.SetVideoCaptureFPS(newDisplayData.m_iVideoCaptureFrameRate);
+                fSuccess = m_machine.isOk();
+            }
+            /* Save video capture frame bit rate: */
+            if (fSuccess && newDisplayData.m_iVideoCaptureBitRate != oldDisplayData.m_iVideoCaptureBitRate)
+            {
+                m_machine.SetVideoCaptureRate(newDisplayData.m_iVideoCaptureBitRate);
+                fSuccess = m_machine.isOk();
+            }
+            /* Save video capture screens: */
+            if (fSuccess && newDisplayData.m_screens != oldDisplayData.m_screens)
+            {
+                m_machine.SetVideoCaptureScreens(newDisplayData.m_screens);
+                fSuccess = m_machine.isOk();
+            }
+            /* Save video capture options: */
+            if (fSuccess && newDisplayData.m_strVideoCaptureOptions != oldDisplayData.m_strVideoCaptureOptions)
+            {
+                m_machine.SetVideoCaptureOptions(newDisplayData.m_strVideoCaptureOptions);
+                fSuccess = m_machine.isOk();
             }
         }
 
@@ -1721,41 +1630,3 @@ bool UIMachineSettingsDisplay::saveRecordingData()
     return fSuccess;
 }
 
-void UIMachineSettingsDisplay::enableDisableRecordingWidgets()
-{
-    /* Recording options should be enabled only if:
-     * 1. Machine is in 'offline' or 'saved' state and check-box is checked,
-     * 2. Machine is in 'online' state, check-box is checked, and video recording is *disabled* currently. */
-    const bool fIsRecordingOptionsEnabled = ((isMachineOffline() || isMachineSaved()) && m_pCheckboxVideoCapture->isChecked()) ||
-                                             (isMachineOnline() && !m_pCache->base().m_fRecordingEnabled && m_pCheckboxVideoCapture->isChecked());
-
-    /* Video Capture Screens option should be enabled only if:
-     * Machine is in *any* valid state and check-box is checked. */
-    const bool fIsVideoCaptureScreenOptionEnabled = isMachineInValidMode() && m_pCheckboxVideoCapture->isChecked();
-    const UISettingsDefs::RecordingMode enmRecordingMode =
-        gpConverter->fromString<UISettingsDefs::RecordingMode>(m_pComboBoxCaptureMode->currentText());
-    const bool fRecordVideo =    enmRecordingMode == UISettingsDefs::RecordingMode_VideoOnly
-                              || enmRecordingMode == UISettingsDefs::RecordingMode_VideoAudio;
-    const bool fRecordAudio =    enmRecordingMode == UISettingsDefs::RecordingMode_AudioOnly
-                              || enmRecordingMode == UISettingsDefs::RecordingMode_VideoAudio;
-
-    m_pLabelVideoCaptureSize->setEnabled(fIsRecordingOptionsEnabled && fRecordVideo);
-    m_pComboVideoCaptureSize->setEnabled(fIsRecordingOptionsEnabled && fRecordVideo);
-    m_pEditorVideoCaptureWidth->setEnabled(fIsRecordingOptionsEnabled && fRecordVideo);
-    m_pEditorVideoCaptureHeight->setEnabled(fIsRecordingOptionsEnabled && fRecordVideo);
-
-    m_pLabelVideoCaptureFrameRate->setEnabled(fIsRecordingOptionsEnabled && fRecordVideo);
-    m_pContainerSliderVideoCaptureFrameRate->setEnabled(fIsRecordingOptionsEnabled && fRecordVideo);
-    m_pEditorVideoCaptureFrameRate->setEnabled(fIsRecordingOptionsEnabled && fRecordVideo);
-
-    m_pLabelVideoCaptureRate->setEnabled(fIsRecordingOptionsEnabled && fRecordVideo);
-    m_pContainerSliderVideoCaptureQuality->setEnabled(fIsRecordingOptionsEnabled && fRecordVideo);
-    m_pEditorVideoCaptureBitRate->setEnabled(fIsRecordingOptionsEnabled && fRecordVideo);
-    m_pScrollerVideoCaptureScreens->setEnabled(fIsVideoCaptureScreenOptionEnabled && fRecordVideo);
-
-    m_pAudioCaptureQualityLabel->setEnabled(fIsRecordingOptionsEnabled && fRecordAudio);
-    m_pContainerSliderAudioCaptureQuality->setEnabled(fIsRecordingOptionsEnabled && fRecordAudio);
-
-    m_pLabelVideoCaptureScreens->setEnabled(fIsVideoCaptureScreenOptionEnabled && fRecordVideo);
-    m_pLabelVideoCaptureSizeHint->setEnabled(fIsVideoCaptureScreenOptionEnabled && fRecordVideo);
-}

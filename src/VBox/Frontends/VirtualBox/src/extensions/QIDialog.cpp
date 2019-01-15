@@ -1,10 +1,10 @@
 /* $Id: QIDialog.cpp $ */
 /** @file
- * VBox Qt GUI - Qt extensions: QIDialog class implementation.
+ * VBox Qt GUI - VirtualBox Qt extensions: QIDialog class implementation.
  */
 
 /*
- * Copyright (C) 2008-2019 Oracle Corporation
+ * Copyright (C) 2008-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,16 +15,19 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/* Qt includes: */
-#include <QEventLoop>
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* GUI includes: */
-#include "QIDialog.h"
-#include "VBoxGlobal.h"
+# include "QIDialog.h"
+# include "VBoxGlobal.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
-QIDialog::QIDialog(QWidget *pParent /* = 0 */, Qt::WindowFlags enmFlags /* = 0 */)
-    : QDialog(pParent, enmFlags)
+QIDialog::QIDialog(QWidget *pParent /* = 0 */, Qt::WindowFlags flags /* = 0 */)
+    : QDialog(pParent, flags)
     , m_fPolished(false)
 {
     /* Do not count that window as important for application,
@@ -125,3 +128,4 @@ void QIDialog::polishEvent(QShowEvent *)
     /* Explicit centering according to our parent: */
     VBoxGlobal::centerWidget(this, parentWidget(), false);
 }
+

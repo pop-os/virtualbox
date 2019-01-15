@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2019 Oracle Corporation
+# Copyright (C) 2006-2017 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -27,8 +27,8 @@ include $(KBUILD_PATH)/subheader.kmk
 # Compression libs used by IPRT and <what was it again?>.
 include $(PATH_SUB_CURRENT)/liblzf-3.4/Makefile.kmk
 if  !defined(VBOX_ONLY_SDK) \
- && "$(SDK_VBOX_ZLIB_INCS)" == "$(PATH_ROOT)/src/libs/zlib-1.2.11"
- include $(PATH_SUB_CURRENT)/zlib-1.2.11/Makefile.kmk
+ && "$(SDK_VBOX_ZLIB_INCS)" == "$(PATH_ROOT)/src/libs/zlib-1.2.8"
+ include $(PATH_SUB_CURRENT)/zlib-1.2.8/Makefile.kmk
 endif
 
 # PNG support (for screenshots).
@@ -36,8 +36,8 @@ if  !defined(VBOX_ONLY_ADDITIONS) \
  && !defined(VBOX_ONLY_DOCS) \
  && !defined(VBOX_ONLY_SDK) \
  && !defined(VBOX_ONLY_VALIDATIONKIT) \
- && "$(SDK_VBOX_LIBPNG_INCS)" == "$(PATH_ROOT)/src/libs/libpng-1.6.36"
- include $(PATH_SUB_CURRENT)/libpng-1.6.36/Makefile.kmk
+ && "$(SDK_VBOX_LIBPNG_INCS)" == "$(PATH_ROOT)/src/libs/libpng-1.2.54"
+ include $(PATH_SUB_CURRENT)/libpng-1.2.54/Makefile.kmk
 endif # !VBOX_ONLY_DOCS
 
 # Libcurl for inet access
@@ -46,15 +46,14 @@ if  defined(VBOX_WITH_LIBCURL) \
  && !defined(VBOX_ONLY_EXTPACKS_USE_IMPLIBS) \
  && !defined(VBOX_ONLY_SDK) \
  && !defined(VBOX_ONLY_VALIDATIONKIT) \
- && "$(SDK_VBOX_LIBCURL_INCS)" == "$(PATH_ROOT)/src/libs/curl-7.62.0/include"
- include $(PATH_SUB_CURRENT)/curl-7.62.0/Makefile.kmk
+ && "$(SDK_VBOX_LIBCURL_INCS)" == "$(PATH_ROOT)/src/libs/curl-7.57.0/include"
+ include $(PATH_SUB_CURRENT)/curl-7.57.0/Makefile.kmk
 endif
 
 # OpenSSL.
 if  !defined(VBOX_ONLY_SDK) \
- && (!defined(VBOX_ONLY_ADDITIONS) || !defined(VBOX_ONLY_ADDITIONS_WITHOUT_RTISOMAKER)) \
- && (!defined(VBOX_ONLY_EXTPACKS) || defined(VBOX_NEED_EXTPACK_OPENSSL) || !defined(VBOX_ONLY_EXTPACKS_USE_IMPLIBS)) \
- && ("$(SDK_VBOX_OPENSSL_INCS)" == "$(SDK_VBOX_OPENSSL_VBOX_DEFAULT_INCS)" || defined(VBOX_NEED_EXTPACK_OPENSSL))
+ && (   "$(SDK_VBOX_OPENSSL_INCS)" == "$(SDK_VBOX_OPENSSL_VBOX_DEFAULT_INCS)" \
+     || defined(VBOX_WITH_EXTPACK_PUEL_BUILD))
  include $(PATH_SUB_CURRENT)/openssl-1.1.0j/Makefile.kmk
 endif
 
@@ -67,6 +66,7 @@ endif
 # Main related things - XPCOM and XSLT.
 if defined(VBOX_WITH_MAIN) \
  && !defined(VBOX_ONLY_ADDITIONS) \
+ && !defined(VBOX_ONLY_EXTPACKS) \
  && !defined(VBOX_ONLY_VALIDATIONKIT)
 
  if defined(VBOX_WITH_XPCOM) && !defined(VBOX_ONLY_DOCS)
@@ -74,13 +74,15 @@ if defined(VBOX_WITH_MAIN) \
  endif
 
  # VPX for video capture.
- if defined(VBOX_WITH_LIBVPX) && !defined(VBOX_ONLY_DOCS) && !defined(VBOX_WITH_SDK) && !defined(VBOX_ONLY_EXTPACKS) \
+ if defined(VBOX_WITH_LIBVPX) && !defined(VBOX_ONLY_DOCS) && !defined(VBOX_WITH_SDK) \
    && ("$(SDK_VBOX_VPX_INCS)" == "$(SDK_VBOX_VPX_DEFAULT_INCS)")
-  include $(PATH_SUB_CURRENT)/libvpx-1.6.1/Makefile.kmk
+  if1of ($(KBUILD_TARGET), darwin linux solaris win)
+   include $(PATH_SUB_CURRENT)/libvpx-1.1.0/Makefile.kmk
+  endif
  endif
 
  # Opus for supporting audio when doing video capturing.
- if defined(VBOX_WITH_LIBOPUS) && !defined(VBOX_ONLY_DOCS) && !defined(VBOX_WITH_SDK) && !defined(VBOX_ONLY_EXTPACKS) \
+ if defined(VBOX_WITH_LIBOPUS) && !defined(VBOX_ONLY_DOCS) && !defined(VBOX_WITH_SDK) \
    && ("$(SDK_VBOX_OPUS_INCS)" == "$(SDK_VBOX_OPUS_DEFAULT_INCS)")
   include $(PATH_SUB_CURRENT)/libopus-1.2.1/Makefile.kmk
  endif

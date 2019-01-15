@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,12 +23,8 @@
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
  */
-
-#ifndef VBOX_INCLUDED_Graphics_VBoxCrHgsmi_h
-#define VBOX_INCLUDED_Graphics_VBoxCrHgsmi_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBox_VBoxCrHgsmi_h
+#define ___VBox_VBoxCrHgsmi_h
 
 #include <iprt/cdefs.h>
 #include "VBoxUhgsmi.h"
@@ -59,5 +55,5 @@ VBOXCRHGSMI_DECL(int) VBoxCrHgsmiCtlConCall(PVBOXUHGSMI pHgsmi, struct VBGLIOCHG
 
 RT_C_DECLS_END
 
-#endif /* !VBOX_INCLUDED_Graphics_VBoxCrHgsmi_h */
+#endif
 

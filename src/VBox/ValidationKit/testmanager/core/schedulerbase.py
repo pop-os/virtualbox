@@ -9,7 +9,7 @@ Test Manager - Base class and utilities for the schedulers.
 
 __copyright__ = \
 """
-Copyright (C) 2012-2019 Oracle Corporation
+Copyright (C) 2012-2017 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -28,11 +28,10 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 118412 $"
 
 
 # Standard python imports.
-import sys;
 import unittest;
 
 # Validation Kit imports.
@@ -49,11 +48,6 @@ from testmanager.core.testboxstatus     import TestBoxStatusData, TestBoxStatusL
 from testmanager.core.testcase          import TestCaseLogic;
 from testmanager.core.testcaseargs      import TestCaseArgsDataEx, TestCaseArgsLogic;
 from testmanager.core.testset           import TestSetData, TestSetLogic;
-
-# Python 3 hacks:
-if sys.version_info[0] >= 3:
-    xrange = range; # pylint: disable=redefined-builtin,invalid-name
-
 
 
 class ReCreateQueueData(object):
@@ -308,6 +302,9 @@ class ReCreateQueueData(object):
                 i += 1; # Advance.
 
 
+        return True;
+
+
 
 class SchedQueueData(ModelDataBase):
     """
@@ -422,7 +419,7 @@ class SchedulerBase(object):
                 """Returns self, required by the language."""
                 return self;
 
-            def __next__(self):
+            def next(self):
                 """Returns the next build, raises StopIteration when the end has been reached."""
                 while True:
                     if self.iCur >= len(self.oCache.aoEntries):
@@ -434,11 +431,7 @@ class SchedulerBase(object):
                     self.iCur += 1;
                     if not oEntry.fRemoved:
                         return oEntry;
-                return None; # not reached, but make pylint happy (for now).
-
-            def next(self):
-                """ For python 2.x. """
-                return self.__next__();
+                # end
 
         class BuildCacheEntry(object):
             """ Build cache entry. """

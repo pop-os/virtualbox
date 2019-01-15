@@ -1,10 +1,11 @@
 /* $Id: TokenImpl.cpp $ */
 /** @file
- * Token COM class implementation - MachineToken and MediumLockToken
+ *
+ * Token COM class implementation: MachineToken and MediumLockToken
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,12 +16,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#define LOG_GROUP LOG_GROUP_MAIN_TOKEN
 #include "TokenImpl.h"
 #include "MachineImpl.h"
 #include "MediumImpl.h"
 #include "AutoCaller.h"
-#include "LoggingNew.h"
+#include "Logging.h"
 
 // constructor / destructor
 /////////////////////////////////////////////////////////////////////////////

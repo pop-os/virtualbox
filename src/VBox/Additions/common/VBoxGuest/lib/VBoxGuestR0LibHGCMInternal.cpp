@@ -4,28 +4,24 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
- * Permission is hereby granted, free of charge, to any person
- * obtaining a copy of this software and associated documentation
- * files (the "Software"), to deal in the Software without
- * restriction, including without limitation the rights to use,
- * copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the
- * Software is furnished to do so, subject to the following
- * conditions:
+ * This file is part of VirtualBox Open Source Edition (OSE), as
+ * available from http://www.virtualbox.org. This file is free software;
+ * you can redistribute it and/or modify it under the terms of the GNU
+ * General Public License (GPL) as published by the Free Software
+ * Foundation, in version 2 as it comes in the "COPYING" file of the
+ * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
+ * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  *
- * The above copyright notice and this permission notice shall be
- * included in all copies or substantial portions of the Software.
+ * The contents of this file may alternatively be used under the terms
+ * of the Common Development and Distribution License Version 1.0
+ * (CDDL) only, as it comes in the "COPYING.CDDL" file of the
+ * VirtualBox OSE distribution, in which case the provisions of the
+ * CDDL are applicable instead of those of the GPL.
  *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES
- * OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
- * NONINFRINGEMENT.  IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT
- * HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
- * WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
- * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
- * OTHER DEALINGS IN THE SOFTWARE.
+ * You may elect to license modified versions of this file under the
+ * terms and conditions of either the GPL or the CDDL or both.
  */
 
 
@@ -35,6 +31,7 @@
 #define LOG_GROUP LOG_GROUP_HGCM
 
 #include "VBoxGuestR0LibInternal.h"
+#include <iprt/alloca.h>
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/mem.h>
@@ -42,7 +39,6 @@
 #include <iprt/string.h>
 #include <iprt/thread.h>
 #include <iprt/time.h>
-#include <VBox/err.h>
 
 #ifndef VBGL_VBOXGUEST
 # error "This file should only be part of the VBoxGuestR0LibBase library that is linked into VBoxGuest."
@@ -56,9 +52,6 @@
 #define VBGLR0_MAX_HGCM_USER_PARM       (24*_1M)
 /** The max parameter buffer size for a kernel request. */
 #define VBGLR0_MAX_HGCM_KERNEL_PARM     (16*_1M)
-/** The max embedded buffer size. */
-#define VBGLR0_MAX_HGCM_EMBEDDED_BUFFER _64K
-
 #if defined(RT_OS_LINUX) || defined(RT_OS_DARWIN)
 /** Linux needs to use bounce buffers since RTR0MemObjLockUser has unwanted
  * side effects.
@@ -90,7 +83,7 @@ struct VbglR0ParmInfo
 
 /* These functions can be only used by VBoxGuest. */
 
-DECLR0VBGL(int) VbglR0HGCMInternalConnect(HGCMServiceLocation const *pLoc, uint32_t fRequestor, HGCMCLIENTID *pidClient,
+DECLR0VBGL(int) VbglR0HGCMInternalConnect(HGCMServiceLocation const *pLoc, HGCMCLIENTID *pidClient,
                                           PFNVBGLHGCMCALLBACK pfnAsyncCallback, void *pvAsyncData, uint32_t u32AsyncData)
 {
     int rc;
@@ -104,8 +97,6 @@ DECLR0VBGL(int) VbglR0HGCMInternalConnect(HGCMServiceLocation const *pLoc, uint3
         if (RT_SUCCESS(rc))
         {
             /* Initialize request memory */
-            pHGCMConnect->header.header.fRequestor = fRequestor;
-
             pHGCMConnect->header.fu32Flags = 0;
 
             memcpy(&pHGCMConnect->loc, pLoc, sizeof(pHGCMConnect->loc));
@@ -135,7 +126,7 @@ DECLR0VBGL(int) VbglR0HGCMInternalConnect(HGCMServiceLocation const *pLoc, uint3
 }
 
 
-DECLR0VBGL(int) VbglR0HGCMInternalDisconnect(HGCMCLIENTID idClient, uint32_t fRequestor,
+DECLR0VBGL(int) VbglR0HGCMInternalDisconnect(HGCMCLIENTID idClient,
                                              PFNVBGLHGCMCALLBACK pfnAsyncCallback, void *pvAsyncData, uint32_t u32AsyncData)
 {
     int rc;
@@ -148,8 +139,6 @@ DECLR0VBGL(int) VbglR0HGCMInternalDisconnect(HGCMCLIENTID idClient, uint32_t fRe
         if (RT_SUCCESS(rc))
         {
             /* Initialize request memory */
-            pHGCMDisconnect->header.header.fRequestor = fRequestor;
-
             pHGCMDisconnect->header.fu32Flags = 0;
 
             pHGCMDisconnect->u32ClientID = idClient;
@@ -218,7 +207,6 @@ static int vbglR0HGCMInternalPreprocessCall(PCVBGLIOCHGCMCALL pCallInfo, uint32_
                 break;
 
             case VMMDevHGCMParmType_PageList:
-            case VMMDevHGCMParmType_ContiguousPageList:
                 if (fIsUser)
                     return VERR_INVALID_PARAMETER;
                 cb = pSrcParm->u.PageList.size;
@@ -262,32 +250,6 @@ static int vbglR0HGCMInternalPreprocessCall(PCVBGLIOCHGCMCALL pCallInfo, uint32_
                 else
                     Log4(("GstHGCMCall: parm=%u type=pglst: cb=0\n", iParm));
                 break;
-
-            case VMMDevHGCMParmType_Embedded:
-                if (fIsUser) /// @todo relax this.
-                    return VERR_INVALID_PARAMETER;
-                cb = pSrcParm->u.Embedded.cbData;
-                if (cb)
-                {
-                    uint32_t off = pSrcParm->u.Embedded.offData;
-                    AssertMsgReturn(cb <= VBGLR0_MAX_HGCM_EMBEDDED_BUFFER, ("%#x > %#x\n", cb, VBGLR0_MAX_HGCM_EMBEDDED_BUFFER),
-                                    VERR_INVALID_PARAMETER);
-                    AssertMsgReturn(cb <= cbCallInfo - cParms * sizeof(HGCMFunctionParameter),
-                                    ("cb=%#x cParms=%#x cbCallInfo=%3x\n", cb, cParms, cbCallInfo),
-                                    VERR_INVALID_PARAMETER);
-                    AssertMsgReturn(   off >= cParms * sizeof(HGCMFunctionParameter)
-                                    && off <= cbCallInfo - cb,
-                                    ("offData=%#x cParms=%#x cbCallInfo=%#x\n", off, cParms, cbCallInfo),
-                                    VERR_INVALID_PARAMETER);
-                    AssertMsgReturn(VBOX_HGCM_F_PARM_ARE_VALID(pSrcParm->u.Embedded.fFlags),
-                                    ("%#x\n", pSrcParm->u.Embedded.fFlags), VERR_INVALID_PARAMETER);
-
-                    *pcbExtra += RT_ALIGN_32(cb, 8);
-                }
-                else
-                    Log4(("GstHGCMCall: parm=%u type=embed: cb=0\n", iParm));
-                break;
-
 
             case VMMDevHGCMParmType_LinAddr_Locked_In:
             case VMMDevHGCMParmType_LinAddr_Locked_Out:
@@ -508,13 +470,12 @@ static uint32_t vbglR0HGCMInternalLinAddrTypeToPageListFlags(HGCMFunctionParamet
  *
  * @param   pCallInfo       The call info.
  * @param   cbCallInfo      The size of the call info structure.
- * @param   fRequestor      VMMDEV_REQUESTOR_XXX.
  * @param   fIsUser         Is it a user request or kernel request.
  * @param   pcbExtra        Where to return the extra request space needed for
  *                          physical page lists.
  */
 static void vbglR0HGCMInternalInitCall(VMMDevHGCMCall *pHGCMCall, PCVBGLIOCHGCMCALL pCallInfo,
-                                       uint32_t cbCallInfo, uint32_t fRequestor, bool fIsUser, struct VbglR0ParmInfo *pParmInfo)
+                                       uint32_t cbCallInfo, bool fIsUser, struct VbglR0ParmInfo *pParmInfo)
 {
     HGCMFunctionParameter const *pSrcParm = VBGL_HGCM_GET_CALL_PARMS(pCallInfo);
     HGCMFunctionParameter       *pDstParm = VMMDEV_HGCM_CALL_PARMS(pHGCMCall);
@@ -530,10 +491,6 @@ static void vbglR0HGCMInternalInitCall(VMMDevHGCMCall *pHGCMCall, PCVBGLIOCHGCMC
     /*
      * The call request headers.
      */
-    pHGCMCall->header.header.fRequestor = !fIsUser || (fRequestor & VMMDEV_REQUESTOR_USERMODE) ? fRequestor
-                                        :   VMMDEV_REQUESTOR_USERMODE        | VMMDEV_REQUESTOR_USR_NOT_GIVEN
-                                          | VMMDEV_REQUESTOR_TRUST_NOT_GIVEN | VMMDEV_REQUESTOR_CON_DONT_KNOW;
-
     pHGCMCall->header.fu32Flags = 0;
     pHGCMCall->header.result    = VINF_SUCCESS;
 
@@ -554,8 +511,7 @@ static void vbglR0HGCMInternalInitCall(VMMDevHGCMCall *pHGCMCall, PCVBGLIOCHGCMC
                 break;
 
             case VMMDevHGCMParmType_PageList:
-            case VMMDevHGCMParmType_ContiguousPageList:
-                pDstParm->type = pSrcParm->type;
+                pDstParm->type = VMMDevHGCMParmType_PageList;
                 pDstParm->u.PageList.size = pSrcParm->u.PageList.size;
                 if (pSrcParm->u.PageList.size)
                 {
@@ -567,37 +523,15 @@ static void vbglR0HGCMInternalInitCall(VMMDevHGCMCall *pHGCMCall, PCVBGLIOCHGCMC
                     pDstParm->u.PageList.offset = offExtra;
                     pDstPgLst->flags            = pSrcPgLst->flags;
                     pDstPgLst->offFirstPage     = pSrcPgLst->offFirstPage;
-                    pDstPgLst->cPages           = (uint16_t)cPages;
+                    pDstPgLst->cPages           = cPages;
                     for (iPage = 0; iPage < cPages; iPage++)
                         pDstPgLst->aPages[iPage] = pSrcPgLst->aPages[iPage];
 
                     offExtra += RT_UOFFSETOF_DYN(HGCMPageListInfo, aPages[cPages]);
                 }
                 else
-                    pDstParm->u.PageList.offset = 0; /** @todo will fail on the host side now */
+                    pDstParm->u.PageList.offset = 0;
                 break;
-
-            case VMMDevHGCMParmType_Embedded:
-            {
-                uint32_t const cb = pSrcParm->u.Embedded.cbData;
-                pDstParm->type = VMMDevHGCMParmType_Embedded;
-                pDstParm->u.Embedded.cbData  = cb;
-                pDstParm->u.Embedded.offData = offExtra;
-                if (cb > 0)
-                {
-                    uint8_t *pbDst = (uint8_t *)pHGCMCall + offExtra;
-                    if (pSrcParm->u.Embedded.fFlags & VBOX_HGCM_F_PARM_DIRECTION_TO_HOST)
-                    {
-                        memcpy(pbDst, (uint8_t const *)pCallInfo + pSrcParm->u.Embedded.offData, cb);
-                        if (RT_ALIGN(cb, 8) != cb)
-                            memset(pbDst + cb, 0, RT_ALIGN(cb, 8) - cb);
-                    }
-                    else
-                        RT_BZERO(pbDst, RT_ALIGN(cb, 8));
-                    offExtra += RT_ALIGN(cb, 8);
-                }
-                break;
-            }
 
             case VMMDevHGCMParmType_LinAddr_Locked_In:
             case VMMDevHGCMParmType_LinAddr_Locked_Out:
@@ -636,8 +570,8 @@ static void vbglR0HGCMInternalInitCall(VMMDevHGCMCall *pHGCMCall, PCVBGLIOCHGCMC
                             pDstPgLst->offFirstPage = (uintptr_t)pvSmallBuf & PAGE_OFFSET_MASK;
                         else
 #endif
-                            pDstPgLst->offFirstPage = (uint16_t)(pSrcParm->u.Pointer.u.linearAddr & PAGE_OFFSET_MASK);
-                        pDstPgLst->cPages           = (uint16_t)cPages; Assert(pDstPgLst->cPages == cPages);
+                            pDstPgLst->offFirstPage = pSrcParm->u.Pointer.u.linearAddr & PAGE_OFFSET_MASK;
+                        pDstPgLst->cPages           = (uint32_t)cPages; Assert(pDstPgLst->cPages == cPages);
                         for (iPage = 0; iPage < cPages; iPage++)
                         {
                             pDstPgLst->aPages[iPage] = RTR0MemObjGetPagePhysAddr(hObj, iPage);
@@ -815,16 +749,13 @@ static int vbglR0HGCMInternalDoCall(VMMDevHGCMCall *pHGCMCall, PFNVBGLHGCMCALLBA
  *
  * @returns rc, unless RTR0MemUserCopyTo fails.
  * @param   pCallInfo           Call info structure to update.
- * @param   cbCallInfo          The size of the client request.
  * @param   pHGCMCall           HGCM call request.
- * @param   cbHGCMCall          The size of the HGCM call request.
  * @param   pParmInfo           Parameter locking/buffering info.
  * @param   fIsUser             Is it a user (true) or kernel request.
  * @param   rc                  The current result code. Passed along to
  *                              preserve informational status codes.
  */
-static int vbglR0HGCMInternalCopyBackResult(PVBGLIOCHGCMCALL pCallInfo, uint32_t cbCallInfo,
-                                            VMMDevHGCMCall const *pHGCMCall, uint32_t cbHGCMCall,
+static int vbglR0HGCMInternalCopyBackResult(PVBGLIOCHGCMCALL pCallInfo, VMMDevHGCMCall const *pHGCMCall,
                                             struct VbglR0ParmInfo *pParmInfo, bool fIsUser, int rc)
 {
     HGCMFunctionParameter const *pSrcParm = VMMDEV_HGCM_CALL_PARMS(pHGCMCall);
@@ -847,8 +778,6 @@ static int vbglR0HGCMInternalCopyBackResult(PVBGLIOCHGCMCALL pCallInfo, uint32_t
     /*
      * Copy back parameters.
      */
-    /** @todo This is assuming user data (pDstParm) is buffered.  Not true
-     *        on OS/2, though I'm not sure we care... */
     for (iParm = 0; iParm < cParms; iParm++, pSrcParm++, pDstParm++)
     {
         switch (pDstParm->type)
@@ -859,39 +788,8 @@ static int vbglR0HGCMInternalCopyBackResult(PVBGLIOCHGCMCALL pCallInfo, uint32_t
                 break;
 
             case VMMDevHGCMParmType_PageList:
-            case VMMDevHGCMParmType_ContiguousPageList:
                 pDstParm->u.PageList.size = pSrcParm->u.PageList.size;
                 break;
-
-            case VMMDevHGCMParmType_Embedded:
-            {
-                uint32_t const cbDst = pDstParm->u.Embedded.cbData;
-                uint32_t       cbSrc;
-                pDstParm->u.Embedded.cbData = cbSrc = pSrcParm->u.Embedded.cbData;
-                if (    cbSrc > 0
-                    && (pDstParm->u.Embedded.fFlags & VBOX_HGCM_F_PARM_DIRECTION_FROM_HOST))
-                {
-                    uint32_t const offDst = pDstParm->u.Embedded.offData;
-                    uint32_t const offSrc = pSrcParm->u.Embedded.offData;
-
-                    AssertReturn(offDst < cbCallInfo, VERR_INTERNAL_ERROR_2);
-                    AssertReturn(offDst >= sizeof(*pCallInfo) + cParms * sizeof(*pDstParm), VERR_INTERNAL_ERROR_2);
-                    AssertReturn(cbDst  <= cbCallInfo - offDst , VERR_INTERNAL_ERROR_2);
-
-                    AssertReturn(offSrc < cbCallInfo, VERR_INTERNAL_ERROR_2);
-                    AssertReturn(offSrc >= sizeof(*pHGCMCall) + cParms * sizeof(*pSrcParm), VERR_INTERNAL_ERROR_2);
-                    if (cbSrc <= cbHGCMCall - offSrc)
-                    { /* likely */ }
-                    else
-                    {
-                        /* Special case: Buffer overflow w/ correct size given. */
-                        AssertReturn(RT_FAILURE_NP(rc), VERR_INTERNAL_ERROR_2);
-                        cbSrc = cbHGCMCall - offSrc;
-                    }
-                    memcpy((uint8_t *)pCallInfo + offDst, (uint8_t const *)pHGCMCall + offSrc, RT_MIN(cbSrc, cbDst));
-                }
-                break;
-            }
 
             case VMMDevHGCMParmType_LinAddr_Locked_In:
             case VMMDevHGCMParmType_LinAddr_In:
@@ -956,7 +854,7 @@ static int vbglR0HGCMInternalCopyBackResult(PVBGLIOCHGCMCALL pCallInfo, uint32_t
 }
 
 
-DECLR0VBGL(int) VbglR0HGCMInternalCall(PVBGLIOCHGCMCALL pCallInfo, uint32_t cbCallInfo, uint32_t fFlags, uint32_t fRequestor,
+DECLR0VBGL(int) VbglR0HGCMInternalCall(PVBGLIOCHGCMCALL pCallInfo, uint32_t cbCallInfo, uint32_t fFlags,
                                        PFNVBGLHGCMCALLBACK pfnAsyncCallback, void *pvAsyncData, uint32_t u32AsyncData)
 {
     bool                    fIsUser = (fFlags & VBGLR0_HGCMCALL_F_MODE_MASK) == VBGLR0_HGCMCALL_F_USER;
@@ -991,12 +889,13 @@ DECLR0VBGL(int) VbglR0HGCMInternalCall(PVBGLIOCHGCMCALL pCallInfo, uint32_t cbCa
          * Allocate the request buffer and recreate the call request.
          */
         VMMDevHGCMCall *pHGCMCall;
-        uint32_t const  cbHGCMCall = sizeof(VMMDevHGCMCall) + pCallInfo->cParms * sizeof(HGCMFunctionParameter) + (uint32_t)cbExtra;
-        rc = VbglR0GRAlloc((VMMDevRequestHeader **)&pHGCMCall, cbHGCMCall, VMMDevReq_HGCMCall);
+        rc = VbglR0GRAlloc((VMMDevRequestHeader **)&pHGCMCall,
+                           sizeof(VMMDevHGCMCall) + pCallInfo->cParms * sizeof(HGCMFunctionParameter) + cbExtra,
+                           VMMDevReq_HGCMCall);
         if (RT_SUCCESS(rc))
         {
             bool fLeakIt;
-            vbglR0HGCMInternalInitCall(pHGCMCall, pCallInfo, cbCallInfo, fRequestor, fIsUser, &ParmInfo);
+            vbglR0HGCMInternalInitCall(pHGCMCall, pCallInfo, cbCallInfo, fIsUser, &ParmInfo);
 
             /*
              * Perform the call.
@@ -1007,7 +906,7 @@ DECLR0VBGL(int) VbglR0HGCMInternalCall(PVBGLIOCHGCMCALL pCallInfo, uint32_t cbCa
                 /*
                  * Copy back the result (parameters and buffers that changed).
                  */
-                rc = vbglR0HGCMInternalCopyBackResult(pCallInfo, cbCallInfo, pHGCMCall, cbHGCMCall, &ParmInfo, fIsUser, rc);
+                rc = vbglR0HGCMInternalCopyBackResult(pCallInfo, pHGCMCall, &ParmInfo, fIsUser, rc);
             }
             else
             {
@@ -1044,7 +943,7 @@ DECLR0VBGL(int) VbglR0HGCMInternalCall(PVBGLIOCHGCMCALL pCallInfo, uint32_t cbCa
 
 
 #if ARCH_BITS == 64
-DECLR0VBGL(int) VbglR0HGCMInternalCall32(PVBGLIOCHGCMCALL pCallInfo, uint32_t cbCallInfo, uint32_t fFlags, uint32_t fRequestor,
+DECLR0VBGL(int) VbglR0HGCMInternalCall32(PVBGLIOCHGCMCALL pCallInfo, uint32_t cbCallInfo, uint32_t fFlags,
                                          PFNVBGLHGCMCALLBACK pfnAsyncCallback, void *pvAsyncData, uint32_t u32AsyncData)
 {
     PVBGLIOCHGCMCALL         pCallInfo64 = NULL;
@@ -1118,7 +1017,7 @@ DECLR0VBGL(int) VbglR0HGCMInternalCall32(PVBGLIOCHGCMCALL pCallInfo, uint32_t cb
     if (RT_SUCCESS(rc))
     {
         rc = VbglR0HGCMInternalCall(pCallInfo64, sizeof(*pCallInfo64) + cParms * sizeof(HGCMFunctionParameter), fFlags,
-                                    fRequestor, pfnAsyncCallback, pvAsyncData, u32AsyncData);
+                                    pfnAsyncCallback, pvAsyncData, u32AsyncData);
 
         if (RT_SUCCESS(rc))
         {

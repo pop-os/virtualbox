@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VMM_INCLUDED_SRC_include_PATMA_h
-#define VMM_INCLUDED_SRC_include_PATMA_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___PATMA_H
+#define ___PATMA_H
 
 /** @name Patch Fixup Types
  * @remarks These fixups types are part of the saved state.
@@ -232,4 +229,4 @@ extern const uint32_t g_fPatmInterruptFlag;
 
 RT_C_DECLS_END
 
-#endif /* !VMM_INCLUDED_SRC_include_PATMA_h */
+#endif

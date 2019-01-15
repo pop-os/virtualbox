@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,37 +15,28 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* GUI includes: */
-#include "VBoxGlobal.h"
-#include "UIActionPool.h"
-#include "UIExtraDataManager.h"
-#include "UIShortcutPool.h"
+# include "UIShortcutPool.h"
+# include "UIActionPool.h"
+# include "UIExtraDataManager.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 /* Namespaces: */
 using namespace UIExtraDataDefs;
 
 
-/*********************************************************************************************************************************
-*   Class UIShortcut implementation.                                                                                             *
-*********************************************************************************************************************************/
-
-void UIShortcut::setScope(const QString &strScope)
-{
-    m_strScope = strScope;
-}
-
-const QString &UIShortcut::scope() const
-{
-    return m_strScope;
-}
-
 void UIShortcut::setDescription(const QString &strDescription)
 {
     m_strDescription = strDescription;
 }
 
-const QString &UIShortcut::description() const
+const QString& UIShortcut::description() const
 {
     return m_strDescription;
 }
@@ -55,7 +46,7 @@ void UIShortcut::setSequence(const QKeySequence &sequence)
     m_sequence = sequence;
 }
 
-const QKeySequence &UIShortcut::sequence() const
+const QKeySequence& UIShortcut::sequence() const
 {
     return m_sequence;
 }
@@ -65,7 +56,7 @@ void UIShortcut::setDefaultSequence(const QKeySequence &defaultSequence)
     m_defaultSequence = defaultSequence;
 }
 
-const QKeySequence &UIShortcut::defaultSequence() const
+const QKeySequence& UIShortcut::defaultSequence() const
 {
     return m_defaultSequence;
 }
@@ -75,63 +66,62 @@ QString UIShortcut::toString() const
     return m_sequence.toString();
 }
 
+UIShortcutPool* UIShortcutPool::m_pInstance = 0;
 
-/*********************************************************************************************************************************
-*   Class UIShortcutPool implementation.                                                                                         *
-*********************************************************************************************************************************/
+const QString UIShortcutPool::m_sstrShortcutKeyTemplate = QString("%1/%2");
+const QString UIShortcutPool::m_sstrShortcutKeyTemplateRuntime = m_sstrShortcutKeyTemplate.arg(GUI_Input_MachineShortcuts);
 
-/* static */
-UIShortcutPool *UIShortcutPool::s_pInstance = 0;
-const QString UIShortcutPool::s_strShortcutKeyTemplate = QString("%1/%2");
-const QString UIShortcutPool::s_strShortcutKeyTemplateRuntime = s_strShortcutKeyTemplate.arg(GUI_Input_MachineShortcuts);
+UIShortcutPool* UIShortcutPool::instance()
+{
+    return m_pInstance;
+}
 
 void UIShortcutPool::create()
 {
     /* Check that instance do NOT exists: */
-    if (s_pInstance)
+    if (m_pInstance)
         return;
 
     /* Create instance: */
     new UIShortcutPool;
 
     /* Prepare instance: */
-    s_pInstance->prepare();
+    m_pInstance->prepare();
 }
 
 void UIShortcutPool::destroy()
 {
     /* Check that instance exists: */
-    if (!s_pInstance)
+    if (!m_pInstance)
         return;
 
     /* Cleanup instance: */
-    s_pInstance->cleanup();
+    m_pInstance->cleanup();
 
     /* Delete instance: */
-    delete s_pInstance;
+    delete m_pInstance;
 }
 
-UIShortcut &UIShortcutPool::shortcut(UIActionPool *pActionPool, UIAction *pAction)
+UIShortcut& UIShortcutPool::shortcut(UIActionPool *pActionPool, UIAction *pAction)
 {
     /* Compose shortcut key: */
-    const QString strShortcutKey(s_strShortcutKeyTemplate.arg(pActionPool->shortcutsExtraDataID(),
-                                                              pAction->shortcutExtraDataID()));
+    const QString strShortcutKey(m_sstrShortcutKeyTemplate.arg(pActionPool->shortcutsExtraDataID(),
+                                                               pAction->shortcutExtraDataID()));
     /* Return existing if any: */
     if (m_shortcuts.contains(strShortcutKey))
         return shortcut(strShortcutKey);
     /* Create and return new one: */
     UIShortcut &newShortcut = m_shortcuts[strShortcutKey];
-    newShortcut.setScope(pAction->shortcutScope());
     newShortcut.setDescription(pAction->name());
     newShortcut.setSequence(pAction->defaultShortcut(pActionPool->type()));
     newShortcut.setDefaultSequence(pAction->defaultShortcut(pActionPool->type()));
     return newShortcut;
 }
 
-UIShortcut &UIShortcutPool::shortcut(const QString &strPoolID, const QString &strActionID)
+UIShortcut& UIShortcutPool::shortcut(const QString &strPoolID, const QString &strActionID)
 {
     /* Return if present, autocreate if necessary: */
-    return shortcut(s_strShortcutKeyTemplate.arg(strPoolID, strActionID));
+    return shortcut(m_sstrShortcutKeyTemplate.arg(strPoolID, strActionID));
 }
 
 void UIShortcutPool::setOverrides(const QMap<QString, QString> &overrides)
@@ -160,20 +150,17 @@ void UIShortcutPool::applyShortcuts(UIActionPool *pActionPool)
             continue;
 
         /* Compose shortcut key: */
-        const QString strShortcutKey = s_strShortcutKeyTemplate.arg(pActionPool->shortcutsExtraDataID(),
-                                                                    pAction->shortcutExtraDataID());
+        const QString strShortcutKey = m_sstrShortcutKeyTemplate.arg(pActionPool->shortcutsExtraDataID(),
+                                                                     pAction->shortcutExtraDataID());
         /* If shortcut key is already known: */
         if (m_shortcuts.contains(strShortcutKey))
         {
             /* Get corresponding shortcut: */
             UIShortcut &existingShortcut = m_shortcuts[strShortcutKey];
-            /* Copy the scope from the action to the shortcut: */
-            existingShortcut.setScope(pAction->shortcutScope());
             /* Copy the description from the action to the shortcut: */
             existingShortcut.setDescription(pAction->name());
             /* Copy the sequence from the shortcut to the action: */
             pAction->setShortcut(existingShortcut.sequence());
-            pAction->retranslateUi();
             /* Copy the default sequence from the action to the shortcut: */
             existingShortcut.setDefaultSequence(pAction->defaultShortcut(pActionPool->type()));
         }
@@ -186,19 +173,10 @@ void UIShortcutPool::applyShortcuts(UIActionPool *pActionPool)
             newShortcut.setSequence(pAction->defaultShortcut(pActionPool->type()));
             newShortcut.setDefaultSequence(pAction->defaultShortcut(pActionPool->type()));
             pAction->setShortcut(newShortcut.sequence());
-            pAction->retranslateUi();
             /* Copy the description from the action to the shortcut: */
-            newShortcut.setScope(pAction->shortcutScope());
             newShortcut.setDescription(pAction->name());
         }
     }
-}
-
-void UIShortcutPool::retranslateUi()
-{
-    /* Translate own defaults: */
-    m_shortcuts[s_strShortcutKeyTemplateRuntime.arg("PopupMenu")]
-        .setDescription(QApplication::translate("UIActionPool", "Popup Menu"));
 }
 
 void UIShortcutPool::sltReloadSelectorShortcuts()
@@ -238,15 +216,15 @@ void UIShortcutPool::sltReloadMachineShortcuts()
 UIShortcutPool::UIShortcutPool()
 {
     /* Prepare instance: */
-    if (!s_pInstance)
-        s_pInstance = this;
+    if (!m_pInstance)
+        m_pInstance = this;
 }
 
 UIShortcutPool::~UIShortcutPool()
 {
     /* Cleanup instance: */
-    if (s_pInstance == this)
-        s_pInstance = 0;
+    if (m_pInstance == this)
+        m_pInstance = 0;
 }
 
 void UIShortcutPool::prepare()
@@ -268,6 +246,13 @@ void UIShortcutPool::prepareConnections()
             this, &UIShortcutPool::sltReloadMachineShortcuts);
 }
 
+void UIShortcutPool::retranslateUi()
+{
+    /* Translate own defaults: */
+    m_shortcuts[m_sstrShortcutKeyTemplateRuntime.arg("PopupMenu")]
+        .setDescription(QApplication::translate("UIActionPool", "Popup Menu"));
+}
+
 void UIShortcutPool::loadDefaults()
 {
     /* Load selector defaults: */
@@ -287,9 +272,8 @@ void UIShortcutPool::loadDefaultsFor(const QString &strPoolExtraDataID)
     else if (strPoolExtraDataID == GUI_Input_MachineShortcuts)
     {
         /* Default shortcut for the Runtime Popup Menu: */
-        m_shortcuts.insert(s_strShortcutKeyTemplateRuntime.arg("PopupMenu"),
-                           UIShortcut(QString(),
-                                      QApplication::translate("UIActionPool", "Popup Menu"),
+        m_shortcuts.insert(m_sstrShortcutKeyTemplateRuntime.arg("PopupMenu"),
+                           UIShortcut(QApplication::translate("UIActionPool", "Popup Menu"),
                                       QString("Home"), QString("Home")));
     }
 }
@@ -305,7 +289,7 @@ void UIShortcutPool::loadOverrides()
 void UIShortcutPool::loadOverridesFor(const QString &strPoolExtraDataID)
 {
     /* Compose shortcut key template: */
-    const QString strShortcutKeyTemplate(s_strShortcutKeyTemplate.arg(strPoolExtraDataID));
+    const QString strShortcutKeyTemplate(m_sstrShortcutKeyTemplate.arg(strPoolExtraDataID));
     /* Iterate over all the overrides: */
     const QStringList overrides = gEDataManager->shortcutOverrides(strPoolExtraDataID);
     foreach (const QString &strKeyValuePair, overrides)
@@ -327,7 +311,7 @@ void UIShortcutPool::loadOverridesFor(const QString &strPoolExtraDataID)
         const QString strShortcutKey(strShortcutKeyTemplate.arg(strShortcutExtraDataID));
         /* Modify map with composed key/value: */
         if (!m_shortcuts.contains(strShortcutKey))
-            m_shortcuts.insert(strShortcutKey, UIShortcut(QString(), QString(), strShortcutSequence, QString()));
+            m_shortcuts.insert(strShortcutKey, UIShortcut(QString(), strShortcutSequence, QString()));
         else
         {
             /* Get corresponding value: */
@@ -357,7 +341,7 @@ void UIShortcutPool::saveOverrides()
 void UIShortcutPool::saveOverridesFor(const QString &strPoolExtraDataID)
 {
     /* Compose shortcut prefix: */
-    const QString strShortcutPrefix(s_strShortcutKeyTemplate.arg(strPoolExtraDataID, QString()));
+    const QString strShortcutPrefix(m_sstrShortcutKeyTemplate.arg(strPoolExtraDataID, QString()));
     /* Populate the list of all the known overrides: */
     QStringList overrides;
     const QList<QString> shortcutKeys = m_shortcuts.keys();
@@ -379,7 +363,7 @@ void UIShortcutPool::saveOverridesFor(const QString &strPoolExtraDataID)
     vboxGlobal().virtualBox().SetExtraDataStringList(strPoolExtraDataID, overrides);
 }
 
-UIShortcut &UIShortcutPool::shortcut(const QString &strShortcutKey)
+UIShortcut& UIShortcutPool::shortcut(const QString &strShortcutKey)
 {
     return m_shortcuts[strShortcutKey];
 }

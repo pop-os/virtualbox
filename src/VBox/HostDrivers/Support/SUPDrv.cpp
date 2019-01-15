@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2019 Oracle Corporation
+ * Copyright (C) 2006-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,7 +38,7 @@
 #include <iprt/asm-amd64-x86.h>
 #include <iprt/asm-math.h>
 #include <iprt/cpuset.h>
-#if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_WINDOWS)
+#if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
 # include <iprt/dbg.h>
 #endif
 #include <iprt/handletable.h>
@@ -200,10 +200,8 @@ static SUPFUNC g_aFunctions[] =
     { "SUPR0ResumeVTxOnCpu",                    (void *)(uintptr_t)SUPR0ResumeVTxOnCpu },
     { "SUPR0GetCurrentGdtRw",                   (void *)(uintptr_t)SUPR0GetCurrentGdtRw },
     { "SUPR0GetKernelFeatures",                 (void *)(uintptr_t)SUPR0GetKernelFeatures },
-    { "SUPR0GetHwvirtMsrs",                     (void *)(uintptr_t)SUPR0GetHwvirtMsrs },
     { "SUPR0GetPagingMode",                     (void *)(uintptr_t)SUPR0GetPagingMode },
     { "SUPR0GetSvmUsability",                   (void *)(uintptr_t)SUPR0GetSvmUsability },
-    { "SUPR0GetVTSupport",                      (void *)(uintptr_t)SUPR0GetVTSupport },
     { "SUPR0GetVmxUsability",                   (void *)(uintptr_t)SUPR0GetVmxUsability },
     { "SUPR0GetRawModeUsability",               (void *)(uintptr_t)SUPR0GetRawModeUsability },
     { "SUPR0LockMem",                           (void *)(uintptr_t)SUPR0LockMem },
@@ -232,11 +230,6 @@ static SUPFUNC g_aFunctions[] =
     { "SUPR0TracerRegisterModule",              (void *)(uintptr_t)SUPR0TracerRegisterModule },
     { "SUPR0TracerUmodProbeFire",               (void *)(uintptr_t)SUPR0TracerUmodProbeFire },
     { "SUPR0UnlockMem",                         (void *)(uintptr_t)SUPR0UnlockMem },
-#ifdef RT_OS_WINDOWS
-    { "SUPR0IoCtlSetupForHandle",               (void *)(uintptr_t)SUPR0IoCtlSetupForHandle },  /* only-windows */
-    { "SUPR0IoCtlPerform",                      (void *)(uintptr_t)SUPR0IoCtlPerform },         /* only-windows */
-    { "SUPR0IoCtlCleanup",                      (void *)(uintptr_t)SUPR0IoCtlCleanup },         /* only-windows */
-#endif
     { "SUPSemEventClose",                       (void *)(uintptr_t)SUPSemEventClose },
     { "SUPSemEventCreate",                      (void *)(uintptr_t)SUPSemEventCreate },
     { "SUPSemEventGetResolution",               (void *)(uintptr_t)SUPSemEventGetResolution },
@@ -278,12 +271,10 @@ static SUPFUNC g_aFunctions[] =
     { "RTLogDefaultInstanceEx",                 (void *)(uintptr_t)RTLogDefaultInstanceEx },
     { "RTLogGetDefaultInstance",                (void *)(uintptr_t)RTLogGetDefaultInstance },
     { "RTLogGetDefaultInstanceEx",              (void *)(uintptr_t)RTLogGetDefaultInstanceEx },
-    { "SUPR0GetDefaultLogInstanceEx",           (void *)(uintptr_t)SUPR0GetDefaultLogInstanceEx },
     { "RTLogLoggerExV",                         (void *)(uintptr_t)RTLogLoggerExV },
     { "RTLogPrintfV",                           (void *)(uintptr_t)RTLogPrintfV },
     { "RTLogRelGetDefaultInstance",             (void *)(uintptr_t)RTLogRelGetDefaultInstance },
     { "RTLogRelGetDefaultInstanceEx",           (void *)(uintptr_t)RTLogRelGetDefaultInstanceEx },
-    { "SUPR0GetDefaultLogRelInstanceEx",        (void *)(uintptr_t)SUPR0GetDefaultLogRelInstanceEx },
     { "RTLogSetDefaultInstanceThread",          (void *)(uintptr_t)RTLogSetDefaultInstanceThread },
     { "RTMemAllocExTag",                        (void *)(uintptr_t)RTMemAllocExTag },
     { "RTMemAllocTag",                          (void *)(uintptr_t)RTMemAllocTag },
@@ -339,15 +330,15 @@ static SUPFUNC g_aFunctions[] =
     { "RTPowerNotificationRegister",            (void *)(uintptr_t)RTPowerNotificationRegister },
     { "RTProcSelf",                             (void *)(uintptr_t)RTProcSelf },
     { "RTR0AssertPanicSystem",                  (void *)(uintptr_t)RTR0AssertPanicSystem },
-#if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS) || defined(RT_OS_WINDOWS)
-    { "RTR0DbgKrnlInfoOpen",                    (void *)(uintptr_t)RTR0DbgKrnlInfoOpen },          /* only-darwin, only-solaris, only-windows */
-    { "RTR0DbgKrnlInfoQueryMember",             (void *)(uintptr_t)RTR0DbgKrnlInfoQueryMember },   /* only-darwin, only-solaris, only-windows */
+#if defined(RT_OS_DARWIN) || defined(RT_OS_SOLARIS)
+    { "RTR0DbgKrnlInfoOpen",                    (void *)(uintptr_t)RTR0DbgKrnlInfoOpen },          /* only-darwin, only-solaris */
+    { "RTR0DbgKrnlInfoQueryMember",             (void *)(uintptr_t)RTR0DbgKrnlInfoQueryMember },   /* only-darwin, only-solaris */
 # if defined(RT_OS_SOLARIS)
     { "RTR0DbgKrnlInfoQuerySize",               (void *)(uintptr_t)RTR0DbgKrnlInfoQuerySize },     /* only-solaris */
 # endif
-    { "RTR0DbgKrnlInfoQuerySymbol",             (void *)(uintptr_t)RTR0DbgKrnlInfoQuerySymbol },   /* only-darwin, only-solaris, only-windows */
-    { "RTR0DbgKrnlInfoRelease",                 (void *)(uintptr_t)RTR0DbgKrnlInfoRelease },       /* only-darwin, only-solaris, only-windows */
-    { "RTR0DbgKrnlInfoRetain",                  (void *)(uintptr_t)RTR0DbgKrnlInfoRetain },        /* only-darwin, only-solaris, only-windows */
+    { "RTR0DbgKrnlInfoQuerySymbol",             (void *)(uintptr_t)RTR0DbgKrnlInfoQuerySymbol },   /* only-darwin, only-solaris */
+    { "RTR0DbgKrnlInfoRelease",                 (void *)(uintptr_t)RTR0DbgKrnlInfoRelease },       /* only-darwin, only-solaris */
+    { "RTR0DbgKrnlInfoRetain",                  (void *)(uintptr_t)RTR0DbgKrnlInfoRetain },        /* only-darwin, only-solaris */
 #endif
     { "RTR0MemAreKrnlAndUsrDifferent",          (void *)(uintptr_t)RTR0MemAreKrnlAndUsrDifferent },
     { "RTR0MemKernelIsValidAddr",               (void *)(uintptr_t)RTR0MemKernelIsValidAddr },
@@ -487,11 +478,6 @@ PFNRT g_apfnVBoxDrvIPRTDeps[] =
     NULL
 };
 #endif  /* RT_OS_DARWIN || RT_OS_SOLARIS || RT_OS_SOLARIS */
-
-/** Hardware-virtualization MSRs. */
-static SUPHWVIRTMSRS            g_HwvirtMsrs;
-/** Whether the hardware-virtualization MSRs are cached. */
-static bool                     g_fHwvirtMsrsCached;
 
 
 /**
@@ -1456,12 +1442,12 @@ static DECLCALLBACK(void) supdrvSessionObjHandleDelete(RTHANDLETABLE hHandleTabl
  * Fast path I/O Control worker.
  *
  * @returns VBox status code that should be passed down to ring-3 unchanged.
- * @param   uOperation  SUP_VMMR0_DO_XXX (not the I/O control number!).
+ * @param   uIOCtl      Function number.
  * @param   idCpu       VMCPU id.
  * @param   pDevExt     Device extention.
  * @param   pSession    Session data.
  */
-int VBOXCALL supdrvIOCtlFast(uintptr_t uOperation, VMCPUID idCpu, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession)
+int VBOXCALL supdrvIOCtlFast(uintptr_t uIOCtl, VMCPUID idCpu, PSUPDRVDEVEXT pDevExt, PSUPDRVSESSION pSession)
 {
     /*
      * Validate input and check that the VM has a session.
@@ -1477,9 +1463,22 @@ int VBOXCALL supdrvIOCtlFast(uintptr_t uOperation, VMCPUID idCpu, PSUPDRVDEVEXT 
             if (RT_LIKELY(pDevExt->pfnVMMR0EntryFast))
             {
                 /*
-                 * Make the call.
+                 * Do the call.
                  */
-                pDevExt->pfnVMMR0EntryFast(pGVM, pVM, idCpu, uOperation);
+                switch (uIOCtl)
+                {
+                    case SUP_IOCTL_FAST_DO_RAW_RUN:
+                        pDevExt->pfnVMMR0EntryFast(pGVM, pVM, idCpu, SUP_VMMR0_DO_RAW_RUN);
+                        break;
+                    case SUP_IOCTL_FAST_DO_HM_RUN:
+                        pDevExt->pfnVMMR0EntryFast(pGVM, pVM, idCpu, SUP_VMMR0_DO_HM_RUN);
+                        break;
+                    case SUP_IOCTL_FAST_DO_NOP:
+                        pDevExt->pfnVMMR0EntryFast(pGVM, pVM, idCpu, SUP_VMMR0_DO_NOP);
+                        break;
+                    default:
+                        return VERR_INTERNAL_ERROR;
+                }
                 return VINF_SUCCESS;
             }
 
@@ -2410,22 +2409,6 @@ static int supdrvIOCtlInnerUnrestricted(uintptr_t uIOCtl, PSUPDRVDEVEXT pDevExt,
             return 0;
         }
 
-        case SUP_CTL_CODE_NO_SIZE(SUP_IOCTL_GET_HWVIRT_MSRS):
-        {
-            /* validate */
-            PSUPGETHWVIRTMSRS pReq = (PSUPGETHWVIRTMSRS)pReqHdr;
-            REQ_CHECK_SIZES(SUP_IOCTL_GET_HWVIRT_MSRS);
-            REQ_CHECK_EXPR_FMT(!pReq->u.In.fReserved0 && !pReq->u.In.fReserved1 && !pReq->u.In.fReserved2,
-                               ("SUP_IOCTL_GET_HWVIRT_MSRS: fReserved0=%d fReserved1=%d fReserved2=%d\n", pReq->u.In.fReserved0,
-                                pReq->u.In.fReserved1, pReq->u.In.fReserved2));
-
-            /* execute */
-            pReq->Hdr.rc = SUPR0GetHwvirtMsrs(&pReq->u.Out.HwvirtMsrs, 0 /* fCaps */, pReq->u.In.fForce);
-            if (RT_FAILURE(pReq->Hdr.rc))
-                pReq->Hdr.cbOut = sizeof(pReq->Hdr);
-            return 0;
-        }
-
         default:
             Log(("Unknown IOCTL %#lx\n", (long)uIOCtl));
             break;
@@ -3196,22 +3179,6 @@ SUPR0DECL(int) SUPR0SetSessionVM(PSUPDRVSESSION pSession, PGVM pGVM, PVM pVM)
     }
     RTSpinlockRelease(pSession->pDevExt->Spinlock);
     return VINF_SUCCESS;
-}
-
-
-/** @copydoc RTLogGetDefaultInstanceEx
- * @remarks To allow overriding RTLogGetDefaultInstanceEx locally. */
-SUPR0DECL(struct RTLOGGER *) SUPR0GetDefaultLogInstanceEx(uint32_t fFlagsAndGroup)
-{
-    return RTLogGetDefaultInstanceEx(fFlagsAndGroup);
-}
-
-
-/** @copydoc RTLogRelGetDefaultInstanceEx
- * @remarks To allow overriding RTLogRelGetDefaultInstanceEx locally. */
-SUPR0DECL(struct RTLOGGER *) SUPR0GetDefaultLogRelInstanceEx(uint32_t fFlagsAndGroup)
-{
-    return RTLogRelGetDefaultInstanceEx(fFlagsAndGroup);
 }
 
 
@@ -4123,69 +4090,6 @@ SUPR0DECL(int) SUPR0GetRawModeUsability(void)
 }
 
 
-/**
- * Gets AMD-V and VT-x support for the calling CPU.
- *
- * @returns VBox status code.
- * @param   pfCaps          Where to store whether VT-x (SUPVTCAPS_VT_X) or AMD-V
- *                          (SUPVTCAPS_AMD_V) is supported.
- */
-SUPR0DECL(int) SUPR0GetVTSupport(uint32_t *pfCaps)
-{
-    Assert(pfCaps);
-    *pfCaps = 0;
-
-    /* Check if the CPU even supports CPUID (extremely ancient CPUs). */
-    if (ASMHasCpuId())
-    {
-        /* Check the range of standard CPUID leafs. */
-        uint32_t uMaxLeaf, uVendorEbx, uVendorEcx, uVendorEdx;
-        ASMCpuId(0, &uMaxLeaf, &uVendorEbx, &uVendorEcx, &uVendorEdx);
-        if (ASMIsValidStdRange(uMaxLeaf))
-        {
-            /* Query the standard CPUID leaf. */
-            uint32_t fFeatEcx, fFeatEdx, uDummy;
-            ASMCpuId(1, &uDummy, &uDummy, &fFeatEcx, &fFeatEdx);
-
-            /* Check if the vendor is Intel (or compatible). */
-            if (   ASMIsIntelCpuEx(uVendorEbx, uVendorEcx, uVendorEdx)
-                || ASMIsViaCentaurCpuEx(uVendorEbx, uVendorEcx, uVendorEdx))
-            {
-                /* Check VT-x support. In addition, VirtualBox requires MSR and FXSAVE/FXRSTOR to function. */
-                if (   (fFeatEcx & X86_CPUID_FEATURE_ECX_VMX)
-                    && (fFeatEdx & X86_CPUID_FEATURE_EDX_MSR)
-                    && (fFeatEdx & X86_CPUID_FEATURE_EDX_FXSR))
-                {
-                    *pfCaps = SUPVTCAPS_VT_X;
-                    return VINF_SUCCESS;
-                }
-                return VERR_VMX_NO_VMX;
-            }
-
-            /* Check if the vendor is AMD (or compatible). */
-            if (ASMIsAmdCpuEx(uVendorEbx, uVendorEcx, uVendorEdx))
-            {
-                uint32_t fExtFeatEcx, uExtMaxId;
-                ASMCpuId(0x80000000, &uExtMaxId, &uDummy, &uDummy, &uDummy);
-                ASMCpuId(0x80000001, &uDummy, &uDummy, &fExtFeatEcx, &uDummy);
-
-                /* Check AMD-V support. In addition, VirtualBox requires MSR and FXSAVE/FXRSTOR to function. */
-                if (   ASMIsValidExtRange(uExtMaxId)
-                    && uExtMaxId >= 0x8000000a
-                    && (fExtFeatEcx & X86_CPUID_AMD_FEATURE_ECX_SVM)
-                    && (fFeatEdx    & X86_CPUID_FEATURE_EDX_MSR)
-                    && (fFeatEdx    & X86_CPUID_FEATURE_EDX_FXSR))
-                {
-                    *pfCaps = SUPVTCAPS_AMD_V;
-                    return VINF_SUCCESS;
-                }
-                return VERR_SVM_NO_SVM;
-            }
-        }
-    }
-    return VERR_UNSUPPORTED_CPU;
-}
-
 
 /**
  * Checks if Intel VT-x feature is usable on this CPU.
@@ -4386,61 +4290,86 @@ int VBOXCALL supdrvQueryVTCapsInternal(uint32_t *pfCaps)
      * Input validation.
      */
     AssertPtrReturn(pfCaps, VERR_INVALID_POINTER);
-    *pfCaps = 0;
 
+    *pfCaps = 0;
     /* We may modify MSRs and re-read them, disable preemption so we make sure we don't migrate CPUs. */
     RTThreadPreemptDisable(&PreemptState);
-
-    /* Check if VT-x/AMD-V is supported. */
-    rc = SUPR0GetVTSupport(pfCaps);
-    if (RT_SUCCESS(rc))
+    if (ASMHasCpuId())
     {
-        /* Check if VT-x is supported. */
-        if (*pfCaps & SUPVTCAPS_VT_X)
+        uint32_t fFeaturesECX, fFeaturesEDX, uDummy;
+        uint32_t uMaxId, uVendorEBX, uVendorECX, uVendorEDX;
+
+        ASMCpuId(0, &uMaxId, &uVendorEBX, &uVendorECX, &uVendorEDX);
+        ASMCpuId(1, &uDummy, &uDummy, &fFeaturesECX, &fFeaturesEDX);
+
+        if (   ASMIsValidStdRange(uMaxId)
+            && (   ASMIsIntelCpuEx(     uVendorEBX, uVendorECX, uVendorEDX)
+                || ASMIsViaCentaurCpuEx(uVendorEBX, uVendorECX, uVendorEDX) )
+           )
         {
-            /* Check if VT-x is usable. */
-            rc = SUPR0GetVmxUsability(&fIsSmxModeAmbiguous);
-            if (RT_SUCCESS(rc))
+            if (    (fFeaturesECX & X86_CPUID_FEATURE_ECX_VMX)
+                 && (fFeaturesEDX & X86_CPUID_FEATURE_EDX_MSR)
+                 && (fFeaturesEDX & X86_CPUID_FEATURE_EDX_FXSR)
+               )
             {
-                /* Query some basic VT-x capabilities (mainly required by our GUI). */
-                VMXCTLSMSR vtCaps;
-                vtCaps.u = ASMRdMsr(MSR_IA32_VMX_PROCBASED_CTLS);
-                if (vtCaps.n.allowed1 & VMX_PROC_CTLS_USE_SECONDARY_CTLS)
+                rc = SUPR0GetVmxUsability(&fIsSmxModeAmbiguous);
+                if (rc == VINF_SUCCESS)
                 {
-                    vtCaps.u = ASMRdMsr(MSR_IA32_VMX_PROCBASED_CTLS2);
-                    if (vtCaps.n.allowed1 & VMX_PROC_CTLS2_EPT)
-                        *pfCaps |= SUPVTCAPS_NESTED_PAGING;
-                    if (vtCaps.n.allowed1 & VMX_PROC_CTLS2_UNRESTRICTED_GUEST)
-                        *pfCaps |= SUPVTCAPS_VTX_UNRESTRICTED_GUEST;
+                    VMXCAPABILITY vtCaps;
+
+                    *pfCaps |= SUPVTCAPS_VT_X;
+
+                    vtCaps.u = ASMRdMsr(MSR_IA32_VMX_PROCBASED_CTLS);
+                    if (vtCaps.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC_USE_SECONDARY_EXEC_CTRL)
+                    {
+                        vtCaps.u = ASMRdMsr(MSR_IA32_VMX_PROCBASED_CTLS2);
+                        if (vtCaps.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC2_EPT)
+                            *pfCaps |= SUPVTCAPS_NESTED_PAGING;
+                        if (vtCaps.n.allowed1 & VMX_VMCS_CTRL_PROC_EXEC2_UNRESTRICTED_GUEST)
+                            *pfCaps |= SUPVTCAPS_VTX_UNRESTRICTED_GUEST;
+                    }
                 }
             }
+            else
+                rc = VERR_VMX_NO_VMX;
         }
-        /* Check if AMD-V is supported. */
-        else if (*pfCaps & SUPVTCAPS_AMD_V)
+        else if (   ASMIsAmdCpuEx(uVendorEBX, uVendorECX, uVendorEDX)
+                 && ASMIsValidStdRange(uMaxId))
         {
-            /* Check is SVM is usable. */
-            rc = SUPR0GetSvmUsability(false /* fInitSvm */);
-            if (RT_SUCCESS(rc))
+            uint32_t fExtFeaturesEcx, uExtMaxId;
+            ASMCpuId(0x80000000, &uExtMaxId, &uDummy, &uDummy, &uDummy);
+            ASMCpuId(0x80000001, &uDummy, &uDummy, &fExtFeaturesEcx, &uDummy);
+
+            /* Check if SVM is available. */
+            if (   ASMIsValidExtRange(uExtMaxId)
+                && uExtMaxId >= 0x8000000a
+                && (fExtFeaturesEcx & X86_CPUID_AMD_FEATURE_ECX_SVM)
+                && (fFeaturesEDX    & X86_CPUID_FEATURE_EDX_MSR)
+                && (fFeaturesEDX    & X86_CPUID_FEATURE_EDX_FXSR)
+               )
             {
-                /* Query some basic AMD-V capabilities (mainly required by our GUI). */
-                uint32_t uDummy, fSvmFeatures;
-                ASMCpuId(0x8000000a, &uDummy, &uDummy, &uDummy, &fSvmFeatures);
-                if (fSvmFeatures & X86_CPUID_SVM_FEATURE_EDX_NESTED_PAGING)
-                    *pfCaps |= SUPVTCAPS_NESTED_PAGING;
+                rc = SUPR0GetSvmUsability(false /* fInitSvm */);
+                if (RT_SUCCESS(rc))
+                {
+                    uint32_t fSvmFeatures;
+                    *pfCaps |= SUPVTCAPS_AMD_V;
+
+                    /* Query AMD-V features. */
+                    ASMCpuId(0x8000000a, &uDummy, &uDummy, &uDummy, &fSvmFeatures);
+                    if (fSvmFeatures & X86_CPUID_SVM_FEATURE_EDX_NESTED_PAGING)
+                        *pfCaps |= SUPVTCAPS_NESTED_PAGING;
+                }
             }
+            else
+                rc = VERR_SVM_NO_SVM;
         }
     }
 
-    /* Restore preemption. */
     RTThreadPreemptRestore(&PreemptState);
-
-    /* After restoring preemption, if we may be in SMX mode, print a warning as it's difficult to debug such problems. */
     if (fIsSmxModeAmbiguous)
         SUPR0Printf(("WARNING! CR4 hints SMX mode but your CPU is too secretive. Proceeding anyway... We wish you good luck!\n"));
-
     return rc;
 }
-
 
 /**
  * Queries the AMD-V and VT-x capabilities of the calling CPU.
@@ -4563,121 +4492,6 @@ SUPR0DECL(int) SUPR0QueryUcodeRev(PSUPDRVSESSION pSession, uint32_t *puRevision)
      * Call common worker.
      */
     return supdrvQueryUcodeRev(puRevision);
-}
-
-
-/**
- * Gets hardware-virtualization MSRs of the calling CPU.
- *
- * @returns VBox status code.
- * @param   pMsrs       Where to store the hardware-virtualization MSRs.
- * @param   fCaps       Hardware virtualization capabilities (SUPVTCAPS_XXX). Pass 0
- *                      to explicitly check for the presence of VT-x/AMD-V before
- *                      querying MSRs.
- * @param   fForce      Force querying of MSRs from the hardware.
- */
-SUPR0DECL(int) SUPR0GetHwvirtMsrs(PSUPHWVIRTMSRS pMsrs, uint32_t fCaps, bool fForce)
-{
-    int rc;
-    RTTHREADPREEMPTSTATE PreemptState = RTTHREADPREEMPTSTATE_INITIALIZER;
-
-    /*
-     * Input validation.
-     */
-    AssertPtrReturn(pMsrs, VERR_INVALID_POINTER);
-
-    /*
-     * Disable preemption so we make sure we don't migrate CPUs and because
-     * we access global data.
-     */
-    RTThreadPreemptDisable(&PreemptState);
-
-    /*
-     * Querying MSRs from hardware can be expensive (exponentially more so
-     * in a nested-virtualization scenario if they happen to cause VM-exits).
-     *
-     * So, if the caller does not force re-querying of MSRs and we have them
-     * already cached, simply copy the cached MSRs and we're done.
-     */
-    if (   !fForce
-        && g_fHwvirtMsrsCached)
-    {
-        memcpy(pMsrs, &g_HwvirtMsrs, sizeof(*pMsrs));
-        RTThreadPreemptRestore(&PreemptState);
-        return VINF_SUCCESS;
-    }
-
-    /*
-     * Query the MSRs from hardware, since it's either the first call since
-     * driver load or the caller has forced re-querying of the MSRs.
-     */
-    RT_ZERO(*pMsrs);
-
-    /* If the caller claims VT-x/AMD-V is supported, don't need to recheck it. */
-    if (!(fCaps & (SUPVTCAPS_VT_X | SUPVTCAPS_AMD_V)))
-        rc = SUPR0GetVTSupport(&fCaps);
-    else
-        rc = VINF_SUCCESS;
-    if (RT_SUCCESS(rc))
-    {
-        if (fCaps & SUPVTCAPS_VT_X)
-        {
-            g_HwvirtMsrs.u.vmx.u64FeatCtrl  = ASMRdMsr(MSR_IA32_FEATURE_CONTROL);
-            g_HwvirtMsrs.u.vmx.u64Basic     = ASMRdMsr(MSR_IA32_VMX_BASIC);
-            g_HwvirtMsrs.u.vmx.u64PinCtls   = ASMRdMsr(MSR_IA32_VMX_PINBASED_CTLS);
-            g_HwvirtMsrs.u.vmx.u64ProcCtls  = ASMRdMsr(MSR_IA32_VMX_PROCBASED_CTLS);
-            g_HwvirtMsrs.u.vmx.u64ExitCtls  = ASMRdMsr(MSR_IA32_VMX_EXIT_CTLS);
-            g_HwvirtMsrs.u.vmx.u64EntryCtls = ASMRdMsr(MSR_IA32_VMX_ENTRY_CTLS);
-            g_HwvirtMsrs.u.vmx.u64Misc      = ASMRdMsr(MSR_IA32_VMX_MISC);
-            g_HwvirtMsrs.u.vmx.u64Cr0Fixed0 = ASMRdMsr(MSR_IA32_VMX_CR0_FIXED0);
-            g_HwvirtMsrs.u.vmx.u64Cr0Fixed1 = ASMRdMsr(MSR_IA32_VMX_CR0_FIXED1);
-            g_HwvirtMsrs.u.vmx.u64Cr4Fixed0 = ASMRdMsr(MSR_IA32_VMX_CR4_FIXED0);
-            g_HwvirtMsrs.u.vmx.u64Cr4Fixed1 = ASMRdMsr(MSR_IA32_VMX_CR4_FIXED1);
-            g_HwvirtMsrs.u.vmx.u64VmcsEnum  = ASMRdMsr(MSR_IA32_VMX_VMCS_ENUM);
-
-            if (RT_BF_GET(g_HwvirtMsrs.u.vmx.u64Basic, VMX_BF_BASIC_TRUE_CTLS))
-            {
-                g_HwvirtMsrs.u.vmx.u64TruePinCtls   = ASMRdMsr(MSR_IA32_VMX_TRUE_PINBASED_CTLS);
-                g_HwvirtMsrs.u.vmx.u64TrueProcCtls  = ASMRdMsr(MSR_IA32_VMX_TRUE_PROCBASED_CTLS);
-                g_HwvirtMsrs.u.vmx.u64TrueEntryCtls = ASMRdMsr(MSR_IA32_VMX_TRUE_ENTRY_CTLS);
-                g_HwvirtMsrs.u.vmx.u64TrueExitCtls  = ASMRdMsr(MSR_IA32_VMX_TRUE_EXIT_CTLS);
-            }
-
-            uint32_t const fProcCtlsAllowed1 = RT_HI_U32(g_HwvirtMsrs.u.vmx.u64ProcCtls);
-            if (fProcCtlsAllowed1 & VMX_PROC_CTLS_USE_SECONDARY_CTLS)
-            {
-                g_HwvirtMsrs.u.vmx.u64ProcCtls2 = ASMRdMsr(MSR_IA32_VMX_PROCBASED_CTLS2);
-
-                uint32_t const fProcCtls2Allowed1 = RT_HI_U32(g_HwvirtMsrs.u.vmx.u64ProcCtls2);
-                if (fProcCtls2Allowed1 & (VMX_PROC_CTLS2_EPT | VMX_PROC_CTLS2_VPID))
-                    g_HwvirtMsrs.u.vmx.u64EptVpidCaps = ASMRdMsr(MSR_IA32_VMX_EPT_VPID_CAP);
-
-                if (fProcCtls2Allowed1 & VMX_PROC_CTLS2_VMFUNC)
-                    g_HwvirtMsrs.u.vmx.u64VmFunc = ASMRdMsr(MSR_IA32_VMX_VMFUNC);
-            }
-            g_fHwvirtMsrsCached = true;
-        }
-        else if (fCaps & SUPVTCAPS_AMD_V)
-        {
-            g_HwvirtMsrs.u.svm.u64MsrHwcr = ASMRdMsr(MSR_K8_HWCR);
-            g_fHwvirtMsrsCached = true;
-        }
-        else
-        {
-            RTThreadPreemptRestore(&PreemptState);
-            AssertMsgFailedReturn(("SUPR0GetVTSupport returns success but neither VT-x nor AMD-V reported!\n"),
-                                  VERR_INTERNAL_ERROR_2);
-        }
-
-        /*
-         * We have successfully populated the cache, copy the MSRs to the caller.
-         */
-        memcpy(pMsrs, &g_HwvirtMsrs, sizeof(*pMsrs));
-    }
-
-    RTThreadPreemptRestore(&PreemptState);
-
-    return rc;
 }
 
 

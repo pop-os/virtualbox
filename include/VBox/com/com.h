@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2005-2019 Oracle Corporation
+ * Copyright (C) 2005-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,8 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef VBOX_INCLUDED_com_com_h
-#define VBOX_INCLUDED_com_com_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VBox_com_com_h
+#define ___VBox_com_com_h
 
 #include "VBox/com/defs.h"
 
@@ -116,5 +113,5 @@ int VBoxLogRelCreate(const char *pcszEntity, const char *pcszLogFile,
 } /* namespace com */
 
 /** @} */
-#endif /* !VBOX_INCLUDED_com_com_h */
+#endif
 

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010-2019 Oracle Corporation
+ * Copyright (C) 2010-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,14 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef IPRT_INCLUDED_vfslowlevel_h
-#define IPRT_INCLUDED_vfslowlevel_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___iprt_vfslowlevel_h
+#define ___iprt_vfslowlevel_h
 
 #include <iprt/vfs.h>
-#include <iprt/errcore.h>
+#include <iprt/err.h>
 #include <iprt/list.h>
 #include <iprt/param.h>
 
@@ -225,10 +222,8 @@ typedef struct RTVFSOPS
     DECLCALLBACKMEMBER(int, pfnOpenRoot)(void *pvThis, PRTVFSDIR phVfsDir);
 
     /**
-     * Query the status of the given storage range (optional).
-     *
-     * This can be used by the image compaction utilites to evict non-zero blocks
-     * that aren't currently being used by the file system.
+     * Optional entry point to check whether a given range in the underlying medium
+     * is in use by the virtual filesystem.
      *
      * @returns IPRT status code.
      * @param   pvThis      The implementation specific data.
@@ -236,7 +231,7 @@ typedef struct RTVFSOPS
      * @param   cb          Number of bytes to check.
      * @param   pfUsed      Where to store whether the given range is in use.
      */
-    DECLCALLBACKMEMBER(int, pfnQueryRangeState)(void *pvThis, uint64_t off, size_t cb, bool *pfUsed);
+    DECLCALLBACKMEMBER(int, pfnIsRangeInUse)(void *pvThis, RTFOFF off, size_t cb, bool *pfUsed);
 
     /** @todo There will be more methods here to optimize opening and
      *        querying. */
@@ -318,8 +313,8 @@ typedef struct RTVFSOBJSETOPS
 {
     /** The structure version (RTVFSOBJSETOPS_VERSION). */
     uint32_t                uVersion;
-    /** The offset back to the RTVFSOBJOPS structure. */
-    uint32_t                offObjOps;
+    /** The offset to the RTVFSOBJOPS structure. */
+    int32_t                 offObjOps;
 
     /**
      * Set the unix style owner and group.
@@ -329,7 +324,6 @@ typedef struct RTVFSOBJSETOPS
      * @param   fMode               The new mode bits.
      * @param   fMask               The mask indicating which bits we are
      *                              changing.
-     * @note    Optional, failing with VERR_WRITE_PROTECT if NULL.
      * @sa      RTFileSetMode
      */
     DECLCALLBACKMEMBER(int, pfnSetMode)(void *pvThis, RTFMODE fMode, RTFMODE fMask);
@@ -349,7 +343,6 @@ typedef struct RTVFSOBJSETOPS
      *                              not to be changed.
      * @remarks See RTFileSetTimes for restrictions and behavior imposed by the
      *          host OS or underlying VFS provider.
-     * @note    Optional, failing with VERR_WRITE_PROTECT if NULL.
      * @sa      RTFileSetTimes
      */
     DECLCALLBACKMEMBER(int, pfnSetTimes)(void *pvThis, PCRTTIMESPEC pAccessTime, PCRTTIMESPEC pModificationTime,
@@ -364,7 +357,6 @@ typedef struct RTVFSOBJSETOPS
      *                      unchanged.
      * @param   gid         The group ID of the new owner group.  NIL_RTGID if
      *                      unchanged.
-     * @note    Optional, failing with VERR_WRITE_PROTECT if NULL.
      * @sa      RTFileSetOwner
      */
     DECLCALLBACKMEMBER(int, pfnSetOwner)(void *pvThis, RTUID uid, RTGID gid);
@@ -530,62 +522,28 @@ typedef struct RTVFSDIROPS
     RTVFSOBJSETOPS          ObjSet;
 
     /**
-     * Generic method for opening any kind of file system object.
+     * Opens a directory entry for traversal purposes.
      *
-     * Can also create files and directories.  Symbolic links, devices and such
-     * needs to be created using special methods or this would end up being way more
-     * complicated than it already is.
-     *
-     * There are optional specializations available.
+     * Method which sole purpose is helping the path traversal.  Only one of
+     * the three output variables will be set, the others will left untouched
+     * (caller sets them to NIL).
      *
      * @returns IPRT status code.
-     * @retval  VERR_PATH_NOT_FOUND or VERR_FILE_NOT_FOUND if @a pszEntry was not
-     *          found.
-     * @retval  VERR_IS_A_FILE if @a pszEntry is a file or similar but @a fFlags
-     *          indicates that the type of object should not be opened.
-     * @retval  VERR_IS_A_DIRECTORY if @a pszEntry is a directory but @a fFlags
-     *          indicates that directories should not be opened.
-     * @retval  VERR_IS_A_SYMLINK if @a pszEntry is a symbolic link but @a fFlags
-     *          indicates that symbolic links should not be opened (or followed).
-     * @retval  VERR_IS_A_FIFO if @a pszEntry is a FIFO but @a fFlags indicates that
-     *          FIFOs should not be opened.
-     * @retval  VERR_IS_A_SOCKET if @a pszEntry is a socket but @a fFlags indicates
-     *          that sockets should not be opened.
-     * @retval  VERR_IS_A_BLOCK_DEVICE if @a pszEntry is a block device but
-     *          @a fFlags indicates that block devices should not be opened.
-     * @retval  VERR_IS_A_BLOCK_DEVICE if @a pszEntry is a character device but
-     *          @a fFlags indicates that character devices should not be opened.
-     *
-     * @param   pvThis      The implementation specific directory data.
-     * @param   pszEntry    The name of the immediate file to open or create.
-     * @param   fOpenFile   RTFILE_O_XXX combination.
-     * @param   fObjFlags   More flags: RTVFSOBJ_F_XXX, RTPATH_F_XXX.
-     *                      The meaning of RTPATH_F_FOLLOW_LINK differs here, if
-     *                      @a pszEntry is a symlink it should be opened for
-     *                      traversal rather than according to @a fOpenFile.
-     * @param   phVfsObj    Where to return the handle to the opened object.
-     * @sa      RTFileOpen, RTDirOpen
+     * @retval  VERR_PATH_NOT_FOUND if @a pszEntry was not found.
+     * @retval  VERR_NOT_A_DIRECTORY if @a pszEntry isn't a directory or symlink.
+     * @param   pvThis          The implementation specific directory data.
+     * @param   pszEntry        The name of the directory entry to remove.
+     * @param   phVfsDir        If not NULL and it is a directory, open it and
+     *                          return the handle here.
+     * @param   phVfsSymlink    If not NULL and it is a symbolic link, open it
+     *                          and return the handle here.
+     * @param   phVfsMounted    If not NULL and it is a mounted VFS directory,
+     *                          reference it and return the handle here.
+     * @todo    Should com dir, symlinks and mount points using some common
+     *          ancestor "class".
      */
-    DECLCALLBACKMEMBER(int, pfnOpen)(void *pvThis, const char *pszEntry, uint64_t fOpenFile,
-                                     uint32_t fObjFlags, PRTVFSOBJ phVfsObj);
-
-    /**
-     * Optional method for symbolic link handling in the vfsstddir.cpp.
-     *
-     * This is really just a hack to make symbolic link handling work when working
-     * with directory objects that doesn't have an associated VFS.  It also helps
-     * deal with drive letters in symbolic links on Windows and OS/2.
-     *
-     * @returns IPRT status code.
-     * @retval  VERR_PATH_IS_RELATIVE if @a pszPath isn't absolute and should be
-     *          handled using pfnOpen().
-     *
-     * @param   pvThis      The implementation specific directory data.
-     * @param   pszRoot     Path to the alleged root.
-     * @param   phVfsDir    Where to return the handle to the specified root
-     *                      directory (or may current dir on a drive letter).
-     */
-    DECLCALLBACKMEMBER(int, pfnFollowAbsoluteSymlink)(void *pvThis, const char *pszRoot, PRTVFSDIR phVfsDir);
+    DECLCALLBACKMEMBER(int, pfnTraversalOpen)(void *pvThis, const char *pszEntry, PRTVFSDIR phVfsDir,
+                                              PRTVFSSYMLINK phVfsSymlink, PRTVFS phVfsMounted);
 
     /**
      * Open or create a file.
@@ -594,25 +552,20 @@ typedef struct RTVFSDIROPS
      * @param   pvThis      The implementation specific directory data.
      * @param   pszFilename The name of the immediate file to open or create.
      * @param   fOpen       The open flags (RTFILE_O_XXX).
-     * @param   phVfsFile   Where to return the handle to the opened file.
-     * @note    Optional.  RTVFSDIROPS::pfnOpenObj will be used if NULL.
+     * @param   phVfsFile   Where to return the thandle to the opened file.
      * @sa      RTFileOpen.
      */
-    DECLCALLBACKMEMBER(int, pfnOpenFile)(void *pvThis, const char *pszFilename, uint64_t fOpen, PRTVFSFILE phVfsFile);
+    DECLCALLBACKMEMBER(int, pfnOpenFile)(void *pvThis, const char *pszFilename, uint32_t fOpen, PRTVFSFILE phVfsFile);
 
     /**
      * Open an existing subdirectory.
      *
      * @returns IPRT status code.
-     * @retval  VERR_IS_A_SYMLINK if @a pszSubDir is a symbolic link.
-     * @retval  VERR_NOT_A_DIRECTORY is okay for symbolic links too.
-     *
      * @param   pvThis      The implementation specific directory data.
      * @param   pszSubDir   The name of the immediate subdirectory to open.
      * @param   fFlags      RTDIR_F_XXX.
      * @param   phVfsDir    Where to return the handle to the opened directory.
      *                      Optional.
-     * @note    Optional.  RTVFSDIROPS::pfnOpenObj will be used if NULL.
      * @sa      RTDirOpen.
      */
     DECLCALLBACKMEMBER(int, pfnOpenDir)(void *pvThis, const char *pszSubDir, uint32_t fFlags, PRTVFSDIR phVfsDir);
@@ -626,7 +579,6 @@ typedef struct RTVFSDIROPS
      * @param   fMode       The mode mask of the new directory.
      * @param   phVfsDir    Where to optionally return the handle to the newly
      *                      create directory.
-     * @note    Optional.  RTVFSDIROPS::pfnOpenObj will be used if NULL.
      * @sa      RTDirCreate.
      */
     DECLCALLBACKMEMBER(int, pfnCreateDir)(void *pvThis, const char *pszSubDir, RTFMODE fMode, PRTVFSDIR phVfsDir);
@@ -639,7 +591,6 @@ typedef struct RTVFSDIROPS
      * @param   pszSymlink  The name of the immediate symbolic link to open.
      * @param   phVfsSymlink    Where to optionally return the handle to the
      *                      newly create symbolic link.
-     * @note    Optional.  RTVFSDIROPS::pfnOpenObj will be used if NULL.
      * @sa      RTSymlinkCreate.
      */
     DECLCALLBACKMEMBER(int, pfnOpenSymlink)(void *pvThis, const char *pszSymlink, PRTVFSSYMLINK phVfsSymlink);
@@ -667,8 +618,7 @@ typedef struct RTVFSDIROPS
      * @param   pszEntry    The name of the directory entry to remove.
      * @param   pObjInfo    Where to return the info on success.
      * @param   enmAddAttr  Which set of additional attributes to request.
-     * @note    Optional.  RTVFSDIROPS::pfnOpenObj and RTVFSOBJOPS::pfnQueryInfo
-     *          will be used if NULL.
+     *
      * @sa      RTPathQueryInfo, RTVFSOBJOPS::pfnQueryInfo
      */
     DECLCALLBACKMEMBER(int, pfnQueryEntryInfo)(void *pvThis, const char *pszEntry,
@@ -864,7 +814,6 @@ typedef struct RTVFSIOSTREAMOPS
      * @param   pcbWritten  Where to return the number of bytes actually
      *                      written.  This is set it 0 by the caller.  If
      *                      NULL, try write it all and fail if incomplete.
-     * @note    Optional, failing with VERR_WRITE_PROTECT if NULL.
      * @sa      RTFileWrite, RTFileWriteAt.
      */
     DECLCALLBACKMEMBER(int, pfnWrite)(void *pvThis, RTFOFF off, PCRTSGBUF pSgBuf, bool fBlocking, size_t *pcbWritten);
@@ -889,8 +838,6 @@ typedef struct RTVFSIOSTREAMOPS
      *                      VERR_INTERRUPTED (@c true) or if this condition
      *                      should be hidden from the caller (@c false).
      * @param   pfRetEvents Where to return the event mask.
-     * @note    Optional.  If NULL, immediately return all requested non-error
-     *          events, waiting for errors works like sleep.
      * @sa      RTPollSetAdd, RTPoll, RTPollNoResume.
      */
     DECLCALLBACKMEMBER(int, pfnPollOne)(void *pvThis, uint32_t fEvents, RTMSINTERVAL cMillies, bool fIntr,
@@ -1006,7 +953,7 @@ typedef struct RTVFSFILEOPS
     DECLCALLBACKMEMBER(int, pfnSeek)(void *pvThis, RTFOFF offSeek, unsigned uMethod, PRTFOFF poffActual);
 
     /**
-     * Get the current file size.
+     * Get the current file/stream size.
      *
      * @returns IPRT status code.
      * @param   pvThis      The implementation specific file data.
@@ -1014,40 +961,6 @@ typedef struct RTVFSFILEOPS
      * @sa      RTFileGetSize
      */
     DECLCALLBACKMEMBER(int, pfnQuerySize)(void *pvThis, uint64_t *pcbFile);
-
-    /**
-     * Change the file size.
-     *
-     * @returns IPRT status code.
-     * @retval  VERR_ACCESS_DENIED if handle isn't writable.
-     * @retval  VERR_WRITE_PROTECT if read-only file system.
-     * @retval  VERR_FILE_TOO_BIG if cbSize is larger than what the file system can
-     *          theoretically deal with.
-     * @retval  VERR_DISK_FULL if the file system if full.
-     * @retval  VERR_NOT_SUPPORTED if fFlags indicates some operation that's not
-     *          supported by the file system / host operating system.
-     *
-     * @param   pvThis      The implementation specific file data.
-     * @param   pcbFile     Where to store the current file size.
-     * @param   fFlags      RTVFSFILE_SET_SIZE_F_XXX.
-     * @note    Optional.  If NULL, VERR_WRITE_PROTECT will be returned.
-     * @sa      RTFileSetSize, RTFileSetAllocationSize
-     */
-    DECLCALLBACKMEMBER(int, pfnSetSize)(void *pvThis, uint64_t cbFile, uint32_t fFlags);
-
-    /**
-     * Determine the maximum file size.
-     *
-     * This won't take amount of freespace into account, just the limitations of the
-     * underlying file system / host operating system.
-     *
-     * @returns IPRT status code.
-     * @param   pvThis      The implementation specific file data.
-     * @param   pcbMax      Where to return the max file size.
-     * @note    Optional.  If NULL, VERR_NOT_IMPLEMENTED will be returned.
-     * @sa      RTFileGetMaxSizeEx
-     */
-    DECLCALLBACKMEMBER(int, pfnQueryMaxSize)(void *pvThis, uint64_t *pcbMax);
 
     /** @todo There will be more methods here. */
 
@@ -1058,7 +971,7 @@ typedef struct RTVFSFILEOPS
 typedef RTVFSFILEOPS const *PCRTVFSFILEOPS;
 
 /** The RTVFSFILEOPS structure version. */
-#define RTVFSFILEOPS_VERSION        RT_MAKE_U32_FROM_U8(0xff,0x7f,2,0)
+#define RTVFSFILEOPS_VERSION        RT_MAKE_U32_FROM_U8(0xff,0x7f,1,0)
 
 /**
  * Creates a new VFS file handle.
@@ -1255,7 +1168,7 @@ typedef RTVFSCHAINELEMSPEC const *PCRTVFSCHAINELEMSPEC;
 typedef struct RTVFSCHAINSPEC
 {
     /** Open directory flags (RTFILE_O_XXX). */
-    uint64_t                fOpenFile;
+    uint32_t                fOpenFile;
     /** To be defined. */
     uint32_t                fOpenDir;
     /** The type desired by the caller. */
@@ -1501,5 +1414,5 @@ RTDECL(int) RTVfsChainValidateOpenFileOrIoStream(PRTVFSCHAINSPEC pSpec, PRTVFSCH
 
 RT_C_DECLS_END
 
-#endif /* !IPRT_INCLUDED_vfslowlevel_h */
+#endif /* !___iprt_vfslowlevel_h */
 

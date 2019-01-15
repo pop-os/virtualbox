@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2019 Oracle Corporation
+ * Copyright (C) 2014-2018 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef MAIN_INCLUDED_DrvAudioVRDE_h
-#define MAIN_INCLUDED_DrvAudioVRDE_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ____H_DRVAUDIOVRDE
+#define ____H_DRVAUDIOVRDE
 
 #include <VBox/com/ptr.h>
 #include <VBox/com/string.h>
@@ -72,5 +69,5 @@ private:
     struct DRVAUDIOVRDE *mpDrv;
 };
 
-#endif /* !MAIN_INCLUDED_DrvAudioVRDE_h */
+#endif /* !____H_DRVAUDIOVRDE */
 

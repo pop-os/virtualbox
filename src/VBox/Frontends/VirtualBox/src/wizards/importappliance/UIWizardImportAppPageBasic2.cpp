@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2019 Oracle Corporation
+ * Copyright (C) 2009-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,22 +15,28 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifdef VBOX_WITH_PRECOMPILED_HEADERS
+# include <precomp.h>
+#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
+
 /* Global includes: */
-#include <QLabel>
-#include <QPointer>
-#include <QPushButton>
-#include <QTextBrowser>
-#include <QVBoxLayout>
+# include <QVBoxLayout>
+# include <QTextBrowser>
+# include <QPushButton>
+# include <QPointer>
+# include <QLabel>
 
 /* Local includes: */
-#include "QIDialogButtonBox.h"
-#include "QIRichTextLabel.h"
-#include "UIWizardImportApp.h"
-#include "UIWizardImportAppPageBasic2.h"
+# include "UIWizardImportAppPageBasic2.h"
+# include "UIWizardImportApp.h"
+# include "QIRichTextLabel.h"
+# include "QIDialogButtonBox.h"
 
 /* COM includes: */
-#include "CAppliance.h"
-#include "CCertificate.h"
+# include "CAppliance.h"
+# include "CCertificate.h"
+
+#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 /*********************************************************************************************************************************
@@ -248,8 +254,8 @@ void UIApplianceUnverifiedCertificateViewer::prepare()
             pButtonBox->setStandardButtons(QDialogButtonBox::Yes | QDialogButtonBox::No);
             pButtonBox->button(QDialogButtonBox::Yes)->setShortcut(Qt::Key_Enter);
             //pButtonBox->button(QDialogButtonBox::No)->setShortcut(Qt::Key_Esc);
-            connect(pButtonBox, &QIDialogButtonBox::accepted, this, &UIApplianceUnverifiedCertificateViewer::accept);
-            connect(pButtonBox, &QIDialogButtonBox::rejected, this, &UIApplianceUnverifiedCertificateViewer::reject);
+            connect(pButtonBox, SIGNAL(accepted()), this, SLOT(accept()));
+            connect(pButtonBox, SIGNAL(rejected()), this, SLOT(reject()));
             /* Add button-box into layout: */
             pLayout->addWidget(pButtonBox);
         }
@@ -289,3 +295,4 @@ void UIApplianceUnverifiedCertificateViewer::retranslateUi()
     strTableContent += strTemplateRow.arg(tr("X.509 Version Number"), QString::number(m_certificate.GetVersionNumber()));
     m_pTextBrowser->setText(QString("<table>%1</table>").arg(strTableContent));
 }
+

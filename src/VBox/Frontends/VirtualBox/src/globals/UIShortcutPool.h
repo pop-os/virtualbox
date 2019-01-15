@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2019 Oracle Corporation
+ * Copyright (C) 2011-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,179 +15,132 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_globals_UIShortcutPool_h
-#define FEQT_INCLUDED_SRC_globals_UIShortcutPool_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __UIShortcutPool_h__
+#define __UIShortcutPool_h__
 
 /* Qt includes: */
 #include <QMap>
 
 /* GUI includes: */
+#include "VBoxGlobal.h"
 #include "QIWithRetranslateUI.h"
-#include "UILibraryDefs.h"
 
 /* Forward declarations: */
-class QKeySequence;
-class QString;
 class UIActionPool;
 class UIAction;
 
-
-/** Shortcut descriptor prototype. */
-class SHARED_LIBRARY_STUFF UIShortcut
+/* Shortcut descriptor: */
+class UIShortcut
 {
 public:
 
-    /** Constructs empty shortcut descriptor. */
+    /* Constructors: */
     UIShortcut()
-        : m_strScope(QString())
-        , m_strDescription(QString())
+        : m_strDescription(QString())
         , m_sequence(QKeySequence())
         , m_defaultSequence(QKeySequence())
     {}
-    /** Constructs shortcut descriptor.
-      * @param  strScope         Brings the shortcut scope.
-      * @param  strDescription   Brings the shortcut description.
-      * @param  sequence         Brings the shortcut sequence.
-      * @param  defaultSequence  Brings the default shortcut sequence. */
-    UIShortcut(const QString &strScope,
-               const QString &strDescription,
+    UIShortcut(const QString &strDescription,
                const QKeySequence &sequence,
                const QKeySequence &defaultSequence)
-        : m_strScope(strScope)
-        , m_strDescription(strDescription)
+        : m_strDescription(strDescription)
         , m_sequence(sequence)
         , m_defaultSequence(defaultSequence)
     {}
 
-    /** Defines the shortcut @a strScope. */
-    void setScope(const QString &strScope);
-    /** Returns the shortcut scope. */
-    const QString &scope() const;
-
-    /** Defines the shortcut @a strDescription. */
+    /* API: Description stuff: */
     void setDescription(const QString &strDescription);
-    /** Returns the shortcut description. */
-    const QString &description() const;
+    const QString& description() const;
 
-    /** Defines the shortcut @a sequence. */
+    /* API: Sequence stuff: */
     void setSequence(const QKeySequence &sequence);
-    /** Returns the shortcut sequence. */
-    const QKeySequence &sequence() const;
+    const QKeySequence& sequence() const;
 
-    /** Defines the default shortcut @a sequence. */
-    void setDefaultSequence(const QKeySequence &sequence);
-    /** Returns the default shortcut sequence. */
-    const QKeySequence &defaultSequence() const;
+    /* API: Default sequence stuff: */
+    void setDefaultSequence(const QKeySequence &defaultSequence);
+    const QKeySequence& defaultSequence() const;
 
-    /** Converts shortcut sequence to string. */
+    /* API: Conversion stuff: */
     QString toString() const;
 
 private:
 
-    /** Holds the shortcut scope. */
-    QString      m_strScope;
-    /** Holds the shortcut description. */
-    QString      m_strDescription;
-    /** Holds the shortcut sequence. */
+    /* Variables: */
+    QString m_strDescription;
     QKeySequence m_sequence;
-    /** Holds the default shortcut sequence. */
     QKeySequence m_defaultSequence;
 };
 
-
-/** QObject extension used as shortcut pool singleton. */
-class SHARED_LIBRARY_STUFF UIShortcutPool : public QIWithRetranslateUI3<QObject>
+/* Singleton shortcut pool: */
+class UIShortcutPool : public QIWithRetranslateUI3<QObject>
 {
     Q_OBJECT;
 
 signals:
 
-    /** Notifies about Selector UI shortcuts changed. */
+    /* Notifiers: Extra-data stuff: */
     void sigSelectorShortcutsReloaded();
-    /** Notifies about Runtime UI shortcuts changed. */
     void sigMachineShortcutsReloaded();
 
 public:
 
-    /** Returns singleton instance. */
-    static UIShortcutPool *instance() { return s_pInstance; }
-    /** Creates singleton instance. */
+    /* API: Singleton stuff: */
+    static UIShortcutPool* instance();
     static void create();
-    /** Destroys singleton instance. */
     static void destroy();
 
-    /** Returns shortcuts of particular @a pActionPool for specified @a pAction. */
-    UIShortcut &shortcut(UIActionPool *pActionPool, UIAction *pAction);
-    /** Returns shortcuts of action-pool with @a strPoolID for action with @a strActionID. */
-    UIShortcut &shortcut(const QString &strPoolID, const QString &strActionID);
-    /** Returns all the shortcuts. */
-    const QMap<QString, UIShortcut> &shortcuts() const { return m_shortcuts; }
-    /** Defines shortcut overrides. */
+    /* API: Shortcut stuff: */
+    UIShortcut& shortcut(UIActionPool *pActionPool, UIAction *pAction);
+    UIShortcut& shortcut(const QString &strPoolID, const QString &strActionID);
+    const QMap<QString, UIShortcut>& shortcuts() const { return m_shortcuts; }
     void setOverrides(const QMap<QString, QString> &overrides);
 
-    /** Applies shortcuts for specified @a pActionPool. */
+    /* API: Action-pool stuff: */
     void applyShortcuts(UIActionPool *pActionPool);
-
-protected:
-
-    /** Handles translation event. */
-    virtual void retranslateUi() /* override */;
 
 private slots:
 
-    /** Reloads Selector UI shortcuts. */
+    /* Handlers: Extra-data stuff: */
     void sltReloadSelectorShortcuts();
-    /** Reloads Runtime UI shortcuts. */
     void sltReloadMachineShortcuts();
 
 private:
 
-    /** Constructs shortcut pool. */
+    /* Constructor/destructor: */
     UIShortcutPool();
-    /** Destructs shortcut pool. */
     ~UIShortcutPool();
 
-    /** Prepares all. */
+    /* Helpers: Prepare stuff: */
     void prepare();
-    /** Prepares connections. */
     void prepareConnections();
 
-    /** Cleanups all. */
+    /* Helper: Cleanup stuff: */
     void cleanup() {}
 
-    /** Loads defaults. */
+    /** Translation handler. */
+    void retranslateUi();
+
+    /* Helpers: Shortcuts stuff: */
     void loadDefaults();
-    /** Loads defaults for pool with specified @a strPoolExtraDataID. */
     void loadDefaultsFor(const QString &strPoolExtraDataID);
-    /** Loads overrides. */
     void loadOverrides();
-    /** Loads overrides for pool with specified @a strPoolExtraDataID. */
     void loadOverridesFor(const QString &strPoolExtraDataID);
-    /** Saves overrides. */
     void saveOverrides();
-    /** Saves overrides for pool with specified @a strPoolExtraDataID. */
     void saveOverridesFor(const QString &strPoolExtraDataID);
 
-    /** Returns shortcut with specified @a strShortcutKey. */
-    UIShortcut &shortcut(const QString &strShortcutKey);
+    /* Helper: Shortcut stuff: */
+    UIShortcut& shortcut(const QString &strShortcutKey);
 
-    /** Holds the singleton instance. */
-    static UIShortcutPool *s_pInstance;
+    /* Variables: */
+    static UIShortcutPool *m_pInstance;
     /** Shortcut key template. */
-    static const QString   s_strShortcutKeyTemplate;
+    static const QString m_sstrShortcutKeyTemplate;
     /** Shortcut key template for Runtime UI. */
-    static const QString   s_strShortcutKeyTemplateRuntime;
-
-    /** Holds the pool shortcuts. */
+    static const QString m_sstrShortcutKeyTemplateRuntime;
     QMap<QString, UIShortcut> m_shortcuts;
 };
 
-/** Singleton Shortcut Pool 'official' name. */
 #define gShortcutPool UIShortcutPool::instance()
 
-
-#endif /* !FEQT_INCLUDED_SRC_globals_UIShortcutPool_h */
+#endif /* __UIShortcutPool_h__ */
 

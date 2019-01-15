@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2013-2019 Oracle Corporation
+ * Copyright (C) 2013-2017 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,11 +14,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_INCLUDED_SRC_testcase_VDScriptAst_h
-#define VBOX_INCLUDED_SRC_testcase_VDScriptAst_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef ___VDScriptAst_h___
+#define ___VDScriptAst_h___
 
 #include <iprt/list.h>
 
@@ -581,5 +578,5 @@ DECLHIDDEN(PVDSCRIPTASTCORE) vdScriptAstNodeAlloc(VDSCRIPTASTCLASS enmClass);
  */
 DECLHIDDEN(PVDSCRIPTASTIDE) vdScriptAstNodeIdeAlloc(size_t cchIde);
 
-#endif /* !VBOX_INCLUDED_SRC_testcase_VDScriptAst_h */
+#endif
 

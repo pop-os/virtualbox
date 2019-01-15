@@ -1,9 +1,5 @@
-
-#ifndef VBOX_INCLUDED_HostServices_glxext_h
-#define VBOX_INCLUDED_HostServices_glxext_h
-#ifndef RT_WITHOUT_PRAGMA_ONCE
-# pragma once
-#endif
+#ifndef __glxext_h_
+#define __glxext_h_
 
 #ifdef __cplusplus
 extern "C" {
@@ -786,4 +782,4 @@ typedef void ( * PFNGLXRELEASETEXIMAGEEXTPROC) (Display *dpy, GLXDrawable drawab
 }
 #endif
 
-#endif /* !VBOX_INCLUDED_HostServices_glxext_h */
+#endif
