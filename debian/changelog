@@ -1,4 +1,4 @@
-virtualbox (5.2.22-dfsg-3) UNRELEASED; urgency=medium
+virtualbox (6.0.0-dfsg-1) UNRELEASED; urgency=medium
 
   [ Robert Edmonds <edmonds@debian.org> ]
   * Add rdesktop-vrdp package (Closes: #914165)
@@ -10,7 +10,12 @@ virtualbox (5.2.22-dfsg-3) UNRELEASED; urgency=medium
   [ Kevin Locke ]
   * Add udev rules for vboxdrvu and vboxnetctl (Closes: #916464)
 
- -- Gianfranco Costamagna <locutusofborg@debian.org>  Tue, 18 Dec 2018 15:11:18 +0100
+  [ Gianfranco Costamagna ]
+  * New upstream version 6.0.0-dfsg
+  * Bump std-version to 4.3.0, no changes required
+  * Conflict with virtualbox-5.2
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Sat, 12 Jan 2019 10:16:19 +0100
 
 virtualbox (5.2.22-dfsg-2) unstable; urgency=low
 

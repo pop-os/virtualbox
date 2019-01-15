@@ -5,7 +5,7 @@ Index: virtualbox/src/VBox/VMM/VMMR3/VM.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/VMM/VMMR3/VM.cpp
 +++ virtualbox/src/VBox/VMM/VMMR3/VM.cpp
-@@ -273,10 +273,8 @@
+@@ -271,10 +271,8 @@
  
  #ifdef RT_OS_LINUX
                  case VERR_SUPDRV_COMPONENT_NOT_FOUND:
@@ -18,7 +18,7 @@ Index: virtualbox/src/VBox/VMM/VMMR3/VM.cpp
                      break;
  #endif
  
-@@ -339,10 +337,8 @@
+@@ -337,10 +335,8 @@
              {
                  case VERR_VM_DRIVER_LOAD_ERROR:
  #ifdef RT_OS_LINUX
@@ -31,7 +31,7 @@ Index: virtualbox/src/VBox/VMM/VMMR3/VM.cpp
  #else
                      pszError = N_("VirtualBox kernel driver not loaded");
  #endif
-@@ -381,10 +377,8 @@
+@@ -379,10 +375,8 @@
                  case VERR_INVALID_HANDLE: /** @todo track down and fix this error. */
                  case VERR_VM_DRIVER_NOT_INSTALLED:
  #ifdef RT_OS_LINUX
@@ -48,7 +48,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/main.cpp
 ===================================================================
 --- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/main.cpp
 +++ virtualbox/src/VBox/Frontends/VirtualBox/src/main.cpp
-@@ -97,9 +97,9 @@
+@@ -98,9 +98,9 @@
  
  QString g_QStrHintLinuxNoDriver = QApplication::tr(
      "The VirtualBox Linux kernel driver (vboxdrv) is either not loaded or "
@@ -61,7 +61,7 @@ Index: virtualbox/src/VBox/Frontends/VirtualBox/src/main.cpp
      "as root."
      );
  
-@@ -114,7 +114,7 @@
+@@ -115,7 +115,7 @@
      "The VirtualBox kernel modules do not match this version of "
      "VirtualBox. The installation of VirtualBox was apparently not "
      "successful. Executing<br/><br/>"

@@ -6,7 +6,7 @@ diff --git a/src/VBox/Main/src-client/ConsoleImpl2.cpp b/src/VBox/Main/src-clien
 index 61dbf0a59..cfb76fc48 100644
 --- a/src/VBox/Main/src-client/ConsoleImpl2.cpp
 +++ b/src/VBox/Main/src-client/ConsoleImpl2.cpp
-@@ -4105,34 +4105,12 @@ int Console::i_checkMediumLocation(IMedium *pMedium, bool *pfUseHostIOCache)
+@@ -4085,34 +4085,12 @@ int Console::i_checkMediumLocation(IMedium *pMedium, bool *pfUseHostIOCache)
              if (   enmFsTypeFile == RTFSTYPE_EXT4
                  || enmFsTypeFile == RTFSTYPE_XFS)
              {

@@ -44,6 +44,7 @@ rm -fr ${ORIG_TARBALL_DIR}/src/libs/libxml2*
 rm -fr ${ORIG_TARBALL_DIR}/src/libs/libxslt*
 rm -fr ${ORIG_TARBALL_DIR}/src/libs/zlib*
 rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Additions/linux/selinux-fedora
+rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Additions/3D/mesa/mesa-*
 rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Additions/x11/x11include
 rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Additions/x11/x11stubs
 rm -fr ${ORIG_TARBALL_DIR}/src/libs/kStuff/kStuff/kLdr/testcase/bin
@@ -56,7 +57,7 @@ rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Devices/EFI/Firmware/FatBinPkg/EnhancedFatDx
 rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Devices/EFI/Firmware/StdLib/LibC/Main/Ia32/ftol2.obj
 rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Devices/EFI/Firmware/BaseTools/Source/Python/UPT/Dll/sqlite3.dll
 rm -fr ${ORIG_TARBALL_DIR}/src/VBox/Main/webservice/jaxlibs/*.jar
-rm -rf ${ORIG_TARBALL_DIR}/src/VBox/HostDrivers/Support/win/winstub.com
+rm -fr ${ORIG_TARBALL_DIR}/src/VBox/HostDrivers/Support/win/winstub.com
 
 tar --exclude .svn --exclude '.git*' --exclude debian --directory ${WORKING_DIR} -cJf ${DEST_TARBALL_NAME} ${ORIG_TARBALL_DIR_STRIP} || exit 1
 rm -rf ${ORIG_TARBALL_DIR}
