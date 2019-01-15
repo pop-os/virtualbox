@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,38 +15,32 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QComboBox>
-# include <QLabel>
-# include <QPushButton>
-# include <QSlider>
-# include <QStackedLayout>
-# include <QStyle>
-# include <QTextEdit>
-# include <QVBoxLayout>
+#include <QComboBox>
+#include <QLabel>
+#include <QPushButton>
+#include <QSlider>
+#include <QStackedLayout>
+#include <QStyle>
+#include <QTextEdit>
+#include <QVBoxLayout>
 
 /* GUI includes: */
-# include "QIDialogButtonBox.h"
-# include "QIFileDialog.h"
-# include "QILabel.h"
-# include "QILineEdit.h"
-# include "QITabWidget.h"
-# include "QIToolButton.h"
-# include "UIConverter.h"
-# include "UIIconPool.h"
-# include "UIMediumDetailsWidget.h"
-# include "UIMediumManager.h"
-# include "UIMediumSizeEditor.h"
-# include "VBoxGlobal.h"
+#include "QIDialogButtonBox.h"
+#include "QIFileDialog.h"
+#include "QILabel.h"
+#include "QILineEdit.h"
+#include "QITabWidget.h"
+#include "QIToolButton.h"
+#include "UIConverter.h"
+#include "UIIconPool.h"
+#include "UIMediumDetailsWidget.h"
+#include "UIMediumManager.h"
+#include "UIMediumSizeEditor.h"
+#include "VBoxGlobal.h"
 
 /* COM includes: */
-# include "CSystemProperties.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CSystemProperties.h"
 
 
 UIMediumDetailsWidget::UIMediumDetailsWidget(UIMediumManagerWidget *pParent, EmbedTo enmEmbedding)

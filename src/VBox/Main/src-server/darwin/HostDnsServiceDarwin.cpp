@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2017 Oracle Corporation
+ * Copyright (C) 2004-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,7 @@
 #include <VBox/com/ptr.h>
 
 
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include <iprt/thread.h>
 #include <iprt/semaphore.h>
 

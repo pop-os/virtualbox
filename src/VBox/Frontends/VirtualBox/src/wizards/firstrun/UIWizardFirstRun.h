@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIWizardFirstRun_h__
-#define __UIWizardFirstRun_h__
+#ifndef FEQT_INCLUDED_SRC_wizards_firstrun_UIWizardFirstRun_h
+#define FEQT_INCLUDED_SRC_wizards_firstrun_UIWizardFirstRun_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "UIWizard.h"
@@ -65,5 +68,5 @@ private:
     bool m_fHardDiskWasSet;
 };
 
-#endif // __UIFirstRunWzd_h__
+#endif /* !FEQT_INCLUDED_SRC_wizards_firstrun_UIWizardFirstRun_h */
 

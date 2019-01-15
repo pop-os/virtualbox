@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_utf16_h
-#define ___iprt_utf16_h
+#ifndef IPRT_INCLUDED_utf16_h
+#define IPRT_INCLUDED_utf16_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/string.h>
 
@@ -1255,7 +1258,7 @@ DECLINLINE(int) RTUtf16BigGetCpEx(PCRTUTF16 *ppwsz, PRTUNICP pCp)
 #ifdef RT_BIG_ENDIAN
     return RTUtf16GetCpEx(ppwsz, pCp);
 #else
-# ifdef ___iprt_asm_h
+# ifdef IPRT_INCLUDED_asm_h
     const RTUTF16 wc = RT_BE2H_U16(**ppwsz);
     if (wc < 0xd800 || (wc > 0xdfff && wc < 0xfffe))
     {
@@ -1385,5 +1388,5 @@ RT_C_DECLS_END
 
 /** @} */
 
-#endif
+#endif /* !IPRT_INCLUDED_utf16_h */
 

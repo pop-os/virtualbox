@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,9 +22,10 @@
 #define LOG_GROUP LOG_GROUP_DBGF /// @todo add new log group.
 #include "DBGPlugIns.h"
 #include <VBox/vmm/dbgf.h>
-#include <iprt/string.h>
+#include <iprt/err.h>
 #include <iprt/mem.h>
 #include <iprt/stream.h>
+#include <iprt/string.h>
 #include <iprt/uuid.h>
 #include <iprt/ctype.h>
 #include <iprt/formats/mach-o.h>

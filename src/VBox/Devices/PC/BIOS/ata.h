@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,6 +52,11 @@
  * of the LGPL is applied is otherwise unspecified.
  */
 
+#ifndef VBOX_INCLUDED_SRC_PC_BIOS_ata_h
+#define VBOX_INCLUDED_SRC_PC_BIOS_ata_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #define ATA_DATA_NO      0x00
 #define ATA_DATA_IN      0x01
@@ -180,3 +185,6 @@
 #define ATA_CMD_WRITE_VERIFY                 0x3C
 
 extern void     ata_reset(uint16_t device);
+
+#endif /* !VBOX_INCLUDED_SRC_PC_BIOS_ata_h */
+

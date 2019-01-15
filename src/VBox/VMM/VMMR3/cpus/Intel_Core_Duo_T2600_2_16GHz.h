@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013-2016 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +16,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_CPUDB_Intel_Core_Duo_T2600_2_16GHz
-#define VBOX_CPUDB_Intel_Core_Duo_T2600_2_16GHz
+#ifndef VBOX_CPUDB_Intel_Core_Duo_T2600_2_16GHz_h
+#define VBOX_CPUDB_Intel_Core_Duo_T2600_2_16GHz_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 
 #ifndef CPUM_DB_STANDALONE
@@ -218,5 +221,5 @@ static CPUMDBENTRY const g_Entry_Intel_Core_Duo_T2600_2_16GHz =
     /*.paMsrRanges      = */ NULL_ALONE(g_aMsrRanges_Intel_Core_Duo_T2600_2_16GHz),
 };
 
-#endif /* !VBOX_DB_Intel_Core_Duo_T2600_2_16GHz */
+#endif /* !VBOX_CPUDB_Intel_Core_Duo_T2600_2_16GHz_h */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -28,8 +28,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef ___VBox_Graphics_VBoxVideoVBE_h
-#define ___VBox_Graphics_VBoxVideoVBE_h
+#ifndef VBOX_INCLUDED_Graphics_VBoxVideoVBE_h
+#define VBOX_INCLUDED_Graphics_VBoxVideoVBE_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUEST <-> HOST Communication API */
 
@@ -99,5 +102,5 @@
 #define VGA_PORT_HGSMI_HOST             0x3b0
 #define VGA_PORT_HGSMI_GUEST            0x3d0
 
-#endif /* !___VBox_Graphics_VBoxVideoVBE_h */
+#endif /* !VBOX_INCLUDED_Graphics_VBoxVideoVBE_h */
 

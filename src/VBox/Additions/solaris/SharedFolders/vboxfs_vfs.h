@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef	___VBoxFS_vfs_Solaris_h
-#define	___VBoxFS_vfs_Solaris_h
+#ifndef GA_INCLUDED_SRC_solaris_SharedFolders_vboxfs_vfs_h
+#define GA_INCLUDED_SRC_solaris_SharedFolders_vboxfs_vfs_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #ifdef	__cplusplus
 extern "C" {
@@ -50,5 +53,5 @@ typedef struct sffs_data {
 }
 #endif
 
-#endif	/* !___VBoxFS_vfs_Solaris_h */
+#endif /* !GA_INCLUDED_SRC_solaris_SharedFolders_vboxfs_vfs_h */
 

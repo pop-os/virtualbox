@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,6 +14,12 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
+
+#ifndef VBOX_INCLUDED_SRC_Network_DevE1000Phy_h
+#define VBOX_INCLUDED_SRC_Network_DevE1000Phy_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 
@@ -105,7 +111,8 @@ typedef struct Phy::Phy_st PHY;
 typedef PHY *PPHY;
 
 /* Interface *****************************************************************/
-namespace Phy {
+namespace Phy
+{
     /** Initialize PHY. */
     void     init(PPHY pPhy, int iNICInstance, uint16_t u16EPid);
     /** Read PHY register at specified address. */
@@ -127,4 +134,6 @@ namespace Phy {
     /** Restore previously saved PHY state. */
     int      loadState(PSSMHANDLE pSSMHandle, PPHY pPhy);
 }
+
+#endif /* !VBOX_INCLUDED_SRC_Network_DevE1000Phy_h */
 

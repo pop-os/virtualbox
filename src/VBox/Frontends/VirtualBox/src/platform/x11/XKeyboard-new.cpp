@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,22 +15,16 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Define GUI log group.
  * This define should go *before* VBox/log.h include: */
 #define LOG_GROUP LOG_GROUP_GUI
 
 /* Qt includes: */
-# include <QString>
-# include <QStringList>
+#include <QString>
+#include <QStringList>
 
 /* Other VBox includes: */
-# include <VBox/log.h>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include <VBox/log.h>
 
 /* GUI includes: */
 #include "XKeyboard.h"

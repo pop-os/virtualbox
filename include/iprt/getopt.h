@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,12 +23,16 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_getopt_h
-#define ___iprt_getopt_h
+#ifndef IPRT_INCLUDED_getopt_h
+#define IPRT_INCLUDED_getopt_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
+#include <iprt/errcore.h> /* for VINF_GETOPT_NOT_OPTION */
 
 RT_C_DECLS_BEGIN
 
@@ -180,7 +184,7 @@ typedef union RTGETOPTUNION
     int64_t         i64;
     /** A RTGETOPT_REQ_UINT64 option argument. */
     uint64_t        u64;
-#ifdef ___iprt_net_h
+#ifdef IPRT_INCLUDED_net_h
     /** A RTGETOPT_REQ_IPV4ADDR option argument. */
     RTNETADDRIPV4   IPv4Addr;
     /** A RTGETOPT_REQ_IPV4CIDR option argument. */
@@ -530,5 +534,5 @@ RTDECL(int) RTGetOptArgvToUtf16String(PRTUTF16 *ppwszCmdLine, const char * const
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !IPRT_INCLUDED_getopt_h */
 

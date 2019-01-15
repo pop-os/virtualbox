@@ -13,7 +13,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,18 +24,22 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef MAIN_VECTOR_H
-# define MAIN_VECTOR_H
+#ifndef MAIN_INCLUDED_vector_h
+#define MAIN_INCLUDED_vector_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
-/*******************************************************************************
-*   Header Files                                                               *
-*******************************************************************************/
 
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #include <stdlib.h>
 
-/*******************************************************************************
-*   Helper macros and definitions                                              *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Helper macros and definitions                                                                                                *
+*********************************************************************************************************************************/
 
 /** The unit by which the vector capacity is increased */
 #define VECTOR_ALLOC_UNIT 16
@@ -216,9 +220,10 @@ DECLINLINE(int) vecPushBackPtr(VECTOR_PTR *pvec, unsigned uTypeHash,
     return VINF_SUCCESS;
 }
 
-/*******************************************************************************
-*   Public interface macros                                                    *
-*******************************************************************************/
+
+/*********************************************************************************************************************************
+*   Public interface macros                                                                                                      *
+*********************************************************************************************************************************/
 
 /**
  * Initialise a vector structure.  Always succeeds.
@@ -346,4 +351,4 @@ DECLINLINE(int) vecPushBackPtr(VECTOR_PTR *pvec, unsigned uTypeHash,
          && pIterator < (type *) (pvec)->mpvaElements + (pvec)->mcElements; \
          ++pIterator)
 
-#endif /* MAIN_VECTOR_H */
+#endif /* !MAIN_INCLUDED_vector_h */

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,9 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-
-#ifndef ___VBox_vmm_uvm_h
-#define ___VBox_vmm_uvm_h
+#ifndef VBOX_INCLUDED_vmm_uvm_h
+#define VBOX_INCLUDED_vmm_uvm_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 #include <iprt/assert.h>
@@ -53,7 +55,7 @@ typedef struct UVMCPU
     /** The VM internal data. */
     union
     {
-#ifdef ___VMInternal_h
+#ifdef VMM_INCLUDED_SRC_include_VMInternal_h
         struct VMINTUSERPERVMCPU    s;
 #endif
         uint8_t                     padding[512];
@@ -62,7 +64,7 @@ typedef struct UVMCPU
     /** The DBGF data. */
     union
     {
-#ifdef ___DBGFInternal_h
+#ifdef VMM_INCLUDED_SRC_include_DBGFInternal_h
         struct DBGFUSERPERVMCPU     s;
 #endif
         uint8_t                     padding[64];
@@ -106,7 +108,7 @@ typedef struct UVM
     /** The VM internal data. */
     union
     {
-#ifdef ___VMInternal_h
+#ifdef VMM_INCLUDED_SRC_include_VMInternal_h
         struct VMINTUSERPERVM   s;
 #endif
         uint8_t                 padding[512];
@@ -115,7 +117,7 @@ typedef struct UVM
     /** The MM data. */
     union
     {
-#ifdef ___MMInternal_h
+#ifdef VMM_INCLUDED_SRC_include_MMInternal_h
         struct MMUSERPERVM      s;
 #endif
         uint8_t                 padding[32];
@@ -124,7 +126,7 @@ typedef struct UVM
     /** The PDM data. */
     union
     {
-#ifdef ___PDMInternal_h
+#ifdef VMM_INCLUDED_SRC_include_PDMInternal_h
         struct PDMUSERPERVM     s;
 #endif
         uint8_t                 padding[256];
@@ -133,7 +135,7 @@ typedef struct UVM
     /** The STAM data. */
     union
     {
-#ifdef ___STAMInternal_h
+#ifdef VMM_INCLUDED_SRC_include_STAMInternal_h
         struct STAMUSERPERVM    s;
 #endif
         uint8_t                 padding[6880];
@@ -142,7 +144,7 @@ typedef struct UVM
     /** The DBGF data. */
     union
     {
-#ifdef ___DBGFInternal_h
+#ifdef VMM_INCLUDED_SRC_include_DBGFInternal_h
         struct DBGFUSERPERVM    s;
 #endif
         uint8_t                 padding[384];
@@ -179,5 +181,5 @@ AssertCompileMemberAlignment(UVM, aCpus, 32);
                              RT_VALID_ALIGNED_PTR(a_pUVM, PAGE_SIZE) ? (a_pUVM)->u32Magic : 0))
 
 /** @} */
-#endif
+#endif /* !VBOX_INCLUDED_vmm_uvm_h */
 

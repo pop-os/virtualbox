@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,26 +15,20 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QSet>
+#include <QSet>
 
 /* GUI includes: */
-# include "UIMediumEnumerator.h"
-# include "UIThreadPool.h"
-# include "UIVirtualBoxEventHandler.h"
-# include "VBoxGlobal.h"
+#include "UIMediumEnumerator.h"
+#include "UIThreadPool.h"
+#include "UIVirtualBoxEventHandler.h"
+#include "VBoxGlobal.h"
 
 /* COM includes: */
-# include "COMEnums.h"
-# include "CMachine.h"
-# include "CSnapshot.h"
-# include "CMediumAttachment.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "COMEnums.h"
+#include "CMachine.h"
+#include "CSnapshot.h"
+#include "CMediumAttachment.h"
 
 
 template<class T>
@@ -164,7 +158,11 @@ void UIMediumEnumerator::enumerateMedia(const CMediumVector &mediaList /* = CMed
         addMediaToMap(vboxGlobal().virtualBox().GetFloppyImages(), media);
     }
     else
+    {
+        addMediaToMap(vboxGlobal().host().GetDVDDrives(), media);
+        addMediaToMap(vboxGlobal().virtualBox().GetDVDImages(), media);
         addMediaToMap(mediaList, media);
+    }
     if (VBoxGlobal::isCleaningUp())
         return; /* VBoxGlobal is cleaning up, abort immediately. */
     m_media = media;

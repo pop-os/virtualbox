@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2018 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,26 +15,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QComboBox>
-# include <QHBoxLayout>
-# include <QFontDatabase>
-# include <QFontDialog>
-# include <QCheckBox>
-# include <QLabel>
-# include <QSpinBox>
+#include <QComboBox>
+#include <QHBoxLayout>
+#include <QFontDatabase>
+#include <QFontDialog>
+#include <QCheckBox>
+#include <QLabel>
+#include <QSpinBox>
 
 /* GUI includes: */
-# include "QIToolButton.h"
-# include "UIIconPool.h"
-# include "UIFileManager.h"
-# include "UIFileManagerOptionsPanel.h"
+#include "QIToolButton.h"
+#include "UIIconPool.h"
+#include "UIFileManager.h"
+#include "UIFileManagerOptionsPanel.h"
 
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 UIFileManagerOptionsPanel::UIFileManagerOptionsPanel(UIFileManager *pManagerWidget,
                                                                                QWidget *pParent, UIFileManagerOptions *pFileManagerOptions)
@@ -42,6 +37,7 @@ UIFileManagerOptionsPanel::UIFileManagerOptionsPanel(UIFileManager *pManagerWidg
     , m_pListDirectoriesOnTopCheckBox(0)
     , m_pDeleteConfirmationCheckBox(0)
     , m_pHumanReabableSizesCheckBox(0)
+    , m_pShowHiddenObjectsCheckBox(0)
     , m_pFileManagerOptions(pFileManagerOptions)
 {
     prepare();
@@ -60,22 +56,29 @@ void UIFileManagerOptionsPanel::update()
     if (m_pListDirectoriesOnTopCheckBox)
     {
         m_pListDirectoriesOnTopCheckBox->blockSignals(true);
-        m_pListDirectoriesOnTopCheckBox->setChecked(m_pFileManagerOptions->bListDirectoriesOnTop);
+        m_pListDirectoriesOnTopCheckBox->setChecked(m_pFileManagerOptions->fListDirectoriesOnTop);
         m_pListDirectoriesOnTopCheckBox->blockSignals(false);
     }
 
     if (m_pDeleteConfirmationCheckBox)
     {
         m_pDeleteConfirmationCheckBox->blockSignals(true);
-        m_pDeleteConfirmationCheckBox->setChecked(m_pFileManagerOptions->bAskDeleteConfirmation);
+        m_pDeleteConfirmationCheckBox->setChecked(m_pFileManagerOptions->fAskDeleteConfirmation);
         m_pDeleteConfirmationCheckBox->blockSignals(false);
     }
 
     if (m_pHumanReabableSizesCheckBox)
     {
         m_pHumanReabableSizesCheckBox->blockSignals(true);
-        m_pHumanReabableSizesCheckBox->setChecked(m_pFileManagerOptions->bShowHumanReadableSizes);
+        m_pHumanReabableSizesCheckBox->setChecked(m_pFileManagerOptions->fShowHumanReadableSizes);
         m_pHumanReabableSizesCheckBox->blockSignals(false);
+    }
+
+    if (m_pShowHiddenObjectsCheckBox)
+    {
+        m_pShowHiddenObjectsCheckBox->blockSignals(true);
+        m_pShowHiddenObjectsCheckBox->setChecked(m_pFileManagerOptions->fShowHiddenObjects);
+        m_pShowHiddenObjectsCheckBox->blockSignals(false);
     }
 }
 
@@ -101,15 +104,25 @@ void UIFileManagerOptionsPanel::prepareWidgets()
     {
         mainLayout()->addWidget(m_pHumanReabableSizesCheckBox, 0, Qt::AlignLeft);
     }
+
+    m_pShowHiddenObjectsCheckBox = new QCheckBox;
+    if (m_pShowHiddenObjectsCheckBox)
+    {
+        mainLayout()->addWidget(m_pShowHiddenObjectsCheckBox, 0, Qt::AlignLeft);
+    }
+
     /* Set initial checkbox status wrt. options: */
     if (m_pFileManagerOptions)
     {
         if (m_pListDirectoriesOnTopCheckBox)
-            m_pListDirectoriesOnTopCheckBox->setChecked(m_pFileManagerOptions->bListDirectoriesOnTop);
+            m_pListDirectoriesOnTopCheckBox->setChecked(m_pFileManagerOptions->fListDirectoriesOnTop);
         if (m_pDeleteConfirmationCheckBox)
-            m_pDeleteConfirmationCheckBox->setChecked(m_pFileManagerOptions->bAskDeleteConfirmation);
+            m_pDeleteConfirmationCheckBox->setChecked(m_pFileManagerOptions->fAskDeleteConfirmation);
         if (m_pHumanReabableSizesCheckBox)
-            m_pHumanReabableSizesCheckBox->setChecked(m_pFileManagerOptions->bShowHumanReadableSizes);
+            m_pHumanReabableSizesCheckBox->setChecked(m_pFileManagerOptions->fShowHumanReadableSizes);
+        if (m_pShowHiddenObjectsCheckBox)
+            m_pShowHiddenObjectsCheckBox->setChecked(m_pFileManagerOptions->fShowHiddenObjects);
+
     }
     retranslateUi();
     mainLayout()->addStretch(2);
@@ -119,7 +132,7 @@ void UIFileManagerOptionsPanel::sltListDirectoryCheckBoxToogled(bool bChecked)
 {
     if (!m_pFileManagerOptions)
         return;
-    m_pFileManagerOptions->bListDirectoriesOnTop = bChecked;
+    m_pFileManagerOptions->fListDirectoriesOnTop = bChecked;
     emit sigOptionsChanged();
 }
 
@@ -127,7 +140,7 @@ void UIFileManagerOptionsPanel::sltDeleteConfirmationCheckBoxToogled(bool bCheck
 {
     if (!m_pFileManagerOptions)
         return;
-    m_pFileManagerOptions->bAskDeleteConfirmation = bChecked;
+    m_pFileManagerOptions->fAskDeleteConfirmation = bChecked;
     emit sigOptionsChanged();
 }
 
@@ -135,7 +148,15 @@ void UIFileManagerOptionsPanel::sltHumanReabableSizesCheckBoxToogled(bool bCheck
 {
     if (!m_pFileManagerOptions)
         return;
-    m_pFileManagerOptions->bShowHumanReadableSizes = bChecked;
+    m_pFileManagerOptions->fShowHumanReadableSizes = bChecked;
+    emit sigOptionsChanged();
+}
+
+void UIFileManagerOptionsPanel::sltShowHiddenObjectsCheckBoxToggled(bool bChecked)
+{
+    if (!m_pFileManagerOptions)
+        return;
+    m_pFileManagerOptions->fShowHiddenObjects = bChecked;
     emit sigOptionsChanged();
 }
 
@@ -150,6 +171,11 @@ void UIFileManagerOptionsPanel::prepareConnections()
     if (m_pHumanReabableSizesCheckBox)
         connect(m_pHumanReabableSizesCheckBox, &QCheckBox::toggled,
                 this, &UIFileManagerOptionsPanel::sltHumanReabableSizesCheckBoxToogled);
+
+    if (m_pShowHiddenObjectsCheckBox)
+        connect(m_pShowHiddenObjectsCheckBox, &QCheckBox::toggled,
+                this, &UIFileManagerOptionsPanel::sltShowHiddenObjectsCheckBoxToggled);
+
 }
 
 void UIFileManagerOptionsPanel::retranslateUi()
@@ -173,5 +199,11 @@ void UIFileManagerOptionsPanel::retranslateUi()
         m_pHumanReabableSizesCheckBox->setText(UIFileManager::tr("Human readable sizes"));
         m_pHumanReabableSizesCheckBox->setToolTip(UIFileManager::tr("Show file/directory sizes in human "
                                                                                 "readable format rather than in bytes"));
+    }
+
+    if (m_pShowHiddenObjectsCheckBox)
+    {
+        m_pShowHiddenObjectsCheckBox->setText(UIFileManager::tr("Show hidden objects"));
+        m_pShowHiddenObjectsCheckBox->setToolTip(UIFileManager::tr("Show hidden files/directories"));
     }
 }

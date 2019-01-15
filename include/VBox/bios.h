@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2017 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,8 +25,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_bios_h
-#define ___VBox_bios_h
+#ifndef VBOX_INCLUDED_bios_h
+#define VBOX_INCLUDED_bios_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /** The BIOS shutdown port.
  * You write "Shutdown" byte by byte to shutdown the VM.
@@ -39,5 +42,5 @@
 #define VBOX_BIOS_OLD_SHUTDOWN_PORT             0x8900
 
 
-#endif
+#endif /* !VBOX_INCLUDED_bios_h */
 

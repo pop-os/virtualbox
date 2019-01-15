@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2018 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,6 +14,13 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
+
+#ifndef MAIN_INCLUDED_EBML_MKV_h
+#define MAIN_INCLUDED_EBML_MKV_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
+
 
 /** Matroska EBML Class IDs supported by WebM.
  *
@@ -84,4 +91,6 @@ enum MkvElem
     MkvElem_CueTrack                = 0xF7,
     MkvElem_CueClusterPosition      = 0xF1
 };
+
+#endif /* !MAIN_INCLUDED_EBML_MKV_h */
 

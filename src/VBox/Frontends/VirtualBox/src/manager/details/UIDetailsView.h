@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __UIDetailsView_h__
-#define __UIDetailsView_h__
+#ifndef FEQT_INCLUDED_SRC_manager_details_UIDetailsView_h
+#define FEQT_INCLUDED_SRC_manager_details_UIDetailsView_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "QIGraphicsView.h"
@@ -69,5 +72,5 @@ private:
     int m_iMinimumHeightHint;
 };
 
-#endif /* __UIDetailsView_h__ */
+#endif /* !FEQT_INCLUDED_SRC_manager_details_UIDetailsView_h */
 

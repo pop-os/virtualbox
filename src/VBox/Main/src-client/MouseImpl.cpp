@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,12 +25,10 @@
 #include "VMMDev.h"
 #include "MousePointerShapeWrap.h"
 
-#include "AutoCaller.h"
-
 #include <VBox/vmm/pdmdrv.h>
 #include <VBox/VMMDev.h>
+#include <VBox/err.h>
 
-#include <iprt/asm.h>
 
 class ATL_NO_VTABLE MousePointerShape:
     public MousePointerShapeWrap

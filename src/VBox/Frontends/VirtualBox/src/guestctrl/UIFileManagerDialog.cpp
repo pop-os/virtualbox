@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2018 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,26 +15,20 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QPushButton>
-# include <QVBoxLayout>
+#include <QPushButton>
+#include <QVBoxLayout>
 
 /* GUI includes: */
-# include "UIDesktopWidgetWatchdog.h"
-# include "UIExtraDataManager.h"
-# include "UIIconPool.h"
-# include "UIFileManager.h"
-# include "UIFileManagerDialog.h"
-# include "VBoxGlobal.h"
-# ifdef VBOX_WS_MAC
-#  include "VBoxUtils-darwin.h"
-# endif
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "UIDesktopWidgetWatchdog.h"
+#include "UIExtraDataManager.h"
+#include "UIIconPool.h"
+#include "UIFileManager.h"
+#include "UIFileManagerDialog.h"
+#include "VBoxGlobal.h"
+#ifdef VBOX_WS_MAC
+# include "VBoxUtils-darwin.h"
+#endif
 
 
 /*********************************************************************************************************************************

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2017 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vdmedia_h
-#define ___VBox_vdmedia_h
+#ifndef VBOX_INCLUDED_vdmedia_h
+#define VBOX_INCLUDED_vdmedia_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 
@@ -209,5 +212,5 @@ typedef PVDREGIONLIST *PPVDREGIONLIST;
 #define VD_REGION_LIST_F_VALID               (VD_REGION_LIST_F_LOC_SIZE_BLOCKS)
 /** @} */
 
-#endif /* !___VBox_vdmedia_h */
+#endif /* !VBOX_INCLUDED_vdmedia_h */
 

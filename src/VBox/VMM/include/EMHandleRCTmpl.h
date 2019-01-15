@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___EMHandleRCTmpl_h
-#define ___EMHandleRCTmpl_h
+#ifndef VMM_INCLUDED_SRC_include_EMHandleRCTmpl_h
+#define VMM_INCLUDED_SRC_include_EMHandleRCTmpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #if defined(EMHANDLERC_WITH_PATM) + defined(EMHANDLERC_WITH_HM) + defined(EMHANDLERC_WITH_NEM) != 1
 # error "Exactly one of these must be defined: EMHANDLERC_WITH_PATM, EMHANDLERC_WITH_HM, EMHANDLERC_WITH_NEM"
@@ -409,5 +412,5 @@ int emR3NemHandleRC(PVM pVM, PVMCPU pVCpu, int rc)
     return rc;
 }
 
-#endif
+#endif /* !VMM_INCLUDED_SRC_include_EMHandleRCTmpl_h */
 

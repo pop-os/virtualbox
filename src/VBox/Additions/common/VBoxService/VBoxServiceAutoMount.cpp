@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,6 +44,7 @@
 #include <iprt/semaphore.h>
 #include <iprt/sort.h>
 #include <iprt/string.h>
+#include <VBox/err.h>
 #include <VBox/VBoxGuestLib.h>
 #include <VBox/shflsvc.h>
 #include "VBoxServiceInternal.h"

@@ -1,10 +1,10 @@
 /* $Id: DnDURIList.cpp $ */
 /** @file
- * DnD: URI list class.
+ * DnD - URI list class.
  */
 
 /*
- * Copyright (C) 2014-2018 Oracle Corporation
+ * Copyright (C) 2014-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,8 +19,11 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
+#define LOG_GROUP LOG_GROUP_GUEST_DND
+#include <VBox/GuestHost/DragAndDrop.h>
 
 #include <iprt/dir.h>
+#include <iprt/err.h>
 #include <iprt/file.h>
 #include <iprt/fs.h>
 #include <iprt/path.h>
@@ -28,13 +31,8 @@
 #include <iprt/symlink.h>
 #include <iprt/uri.h>
 
-#ifdef LOG_GROUP
- #undef LOG_GROUP
-#endif
-#define LOG_GROUP LOG_GROUP_GUEST_DND
 #include <VBox/log.h>
 
-#include <VBox/GuestHost/DragAndDrop.h>
 
 DnDURIList::DnDURIList(void)
     : m_cTotal(0)

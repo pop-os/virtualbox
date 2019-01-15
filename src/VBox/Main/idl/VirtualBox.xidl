@@ -1054,6 +1054,23 @@
       <desc>
         If set, the speculation controls are managed by the host. This is intended
         for guests which do not set the speculation controls themselves.
+        Note! This has not yet been implemented beyond leaving everything to the host OS.
+      </desc>
+    </const>
+    <const name="L1DFlushOnEMTScheduling" value="11">
+      <desc>
+        If set and the host is affected by CVE-2018-3646, flushes the level 1 data
+        cache when the EMT is scheduled to do ring-0 guest execution.  There could
+        be a small performance penalty for certain typs of workloads.
+        For security reasons this setting will be enabled by default.
+      </desc>
+    </const>
+    <const name="L1DFlushOnVMEntry"     value="12">
+      <desc>
+        If set and the host is affected by CVE-2018-3646, flushes the level 1 data
+        on every VM entry.  This setting may significantly slow down workloads
+        causing many VM exits, so it is only recommended for situation where there
+        is a real need to be paranoid.
       </desc>
     </const>
   </enum>
@@ -23724,7 +23741,6 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <desc>
       The given medium was registered or unregistered
       within this VirtualBox installation.
-      <note>This event is not yet implemented.</note>
     </desc>
 
     <attribute name="mediumId" readonly="yes" type="uuid" mod="string">
@@ -23751,7 +23767,6 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
     <desc>
       The configuration of the given medium was changed (location, properties,
       child/parent or anything else).
-      <note>This event is not yet implemented.</note>
     </desc>
 
     <attribute name="medium" type="IMedium" readonly="yes">
@@ -24143,7 +24158,6 @@ Snapshot 1 (B.vdi)            Snapshot 1 (B.vdi)
       Notification when a
       <link to="IMachine::mediumAttachments">medium attachment</link>
       changes.
-      <note>This event is not yet implemented.</note>
     </desc>
     <attribute name="mediumAttachment" type="IMediumAttachment" readonly="yes">
       <desc>

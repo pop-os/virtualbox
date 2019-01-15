@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2017 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1669,7 +1669,7 @@ static DECLCALLBACK(int) apicR3Construct(PPDMDEVINS pDevIns, int iInstance, PCFG
 /**
  * APIC device registration structure.
  */
-const PDMDEVREG g_DeviceAPIC =
+static const PDMDEVREG g_DeviceAPIC =
 {
     /* u32Version */
     PDM_DEVREG_VERSION,
@@ -1721,6 +1721,15 @@ const PDMDEVREG g_DeviceAPIC =
     /* u32VersionEnd */
     PDM_DEVREG_VERSION
 };
+
+
+/**
+ * Called by PDM to register the APIC device.
+ */
+VMMR3_INT_DECL(int) APICR3RegisterDevice(PPDMDEVREGCB pCallbacks)
+{
+    return pCallbacks->pfnRegister(pCallbacks, &g_DeviceAPIC);
+}
 
 #endif /* !VBOX_DEVICE_STRUCT_TESTCASE */
 

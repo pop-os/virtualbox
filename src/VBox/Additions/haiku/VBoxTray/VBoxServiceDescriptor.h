@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,8 +43,12 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
-#ifndef __VBOXSERVICESHAREDCLIPLBOARD__H
-#define __VBOXSERVICESHAREDCLIPLBOARD__H
+
+#ifndef GA_INCLUDED_SRC_haiku_VBoxTray_VBoxServiceDescriptor_h
+#define GA_INCLUDED_SRC_haiku_VBoxTray_VBoxServiceDescriptor_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <Handler.h>
 
@@ -60,5 +64,5 @@ int VBoxClipboardInit(const VBOXSERVICEENV *pEnv, void **ppInstance, bool *pfSta
 unsigned __stdcall VBoxClipboardThread(void *pInstance);
 void VBoxClipboardDestroy(const VBOXSERVICEENV *pEnv, void *pInstance);
 
-#endif /* __VBOXSERVICESHAREDCLIPLBOARD__H */
+#endif /* !GA_INCLUDED_SRC_haiku_VBoxTray_VBoxServiceDescriptor_h */
 

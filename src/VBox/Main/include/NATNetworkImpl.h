@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,12 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_H_NATNETWORKIMPL
-#define ____H_H_NATNETWORKIMPL
+#ifndef MAIN_INCLUDED_NATNetworkImpl_h
+#define MAIN_INCLUDED_NATNetworkImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
+
 #include "VBoxEvents.h"
 #include "NATNetworkWrap.h"
 
@@ -124,4 +128,4 @@ private:
     Data *m;
 };
 
-#endif // !____H_H_NATNETWORKIMPL
+#endif /* !MAIN_INCLUDED_NATNetworkImpl_h */

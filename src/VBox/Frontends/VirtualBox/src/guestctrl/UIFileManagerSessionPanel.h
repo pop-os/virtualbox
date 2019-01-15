@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2018 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIFileManagerSessionPanel_h___
-#define ___UIFileManagerSessionPanel_h___
+#ifndef FEQT_INCLUDED_SRC_guestctrl_UIFileManagerSessionPanel_h
+#define FEQT_INCLUDED_SRC_guestctrl_UIFileManagerSessionPanel_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "UIFileManagerPanel.h"
@@ -57,4 +60,4 @@ private:
     UIGuestSessionCreateWidget *m_pSessionCreateWidget;
 };
 
-#endif /* !___UIFileManagerSessionPanel_h___ */
+#endif /* !FEQT_INCLUDED_SRC_guestctrl_UIFileManagerSessionPanel_h */

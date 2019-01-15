@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,7 +24,7 @@
 #include <VBox/vmm/selm.h>
 #include "tstMicro.h"
 
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 #include <iprt/asm-amd64-x86.h>
 #include <VBox/log.h>
 #include <iprt/assert.h>

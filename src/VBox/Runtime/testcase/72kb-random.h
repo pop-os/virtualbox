@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2014-2017 Oracle Corporation
+ * Copyright (C) 2014-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,12 @@
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
  */
+
+#ifndef IPRT_INCLUDED_SRC_testcase_72kb_random_h
+#define IPRT_INCLUDED_SRC_testcase_72kb_random_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/cdefs.h>
 
@@ -4640,5 +4646,6 @@ const unsigned char g_abRandom72KB[] =
 };
 
 const unsigned g_cbRandom72KB = sizeof(g_abRandom72KB);
-/* end of file */
+
+#endif /* !IPRT_INCLUDED_SRC_testcase_72kb_random_h */
 

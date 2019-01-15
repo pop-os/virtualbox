@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___the_linux_kernel_h
-#define ___the_linux_kernel_h
+#ifndef IPRT_INCLUDED_SRC_r0drv_linux_the_linux_kernel_h
+#define IPRT_INCLUDED_SRC_r0drv_linux_the_linux_kernel_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /*
  * Include iprt/types.h to install the bool wrappers.
@@ -427,7 +430,7 @@ DECLINLINE(unsigned long) msecs_to_jiffies(unsigned int cMillies)
 /*
  * There are some conflicting defines in iprt/param.h, sort them out here.
  */
-#ifndef ___iprt_param_h
+#ifndef IPRT_INCLUDED_param_h
 # undef PAGE_SIZE
 # undef PAGE_OFFSET_MASK
 # include <iprt/param.h>
@@ -455,4 +458,4 @@ DECLHIDDEN(void) rtR0LnxWorkqueuePush(RTR0LNXWORKQUEUEITEM *pWork, void (*pfnWor
 DECLHIDDEN(void) rtR0LnxWorkqueueFlush(void);
 
 
-#endif
+#endif /* !IPRT_INCLUDED_SRC_r0drv_linux_the_linux_kernel_h */

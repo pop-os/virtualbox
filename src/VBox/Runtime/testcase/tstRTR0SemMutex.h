@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,6 +23,12 @@
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
  */
+
+#ifndef IPRT_INCLUDED_SRC_testcase_tstRTR0SemMutex_h
+#define IPRT_INCLUDED_SRC_testcase_tstRTR0SemMutex_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #ifdef IN_RING0
 RT_C_DECLS_BEGIN
@@ -46,4 +52,6 @@ typedef enum TSTRTR0SEMMUTEX
     TSTRTR0SEMMUTEX_TEST4_DO,
     TSTRTR0SEMMUTEX_TEST4_CLEANUP
 } TSTRTR0SEMMUTEX;
+
+#endif /* !IPRT_INCLUDED_SRC_testcase_tstRTR0SemMutex_h */
 

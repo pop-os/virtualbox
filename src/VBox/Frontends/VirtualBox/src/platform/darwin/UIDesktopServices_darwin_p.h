@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIDesktopServices_p_h___
-#define ___UIDesktopServices_p_h___
+#ifndef FEQT_INCLUDED_SRC_platform_darwin_UIDesktopServices_darwin_p_h
+#define FEQT_INCLUDED_SRC_platform_darwin_UIDesktopServices_darwin_p_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/VBoxCocoa.h>
 #include <iprt/cdefs.h> /* for RT_C_DECLS_BEGIN/RT_C_DECLS_END & stuff */
@@ -30,5 +33,5 @@ bool darwinOpenInFileManager(NativeNSStringRef pstrFile);
 
 RT_C_DECLS_END
 
-#endif /* !___UIDesktopServices_p_h___ */
+#endif /* !FEQT_INCLUDED_SRC_platform_darwin_UIDesktopServices_darwin_p_h */
 

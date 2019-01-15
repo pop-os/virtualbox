@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2018 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_DRVAUDIORECORDING
-#define ____H_DRVAUDIORECORDING
+#ifndef MAIN_INCLUDED_DrvAudioRec_h
+#define MAIN_INCLUDED_DrvAudioRec_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/com/ptr.h>
 #include <VBox/settings.h>
@@ -63,5 +66,5 @@ private:
     struct settings::RecordingSettings mVideoRecCfg;
 };
 
-#endif /* !____H_DRVAUDIORECORDING */
+#endif /* !MAIN_INCLUDED_DrvAudioRec_h */
 

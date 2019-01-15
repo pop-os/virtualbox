@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,14 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_apic_h
-#define ___VBox_vmm_apic_h
+#ifndef VBOX_INCLUDED_vmm_apic_h
+#define VBOX_INCLUDED_vmm_apic_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
-#include <VBox/vmm/pdmins.h>
-#include <VBox/vmm/pdmdev.h>
+#include <VBox/types.h>
+struct PDMDEVREGCB;
 
 /** @defgroup grp_apic   The local APIC VMM API
  * @ingroup grp_vmm
@@ -157,6 +160,7 @@ RT_C_DECLS_BEGIN
 /** @defgroup grp_apic_r3  The APIC Host Context Ring-3 API
  * @{
  */
+VMMR3_INT_DECL(int)         APICR3RegisterDevice(struct PDMDEVREGCB *pCallbacks);
 VMMR3_INT_DECL(void)        APICR3InitIpi(PVMCPU pVCpu);
 VMMR3_INT_DECL(void)        APICR3HvEnable(PVM pVM);
 /** @} */
@@ -200,8 +204,7 @@ VMM_INT_DECL(VBOXSTRICTRC)  APICHvSetEoi(PVMCPU pVCpu, uint32_t uEoi);
 
 RT_C_DECLS_END
 
-extern const PDMDEVREG      g_DeviceAPIC;
 /** @} */
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_apic_h */
 

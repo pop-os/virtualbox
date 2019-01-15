@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,20 +28,23 @@
 
 #include <iprt/cdefs.h>
 #include <iprt/cidr.h>
+#include <iprt/ctype.h>
+#include <iprt/errcore.h>
+#include <iprt/getopt.h>
+#include <iprt/net.h>
 #include <iprt/param.h>
 #include <iprt/path.h>
 #include <iprt/stream.h>
 #include <iprt/string.h>
-#include <iprt/net.h>
-#include <iprt/getopt.h>
-#include <iprt/ctype.h>
-
 
 #include <VBox/log.h>
 
 #include "VBoxPortForwardString.h"
 
 
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
 #define PF_FIELD_SEPARATOR ':'
 #define PF_ADDRESS_FIELD_STARTS '['
 #define PF_ADDRESS_FIELD_ENDS ']'

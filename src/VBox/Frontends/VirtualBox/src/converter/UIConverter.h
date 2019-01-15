@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2018 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIConverter_h___
-#define ___UIConverter_h___
+#ifndef FEQT_INCLUDED_SRC_converter_UIConverter_h
+#define FEQT_INCLUDED_SRC_converter_UIConverter_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "UIConverterBackend.h"
@@ -124,5 +127,5 @@ private:
 /** Singleton UI converter 'official' name. */
 #define gpConverter UIConverter::instance()
 
-#endif /* !___UIConverter_h___ */
+#endif /* !FEQT_INCLUDED_SRC_converter_UIConverter_h */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -74,8 +74,20 @@ typedef enum SCMOPT
     SCMOPT_NO_STRIP_TRAILING_LINES,
     SCMOPT_FIX_FLOWER_BOX_MARKERS,
     SCMOPT_NO_FIX_FLOWER_BOX_MARKERS,
+    SCMOPT_FIX_HEADER_GUARDS,
+    SCMOPT_NO_FIX_HEADER_GUARDS,
+    SCMOPT_PRAGMA_ONCE,
+    SCMOPT_NO_PRAGMA_ONCE,
+    SCMOPT_FIX_HEADER_GUARD_ENDIF,
+    SCMOPT_NO_FIX_HEADER_GUARD_ENDIF,
+    SCMOPT_ENDIF_GUARD_COMMENT,
+    SCMOPT_NO_ENDIF_GUARD_COMMENT,
+    SCMOPT_GUARD_PREFIX,
+    SCMOPT_GUARD_RELATIVE_TO_DIR,
     SCMOPT_FIX_TODOS,
     SCMOPT_NO_FIX_TODOS,
+    SCMOPT_FIX_ERR_H,
+    SCMOPT_NO_FIX_ERR_H,
     SCMOPT_UPDATE_COPYRIGHT_YEAR,
     SCMOPT_NO_UPDATE_COPYRIGHT_YEAR,
     SCMOPT_EXTERNAL_COPYRIGHT,
@@ -172,7 +184,14 @@ static SCMSETTINGSBASE const g_Defaults =
     /* .fStripTrailingLines = */                    true,
     /* .fFixFlowerBoxMarkers = */                   true,
     /* .cMinBlankLinesBeforeFlowerBoxMakers = */    2,
+    /* .fFixHeaderGuards = */                       true,
+    /* .fPragmaOnce = */                            true,
+    /* .fFixHeaderGuardEndif = */                   true,
+    /* .fEndifGuardComment = */                     true,
+    /* .pszGuardPrefix = */                         (char *)"VBOX_INCLUDED_SRC_",
+    /* .pszGuardRelativeToDir = */                  (char *)"{parent}",
     /* .fFixTodos = */                              true,
+    /* .fFixErrH = */                               true,
     /* .fUpdateCopyrightYear = */                   false,
     /* .fExternalCopyright = */                     false,
     /* .fLgplDisclaimer = */                        false,
@@ -211,8 +230,20 @@ static RTGETOPTDEF  g_aScmOpts[] =
     { "--min-blank-lines-before-flower-box-makers", SCMOPT_MIN_BLANK_LINES_BEFORE_FLOWER_BOX_MARKERS,  RTGETOPT_REQ_UINT8 },
     { "--fix-flower-box-markers",           SCMOPT_FIX_FLOWER_BOX_MARKERS,          RTGETOPT_REQ_NOTHING },
     { "--no-fix-flower-box-markers",        SCMOPT_NO_FIX_FLOWER_BOX_MARKERS,       RTGETOPT_REQ_NOTHING },
+    { "--fix-header-guards",                SCMOPT_FIX_HEADER_GUARDS,               RTGETOPT_REQ_NOTHING },
+    { "--no-fix-header-guards",             SCMOPT_NO_FIX_HEADER_GUARDS,            RTGETOPT_REQ_NOTHING },
+    { "--pragma-once",                      SCMOPT_PRAGMA_ONCE,                     RTGETOPT_REQ_NOTHING },
+    { "--no-pragma-once",                   SCMOPT_NO_PRAGMA_ONCE,                  RTGETOPT_REQ_NOTHING },
+    { "--fix-header-guard-endif",           SCMOPT_FIX_HEADER_GUARD_ENDIF,          RTGETOPT_REQ_NOTHING },
+    { "--no-fix-header-guard-endif",        SCMOPT_NO_FIX_HEADER_GUARD_ENDIF,       RTGETOPT_REQ_NOTHING },
+    { "--endif-guard-comment",              SCMOPT_ENDIF_GUARD_COMMENT,             RTGETOPT_REQ_NOTHING },
+    { "--no-endif-guard-comment",           SCMOPT_NO_ENDIF_GUARD_COMMENT,          RTGETOPT_REQ_NOTHING },
+    { "--guard-prefix",                     SCMOPT_GUARD_PREFIX,                    RTGETOPT_REQ_STRING },
+    { "--guard-relative-to-dir",            SCMOPT_GUARD_RELATIVE_TO_DIR,           RTGETOPT_REQ_STRING },
     { "--fix-todos",                        SCMOPT_FIX_TODOS,                       RTGETOPT_REQ_NOTHING },
     { "--no-fix-todos",                     SCMOPT_NO_FIX_TODOS,                    RTGETOPT_REQ_NOTHING },
+    { "--fix-err-h",                        SCMOPT_FIX_ERR_H,                       RTGETOPT_REQ_NOTHING },
+    { "--no-fix-err-h",                     SCMOPT_NO_FIX_ERR_H,                    RTGETOPT_REQ_NOTHING },
     { "--update-copyright-year",            SCMOPT_UPDATE_COPYRIGHT_YEAR,           RTGETOPT_REQ_NOTHING },
     { "--no-update-copyright-year",         SCMOPT_NO_UPDATE_COPYRIGHT_YEAR,        RTGETOPT_REQ_NOTHING },
     { "--external-copyright",               SCMOPT_EXTERNAL_COPYRIGHT,              RTGETOPT_REQ_NOTHING },
@@ -283,7 +314,9 @@ SCM_REWRITER_CFG(g_Copyright_TickComment,           "copyright-tick-style",     
 SCM_REWRITER_CFG(g_Makefile_kup,                    "makefile-kup",                 rewrite_Makefile_kup);
 SCM_REWRITER_CFG(g_Makefile_kmk,                    "makefile-kmk",                 rewrite_Makefile_kmk);
 SCM_REWRITER_CFG(g_FixFlowerBoxMarkers,             "fix-flower-boxes",             rewrite_FixFlowerBoxMarkers);
+SCM_REWRITER_CFG(g_FixHeaderGuards,                 "fix-header-guard",             rewrite_FixHeaderGuards);
 SCM_REWRITER_CFG(g_Fix_C_and_CPP_Todos,             "fix-c-todos",                  rewrite_Fix_C_and_CPP_Todos);
+SCM_REWRITER_CFG(g_Fix_Err_H,                       "fix-err-h",                    rewrite_Fix_Err_H);
 SCM_REWRITER_CFG(g_C_and_CPP,                       "c-and-cpp",                    rewrite_C_and_CPP);
 
 /** The rewriter actions. */
@@ -311,7 +344,9 @@ static PCSCMREWRITERCFG const g_papRewriterActions[] =
     &g_Makefile_kup,
     &g_Makefile_kmk,
     &g_FixFlowerBoxMarkers,
+    &g_FixHeaderGuards,
     &g_Fix_C_and_CPP_Todos,
+    &g_Fix_Err_H,
     &g_C_and_CPP,
 };
 
@@ -358,6 +393,7 @@ static PCSCMREWRITERCFG const g_apRewritersFor_C_and_CPP[] =
     &g_Copyright_CstyleComment,
     &g_FixFlowerBoxMarkers,
     &g_Fix_C_and_CPP_Todos,
+    &g_Fix_Err_H,
     &g_C_and_CPP
 };
 
@@ -371,6 +407,8 @@ static PCSCMREWRITERCFG const g_apRewritersFor_H_and_HPP[] =
     &g_SvnKeywords,
     &g_SvnSyncProcess,
     &g_Copyright_CstyleComment,
+    /// @todo &g_FixFlowerBoxMarkers,
+    &g_FixHeaderGuards,
     &g_C_and_CPP
 };
 
@@ -863,20 +901,33 @@ static int scmSettingsBaseInitAndCopy(PSCMSETTINGSBASE pSettings, PCSCMSETTINGSB
             rc = RTStrDupEx(&pSettings->pszFilterOutDirs, pSrc->pszFilterOutDirs);
             if (RT_SUCCESS(rc))
             {
-                if (!pSrc->fFreeTreatAs)
-                    return VINF_SUCCESS;
+                rc = RTStrDupEx(&pSettings->pszGuardPrefix, pSrc->pszGuardPrefix);
+                if (RT_SUCCESS(rc))
+                {
+                    if (pSrc->pszGuardRelativeToDir)
+                        rc = RTStrDupEx(&pSettings->pszGuardRelativeToDir, pSrc->pszGuardRelativeToDir);
+                    if (RT_SUCCESS(rc))
+                    {
 
-                pSettings->pTreatAs = scmCfgEntryDup(pSrc->pTreatAs);
-                if (pSettings->pTreatAs)
-                    return VINF_SUCCESS;
+                        if (!pSrc->fFreeTreatAs)
+                            return VINF_SUCCESS;
 
-                RTStrFree(pSettings->pszFilterOutDirs);
+                        pSettings->pTreatAs = scmCfgEntryDup(pSrc->pTreatAs);
+                        if (pSettings->pTreatAs)
+                            return VINF_SUCCESS;
+
+                        RTStrFree(pSettings->pszGuardRelativeToDir);
+                    }
+                    RTStrFree(pSettings->pszGuardPrefix);
+                }
             }
             RTStrFree(pSettings->pszFilterOutFiles);
         }
         RTStrFree(pSettings->pszFilterFiles);
     }
 
+    pSettings->pszGuardRelativeToDir = NULL;
+    pSettings->pszGuardPrefix = NULL;
     pSettings->pszFilterFiles = NULL;
     pSettings->pszFilterOutFiles = NULL;
     pSettings->pszFilterOutDirs = NULL;
@@ -907,12 +958,16 @@ static void scmSettingsBaseDelete(PSCMSETTINGSBASE pSettings)
         Assert(pSettings->cchTab != UINT8_MAX);
         pSettings->cchTab = UINT8_MAX;
 
+        RTStrFree(pSettings->pszGuardPrefix);
+        RTStrFree(pSettings->pszGuardRelativeToDir);
         RTStrFree(pSettings->pszFilterFiles);
         RTStrFree(pSettings->pszFilterOutFiles);
         RTStrFree(pSettings->pszFilterOutDirs);
         if (pSettings->fFreeTreatAs)
             scmCfgEntryDelete((PSCMCFGENTRY)pSettings->pTreatAs);
 
+        pSettings->pszGuardPrefix = NULL;
+        pSettings->pszGuardRelativeToDir = NULL;
         pSettings->pszFilterOutDirs = NULL;
         pSettings->pszFilterOutFiles = NULL;
         pSettings->pszFilterFiles = NULL;
@@ -997,11 +1052,81 @@ static int scmSettingsBaseHandleOpt(PSCMSETTINGSBASE pSettings, int rc, PRTGETOP
             pSettings->fFixFlowerBoxMarkers = false;
             return VINF_SUCCESS;
 
+        case SCMOPT_FIX_HEADER_GUARDS:
+            pSettings->fFixHeaderGuards = true;
+            return VINF_SUCCESS;
+        case SCMOPT_NO_FIX_HEADER_GUARDS:
+            pSettings->fFixHeaderGuards = false;
+            return VINF_SUCCESS;
+
+        case SCMOPT_PRAGMA_ONCE:
+            pSettings->fPragmaOnce = true;
+            return VINF_SUCCESS;
+        case SCMOPT_NO_PRAGMA_ONCE:
+            pSettings->fPragmaOnce = false;
+            return VINF_SUCCESS;
+
+        case SCMOPT_FIX_HEADER_GUARD_ENDIF:
+            pSettings->fFixHeaderGuardEndif = true;
+            return VINF_SUCCESS;
+        case SCMOPT_NO_FIX_HEADER_GUARD_ENDIF:
+            pSettings->fFixHeaderGuardEndif = false;
+            return VINF_SUCCESS;
+
+        case SCMOPT_ENDIF_GUARD_COMMENT:
+            pSettings->fEndifGuardComment = true;
+            return VINF_SUCCESS;
+        case SCMOPT_NO_ENDIF_GUARD_COMMENT:
+            pSettings->fEndifGuardComment = false;
+            return VINF_SUCCESS;
+
+        case SCMOPT_GUARD_PREFIX:
+            RTStrFree(pSettings->pszGuardPrefix);
+            pSettings->pszGuardPrefix = NULL;
+            return RTStrDupEx(&pSettings->pszGuardPrefix, pValueUnion->psz);
+
+        case SCMOPT_GUARD_RELATIVE_TO_DIR:
+            RTStrFree(pSettings->pszGuardRelativeToDir);
+            pSettings->pszGuardRelativeToDir = NULL;
+            if (*pValueUnion->psz != '\0')
+            {
+                if (   strcmp(pValueUnion->psz, "{dir}") == 0
+                    || strcmp(pValueUnion->psz, "{parent}") == 0)
+                    return RTStrDupEx(&pSettings->pszGuardRelativeToDir, pValueUnion->psz);
+                if (cchDir == 1 && *pchDir == '/')
+                {
+                    pSettings->pszGuardRelativeToDir = RTPathAbsDup(pValueUnion->psz);
+                    if (pSettings->pszGuardRelativeToDir)
+                        return VINF_SUCCESS;
+                }
+                else
+                {
+                    char *pszDir = RTStrDupN(pchDir, cchDir);
+                    if (pszDir)
+                    {
+                        pSettings->pszGuardRelativeToDir = RTPathAbsExDup(pszDir, pValueUnion->psz);
+                        RTStrFree(pszDir);
+                        if (pSettings->pszGuardRelativeToDir)
+                            return VINF_SUCCESS;
+                    }
+                }
+                RTMsgError("Failed to abspath --guard-relative-to-dir value '%s' - probably out of memory\n", pValueUnion->psz);
+                return VERR_NO_STR_MEMORY;
+            }
+            return VINF_SUCCESS;
+
         case SCMOPT_FIX_TODOS:
             pSettings->fFixTodos = true;
             return VINF_SUCCESS;
         case SCMOPT_NO_FIX_TODOS:
             pSettings->fFixTodos = false;
+            return VINF_SUCCESS;
+
+        case SCMOPT_FIX_ERR_H:
+            pSettings->fFixErrH = true;
+            return VINF_SUCCESS;
+        case SCMOPT_NO_FIX_ERR_H:
+            pSettings->fFixErrH = false;
             return VINF_SUCCESS;
 
         case SCMOPT_UPDATE_COPYRIGHT_YEAR:
@@ -2658,8 +2783,32 @@ static int scmHelp(PCRTGETOPTDEF paOpts, size_t cOpts)
             case SCMOPT_FIX_FLOWER_BOX_MARKERS: RTPrintf("      Default: %RTbool\n", g_Defaults.fFixFlowerBoxMarkers); break;
             case SCMOPT_MIN_BLANK_LINES_BEFORE_FLOWER_BOX_MARKERS: RTPrintf("      Default: %u\n", g_Defaults.cMinBlankLinesBeforeFlowerBoxMakers); break;
 
+            case SCMOPT_FIX_HEADER_GUARDS:
+                RTPrintf("      Fix header guards and #pragma once.  Default: %RTbool\n", g_Defaults.fFixHeaderGuards);
+                break;
+            case SCMOPT_PRAGMA_ONCE:
+                RTPrintf("      Whether to include #pragma once with the header guard.  Default: %RTbool\n", g_Defaults.fPragmaOnce);
+                break;
+            case SCMOPT_FIX_HEADER_GUARD_ENDIF:
+                RTPrintf("      Whether to fix the #endif of a header guard.  Default: %RTbool\n", g_Defaults.fFixHeaderGuardEndif);
+                break;
+            case SCMOPT_ENDIF_GUARD_COMMENT:
+                RTPrintf("      Put a comment on the header guard #endif or not.  Default: %RTbool\n", g_Defaults.fEndifGuardComment);
+                break;
+            case SCMOPT_GUARD_RELATIVE_TO_DIR:
+                RTPrintf("      Header guard should be normalized relative to given dir.\n"
+                         "      When relative to settings files, no preceeding slash.\n"
+                         "      Header relative directory specification: {dir} and {parent}\n"
+                         "      If empty no normalization takes place.  Default: '%s'\n", g_Defaults.pszGuardRelativeToDir);
+                break;
+            case SCMOPT_GUARD_PREFIX:
+                RTPrintf("      Prefix to use with --guard-relative-to-dir.  Default: %s\n", g_Defaults.pszGuardPrefix);
+                break;
             case SCMOPT_FIX_TODOS:
                 RTPrintf("      Fix @todo statements so doxygen sees them.  Default: %RTbool\n", g_Defaults.fFixTodos);
+                break;
+            case SCMOPT_FIX_ERR_H:
+                RTPrintf("      Fix err.h/errcore.h usage.  Default: %RTbool\n", g_Defaults.fFixErrH);
                 break;
             case SCMOPT_UPDATE_COPYRIGHT_YEAR:
                 RTPrintf("      Update the copyright year.  Default: %RTbool\n", g_Defaults.fUpdateCopyrightYear);
@@ -2810,7 +2959,7 @@ int main(int argc, char **argv)
             case 'V':
             {
                 /* The following is assuming that svn does it's job here. */
-                static const char s_szRev[] = "$Revision: 123062 $";
+                static const char s_szRev[] = "$Revision: 127890 $";
                 const char *psz = RTStrStripL(strchr(s_szRev, ' '));
                 RTPrintf("r%.*s\n", strchr(psz, ' ') - psz, psz);
                 return 0;

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2018 Oracle Corporation
+ * Copyright (C) 2018-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,8 +17,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_RecordingScreenSettings
-#define ____H_RecordingScreenSettings
+#ifndef MAIN_INCLUDED_RecordingScreenSettingsImpl_h
+#define MAIN_INCLUDED_RecordingScreenSettingsImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "RecordingScreenSettingsWrap.h"
 
@@ -116,5 +119,5 @@ private:
     Data *m;
 };
 
-#endif // ____H_RecordingScreenSettings
+#endif /* !MAIN_INCLUDED_RecordingScreenSettingsImpl_h */
 

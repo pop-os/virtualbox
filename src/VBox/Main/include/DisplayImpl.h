@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,14 +15,16 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_DISPLAYIMPL
-#define ____H_DISPLAYIMPL
+#ifndef MAIN_INCLUDED_DisplayImpl_h
+#define MAIN_INCLUDED_DisplayImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "SchemaDefs.h"
 
 #include <iprt/semaphore.h>
 #include <VBox/vmm/pdmdrv.h>
-#include <VBox/VMMDev.h>
 #include <VBoxVideo.h>
 #include <VBox/vmm/pdmifs.h>
 #include "DisplayWrap.h"
@@ -635,5 +637,5 @@ private:
     ULONG mBitsPerPixel;
 };
 
-#endif // !____H_DISPLAYIMPL
+#endif /* !MAIN_INCLUDED_DisplayImpl_h */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

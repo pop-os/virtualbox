@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,34 +15,28 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QApplication>
-# include <QMenu>
+#include <QApplication>
+#include <QMenu>
 
 /* GUI includes: */
-# include "UIDefs.h"
-# include "UIMultiScreenLayout.h"
-# include "UIActionPoolRuntime.h"
-# include "UIMachineLogic.h"
-# include "UIFrameBuffer.h"
-# include "UISession.h"
-# include "UIMessageCenter.h"
-# include "UIExtraDataManager.h"
-# include "UIDesktopWidgetWatchdog.h"
-# include "VBoxGlobal.h"
+#include "UIDefs.h"
+#include "UIMultiScreenLayout.h"
+#include "UIActionPoolRuntime.h"
+#include "UIMachineLogic.h"
+#include "UIFrameBuffer.h"
+#include "UISession.h"
+#include "UIMessageCenter.h"
+#include "UIExtraDataManager.h"
+#include "UIDesktopWidgetWatchdog.h"
+#include "VBoxGlobal.h"
 
 /* COM includes: */
-# include "COMEnums.h"
-# include "CSession.h"
-# include "CConsole.h"
-# include "CMachine.h"
-# include "CDisplay.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "COMEnums.h"
+#include "CSession.h"
+#include "CConsole.h"
+#include "CMachine.h"
+#include "CDisplay.h"
 
 
 UIMultiScreenLayout::UIMultiScreenLayout(UIMachineLogic *pMachineLogic)

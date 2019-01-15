@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -28,8 +28,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef ___VBox_VBoxGuestLibSharedFolders_h_
-#define ___VBox_VBoxGuestLibSharedFolders_h_
+#ifndef VBOX_INCLUDED_VBoxGuestLibSharedFolders_h
+#define VBOX_INCLUDED_VBoxGuestLibSharedFolders_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/VBoxGuestLib.h>
 #include <VBox/shflsvc.h>
@@ -124,5 +127,5 @@ DECLVBGL(int)  VbglR0SfSetSymlinks(PVBGLSFCLIENT pClient);
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_VBoxGuestLibSharedFolders_h */
 

@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2017 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,12 +19,15 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBox_Mesa_Assert_h__
-#define ___VBox_Mesa_Assert_h__
+#ifndef GA_INCLUDED_3D_MESA_assert_h
+#define GA_INCLUDED_3D_MESA_assert_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/asm.h>
 
 #undef assert
 #define assert(_e) (void)( (!!(_e)) || (ASMBreakpoint(), 0) )
 
-#endif
+#endif /* !GA_INCLUDED_3D_MESA_assert_h */

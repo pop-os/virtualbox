@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2018 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIModalWindowManager_h___
-#define ___UIModalWindowManager_h___
+#ifndef FEQT_INCLUDED_SRC_globals_UIModalWindowManager_h
+#define FEQT_INCLUDED_SRC_globals_UIModalWindowManager_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QObject>
@@ -98,5 +101,5 @@ private:
 /** Singleton Modal Window Manager 'official' name. */
 inline UIModalWindowManager &windowManager() { return *(UIModalWindowManager::instance()); }
 
-#endif /* !___UIModalWindowManager_h___ */
+#endif /* !FEQT_INCLUDED_SRC_globals_UIModalWindowManager_h */
 

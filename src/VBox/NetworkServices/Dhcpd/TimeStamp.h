@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2018 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef _DHCPD_TIMESTAMP_H_
-#define _DHCPD_TIMESTAMP_H_
+#ifndef VBOX_INCLUDED_SRC_Dhcpd_TimeStamp_h
+#define VBOX_INCLUDED_SRC_Dhcpd_TimeStamp_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/string.h>
 #include <iprt/time.h>
@@ -95,4 +98,4 @@ inline bool operator>(const TimeStamp &l, const TimeStamp &r) { return l.m_ns > 
 inline bool operator<=(const TimeStamp &l, const TimeStamp &r) { return l.m_ns <= r.m_ns; }
 inline bool operator>=(const TimeStamp &l, const TimeStamp &r) { return l.m_ns >= r.m_ns; }
 
-#endif /* _DHCPD_TIMESTAMP_H_ */
+#endif /* !VBOX_INCLUDED_SRC_Dhcpd_TimeStamp_h */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,39 +15,33 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QAction>
-# include <QApplication>
-# include <QDrag>
-# include <QDragEnterEvent>
-# include <QDragMoveEvent>
-# include <QDropEvent>
-# include <QEvent>
-# include <QHBoxLayout>
-# include <QLabel>
-# include <QMimeData>
-# include <QMouseEvent>
-# include <QStyleOption>
-# include <QPainter>
-# ifdef VBOX_WS_MAC
-#  include <QStackedLayout>
-# endif
-# include <QStyle>
-# include <QToolButton>
+#include <QAction>
+#include <QApplication>
+#include <QDrag>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
+#include <QEvent>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QMimeData>
+#include <QMouseEvent>
+#include <QStyleOption>
+#include <QPainter>
+#ifdef VBOX_WS_MAC
+# include <QStackedLayout>
+#endif
+#include <QStyle>
+#include <QToolButton>
 
 /* GUI includes: */
-# include "QIWithRetranslateUI.h"
-# include "UIIconPool.h"
-# include "UITabBar.h"
+#include "QIWithRetranslateUI.h"
+#include "UIIconPool.h"
+#include "UITabBar.h"
 
 /* Other VBox includes: */
-# include "iprt/assert.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "iprt/assert.h"
 
 /* Forward declarations: */
 class QApplication;

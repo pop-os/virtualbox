@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2017 Oracle Corporation
+ * Copyright (C) 2005-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,12 +15,14 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___H_DNSHOSTSERVICE
-#define ___H_DNSHOSTSERVICE
+#ifndef MAIN_INCLUDED_SRC_src_server_HostDnsService_h
+#define MAIN_INCLUDED_SRC_src_server_HostDnsService_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 #include "VirtualBoxBase.h"
 
-#include <iprt/cdefs.h>
-#include <iprt/types.h>
+#include <iprt/err.h> /* VERR_IGNORED */
 #include <iprt/cpp/lock.h>
 
 #include <list>
@@ -229,4 +231,4 @@ class HostDnsServiceOs2 : public HostDnsServiceResolvConf
 #  endif
 # endif
 
-#endif /* !___H_DNSHOSTSERVICE */
+#endif /* !MAIN_INCLUDED_SRC_src_server_HostDnsService_h */

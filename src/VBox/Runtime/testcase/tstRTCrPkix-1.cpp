@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018 Oracle Corporation
+ * Copyright (C) 2018-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,6 +30,7 @@
 *********************************************************************************************************************************/
 #include <iprt/crypto/pkix.h>
 
+#include <iprt/err.h>
 #include <iprt/string.h>
 #include <iprt/test.h>
 #include <iprt/crypto/key.h>

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,13 +23,16 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_HostService_GuestPropertyService_h
-#define ___VBox_HostService_GuestPropertyService_h
+#ifndef VBOX_INCLUDED_HostServices_GuestPropertySvc_h
+#define VBOX_INCLUDED_HostServices_GuestPropertySvc_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/VMMDevCoreTypes.h>
 #include <VBox/VBoxGuestCoreTypes.h>
 #include <VBox/log.h>
-#include <VBox/hgcmsvc.h>
+#include <iprt/err.h>
 #include <iprt/assertcompile.h>
 #include <iprt/string.h>
 
@@ -490,5 +493,5 @@ typedef struct GuestPropMsgGetNotification
 AssertCompileSize(GuestPropMsgGetNotification, 40 + 4 * (ARCH_BITS == 64 ? 16 : 12));
 
 
-#endif  /* !___VBox_HostService_GuestPropertySvc_h */
+#endif /* !VBOX_INCLUDED_HostServices_GuestPropertySvc_h */
 

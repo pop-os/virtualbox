@@ -3,7 +3,7 @@
  * VMware SVGA device
  */
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,8 +14,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___DevVGA_SVGA_h___
-#define ___DevVGA_SVGA_h___
+#ifndef VBOX_INCLUDED_SRC_Graphics_DevVGA_SVGA_h
+#define VBOX_INCLUDED_SRC_Graphics_DevVGA_SVGA_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #ifndef VBOX_WITH_VMSVGA
 # error "VBOX_WITH_VMSVGA is not defined"
@@ -386,5 +389,5 @@ void vmsvgaClipBox(const SVGA3dSize *pSize,
 void vmsvgaClipRect(SVGASignedRect const *pBound,
                     SVGASignedRect *pRect);
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_Graphics_DevVGA_SVGA_h */
 

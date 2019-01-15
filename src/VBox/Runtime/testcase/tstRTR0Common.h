@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,9 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-
-#ifndef ___testcase_tstRTR0Common_h
-#define ___testcase_tstRTR0Common_h
+#ifndef IPRT_INCLUDED_SRC_testcase_tstRTR0Common_h
+#define IPRT_INCLUDED_SRC_testcase_tstRTR0Common_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/stdarg.h>
 #include <iprt/string.h>
@@ -301,5 +303,5 @@ bool RTR0TestR0HaveErrors(void)
     return ASMAtomicUoReadU32(&g_cErrors) > 0;
 }
 
-#endif
+#endif /* !IPRT_INCLUDED_SRC_testcase_tstRTR0Common_h */
 

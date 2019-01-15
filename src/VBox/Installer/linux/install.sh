@@ -4,7 +4,7 @@
 # VirtualBox linux installation script
 
 #
-# Copyright (C) 2007-2017 Oracle Corporation
+# Copyright (C) 2007-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -313,6 +313,9 @@ if [ "$ACTION" = "install" ]; then
 
     # Create symlinks to start binaries
     ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VirtualBox
+    if [ -f $INSTALLATION_DIR/VirtualBoxVM ]; then
+        ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VirtualBoxVM
+    fi
     ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VBoxManage
     ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VBoxSDL
     ln -sf $INSTALLATION_DIR/VBox.sh /usr/bin/VBoxVRDP
@@ -335,6 +338,9 @@ if [ "$ACTION" = "install" ]; then
 
     # Convenience symlinks. The creation fails if the FS is not case sensitive
     ln -sf VirtualBox /usr/bin/virtualbox > /dev/null 2>&1
+    if [ -f $INSTALLATION_DIR/VirtualBoxVM ]; then
+        ln -sf VirtualBoxVM /usr/bin/virtualboxvm > /dev/null 2>&1
+    fi
     ln -sf VBoxManage /usr/bin/vboxmanage > /dev/null 2>&1
     ln -sf VBoxSDL /usr/bin/vboxsdl > /dev/null 2>&1
     ln -sf VBoxHeadless /usr/bin/vboxheadless > /dev/null 2>&1

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2017 Oracle Corporation
+ * Copyright (C) 2014-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,8 +14,12 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-#ifndef _BuiltinTests_h__
-#define _BuiltinTests_h__
+
+#ifndef VBOX_INCLUDED_SRC_testcase_BuiltinTests_h
+#define VBOX_INCLUDED_SRC_testcase_BuiltinTests_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /**
  * Builtin Tests (in generated BuiltinTests.cpp)
@@ -40,4 +44,4 @@ extern TSTVDIOTESTENTRY const       g_aVDIoTests[];
 /** Number of entries in g_aVDIoTests. */
 extern unsigned const               g_cVDIoTests;
 
-#endif /* _BuiltinTests_h__ */
+#endif /* !VBOX_INCLUDED_SRC_testcase_BuiltinTests_h */

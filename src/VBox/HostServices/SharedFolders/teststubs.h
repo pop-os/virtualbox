@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,8 +20,11 @@
  * to make the service use a file operations structure with function pointers
  * but I'm not sure that would be universally appreciated. */
 
-#ifndef __VBSF_TEST_STUBS__H
-#define __VBSF_TEST_STUBS__H
+#ifndef VBOX_INCLUDED_SRC_SharedFolders_teststubs_h
+#define VBOX_INCLUDED_SRC_SharedFolders_teststubs_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/dir.h>
 #include <iprt/time.h>
@@ -81,4 +84,4 @@ extern int testRTSymlinkDelete(const char *pszSymlink, uint32_t fDelete);
 #define RTSymlinkRead        testRTSymlinkRead
 extern int testRTSymlinkRead(const char *pszSymlink, char *pszTarget, size_t cbTarget, uint32_t fRead);
 
-#endif /* __VBSF_TEST_STUBS__H */
+#endif /* !VBOX_INCLUDED_SRC_SharedFolders_teststubs_h */

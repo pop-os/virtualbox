@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2018 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___QIFileDialog_h___
-#define ___QIFileDialog_h___
+#ifndef FEQT_INCLUDED_SRC_extensions_QIFileDialog_h
+#define FEQT_INCLUDED_SRC_extensions_QIFileDialog_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QFileDialog>
@@ -87,4 +90,4 @@ public:
     static QString getFirstExistingDir(const QString &strStartDir);
 };
 
-#endif /* !___QIFileDialog_h___ */
+#endif /* !FEQT_INCLUDED_SRC_extensions_QIFileDialog_h */

@@ -1,4 +1,10 @@
 
+#ifndef VBOX_INCLUDED_SRC_Graphics_BIOS_vgatables_h
+#define VBOX_INCLUDED_SRC_Graphics_BIOS_vgatables_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
+
 /* Video memory */
 #define VGAMEM_GRAPH 0xA000
 #define VGAMEM_CTEXT 0xB800
@@ -555,3 +561,6 @@ static uint8_t static_functionality[0x10]=
  /* e */ 0x00,  // Change to add new functions
  /* f */ 0x00   // reserved
 };
+
+#endif /* !VBOX_INCLUDED_SRC_Graphics_BIOS_vgatables_h */
+

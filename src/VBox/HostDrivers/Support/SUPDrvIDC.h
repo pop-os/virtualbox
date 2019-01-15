@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___SUPDrvIDC_h___
-#define ___SUPDrvIDC_h___
+#ifndef VBOX_INCLUDED_SRC_Support_SUPDrvIDC_h
+#define VBOX_INCLUDED_SRC_Support_SUPDrvIDC_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 
@@ -271,5 +274,5 @@ typedef DECLCALLBACK(int) FNSUPDRVIDCENTRY(PSUPDRVSESSION pSession, uint32_t uRe
 
 #pragma pack()                          /* paranoia */
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_Support_SUPDrvIDC_h */
 

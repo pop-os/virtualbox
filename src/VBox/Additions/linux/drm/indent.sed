@@ -2,7 +2,7 @@
 # VirtualBox to Linux kernel coding style conversion script.
 
 #
-# Copyright (C) 2017 Oracle Corporation
+# Copyright (C) 2017-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -251,7 +251,7 @@ s/\bulValue\b/value/g
 
 # Header file guard:
 s/__HGSMIChannels_h__/__HGSMI_CHANNELS_H__/g
-s/___VBox_Graphics_HGSMIChSetup_h/__HGSMI_CH_SETUP_H__/g
+s/VBOX_INCLUDED_Graphics_HGSMIChSetup_h/__HGSMI_CH_SETUP_H__/g
 
 # And move braces.  This must be the last expression as it jumps to the next
 # line.

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -52,8 +52,11 @@
  * $FreeBSD: src/lib/msun/i387/fenv.h,v 1.4 2005/03/17 22:21:46 das Exp $
  */
 
-#ifndef ___iprt_nocrt_x86_fenv_h
-#define ___iprt_nocrt_x86_fenv_h
+#ifndef IPRT_INCLUDED_nocrt_x86_fenv_h
+#define IPRT_INCLUDED_nocrt_x86_fenv_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 
@@ -124,13 +127,18 @@ extern const fenv_t __fe_dfl_env;
 
 #define __fldcw(__cw)       __asm __volatile("fldcw %0" : : "m" (__cw))
 #define __fldenv(__env)     __asm __volatile("fldenv %0" : : "m" (__env))
-#define __fnclex()      __asm __volatile("fnclex")
+#define __fnclex()          __asm __volatile("fnclex")
 #define __fnstenv(__env)    __asm __volatile("fnstenv %0" : "=m" (*(__env)))
 #define __fnstcw(__cw)      __asm __volatile("fnstcw %0" : "=m" (*(__cw)))
 #define __fnstsw(__sw)      __asm __volatile("fnstsw %0" : "=am" (*(__sw)))
-#define __fwait()       __asm __volatile("fwait")
+#define __fwait()           __asm __volatile("fwait")
 #define __ldmxcsr(__csr)    __asm __volatile("ldmxcsr %0" : : "m" (__csr))
 #define __stmxcsr(__csr)    __asm __volatile("stmxcsr %0" : "=m" (*(__csr)))
+
+#if RT_GNUC_PREREQ(4, 6)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wshadow"
+#endif
 
 DECLINLINE(int)
 feclearexcept(int __excepts)
@@ -255,6 +263,10 @@ fegetexcept(void)
     return (~__control & FE_ALL_EXCEPT);
 }
 
+#if RT_GNUC_PREREQ(4, 6)
+# pragma GCC diagnostic pop
+#endif
+
 RT_C_DECLS_END
 
 #ifndef RT_WIHTOUT_NOCRT_WRAPPERS
@@ -270,5 +282,5 @@ RT_C_DECLS_END
 # define fedisableexcept RT_NOCRT(fedisableexcept)
 #endif
 
-#endif  /* !__iprt_nocrt_x86_fenv_h__ */
+#endif /* !IPRT_INCLUDED_nocrt_x86_fenv_h */
 

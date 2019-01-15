@@ -9,6 +9,7 @@
 #include "cr_mem.h"
 #include "server_dispatch.h"
 #include "server.h"
+#include "cr_unpack.h"
 
 void * SERVER_DISPATCH_APIENTRY
 crServerDispatchMapBufferARB( GLenum target, GLenum access )
@@ -28,7 +29,7 @@ crServerDispatchGenBuffersARB(GLsizei n, GLuint *buffers)
     GLuint *local_buffers;
     (void) buffers;
 
-    if (n >= INT32_MAX / sizeof(GLuint))
+    if (n <= 0 || n >= INT32_MAX / sizeof(GLuint))
     {
         crError("crServerDispatchGenBuffersARB: parameter 'n' is out of range");
         return;
@@ -50,6 +51,12 @@ crServerDispatchGenBuffersARB(GLsizei n, GLuint *buffers)
 
 void SERVER_DISPATCH_APIENTRY crServerDispatchDeleteBuffersARB( GLsizei n, const GLuint * buffer )
 {
+    if (n <= 0 || n >= INT32_MAX / sizeof(GLuint) || !DATA_POINTER_CHECK(n * sizeof(GLuint)))
+    {
+        crError("glDeleteBuffersARB: parameter 'n' is out of range");
+        return;
+    }
+
     crStateDeleteBuffersARB( n, buffer );
 }
 
@@ -67,7 +74,14 @@ crServerDispatchGetBufferSubDataARB(GLenum target, GLintptrARB offset, GLsizeipt
 {
     void *b;
 
+    if (size <= 0 || size >= INT32_MAX / 2)
+    {
+        crError("crServerDispatchGetBufferSubDataARB: size is out of range");
+        return;
+    }
+
     b = crCalloc(size);
+
     if (b) {
         cr_server.head_spu->dispatch_table.GetBufferSubDataARB( target, offset, size, b );
 

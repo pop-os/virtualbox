@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,8 +14,12 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-#ifndef ___PATMPATCH_H
-#define ___PATMPATCH_H
+
+#ifndef VMM_INCLUDED_SRC_VMMR3_PATMPatch_h
+#define VMM_INCLUDED_SRC_VMMR3_PATMPatch_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 int patmPatchAddReloc32(PVM pVM, PPATCHINFO pPatch, uint8_t *pRelocHC, uint32_t uType, RTRCPTR pSource = 0, RTRCPTR pDest = 0);
 int patmPatchAddJump(PVM pVM, PPATCHINFO pPatch, uint8_t *pJumpHC, uint32_t offset, RTRCPTR pTargetGC, uint32_t opcode);
@@ -149,4 +153,4 @@ int patmPatchGenCheckIF(PVM pVM, PPATCHINFO pPatch, RTRCPTR pCurInstrGC);
  */
 int patmPatchGenGlobalFunctions(PVM pVM, PPATCHINFO pPatch);
 
-#endif
+#endif /* !VMM_INCLUDED_SRC_VMMR3_PATMPatch_h */

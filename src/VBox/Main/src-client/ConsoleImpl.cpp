@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2018 Oracle Corporation
+ * Copyright (C) 2005-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1176,7 +1176,7 @@ int Console::i_VRDPClientLogon(uint32_t u32ClientId, const char *pszUser, const 
 
             /** @todo r=dj locking required here for m_pVMMDev? */
             PPDMIVMMDEVPORT pDevPort;
-            if (    (m_pVMMDev)
+            if (    m_pVMMDev
                  && ((pDevPort = m_pVMMDev->getVMMDevPort()))
                )
             {
@@ -1194,14 +1194,15 @@ int Console::i_VRDPClientLogon(uint32_t u32ClientId, const char *pszUser, const 
 
                     if (RT_SUCCESS(rc))
                     {
-                        switch (u32GuestFlags & (VMMDEV_CREDENTIALS_JUDGE_OK | VMMDEV_CREDENTIALS_JUDGE_DENY |
-                                                 VMMDEV_CREDENTIALS_JUDGE_NOJUDGEMENT))
+                        switch (u32GuestFlags & (  VMMDEV_CREDENTIALS_JUDGE_OK
+                                                 | VMMDEV_CREDENTIALS_JUDGE_DENY
+                                                 | VMMDEV_CREDENTIALS_JUDGE_NOJUDGEMENT))
                         {
                             case VMMDEV_CREDENTIALS_JUDGE_DENY:        guestJudgement = AuthGuestAccessDenied;  break;
                             case VMMDEV_CREDENTIALS_JUDGE_NOJUDGEMENT: guestJudgement = AuthGuestNoJudgement;   break;
                             case VMMDEV_CREDENTIALS_JUDGE_OK:          guestJudgement = AuthGuestAccessGranted; break;
                             default:
-                                LogFlowFunc(("Invalid guest flags %08X!!!\n", u32GuestFlags)); break;
+                                LogFlowFunc(("Invalid guest flags %#08x!!!\n", u32GuestFlags)); break;
                         }
                     }
                     else

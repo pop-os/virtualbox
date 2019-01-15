@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2018 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___QIInputDialog_h___
-#define ___QIInputDialog_h___
+#ifndef FEQT_INCLUDED_SRC_extensions_QIInputDialog_h
+#define FEQT_INCLUDED_SRC_extensions_QIInputDialog_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QDialog>
@@ -83,4 +86,4 @@ private:
 /** Safe pointer to the QIInputDialog class. */
 typedef QPointer<QIInputDialog> QISafePointerInputDialog;
 
-#endif /* !___QIInputDialog_h___ */
+#endif /* !FEQT_INCLUDED_SRC_extensions_QIInputDialog_h */

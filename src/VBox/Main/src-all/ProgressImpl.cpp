@@ -1,11 +1,10 @@
 /* $Id: ProgressImpl.cpp $ */
 /** @file
- *
  * VirtualBox Progress COM class implementation
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN_PROGRESS
 #include <iprt/types.h>
-
 
 #if defined(VBOX_WITH_XPCOM)
 #include <nsIServiceManager.h>
@@ -32,16 +31,16 @@
 #endif
 #include "VirtualBoxErrorInfoImpl.h"
 
-#include "Logging.h"
-
 #include <iprt/time.h>
 #include <iprt/semaphore.h>
 #include <iprt/cpp/utils.h>
 
-#include <VBox/err.h>
-#include "AutoCaller.h"
+#include <iprt/errcore.h>
 
+#include "AutoCaller.h"
+#include "LoggingNew.h"
 #include "VBoxEvents.h"
+
 
 Progress::Progress()
 #if !defined(VBOX_COM_INPROC)

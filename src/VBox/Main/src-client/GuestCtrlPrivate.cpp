@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2018 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -34,7 +34,7 @@
 #include <iprt/ctype.h>
 #ifdef DEBUG
 # include <iprt/file.h>
-#endif /* DEBUG */
+#endif
 #include <iprt/fs.h>
 #include <iprt/rand.h>
 #include <iprt/time.h>

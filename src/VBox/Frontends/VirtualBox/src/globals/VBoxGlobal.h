@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBoxGlobal_h___
-#define ___VBoxGlobal_h___
+#ifndef FEQT_INCLUDED_SRC_globals_VBoxGlobal_h
+#define FEQT_INCLUDED_SRC_globals_VBoxGlobal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QFileIconProvider>
@@ -510,10 +513,10 @@ public:
         QUuid openMediumWithFileOpenDialog(UIMediumDeviceType enmMediumType, QWidget *pParent = 0,
                                              const QString &strDefaultFolder = QString(), bool fUseLastFolder = true);
 
-        /** Creates a VISO using the file-open dialog.
+        /** Creates a VISO by using the VISO creator dialog.
           * @param  pParent    Brings the dialog parent.
-          * @param  strFolder  Brings the folder to browse for VISO file contents. */
-        QUuid createVisoMediumWithFileOpenDialog(QWidget *pParent, const QString &strFolder);
+          * @param  strFolder  Brings the folder to save the VISO file. */
+        QUuid createVisoMediumWithVisoCreator(QWidget *pParent, const QString &strFolder);
 
         /** Creates and shows a dialog thru which user can create a new floppy disk a VISO using the file-open dialog.
           * @param  parent            Passes the parent of the dialog,
@@ -906,4 +909,4 @@ private:
 /** Singleton VBoxGlobal 'official' name. */
 inline VBoxGlobal &vboxGlobal() { return *VBoxGlobal::instance(); }
 
-#endif /* !___VBoxGlobal_h___ */
+#endif /* !FEQT_INCLUDED_SRC_globals_VBoxGlobal_h */

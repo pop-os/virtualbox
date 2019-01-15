@@ -31,6 +31,9 @@
 
 #ifndef _SVGA_ESCAPE_H_
 #define _SVGA_ESCAPE_H_
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 
 /*
@@ -86,4 +89,4 @@ struct {
    } monitorPosition;
 } SVGAEscapeHintFullscreen;
 
-#endif /* _SVGA_ESCAPE_H_ */
+#endif /* !_SVGA_ESCAPE_H_ */

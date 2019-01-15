@@ -1,11 +1,10 @@
 /* $Id: BIOSSettingsImpl.cpp $ */
 /** @file
- *
  * VirtualBox COM class implementation - Machine BIOS settings.
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,6 +15,7 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN_BIOSSETTINGS
 #include "BIOSSettingsImpl.h"
 #include "MachineImpl.h"
 #include "GuestOSTypeImpl.h"
@@ -25,7 +25,8 @@
 
 #include "AutoStateDep.h"
 #include "AutoCaller.h"
-#include "Logging.h"
+#include "LoggingNew.h"
+
 
 ////////////////////////////////////////////////////////////////////////////////
 //

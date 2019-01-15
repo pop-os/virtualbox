@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,43 +15,36 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QHeaderView>
-# include <QItemEditorFactory>
-# include <QMenu>
-# include <QMouseEvent>
-# include <QScrollBar>
-# include <QStylePainter>
-# include <QTimer>
-
-/* GUI includes: */
-# include "QIFileDialog.h"
-# include "QIMessageBox.h"
-# include "QIWidgetValidator.h"
-# include "VBoxGlobal.h"
-# include "UIIconPool.h"
-# include "UIWizardNewVD.h"
-# include "UIErrorString.h"
-# include "UIMessageCenter.h"
-# include "UIMachineSettingsStorage.h"
-# include "UIMediumSelector.h"
-# include "UIConverter.h"
-# include "UIMedium.h"
-# include "UIExtraDataManager.h"
-# include "UIModalWindowManager.h"
-
-/* COM includes: */
-# include "CStorageController.h"
-# include "CMediumAttachment.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include <QHeaderView>
+#include <QItemEditorFactory>
+#include <QMenu>
+#include <QMouseEvent>
+#include <QScrollBar>
+#include <QStylePainter>
+#include <QTimer>
 #include <QCommonStyle>
 #include <QMetaProperty>
+
+/* GUI includes: */
+#include "QIFileDialog.h"
+#include "QIMessageBox.h"
+#include "QIWidgetValidator.h"
+#include "VBoxGlobal.h"
+#include "UIIconPool.h"
+#include "UIWizardNewVD.h"
+#include "UIErrorString.h"
+#include "UIMessageCenter.h"
+#include "UIMachineSettingsStorage.h"
+#include "UIMediumSelector.h"
+#include "UIConverter.h"
+#include "UIMedium.h"
+#include "UIExtraDataManager.h"
+#include "UIModalWindowManager.h"
+
+/* COM includes: */
+#include "CStorageController.h"
+#include "CMediumAttachment.h"
 
 
 QString compressText (const QString &aText)
@@ -3804,6 +3797,7 @@ void UIMachineSettingsStorage::addAttachmentWrapper(KDeviceType enmDevice)
     const QString strMachineFolder(QFileInfo(m_strMachineSettingsFilePath).absolutePath());
 
     bool fCancelled = false;
+    bool fCreateEmpty = false;
     QUuid uMediumId;
     switch (enmDevice)
     {
@@ -3825,6 +3819,9 @@ void UIMachineSettingsStorage::addAttachmentWrapper(KDeviceType enmDevice)
             if (iAnswer == AlertButton_Choice2)
                 uMediumId = vboxGlobal().openMediumSelectorDialog(this, UIMediumDeviceType_DVD,
                                                                   m_strMachineName, m_strMachineSettingsFilePath);
+            /* For optical medium we allow creating an empty drive: */
+            else if (iAnswer == AlertButton_Choice1)
+                fCreateEmpty = true;
             else if (iAnswer == AlertButton_Cancel)
                 fCancelled = true;
             break;
@@ -3835,6 +3832,9 @@ void UIMachineSettingsStorage::addAttachmentWrapper(KDeviceType enmDevice)
             if (iAnswer == AlertButton_Choice2)
                 uMediumId = vboxGlobal().openMediumSelectorDialog(this, UIMediumDeviceType_Floppy,
                                                                   m_strMachineName, m_strMachineSettingsFilePath);
+            /* We allow creating an empty floppy drive: */
+            else if (iAnswer == AlertButton_Choice1)
+                fCreateEmpty = true;
             else if (iAnswer == AlertButton_Cancel)
                 fCancelled = true;
             break;
@@ -3842,7 +3842,7 @@ void UIMachineSettingsStorage::addAttachmentWrapper(KDeviceType enmDevice)
         default: break; /* Shut up, MSC! */
     }
 
-    if (!fCancelled && !uMediumId.isNull())
+    if (!fCancelled && (!uMediumId.isNull() || fCreateEmpty))
     {
         m_pModelStorage->addAttachment(QUuid(m_pModelStorage->data(index, StorageModel::R_ItemId).toString()), enmDevice, uMediumId);
         m_pModelStorage->sort();

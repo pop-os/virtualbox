@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,26 +19,20 @@
  * This class is based on the original QLabel implementation.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QApplication>
-# include <QClipboard>
-# include <QContextMenuEvent>
-# include <QDrag>
-# include <QFocusEvent>
-# include <QMenu>
-# include <QMimeData>
-# include <QMouseEvent>
-# include <QPainter>
-# include <QStyleOptionFocusRect>
+#include <QApplication>
+#include <QClipboard>
+#include <QContextMenuEvent>
+#include <QDrag>
+#include <QFocusEvent>
+#include <QMenu>
+#include <QMimeData>
+#include <QMouseEvent>
+#include <QPainter>
+#include <QStyleOptionFocusRect>
 
 /* GUI includes: */
-# include "QILabel.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "QILabel.h"
 
 /* Type definitions: */
 #define HOR_PADDING 1

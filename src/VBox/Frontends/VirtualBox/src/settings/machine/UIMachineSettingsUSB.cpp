@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,45 +15,35 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QHeaderView>
-# include <QHelpEvent>
-# include <QMenu>
-# include <QToolTip>
+#include <QHeaderView>
+#include <QHelpEvent>
+#include <QMenu>
+#include <QToolTip>
 
 /* GUI includes: */
-# include "QIWidgetValidator.h"
-# include "UIConverter.h"
-# include "UIIconPool.h"
-# include "UIMachineSettingsUSB.h"
-# include "UIMachineSettingsUSBFilterDetails.h"
-# include "UIErrorString.h"
-# include "UIToolBar.h"
-# include "VBoxGlobal.h"
+#include "QIWidgetValidator.h"
+#include "UIConverter.h"
+#include "UIIconPool.h"
+#include "UIMachineSettingsUSB.h"
+#include "UIMachineSettingsUSBFilterDetails.h"
+#include "UIErrorString.h"
+#include "UIToolBar.h"
+#include "VBoxGlobal.h"
 
 /* COM includes: */
-# include "CConsole.h"
-# include "CExtPack.h"
-# include "CExtPackManager.h"
-# include "CHostUSBDevice.h"
-# include "CHostUSBDeviceFilter.h"
-# include "CUSBController.h"
-# include "CUSBDevice.h"
-# include "CUSBDeviceFilter.h"
-# include "CUSBDeviceFilters.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CConsole.h"
+#include "CExtPack.h"
+#include "CExtPackManager.h"
+#include "CHostUSBDevice.h"
+#include "CHostUSBDeviceFilter.h"
+#include "CUSBController.h"
+#include "CUSBDevice.h"
+#include "CUSBDeviceFilter.h"
+#include "CUSBDeviceFilters.h"
 
 /* VirtualBox interface declarations: */
-#ifndef VBOX_WITH_XPCOM
-# include "VirtualBox.h"
-#else /* !VBOX_WITH_XPCOM */
-# include "VirtualBox_XPCOM.h"
-#endif /* VBOX_WITH_XPCOM */
+#include <VBox/com/VirtualBox.h>
 
 
 /** Machine settings: USB filter data structure. */

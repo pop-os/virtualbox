@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,6 +25,13 @@ void crUnpackExtendWindowVisibleRegion( void )
 {
     GLint window = READ_DATA( 8, GLint );
     GLint cRects = READ_DATA( 12, GLint );
-    GLvoid *pRects = DATA_POINTER( 16, GLvoid );;
+    GLvoid *pRects = DATA_POINTER( 16, GLvoid );
+
+    if (cRects <= 0 || cRects >= INT32_MAX / sizeof(GLint) / 8 || !DATA_POINTER_CHECK(16 + 4 * cRects * sizeof(GLint)))
+    {
+        crError("crUnpackExtendWindowVisibleRegion: parameter 'cRects' is out of range");
+        return;
+    }
+
     cr_unpackDispatch.WindowVisibleRegion( window, cRects, pRects );
 }

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,9 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-
-#ifndef ___internal_r3_win_h
-#define ___internal_r3_win_h
+#ifndef IPRT_INCLUDED_SRC_r3_win_internal_r3_win_h
+#define IPRT_INCLUDED_SRC_r3_win_internal_r3_win_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "internal/iprt.h"
 #include <iprt/types.h>
@@ -108,7 +110,7 @@ typedef NTSTATUS (NTAPI *PFNNTQUERYFULLATTRIBUTESFILE)(struct _OBJECT_ATTRIBUTES
 extern DECLHIDDEN(PFNNTQUERYFULLATTRIBUTESFILE) g_pfnNtQueryFullAttributesFile;
 typedef NTSTATUS (NTAPI *PFNNTDUPLICATETOKEN)(HANDLE, ACCESS_MASK, struct _OBJECT_ATTRIBUTES *, BOOLEAN, TOKEN_TYPE, PHANDLE);
 extern DECLHIDDEN(PFNNTDUPLICATETOKEN)             g_pfnNtDuplicateToken;
-#ifdef ___iprt_nt_nt_h___
+#ifdef IPRT_INCLUDED_nt_nt_h
 extern decltype(NtAlertThread)                    *g_pfnNtAlertThread;
 #endif
 
@@ -206,5 +208,5 @@ extern DECLHIDDEN(PFNWINSOCKGETHOSTBYNAME)         g_pfngethostbyname;
 #endif
 
 
-#endif
+#endif /* !IPRT_INCLUDED_SRC_r3_win_internal_r3_win_h */
 

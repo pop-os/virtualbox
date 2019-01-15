@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2018 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIWizard_h___
-#define ___UIWizard_h___
+#ifndef FEQT_INCLUDED_SRC_wizards_UIWizard_h
+#define FEQT_INCLUDED_SRC_wizards_UIWizard_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QPointer>
@@ -116,4 +119,4 @@ private:
 /** Wizard interface safe-pointer. */
 typedef QPointer<UIWizard> UISafePointerWizard;
 
-#endif /* !___UIWizard_h___ */
+#endif /* !FEQT_INCLUDED_SRC_wizards_UIWizard_h */

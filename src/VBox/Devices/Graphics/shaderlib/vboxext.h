@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBOXEXT_H___
-#define ___VBOXEXT_H___
+#ifndef VBOX_INCLUDED_SRC_Graphics_shaderlib_vboxext_h
+#define VBOX_INCLUDED_SRC_Graphics_shaderlib_vboxext_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #ifdef VBOX_WINE_WITHOUT_LIBWINE
 # ifdef _MSC_VER
@@ -160,5 +163,5 @@ DECLINLINE(void) VBoxExtCacheTerm(PVBOXEXT_HASHCACHE pCache)
     VBoxExtCacheCleanup(pCache);
 }
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_Graphics_shaderlib_vboxext_h */
 

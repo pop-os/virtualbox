@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,14 +23,17 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_string_h
-#define ___iprt_string_h
+#ifndef IPRT_INCLUDED_string_h
+#define IPRT_INCLUDED_string_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
 #include <iprt/assert.h>
 #include <iprt/stdarg.h>
-#include <iprt/err.h> /* for VINF_SUCCESS */
+#include <iprt/errcore.h> /* for VINF_SUCCESS */
 #if defined(RT_OS_LINUX) && defined(__KERNEL__)
   /* no C++ hacks ('new' etc) here anymore! */
 # include <linux/string.h>
@@ -64,10 +67,6 @@
 #else
 # include <string.h>
 #endif
-
-/* For the time being: */
-#include <iprt/utf16.h>
-#include <iprt/latin1.h>
 
 /*
  * Supply prototypes for standard string functions provided by
@@ -3319,5 +3318,5 @@ RTDECL(uint32_t)    RTStrHash1ExNV(size_t cPairs, va_list va);
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !IPRT_INCLUDED_string_h */
 

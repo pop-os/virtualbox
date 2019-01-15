@@ -1,12 +1,12 @@
+/* $Id: utils.c $ */
 /** @file
+ * vboxsf - VBox Linux Shared Folders VFS, utility functions.
  *
- * vboxsf -- VirtualBox Guest Additions for Linux:
- * Utility functions.
- * Mainly conversion from/to VirtualBox/Linux data structures
+ * Utility functions (mainly conversion from/to VirtualBox/Linux data structures).
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -32,6 +32,7 @@
 
 #include "vfsmod.h"
 #include <iprt/asm.h>
+#include <iprt/err.h>
 #include <linux/nfs_fs.h>
 #include <linux/vfs.h>
 

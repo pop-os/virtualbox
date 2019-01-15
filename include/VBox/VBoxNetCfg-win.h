@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_VBoxNetCfg_win_h
-#define ___VBox_VBoxNetCfg_win_h
+#ifndef VBOX_INCLUDED_VBoxNetCfg_win_h
+#define VBOX_INCLUDED_VBoxNetCfg_win_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /*
  * Defining VBOXNETCFG_DELAYEDRENAME postpones renaming of host-only adapter
@@ -125,5 +128,5 @@ RT_C_DECLS_END
 
 /** @} */
 
-#endif
+#endif /* !VBOX_INCLUDED_VBoxNetCfg_win_h */
 

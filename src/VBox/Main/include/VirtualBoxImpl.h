@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_VIRTUALBOXIMPL
-#define ____H_VIRTUALBOXIMPL
+#ifndef MAIN_INCLUDED_VirtualBoxImpl_h
+#define MAIN_INCLUDED_VirtualBoxImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "VirtualBoxBase.h"
 #include "objectslist.h"
@@ -149,6 +152,10 @@ public:
     int i_loadVDPlugin(const char *pszPluginLibrary);
     int i_unloadVDPlugin(const char *pszPluginLibrary);
 
+    void i_onMediumRegistered(const Guid &aMediumId, const DeviceType_T aDevType, const BOOL aRegistered);
+    void i_onMediumConfigChanged(IMedium *aMedium);
+    void i_onMediumChanged(IMediumAttachment* aMediumAttachment);
+    void i_onStorageDeviceChanged(IMediumAttachment* aStorageDevice, const BOOL fRemoved, const BOOL fSilent);
     void i_onMachineStateChange(const Guid &aId, MachineState_T aState);
     void i_onMachineDataChange(const Guid &aId, BOOL aTemporary = FALSE);
     BOOL i_onExtraDataCanChange(const Guid &aId, IN_BSTR aKey, IN_BSTR aValue,
@@ -420,5 +427,5 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#endif // !____H_VIRTUALBOXIMPL
+#endif /* !MAIN_INCLUDED_VirtualBoxImpl_h */
 

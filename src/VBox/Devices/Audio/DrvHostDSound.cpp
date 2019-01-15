@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,6 +27,7 @@
 #include <iprt/alloc.h>
 #include <iprt/system.h>
 #include <iprt/uuid.h>
+#include <iprt/utf16.h>
 
 #include "DrvAudio.h"
 #include "VBoxDD.h"

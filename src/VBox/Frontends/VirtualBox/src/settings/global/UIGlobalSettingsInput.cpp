@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,33 +15,28 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QAbstractItemDelegate>
-# include <QHeaderView>
-# include <QItemEditorFactory>
-# include <QTabWidget>
+#include <QAbstractItemDelegate>
+#include <QHeaderView>
+#include <QItemEditorFactory>
+#include <QTabWidget>
 
 /* GUI includes: */
-# include "QIStyledItemDelegate.h"
-# include "QITableView.h"
-# include "QIWidgetValidator.h"
-# include "VBoxGlobal.h"
-# include "UIActionPool.h"
-# include "UIGlobalSettingsInput.h"
-# include "UIHostComboEditor.h"
-# include "UIHotKeyEditor.h"
-# include "UIShortcutPool.h"
-# include "UIExtraDataManager.h"
-# include "UIMessageCenter.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "QIStyledItemDelegate.h"
+#include "QITableView.h"
+#include "QIWidgetValidator.h"
+#include "VBoxGlobal.h"
+#include "UIActionPool.h"
+#include "UIGlobalSettingsInput.h"
+#include "UIHostComboEditor.h"
+#include "UIHotKeyEditor.h"
+#include "UIShortcutPool.h"
+#include "UIExtraDataManager.h"
+#include "UIMessageCenter.h"
 
 /* Qt includes: */
 #include <QShortcut>
+
 
 /* Namespaces: */
 using namespace UIExtraDataDefs;

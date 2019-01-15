@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_MACHINEIMPL
-#define ____H_MACHINEIMPL
+#ifndef MAIN_INCLUDED_MachineImpl_h
+#define MAIN_INCLUDED_MachineImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "AuthLibrary.h"
 #include "VirtualBoxBase.h"
@@ -284,6 +287,8 @@ public:
         BOOL                mIBPBOnVMEntry;
         BOOL                mSpecCtrl;
         BOOL                mSpecCtrlByHost;
+        BOOL                mL1DFlushOnSched;
+        BOOL                mL1DFlushOnVMEntry;
         BOOL                mNestedHWVirt;
         ULONG               mCPUCount;
         BOOL                mCPUHotPlugEnabled;
@@ -1586,5 +1591,5 @@ inline const Guid &Machine::i_getSnapshotId() const
 }
 
 
-#endif // ____H_MACHINEIMPL
+#endif /* !MAIN_INCLUDED_MachineImpl_h */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

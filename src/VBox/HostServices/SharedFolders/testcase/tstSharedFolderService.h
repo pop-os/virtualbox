@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,8 +14,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __VBSF_TEST_SHARED_FOLDER_SERVICE__H
-#define __VBSF_TEST_SHARED_FOLDER_SERVICE__H
+#ifndef VBOX_INCLUDED_SRC_SharedFolders_testcase_tstSharedFolderService_h
+#define VBOX_INCLUDED_SRC_SharedFolders_testcase_tstSharedFolderService_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Grumble... if the coding style let us use the anonymous "struct RTTESTINT *"
  * instead of "PRTTEST" here we wouldn't need to unnecessarily include this. */
@@ -124,4 +127,4 @@ void testSetStatusLed(RTTEST hTest);
 void testSetStatusLedBadParameters(RTTEST hTest);
 #endif
 
-#endif /* __VBSF_TEST_SHARED_FOLDER_SERVICE__H */
+#endif /* !VBOX_INCLUDED_SRC_SharedFolders_testcase_tstSharedFolderService_h */

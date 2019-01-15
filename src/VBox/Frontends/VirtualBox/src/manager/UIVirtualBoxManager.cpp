@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,63 +15,57 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QMenuBar>
-# include <QResizeEvent>
-# include <QStandardPaths>
-# include <QStatusBar>
+#include <QMenuBar>
+#include <QResizeEvent>
+#include <QStandardPaths>
+#include <QStatusBar>
 //# include <QToolButton>
 
 /* GUI includes: */
-# include "QIFileDialog.h"
-# include "UIActionPoolManager.h"
-# include "UICloudProfileManager.h"
-# include "UIDesktopServices.h"
-# include "UIExtraDataManager.h"
-# include "UIHostNetworkManager.h"
-# include "UIMedium.h"
-# include "UIMediumManager.h"
-# include "UIMessageCenter.h"
-# include "UIModalWindowManager.h"
-# include "UIVirtualBoxManager.h"
-# include "UIVirtualBoxManagerWidget.h"
-# include "UISettingsDialogSpecific.h"
-# include "UIVMLogViewerDialog.h"
-# include "UIVirtualMachineItem.h"
-# ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-#  include "UIUpdateManager.h"
-# endif
-# include "UIVirtualBoxEventHandler.h"
-# include "UIWizardCloneVM.h"
-# include "UIWizardExportApp.h"
-# include "UIWizardImportApp.h"
-# ifdef VBOX_WS_MAC
-#  include "UIImageTools.h"
-#  include "UIWindowMenuManager.h"
-#  include "VBoxUtils.h"
-# endif
-# ifdef VBOX_WS_X11
-#  include "UIDesktopWidgetWatchdog.h"
-# endif
-# ifndef VBOX_WS_MAC
-#  include "UIMenuBar.h"
-# endif
+#include "QIFileDialog.h"
+#include "UIActionPoolManager.h"
+#include "UICloudProfileManager.h"
+#include "UIDesktopServices.h"
+#include "UIExtraDataManager.h"
+#include "UIHostNetworkManager.h"
+#include "UIMedium.h"
+#include "UIMediumManager.h"
+#include "UIMessageCenter.h"
+#include "UIModalWindowManager.h"
+#include "UIVirtualBoxManager.h"
+#include "UIVirtualBoxManagerWidget.h"
+#include "UISettingsDialogSpecific.h"
+#include "UIVMLogViewerDialog.h"
+#include "UIVirtualMachineItem.h"
+#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+# include "UIUpdateManager.h"
+#endif
+#include "UIVirtualBoxEventHandler.h"
+#include "UIWizardCloneVM.h"
+#include "UIWizardExportApp.h"
+#include "UIWizardImportApp.h"
+#ifdef VBOX_WS_MAC
+# include "UIImageTools.h"
+# include "UIWindowMenuManager.h"
+# include "VBoxUtils.h"
+#endif
+#ifdef VBOX_WS_X11
+# include "UIDesktopWidgetWatchdog.h"
+#endif
+#ifndef VBOX_WS_MAC
+# include "UIMenuBar.h"
+#endif
 
 /* COM includes: */
-# include "CSystemProperties.h"
+#include "CSystemProperties.h"
 
 /* Other VBox stuff: */
-# include <iprt/buildconfig.h>
-# include <VBox/version.h>
-# ifdef VBOX_WS_X11
-#  include <iprt/env.h>
-# endif /* VBOX_WS_X11 */
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include <iprt/buildconfig.h>
+#include <VBox/version.h>
+#ifdef VBOX_WS_X11
+# include <iprt/env.h>
+#endif /* VBOX_WS_X11 */
 
 
 /* static */
@@ -1053,6 +1047,13 @@ void UIVirtualBoxManager::sltPerformPowerOffMachine()
     }
 }
 
+void UIVirtualBoxManager::sltPerformShowMachineTool(QAction *pAction)
+{
+    AssertPtrReturnVoid(pAction);
+    AssertPtrReturnVoid(m_pWidget);
+    m_pWidget->setToolsType(pAction->property("UIToolType").value<UIToolType>());
+}
+
 void UIVirtualBoxManager::sltOpenLogViewerWindow()
 {
     /* Get selected items: */
@@ -1449,6 +1450,14 @@ void UIVirtualBoxManager::prepareConnections()
             this, &UIVirtualBoxManager::sltPerformShutdownMachine);
     connect(actionPool()->action(UIActionIndexST_M_Machine_M_Close_S_PowerOff), &UIAction::triggered,
             this, &UIVirtualBoxManager::sltPerformPowerOffMachine);
+
+    /* 'Group/Tools' menu connections: */
+    connect(actionPool()->actionGroup(UIActionIndexST_M_Group_M_Tools), &QActionGroup::triggered,
+            this, &UIVirtualBoxManager::sltPerformShowMachineTool);
+
+    /* 'Machine/Tools' menu connections: */
+    connect(actionPool()->actionGroup(UIActionIndexST_M_Machine_M_Tools), &QActionGroup::triggered,
+            this, &UIVirtualBoxManager::sltPerformShowMachineTool);
 }
 
 void UIVirtualBoxManager::loadSettings()
@@ -1477,6 +1486,13 @@ void UIVirtualBoxManager::saveSettings()
         LogRel2(("GUI: UIVirtualBoxManager: Geometry saved as: Origin=%dx%d, Size=%dx%d\n",
                  m_geometry.x(), m_geometry.y(), m_geometry.width(), m_geometry.height()));
     }
+}
+
+void UIVirtualBoxManager::cleanupConnections()
+{
+    /* Honestly we should disconnect everything here,
+     * but for now it's enough to disconnect the most critical. */
+    m_pWidget->disconnect(this);
 }
 
 void UIVirtualBoxManager::cleanupWidgets()
@@ -1510,6 +1526,7 @@ void UIVirtualBoxManager::cleanup()
     saveSettings();
 
     /* Cleanup: */
+    cleanupConnections();
     cleanupWidgets();
     cleanupMenuBar();
 }
@@ -1732,6 +1749,34 @@ void UIVirtualBoxManager::updateActionsAppearance()
     actionPool()->action(UIActionIndexST_M_Machine_T_Pause)->setChecked(pFirstStartedAction && UIVirtualMachineItem::isItemPaused(pFirstStartedAction));
     actionPool()->action(UIActionIndexST_M_Machine_T_Pause)->retranslateUi();
     actionPool()->action(UIActionIndexST_M_Machine_T_Pause)->blockSignals(false);
+
+    /* Update action toggle states: */
+    if (m_pWidget)
+    {
+        switch (m_pWidget->currentMachineTool())
+        {
+            case UIToolType_Details:
+            {
+                actionPool()->action(UIActionIndexST_M_Group_M_Tools_T_Details)->setChecked(true);
+                actionPool()->action(UIActionIndexST_M_Machine_M_Tools_T_Details)->setChecked(true);
+                break;
+            }
+            case UIToolType_Snapshots:
+            {
+                actionPool()->action(UIActionIndexST_M_Group_M_Tools_T_Snapshots)->setChecked(true);
+                actionPool()->action(UIActionIndexST_M_Machine_M_Tools_T_Snapshots)->setChecked(true);
+                break;
+            }
+            case UIToolType_Logs:
+            {
+                actionPool()->action(UIActionIndexST_M_Group_M_Tools_T_Logs)->setChecked(true);
+                actionPool()->action(UIActionIndexST_M_Machine_M_Tools_T_Logs)->setChecked(true);
+                break;
+            }
+            default:
+                break;
+        }
+    }
 }
 
 bool UIVirtualBoxManager::isActionEnabled(int iActionIndex, const QList<UIVirtualMachineItem*> &items)

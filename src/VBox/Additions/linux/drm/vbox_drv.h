@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  * This file is based on ast_drv.h
  * Copyright 2012 Red Hat Inc.
  *
@@ -32,8 +32,12 @@
  *          Michael Thayer <michael.thayer@oracle.com,
  *          Hans de Goede <hdegoede@redhat.com>
  */
-#ifndef __VBOX_DRV_H__
-#define __VBOX_DRV_H__
+
+#ifndef GA_INCLUDED_SRC_linux_drm_vbox_drv_h
+#define GA_INCLUDED_SRC_linux_drm_vbox_drv_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <linux/version.h>
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
@@ -418,4 +422,4 @@ static inline void vbox_write_ioport(u16 index, u16 data)
 	outw(data, VBE_DISPI_IOPORT_DATA);
 }
 
-#endif
+#endif /* !GA_INCLUDED_SRC_linux_drm_vbox_drv_h */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBox_Virtio_h
-#define ___VBox_Virtio_h
+#ifndef VBOX_INCLUDED_SRC_VirtIO_Virtio_h
+#define VBOX_INCLUDED_SRC_VirtIO_Virtio_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/ctype.h>
 
@@ -328,4 +331,4 @@ DECLINLINE(bool) vqueueIsEmpty(PVPCISTATE pState, PVQUEUE pQueue)
     return (vringReadAvailIndex(pState, &pQueue->VRing) == pQueue->uNextAvailIndex);
 }
 
-#endif /* !___VBox_Virtio_h */
+#endif /* !VBOX_INCLUDED_SRC_VirtIO_Virtio_h */

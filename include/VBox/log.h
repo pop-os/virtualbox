@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_log_h
-#define ___VBox_log_h
+#ifndef VBOX_INCLUDED_log_h
+#define VBOX_INCLUDED_log_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /*
  * Set the default loggroup.
@@ -1244,4 +1247,4 @@ typedef enum LOGGROUP
 }
 
 /** @} */
-#endif
+#endif /* !VBOX_INCLUDED_log_h */

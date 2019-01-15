@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,12 +23,17 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_pdmdev_h
-#define ___VBox_vmm_pdmdev_h
+#ifndef VBOX_INCLUDED_vmm_pdmdev_h
+#define VBOX_INCLUDED_vmm_pdmdev_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/vmm/pdmqueue.h>
 #include <VBox/vmm/pdmcritsect.h>
-#include <VBox/vmm/pdmthread.h>
+#ifdef IN_RING3
+# include <VBox/vmm/pdmthread.h>
+#endif
 #include <VBox/vmm/pdmifs.h>
 #include <VBox/vmm/pdmins.h>
 #include <VBox/vmm/pdmcommon.h>
@@ -38,9 +43,7 @@
 #include <VBox/vmm/ssm.h>
 #include <VBox/vmm/cfgm.h>
 #include <VBox/vmm/dbgf.h>
-#include <VBox/err.h>
-#include <VBox/pci.h>
-#include <VBox/sup.h>
+#include <VBox/err.h>  /* VINF_EM_DBG_STOP, also 120+ source files expecting this. */
 #include <iprt/stdarg.h>
 
 
@@ -5425,4 +5428,4 @@ typedef DECLCALLBACK(int) FNPDMVBOXDEVICESREGISTER(PPDMDEVREGCB pCallbacks, uint
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_pdmdev_h */

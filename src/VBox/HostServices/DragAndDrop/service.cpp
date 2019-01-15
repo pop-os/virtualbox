@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2018 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,19 +24,17 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#ifdef LOG_GROUP
- #undef LOG_GROUP
-#endif
 #define LOG_GROUP LOG_GROUP_GUEST_DND
-
-#include <algorithm>
-#include <list>
-#include <map>
-
 #include <VBox/GuestHost/DragAndDrop.h>
 #include <VBox/GuestHost/DragAndDropDefs.h>
 #include <VBox/HostServices/Service.h>
 #include <VBox/HostServices/DragAndDropSvc.h>
+
+#include <VBox/err.h>
+
+#include <algorithm>
+#include <list>
+#include <map>
 
 #include "dndmanager.h"
 

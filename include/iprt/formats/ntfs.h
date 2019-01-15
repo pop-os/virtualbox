@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_formats_ntfs_h
-#define ___iprt_formats_ntfs_h
+#ifndef IPRT_INCLUDED_formats_ntfs_h
+#define IPRT_INCLUDED_formats_ntfs_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/formats/fat.h>
 
@@ -72,9 +75,9 @@ typedef union NTFSMFTREF
     struct
     {
         /** Index of the master file table record. */
-        uint64_t        idxMft : 48;
+        RT_GCC_EXTENSION uint64_t idxMft : 48;
         /** MFT record reuse sequence number (for catching dangling references). */
-        uint64_t        uRecReuseSeqNo : 16;
+        RT_GCC_EXTENSION uint64_t uRecReuseSeqNo : 16;
     } s;
 } NTFSMFTREF;
 AssertCompileSize(NTFSMFTREF, 8);
@@ -763,5 +766,5 @@ typedef NTFSIDXENTRYHDR const *PCNTFSIDXENTRYHDR;
 
 /** @} */
 
-#endif
+#endif /* !IPRT_INCLUDED_formats_ntfs_h */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -31,6 +31,7 @@
 #include <iprt/uuid.h>
 #include <iprt/path.h>
 #include <iprt/string.h>
+#include <iprt/utf16.h>
 
 #include "VDBackends.h"
 
@@ -329,8 +330,7 @@ static int vhdLocatorUpdate(PVHDIMAGE pImage, PVHDPLE pLocator, const char *pszF
             {
                 /* Convert to relative path. */
                 char szPath[RTPATH_MAX];
-                rc = RTPathCalcRelative(szPath, sizeof(szPath), pImage->pszFilename,
-                                        pszFilename);
+                rc = RTPathCalcRelative(szPath, sizeof(szPath), pImage->pszFilename, true /*fFromFile*/, pszFilename);
                 if (RT_SUCCESS(rc))
                 {
                     /* Update plain relative name. */
@@ -372,8 +372,7 @@ static int vhdLocatorUpdate(PVHDIMAGE pImage, PVHDPLE pLocator, const char *pszF
             {
                 /* Convert to relative path. */
                 char szPath[RTPATH_MAX];
-                rc = RTPathCalcRelative(szPath, sizeof(szPath), pImage->pszFilename,
-                                        pszFilename);
+                rc = RTPathCalcRelative(szPath, sizeof(szPath), pImage->pszFilename, true /*fFromFile*/, pszFilename);
                 if (RT_SUCCESS(rc))
                     rc = vhdFilenameToUtf16(szPath, (uint16_t *)pvBuf, cbMaxLen, &cb, false);
             }

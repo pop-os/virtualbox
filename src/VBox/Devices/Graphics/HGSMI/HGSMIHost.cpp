@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -66,7 +66,7 @@
 #include <iprt/string.h>
 
 #include <VBox/AssertGuest.h>
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 #define LOG_GROUP LOG_GROUP_HGSMI
 #include <VBox/log.h>
 #include <VBox/vmm/ssm.h>

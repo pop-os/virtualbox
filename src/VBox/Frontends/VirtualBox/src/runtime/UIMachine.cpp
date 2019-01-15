@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,31 +15,26 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UIExtraDataManager.h"
-# include "UIMachine.h"
-# include "UISession.h"
-# include "UIActionPoolRuntime.h"
-# include "UIMachineLogic.h"
-# include "UIMachineWindow.h"
-# include "UIMessageCenter.h"
+#include "VBoxGlobal.h"
+#include "UIExtraDataManager.h"
+#include "UIMachine.h"
+#include "UISession.h"
+#include "UIActionPoolRuntime.h"
+#include "UIMachineLogic.h"
+#include "UIMachineWindow.h"
+#include "UIMessageCenter.h"
 
 /* COM includes: */
-# include "CMachine.h"
-# include "CSession.h"
-# include "CConsole.h"
-# include "CSnapshot.h"
-# include "CProgress.h"
+#include "CMachine.h"
+#include "CSession.h"
+#include "CConsole.h"
+#include "CSnapshot.h"
+#include "CProgress.h"
 
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 /* static */
-UIMachine* UIMachine::m_spInstance = 0;
+UIMachine *UIMachine::m_spInstance = 0;
 
 /* static */
 bool UIMachine::startMachine(const QUuid &uID)

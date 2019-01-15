@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,31 +15,23 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QDir>
-# include <QHeaderView>
-# include <QPainter>
-# include <QTranslator>
+#include <QDir>
+#include <QHeaderView>
+#include <QPainter>
+#include <QTranslator>
 
 /* GUI includes: */
-# include "UIGlobalSettingsLanguage.h"
-# include "UIExtraDataManager.h"
-# include "UIMessageCenter.h"
-# include "VBoxGlobal.h"
+#include "UIGlobalSettingsLanguage.h"
+#include "UIExtraDataManager.h"
+#include "UIMessageCenter.h"
+#include "VBoxGlobal.h"
 
 /* Other VBox includes: */
-# include <iprt/param.h>
-# include <iprt/path.h>
-# include <VBox/version.h>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-/* Other VBox includes: */
-#include <iprt/err.h>
+#include <iprt/errcore.h>
+#include <iprt/param.h>
+#include <iprt/path.h>
+#include <VBox/version.h>
 
 
 /** Global settings: Language page data structure. */

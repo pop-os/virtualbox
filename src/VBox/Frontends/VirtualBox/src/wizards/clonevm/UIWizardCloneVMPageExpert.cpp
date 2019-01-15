@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,25 +15,19 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Global includes: */
-# include <QButtonGroup>
-# include <QCheckBox>
-# include <QGridLayout>
-# include <QGroupBox>
-# include <QLabel>
-# include <QRadioButton>
+#include <QButtonGroup>
+#include <QCheckBox>
+#include <QGridLayout>
+#include <QGroupBox>
+#include <QLabel>
+#include <QRadioButton>
 
 /* Local includes: */
-# include "QILineEdit.h"
-# include "UIFilePathSelector.h"
-# include "UIWizardCloneVMPageExpert.h"
-# include "UIWizardCloneVM.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "QILineEdit.h"
+#include "UIFilePathSelector.h"
+#include "UIWizardCloneVMPageExpert.h"
+#include "UIWizardCloneVM.h"
 
 
 UIWizardCloneVMPageExpert::UIWizardCloneVMPageExpert(const QString &strOriginalName, const QString &strDefaultPath,

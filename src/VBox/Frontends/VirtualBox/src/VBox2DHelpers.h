@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBox2DHelpers_h___
-#define ___VBox2DHelpers_h___
+#ifndef FEQT_INCLUDED_SRC_VBox2DHelpers_h
+#define FEQT_INCLUDED_SRC_VBox2DHelpers_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #if defined(VBOX_GUI_USE_QGL) || defined(VBOX_WITH_VIDEOHWACCEL)
 
@@ -35,4 +38,4 @@ namespace VBox2DHelpers
 
 #endif /* VBOX_GUI_USE_QGL || VBOX_WITH_VIDEOHWACCEL */
 
-#endif /* !___VBox2DHelpers_h___ */
+#endif /* !FEQT_INCLUDED_SRC_VBox2DHelpers_h */

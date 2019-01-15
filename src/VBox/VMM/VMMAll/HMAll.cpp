@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,7 +27,7 @@
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/hm_vmx.h>
 #include <VBox/vmm/hm_svm.h>
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 #include <VBox/log.h>
 #include <iprt/param.h>
 #include <iprt/assert.h>
@@ -71,7 +71,7 @@ VMMDECL(bool) HMCanExecuteGuest(PVMCPU pVCpu, PCCPUMCTX pCtx)
 
 #ifdef VBOX_WITH_NESTED_HWVIRT_ONLY_IN_IEM
     if (   CPUMIsGuestInSvmNestedHwVirtMode(pCtx)
-        || CPUMIsGuestVmxEnabled(pCtx))
+        || CPUMIsGuestInVmxNonRootMode(pCtx))
     {
         LogFunc(("In nested-guest mode - returning false"));
         return false;
@@ -575,4 +575,56 @@ VMM_INT_DECL(void) HMHCPagingModeChanged(PVM pVM, PVMCPU pVCpu, PGMMODE enmShado
           PGMGetModeName(enmShadowMode)));
 }
 #endif /* !IN_RC */
+
+
+/**
+ * Gets VMX MSRs from the provided hardware-virtualization MSRs struct.
+ *
+ * This abstraction exists to allow insultation of the support driver from including
+ * VMX structures from HM headers.
+ *
+ * @param   pHwvirtMsrs     The hardware-virtualization MSRs.
+ * @param   pVmxMsrs        Where to store the VMX MSRs.
+ */
+VMM_INT_DECL(void) HMVmxGetVmxMsrsFromHwvirtMsrs(PCSUPHWVIRTMSRS pHwvirtMsrs, PVMXMSRS pVmxMsrs)
+{
+    AssertReturnVoid(pHwvirtMsrs);
+    AssertReturnVoid(pVmxMsrs);
+    pVmxMsrs->u64FeatCtrl      = pHwvirtMsrs->u.vmx.u64FeatCtrl;
+    pVmxMsrs->u64Basic         = pHwvirtMsrs->u.vmx.u64Basic;
+    pVmxMsrs->PinCtls.u        = pHwvirtMsrs->u.vmx.u64PinCtls;
+    pVmxMsrs->ProcCtls.u       = pHwvirtMsrs->u.vmx.u64ProcCtls;
+    pVmxMsrs->ProcCtls2.u      = pHwvirtMsrs->u.vmx.u64ProcCtls2;
+    pVmxMsrs->ExitCtls.u       = pHwvirtMsrs->u.vmx.u64ExitCtls;
+    pVmxMsrs->EntryCtls.u      = pHwvirtMsrs->u.vmx.u64EntryCtls;
+    pVmxMsrs->TruePinCtls.u    = pHwvirtMsrs->u.vmx.u64TruePinCtls;
+    pVmxMsrs->TrueProcCtls.u   = pHwvirtMsrs->u.vmx.u64TrueProcCtls;
+    pVmxMsrs->TrueEntryCtls.u  = pHwvirtMsrs->u.vmx.u64TrueEntryCtls;
+    pVmxMsrs->TrueExitCtls.u   = pHwvirtMsrs->u.vmx.u64TrueExitCtls;
+    pVmxMsrs->u64Misc          = pHwvirtMsrs->u.vmx.u64Misc;
+    pVmxMsrs->u64Cr0Fixed0     = pHwvirtMsrs->u.vmx.u64Cr0Fixed0;
+    pVmxMsrs->u64Cr0Fixed1     = pHwvirtMsrs->u.vmx.u64Cr0Fixed1;
+    pVmxMsrs->u64Cr4Fixed0     = pHwvirtMsrs->u.vmx.u64Cr4Fixed0;
+    pVmxMsrs->u64Cr4Fixed1     = pHwvirtMsrs->u.vmx.u64Cr4Fixed1;
+    pVmxMsrs->u64VmcsEnum      = pHwvirtMsrs->u.vmx.u64VmcsEnum;
+    pVmxMsrs->u64VmFunc        = pHwvirtMsrs->u.vmx.u64VmFunc;
+    pVmxMsrs->u64EptVpidCaps   = pHwvirtMsrs->u.vmx.u64EptVpidCaps;
+}
+
+
+/**
+ * Gets SVM MSRs from the provided hardware-virtualization MSRs struct.
+ *
+ * This abstraction exists to allow insultation of the support driver from including
+ * SVM structures from HM headers.
+ *
+ * @param   pHwvirtMsrs     The hardware-virtualization MSRs.
+ * @param   pSvmMsrs        Where to store the SVM MSRs.
+ */
+VMM_INT_DECL(void) HMVmxGetSvmMsrsFromHwvirtMsrs(PCSUPHWVIRTMSRS pHwvirtMsrs, PSVMMSRS pSvmMsrs)
+{
+    AssertReturnVoid(pHwvirtMsrs);
+    AssertReturnVoid(pSvmMsrs);
+    pSvmMsrs->u64MsrHwcr = pHwvirtMsrs->u.svm.u64MsrHwcr;
+}
 

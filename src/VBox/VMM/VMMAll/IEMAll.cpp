@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -100,6 +100,9 @@
 #ifdef VBOX_WITH_NESTED_HWVIRT_SVM
 # include <VBox/vmm/em.h>
 # include <VBox/vmm/hm_svm.h>
+#endif
+#ifdef VBOX_WITH_NESTED_HWVIRT_VMX
+# include <VBox/vmm/hmvmxinline.h>
 #endif
 #include <VBox/vmm/tm.h>
 #include <VBox/vmm/dbgf.h>

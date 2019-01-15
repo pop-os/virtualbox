@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,38 +15,29 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QGraphicsSceneContextMenuEvent>
-# include <QMenu>
-# include <QPainter>
-# include <QStyle>
-# include <QTimer>
+#include <QGraphicsSceneContextMenuEvent>
+#include <QMenu>
+#include <QPainter>
+#include <QStyle>
+#include <QTimer>
 
 /* GUI includes: */
-# include "UIMachinePreview.h"
-# include "UIVirtualBoxEventHandler.h"
-# include "UIExtraDataManager.h"
-# include "UIImageTools.h"
-# include "UIConverter.h"
-# include "UIIconPool.h"
-# include "VBoxGlobal.h"
+#include "UIMachinePreview.h"
+#include "UIVirtualBoxEventHandler.h"
+#include "UIExtraDataManager.h"
+#include "UIImageTools.h"
+#include "UIConverter.h"
+#include "UIIconPool.h"
+#include "VBoxGlobal.h"
 
 /* COM includes: */
-# include "CConsole.h"
-# include "CDisplay.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CConsole.h"
+#include "CDisplay.h"
 
 /* VirtualBox interface declarations: */
-#ifndef VBOX_WITH_XPCOM
-# include "VirtualBox.h"
-#else /* !VBOX_WITH_XPCOM */
-# include "VirtualBox_XPCOM.h"
-#endif /* VBOX_WITH_XPCOM */
+#include <VBox/com/VirtualBox.h>
+
 
 UIMachinePreview::UIMachinePreview(QIGraphicsWidget *pParent)
     : QIWithRetranslateUI4<QIGraphicsWidget>(pParent)

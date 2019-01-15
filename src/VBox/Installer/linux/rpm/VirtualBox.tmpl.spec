@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2017 Oracle Corporation
+# Copyright (C) 2006-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -43,6 +43,13 @@ Requires:  %INITSCRIPTS% %LIBASOUND% %NETTOOLS%
 # our Qt5 libs are built on EL5 with ld 2.17 which does not provide --link-id=
 %undefine _missing_build_ids_terminate_build
 
+# Remove source code from debuginfo package, needed for Fedora 27 and later
+# as we build the binaries before creating the RPMs.
+
+%if 0%{?fedora} >= 27
+%undefine _debugsource_packages
+%undefine _debuginfo_subpackages
+%endif
 
 %description
 VirtualBox is a powerful PC virtualization solution allowing
@@ -141,6 +148,8 @@ for i in additions/VBoxGuestAdditions.iso; do
   mv $i $RPM_BUILD_ROOT/usr/share/virtualbox; done
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VirtualBox
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/virtualbox
+ln -s VBox $RPM_BUILD_ROOT/usr/bin/VirtualBoxVM
+ln -s VBox $RPM_BUILD_ROOT/usr/bin/virtualboxvm
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxManage
 ln -s VBox $RPM_BUILD_ROOT/usr/bin/vboxmanage
 test -f VBoxSDL && ln -s VBox $RPM_BUILD_ROOT/usr/bin/VBoxSDL

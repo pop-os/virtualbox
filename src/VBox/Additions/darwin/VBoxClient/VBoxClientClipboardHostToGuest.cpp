@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,12 @@
 #include <signal.h>
 #include <stdlib.h>
 
-#include <iprt/thread.h>
-#include <iprt/mem.h>
-#include <iprt/stream.h>
 #include <iprt/initterm.h>
+#include <iprt/mem.h>
 #include <iprt/message.h>
+#include <iprt/stream.h>
+#include <iprt/thread.h>
+#include <iprt/utf16.h>
 #include <VBox/VBoxGuestLib.h>
 #include <VBox/HostServices/VBoxClipboardSvc.h>
 #include <VBox/GuestHost/clipboard-helper.h>

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -30,13 +30,16 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef ___VBox_VMMDevCoreTypes_h
-#define ___VBox_VMMDevCoreTypes_h
+#ifndef VBOX_INCLUDED_VMMDevCoreTypes_h
+#define VBOX_INCLUDED_VMMDevCoreTypes_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/assertcompile.h>
 #include <iprt/types.h>
 #ifdef __cplusplus
-# include <iprt/err.h>
+# include <iprt/errcore.h>
 #endif
 
 
@@ -269,9 +272,9 @@ typedef enum
     VMMDevHGCMParmType_LinAddr            = 4,  /**< In and Out */
     VMMDevHGCMParmType_LinAddr_In         = 5,  /**< In  (read;  host<-guest) */
     VMMDevHGCMParmType_LinAddr_Out        = 6,  /**< Out (write; host->guest) */
-    VMMDevHGCMParmType_LinAddr_Locked     = 7,  /**< Locked In and Out */
-    VMMDevHGCMParmType_LinAddr_Locked_In  = 8,  /**< Locked In  (read;  host<-guest) */
-    VMMDevHGCMParmType_LinAddr_Locked_Out = 9,  /**< Locked Out (write; host->guest) */
+    VMMDevHGCMParmType_LinAddr_Locked     = 7,  /**< Locked In and Out - for VBoxGuest, not host. */
+    VMMDevHGCMParmType_LinAddr_Locked_In  = 8,  /**< Locked In  (read;  host<-guest) - for VBoxGuest, not host. */
+    VMMDevHGCMParmType_LinAddr_Locked_Out = 9,  /**< Locked Out (write; host->guest) - for VBoxGuest, not host. */
     VMMDevHGCMParmType_PageList           = 10, /**< Physical addresses of locked pages for a buffer. */
     VMMDevHGCMParmType_Embedded           = 11, /**< Small buffer embedded in request. */
     VMMDevHGCMParmType_ContiguousPageList = 12, /**< Like PageList but with physically contiguous memory, so only one page entry. */
@@ -305,8 +308,13 @@ typedef struct
         } Pointer;
         struct
         {
-            uint32_t size;      /**< Size of the buffer described by the page list. */
-            uint32_t offset;    /**< Relative to the request header of a HGCMPageListInfo structure, valid if size != 0. */
+            uint32_t  cb;
+            RTGCPTR32 uAddr;
+        } LinAddr;                      /**< Shorter version of the above Pointer structure. */
+        struct
+        {
+            uint32_t size;              /**< Size of the buffer described by the page list. */
+            uint32_t offset;            /**< Relative to the request header of a HGCMPageListInfo structure, valid if size != 0. */
         } PageList;
         struct
         {
@@ -384,8 +392,13 @@ typedef struct
         } Pointer;
         struct
         {
-            uint32_t size;   /**< Size of the buffer described by the page list. */
-            uint32_t offset; /**< Relative to the request header, valid if size != 0. */
+            uint32_t  cb;
+            RTGCPTR64 uAddr;
+        } LinAddr;                      /**< Shorter version of the above Pointer structure. */
+        struct
+        {
+            uint32_t size;              /**< Size of the buffer described by the page list. */
+            uint32_t offset;            /**< Relative to the request header, valid if size != 0. */
         } PageList;
         struct
         {
@@ -478,8 +491,13 @@ typedef struct
         } Pointer;
         struct
         {
-            uint32_t size;   /**< Size of the buffer described by the page list. */
-            uint32_t offset; /**< Relative to the request header, valid if size != 0. */
+            uint32_t  cb;
+            RTGCPTR32 uAddr;
+        } LinAddr;                      /**< Shorter version of the above Pointer structure. */
+        struct
+        {
+            uint32_t size;              /**< Size of the buffer described by the page list. */
+            uint32_t offset;            /**< Relative to the request header, valid if size != 0. */
         } PageList;
         struct
         {
@@ -536,5 +554,5 @@ AssertCompileSize(HGCMFunctionParameter, 4+8);
 
 /** @} */
 
-#endif
+#endif /* !VBOX_INCLUDED_VMMDevCoreTypes_h */
 

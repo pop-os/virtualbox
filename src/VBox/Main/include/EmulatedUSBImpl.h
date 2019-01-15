@@ -1,12 +1,10 @@
 /* $Id: EmulatedUSBImpl.h $ */
-
 /** @file
- *
  * Emulated USB devices manager.
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef EMULATEDUSB_IMPL_H_
-#define EMULATEDUSB_IMPL_H_
+#ifndef MAIN_INCLUDED_EmulatedUSBImpl_h
+#define MAIN_INCLUDED_EmulatedUSBImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "EmulatedUSBWrap.h"
 
@@ -80,6 +81,6 @@ private:
     Data m;
 };
 
-#endif // EMULATEDUSB_IMPL_H_
+#endif /* !MAIN_INCLUDED_EmulatedUSBImpl_h */
 
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

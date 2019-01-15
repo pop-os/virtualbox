@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___XKeyboard_h___
-#define ___XKeyboard_h___
+#ifndef FEQT_INCLUDED_SRC_platform_x11_XKeyboard_h
+#define FEQT_INCLUDED_SRC_platform_x11_XKeyboard_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "UILibraryDefs.h"
@@ -38,5 +41,5 @@ SHARED_LIBRARY_STUFF void doXKeyboardLogging(Display *pDisplay);
 SHARED_LIBRARY_STUFF unsigned long wrapXkbKeycodeToKeysym(Display *pDisplay, unsigned char cCode,
                                                           unsigned int cGroup, unsigned int cIndex);
 
-#endif /* !___XKeyboard_h___ */
+#endif /* !FEQT_INCLUDED_SRC_platform_x11_XKeyboard_h */
 

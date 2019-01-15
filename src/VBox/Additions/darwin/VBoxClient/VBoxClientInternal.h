@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBoxClientInternal_h
-#define ___VBoxClientInternal_h
+#ifndef GA_INCLUDED_SRC_darwin_VBoxClient_VBoxClientInternal_h
+#define GA_INCLUDED_SRC_darwin_VBoxClient_VBoxClientInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/VBoxGuestLib.h>
 #include <Carbon/Carbon.h>
@@ -96,4 +99,4 @@ extern int vbclClipboardForwardToGuest(uint32_t u32ClientId, PasteboardRef pPast
  */
 extern int vbclClipboardForwardToHost(uint32_t u32ClientId, PasteboardRef pPasteboard, uint32_t fFormats);
 
-#endif /* ___VBoxClientInternal_h */
+#endif /* !GA_INCLUDED_SRC_darwin_VBoxClient_VBoxClientInternal_h */

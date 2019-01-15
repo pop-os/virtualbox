@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2018 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_VIRTUALBOXSDSIMPL
-#define ____H_VIRTUALBOXSDSIMPL
+#ifndef MAIN_INCLUDED_VirtualBoxSDSImpl_h
+#define MAIN_INCLUDED_VirtualBoxSDSImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "VirtualBoxBase.h"
 
@@ -133,5 +136,5 @@ private:
 void VBoxSDSNotifyClientCount(uint32_t cClients);
 #endif
 
-#endif // !____H_VIRTUALBOXSDSIMPL
+#endif /* !MAIN_INCLUDED_VirtualBoxSDSImpl_h */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

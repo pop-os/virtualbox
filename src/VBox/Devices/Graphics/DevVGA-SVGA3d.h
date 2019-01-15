@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___DEVVMWARE3D_H___
-#define ___DEVVMWARE3D_H___
+#ifndef VBOX_INCLUDED_SRC_Graphics_DevVGA_SVGA3d_h
+#define VBOX_INCLUDED_SRC_Graphics_DevVGA_SVGA3d_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "vmsvga/svga3d_reg.h"
 #include "vmsvga/svga_escape.h"
@@ -224,5 +227,5 @@ const char *vmsvgaSurfaceType2String(SVGA3dSurfaceFormat format);
 const char *vmsvga3dPrimitiveType2String(SVGA3dPrimitiveType PrimitiveType);
 #endif
 
-#endif  /* !___DEVVMWARE3D_H___ */
+#endif /* !VBOX_INCLUDED_SRC_Graphics_DevVGA_SVGA3d_h */
 

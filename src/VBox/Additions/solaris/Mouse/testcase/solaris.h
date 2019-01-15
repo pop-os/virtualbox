@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBoxGuestTestCaseSolaris_h
-#define ___VBoxGuestTestCaseSolaris_h
+#ifndef GA_INCLUDED_SRC_solaris_Mouse_testcase_solaris_h
+#define GA_INCLUDED_SRC_solaris_Mouse_testcase_solaris_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/assert.h>
 #include <iprt/string.h>  /* RT_ZERO */
@@ -438,4 +441,4 @@ static inline unsigned getmajor(dev_t device)
 
 /* API stubs with controllable logic */
 
-#endif  /* ___VBoxGuestTestCaseSolaris_h */
+#endif /* !GA_INCLUDED_SRC_solaris_Mouse_testcase_solaris_h */

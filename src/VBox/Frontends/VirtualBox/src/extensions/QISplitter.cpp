@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2018 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,21 +15,15 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QApplication>
-# include <QEvent>
-# include <QPainter>
-# include <QPaintEvent>
+#include <QApplication>
+#include <QEvent>
+#include <QPainter>
+#include <QPaintEvent>
 
 /* GUI includes: */
-# include "QISplitter.h"
-# include "VBoxGlobal.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "QISplitter.h"
+#include "VBoxGlobal.h"
 
 
 /** QSplitterHandle subclass representing flat line. */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,9 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-
-#ifndef ___testcase_tstRTR0CommonReq_h
-#define ___testcase_tstRTR0CommonReq_h
+#ifndef IPRT_INCLUDED_SRC_testcase_tstRTR0CommonReq_h
+#define IPRT_INCLUDED_SRC_testcase_tstRTR0CommonReq_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/sup.h>
 
@@ -53,5 +55,5 @@ typedef RTTSTR0REQ *PRTTSTR0REQ;
 #define RTTSTR0REQ_FIRST_USER       10
 /** @}  */
 
-#endif
+#endif /* !IPRT_INCLUDED_SRC_testcase_tstRTR0CommonReq_h */
 

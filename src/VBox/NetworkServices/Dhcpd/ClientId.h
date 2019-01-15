@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2018 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef _DHCPD_CLIENT_ID_H_
-#define _DHCPD_CLIENT_ID_H_
+#ifndef VBOX_INCLUDED_SRC_Dhcpd_ClientId_h
+#define VBOX_INCLUDED_SRC_Dhcpd_ClientId_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "Defs.h"
 #include <iprt/net.h>
@@ -64,4 +67,4 @@ inline bool operator!=(const ClientId &l, const ClientId &r)
     return !(l == r);
 }
 
-#endif /* _DHCPD_CLIENT_ID_H_ */
+#endif /* !VBOX_INCLUDED_SRC_Dhcpd_ClientId_h */

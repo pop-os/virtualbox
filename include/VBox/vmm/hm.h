@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_hm_h
-#define ___VBox_vmm_hm_h
+#ifndef VBOX_INCLUDED_vmm_hm_h
+#define VBOX_INCLUDED_vmm_hm_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/cpum.h>
@@ -136,7 +139,13 @@ VMM_INT_DECL(bool)              HMIsVmxActive(PVM pVM);
 VMM_INT_DECL(bool)              HMIsVmxSupported(PVM pVM);
 VMM_INT_DECL(const char *)      HMVmxGetDiagDesc(VMXVDIAG enmDiag);
 VMM_INT_DECL(const char *)      HMVmxGetAbortDesc(VMXABORT enmAbort);
+VMM_INT_DECL(const char *)      HMVmxGetVmcsStateDesc(uint8_t fVmcsState);
+VMM_INT_DECL(const char *)      HMVmxGetIdtVectoringInfoTypeDesc(uint8_t uType);
+VMM_INT_DECL(const char *)      HMVmxGetExitIntInfoTypeDesc(uint8_t uType);
+VMM_INT_DECL(const char *)      HMVmxGetEntryIntInfoTypeDesc(uint8_t uType);
 VMM_INT_DECL(void)              HMHCPagingModeChanged(PVM pVM, PVMCPU pVCpu, PGMMODE enmShadowMode, PGMMODE enmGuestMode);
+VMM_INT_DECL(void)              HMVmxGetVmxMsrsFromHwvirtMsrs(PCSUPHWVIRTMSRS pMsrs, PVMXMSRS pVmxMsrs);
+VMM_INT_DECL(void)              HMVmxGetSvmMsrsFromHwvirtMsrs(PCSUPHWVIRTMSRS pMsrs, PSVMMSRS pSvmMsrs);
 /** @} */
 
 /** @name All-context VMX helpers.
@@ -145,8 +154,6 @@ VMM_INT_DECL(void)              HMHCPagingModeChanged(PVM pVM, PVMCPU pVCpu, PGM
  * based purely on the Intel VT-x specification (used by IEM/REM and HM) can be
  * found in CPUM.
  * @{ */
-VMM_INT_DECL(int)               HMVmxGetHostMsrs(PVM pVM, PVMXMSRS pVmxMsrs);
-VMM_INT_DECL(int)               HMVmxGetHostMsr(PVM pVM, uint32_t idMsr, uint64_t *puValue);
 VMM_INT_DECL(bool)              HMVmxCanExecuteGuest(PVMCPU pVCpu, PCCPUMCTX pCtx);
 VMM_INT_DECL(int)               HMVmxEntryIntInfoInjectTrpmEvent(PVMCPU pVCpu, uint32_t uEntryIntInfo, uint32_t uErrCode,
                                                                  uint32_t cbInstr, RTGCUINTPTR GCPtrFaultAddress);
@@ -284,5 +291,5 @@ VMMR3DECL(const char *)         HMR3GetSvmExitName(uint32_t uExit);
 RT_C_DECLS_END
 
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_hm_h */
 

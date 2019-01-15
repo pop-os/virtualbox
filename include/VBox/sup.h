@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,12 +23,14 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_sup_h
-#define ___VBox_sup_h
+#ifndef VBOX_INCLUDED_sup_h
+#define VBOX_INCLUDED_sup_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
-#include <VBox/err.h>
 #include <iprt/assert.h>
 #include <iprt/stdarg.h>
 #include <iprt/cpuset.h>
@@ -106,6 +108,50 @@ typedef enum SUPPAGINGMODE
 /** GDT is read-only but the writable GDT can be fetched by SUPR0GetCurrentGdtRw(). */
 #define SUPKERNELFEATURES_GDT_NEED_WRITABLE   RT_BIT(2)
 /** @} */
+
+
+/**
+ * Hardware-virtualization MSRs.
+ */
+typedef struct SUPHWVIRTMSRS
+{
+    union
+    {
+        struct
+        {
+            uint64_t        u64FeatCtrl;
+            uint64_t        u64Basic;
+            uint64_t        u64PinCtls;
+            uint64_t        u64ProcCtls;
+            uint64_t        u64ProcCtls2;
+            uint64_t        u64ExitCtls;
+            uint64_t        u64EntryCtls;
+            uint64_t        u64TruePinCtls;
+            uint64_t        u64TrueProcCtls;
+            uint64_t        u64TrueEntryCtls;
+            uint64_t        u64TrueExitCtls;
+            uint64_t        u64Misc;
+            uint64_t        u64Cr0Fixed0;
+            uint64_t        u64Cr0Fixed1;
+            uint64_t        u64Cr4Fixed0;
+            uint64_t        u64Cr4Fixed1;
+            uint64_t        u64VmcsEnum;
+            uint64_t        u64VmFunc;
+            uint64_t        u64EptVpidCaps;
+            uint64_t        a_u64Reserved[9];
+        } vmx;
+        struct
+        {
+            uint64_t        u64MsrHwcr;
+            uint64_t        u64Padding[27];
+        }svm;
+    } u;
+} SUPHWVIRTMSRS;
+AssertCompileSize(SUPHWVIRTMSRS, 224);
+/** Pointer to a hardware-virtualization MSRs struct. */
+typedef SUPHWVIRTMSRS *PSUPHWVIRTMSRS;
+/** Pointer to a hardware-virtualization MSRs struct. */
+typedef const SUPHWVIRTMSRS *PCSUPHWVIRTMSRS;
 
 
 /**
@@ -1837,6 +1883,16 @@ SUPR3DECL(int) SUPR3GipSetFlags(uint32_t fOrMask, uint32_t fAndMask);
  */
 SUPR3DECL(int) SUPR3QueryMicrocodeRev(uint32_t *puMicrocodeRev);
 
+/**
+ * Gets hardware-virtualization MSRs of the CPU, if available.
+ *
+ * @returns VINF_SUCCESS if available, error code indicating why if not.
+ * @param   pHwvirtMsrs     Where to store the hardware-virtualization MSRs.
+ * @param   fForceRequery   Whether to force complete re-querying of MSRs (rather
+ *                          than fetching cached values when available).
+ */
+SUPR3DECL(int) SUPR3GetHwvirtMsrs(PSUPHWVIRTMSRS pHwvirtMsrs, bool fForceRequery);
+
 /** @} */
 #endif /* IN_RING3 */
 
@@ -1919,6 +1975,7 @@ SUPR0DECL(int) SUPR0PageProtect(PSUPDRVSESSION pSession, RTR3PTR pvR3, RTR0PTR p
 SUPR0DECL(int) SUPR0PageFree(PSUPDRVSESSION pSession, RTR3PTR pvR3);
 SUPR0DECL(int) SUPR0GipMap(PSUPDRVSESSION pSession, PRTR3PTR ppGipR3, PRTHCPHYS pHCPhysGip);
 SUPR0DECL(int) SUPR0GetVTSupport(uint32_t *pfCaps);
+SUPR0DECL(int) SUPR0GetHwvirtMsrs(PSUPHWVIRTMSRS pMsrs, uint32_t fCaps, bool fForce);
 SUPR0DECL(int) SUPR0GetSvmUsability(bool fInitSvm);
 SUPR0DECL(int) SUPR0GetVmxUsability(bool *pfIsSmxModeAmbiguous);
 SUPR0DECL(int) SUPR0GetRawModeUsability(void);
@@ -2460,5 +2517,5 @@ extern const unsigned               g_cbSUPBuildCert;
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_sup_h */
 

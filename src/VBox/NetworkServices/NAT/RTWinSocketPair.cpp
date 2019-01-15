@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,9 +18,9 @@
 #include <iprt/asm.h>
 #include <iprt/assert.h>
 #include <iprt/cdefs.h>
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 
 #include <iprt/win/winsock2.h>
 #include <iprt/win/windows.h>

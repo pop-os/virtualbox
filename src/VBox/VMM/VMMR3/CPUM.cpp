@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -787,7 +787,7 @@ static void cpumR3CheckLeakyFpu(PVM pVM)
             {
                 for (VMCPUID i = 0; i < pVM->cCpus; i++)
                     pVM->aCpus[i].cpum.s.fUseFlags |= CPUM_USE_FFXSR_LEAKY;
-                Log(("CPUMR3Init: host CPU has leaky fxsave/fxrstor behaviour\n"));
+                Log(("CPUM: Host CPU has leaky fxsave/fxrstor behaviour\n"));
             }
         }
     }
@@ -801,7 +801,7 @@ static void cpumR3CheckLeakyFpu(PVM pVM)
  */
 static void cpumR3FreeSvmHwVirtState(PVM pVM)
 {
-    Assert(pVM->cpum.ro.GuestFeatures.fSvm);
+    Assert(pVM->cpum.s.GuestFeatures.fSvm);
     for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
@@ -835,7 +835,7 @@ static void cpumR3FreeSvmHwVirtState(PVM pVM)
  */
 static int cpumR3AllocSvmHwVirtState(PVM pVM)
 {
-    Assert(pVM->cpum.ro.GuestFeatures.fSvm);
+    Assert(pVM->cpum.s.GuestFeatures.fSvm);
 
     int rc = VINF_SUCCESS;
     LogRel(("CPUM: Allocating %u pages for the nested-guest SVM MSR and IO permission bitmaps\n",
@@ -901,11 +901,11 @@ static int cpumR3AllocSvmHwVirtState(PVM pVM)
 
 
 /**
- * Initializes (or re-initializes) per-VCPU SVM hardware virtualization state.
+ * Resets per-VCPU SVM hardware virtualization state.
  *
  * @param   pVCpu   The cross context virtual CPU structure.
  */
-DECLINLINE(void) cpumR3InitSvmHwVirtState(PVMCPU pVCpu)
+DECLINLINE(void) cpumR3ResetSvmHwVirtState(PVMCPU pVCpu)
 {
     PCPUMCTX pCtx = &pVCpu->cpum.s.Guest;
     Assert(pCtx->hwvirt.enmHwvirt == CPUMHWVIRT_SVM);
@@ -924,7 +924,7 @@ DECLINLINE(void) cpumR3InitSvmHwVirtState(PVMCPU pVCpu)
  */
 static void cpumR3FreeVmxHwVirtState(PVM pVM)
 {
-    Assert(pVM->cpum.ro.GuestFeatures.fVmx);
+    Assert(pVM->cpum.s.GuestFeatures.fVmx);
     for (VMCPUID i = 0; i < pVM->cCpus; i++)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
@@ -1113,11 +1113,11 @@ static int cpumR3AllocVmxHwVirtState(PVM pVM)
 
 
 /**
- * Initializes (or re-initializes) per-VCPU VMX hardware virtualization state.
+ * Resets per-VCPU VMX hardware virtualization state.
  *
  * @param   pVCpu   The cross context virtual CPU structure.
  */
-DECLINLINE(void) cpumR3InitVmxHwVirtState(PVMCPU pVCpu)
+DECLINLINE(void) cpumR3ResetVmxHwVirtState(PVMCPU pVCpu)
 {
     PCPUMCTX pCtx = &pVCpu->cpum.s.Guest;
     Assert(pCtx->hwvirt.enmHwvirt == CPUMHWVIRT_VMX);
@@ -1156,8 +1156,6 @@ DECLCALLBACK(void) cpumR3InfoVmxFeatures(PVM pVM, PCDBGFINFOHLP pHlp, const char
         pHlp->pfnPrintf(pHlp, "Nested hardware virtualization - VMX features\n");
         pHlp->pfnPrintf(pHlp, "  Mnemonic - Description                                  = guest (host)\n");
         VMXFEATDUMP("VMX - Virtual-Machine Extensions                       ", fVmx);
-        if (!pGuestFeatures->fVmx)
-            return;
         /* Basic. */
         VMXFEATDUMP("InsOutInfo - INS/OUTS instruction info.                ", fVmxInsOutInfo);
         /* Pin-based controls. */
@@ -1225,7 +1223,7 @@ DECLCALLBACK(void) cpumR3InfoVmxFeatures(PVM pVM, PCDBGFINFOHLP pHlp, const char
         /* Miscellaneous data. */
         VMXFEATDUMP("ExitSaveEferLma - Save EFER.LMA on VM-exit             ", fVmxExitSaveEferLma);
         VMXFEATDUMP("IntelPt - Intel PT (Processor Trace) in VMX operation  ", fVmxIntelPt);
-        VMXFEATDUMP("VmwriteAll - Inject softint. with 0-len instr.         ", fVmxVmwriteAll);
+        VMXFEATDUMP("VmwriteAll - Write allowed to read-only VMCS fields    ", fVmxVmwriteAll);
         VMXFEATDUMP("EntryInjectSoftInt - Inject softint. with 0-len instr. ", fVmxEntryInjectSoftInt);
 #undef VMXFEATDUMP
     }
@@ -1235,205 +1233,46 @@ DECLCALLBACK(void) cpumR3InfoVmxFeatures(PVM pVM, PCDBGFINFOHLP pHlp, const char
 
 
 /**
- * Checks whether VMX nested-guest may be executed using hardware-assisted VMX (e.g,
- * using HM or NEM).
+ * Checks whether nested-guest execution using hardware-assisted VMX (e.g, using HM
+ * or NEM) is allowed.
  *
- * @returns @c true if hardware-assisted VMX nested-guest is allowed, @c false
- *        otherwise.
+ * @returns @c true if hardware-assisted nested-guest execution is allowed, @c false
+ *          otherwise.
  * @param   pVM     The cross context VM structure.
  */
-static bool cpumR3IsHwAssistVmxNstGstExecAllowed(PVM pVM)
+static bool cpumR3IsHwAssistNstGstExecAllowed(PVM pVM)
 {
     AssertMsg(pVM->bMainExecutionEngine != VM_EXEC_ENGINE_NOT_SET, ("Calling this function too early!\n"));
 #ifndef VBOX_WITH_NESTED_HWVIRT_ONLY_IN_IEM
     if (   pVM->bMainExecutionEngine == VM_EXEC_ENGINE_HW_VIRT
         || pVM->bMainExecutionEngine == VM_EXEC_ENGINE_NATIVE_API)
         return true;
+#else
+    NOREF(pVM);
 #endif
     return false;
 }
 
 
 /**
- * Initializes the guest VMX MSRs from guest-CPU features.
+ * Initializes the VMX guest MSRs from guest CPU features based on the host MSRs.
  *
- * @param   pVM     The cross context VM structure.
+ * @param   pVM             The cross context VM structure.
+ * @param   pHostVmxMsrs    The host VMX MSRs. Pass NULL when fully emulating VMX
+ *                          and no hardware-assisted nested-guest execution is
+ *                          possible for this VM.
+ * @param   pGuestFeatures  The guest features to use (only VMX features are
+ *                          accessed).
+ * @param   pGuestVmxMsrs   Where to store the initialized guest VMX MSRs.
+ *
+ * @remarks This function ASSUMES the VMX guest-features are already exploded!
  */
-static void cpumR3InitGuestVmxMsrs(PVM pVM)
+static void cpumR3InitVmxGuestMsrs(PVM pVM, PCVMXMSRS pHostVmxMsrs, PCCPUMFEATURES pGuestFeatures, PVMXMSRS pGuestVmxMsrs)
 {
-    PVMCPU         pVCpu0    = &pVM->aCpus[0];
-    PCCPUMFEATURES pFeatures = &pVM->cpum.s.GuestFeatures;
-    PVMXMSRS       pVmxMsrs  = &pVCpu0->cpum.s.Guest.hwvirt.vmx.Msrs;
+    bool const fIsNstGstHwExecAllowed = cpumR3IsHwAssistNstGstExecAllowed(pVM);
 
-    Assert(pFeatures->fVmx);
-    RT_ZERO(*pVmxMsrs);
-
-    /* Feature control. */
-    pVmxMsrs->u64FeatCtrl = MSR_IA32_FEATURE_CONTROL_LOCK | MSR_IA32_FEATURE_CONTROL_VMXON;
-
-    /* Basic information. */
-    {
-        uint64_t const u64Basic = RT_BF_MAKE(VMX_BF_BASIC_VMCS_ID,         VMX_V_VMCS_REVISION_ID   )
-                                | RT_BF_MAKE(VMX_BF_BASIC_VMCS_SIZE,       VMX_V_VMCS_SIZE          )
-                                | RT_BF_MAKE(VMX_BF_BASIC_PHYSADDR_WIDTH,  !pFeatures->fLongMode    )
-                                | RT_BF_MAKE(VMX_BF_BASIC_DUAL_MON,        0                        )
-                                | RT_BF_MAKE(VMX_BF_BASIC_VMCS_MEM_TYPE,   VMX_BASIC_MEM_TYPE_WB    )
-                                | RT_BF_MAKE(VMX_BF_BASIC_VMCS_INS_OUTS,   pFeatures->fVmxInsOutInfo)
-                                | RT_BF_MAKE(VMX_BF_BASIC_TRUE_CTLS,       0                        );
-        pVmxMsrs->u64Basic = u64Basic;
-    }
-
-    /* Pin-based VM-execution controls. */
-    {
-        uint32_t const fFeatures = (pFeatures->fVmxExtIntExit   << VMX_BF_PIN_CTLS_EXT_INT_EXIT_SHIFT )
-                                 | (pFeatures->fVmxNmiExit      << VMX_BF_PIN_CTLS_NMI_EXIT_SHIFT     )
-                                 | (pFeatures->fVmxVirtNmi      << VMX_BF_PIN_CTLS_VIRT_NMI_SHIFT     )
-                                 | (pFeatures->fVmxPreemptTimer << VMX_BF_PIN_CTLS_PREEMPT_TIMER_SHIFT)
-                                 | (pFeatures->fVmxPostedInt    << VMX_BF_PIN_CTLS_POSTED_INT_SHIFT   );
-        uint32_t const fAllowed0 = VMX_PIN_CTLS_DEFAULT1;
-        uint32_t const fAllowed1 = fFeatures | VMX_PIN_CTLS_DEFAULT1;
-        AssertMsg((fAllowed0 & fAllowed1) == fAllowed0, ("fAllowed0=%#RX32 fAllowed1=%#RX32 fFeatures=%#RX32\n",
-                                                         fAllowed0, fAllowed1, fFeatures));
-        pVmxMsrs->PinCtls.u = RT_MAKE_U64(fAllowed0, fAllowed1);
-    }
-
-    /* Processor-based VM-execution controls. */
-    {
-        uint32_t const fFeatures = (pFeatures->fVmxIntWindowExit     << VMX_BF_PROC_CTLS_INT_WINDOW_EXIT_SHIFT   )
-                                 | (pFeatures->fVmxTscOffsetting     << VMX_BF_PROC_CTLS_USE_TSC_OFFSETTING_SHIFT)
-                                 | (pFeatures->fVmxHltExit           << VMX_BF_PROC_CTLS_HLT_EXIT_SHIFT          )
-                                 | (pFeatures->fVmxInvlpgExit        << VMX_BF_PROC_CTLS_INVLPG_EXIT_SHIFT       )
-                                 | (pFeatures->fVmxMwaitExit         << VMX_BF_PROC_CTLS_MWAIT_EXIT_SHIFT        )
-                                 | (pFeatures->fVmxRdpmcExit         << VMX_BF_PROC_CTLS_RDPMC_EXIT_SHIFT        )
-                                 | (pFeatures->fVmxRdtscExit         << VMX_BF_PROC_CTLS_RDTSC_EXIT_SHIFT        )
-                                 | (pFeatures->fVmxCr3LoadExit       << VMX_BF_PROC_CTLS_CR3_LOAD_EXIT_SHIFT     )
-                                 | (pFeatures->fVmxCr3StoreExit      << VMX_BF_PROC_CTLS_CR3_STORE_EXIT_SHIFT    )
-                                 | (pFeatures->fVmxCr8LoadExit       << VMX_BF_PROC_CTLS_CR8_LOAD_EXIT_SHIFT     )
-                                 | (pFeatures->fVmxCr8StoreExit      << VMX_BF_PROC_CTLS_CR8_STORE_EXIT_SHIFT    )
-                                 | (pFeatures->fVmxUseTprShadow      << VMX_BF_PROC_CTLS_USE_TPR_SHADOW_SHIFT    )
-                                 | (pFeatures->fVmxNmiWindowExit     << VMX_BF_PROC_CTLS_NMI_WINDOW_EXIT_SHIFT   )
-                                 | (pFeatures->fVmxMovDRxExit        << VMX_BF_PROC_CTLS_MOV_DR_EXIT_SHIFT       )
-                                 | (pFeatures->fVmxUncondIoExit      << VMX_BF_PROC_CTLS_UNCOND_IO_EXIT_SHIFT    )
-                                 | (pFeatures->fVmxUseIoBitmaps      << VMX_BF_PROC_CTLS_USE_IO_BITMAPS_SHIFT    )
-                                 | (pFeatures->fVmxMonitorTrapFlag   << VMX_BF_PROC_CTLS_MONITOR_TRAP_FLAG_SHIFT )
-                                 | (pFeatures->fVmxUseMsrBitmaps     << VMX_BF_PROC_CTLS_USE_MSR_BITMAPS_SHIFT   )
-                                 | (pFeatures->fVmxMonitorExit       << VMX_BF_PROC_CTLS_MONITOR_EXIT_SHIFT      )
-                                 | (pFeatures->fVmxPauseExit         << VMX_BF_PROC_CTLS_PAUSE_EXIT_SHIFT        )
-                                 | (pFeatures->fVmxSecondaryExecCtls << VMX_BF_PROC_CTLS_USE_SECONDARY_CTLS_SHIFT);
-        uint32_t const fAllowed0 = VMX_PROC_CTLS_DEFAULT1;
-        uint32_t const fAllowed1 = fFeatures | VMX_PROC_CTLS_DEFAULT1;
-        AssertMsg((fAllowed0 & fAllowed1) == fAllowed0, ("fAllowed0=%#RX32 fAllowed1=%#RX32 fFeatures=%#RX32\n", fAllowed0,
-                                                         fAllowed1, fFeatures));
-        pVmxMsrs->ProcCtls.u = RT_MAKE_U64(fAllowed0, fAllowed1);
-    }
-
-    /* Secondary processor-based VM-execution controls. */
-    if (pFeatures->fVmxSecondaryExecCtls)
-    {
-        uint32_t const fFeatures = (pFeatures->fVmxVirtApicAccess    << VMX_BF_PROC_CTLS2_VIRT_APIC_ACCESS_SHIFT  )
-                                 | (pFeatures->fVmxEpt               << VMX_BF_PROC_CTLS2_EPT_SHIFT               )
-                                 | (pFeatures->fVmxDescTableExit     << VMX_BF_PROC_CTLS2_DESC_TABLE_EXIT_SHIFT   )
-                                 | (pFeatures->fVmxRdtscp            << VMX_BF_PROC_CTLS2_RDTSCP_SHIFT            )
-                                 | (pFeatures->fVmxVirtX2ApicMode    << VMX_BF_PROC_CTLS2_VIRT_X2APIC_MODE_SHIFT  )
-                                 | (pFeatures->fVmxVpid              << VMX_BF_PROC_CTLS2_VPID_SHIFT              )
-                                 | (pFeatures->fVmxWbinvdExit        << VMX_BF_PROC_CTLS2_WBINVD_EXIT_SHIFT       )
-                                 | (pFeatures->fVmxUnrestrictedGuest << VMX_BF_PROC_CTLS2_UNRESTRICTED_GUEST_SHIFT)
-                                 | (pFeatures->fVmxApicRegVirt       << VMX_BF_PROC_CTLS2_APIC_REG_VIRT_SHIFT     )
-                                 | (pFeatures->fVmxVirtIntDelivery   << VMX_BF_PROC_CTLS2_VIRT_INT_DELIVERY_SHIFT )
-                                 | (pFeatures->fVmxPauseLoopExit     << VMX_BF_PROC_CTLS2_PAUSE_LOOP_EXIT_SHIFT   )
-                                 | (pFeatures->fVmxRdrandExit        << VMX_BF_PROC_CTLS2_RDRAND_EXIT_SHIFT       )
-                                 | (pFeatures->fVmxInvpcid           << VMX_BF_PROC_CTLS2_INVPCID_SHIFT           )
-                                 | (pFeatures->fVmxVmFunc            << VMX_BF_PROC_CTLS2_VMFUNC_SHIFT            )
-                                 | (pFeatures->fVmxVmcsShadowing     << VMX_BF_PROC_CTLS2_VMCS_SHADOWING_SHIFT    )
-                                 | (pFeatures->fVmxRdseedExit        << VMX_BF_PROC_CTLS2_RDSEED_EXIT_SHIFT       )
-                                 | (pFeatures->fVmxPml               << VMX_BF_PROC_CTLS2_PML_SHIFT               )
-                                 | (pFeatures->fVmxEptXcptVe         << VMX_BF_PROC_CTLS2_EPT_VE_SHIFT            )
-                                 | (pFeatures->fVmxXsavesXrstors     << VMX_BF_PROC_CTLS2_XSAVES_XRSTORS_SHIFT    )
-                                 | (pFeatures->fVmxUseTscScaling     << VMX_BF_PROC_CTLS2_TSC_SCALING_SHIFT       );
-        uint32_t const fAllowed0 = 0;
-        uint32_t const fAllowed1 = fFeatures;
-        pVmxMsrs->ProcCtls2.u = RT_MAKE_U64(fAllowed0, fAllowed1);
-    }
-
-    /* VM-exit controls. */
-    {
-        uint32_t const fFeatures = (pFeatures->fVmxExitSaveDebugCtls << VMX_BF_EXIT_CTLS_SAVE_DEBUG_SHIFT          )
-                                 | (pFeatures->fVmxHostAddrSpaceSize << VMX_BF_EXIT_CTLS_HOST_ADDR_SPACE_SIZE_SHIFT)
-                                 | (pFeatures->fVmxExitAckExtInt     << VMX_BF_EXIT_CTLS_ACK_EXT_INT_SHIFT         )
-                                 | (pFeatures->fVmxExitSavePatMsr    << VMX_BF_EXIT_CTLS_SAVE_PAT_MSR_SHIFT        )
-                                 | (pFeatures->fVmxExitLoadPatMsr    << VMX_BF_EXIT_CTLS_LOAD_PAT_MSR_SHIFT        )
-                                 | (pFeatures->fVmxExitSaveEferMsr   << VMX_BF_EXIT_CTLS_SAVE_EFER_MSR_SHIFT       )
-                                 | (pFeatures->fVmxExitLoadEferMsr   << VMX_BF_EXIT_CTLS_LOAD_EFER_MSR_SHIFT       )
-                                 | (pFeatures->fVmxSavePreemptTimer  << VMX_BF_EXIT_CTLS_SAVE_PREEMPT_TIMER_SHIFT  );
-        /* Set the default1 class bits. See Intel spec. A.4 "VM-exit Controls". */
-        uint32_t const fAllowed0 = VMX_EXIT_CTLS_DEFAULT1;
-        uint32_t const fAllowed1 = fFeatures | VMX_EXIT_CTLS_DEFAULT1;
-        AssertMsg((fAllowed0 & fAllowed1) == fAllowed0, ("fAllowed0=%#RX32 fAllowed1=%#RX32 fFeatures=%#RX32\n", fAllowed0,
-                                                         fAllowed1, fFeatures));
-        pVmxMsrs->ExitCtls.u = RT_MAKE_U64(fAllowed0, fAllowed1);
-    }
-
-    /* VM-entry controls. */
-    {
-        uint32_t const fFeatures = (pFeatures->fVmxEntryLoadDebugCtls << VMX_BF_ENTRY_CTLS_LOAD_DEBUG_SHIFT      )
-                                 | (pFeatures->fVmxIa32eModeGuest     << VMX_BF_ENTRY_CTLS_IA32E_MODE_GUEST_SHIFT)
-                                 | (pFeatures->fVmxEntryLoadEferMsr   << VMX_BF_ENTRY_CTLS_LOAD_EFER_MSR_SHIFT   )
-                                 | (pFeatures->fVmxEntryLoadPatMsr    << VMX_BF_ENTRY_CTLS_LOAD_PAT_MSR_SHIFT    );
-        uint32_t const fAllowed0 = VMX_ENTRY_CTLS_DEFAULT1;
-        uint32_t const fAllowed1 = fFeatures | VMX_ENTRY_CTLS_DEFAULT1;
-        AssertMsg((fAllowed0 & fAllowed1) == fAllowed0, ("fAllowed0=%#RX32 fAllowed0=%#RX32 fFeatures=%#RX32\n", fAllowed0,
-                                                         fAllowed1, fFeatures));
-        pVmxMsrs->EntryCtls.u = RT_MAKE_U64(fAllowed0, fAllowed1);
-    }
-
-    /* Miscellaneous data. */
-    {
-        uint64_t uHostMsr = 0;
-        if (cpumR3IsHwAssistVmxNstGstExecAllowed(pVM))
-            HMVmxGetHostMsr(pVM, MSR_IA32_VMX_MISC, &uHostMsr);
-        uint8_t const cMaxMsrs       = RT_MIN(RT_BF_GET(uHostMsr, VMX_BF_MISC_MAX_MSRS), VMX_V_AUTOMSR_COUNT_MAX);
-        uint8_t const fActivityState = RT_BF_GET(uHostMsr, VMX_BF_MISC_ACTIVITY_STATES) & VMX_V_GUEST_ACTIVITY_STATE_MASK;
-        pVmxMsrs->u64Misc = RT_BF_MAKE(VMX_BF_MISC_PREEMPT_TIMER_TSC,      VMX_V_PREEMPT_TIMER_SHIFT        )
-                          | RT_BF_MAKE(VMX_BF_MISC_EXIT_SAVE_EFER_LMA,     pFeatures->fVmxExitSaveEferLma   )
-                          | RT_BF_MAKE(VMX_BF_MISC_ACTIVITY_STATES,        fActivityState                   )
-                          | RT_BF_MAKE(VMX_BF_MISC_INTEL_PT,               pFeatures->fVmxIntelPt           )
-                          | RT_BF_MAKE(VMX_BF_MISC_SMM_READ_SMBASE_MSR,    0                                )
-                          | RT_BF_MAKE(VMX_BF_MISC_CR3_TARGET,             VMX_V_CR3_TARGET_COUNT           )
-                          | RT_BF_MAKE(VMX_BF_MISC_MAX_MSRS,               cMaxMsrs                         )
-                          | RT_BF_MAKE(VMX_BF_MISC_VMXOFF_BLOCK_SMI,       0                                )
-                          | RT_BF_MAKE(VMX_BF_MISC_VMWRITE_ALL,            pFeatures->fVmxVmwriteAll        )
-                          | RT_BF_MAKE(VMX_BF_MISC_ENTRY_INJECT_SOFT_INT,  pFeatures->fVmxEntryInjectSoftInt)
-                          | RT_BF_MAKE(VMX_BF_MISC_MSEG_ID,                VMX_V_MSEG_REV_ID                );
-    }
-
-    /* CR0 Fixed-0. */
-    pVmxMsrs->u64Cr0Fixed0 = pFeatures->fVmxUnrestrictedGuest ? VMX_V_CR0_FIXED0_UX:  VMX_V_CR0_FIXED0;
-
-    /* CR0 Fixed-1. */
-    {
-        uint64_t uHostMsr = 0;
-        if (cpumR3IsHwAssistVmxNstGstExecAllowed(pVM))
-            HMVmxGetHostMsr(pVM, MSR_IA32_VMX_CR0_FIXED1, &uHostMsr);
-        pVmxMsrs->u64Cr0Fixed1 = uHostMsr | VMX_V_CR0_FIXED0;   /* Make sure the CR0 MB1 bits are not clear. */
-    }
-
-    /* CR4 Fixed-0. */
-    pVmxMsrs->u64Cr4Fixed0 = VMX_V_CR4_FIXED0;
-
-    /* CR4 Fixed-1. */
-    {
-        uint64_t uHostMsr = 0;
-        if (cpumR3IsHwAssistVmxNstGstExecAllowed(pVM))
-            HMVmxGetHostMsr(pVM, MSR_IA32_VMX_CR4_FIXED1, &uHostMsr);
-        pVmxMsrs->u64Cr4Fixed1 = uHostMsr | VMX_V_CR4_FIXED0;   /* Make sure the CR4 MB1 bits are not clear. */
-    }
-
-    /* VMCS Enumeration. */
-    pVmxMsrs->u64VmcsEnum = VMX_V_VMCS_MAX_INDEX << VMX_BF_VMCS_ENUM_HIGHEST_IDX_SHIFT;
-
-    /* VM Functions. */
-    if (pFeatures->fVmxVmFunc)
-        pVmxMsrs->u64VmFunc = RT_BF_MAKE(VMX_BF_VMFUNC_EPTP_SWITCHING, 1);
+    Assert(!fIsNstGstHwExecAllowed || pHostVmxMsrs);
+    Assert(pGuestFeatures->fVmx);
 
     /*
      * We don't support the following MSRs yet:
@@ -1444,127 +1283,172 @@ static void cpumR3InitGuestVmxMsrs(PVM pVM)
      *   - EPT/VPID capabilities.
      */
 
-    /*
-     * Copy the MSRs values initialized in VCPU 0 to all other VCPUs.
-     */
-    for (VMCPUID idCpu = 1; idCpu < pVM->cCpus; idCpu++)
-    {
-        PVMCPU pVCpu = &pVM->aCpus[idCpu];
-        Assert(pVCpu);
-        memcpy(&pVCpu->cpum.s.Guest.hwvirt.vmx.Msrs, pVmxMsrs, sizeof(*pVmxMsrs));
-    }
-}
-
-
-/**
- * Explode VMX features from the provided MSRs.
- *
- * @param   pVmxMsrs        Pointer to the VMX MSRs.
- * @param   pFeatures       Pointer to the features struct. to populate.
- */
-static void cpumR3ExplodeVmxFeatures(PCVMXMSRS pVmxMsrs, PCPUMFEATURES pFeatures)
-{
-    Assert(pVmxMsrs);
-    Assert(pFeatures);
-    Assert(pFeatures->fVmx);
+    /* Feature control. */
+    pGuestVmxMsrs->u64FeatCtrl = MSR_IA32_FEATURE_CONTROL_LOCK | MSR_IA32_FEATURE_CONTROL_VMXON;
 
     /* Basic information. */
     {
-        uint64_t const u64Basic = pVmxMsrs->u64Basic;
-        pFeatures->fVmxInsOutInfo            = RT_BF_GET(u64Basic, VMX_BF_BASIC_VMCS_INS_OUTS);
+        uint64_t const u64Basic = RT_BF_MAKE(VMX_BF_BASIC_VMCS_ID,         VMX_V_VMCS_REVISION_ID        )
+                                | RT_BF_MAKE(VMX_BF_BASIC_VMCS_SIZE,       VMX_V_VMCS_SIZE               )
+                                | RT_BF_MAKE(VMX_BF_BASIC_PHYSADDR_WIDTH,  !pGuestFeatures->fLongMode    )
+                                | RT_BF_MAKE(VMX_BF_BASIC_DUAL_MON,        0                             )
+                                | RT_BF_MAKE(VMX_BF_BASIC_VMCS_MEM_TYPE,   VMX_BASIC_MEM_TYPE_WB         )
+                                | RT_BF_MAKE(VMX_BF_BASIC_VMCS_INS_OUTS,   pGuestFeatures->fVmxInsOutInfo)
+                                | RT_BF_MAKE(VMX_BF_BASIC_TRUE_CTLS,       0                             );
+        pGuestVmxMsrs->u64Basic = u64Basic;
     }
 
     /* Pin-based VM-execution controls. */
     {
-        uint32_t const fPinCtls = pVmxMsrs->PinCtls.n.allowed1;
-        pFeatures->fVmxExtIntExit            = RT_BOOL(fPinCtls & VMX_PIN_CTLS_EXT_INT_EXIT);
-        pFeatures->fVmxNmiExit               = RT_BOOL(fPinCtls & VMX_PIN_CTLS_NMI_EXIT);
-        pFeatures->fVmxVirtNmi               = RT_BOOL(fPinCtls & VMX_PIN_CTLS_VIRT_NMI);
-        pFeatures->fVmxPreemptTimer          = RT_BOOL(fPinCtls & VMX_PIN_CTLS_PREEMPT_TIMER);
-        pFeatures->fVmxPostedInt             = RT_BOOL(fPinCtls & VMX_PIN_CTLS_POSTED_INT);
+        uint32_t const fFeatures = (pGuestFeatures->fVmxExtIntExit   << VMX_BF_PIN_CTLS_EXT_INT_EXIT_SHIFT )
+                                 | (pGuestFeatures->fVmxNmiExit      << VMX_BF_PIN_CTLS_NMI_EXIT_SHIFT     )
+                                 | (pGuestFeatures->fVmxVirtNmi      << VMX_BF_PIN_CTLS_VIRT_NMI_SHIFT     )
+                                 | (pGuestFeatures->fVmxPreemptTimer << VMX_BF_PIN_CTLS_PREEMPT_TIMER_SHIFT)
+                                 | (pGuestFeatures->fVmxPostedInt    << VMX_BF_PIN_CTLS_POSTED_INT_SHIFT   );
+        uint32_t const fAllowed0 = VMX_PIN_CTLS_DEFAULT1;
+        uint32_t const fAllowed1 = fFeatures | VMX_PIN_CTLS_DEFAULT1;
+        AssertMsg((fAllowed0 & fAllowed1) == fAllowed0, ("fAllowed0=%#RX32 fAllowed1=%#RX32 fFeatures=%#RX32\n",
+                                                         fAllowed0, fAllowed1, fFeatures));
+        pGuestVmxMsrs->PinCtls.u = RT_MAKE_U64(fAllowed0, fAllowed1);
     }
 
     /* Processor-based VM-execution controls. */
     {
-        uint32_t const fProcCtls = pVmxMsrs->ProcCtls.n.allowed1;
-        pFeatures->fVmxIntWindowExit         = RT_BOOL(fProcCtls & VMX_PROC_CTLS_INT_WINDOW_EXIT);
-        pFeatures->fVmxTscOffsetting         = RT_BOOL(fProcCtls & VMX_PROC_CTLS_USE_TSC_OFFSETTING);
-        pFeatures->fVmxHltExit               = RT_BOOL(fProcCtls & VMX_PROC_CTLS_HLT_EXIT);
-        pFeatures->fVmxInvlpgExit            = RT_BOOL(fProcCtls & VMX_PROC_CTLS_INVLPG_EXIT);
-        pFeatures->fVmxMwaitExit             = RT_BOOL(fProcCtls & VMX_PROC_CTLS_MWAIT_EXIT);
-        pFeatures->fVmxRdpmcExit             = RT_BOOL(fProcCtls & VMX_PROC_CTLS_RDPMC_EXIT);
-        pFeatures->fVmxRdtscExit             = RT_BOOL(fProcCtls & VMX_PROC_CTLS_RDTSC_EXIT);
-        pFeatures->fVmxCr3LoadExit           = RT_BOOL(fProcCtls & VMX_PROC_CTLS_CR3_LOAD_EXIT);
-        pFeatures->fVmxCr3StoreExit          = RT_BOOL(fProcCtls & VMX_PROC_CTLS_CR3_STORE_EXIT);
-        pFeatures->fVmxCr8LoadExit           = RT_BOOL(fProcCtls & VMX_PROC_CTLS_CR8_LOAD_EXIT);
-        pFeatures->fVmxCr8StoreExit          = RT_BOOL(fProcCtls & VMX_PROC_CTLS_CR8_STORE_EXIT);
-        pFeatures->fVmxUseTprShadow          = RT_BOOL(fProcCtls & VMX_PROC_CTLS_USE_TPR_SHADOW);
-        pFeatures->fVmxNmiWindowExit         = RT_BOOL(fProcCtls & VMX_PROC_CTLS_NMI_WINDOW_EXIT);
-        pFeatures->fVmxMovDRxExit            = RT_BOOL(fProcCtls & VMX_PROC_CTLS_MOV_DR_EXIT);
-        pFeatures->fVmxUncondIoExit          = RT_BOOL(fProcCtls & VMX_PROC_CTLS_UNCOND_IO_EXIT);
-        pFeatures->fVmxUseIoBitmaps          = RT_BOOL(fProcCtls & VMX_PROC_CTLS_USE_IO_BITMAPS);
-        pFeatures->fVmxMonitorTrapFlag       = RT_BOOL(fProcCtls & VMX_PROC_CTLS_MONITOR_TRAP_FLAG);
-        pFeatures->fVmxUseMsrBitmaps         = RT_BOOL(fProcCtls & VMX_PROC_CTLS_USE_MSR_BITMAPS);
-        pFeatures->fVmxMonitorExit           = RT_BOOL(fProcCtls & VMX_PROC_CTLS_MONITOR_EXIT);
-        pFeatures->fVmxPauseExit             = RT_BOOL(fProcCtls & VMX_PROC_CTLS_PAUSE_EXIT);
-        pFeatures->fVmxSecondaryExecCtls     = RT_BOOL(fProcCtls & VMX_PROC_CTLS_USE_SECONDARY_CTLS);
+        uint32_t const fFeatures = (pGuestFeatures->fVmxIntWindowExit     << VMX_BF_PROC_CTLS_INT_WINDOW_EXIT_SHIFT   )
+                                 | (pGuestFeatures->fVmxTscOffsetting     << VMX_BF_PROC_CTLS_USE_TSC_OFFSETTING_SHIFT)
+                                 | (pGuestFeatures->fVmxHltExit           << VMX_BF_PROC_CTLS_HLT_EXIT_SHIFT          )
+                                 | (pGuestFeatures->fVmxInvlpgExit        << VMX_BF_PROC_CTLS_INVLPG_EXIT_SHIFT       )
+                                 | (pGuestFeatures->fVmxMwaitExit         << VMX_BF_PROC_CTLS_MWAIT_EXIT_SHIFT        )
+                                 | (pGuestFeatures->fVmxRdpmcExit         << VMX_BF_PROC_CTLS_RDPMC_EXIT_SHIFT        )
+                                 | (pGuestFeatures->fVmxRdtscExit         << VMX_BF_PROC_CTLS_RDTSC_EXIT_SHIFT        )
+                                 | (pGuestFeatures->fVmxCr3LoadExit       << VMX_BF_PROC_CTLS_CR3_LOAD_EXIT_SHIFT     )
+                                 | (pGuestFeatures->fVmxCr3StoreExit      << VMX_BF_PROC_CTLS_CR3_STORE_EXIT_SHIFT    )
+                                 | (pGuestFeatures->fVmxCr8LoadExit       << VMX_BF_PROC_CTLS_CR8_LOAD_EXIT_SHIFT     )
+                                 | (pGuestFeatures->fVmxCr8StoreExit      << VMX_BF_PROC_CTLS_CR8_STORE_EXIT_SHIFT    )
+                                 | (pGuestFeatures->fVmxUseTprShadow      << VMX_BF_PROC_CTLS_USE_TPR_SHADOW_SHIFT    )
+                                 | (pGuestFeatures->fVmxNmiWindowExit     << VMX_BF_PROC_CTLS_NMI_WINDOW_EXIT_SHIFT   )
+                                 | (pGuestFeatures->fVmxMovDRxExit        << VMX_BF_PROC_CTLS_MOV_DR_EXIT_SHIFT       )
+                                 | (pGuestFeatures->fVmxUncondIoExit      << VMX_BF_PROC_CTLS_UNCOND_IO_EXIT_SHIFT    )
+                                 | (pGuestFeatures->fVmxUseIoBitmaps      << VMX_BF_PROC_CTLS_USE_IO_BITMAPS_SHIFT    )
+                                 | (pGuestFeatures->fVmxMonitorTrapFlag   << VMX_BF_PROC_CTLS_MONITOR_TRAP_FLAG_SHIFT )
+                                 | (pGuestFeatures->fVmxUseMsrBitmaps     << VMX_BF_PROC_CTLS_USE_MSR_BITMAPS_SHIFT   )
+                                 | (pGuestFeatures->fVmxMonitorExit       << VMX_BF_PROC_CTLS_MONITOR_EXIT_SHIFT      )
+                                 | (pGuestFeatures->fVmxPauseExit         << VMX_BF_PROC_CTLS_PAUSE_EXIT_SHIFT        )
+                                 | (pGuestFeatures->fVmxSecondaryExecCtls << VMX_BF_PROC_CTLS_USE_SECONDARY_CTLS_SHIFT);
+        uint32_t const fAllowed0 = VMX_PROC_CTLS_DEFAULT1;
+        uint32_t const fAllowed1 = fFeatures | VMX_PROC_CTLS_DEFAULT1;
+        AssertMsg((fAllowed0 & fAllowed1) == fAllowed0, ("fAllowed0=%#RX32 fAllowed1=%#RX32 fFeatures=%#RX32\n", fAllowed0,
+                                                         fAllowed1, fFeatures));
+        pGuestVmxMsrs->ProcCtls.u = RT_MAKE_U64(fAllowed0, fAllowed1);
     }
 
     /* Secondary processor-based VM-execution controls. */
+    if (pGuestFeatures->fVmxSecondaryExecCtls)
     {
-        uint32_t const fProcCtls2 = pFeatures->fVmxSecondaryExecCtls ? pVmxMsrs->ProcCtls2.n.allowed1 : 0;
-        pFeatures->fVmxVirtApicAccess        = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_VIRT_APIC_ACCESS);
-        pFeatures->fVmxEpt                   = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_EPT);
-        pFeatures->fVmxDescTableExit         = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_DESC_TABLE_EXIT);
-        pFeatures->fVmxRdtscp                = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_RDTSCP);
-        pFeatures->fVmxVirtX2ApicMode        = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_VIRT_X2APIC_MODE);
-        pFeatures->fVmxVpid                  = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_VPID);
-        pFeatures->fVmxWbinvdExit            = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_WBINVD_EXIT);
-        pFeatures->fVmxUnrestrictedGuest     = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_UNRESTRICTED_GUEST);
-        pFeatures->fVmxApicRegVirt           = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_APIC_REG_VIRT);
-        pFeatures->fVmxVirtIntDelivery       = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_VIRT_INT_DELIVERY);
-        pFeatures->fVmxPauseLoopExit         = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_PAUSE_LOOP_EXIT);
-        pFeatures->fVmxRdrandExit            = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_RDRAND_EXIT);
-        pFeatures->fVmxInvpcid               = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_INVPCID);
-        pFeatures->fVmxVmFunc                = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_VMFUNC);
-        pFeatures->fVmxVmcsShadowing         = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_VMCS_SHADOWING);
-        pFeatures->fVmxRdseedExit            = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_RDSEED_EXIT);
-        pFeatures->fVmxPml                   = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_PML);
-        pFeatures->fVmxEptXcptVe             = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_EPT_VE);
-        pFeatures->fVmxXsavesXrstors         = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_XSAVES_XRSTORS);
-        pFeatures->fVmxUseTscScaling         = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_TSC_SCALING);
+        uint32_t const fFeatures = (pGuestFeatures->fVmxVirtApicAccess    << VMX_BF_PROC_CTLS2_VIRT_APIC_ACCESS_SHIFT  )
+                                 | (pGuestFeatures->fVmxEpt               << VMX_BF_PROC_CTLS2_EPT_SHIFT               )
+                                 | (pGuestFeatures->fVmxDescTableExit     << VMX_BF_PROC_CTLS2_DESC_TABLE_EXIT_SHIFT   )
+                                 | (pGuestFeatures->fVmxRdtscp            << VMX_BF_PROC_CTLS2_RDTSCP_SHIFT            )
+                                 | (pGuestFeatures->fVmxVirtX2ApicMode    << VMX_BF_PROC_CTLS2_VIRT_X2APIC_MODE_SHIFT  )
+                                 | (pGuestFeatures->fVmxVpid              << VMX_BF_PROC_CTLS2_VPID_SHIFT              )
+                                 | (pGuestFeatures->fVmxWbinvdExit        << VMX_BF_PROC_CTLS2_WBINVD_EXIT_SHIFT       )
+                                 | (pGuestFeatures->fVmxUnrestrictedGuest << VMX_BF_PROC_CTLS2_UNRESTRICTED_GUEST_SHIFT)
+                                 | (pGuestFeatures->fVmxApicRegVirt       << VMX_BF_PROC_CTLS2_APIC_REG_VIRT_SHIFT     )
+                                 | (pGuestFeatures->fVmxVirtIntDelivery   << VMX_BF_PROC_CTLS2_VIRT_INT_DELIVERY_SHIFT )
+                                 | (pGuestFeatures->fVmxPauseLoopExit     << VMX_BF_PROC_CTLS2_PAUSE_LOOP_EXIT_SHIFT   )
+                                 | (pGuestFeatures->fVmxRdrandExit        << VMX_BF_PROC_CTLS2_RDRAND_EXIT_SHIFT       )
+                                 | (pGuestFeatures->fVmxInvpcid           << VMX_BF_PROC_CTLS2_INVPCID_SHIFT           )
+                                 | (pGuestFeatures->fVmxVmFunc            << VMX_BF_PROC_CTLS2_VMFUNC_SHIFT            )
+                                 | (pGuestFeatures->fVmxVmcsShadowing     << VMX_BF_PROC_CTLS2_VMCS_SHADOWING_SHIFT    )
+                                 | (pGuestFeatures->fVmxRdseedExit        << VMX_BF_PROC_CTLS2_RDSEED_EXIT_SHIFT       )
+                                 | (pGuestFeatures->fVmxPml               << VMX_BF_PROC_CTLS2_PML_SHIFT               )
+                                 | (pGuestFeatures->fVmxEptXcptVe         << VMX_BF_PROC_CTLS2_EPT_VE_SHIFT            )
+                                 | (pGuestFeatures->fVmxXsavesXrstors     << VMX_BF_PROC_CTLS2_XSAVES_XRSTORS_SHIFT    )
+                                 | (pGuestFeatures->fVmxUseTscScaling     << VMX_BF_PROC_CTLS2_TSC_SCALING_SHIFT       );
+        uint32_t const fAllowed0 = 0;
+        uint32_t const fAllowed1 = fFeatures;
+        pGuestVmxMsrs->ProcCtls2.u = RT_MAKE_U64(fAllowed0, fAllowed1);
     }
 
     /* VM-exit controls. */
     {
-        uint32_t const fExitCtls = pVmxMsrs->ExitCtls.n.allowed1;
-        pFeatures->fVmxExitSaveDebugCtls     = RT_BOOL(fExitCtls & VMX_EXIT_CTLS_SAVE_DEBUG);
-        pFeatures->fVmxHostAddrSpaceSize     = RT_BOOL(fExitCtls & VMX_EXIT_CTLS_HOST_ADDR_SPACE_SIZE);
-        pFeatures->fVmxExitAckExtInt         = RT_BOOL(fExitCtls & VMX_EXIT_CTLS_ACK_EXT_INT);
-        pFeatures->fVmxExitSavePatMsr        = RT_BOOL(fExitCtls & VMX_EXIT_CTLS_SAVE_PAT_MSR);
-        pFeatures->fVmxExitLoadPatMsr        = RT_BOOL(fExitCtls & VMX_EXIT_CTLS_LOAD_PAT_MSR);
-        pFeatures->fVmxExitSaveEferMsr       = RT_BOOL(fExitCtls & VMX_EXIT_CTLS_SAVE_EFER_MSR);
-        pFeatures->fVmxExitLoadEferMsr       = RT_BOOL(fExitCtls & VMX_EXIT_CTLS_LOAD_EFER_MSR);
-        pFeatures->fVmxSavePreemptTimer      = RT_BOOL(fExitCtls & VMX_EXIT_CTLS_SAVE_PREEMPT_TIMER);
+        uint32_t const fFeatures = (pGuestFeatures->fVmxExitSaveDebugCtls << VMX_BF_EXIT_CTLS_SAVE_DEBUG_SHIFT          )
+                                 | (pGuestFeatures->fVmxHostAddrSpaceSize << VMX_BF_EXIT_CTLS_HOST_ADDR_SPACE_SIZE_SHIFT)
+                                 | (pGuestFeatures->fVmxExitAckExtInt     << VMX_BF_EXIT_CTLS_ACK_EXT_INT_SHIFT         )
+                                 | (pGuestFeatures->fVmxExitSavePatMsr    << VMX_BF_EXIT_CTLS_SAVE_PAT_MSR_SHIFT        )
+                                 | (pGuestFeatures->fVmxExitLoadPatMsr    << VMX_BF_EXIT_CTLS_LOAD_PAT_MSR_SHIFT        )
+                                 | (pGuestFeatures->fVmxExitSaveEferMsr   << VMX_BF_EXIT_CTLS_SAVE_EFER_MSR_SHIFT       )
+                                 | (pGuestFeatures->fVmxExitLoadEferMsr   << VMX_BF_EXIT_CTLS_LOAD_EFER_MSR_SHIFT       )
+                                 | (pGuestFeatures->fVmxSavePreemptTimer  << VMX_BF_EXIT_CTLS_SAVE_PREEMPT_TIMER_SHIFT  );
+        /* Set the default1 class bits. See Intel spec. A.4 "VM-exit Controls". */
+        uint32_t const fAllowed0 = VMX_EXIT_CTLS_DEFAULT1;
+        uint32_t const fAllowed1 = fFeatures | VMX_EXIT_CTLS_DEFAULT1;
+        AssertMsg((fAllowed0 & fAllowed1) == fAllowed0, ("fAllowed0=%#RX32 fAllowed1=%#RX32 fFeatures=%#RX32\n", fAllowed0,
+                                                         fAllowed1, fFeatures));
+        pGuestVmxMsrs->ExitCtls.u = RT_MAKE_U64(fAllowed0, fAllowed1);
     }
 
     /* VM-entry controls. */
     {
-        uint32_t const fEntryCtls = pVmxMsrs->EntryCtls.n.allowed1;
-        pFeatures->fVmxEntryLoadDebugCtls    = RT_BOOL(fEntryCtls & VMX_ENTRY_CTLS_LOAD_DEBUG);
-        pFeatures->fVmxIa32eModeGuest        = RT_BOOL(fEntryCtls & VMX_ENTRY_CTLS_IA32E_MODE_GUEST);
-        pFeatures->fVmxEntryLoadEferMsr      = RT_BOOL(fEntryCtls & VMX_ENTRY_CTLS_LOAD_EFER_MSR);
-        pFeatures->fVmxEntryLoadPatMsr       = RT_BOOL(fEntryCtls & VMX_ENTRY_CTLS_LOAD_PAT_MSR);
+        uint32_t const fFeatures = (pGuestFeatures->fVmxEntryLoadDebugCtls << VMX_BF_ENTRY_CTLS_LOAD_DEBUG_SHIFT      )
+                                 | (pGuestFeatures->fVmxIa32eModeGuest     << VMX_BF_ENTRY_CTLS_IA32E_MODE_GUEST_SHIFT)
+                                 | (pGuestFeatures->fVmxEntryLoadEferMsr   << VMX_BF_ENTRY_CTLS_LOAD_EFER_MSR_SHIFT   )
+                                 | (pGuestFeatures->fVmxEntryLoadPatMsr    << VMX_BF_ENTRY_CTLS_LOAD_PAT_MSR_SHIFT    );
+        uint32_t const fAllowed0 = VMX_ENTRY_CTLS_DEFAULT1;
+        uint32_t const fAllowed1 = fFeatures | VMX_ENTRY_CTLS_DEFAULT1;
+        AssertMsg((fAllowed0 & fAllowed1) == fAllowed0, ("fAllowed0=%#RX32 fAllowed0=%#RX32 fFeatures=%#RX32\n", fAllowed0,
+                                                         fAllowed1, fFeatures));
+        pGuestVmxMsrs->EntryCtls.u = RT_MAKE_U64(fAllowed0, fAllowed1);
     }
 
     /* Miscellaneous data. */
     {
-        uint32_t const fMiscData = pVmxMsrs->u64Misc;
-        pFeatures->fVmxExitSaveEferLma       = RT_BOOL(fMiscData & VMX_MISC_EXIT_SAVE_EFER_LMA);
-        pFeatures->fVmxIntelPt               = RT_BOOL(fMiscData & VMX_MISC_INTEL_PT);
-        pFeatures->fVmxVmwriteAll            = RT_BOOL(fMiscData & VMX_MISC_VMWRITE_ALL);
-        pFeatures->fVmxEntryInjectSoftInt    = RT_BOOL(fMiscData & VMX_MISC_ENTRY_INJECT_SOFT_INT);
+        uint64_t const uHostMsr = fIsNstGstHwExecAllowed ? pHostVmxMsrs->u64Misc : 0;
+
+        uint8_t const  cMaxMsrs       = RT_MIN(RT_BF_GET(uHostMsr, VMX_BF_MISC_MAX_MSRS), VMX_V_AUTOMSR_COUNT_MAX);
+        uint8_t const  fActivityState = RT_BF_GET(uHostMsr, VMX_BF_MISC_ACTIVITY_STATES) & VMX_V_GUEST_ACTIVITY_STATE_MASK;
+        pGuestVmxMsrs->u64Misc = RT_BF_MAKE(VMX_BF_MISC_PREEMPT_TIMER_TSC,      VMX_V_PREEMPT_TIMER_SHIFT             )
+                               | RT_BF_MAKE(VMX_BF_MISC_EXIT_SAVE_EFER_LMA,     pGuestFeatures->fVmxExitSaveEferLma   )
+                               | RT_BF_MAKE(VMX_BF_MISC_ACTIVITY_STATES,        fActivityState                        )
+                               | RT_BF_MAKE(VMX_BF_MISC_INTEL_PT,               pGuestFeatures->fVmxIntelPt           )
+                               | RT_BF_MAKE(VMX_BF_MISC_SMM_READ_SMBASE_MSR,    0                                     )
+                               | RT_BF_MAKE(VMX_BF_MISC_CR3_TARGET,             VMX_V_CR3_TARGET_COUNT                )
+                               | RT_BF_MAKE(VMX_BF_MISC_MAX_MSRS,               cMaxMsrs                              )
+                               | RT_BF_MAKE(VMX_BF_MISC_VMXOFF_BLOCK_SMI,       0                                     )
+                               | RT_BF_MAKE(VMX_BF_MISC_VMWRITE_ALL,            pGuestFeatures->fVmxVmwriteAll        )
+                               | RT_BF_MAKE(VMX_BF_MISC_ENTRY_INJECT_SOFT_INT,  pGuestFeatures->fVmxEntryInjectSoftInt)
+                               | RT_BF_MAKE(VMX_BF_MISC_MSEG_ID,                VMX_V_MSEG_REV_ID                     );
     }
+
+    /* CR0 Fixed-0. */
+    pGuestVmxMsrs->u64Cr0Fixed0 = pGuestFeatures->fVmxUnrestrictedGuest ? VMX_V_CR0_FIXED0_UX: VMX_V_CR0_FIXED0;
+
+    /* CR0 Fixed-1. */
+    {
+        /*
+         * All CPUs I've looked at so far report CR0 fixed-1 bits as 0xffffffff.
+         * This is different from CR4 fixed-1 bits which are reported as per the
+         * CPU features and/or micro-architecture/generation. Why? Ask Intel.
+         */
+        uint64_t const uHostMsr = fIsNstGstHwExecAllowed ? pHostVmxMsrs->u64Cr0Fixed1 : 0xffffffff;
+        pGuestVmxMsrs->u64Cr0Fixed1 = uHostMsr | VMX_V_CR0_FIXED0;   /* Make sure the CR0 MB1 bits are not clear. */
+    }
+
+    /* CR4 Fixed-0. */
+    pGuestVmxMsrs->u64Cr4Fixed0 = VMX_V_CR4_FIXED0;
+
+    /* CR4 Fixed-1. */
+    {
+        uint64_t const uHostMsr = fIsNstGstHwExecAllowed ? pHostVmxMsrs->u64Cr4Fixed1 : CPUMGetGuestCR4ValidMask(pVM);
+        pGuestVmxMsrs->u64Cr4Fixed1 = uHostMsr | VMX_V_CR4_FIXED0;   /* Make sure the CR4 MB1 bits are not clear. */
+    }
+
+    /* VMCS Enumeration. */
+    pGuestVmxMsrs->u64VmcsEnum = VMX_V_VMCS_MAX_INDEX << VMX_BF_VMCS_ENUM_HIGHEST_IDX_SHIFT;
+
+    /* VM Functions. */
+    if (pGuestFeatures->fVmxVmFunc)
+        pGuestVmxMsrs->u64VmFunc = RT_BF_MAKE(VMX_BF_VMFUNC_EPTP_SWITCHING, 1);
 }
 
 
@@ -1658,29 +1542,26 @@ static bool cpumR3AreVmxCpuFeaturesCompatible(PVM pVM, PCCPUMFEATURES pBase, PCC
 }
 #endif
 
+
 /**
- * Initializes VMX host and guest features.
+ * Initializes VMX guest features and MSRs.
  *
- * @param   pVM     The cross context VM structure.
- *
- * @remarks This must be called only after HM has fully initialized since it calls
- *          into HM to retrieve VMX and related MSRs.
+ * @param   pVM             The cross context VM structure.
+ * @param   pHostVmxMsrs    The host VMX MSRs. Pass NULL when fully emulating VMX
+ *                          and no hardware-assisted nested-guest execution is
+ *                          possible for this VM.
+ * @param   pGuestVmxMsrs   Where to store the initialized guest VMX MSRs.
  */
-static void cpumR3InitVmxCpuFeatures(PVM pVM)
+void cpumR3InitVmxGuestFeaturesAndMsrs(PVM pVM, PCVMXMSRS pHostVmxMsrs, PVMXMSRS pGuestVmxMsrs)
 {
-    /*
-     * Init. host features.
-     */
-    PCPUMFEATURES pHostFeat = &pVM->cpum.s.HostFeatures;
-    VMXMSRS VmxMsrs;
-    int rc = HMVmxGetHostMsrs(pVM, &VmxMsrs);
-    if (RT_SUCCESS(rc))
-        cpumR3ExplodeVmxFeatures(&VmxMsrs, pHostFeat);
+    Assert(pVM);
+    Assert(pGuestVmxMsrs);
 
     /*
      * Initialize the set of VMX features we emulate.
-     * Note! Some bits might be reported as 1 always if they fall under the default1 class bits
-     *       (e.g. fVmxEntryLoadDebugCtls), see @bugref{9180#c5}.
+     *
+     * Note! Some bits might be reported as 1 always if they fall under the
+     * default1 class bits (e.g. fVmxEntryLoadDebugCtls), see @bugref{9180#c5}.
      */
     CPUMFEATURES EmuFeat;
     RT_ZERO(EmuFeat);
@@ -1755,9 +1636,9 @@ static void cpumR3InitVmxCpuFeatures(PVM pVM)
      * When hardware-assisted VMX may be used, any feature we emulate must also be supported
      * by the hardware, hence we merge our emulated features with the host features below.
      */
-    PCCPUMFEATURES pBaseFeat    = cpumR3IsHwAssistVmxNstGstExecAllowed(pVM) ? pHostFeat : &EmuFeat;
-    PCPUMFEATURES  pGuestFeat   = &pVM->cpum.s.GuestFeatures;
-    pGuestFeat->fVmx                      = (pBaseFeat->fVmx                      & EmuFeat.fVmx                     );
+    PCCPUMFEATURES pBaseFeat  = cpumR3IsHwAssistNstGstExecAllowed(pVM) ? &pVM->cpum.s.HostFeatures : &EmuFeat;
+    PCPUMFEATURES  pGuestFeat = &pVM->cpum.s.GuestFeatures;
+    Assert(pBaseFeat->fVmx);
     pGuestFeat->fVmxInsOutInfo            = (pBaseFeat->fVmxInsOutInfo            & EmuFeat.fVmxInsOutInfo           );
     pGuestFeat->fVmxExtIntExit            = (pBaseFeat->fVmxExtIntExit            & EmuFeat.fVmxExtIntExit           );
     pGuestFeat->fVmxNmiExit               = (pBaseFeat->fVmxNmiExit               & EmuFeat.fVmxNmiExit              );
@@ -1848,9 +1729,52 @@ static void cpumR3InitVmxCpuFeatures(PVM pVM)
     }
 
     /*
-     * Finally initialize the VMX guest MSRs after merging the guest features.
+     * Finally initialize the VMX guest MSRs.
      */
-    cpumR3InitGuestVmxMsrs(pVM);
+    cpumR3InitVmxGuestMsrs(pVM, pHostVmxMsrs, pGuestFeat, pGuestVmxMsrs);
+}
+
+
+/**
+ * Gets the host hardware-virtualization MSRs.
+ *
+ * @returns VBox status code.
+ * @param   pMsrs       Where to store the MSRs.
+ */
+static int cpumR3GetHostHwvirtMsrs(PCPUMMSRS pMsrs)
+{
+    Assert(pMsrs);
+
+    uint32_t fCaps = 0;
+    int rc = SUPR3QueryVTCaps(&fCaps);
+    if (RT_SUCCESS(rc))
+    {
+        if (fCaps & (SUPVTCAPS_VT_X | SUPVTCAPS_AMD_V))
+        {
+            SUPHWVIRTMSRS HwvirtMsrs;
+            rc = SUPR3GetHwvirtMsrs(&HwvirtMsrs, false /* fForceRequery */);
+            if (RT_SUCCESS(rc))
+            {
+                if (fCaps & SUPVTCAPS_VT_X)
+                    HMVmxGetVmxMsrsFromHwvirtMsrs(&HwvirtMsrs, &pMsrs->hwvirt.vmx);
+                else
+                    HMVmxGetSvmMsrsFromHwvirtMsrs(&HwvirtMsrs, &pMsrs->hwvirt.svm);
+                return VINF_SUCCESS;
+            }
+
+            LogRel(("CPUM: Querying hardware-virtualization MSRs failed. rc=%Rrc\n", rc));
+            return rc;
+        }
+        else
+        {
+            LogRel(("CPUM: Querying hardware-virtualization capability succeeded but did not find VT-x or AMD-V\n"));
+            return VERR_INTERNAL_ERROR_5;
+        }
+    }
+    else
+        LogRel(("CPUM: No hardware-virtualization capability detected\n"));
+
+    return VINF_SUCCESS;
 }
 
 
@@ -1904,18 +1828,23 @@ VMMR3DECL(int) CPUMR3Init(PVM pVM)
      */
     if (!ASMHasCpuId())
     {
-        Log(("The CPU doesn't support CPUID!\n"));
+        LogRel(("The CPU doesn't support CPUID!\n"));
         return VERR_UNSUPPORTED_CPU;
     }
 
     pVM->cpum.s.fHostMxCsrMask = CPUMR3DeterminHostMxCsrMask();
 
-    PCPUMCPUIDLEAF  paLeaves;
-    uint32_t        cLeaves;
-    int rc = CPUMR3CpuIdCollectLeaves(&paLeaves, &cLeaves);
+    CPUMMSRS HostMsrs;
+    RT_ZERO(HostMsrs);
+    int rc = cpumR3GetHostHwvirtMsrs(&HostMsrs);
     AssertLogRelRCReturn(rc, rc);
 
-    rc = cpumR3CpuIdExplodeFeatures(paLeaves, cLeaves, &pVM->cpum.s.HostFeatures);
+    PCPUMCPUIDLEAF  paLeaves;
+    uint32_t        cLeaves;
+    rc = CPUMR3CpuIdCollectLeaves(&paLeaves, &cLeaves);
+    AssertLogRelRCReturn(rc, rc);
+
+    rc = cpumR3CpuIdExplodeFeatures(paLeaves, cLeaves, &HostMsrs, &pVM->cpum.s.HostFeatures);
     RTMemFree(paLeaves);
     AssertLogRelRCReturn(rc, rc);
     pVM->cpum.s.GuestFeatures.enmCpuVendor = pVM->cpum.s.HostFeatures.enmCpuVendor;
@@ -2030,36 +1959,23 @@ VMMR3DECL(int) CPUMR3Init(PVM pVM)
     /*
      * Initialize the Guest CPUID and MSR states.
      */
-    rc = cpumR3InitCpuIdAndMsrs(pVM);
+    rc = cpumR3InitCpuIdAndMsrs(pVM, &HostMsrs);
     if (RT_FAILURE(rc))
         return rc;
 
     /*
-     * Allocate memory required by the guest hardware virtualization state.
+     * Allocate memory required by the guest hardware-virtualization structures.
+     * This must be done after initializing CPUID/MSR features as we access the
+     * the VMX/SVM guest features below.
      */
-    if (pVM->cpum.ro.GuestFeatures.fVmx)
+    if (pVM->cpum.s.GuestFeatures.fVmx)
         rc = cpumR3AllocVmxHwVirtState(pVM);
-    else if (pVM->cpum.ro.GuestFeatures.fSvm)
+    else if (pVM->cpum.s.GuestFeatures.fSvm)
         rc = cpumR3AllocSvmHwVirtState(pVM);
     else
         Assert(pVM->aCpus[0].cpum.s.Guest.hwvirt.enmHwvirt == CPUMHWVIRT_NONE);
     if (RT_FAILURE(rc))
         return rc;
-
-    /*
-     * Initialize guest hardware virtualization state.
-     */
-    CPUMHWVIRT const enmHwvirt = pVM->aCpus[0].cpum.s.Guest.hwvirt.enmHwvirt;
-    if (enmHwvirt == CPUMHWVIRT_VMX)
-    {
-        for (VMCPUID i = 0; i < pVM->cCpus; i++)
-            cpumR3InitVmxHwVirtState(&pVM->aCpus[i]);
-    }
-    else if (enmHwvirt == CPUMHWVIRT_SVM)
-    {
-        for (VMCPUID i = 0; i < pVM->cCpus; i++)
-            cpumR3InitSvmHwVirtState(&pVM->aCpus[i]);
-    }
 
     /*
      * Workaround for missing cpuid(0) patches when leaf 4 returns GuestInfo.DefCpuId:
@@ -2136,9 +2052,9 @@ VMMR3DECL(int) CPUMR3Term(PVM pVM)
     }
 #endif
 
-    if (pVM->cpum.ro.GuestFeatures.fVmx)
+    if (pVM->cpum.s.GuestFeatures.fVmx)
         cpumR3FreeVmxHwVirtState(pVM);
-    else if (pVM->cpum.ro.GuestFeatures.fSvm)
+    else if (pVM->cpum.s.GuestFeatures.fSvm)
         cpumR3FreeSvmHwVirtState(pVM);
     return VINF_SUCCESS;
 }
@@ -2296,11 +2212,11 @@ VMMR3DECL(void) CPUMR3ResetCpu(PVM pVM, PVMCPU pVCpu)
      * Hardware virtualization state.
      */
     CPUMSetGuestGif(pCtx, true);
-    Assert(!pVM->cpum.ro.GuestFeatures.fVmx || !pVM->cpum.ro.GuestFeatures.fSvm);   /* Paranoia. */
-    if (pVM->cpum.ro.GuestFeatures.fVmx)
-        cpumR3InitVmxHwVirtState(pVCpu);
-    else if (pVM->cpum.ro.GuestFeatures.fSvm)
-        cpumR3InitSvmHwVirtState(pVCpu);
+    Assert(!pVM->cpum.s.GuestFeatures.fVmx || !pVM->cpum.s.GuestFeatures.fSvm);   /* Paranoia. */
+    if (pVM->cpum.s.GuestFeatures.fVmx)
+        cpumR3ResetVmxHwVirtState(pVCpu);
+    else if (pVM->cpum.s.GuestFeatures.fSvm)
+        cpumR3ResetSvmHwVirtState(pVCpu);
 }
 
 
@@ -2396,7 +2312,7 @@ static DECLCALLBACK(int) cpumR3SaveExec(PVM pVM, PSSMHANDLE pSSM)
             PCX86XSAVEZMM16HI pZmm16Hi = CPUMCTX_XSAVE_C_PTR(pGstCtx, XSAVE_C_ZMM_16HI_BIT, PCX86XSAVEZMM16HI);
             SSMR3PutStructEx(pSSM, pZmm16Hi, sizeof(*pZmm16Hi), SSMSTRUCT_FLAGS_FULL_STRUCT, g_aCpumZmm16HiFields, NULL);
         }
-        if (pVM->cpum.ro.GuestFeatures.fSvm)
+        if (pVM->cpum.s.GuestFeatures.fSvm)
         {
             Assert(pGstCtx->hwvirt.svm.CTX_SUFF(pVmcb));
             SSMR3PutU64(pSSM,    pGstCtx->hwvirt.svm.uMsrHSavePa);
@@ -2636,7 +2552,7 @@ static DECLCALLBACK(int) cpumR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVers
                 }
                 if (uVersion >= CPUM_SAVED_STATE_VERSION_HWVIRT_SVM)
                 {
-                    if (pVM->cpum.ro.GuestFeatures.fSvm)
+                    if (pVM->cpum.s.GuestFeatures.fSvm)
                     {
                         Assert(pGstCtx->hwvirt.svm.CTX_SUFF(pVmcb));
                         SSMR3GetU64(pSSM,      &pGstCtx->hwvirt.svm.uMsrHSavePa);
@@ -2654,6 +2570,7 @@ static DECLCALLBACK(int) cpumR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVers
                         SSMR3GetBool(pSSM,     &pGstCtx->hwvirt.fGif);
                     }
                 }
+                /** @todo NSTVMX: Load VMX state. */
             }
             else
             {
@@ -2757,7 +2674,13 @@ static DECLCALLBACK(int) cpumR3LoadExec(PVM pVM, PSSMHANDLE pSSM, uint32_t uVers
      * Guest CPUIDs.
      */
     if (uVersion >= CPUM_SAVED_STATE_VERSION_VER3_2)
-        return cpumR3LoadCpuId(pVM, pSSM, uVersion);
+    {
+        CPUMMSRS GuestMsrs;
+        RT_ZERO(GuestMsrs);
+        if (pVM->cpum.s.GuestFeatures.fVmx)
+            GuestMsrs.hwvirt.vmx = pVM->aCpus[0].cpum.s.Guest.hwvirt.vmx.Msrs;
+        return cpumR3LoadCpuId(pVM, pSSM, uVersion, &GuestMsrs);
+    }
     return cpumR3LoadCpuIdPre32(pVM, pSSM, uVersion);
 }
 
@@ -3270,70 +3193,66 @@ static void cpumR3InfoSvmVmcbCtrl(PCDBGFINFOHLP pHlp, PCSVMVMCBCTRL pVmcbCtrl, c
     AssertReturnVoid(pHlp);
     AssertReturnVoid(pVmcbCtrl);
 
-    pHlp->pfnPrintf(pHlp, "%su16InterceptRdCRx          = %#RX16\n",    pszPrefix, pVmcbCtrl->u16InterceptRdCRx);
-    pHlp->pfnPrintf(pHlp, "%su16InterceptWrCRx          = %#RX16\n",    pszPrefix, pVmcbCtrl->u16InterceptWrCRx);
-    pHlp->pfnPrintf(pHlp, "%su16InterceptRdDRx          = %#RX16\n",    pszPrefix, pVmcbCtrl->u16InterceptRdDRx);
-    pHlp->pfnPrintf(pHlp, "%su16InterceptWrDRx          = %#RX16\n",    pszPrefix, pVmcbCtrl->u16InterceptWrDRx);
-    pHlp->pfnPrintf(pHlp, "%su32InterceptXcpt           = %#RX32\n",    pszPrefix, pVmcbCtrl->u32InterceptXcpt);
-    pHlp->pfnPrintf(pHlp, "%su64InterceptCtrl           = %#RX64\n",    pszPrefix, pVmcbCtrl->u64InterceptCtrl);
-    pHlp->pfnPrintf(pHlp, "%su16PauseFilterThreshold    = %#RX16\n",    pszPrefix, pVmcbCtrl->u16PauseFilterThreshold);
-    pHlp->pfnPrintf(pHlp, "%su16PauseFilterCount        = %#RX16\n",    pszPrefix, pVmcbCtrl->u16PauseFilterCount);
-    pHlp->pfnPrintf(pHlp, "%su64IOPMPhysAddr            = %#RX64\n",    pszPrefix, pVmcbCtrl->u64IOPMPhysAddr);
-    pHlp->pfnPrintf(pHlp, "%su64MSRPMPhysAddr           = %#RX64\n",    pszPrefix, pVmcbCtrl->u64MSRPMPhysAddr);
-    pHlp->pfnPrintf(pHlp, "%su64TSCOffset               = %#RX64\n",    pszPrefix, pVmcbCtrl->u64TSCOffset);
-    pHlp->pfnPrintf(pHlp, "%sTLBCtrl\n",                                pszPrefix);
-    pHlp->pfnPrintf(pHlp, "%s  u32ASID                    = %#RX32\n",  pszPrefix, pVmcbCtrl->TLBCtrl.n.u32ASID);
-    pHlp->pfnPrintf(pHlp, "%s  u8TLBFlush                 = %u\n",      pszPrefix, pVmcbCtrl->TLBCtrl.n.u8TLBFlush);
-    pHlp->pfnPrintf(pHlp, "%sIntCtrl\n",                                pszPrefix);
-    pHlp->pfnPrintf(pHlp, "%s  u8VTPR                     = %#RX8 (%u)\n",   pszPrefix, pVmcbCtrl->IntCtrl.n.u8VTPR, pVmcbCtrl->IntCtrl.n.u8VTPR);
-    pHlp->pfnPrintf(pHlp, "%s  u1VIrqPending              = %RTbool\n", pszPrefix, pVmcbCtrl->IntCtrl.n.u1VIrqPending);
-    pHlp->pfnPrintf(pHlp, "%s  u1VGif                     = %u\n",      pszPrefix, pVmcbCtrl->IntCtrl.n.u1VGif);
-    pHlp->pfnPrintf(pHlp, "%s  u4VIntrPrio                = %#RX8\n",   pszPrefix, pVmcbCtrl->IntCtrl.n.u4VIntrPrio);
-    pHlp->pfnPrintf(pHlp, "%s  u1IgnoreTPR                = %RTbool\n", pszPrefix, pVmcbCtrl->IntCtrl.n.u1IgnoreTPR);
-    pHlp->pfnPrintf(pHlp, "%s  u1VIntrMasking             = %RTbool\n", pszPrefix, pVmcbCtrl->IntCtrl.n.u1VIntrMasking);
-    pHlp->pfnPrintf(pHlp, "%s  u1VGifEnable               = %RTbool\n", pszPrefix, pVmcbCtrl->IntCtrl.n.u1VGifEnable);
-    pHlp->pfnPrintf(pHlp, "%s  u1AvicEnable               = %RTbool\n", pszPrefix, pVmcbCtrl->IntCtrl.n.u1AvicEnable);
-    pHlp->pfnPrintf(pHlp, "%s  u8VIntrVector              = %#RX8\n",   pszPrefix, pVmcbCtrl->IntCtrl.n.u8VIntrVector);
-    pHlp->pfnPrintf(pHlp, "%sIntShadow\n",                              pszPrefix);
-    pHlp->pfnPrintf(pHlp, "%s  u1IntShadow                = %RTbool\n", pszPrefix, pVmcbCtrl->IntShadow.n.u1IntShadow);
-    pHlp->pfnPrintf(pHlp, "%s  u1GuestIntMask             = %RTbool\n", pszPrefix, pVmcbCtrl->IntShadow.n.u1GuestIntMask);
-    pHlp->pfnPrintf(pHlp, "%su64ExitCode                = %#RX64\n",    pszPrefix, pVmcbCtrl->u64ExitCode);
-    pHlp->pfnPrintf(pHlp, "%su64ExitInfo1               = %#RX64\n",    pszPrefix, pVmcbCtrl->u64ExitInfo1);
-    pHlp->pfnPrintf(pHlp, "%su64ExitInfo2               = %#RX64\n",    pszPrefix, pVmcbCtrl->u64ExitInfo2);
-    pHlp->pfnPrintf(pHlp, "%sExitIntInfo\n",                            pszPrefix);
-    pHlp->pfnPrintf(pHlp, "%s  u8Vector                   = %#RX8 (%u)\n", pszPrefix, pVmcbCtrl->ExitIntInfo.n.u8Vector, pVmcbCtrl->ExitIntInfo.n.u8Vector);
-    pHlp->pfnPrintf(pHlp, "%s  u3Type                     = %u\n",      pszPrefix, pVmcbCtrl->ExitIntInfo.n.u3Type);
-    pHlp->pfnPrintf(pHlp, "%s  u1ErrorCodeValid           = %RTbool\n", pszPrefix, pVmcbCtrl->ExitIntInfo.n.u1ErrorCodeValid);
-    pHlp->pfnPrintf(pHlp, "%s  u1Valid                    = %RTbool\n", pszPrefix, pVmcbCtrl->ExitIntInfo.n.u1Valid);
-    pHlp->pfnPrintf(pHlp, "%s  u32ErrorCode               = %#RX32\n",  pszPrefix, pVmcbCtrl->ExitIntInfo.n.u32ErrorCode);
-    pHlp->pfnPrintf(pHlp, "%sNestedPaging and SEV\n",                   pszPrefix);
-    pHlp->pfnPrintf(pHlp, "%s  u1NestedPaging             = %RTbool\n", pszPrefix, pVmcbCtrl->NestedPagingCtrl.n.u1NestedPaging);
-    pHlp->pfnPrintf(pHlp, "%s  u1Sev                      = %RTbool\n", pszPrefix, pVmcbCtrl->NestedPagingCtrl.n.u1Sev);
-    pHlp->pfnPrintf(pHlp, "%s  u1SevEs                    = %RTbool\n", pszPrefix, pVmcbCtrl->NestedPagingCtrl.n.u1SevEs);
-    pHlp->pfnPrintf(pHlp, "%sAvicBar\n",                                pszPrefix);
-    pHlp->pfnPrintf(pHlp, "%s  u40Addr                    = %#RX64\n",  pszPrefix, pVmcbCtrl->AvicBar.n.u40Addr);
-    pHlp->pfnPrintf(pHlp, "%sEventInject\n",                            pszPrefix);
-    pHlp->pfnPrintf(pHlp, "%s  EventInject\n",                          pszPrefix);
-    pHlp->pfnPrintf(pHlp, "%s  u8Vector                   = %#RX32 (%u)\n", pszPrefix, pVmcbCtrl->EventInject.n.u8Vector, pVmcbCtrl->EventInject.n.u8Vector);
-    pHlp->pfnPrintf(pHlp, "%s  u3Type                     = %u\n",      pszPrefix, pVmcbCtrl->EventInject.n.u3Type);
-    pHlp->pfnPrintf(pHlp, "%s  u1ErrorCodeValid           = %RTbool\n", pszPrefix, pVmcbCtrl->EventInject.n.u1ErrorCodeValid);
-    pHlp->pfnPrintf(pHlp, "%s  u1Valid                    = %RTbool\n", pszPrefix, pVmcbCtrl->EventInject.n.u1Valid);
-    pHlp->pfnPrintf(pHlp, "%s  u32ErrorCode               = %#RX32\n",  pszPrefix, pVmcbCtrl->EventInject.n.u32ErrorCode);
-    pHlp->pfnPrintf(pHlp, "%su64NestedPagingCR3         = %#RX64\n",    pszPrefix, pVmcbCtrl->u64NestedPagingCR3);
-    pHlp->pfnPrintf(pHlp, "%sLBR virtualization\n",                     pszPrefix);
-    pHlp->pfnPrintf(pHlp, "%s  u1LbrVirt                  = %RTbool\n", pszPrefix, pVmcbCtrl->LbrVirt.n.u1LbrVirt);
-    pHlp->pfnPrintf(pHlp, "%s  u1VirtVmsaveVmload         = %RTbool\n", pszPrefix, pVmcbCtrl->LbrVirt.n.u1VirtVmsaveVmload);
-    pHlp->pfnPrintf(pHlp, "%su32VmcbCleanBits           = %#RX32\n",    pszPrefix, pVmcbCtrl->u32VmcbCleanBits);
-    pHlp->pfnPrintf(pHlp, "%su64NextRIP                 = %#RX64\n",    pszPrefix, pVmcbCtrl->u64NextRIP);
-    pHlp->pfnPrintf(pHlp, "%scbInstrFetched             = %u\n",        pszPrefix, pVmcbCtrl->cbInstrFetched);
-    pHlp->pfnPrintf(pHlp, "%sabInstr                    = %.*Rhxs\n",   pszPrefix, sizeof(pVmcbCtrl->abInstr), pVmcbCtrl->abInstr);
-    pHlp->pfnPrintf(pHlp, "%sAvicBackingPagePtr\n",                     pszPrefix);
-    pHlp->pfnPrintf(pHlp, "%s  u40Addr                    = %#RX64\n",  pszPrefix, pVmcbCtrl->AvicBackingPagePtr.n.u40Addr);
-    pHlp->pfnPrintf(pHlp, "%sAvicLogicalTablePtr\n",                    pszPrefix);
-    pHlp->pfnPrintf(pHlp, "%s  u40Addr                    = %#RX64\n",  pszPrefix, pVmcbCtrl->AvicLogicalTablePtr.n.u40Addr);
-    pHlp->pfnPrintf(pHlp, "%sAvicPhysicalTablePtr\n",                   pszPrefix);
-    pHlp->pfnPrintf(pHlp, "%s  u8LastGuestCoreId          = %u\n",      pszPrefix, pVmcbCtrl->AvicPhysicalTablePtr.n.u8LastGuestCoreId);
-    pHlp->pfnPrintf(pHlp, "%s  u40Addr                    = %#RX64\n",  pszPrefix, pVmcbCtrl->AvicPhysicalTablePtr.n.u40Addr);
+    pHlp->pfnPrintf(pHlp, "%sCRX-read intercepts        = %#RX16\n",    pszPrefix, pVmcbCtrl->u16InterceptRdCRx);
+    pHlp->pfnPrintf(pHlp, "%sCRX-write intercepts       = %#RX16\n",    pszPrefix, pVmcbCtrl->u16InterceptWrCRx);
+    pHlp->pfnPrintf(pHlp, "%sDRX-read intercepts        = %#RX16\n",    pszPrefix, pVmcbCtrl->u16InterceptRdDRx);
+    pHlp->pfnPrintf(pHlp, "%sDRX-write intercepts       = %#RX16\n",    pszPrefix, pVmcbCtrl->u16InterceptWrDRx);
+    pHlp->pfnPrintf(pHlp, "%sException intercepts       = %#RX32\n",    pszPrefix, pVmcbCtrl->u32InterceptXcpt);
+    pHlp->pfnPrintf(pHlp, "%sControl intercepts         = %#RX64\n",    pszPrefix, pVmcbCtrl->u64InterceptCtrl);
+    pHlp->pfnPrintf(pHlp, "%sPause-filter threshold     = %#RX16\n",    pszPrefix, pVmcbCtrl->u16PauseFilterThreshold);
+    pHlp->pfnPrintf(pHlp, "%sPause-filter count         = %#RX16\n",    pszPrefix, pVmcbCtrl->u16PauseFilterCount);
+    pHlp->pfnPrintf(pHlp, "%sIOPM bitmap physaddr       = %#RX64\n",    pszPrefix, pVmcbCtrl->u64IOPMPhysAddr);
+    pHlp->pfnPrintf(pHlp, "%sMSRPM bitmap physaddr      = %#RX64\n",    pszPrefix, pVmcbCtrl->u64MSRPMPhysAddr);
+    pHlp->pfnPrintf(pHlp, "%sTSC offset                 = %#RX64\n",    pszPrefix, pVmcbCtrl->u64TSCOffset);
+    pHlp->pfnPrintf(pHlp, "%sTLB Control\n",                            pszPrefix);
+    pHlp->pfnPrintf(pHlp, "  %sASID                       = %#RX32\n",  pszPrefix, pVmcbCtrl->TLBCtrl.n.u32ASID);
+    pHlp->pfnPrintf(pHlp, "  %sTLB-flush type             = %u\n",      pszPrefix, pVmcbCtrl->TLBCtrl.n.u8TLBFlush);
+    pHlp->pfnPrintf(pHlp, "%sInterrupt Control\n",                      pszPrefix);
+    pHlp->pfnPrintf(pHlp, "  %sVTPR                       = %#RX8 (%u)\n", pszPrefix, pVmcbCtrl->IntCtrl.n.u8VTPR, pVmcbCtrl->IntCtrl.n.u8VTPR);
+    pHlp->pfnPrintf(pHlp, "  %sVIRQ (Pending)             = %RTbool\n", pszPrefix, pVmcbCtrl->IntCtrl.n.u1VIrqPending);
+    pHlp->pfnPrintf(pHlp, "  %sVINTR vector               = %#RX8\n",   pszPrefix, pVmcbCtrl->IntCtrl.n.u8VIntrVector);
+    pHlp->pfnPrintf(pHlp, "  %sVGIF                       = %u\n",      pszPrefix, pVmcbCtrl->IntCtrl.n.u1VGif);
+    pHlp->pfnPrintf(pHlp, "  %sVINTR priority             = %#RX8\n",   pszPrefix, pVmcbCtrl->IntCtrl.n.u4VIntrPrio);
+    pHlp->pfnPrintf(pHlp, "  %sIgnore TPR                 = %RTbool\n", pszPrefix, pVmcbCtrl->IntCtrl.n.u1IgnoreTPR);
+    pHlp->pfnPrintf(pHlp, "  %sVINTR masking              = %RTbool\n", pszPrefix, pVmcbCtrl->IntCtrl.n.u1VIntrMasking);
+    pHlp->pfnPrintf(pHlp, "  %sVGIF enable                = %RTbool\n", pszPrefix, pVmcbCtrl->IntCtrl.n.u1VGifEnable);
+    pHlp->pfnPrintf(pHlp, "  %sAVIC enable                = %RTbool\n", pszPrefix, pVmcbCtrl->IntCtrl.n.u1AvicEnable);
+    pHlp->pfnPrintf(pHlp, "%sInterrupt Shadow\n",                       pszPrefix);
+    pHlp->pfnPrintf(pHlp, "  %sInterrupt shadow           = %RTbool\n", pszPrefix, pVmcbCtrl->IntShadow.n.u1IntShadow);
+    pHlp->pfnPrintf(pHlp, "  %sGuest-interrupt Mask       = %RTbool\n", pszPrefix, pVmcbCtrl->IntShadow.n.u1GuestIntMask);
+    pHlp->pfnPrintf(pHlp, "%sExit Code                  = %#RX64\n",    pszPrefix, pVmcbCtrl->u64ExitCode);
+    pHlp->pfnPrintf(pHlp, "%sEXITINFO1                  = %#RX64\n",    pszPrefix, pVmcbCtrl->u64ExitInfo1);
+    pHlp->pfnPrintf(pHlp, "%sEXITINFO2                  = %#RX64\n",    pszPrefix, pVmcbCtrl->u64ExitInfo2);
+    pHlp->pfnPrintf(pHlp, "%sExit Interrupt Info\n",                    pszPrefix);
+    pHlp->pfnPrintf(pHlp, "  %sValid                      = %RTbool\n", pszPrefix, pVmcbCtrl->ExitIntInfo.n.u1Valid);
+    pHlp->pfnPrintf(pHlp, "  %sVector                     = %#RX8 (%u)\n", pszPrefix, pVmcbCtrl->ExitIntInfo.n.u8Vector, pVmcbCtrl->ExitIntInfo.n.u8Vector);
+    pHlp->pfnPrintf(pHlp, "  %sType                       = %u\n",      pszPrefix, pVmcbCtrl->ExitIntInfo.n.u3Type);
+    pHlp->pfnPrintf(pHlp, "  %sError-code valid           = %RTbool\n", pszPrefix, pVmcbCtrl->ExitIntInfo.n.u1ErrorCodeValid);
+    pHlp->pfnPrintf(pHlp, "  %sError-code                 = %#RX32\n",  pszPrefix, pVmcbCtrl->ExitIntInfo.n.u32ErrorCode);
+    pHlp->pfnPrintf(pHlp, "%sNested paging and SEV\n",                  pszPrefix);
+    pHlp->pfnPrintf(pHlp, "  %sNested paging              = %RTbool\n", pszPrefix, pVmcbCtrl->NestedPagingCtrl.n.u1NestedPaging);
+    pHlp->pfnPrintf(pHlp, "  %sSEV (Secure Encrypted VM)  = %RTbool\n", pszPrefix, pVmcbCtrl->NestedPagingCtrl.n.u1Sev);
+    pHlp->pfnPrintf(pHlp, "  %sSEV-ES (Encrypted State)   = %RTbool\n", pszPrefix, pVmcbCtrl->NestedPagingCtrl.n.u1SevEs);
+    pHlp->pfnPrintf(pHlp, "%sEvent Inject\n",                           pszPrefix);
+    pHlp->pfnPrintf(pHlp, "  %sValid                      = %RTbool\n", pszPrefix, pVmcbCtrl->EventInject.n.u1Valid);
+    pHlp->pfnPrintf(pHlp, "  %sVector                     = %#RX32 (%u)\n", pszPrefix, pVmcbCtrl->EventInject.n.u8Vector, pVmcbCtrl->EventInject.n.u8Vector);
+    pHlp->pfnPrintf(pHlp, "  %sType                       = %u\n",      pszPrefix, pVmcbCtrl->EventInject.n.u3Type);
+    pHlp->pfnPrintf(pHlp, "  %sError-code valid           = %RTbool\n", pszPrefix, pVmcbCtrl->EventInject.n.u1ErrorCodeValid);
+    pHlp->pfnPrintf(pHlp, "  %sError-code                 = %#RX32\n",  pszPrefix, pVmcbCtrl->EventInject.n.u32ErrorCode);
+    pHlp->pfnPrintf(pHlp, "%sNested-paging CR3          = %#RX64\n",    pszPrefix, pVmcbCtrl->u64NestedPagingCR3);
+    pHlp->pfnPrintf(pHlp, "%sLBR Virtualization\n",                     pszPrefix);
+    pHlp->pfnPrintf(pHlp, "  %sLBR virt                   = %RTbool\n", pszPrefix, pVmcbCtrl->LbrVirt.n.u1LbrVirt);
+    pHlp->pfnPrintf(pHlp, "  %sVirt. VMSAVE/VMLOAD        = %RTbool\n", pszPrefix, pVmcbCtrl->LbrVirt.n.u1VirtVmsaveVmload);
+    pHlp->pfnPrintf(pHlp, "%sVMCB Clean Bits            = %#RX32\n",    pszPrefix, pVmcbCtrl->u32VmcbCleanBits);
+    pHlp->pfnPrintf(pHlp, "%sNext-RIP                   = %#RX64\n",    pszPrefix, pVmcbCtrl->u64NextRIP);
+    pHlp->pfnPrintf(pHlp, "%sInstruction bytes fetched  = %u\n",        pszPrefix, pVmcbCtrl->cbInstrFetched);
+    pHlp->pfnPrintf(pHlp, "%sInstruction bytes          = %.*Rhxs\n",   pszPrefix, sizeof(pVmcbCtrl->abInstr), pVmcbCtrl->abInstr);
+    pHlp->pfnPrintf(pHlp, "%sAVIC\n",                                   pszPrefix);
+    pHlp->pfnPrintf(pHlp, "  %sBar addr                   = %#RX64\n",  pszPrefix, pVmcbCtrl->AvicBar.n.u40Addr);
+    pHlp->pfnPrintf(pHlp, "  %sBacking page addr          = %#RX64\n",  pszPrefix, pVmcbCtrl->AvicBackingPagePtr.n.u40Addr);
+    pHlp->pfnPrintf(pHlp, "  %sLogical table addr         = %#RX64\n",  pszPrefix, pVmcbCtrl->AvicLogicalTablePtr.n.u40Addr);
+    pHlp->pfnPrintf(pHlp, "  %sPhysical table addr        = %#RX64\n",  pszPrefix, pVmcbCtrl->AvicPhysicalTablePtr.n.u40Addr);
+    pHlp->pfnPrintf(pHlp, "  %sLast guest core Id         = %u\n",      pszPrefix, pVmcbCtrl->AvicPhysicalTablePtr.n.u8LastGuestCoreId);
 }
 
 
@@ -3393,32 +3312,291 @@ static void cpumR3InfoSvmVmcbStateSave(PCDBGFINFOHLP pHlp, PCSVMVMCBSTATESAVE pV
     cpumR3InfoSvmVmcbSelReg(pHlp, &pVmcbStateSave->TR,   "TR",   pszPrefix);
     cpumR3InfoSvmVmcbXdtr(pHlp, &pVmcbStateSave->GDTR,   "GDTR", pszPrefix);
     cpumR3InfoSvmVmcbXdtr(pHlp, &pVmcbStateSave->IDTR,   "IDTR", pszPrefix);
-    pHlp->pfnPrintf(pHlp, "%su8CPL                      = %u\n",     pszPrefix, pVmcbStateSave->u8CPL);
-    pHlp->pfnPrintf(pHlp, "%su64EFER                    = %#RX64\n", pszPrefix, pVmcbStateSave->u64EFER);
-    pHlp->pfnPrintf(pHlp, "%su64CR4                     = %#RX64\n", pszPrefix, pVmcbStateSave->u64CR4);
-    pHlp->pfnPrintf(pHlp, "%su64CR3                     = %#RX64\n", pszPrefix, pVmcbStateSave->u64CR3);
-    pHlp->pfnPrintf(pHlp, "%su64CR0                     = %#RX64\n", pszPrefix, pVmcbStateSave->u64CR0);
-    pHlp->pfnPrintf(pHlp, "%su64DR7                     = %#RX64\n", pszPrefix, pVmcbStateSave->u64DR7);
-    pHlp->pfnPrintf(pHlp, "%su64DR6                     = %#RX64\n", pszPrefix, pVmcbStateSave->u64DR6);
-    pHlp->pfnPrintf(pHlp, "%su64RFlags                  = %#RX64 %31s\n", pszPrefix, pVmcbStateSave->u64RFlags, szEFlags);
-    pHlp->pfnPrintf(pHlp, "%su64RIP                     = %#RX64\n", pszPrefix, pVmcbStateSave->u64RIP);
-    pHlp->pfnPrintf(pHlp, "%su64RSP                     = %#RX64\n", pszPrefix, pVmcbStateSave->u64RSP);
-    pHlp->pfnPrintf(pHlp, "%su64RAX                     = %#RX64\n", pszPrefix, pVmcbStateSave->u64RAX);
-    pHlp->pfnPrintf(pHlp, "%su64STAR                    = %#RX64\n", pszPrefix, pVmcbStateSave->u64STAR);
-    pHlp->pfnPrintf(pHlp, "%su64LSTAR                   = %#RX64\n", pszPrefix, pVmcbStateSave->u64LSTAR);
-    pHlp->pfnPrintf(pHlp, "%su64CSTAR                   = %#RX64\n", pszPrefix, pVmcbStateSave->u64CSTAR);
-    pHlp->pfnPrintf(pHlp, "%su64SFMASK                  = %#RX64\n", pszPrefix, pVmcbStateSave->u64SFMASK);
-    pHlp->pfnPrintf(pHlp, "%su64KernelGSBase            = %#RX64\n", pszPrefix, pVmcbStateSave->u64KernelGSBase);
-    pHlp->pfnPrintf(pHlp, "%su64SysEnterCS              = %#RX64\n", pszPrefix, pVmcbStateSave->u64SysEnterCS);
-    pHlp->pfnPrintf(pHlp, "%su64SysEnterEIP             = %#RX64\n", pszPrefix, pVmcbStateSave->u64SysEnterEIP);
-    pHlp->pfnPrintf(pHlp, "%su64SysEnterESP             = %#RX64\n", pszPrefix, pVmcbStateSave->u64SysEnterESP);
-    pHlp->pfnPrintf(pHlp, "%su64CR2                     = %#RX64\n", pszPrefix, pVmcbStateSave->u64CR2);
-    pHlp->pfnPrintf(pHlp, "%su64PAT                     = %#RX64\n", pszPrefix, pVmcbStateSave->u64PAT);
-    pHlp->pfnPrintf(pHlp, "%su64DBGCTL                  = %#RX64\n", pszPrefix, pVmcbStateSave->u64DBGCTL);
-    pHlp->pfnPrintf(pHlp, "%su64BR_FROM                 = %#RX64\n", pszPrefix, pVmcbStateSave->u64BR_FROM);
-    pHlp->pfnPrintf(pHlp, "%su64BR_TO                   = %#RX64\n", pszPrefix, pVmcbStateSave->u64BR_TO);
-    pHlp->pfnPrintf(pHlp, "%su64LASTEXCPFROM            = %#RX64\n", pszPrefix, pVmcbStateSave->u64LASTEXCPFROM);
-    pHlp->pfnPrintf(pHlp, "%su64LASTEXCPTO              = %#RX64\n", pszPrefix, pVmcbStateSave->u64LASTEXCPTO);
+    pHlp->pfnPrintf(pHlp, "%sCPL                        = %u\n",     pszPrefix, pVmcbStateSave->u8CPL);
+    pHlp->pfnPrintf(pHlp, "%sEFER                       = %#RX64\n", pszPrefix, pVmcbStateSave->u64EFER);
+    pHlp->pfnPrintf(pHlp, "%sCR4                        = %#RX64\n", pszPrefix, pVmcbStateSave->u64CR4);
+    pHlp->pfnPrintf(pHlp, "%sCR3                        = %#RX64\n", pszPrefix, pVmcbStateSave->u64CR3);
+    pHlp->pfnPrintf(pHlp, "%sCR0                        = %#RX64\n", pszPrefix, pVmcbStateSave->u64CR0);
+    pHlp->pfnPrintf(pHlp, "%sDR7                        = %#RX64\n", pszPrefix, pVmcbStateSave->u64DR7);
+    pHlp->pfnPrintf(pHlp, "%sDR6                        = %#RX64\n", pszPrefix, pVmcbStateSave->u64DR6);
+    pHlp->pfnPrintf(pHlp, "%sRFLAGS                     = %#RX64 %31s\n", pszPrefix, pVmcbStateSave->u64RFlags, szEFlags);
+    pHlp->pfnPrintf(pHlp, "%sRIP                        = %#RX64\n", pszPrefix, pVmcbStateSave->u64RIP);
+    pHlp->pfnPrintf(pHlp, "%sRSP                        = %#RX64\n", pszPrefix, pVmcbStateSave->u64RSP);
+    pHlp->pfnPrintf(pHlp, "%sRAX                        = %#RX64\n", pszPrefix, pVmcbStateSave->u64RAX);
+    pHlp->pfnPrintf(pHlp, "%sSTAR                       = %#RX64\n", pszPrefix, pVmcbStateSave->u64STAR);
+    pHlp->pfnPrintf(pHlp, "%sLSTAR                      = %#RX64\n", pszPrefix, pVmcbStateSave->u64LSTAR);
+    pHlp->pfnPrintf(pHlp, "%sCSTAR                      = %#RX64\n", pszPrefix, pVmcbStateSave->u64CSTAR);
+    pHlp->pfnPrintf(pHlp, "%sSFMASK                     = %#RX64\n", pszPrefix, pVmcbStateSave->u64SFMASK);
+    pHlp->pfnPrintf(pHlp, "%sKERNELGSBASE               = %#RX64\n", pszPrefix, pVmcbStateSave->u64KernelGSBase);
+    pHlp->pfnPrintf(pHlp, "%sSysEnter CS                = %#RX64\n", pszPrefix, pVmcbStateSave->u64SysEnterCS);
+    pHlp->pfnPrintf(pHlp, "%sSysEnter EIP               = %#RX64\n", pszPrefix, pVmcbStateSave->u64SysEnterEIP);
+    pHlp->pfnPrintf(pHlp, "%sSysEnter ESP               = %#RX64\n", pszPrefix, pVmcbStateSave->u64SysEnterESP);
+    pHlp->pfnPrintf(pHlp, "%sCR2                        = %#RX64\n", pszPrefix, pVmcbStateSave->u64CR2);
+    pHlp->pfnPrintf(pHlp, "%sPAT                        = %#RX64\n", pszPrefix, pVmcbStateSave->u64PAT);
+    pHlp->pfnPrintf(pHlp, "%sDBGCTL                     = %#RX64\n", pszPrefix, pVmcbStateSave->u64DBGCTL);
+    pHlp->pfnPrintf(pHlp, "%sBR_FROM                    = %#RX64\n", pszPrefix, pVmcbStateSave->u64BR_FROM);
+    pHlp->pfnPrintf(pHlp, "%sBR_TO                      = %#RX64\n", pszPrefix, pVmcbStateSave->u64BR_TO);
+    pHlp->pfnPrintf(pHlp, "%sLASTXCPT_FROM              = %#RX64\n", pszPrefix, pVmcbStateSave->u64LASTEXCPFROM);
+    pHlp->pfnPrintf(pHlp, "%sLASTXCPT_TO                = %#RX64\n", pszPrefix, pVmcbStateSave->u64LASTEXCPTO);
+}
+
+
+/**
+ * Displays a virtual-VMCS.
+ *
+ * @param   pHlp        The info helper functions.
+ * @param   pVmcs       Pointer to a virtual VMCS.
+ * @param   pszPrefix   Caller specified string prefix.
+ */
+static void  cpumR3InfoVmxVmcs(PCDBGFINFOHLP pHlp, PCVMXVVMCS pVmcs, const char *pszPrefix)
+{
+    AssertReturnVoid(pHlp);
+    AssertReturnVoid(pVmcs);
+
+    /* The string width of -4 used in the macros below to cover 'LDTR', 'GDTR', 'IDTR. */
+#define CPUMVMX_DUMP_HOST_XDTR(a_pHlp, a_pVmcs, a_Seg, a_SegName, a_pszPrefix) \
+    do { \
+        (a_pHlp)->pfnPrintf((a_pHlp), "  %s%-4s                       = {base=%016RX64}\n", \
+                            (a_pszPrefix), (a_SegName), (a_pVmcs)->u64Host##a_Seg##Base.u); \
+    } while (0)
+
+#define CPUMVMX_DUMP_HOST_FS_GS_TR(a_pHlp, a_pVmcs, a_Seg, a_SegName, a_pszPrefix) \
+    do { \
+        (a_pHlp)->pfnPrintf((a_pHlp), "  %s%-4s                       = {%04x base=%016RX64}\n", \
+                            (a_pszPrefix), (a_SegName), (a_pVmcs)->Host##a_Seg, (a_pVmcs)->u64Host##a_Seg##Base.u); \
+    } while (0)
+
+#define CPUMVMX_DUMP_GUEST_SEGREG(a_pHlp, a_pVmcs, a_Seg, a_SegName, a_pszPrefix) \
+    do { \
+        (a_pHlp)->pfnPrintf((a_pHlp), "  %s%-4s                       = {%04x base=%016RX64 limit=%08x flags=%04x}\n", \
+                            (a_pszPrefix), (a_SegName), (a_pVmcs)->Guest##a_Seg, (a_pVmcs)->u64Guest##a_Seg##Base.u, \
+                            (a_pVmcs)->u32Guest##a_Seg##Limit, (a_pVmcs)->u32Guest##a_Seg##Attr); \
+    } while (0)
+
+#define CPUMVMX_DUMP_GUEST_XDTR(a_pHlp, a_pVmcs, a_Seg, a_SegName, a_pszPrefix) \
+    do { \
+        (a_pHlp)->pfnPrintf((a_pHlp), "  %s%-4s                       = {base=%016RX64 limit=%08x}\n", \
+                            (a_pszPrefix), (a_SegName), (a_pVmcs)->u64Guest##a_Seg##Base.u, (a_pVmcs)->u32Guest##a_Seg##Limit); \
+    } while (0)
+
+    /* Header. */
+    {
+        pHlp->pfnPrintf(pHlp, "%sHeader:\n", pszPrefix);
+        pHlp->pfnPrintf(pHlp, "  %sVMCS revision id           = %#RX32\n",   pszPrefix, pVmcs->u32VmcsRevId);
+        pHlp->pfnPrintf(pHlp, "  %sVMX-abort id               = %#RX32\n",   pszPrefix, pVmcs->u32VmxAbortId);
+        pHlp->pfnPrintf(pHlp, "  %sVMCS state                 = %#x (%s)\n", pszPrefix, pVmcs->fVmcsState,
+                        HMVmxGetVmcsStateDesc(pVmcs->fVmcsState));
+    }
+
+    /* Control fields. */
+    {
+        /* 16-bit. */
+        pHlp->pfnPrintf(pHlp, "%sControl:\n", pszPrefix);
+        pHlp->pfnPrintf(pHlp, "  %sVPID                       = %#RX16\n",   pszPrefix, pVmcs->u16Vpid);
+        pHlp->pfnPrintf(pHlp, "  %sPosted intr notify vector  = %#RX16\n",   pszPrefix, pVmcs->u16PostIntNotifyVector);
+        pHlp->pfnPrintf(pHlp, "  %sEPTP index                 = %#RX16\n",   pszPrefix, pVmcs->u16EptpIndex);
+
+        /* 32-bit. */
+        pHlp->pfnPrintf(pHlp, "  %sPinCtls                    = %#RX32\n",   pszPrefix, pVmcs->u32PinCtls);
+        pHlp->pfnPrintf(pHlp, "  %sProcCtls                   = %#RX32\n",   pszPrefix, pVmcs->u32ProcCtls);
+        pHlp->pfnPrintf(pHlp, "  %sProcCtls2                  = %#RX32\n",   pszPrefix, pVmcs->u32ProcCtls2);
+        pHlp->pfnPrintf(pHlp, "  %sExitCtls                   = %#RX32\n",   pszPrefix, pVmcs->u32ExitCtls);
+        pHlp->pfnPrintf(pHlp, "  %sEntryCtls                  = %#RX32\n",   pszPrefix, pVmcs->u32EntryCtls);
+        pHlp->pfnPrintf(pHlp, "  %sException bitmap           = %#RX32\n",   pszPrefix, pVmcs->u32XcptBitmap);
+        pHlp->pfnPrintf(pHlp, "  %sPage-fault mask            = %#RX32\n",   pszPrefix, pVmcs->u32XcptPFMask);
+        pHlp->pfnPrintf(pHlp, "  %sPage-fault match           = %#RX32\n",   pszPrefix, pVmcs->u32XcptPFMatch);
+        pHlp->pfnPrintf(pHlp, "  %sCR3-target count           = %#RX32\n",   pszPrefix, pVmcs->u32Cr3TargetCount);
+        pHlp->pfnPrintf(pHlp, "  %sVM-exit MSR store count    = %#RX32\n",   pszPrefix, pVmcs->u32ExitMsrStoreCount);
+        pHlp->pfnPrintf(pHlp, "  %sVM-exit MSR load count     = %#RX32\n",   pszPrefix, pVmcs->u32ExitMsrLoadCount);
+        pHlp->pfnPrintf(pHlp, "  %sVM-entry MSR load count    = %#RX32\n",   pszPrefix, pVmcs->u32EntryMsrLoadCount);
+        pHlp->pfnPrintf(pHlp, "  %sVM-Entry interruption info = %#RX32\n",   pszPrefix, pVmcs->u32EntryIntInfo);
+        {
+            uint32_t const fInfo = pVmcs->u32EntryIntInfo;
+            uint8_t  const uType = VMX_ENTRY_INT_INFO_TYPE(fInfo);
+            pHlp->pfnPrintf(pHlp, "    %sValid                      = %RTbool\n", pszPrefix, VMX_ENTRY_INT_INFO_IS_VALID(fInfo));
+            pHlp->pfnPrintf(pHlp, "    %sType                       = %#x (%s)\n", pszPrefix, uType, HMVmxGetEntryIntInfoTypeDesc(uType));
+            pHlp->pfnPrintf(pHlp, "    %sVector                     = %#x\n",     pszPrefix, VMX_ENTRY_INT_INFO_VECTOR(fInfo));
+            pHlp->pfnPrintf(pHlp, "    %sNMI-unblocking-IRET        = %RTbool\n", pszPrefix, VMX_ENTRY_INT_INFO_IS_NMI_UNBLOCK_IRET(fInfo));
+            pHlp->pfnPrintf(pHlp, "    %sError-code valid           = %RTbool\n", pszPrefix, VMX_ENTRY_INT_INFO_IS_ERROR_CODE_VALID(fInfo));
+        }
+        pHlp->pfnPrintf(pHlp, "  %sVM-Entry xcpt error-code   = %#RX32\n",   pszPrefix, pVmcs->u32EntryXcptErrCode);
+        pHlp->pfnPrintf(pHlp, "  %sVM-Entry instruction len   = %u bytes\n", pszPrefix, pVmcs->u32EntryInstrLen);
+        pHlp->pfnPrintf(pHlp, "  %sTPR threshold              = %#RX32\n",   pszPrefix, pVmcs->u32TprThreshold);
+        pHlp->pfnPrintf(pHlp, "  %sPLE gap                    = %#RX32\n",   pszPrefix, pVmcs->u32PleGap);
+        pHlp->pfnPrintf(pHlp, "  %sPLE window                 = %#RX32\n",   pszPrefix, pVmcs->u32PleWindow);
+
+        /* 64-bit. */
+        pHlp->pfnPrintf(pHlp, "  %sIO-bitmap A addr           = %#RX64\n",   pszPrefix, pVmcs->u64AddrIoBitmapA.u);
+        pHlp->pfnPrintf(pHlp, "  %sIO-bitmap B addr           = %#RX64\n",   pszPrefix, pVmcs->u64AddrIoBitmapB.u);
+        pHlp->pfnPrintf(pHlp, "  %sMSR-bitmap addr            = %#RX64\n",   pszPrefix, pVmcs->u64AddrMsrBitmap.u);
+        pHlp->pfnPrintf(pHlp, "  %sVM-exit MSR store addr     = %#RX64\n",   pszPrefix, pVmcs->u64AddrExitMsrStore.u);
+        pHlp->pfnPrintf(pHlp, "  %sVM-exit MSR load addr      = %#RX64\n",   pszPrefix, pVmcs->u64AddrExitMsrLoad.u);
+        pHlp->pfnPrintf(pHlp, "  %sVM-entry MSR load addr     = %#RX64\n",   pszPrefix, pVmcs->u64AddrEntryMsrLoad.u);
+        pHlp->pfnPrintf(pHlp, "  %sExecutive VMCS ptr         = %#RX64\n",   pszPrefix, pVmcs->u64ExecVmcsPtr.u);
+        pHlp->pfnPrintf(pHlp, "  %sPML addr                   = %#RX64\n",   pszPrefix, pVmcs->u64AddrPml.u);
+        pHlp->pfnPrintf(pHlp, "  %sTSC offset                 = %#RX64\n",   pszPrefix, pVmcs->u64TscOffset.u);
+        pHlp->pfnPrintf(pHlp, "  %sVirtual-APIC addr          = %#RX64\n",   pszPrefix, pVmcs->u64AddrVirtApic.u);
+        pHlp->pfnPrintf(pHlp, "  %sAPIC-access addr           = %#RX64\n",   pszPrefix, pVmcs->u64AddrApicAccess.u);
+        pHlp->pfnPrintf(pHlp, "  %sPosted-intr desc addr      = %#RX64\n",   pszPrefix, pVmcs->u64AddrPostedIntDesc.u);
+        pHlp->pfnPrintf(pHlp, "  %sVM-functions control       = %#RX64\n",   pszPrefix, pVmcs->u64VmFuncCtls.u);
+        pHlp->pfnPrintf(pHlp, "  %sEPTP ptr                   = %#RX64\n",   pszPrefix, pVmcs->u64EptpPtr.u);
+        pHlp->pfnPrintf(pHlp, "  %sEOI-exit bitmap 0 addr     = %#RX64\n",   pszPrefix, pVmcs->u64EoiExitBitmap0.u);
+        pHlp->pfnPrintf(pHlp, "  %sEOI-exit bitmap 1 addr     = %#RX64\n",   pszPrefix, pVmcs->u64EoiExitBitmap1.u);
+        pHlp->pfnPrintf(pHlp, "  %sEOI-exit bitmap 2 addr     = %#RX64\n",   pszPrefix, pVmcs->u64EoiExitBitmap2.u);
+        pHlp->pfnPrintf(pHlp, "  %sEOI-exit bitmap 3 addr     = %#RX64\n",   pszPrefix, pVmcs->u64EoiExitBitmap3.u);
+        pHlp->pfnPrintf(pHlp, "  %sEPTP-list addr             = %#RX64\n",   pszPrefix, pVmcs->u64AddrEptpList.u);
+        pHlp->pfnPrintf(pHlp, "  %sVMREAD-bitmap addr         = %#RX64\n",   pszPrefix, pVmcs->u64AddrVmreadBitmap.u);
+        pHlp->pfnPrintf(pHlp, "  %sVMWRITE-bitmap addr        = %#RX64\n",   pszPrefix, pVmcs->u64AddrVmwriteBitmap.u);
+        pHlp->pfnPrintf(pHlp, "  %sVirt-Xcpt info addr        = %#RX64\n",   pszPrefix, pVmcs->u64AddrXcptVeInfo.u);
+        pHlp->pfnPrintf(pHlp, "  %sXSS-bitmap                 = %#RX64\n",   pszPrefix, pVmcs->u64XssBitmap.u);
+        pHlp->pfnPrintf(pHlp, "  %sENCLS-exiting bitmap addr  = %#RX64\n",   pszPrefix, pVmcs->u64AddrEnclsBitmap.u);
+        pHlp->pfnPrintf(pHlp, "  %sTSC multiplier             = %#RX64\n",   pszPrefix, pVmcs->u64TscMultiplier.u);
+
+        /* Natural width. */
+        pHlp->pfnPrintf(pHlp, "  %sCR0 guest/host mask        = %#RX64\n",   pszPrefix, pVmcs->u64Cr0Mask.u);
+        pHlp->pfnPrintf(pHlp, "  %sCR4 guest/host mask        = %#RX64\n",   pszPrefix, pVmcs->u64Cr4Mask.u);
+        pHlp->pfnPrintf(pHlp, "  %sCR0 read shadow            = %#RX64\n",   pszPrefix, pVmcs->u64Cr0ReadShadow.u);
+        pHlp->pfnPrintf(pHlp, "  %sCR4 read shadow            = %#RX64\n",   pszPrefix, pVmcs->u64Cr4ReadShadow.u);
+        pHlp->pfnPrintf(pHlp, "  %sCR3-target 0               = %#RX64\n",   pszPrefix, pVmcs->u64Cr3Target0.u);
+        pHlp->pfnPrintf(pHlp, "  %sCR3-target 1               = %#RX64\n",   pszPrefix, pVmcs->u64Cr3Target1.u);
+        pHlp->pfnPrintf(pHlp, "  %sCR3-target 2               = %#RX64\n",   pszPrefix, pVmcs->u64Cr3Target2.u);
+        pHlp->pfnPrintf(pHlp, "  %sCR3-target 3               = %#RX64\n",   pszPrefix, pVmcs->u64Cr3Target3.u);
+    }
+
+    /* Guest state. */
+    {
+        char szEFlags[80];
+        cpumR3InfoFormatFlags(&szEFlags[0], pVmcs->u64GuestRFlags.u);
+        pHlp->pfnPrintf(pHlp, "%sGuest state:\n", pszPrefix);
+
+        /* 16-bit. */
+        CPUMVMX_DUMP_GUEST_SEGREG(pHlp, pVmcs, Cs,   "cs",   pszPrefix);
+        CPUMVMX_DUMP_GUEST_SEGREG(pHlp, pVmcs, Ss,   "ss",   pszPrefix);
+        CPUMVMX_DUMP_GUEST_SEGREG(pHlp, pVmcs, Es,   "es",   pszPrefix);
+        CPUMVMX_DUMP_GUEST_SEGREG(pHlp, pVmcs, Ds,   "ds",   pszPrefix);
+        CPUMVMX_DUMP_GUEST_SEGREG(pHlp, pVmcs, Fs,   "fs",   pszPrefix);
+        CPUMVMX_DUMP_GUEST_SEGREG(pHlp, pVmcs, Gs,   "gs",   pszPrefix);
+        CPUMVMX_DUMP_GUEST_SEGREG(pHlp, pVmcs, Ldtr, "ldtr", pszPrefix);
+        CPUMVMX_DUMP_GUEST_SEGREG(pHlp, pVmcs, Tr,   "tr",   pszPrefix);
+        CPUMVMX_DUMP_GUEST_XDTR(pHlp,   pVmcs, Gdtr, "gdtr", pszPrefix);
+        CPUMVMX_DUMP_GUEST_XDTR(pHlp,   pVmcs, Idtr, "idtr", pszPrefix);
+        pHlp->pfnPrintf(pHlp, "  %sInterrupt status           = %#RX16\n",   pszPrefix, pVmcs->u16GuestIntStatus);
+        pHlp->pfnPrintf(pHlp, "  %sPML index                  = %#RX16\n",   pszPrefix, pVmcs->u16PmlIndex);
+
+        /* 32-bit. */
+        pHlp->pfnPrintf(pHlp, "  %sInterruptibility state     = %#RX32\n",   pszPrefix, pVmcs->u32GuestIntrState);
+        pHlp->pfnPrintf(pHlp, "  %sActivity state             = %#RX32\n",   pszPrefix, pVmcs->u32GuestActivityState);
+        pHlp->pfnPrintf(pHlp, "  %sSMBASE                     = %#RX32\n",   pszPrefix, pVmcs->u32GuestSmBase);
+        pHlp->pfnPrintf(pHlp, "  %sSysEnter CS                = %#RX32\n",   pszPrefix, pVmcs->u32GuestSysenterCS);
+        pHlp->pfnPrintf(pHlp, "  %sVMX-preemption timer value = %#RX32\n",   pszPrefix, pVmcs->u32PreemptTimer);
+
+        /* 64-bit. */
+        pHlp->pfnPrintf(pHlp, "  %sVMCS link ptr              = %#RX64\n",   pszPrefix, pVmcs->u64VmcsLinkPtr.u);
+        pHlp->pfnPrintf(pHlp, "  %sDBGCTL                     = %#RX64\n",   pszPrefix, pVmcs->u64GuestDebugCtlMsr.u);
+        pHlp->pfnPrintf(pHlp, "  %sPAT                        = %#RX64\n",   pszPrefix, pVmcs->u64GuestPatMsr.u);
+        pHlp->pfnPrintf(pHlp, "  %sEFER                       = %#RX64\n",   pszPrefix, pVmcs->u64GuestEferMsr.u);
+        pHlp->pfnPrintf(pHlp, "  %sPERFGLOBALCTRL             = %#RX64\n",   pszPrefix, pVmcs->u64GuestPerfGlobalCtlMsr.u);
+        pHlp->pfnPrintf(pHlp, "  %sPDPTE 0                    = %#RX64\n",   pszPrefix, pVmcs->u64GuestPdpte0.u);
+        pHlp->pfnPrintf(pHlp, "  %sPDPTE 1                    = %#RX64\n",   pszPrefix, pVmcs->u64GuestPdpte1.u);
+        pHlp->pfnPrintf(pHlp, "  %sPDPTE 2                    = %#RX64\n",   pszPrefix, pVmcs->u64GuestPdpte2.u);
+        pHlp->pfnPrintf(pHlp, "  %sPDPTE 3                    = %#RX64\n",   pszPrefix, pVmcs->u64GuestPdpte3.u);
+        pHlp->pfnPrintf(pHlp, "  %sBNDCFGS                    = %#RX64\n",   pszPrefix, pVmcs->u64GuestBndcfgsMsr.u);
+
+        /* Natural width. */
+        pHlp->pfnPrintf(pHlp, "  %scr0                        = %#RX64\n",   pszPrefix, pVmcs->u64GuestCr0.u);
+        pHlp->pfnPrintf(pHlp, "  %scr3                        = %#RX64\n",   pszPrefix, pVmcs->u64GuestCr3.u);
+        pHlp->pfnPrintf(pHlp, "  %scr4                        = %#RX64\n",   pszPrefix, pVmcs->u64GuestCr4.u);
+        pHlp->pfnPrintf(pHlp, "  %sdr7                        = %#RX64\n",   pszPrefix, pVmcs->u64GuestDr7.u);
+        pHlp->pfnPrintf(pHlp, "  %srsp                        = %#RX64\n",   pszPrefix, pVmcs->u64GuestRsp.u);
+        pHlp->pfnPrintf(pHlp, "  %srip                        = %#RX64\n",   pszPrefix, pVmcs->u64GuestRip.u);
+        pHlp->pfnPrintf(pHlp, "  %srflags                     = %#RX64 %31s\n",pszPrefix, pVmcs->u64GuestRFlags.u, szEFlags);
+        pHlp->pfnPrintf(pHlp, "  %sPending debug xcpts        = %#RX64\n",   pszPrefix, pVmcs->u64GuestPendingDbgXcpt.u);
+        pHlp->pfnPrintf(pHlp, "  %sSysEnter ESP               = %#RX64\n",   pszPrefix, pVmcs->u64GuestSysenterEsp.u);
+        pHlp->pfnPrintf(pHlp, "  %sSysEnter EIP               = %#RX64\n",   pszPrefix, pVmcs->u64GuestSysenterEip.u);
+    }
+
+    /* Host state. */
+    {
+        pHlp->pfnPrintf(pHlp, "%sHost state:\n", pszPrefix);
+
+        /* 16-bit. */
+        pHlp->pfnPrintf(pHlp, "  %scs                         = %#RX16\n",   pszPrefix, pVmcs->HostCs);
+        pHlp->pfnPrintf(pHlp, "  %sss                         = %#RX16\n",   pszPrefix, pVmcs->HostSs);
+        pHlp->pfnPrintf(pHlp, "  %sds                         = %#RX16\n",   pszPrefix, pVmcs->HostDs);
+        pHlp->pfnPrintf(pHlp, "  %ses                         = %#RX16\n",   pszPrefix, pVmcs->HostEs);
+        CPUMVMX_DUMP_HOST_FS_GS_TR(pHlp, pVmcs, Fs, "fs", pszPrefix);
+        CPUMVMX_DUMP_HOST_FS_GS_TR(pHlp, pVmcs, Gs, "gs", pszPrefix);
+        CPUMVMX_DUMP_HOST_FS_GS_TR(pHlp, pVmcs, Tr, "tr", pszPrefix);
+        CPUMVMX_DUMP_HOST_XDTR(pHlp, pVmcs, Gdtr, "gdtr", pszPrefix);
+        CPUMVMX_DUMP_HOST_XDTR(pHlp, pVmcs, Idtr, "idtr", pszPrefix);
+
+        /* 32-bit. */
+        pHlp->pfnPrintf(pHlp, "  %sSysEnter CS                = %#RX32\n",   pszPrefix, pVmcs->u32HostSysenterCs);
+
+        /* 64-bit. */
+        pHlp->pfnPrintf(pHlp, "  %sEFER                       = %#RX64\n",   pszPrefix, pVmcs->u64HostEferMsr.u);
+        pHlp->pfnPrintf(pHlp, "  %sPAT                        = %#RX64\n",   pszPrefix, pVmcs->u64HostPatMsr.u);
+        pHlp->pfnPrintf(pHlp, "  %sPERFGLOBALCTRL             = %#RX64\n",   pszPrefix, pVmcs->u64HostPerfGlobalCtlMsr.u);
+
+        /* Natural width. */
+        pHlp->pfnPrintf(pHlp, "  %scr0                        = %#RX64\n",   pszPrefix, pVmcs->u64HostCr0.u);
+        pHlp->pfnPrintf(pHlp, "  %scr3                        = %#RX64\n",   pszPrefix, pVmcs->u64HostCr3.u);
+        pHlp->pfnPrintf(pHlp, "  %scr4                        = %#RX64\n",   pszPrefix, pVmcs->u64HostCr4.u);
+        pHlp->pfnPrintf(pHlp, "  %sSysEnter ESP               = %#RX64\n",   pszPrefix, pVmcs->u64HostSysenterEsp.u);
+        pHlp->pfnPrintf(pHlp, "  %sSysEnter EIP               = %#RX64\n",   pszPrefix, pVmcs->u64HostSysenterEip.u);
+        pHlp->pfnPrintf(pHlp, "  %srsp                        = %#RX64\n",   pszPrefix, pVmcs->u64HostRsp.u);
+        pHlp->pfnPrintf(pHlp, "  %srip                        = %#RX64\n",   pszPrefix, pVmcs->u64HostRip.u);
+    }
+
+    /* Read-only fields. */
+    {
+        pHlp->pfnPrintf(pHlp, "%sRead-only data fields:\n", pszPrefix);
+
+        /* 16-bit (none currently). */
+
+        /* 32-bit. */
+        pHlp->pfnPrintf(pHlp, "  %sExit reason                = %u (%s)\n",  pszPrefix, pVmcs->u32RoExitReason, HMR3GetVmxExitName(pVmcs->u32RoExitReason));
+        pHlp->pfnPrintf(pHlp, "  %sExit qualification         = %#RX64\n",   pszPrefix, pVmcs->u64RoExitQual.u);
+        pHlp->pfnPrintf(pHlp, "  %sVM-instruction error       = %#RX32\n",   pszPrefix, pVmcs->u32RoVmInstrError);
+        pHlp->pfnPrintf(pHlp, "  %sVM-exit intr info          = %#RX32\n",   pszPrefix, pVmcs->u32RoExitIntInfo);
+        {
+            uint32_t const fInfo = pVmcs->u32RoExitIntInfo;
+            uint8_t  const uType = VMX_EXIT_INT_INFO_TYPE(fInfo);
+            pHlp->pfnPrintf(pHlp, "    %sValid                      = %RTbool\n", pszPrefix, VMX_EXIT_INT_INFO_IS_VALID(fInfo));
+            pHlp->pfnPrintf(pHlp, "    %sType                       = %#x (%s)\n",     pszPrefix, uType, HMVmxGetExitIntInfoTypeDesc(uType));
+            pHlp->pfnPrintf(pHlp, "    %sVector                     = %#x\n",     pszPrefix, VMX_EXIT_INT_INFO_VECTOR(fInfo));
+            pHlp->pfnPrintf(pHlp, "    %sNMI-unblocking-IRET        = %RTbool\n", pszPrefix, VMX_EXIT_INT_INFO_IS_NMI_UNBLOCK_IRET(fInfo));
+            pHlp->pfnPrintf(pHlp, "    %sError-code valid           = %RTbool\n", pszPrefix, VMX_EXIT_INT_INFO_IS_ERROR_CODE_VALID(fInfo));
+        }
+        pHlp->pfnPrintf(pHlp, "  %sVM-exit intr error-code    = %#RX32\n",   pszPrefix, pVmcs->u32RoExitIntErrCode);
+        pHlp->pfnPrintf(pHlp, "  %sIDT-vectoring info         = %#RX32\n",   pszPrefix, pVmcs->u32RoIdtVectoringInfo);
+        {
+            uint32_t const fInfo = pVmcs->u32RoIdtVectoringInfo;
+            uint8_t  const uType = VMX_IDT_VECTORING_INFO_TYPE(fInfo);
+            pHlp->pfnPrintf(pHlp, "    %sValid                      = %RTbool\n", pszPrefix, VMX_IDT_VECTORING_INFO_IS_VALID(fInfo));
+            pHlp->pfnPrintf(pHlp, "    %sType                       = %#x (%s)\n",     pszPrefix, uType, HMVmxGetIdtVectoringInfoTypeDesc(uType));
+            pHlp->pfnPrintf(pHlp, "    %sVector                     = %#x\n",     pszPrefix, VMX_IDT_VECTORING_INFO_VECTOR(fInfo));
+            pHlp->pfnPrintf(pHlp, "    %sError-code valid           = %RTbool\n", pszPrefix, VMX_IDT_VECTORING_INFO_IS_ERROR_CODE_VALID(fInfo));
+        }
+        pHlp->pfnPrintf(pHlp, "  %sIDT-vectoring error-code   = %#RX32\n",   pszPrefix, pVmcs->u32RoIdtVectoringErrCode);
+        pHlp->pfnPrintf(pHlp, "  %sVM-exit instruction length = %u bytes\n", pszPrefix, pVmcs->u32RoExitInstrLen);
+        pHlp->pfnPrintf(pHlp, "  %sVM-exit instruction info   = %#RX64\n",   pszPrefix, pVmcs->u32RoExitInstrInfo);
+
+        /* 64-bit. */
+        pHlp->pfnPrintf(pHlp, "  %sGuest-physical addr        = %#RX64\n",   pszPrefix, pVmcs->u64RoGuestPhysAddr.u);
+
+        /* Natural width. */
+        pHlp->pfnPrintf(pHlp, "  %sI/O RCX                    = %#RX64\n",   pszPrefix, pVmcs->u64RoIoRcx.u);
+        pHlp->pfnPrintf(pHlp, "  %sI/O RSI                    = %#RX64\n",   pszPrefix, pVmcs->u64RoIoRsi.u);
+        pHlp->pfnPrintf(pHlp, "  %sI/O RDI                    = %#RX64\n",   pszPrefix, pVmcs->u64RoIoRdi.u);
+        pHlp->pfnPrintf(pHlp, "  %sI/O RIP                    = %#RX64\n",   pszPrefix, pVmcs->u64RoIoRip.u);
+        pHlp->pfnPrintf(pHlp, "  %sGuest-linear addr          = %#RX64\n",   pszPrefix, pVmcs->u64RoGuestLinearAddr.u);
+    }
+
+#undef CPUMVMX_DUMP_HOST_XDTR
+#undef CPUMVMX_DUMP_HOST_FS_GS_TR
+#undef CPUMVMX_DUMP_GUEST_SEGREG
+#undef CPUMVMX_DUMP_GUEST_XDTR
 }
 
 
@@ -3454,8 +3632,8 @@ static DECLCALLBACK(void) cpumR3InfoGuestHwvirt(PVM pVM, PCDBGFINFOHLP pHlp, con
 
     PCPUMCTX pCtx = &pVCpu->cpum.s.Guest;
     static const char *const s_aHwvirtModes[] = { "No/inactive", "SVM", "VMX", "Common" };
-    bool const fSvm = pVM->cpum.ro.GuestFeatures.fSvm;
-    bool const fVmx = pVM->cpum.ro.GuestFeatures.fVmx;
+    bool const fSvm = pVM->cpum.s.GuestFeatures.fSvm;
+    bool const fVmx = pVM->cpum.s.GuestFeatures.fVmx;
     uint8_t const idxHwvirtState = fSvm ? CPUMHWVIRTDUMP_SVM : (fVmx ? CPUMHWVIRTDUMP_VMX : CPUMHWVIRTDUMP_NONE);
     AssertCompile(CPUMHWVIRTDUMP_LAST <= RT_ELEMENTS(s_aHwvirtModes));
     Assert(idxHwvirtState < RT_ELEMENTS(s_aHwvirtModes));
@@ -3529,10 +3707,13 @@ static DECLCALLBACK(void) cpumR3InfoGuestHwvirt(PVM pVM, PCDBGFINFOHLP pHlp, con
         pHlp->pfnPrintf(pHlp, "  fInVmxRootMode             = %RTbool\n",   pCtx->hwvirt.vmx.fInVmxRootMode);
         pHlp->pfnPrintf(pHlp, "  fInVmxNonRootMode          = %RTbool\n",   pCtx->hwvirt.vmx.fInVmxNonRootMode);
         pHlp->pfnPrintf(pHlp, "  fInterceptEvents           = %RTbool\n",   pCtx->hwvirt.vmx.fInterceptEvents);
+        pHlp->pfnPrintf(pHlp, "  fNmiUnblockingIret         = %RTbool\n",   pCtx->hwvirt.vmx.fNmiUnblockingIret);
         pHlp->pfnPrintf(pHlp, "  uFirstPauseLoopTick        = %RX64\n",     pCtx->hwvirt.vmx.uFirstPauseLoopTick);
         pHlp->pfnPrintf(pHlp, "  uPrevPauseTick             = %RX64\n",     pCtx->hwvirt.vmx.uPrevPauseTick);
-
-        /** @todo NSTVMX: Dump remaining/new fields. */
+        pHlp->pfnPrintf(pHlp, "  uVmentryTick               = %RX64\n",     pCtx->hwvirt.vmx.uVmentryTick);
+        pHlp->pfnPrintf(pHlp, "  offVirtApicWrite           = %#RX16\n",    pCtx->hwvirt.vmx.offVirtApicWrite);
+        pHlp->pfnPrintf(pHlp, "  VMCS cache:\n");
+        cpumR3InfoVmxVmcs(pHlp, pCtx->hwvirt.vmx.pVmcsR3, "  " /* pszPrefix */);
     }
 
 #undef CPUMHWVIRTDUMP_NONE
@@ -3985,28 +4166,6 @@ VMMR3DECL(int) CPUMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
             break;
         }
 
-        case VMINITCOMPLETED_HM:
-        {
-            /*
-             * Currently, nested VMX/SVM both derives their guest VMX/SVM CPUID bit from the host
-             * CPUID bit. This could be later changed if we need to support nested-VMX on CPUs
-             * that are not capable of VMX.
-             */
-            if (pVM->cpum.s.GuestFeatures.fVmx)
-            {
-                Assert(   pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_INTEL
-                       || pVM->cpum.s.GuestFeatures.enmCpuVendor == CPUMCPUVENDOR_VIA);
-                cpumR3InitVmxCpuFeatures(pVM);
-                DBGFR3Info(pVM->pUVM, "cpumvmxfeat", "default", DBGFR3InfoLogRelHlp());
-            }
-
-            if (pVM->cpum.s.GuestFeatures.fVmx)
-                LogRel(("CPUM: Enabled guest VMX support\n"));
-            else if (pVM->cpum.s.GuestFeatures.fSvm)
-                LogRel(("CPUM: Enabled guest SVM support\n"));
-            break;
-        }
-
         default:
             break;
     }
@@ -4019,12 +4178,16 @@ VMMR3DECL(int) CPUMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
  *
  * @param   pVM                 The cross context VM structure.
  */
-VMMR3DECL(void) CPUMR3LogCpuIds(PVM pVM)
+VMMR3DECL(void) CPUMR3LogCpuIdAndMsrFeatures(PVM pVM)
 {
+    /*
+     * Enable log buffering as we're going to log a lot of lines.
+     */
+    bool const fOldBuffered = RTLogRelSetBuffering(true /*fBuffered*/);
+
     /*
      * Log the cpuid.
      */
-    bool fOldBuffered = RTLogRelSetBuffering(true /*fBuffered*/);
     RTCPUSET OnlineSet;
     LogRel(("CPUM: Logical host processors: %u present, %u max, %u online, online mask: %016RX64\n",
                 (unsigned)RTMpGetPresentCount(), (unsigned)RTMpGetCount(), (unsigned)RTMpGetOnlineCount(),
@@ -4036,7 +4199,25 @@ VMMR3DECL(void) CPUMR3LogCpuIds(PVM pVM)
     DBGFR3Info(pVM->pUVM, "cpuid", "verbose", DBGFR3InfoLogRelHlp());
     LogRel(("\n"));
     DBGFR3_INFO_LOG_SAFE(pVM, "cpuid", "verbose"); /* macro */
-    RTLogRelSetBuffering(fOldBuffered);
     LogRel(("******************** End of CPUID dump **********************\n"));
+
+    /*
+     * Log VT-x extended features.
+     *
+     * SVM features are currently all covered under CPUID so there is nothing
+     * to do here for SVM.
+     */
+    if (pVM->cpum.s.HostFeatures.fVmx)
+    {
+        LogRel(("*********************** VT-x features ***********************\n"));
+        DBGFR3Info(pVM->pUVM, "cpumvmxfeat", "default", DBGFR3InfoLogRelHlp());
+        LogRel(("\n"));
+        LogRel(("******************* End of VT-x features ********************\n"));
+    }
+
+    /*
+     * Restore the log buffering state to what it was previously.
+     */
+    RTLogRelSetBuffering(fOldBuffered);
 }
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBoxDbgLog_h___
-#define ___VBoxDbgLog_h___
+#ifndef VBOX_INCLUDED_SRC_win_VBoxDbgLog_h
+#define VBOX_INCLUDED_SRC_win_VBoxDbgLog_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #ifndef VBOX_DBG_LOG_NAME
 # error VBOX_DBG_LOG_NAME should be defined!
@@ -133,5 +136,5 @@
     } while (0)
 
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_win_VBoxDbgLog_h */
 

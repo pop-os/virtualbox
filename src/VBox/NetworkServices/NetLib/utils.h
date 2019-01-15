@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,8 +18,12 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#ifndef _NETLIB_UTILS_H_
-#define _NETLIB_UTILS_H_
+
+#ifndef VBOX_INCLUDED_SRC_NetLib_utils_h
+#define VBOX_INCLUDED_SRC_NetLib_utils_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "cpp/utils.h"
 
@@ -135,4 +139,4 @@ int createClientListener(ComNatListenerPtr& listener, const ComVirtualBoxClientP
                          NATNetworkEventAdapter *adapter, /* const */ ComEventTypeArray& events);
 int destroyClientListener(ComNatListenerPtr& listener, const ComVirtualBoxClientPtr& vboxclientptr);
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_NetLib_utils_h */

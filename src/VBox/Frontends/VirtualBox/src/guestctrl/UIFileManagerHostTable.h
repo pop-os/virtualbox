@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2018 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,17 +15,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIFileManagerHostTable_h___
-#define ___UIFileManagerHostTable_h___
+#ifndef FEQT_INCLUDED_SRC_guestctrl_UIFileManagerHostTable_h
+#define FEQT_INCLUDED_SRC_guestctrl_UIFileManagerHostTable_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "UIFileManagerTable.h"
 
 /* Forward declarations: */
 class UIActionPool;
+class UICustomFileSystemItem;
 
 /** This class scans the host file system by using the Qt API
-    and connects to the UIFileManagerModel*/
+    and connects to the UICustomFileSystemModel*/
 class UIFileManagerHostTable : public UIFileManagerTable
 {
     Q_OBJECT;
@@ -33,16 +37,20 @@ class UIFileManagerHostTable : public UIFileManagerTable
 public:
 
     UIFileManagerHostTable(UIActionPool *pActionPool, QWidget *pParent = 0);
+    static KFsObjType  fileType(const QFileInfo &fsInfo);
 
 protected:
 
-    FileObjectType  fileType(const QFileInfo &fsInfo);
+    /** Scans the directory with the path @strPath and inserts items to the
+     *  tree under the @p parent. */
+    static void scanDirectory(const QString& strPath, UICustomFileSystemItem *parent,
+                              QMap<QString, UICustomFileSystemItem*> &fileObjects);
     void            retranslateUi() /* override */;
-    virtual void    readDirectory(const QString& strPath, UIFileTableItem *parent, bool isStartDir = false) /* override */;
-    virtual void    deleteByItem(UIFileTableItem *item) /* override */;
+    virtual void    readDirectory(const QString& strPath, UICustomFileSystemItem *parent, bool isStartDir = false) /* override */;
+    virtual void    deleteByItem(UICustomFileSystemItem *item) /* override */;
     virtual void    deleteByPath(const QStringList &pathList) /* override */;
     virtual void    goToHomeDirectory() /* override */;
-    virtual bool    renameItem(UIFileTableItem *item, QString newBaseName);
+    virtual bool    renameItem(UICustomFileSystemItem *item, QString newBaseName);
     virtual bool    createDirectory(const QString &path, const QString &directoryName);
     virtual QString fsObjectPropertyString() /* override */;
     virtual void    showProperties() /* override */;
@@ -58,9 +66,9 @@ protected:
 
 private:
 
-    QString permissionString(QFileDevice::Permissions permissions);
+    static QString permissionString(QFileDevice::Permissions permissions);
     void    prepareActionConnections();
 
 };
 
-#endif /* !___UIFileManagerHostTable_h___ */
+#endif /* !FEQT_INCLUDED_SRC_guestctrl_UIFileManagerHostTable_h */

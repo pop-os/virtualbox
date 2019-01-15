@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2018 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,32 +15,19 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____EBMLWRITER
-#define ____EBMLWRITER
+#ifndef MAIN_INCLUDED_EBMLWriter_h
+#define MAIN_INCLUDED_EBMLWriter_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/file.h>
-#include <VBox/com/string.h> /* For Utf8Str. */
+#include <VBox/com/string.h>
 
-using namespace com;
-
-#include <list>
-#include <map>
-#include <queue>
 #include <stack>
 
-#include <math.h> /* For lround.h. */
-
-#include <iprt/asm.h>
-#include <iprt/buildconfig.h>
 #include <iprt/cdefs.h>
-#include <iprt/critsect.h>
-#include <iprt/err.h>
 #include <iprt/file.h>
-#include <iprt/rand.h>
-#include <iprt/string.h>
-
-#include <VBox/log.h>
-#include <VBox/version.h>
 
 /** No flags set. */
 #define VBOX_EBMLWRITER_FLAG_NONE               0
@@ -66,7 +53,7 @@ private:
     /** The file's handle. */
     RTFILE                     m_hFile;
     /** The file's name (path). */
-    Utf8Str                    m_strFile;
+    com::Utf8Str               m_strFile;
     /** Flags. */
     uint32_t                   m_fFlags;
 
@@ -87,7 +74,7 @@ public:
     void close(void);
 
     /** Returns the file name. */
-    const Utf8Str& getFileName(void) { return m_strFile; }
+    const com::Utf8Str& getFileName(void) { return m_strFile; }
 
     /** Returns file size. */
     uint64_t getFileSize(void) { return RTFileTell(m_hFile); }
@@ -134,4 +121,5 @@ private:
     void operator=(const EBMLWriter &);
 };
 
-#endif /* !____EBMLWRITER */
+#endif /* !MAIN_INCLUDED_EBMLWriter_h */
+

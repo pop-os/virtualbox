@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,6 +39,12 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+
+#ifndef VBOX_INCLUDED_SRC_Graphics_DevVGA_h
+#define VBOX_INCLUDED_SRC_Graphics_DevVGA_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /** Use VBE bytewise I/O. Only needed for Windows Longhorn/Vista betas and backwards compatibility. */
 #define VBE_BYTEWISE_IO
@@ -624,4 +630,6 @@ void vga_draw_cursor_line_32(uint8_t *d1, const uint8_t *src1,
 extern const uint8_t sr_mask[8];
 extern const uint8_t gr_mask[16];
 #endif /* !VBOX */
+
+#endif /* !VBOX_INCLUDED_SRC_Graphics_DevVGA_h */
 

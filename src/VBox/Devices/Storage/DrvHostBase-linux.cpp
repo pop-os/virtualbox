@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,6 +14,11 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
+
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP LOG_GROUP_DRV_HOST_BASE
 #include <sys/ioctl.h>
 #include <sys/fcntl.h>
@@ -36,13 +41,13 @@
 
 #include <iprt/mem.h>
 #include <iprt/file.h>
+#include <iprt/string.h>
+#include <VBox/err.h>
 #include <VBox/scsi.h>
 
-/** Maximum buffer size supported by the kernel interface. */
-#define LNX_SCSI_MAX_BUFFER_SIZE (100 * _1K)
 
 /**
- * Host backend specific data.
+ * Host backend specific data (needed by DrvHostBase.h).
  */
 typedef struct DRVHOSTBASEOS
 {
@@ -60,6 +65,17 @@ AssertCompile(sizeof(DRVHOSTBASEOS) <= 64);
 
 #define DRVHOSTBASE_OS_INT_DECLARED
 #include "DrvHostBase.h"
+
+
+/*********************************************************************************************************************************
+*   Defined Constants And Macros                                                                                                 *
+*********************************************************************************************************************************/
+/** Maximum buffer size supported by the kernel interface. */
+#define LNX_SCSI_MAX_BUFFER_SIZE (100 * _1K)
+
+
+
+
 
 DECLHIDDEN(int) drvHostBaseScsiCmdOs(PDRVHOSTBASE pThis, const uint8_t *pbCmd, size_t cbCmd, PDMMEDIATXDIR enmTxDir,
                                      void *pvBuf, uint32_t *pcbBuf, uint8_t *pbSense, size_t cbSense, uint32_t cTimeoutMillies)

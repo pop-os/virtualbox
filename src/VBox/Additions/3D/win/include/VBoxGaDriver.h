@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2018 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBoxGaDriver_h__
-#define ___VBoxGaDriver_h__
+#ifndef GA_INCLUDED_3D_WIN_VBoxGaDriver_h
+#define GA_INCLUDED_3D_WIN_VBoxGaDriver_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBoxGaHWInfo.h>
 #include <VBoxGaTypes.h>
@@ -91,5 +94,5 @@ typedef FNGaDrvContextFlush *PFNGaDrvContextFlush;
 }
 #endif
 
-#endif
+#endif /* !GA_INCLUDED_3D_WIN_VBoxGaDriver_h */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2017 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIInformationConfiguration_h___
-#define ___UIInformationConfiguration_h___
+#ifndef FEQT_INCLUDED_SRC_runtime_information_UIInformationConfiguration_h
+#define FEQT_INCLUDED_SRC_runtime_information_UIInformationConfiguration_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QWidget>
@@ -68,5 +71,5 @@ private:
     UIInformationView *m_pView;
 };
 
-#endif /* !___UIInformationConfiguration_h___ */
+#endif /* !FEQT_INCLUDED_SRC_runtime_information_UIInformationConfiguration_h */
 

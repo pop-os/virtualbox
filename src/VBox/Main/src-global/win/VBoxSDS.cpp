@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2018 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -78,6 +78,7 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
+#define LOG_GROUP LOG_GROUP_MAIN_VIRTUALBOXSDS
 #include <iprt/win/windows.h>
 #include <iprt/win/shlobj.h>
 
@@ -86,9 +87,9 @@
 #include "VBox/com/VirtualBox.h"
 
 #include "VirtualBoxSDSImpl.h"
-#include "Logging.h"
+#include "LoggingNew.h"
 
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 #include <iprt/asm.h>
 #include <iprt/buildconfig.h>
 #include <iprt/dir.h>

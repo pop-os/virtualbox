@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___TRPMInternal_h
-#define ___TRPMInternal_h
+#ifndef VMM_INCLUDED_SRC_include_TRPMInternal_h
+#define VMM_INCLUDED_SRC_include_TRPMInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
@@ -297,4 +300,4 @@ DECLASM(void) trpmR0DispatchHostInterruptSimple(RTUINT uActiveVector);
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VMM_INCLUDED_SRC_include_TRPMInternal_h */

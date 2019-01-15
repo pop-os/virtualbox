@@ -3,6 +3,13 @@
  * The package is (c) by Joseph Gil
  * The individual fonts are public domain
  */
+
+#ifndef VBOX_INCLUDED_SRC_Graphics_BIOS_vgafonts_h
+#define VBOX_INCLUDED_SRC_Graphics_BIOS_vgafonts_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
+
 static uint8_t vgafont8[256*8]=
 {
  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -866,3 +873,6 @@ static uint8_t vgafont16alt[19*17+1]=
  0x00, 0xc0, 0xc0, 0xc2, 0xc6, 0xcc, 0x18, 0x30, 0x66, 0xce, 0x96, 0x3e, 0x06, 0x06, 0x00, 0x00,
  0x00
 };
+
+#endif /* !VBOX_INCLUDED_SRC_Graphics_BIOS_vgafonts_h */
+

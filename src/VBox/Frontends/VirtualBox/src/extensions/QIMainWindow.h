@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2018 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___QIMainWindow_h___
-#define ___QIMainWindow_h___
+#ifndef FEQT_INCLUDED_SRC_extensions_QIMainWindow_h
+#define FEQT_INCLUDED_SRC_extensions_QIMainWindow_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QMainWindow>
@@ -51,4 +54,4 @@ protected:
     QRect m_geometry;
 };
 
-#endif /* !___QIMainWindow_h___ */
+#endif /* !FEQT_INCLUDED_SRC_extensions_QIMainWindow_h */

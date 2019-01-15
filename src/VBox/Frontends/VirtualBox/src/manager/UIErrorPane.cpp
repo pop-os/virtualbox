@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2018 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,27 +15,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QAction>
-# include <QHBoxLayout>
-# include <QLabel>
-# include <QStyle>
-# include <QTextBrowser>
-# include <QToolButton>
-# include <QVBoxLayout>
+#include <QAction>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QStyle>
+#include <QTextBrowser>
+#include <QToolButton>
+#include <QVBoxLayout>
 
 /* GUI includes */
-# include "QIWithRetranslateUI.h"
-# include "UIErrorPane.h"
+#include "QIWithRetranslateUI.h"
+#include "UIErrorPane.h"
 
 /* Other VBox includes: */
-# include <iprt/assert.h>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include <iprt/assert.h>
 
 
 UIErrorPane::UIErrorPane(QAction *pRefreshAction /* = 0 */, QWidget *pParent /* = 0 */)

@@ -1390,7 +1390,7 @@
     </message>
     <message>
         <source>Ungroup items of selected virtual machine group</source>
-        <translation>Seçilen sanal makine grubunun ögelerinin grublamasını kaldır</translation>
+        <translation>Seçilen sanal makine grubu öğelerinin grublamasını kaldır</translation>
     </message>
     <message>
         <source>&amp;Sort</source>
@@ -1398,7 +1398,7 @@
     </message>
     <message>
         <source>Sort items of selected virtual machine group alphabetically</source>
-        <translation>Seçilen sanal makine grubunun ögelerini alfabetik olarak sırala</translation>
+        <translation>Seçilen sanal makine grubu öğelerini alfabetik olarak sırala</translation>
     </message>
     <message>
         <source>Add new group based on selected virtual machines</source>
@@ -1566,7 +1566,7 @@
     </message>
     <message>
         <source>&amp;Machine Tools Menu</source>
-        <translation>&amp;Makine Araçları Menüsü</translation>
+        <translation type="vanished">&amp;Makine Araçları Menüsü</translation>
     </message>
     <message>
         <source>Open the machine tools menu</source>
@@ -2387,6 +2387,10 @@
         <source>Display the virtual machine file manager window</source>
         <translation>Sanal makine dosya yöneticisi penceresini görüntüle</translation>
     </message>
+    <message>
+        <source>Tools</source>
+        <translation type="unfinished">Araçlar</translation>
+    </message>
 </context>
 <context>
     <name>UIActionPoolRuntime</name>
@@ -2537,7 +2541,7 @@
     </message>
     <message>
         <source>Unknown Hardware Item</source>
-        <translation>Bilinmeyen Donanım Ögesi</translation>
+        <translation>Bilinmeyen Donanım Öğesi</translation>
     </message>
     <message>
         <source>MB</source>
@@ -2998,6 +3002,37 @@
     <message>
         <source>Add Profile</source>
         <translation type="vanished">Profil Ekle</translation>
+    </message>
+</context>
+<context>
+    <name>UICustomFileSystemModel</name>
+    <message>
+        <source>Name</source>
+        <translation>Adı</translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <translation>Boyut</translation>
+    </message>
+    <message>
+        <source>Change Time</source>
+        <translation>Saati Değiştir</translation>
+    </message>
+    <message>
+        <source>Owner</source>
+        <translation>Sahibi</translation>
+    </message>
+    <message>
+        <source>Permissions</source>
+        <translation>İzinler</translation>
+    </message>
+    <message>
+        <source>LocalPath</source>
+        <translation>Yerel Yol</translation>
+    </message>
+    <message>
+        <source>Path</source>
+        <translation>Yol</translation>
     </message>
 </context>
 <context>
@@ -3997,11 +4032,11 @@
     <name>UIDownloaderUserManual</name>
     <message>
         <source>Select folder to save User Manual to</source>
-        <translation>Kullanıcı Kılavuzunu kaydetmek için klasör seçin</translation>
+        <translation>Kullanım Kılavuzunu kaydetmek için klasör seçin</translation>
     </message>
     <message>
         <source>VirtualBox User Manual</source>
-        <translation>VirtualBox Kullanıcı Kılavuzu</translation>
+        <translation>VirtualBox Kullanım Kılavuzu</translation>
     </message>
 </context>
 <context>
@@ -4270,23 +4305,23 @@
     </message>
     <message>
         <source>Name</source>
-        <translation>Adı</translation>
+        <translation type="vanished">Adı</translation>
     </message>
     <message>
         <source>Size</source>
-        <translation>Boyut</translation>
+        <translation type="vanished">Boyut</translation>
     </message>
     <message>
         <source>Change Time</source>
-        <translation>Saati Değiştir</translation>
+        <translation type="vanished">Saati Değiştir</translation>
     </message>
     <message>
         <source>Owner</source>
-        <translation>Sahibi</translation>
+        <translation type="vanished">Sahibi</translation>
     </message>
     <message>
         <source>Permissions</source>
-        <translation>İzinler</translation>
+        <translation type="vanished">İzinler</translation>
     </message>
     <message>
         <source>No Guest Session</source>
@@ -4310,7 +4345,7 @@
     </message>
     <message>
         <source>Other</source>
-        <translation>Diğer</translation>
+        <translation type="vanished">Diğer</translation>
     </message>
     <message>
         <source>Guest System</source>
@@ -4444,6 +4479,14 @@
         <source>&lt;b&gt;Owner:&lt;/b&gt; %1</source>
         <translation>&lt;b&gt;Sahibi:&lt;/b&gt; %1</translation>
     </message>
+    <message>
+        <source>Show hidden objects</source>
+        <translation>Gizli nesneleri göster</translation>
+    </message>
+    <message>
+        <source>Show hidden files/directories</source>
+        <translation>Gizli dosyaları/dizinleri göster</translation>
+    </message>
 </context>
 <context>
     <name>UIFileManagerLogViewer</name>
@@ -4496,7 +4539,7 @@
     </message>
     <message>
         <source>Please use the &lt;b&gt;Other...&lt;/b&gt; item from the drop-down list to select a path.</source>
-        <translation>Lütfen bir yol seçmek için aşağı açılır listeden &lt;b&gt;Diğer...&lt;/b&gt; ögesini kullanın.</translation>
+        <translation>Lütfen bir yol seçmek için aşağı açılır listeden &lt;b&gt;Diğer...&lt;/b&gt; öğesini kullanın.</translation>
     </message>
     <message>
         <source>Holds the folder path.</source>
@@ -5701,7 +5744,7 @@
     </message>
     <message>
         <source>Some items have the same shortcuts assigned.</source>
-        <translation>Bazı ögeler atanmış aynı kısayollara sahip.</translation>
+        <translation>Bazı öğeler atanmış aynı kısayollara sahip.</translation>
     </message>
     <message>
         <source>&amp;VirtualBox Manager</source>
@@ -6566,7 +6609,7 @@
     </message>
     <message>
         <source>Selects how often the new version check should be performed. Note that if you want to completely disable this check, just clear the above check box.</source>
-        <translation>Yeni sürüm denetiminin ne sıklıkla yapılması gerektiğini seçer. Eğer bu denetimi tamamen etkisizleştirmek istiyorsanız, yalnızca yukarıdaki işaretleme kutusunun işaretini kaldırmayı unutmayın.</translation>
+        <translation>Yeni sürüm denetiminin ne sıklıkla yapılması gerektiğini seçer. Eğer bu denetimi tamamen etkisizleştirmek istiyorsanız, yalnızca yukarıdaki onay kutusunun işaretini kaldırmayı unutmayın.</translation>
     </message>
 </context>
 <context>
@@ -8294,7 +8337,7 @@
     </message>
     <message>
         <source>Requests</source>
-        <translation>İstekler</translation>
+        <translation>İstek</translation>
     </message>
 </context>
 <context>
@@ -10791,7 +10834,7 @@
     </message>
     <message>
         <source>&lt;nobr&gt;Expands/Collapses&amp;nbsp;item.&lt;/nobr&gt;</source>
-        <translation>&lt;nobr&gt;Ögeyi&amp;nbsp;Genişletir/Daraltır.&lt;/nobr&gt;</translation>
+        <translation>&lt;nobr&gt;Öğeyi&amp;nbsp;Genişletir/Daraltır.&lt;/nobr&gt;</translation>
     </message>
     <message>
         <source>&lt;nobr&gt;Adds&amp;nbsp;hard&amp;nbsp;disk.&lt;/nobr&gt;</source>
@@ -10922,7 +10965,7 @@
     </message>
     <message>
         <source>Defines the boot device order. Use the checkboxes on the left to enable or disable individual boot devices. Move items up and down to change the device order.</source>
-        <translation>Önyükleme aygıtının sırasını tanımlar. Kişisel önyükleme aygıtlarını etkinleştirmek ya da etkisizleştirmek için soldaki işaretleme kutularını kullanın. Aygıt sırasını değiştirmek için ögeleri yukarı ve aşağı taşıyın.</translation>
+        <translation>Önyükleme aygıtının sırasını tanımlar. Kişisel önyükleme aygıtlarını etkinleştirmek ya da etkisizleştirmek için soldaki onay kutularını kullanın. Aygıt sırasını değiştirmek için öğeleri yukarı ve aşağı taşıyın.</translation>
     </message>
     <message>
         <source>Move Down (Ctrl-Down)</source>
@@ -11133,7 +11176,7 @@
     </message>
     <message>
         <source>When checked, the RTC device will report the time in UTC, otherwise in local (host) time. Unix usually expects the hardware clock to be set to UTC.</source>
-        <translation>İşaretlendiğinde, RTC aygıtı zamanı UTC olarak, aksi takdirde yerel (anamakine) zamanı olarak bildirecek. Unix genellikle donanım saatinin UTC&apos;ye ayarlanmasını bekler.</translation>
+        <translation>İşaretlendiğinde, RTC aygıtı, zamanı UTC olarak, aksi takdirde yerel (anamakine) zamanı olarak bildirecektir. Unix genellikle donanım saatinin UTC&apos;ye ayarlanmasını bekler.</translation>
     </message>
     <message>
         <source>%</source>
@@ -11283,7 +11326,7 @@
     </message>
     <message>
         <source>Lists all USB filters of this machine. The checkbox to the left defines whether the particular filter is enabled or not. Use the context menu or buttons to the right to add or remove USB filters.</source>
-        <translation>Bu makinenin tüm USB süzgeçlerini listeler. Soldaki işaretleme kutusu belirli süzgecin etkinleştirilip etkinleştirilmeyeceğini tanımlar. USB süzgeçleri kaldırmak veya eklemek için sağ tıklama menüsünü ya da sağdaki düğmeleri kullanın.</translation>
+        <translation>Bu makinenin tüm USB süzgeçlerini listeler. Soldaki onay kutusu, belirli süzgecin etkinleştirilip etkinleştirilmeyeceğini tanımlar. USB süzgeçleri kaldırmak veya eklemek için sağ tıklama menüsünü ya da sağdaki düğmeleri kullanın.</translation>
     </message>
     <message>
         <source>[filter]</source>
@@ -12100,7 +12143,7 @@
     </message>
     <message>
         <source>&lt;p&gt;You are about to change the settings of the disk image file &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Please choose one of the following modes and press &lt;b&gt;%2&lt;/b&gt; to proceed or &lt;b&gt;%3&lt;/b&gt; otherwise.&lt;/p&gt;</source>
-        <translation type="vanished">&lt;p&gt;&lt;b&gt;%1&lt;/b&gt; disk kalıbı dosyasının ayarlarını değiştirmek üzeresiniz.&lt;/p&gt;&lt;p&gt;Lütfen aşağıdaki kiplerden birini seçin ve ilerlemek için &lt;b&gt;%2&lt;/b&gt; düğmesine ya da aksi takdirde &lt;b&gt;%3&lt;/b&gt; düğmesine basın.&lt;/p&gt;</translation>
+        <translation type="vanished">&lt;p&gt;&lt;b&gt;%1&lt;/b&gt; disk kalıbı dosyasının ayarlarını değiştirmek üzeresiniz.&lt;/p&gt;&lt;p&gt;Lütfen aşağıdaki kiplerden birini seçin ve devam etmek için &lt;b&gt;%2&lt;/b&gt; düğmesine ya da aksi takdirde &lt;b&gt;%3&lt;/b&gt; düğmesine basın.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Choose mode:</source>
@@ -13298,7 +13341,7 @@
     </message>
     <message>
         <source>&lt;p&gt;You are about to remove the VirtualBox extension pack &lt;b&gt;%1&lt;/b&gt;.&lt;/p&gt;&lt;p&gt;Are you sure you want to proceed?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;&lt;b&gt;%1&lt;/b&gt; VirtualBox genişletme paketini kaldırmak üzeresiniz.&lt;/p&gt;&lt;p&gt;İlerlemek istediğinize emin misiniz?&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;&lt;b&gt;%1&lt;/b&gt; VirtualBox genişletme paketini kaldırmak üzeresiniz.&lt;/p&gt;&lt;p&gt;Devam etmek istediğinize emin misiniz?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>The extension pack &lt;br&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;nobr&gt;&lt;br&gt; was installed successfully.</source>
@@ -13338,7 +13381,7 @@
     </message>
     <message>
         <source>&lt;p&gt;Error changing disk image mode from &lt;b&gt;%1&lt;/b&gt; to &lt;b&gt;%2&lt;/b&gt;.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Disk kalıbı kipini &lt;b&gt;%1&lt;/b&gt; ögesinden &lt;b&gt;%2&lt;/b&gt; ögesine değiştirilirken hata oldu.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Disk kalıbı kipini &lt;b&gt;%1&lt;/b&gt; öğesinden &lt;b&gt;%2&lt;/b&gt; öğesine değiştirilirken hata oldu.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Sorry, some generic error happens.</source>
@@ -13354,11 +13397,11 @@
     </message>
     <message>
         <source>VirtualBox is not currently allowed to access USB devices.  You can change this by adding your user to the &apos;vboxusers&apos; group.  Please see the user manual for a more detailed explanation</source>
-        <translation>VirtualBox şu anda USB aygıtlara erişime izin vermiyor. Bunu kullanıcınızı &apos;vboxusers&apos; grubuna ekleyerek değiştirebilirsiniz. Lütfen daha fazla ayrıntılı açıklama için kullanıcı kılavuzuna bakın</translation>
+        <translation>VirtualBox şu anda USB aygıtlara erişime izin vermiyor. Bunu kullanıcınızı &apos;vboxusers&apos; grubuna ekleyerek değiştirebilirsiniz. Lütfen daha fazla ayrıntılı açıklama için kullanım kılavuzuna bakın</translation>
     </message>
     <message>
         <source>VirtualBox is not currently allowed to access USB devices.  You can change this by allowing your user to access the &apos;usbfs&apos; folder and files.  Please see the user manual for a more detailed explanation</source>
-        <translation>VirtualBox şu anda USB aygıtlara erişime izin vermiyor. Bunu kullanıcınıza &apos;usbfs&apos; klasör ve dosyalarına erişime izin vererek değiştirebilirsiniz. Lütfen daha fazla ayrıntılı açıklama için kullanıcı kılavuzuna bakın</translation>
+        <translation>VirtualBox şu anda USB aygıtlara erişime izin vermiyor. Bunu kullanıcınıza &apos;usbfs&apos; klasör ve dosyalarına erişime izin vererek değiştirebilirsiniz. Lütfen daha fazla ayrıntılı açıklama için kullanım kılavuzuna bakın</translation>
     </message>
     <message>
         <source>The USB Proxy Service has not yet been ported to this host</source>
@@ -13378,7 +13421,7 @@
     </message>
     <message>
         <source>&lt;p&gt;You have an old version (%1) of the &lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; installed.&lt;/p&gt;&lt;p&gt;Do you wish to download latest one from the Internet?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;&lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; ögesinin yüklü eski bir sürümüne (%1) sahipsiniz.&lt;/p&gt;&lt;p&gt;En son olanı Internet&apos;ten indirmek ister misiniz?&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;&lt;b&gt;&lt;nobr&gt;%2&lt;/nobr&gt;&lt;/b&gt; öğesinin yüklü eski bir sürümüne (%1) sahipsiniz.&lt;/p&gt;&lt;p&gt;En son olanı Internet&apos;ten indirmek ister misiniz?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Download</source>
@@ -13387,7 +13430,7 @@
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to download the &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (size %3 bytes)?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;&lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; ögesini &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (boyut %3 bayt) adresinden indirmek istediğinize emin misiniz?&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;&lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; öğesini &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; (boyut %3 bayt) adresinden indirmek istediğinize emin misiniz?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The &lt;b&gt;&lt;nobr&gt;%1&lt;/nobr&gt;&lt;/b&gt; has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%2&quot;&gt;%2&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%3&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to install this extension pack?&lt;/p&gt;</source>
@@ -13424,11 +13467,11 @@
     </message>
     <message>
         <source>&lt;p&gt;You are about to remove following virtual machine items from the machine list:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Do you wish to proceed?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Aşağıdaki sanal makine ögelerini makine listesinden kaldırmak üzeresiniz:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;İlerlemek ister misiniz?&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Aşağıdaki sanal makine öğelerini makine listesinden kaldırmak üzeresiniz:&lt;/p&gt;&lt;p&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/p&gt;&lt;p&gt;Devam etmek ister misiniz?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You are about to remove following inaccessible virtual machines from the machine list:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Do you wish to proceed?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Aşağıdaki erişilemeyen sanal makineleri makine listesinden kaldırmak üzeresiniz:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;İlerlemek ister misiniz?&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Aşağıdaki erişilemeyen sanal makineleri makine listesinden kaldırmak üzeresiniz:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Devam etmek ister misiniz?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;You are about to remove following virtual machines from the machine list:&lt;/p&gt;&lt;p&gt;%1&lt;/p&gt;&lt;p&gt;Would you like to delete the files containing the virtual machine from your hard disk as well? Doing this will also remove the files containing the machine&apos;s virtual hard disks if they are not in use by another machine.&lt;/p&gt;</source>
@@ -13494,7 +13537,7 @@
     </message>
     <message>
         <source>&lt;p&gt;You are trying to move group &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; to group &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; which already have another item with the same name.&lt;/p&gt;&lt;p&gt;Would you like to automatically rename it?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;Zaten aynı isimle olan başka bir ögeye sahip &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; grubunu &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; grubuna taşımayı deniyorsunuz.&lt;/p&gt;&lt;p&gt;Otomatik olarak yeniden adlandırmak ister misiniz?&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;Zaten aynı isimde olan başka bir öğeye sahip &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; grubunu &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; grubuna taşımayı deniyorsunuz.&lt;/p&gt;&lt;p&gt;Otomatik olarak yeniden adlandırmak ister misiniz?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Rename</source>
@@ -13502,7 +13545,7 @@
     </message>
     <message>
         <source>&lt;p&gt;You are about to restore snapshot &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;.&lt;/p&gt;&lt;p&gt;You can create a snapshot of the current state of the virtual machine first by checking the box below; if you do not do this the current state will be permanently lost. Do you wish to proceed?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; anlık görüntüsünü geri yüklemek üzeresiniz.&lt;/p&gt;&lt;p&gt;Önce aşağıdan kutuyu işaretleyerek sanal makinenin şu anki durumunun bir anlık görüntüsünü oluşturabilirsiniz; eğer bunu yapmazsanız, şu anki durum kalıcı olarak kaybolacaktır. İlerlemek ister misiniz?&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; anlık görüntüsünü geri yüklemek üzeresiniz.&lt;/p&gt;&lt;p&gt;Önce aşağıdan kutuyu işaretleyerek sanal makinenin şu anki durumunun bir anlık görüntüsünü oluşturabilirsiniz; eğer bunu yapmazsanız, şu anki durum kalıcı olarak kaybolacaktır. Devam etmek ister misiniz?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to restore snapshot &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt;?&lt;/p&gt;</source>
@@ -13709,19 +13752,19 @@
     </message>
     <message>
         <source>&lt;p&gt;Could not find the &lt;b&gt;VirtualBox User Manual&lt;/b&gt; &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Do you wish to download this file from the Internet?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;&lt;b&gt;VirtualBox Kullanıcı Kılavuzu&lt;/b&gt; &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; bulunamadı.&lt;/p&gt;&lt;p&gt;Bu dosyayı Internet&apos;ten indirmek ister misiniz?&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;&lt;b&gt;VirtualBox Kullanım Kılavuzu&lt;/b&gt; &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; bulunamadı.&lt;/p&gt;&lt;p&gt;Bu dosyayı Internet&apos;ten indirmek ister misiniz?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;Are you sure you want to download the &lt;b&gt;VirtualBox User Manual&lt;/b&gt; from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; (size %2 bytes)?&lt;/p&gt;</source>
-        <translation>&lt;p&gt;&lt;b&gt;VirtualBox Kullanıcı Kılavuzu&lt;/b&gt;&apos;nu, &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; adresinden indirmek istediğinize emin misiniz (boyutu %2 bayt)?&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;&lt;b&gt;VirtualBox Kullanım Kılavuzu&lt;/b&gt;&apos;nu, &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; adresinden indirmek istediğinize emin misiniz (boyutu %2 bayt)?&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The VirtualBox User Manual has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; but can&apos;t be saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;Please choose another location for that file.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;VirtualBox Kullanıcı Kılavuzu &lt;nobr&gt;, &lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; adresinden başarılı olarak indirildi ancak &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; ile yerel olarak kaydedilemez.&lt;/p&gt;&lt;p&gt;Lütfen bu dosya için başka bir yer seçin.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;VirtualBox Kullanım Kılavuzu &lt;nobr&gt;, &lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; adresinden başarılı olarak indirildi ancak &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; ile yerel olarak kaydedilemez.&lt;/p&gt;&lt;p&gt;Lütfen bu dosya için başka bir yer seçin.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>&lt;p&gt;The VirtualBox User Manual has been successfully downloaded from &lt;nobr&gt;&lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; and saved locally as &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;.&lt;/nobr&gt;&lt;/p&gt;</source>
-        <translation>&lt;p&gt;VirtualBox Kullanıcı Kılavuzu &lt;nobr&gt;, &lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; adresinden başarılı olarak indirildi ve &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; ile yerel olarak kaydedildi.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;VirtualBox Kullanım Kılavuzu &lt;nobr&gt;, &lt;a href=&quot;%1&quot;&gt;%1&lt;/a&gt;&lt;/nobr&gt; adresinden başarılı olarak indirildi ve &lt;nobr&gt;&lt;b&gt;%2&lt;/b&gt;&lt;/nobr&gt; ile yerel olarak kaydedildi.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Close</source>
@@ -13737,7 +13780,7 @@
     </message>
     <message>
         <source>&lt;p&gt;Do you want to remove the NAT network &lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;?&lt;/nobr&gt;&lt;/p&gt;&lt;p&gt;If this network is in use by one or more virtual machine network adapters these adapters will no longer be usable until you correct their settings by either choosing a different network name or a different adapter attachment type.&lt;/p&gt;</source>
-        <translation>&lt;p&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; NAT ağını kaldırmak istiyor musunuz?&lt;/p&gt;&lt;p&gt;Eğer bu ağ bir ya da daha fazla sanal makine ağ bağdaştırıcıları tarafından kullanımdaysa, bu bağdaştırıcılar, siz ya farklı bir ağ adı ya da farklı bir bağdaştırıcı ekleme türü seçerek ayarlarını düzeltene kadar artık kullanılabilir olmayacak.&lt;/p&gt;</translation>
+        <translation>&lt;p&gt;&lt;nobr&gt;&lt;b&gt;%1&lt;/b&gt;&lt;/nobr&gt; NAT ağını kaldırmak istiyor musunuz?&lt;/p&gt;&lt;p&gt;Eğer bu ağ, bir ya da daha fazla sanal makine ağ bağdaştırıcısı tarafından kullanılmaktaysa, bu bağdaştırıcılar artık, ya farklı bir ağ adı ya da farklı bir bağdaştırıcı ekleme türü seçerek ayarlarını düzeltene kadar kullanılabilir olmayacaktır.&lt;/p&gt;</translation>
     </message>
     <message>
         <source>Failed to attach the webcam &lt;b&gt;%1&lt;/b&gt; to the virtual machine &lt;b&gt;%2&lt;/b&gt;.</source>
@@ -15219,7 +15262,7 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     <name>UISettingsDialog</name>
     <message>
         <source>&lt;i&gt;Select a settings category from the list on the left-hand side and move the mouse over a settings item to get more information.&lt;/i&gt;</source>
-        <translation>&lt;i&gt;Sol tarafınızdaki listeden bir ayar kategorisi seçin ve daha fazla bilgi almak için bir ayar ögesi üzerinde fareyi haraket ettirin.&lt;/i&gt;</translation>
+        <translation>&lt;i&gt;Sol tarafınızdaki listeden bir ayar kategorisi seçin ve daha fazla bilgi almak için bir ayar öğesi üzerinde fareyi haraket ettirin.&lt;/i&gt;</translation>
     </message>
     <message>
         <source>On the &lt;b&gt;%1&lt;/b&gt; page, %2</source>
@@ -16545,6 +16588,129 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
 </context>
 <context>
+    <name>UIVisoCreator</name>
+    <message>
+        <source>VISO content</source>
+        <translation>VISO içeriği</translation>
+    </message>
+    <message>
+        <source>Remove selected file objects from VISO</source>
+        <translation>VISO&apos;dan seçilen dosya nesnelerini kaldır</translation>
+    </message>
+    <message>
+        <source>Create a new directory under the current directory</source>
+        <translation type="vanished">Şu anki dizin altında yeni bir dizin oluştur</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>Adı</translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <translation>Boyut</translation>
+    </message>
+    <message>
+        <source>Change Time</source>
+        <translation>Saati Değiştir</translation>
+    </message>
+    <message>
+        <source>Owner</source>
+        <translation>Sahibi</translation>
+    </message>
+    <message>
+        <source>Permissions</source>
+        <translation>İzinler</translation>
+    </message>
+    <message>
+        <source>Local Path</source>
+        <translation>Yerel Yol</translation>
+    </message>
+    <message>
+        <source>ISO Path</source>
+        <translation>ISO Yolu</translation>
+    </message>
+    <message>
+        <source>&amp;Options...</source>
+        <translation>&amp;Seçenekler...</translation>
+    </message>
+    <message>
+        <source>VISO Options</source>
+        <translation type="vanished">VISO Seçenekleri</translation>
+    </message>
+    <message>
+        <source>Manage VISO Options</source>
+        <translation type="vanished">VISO Seçeneklerini Yönet</translation>
+    </message>
+    <message>
+        <source>Browser Options</source>
+        <translation type="vanished">Tarayıcı Seçenekleri</translation>
+    </message>
+    <message>
+        <source>Change VISO options</source>
+        <translation type="vanished">VISO Seçeneklerini Değiştir</translation>
+    </message>
+    <message>
+        <source>Change Browser options</source>
+        <translation type="vanished">Tarayıcı Seçeneklerini Değiştir</translation>
+    </message>
+    <message>
+        <source>VISO Name</source>
+        <translation type="vanished">VISO Adı</translation>
+    </message>
+    <message>
+        <source>Show Hidden Objects</source>
+        <translation>Gizli Nesneleri Göster</translation>
+    </message>
+    <message>
+        <source>Host file system</source>
+        <translation>Anamakine dosya sistemi</translation>
+    </message>
+    <message>
+        <source>Add selected file objects to VISO</source>
+        <translation type="vanished">VISO&apos;ya seçilen dosya nesnelerini ekle</translation>
+    </message>
+    <message>
+        <source>Create a new directory under the current location</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Reset ISO content.</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Rename the selected object</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>&amp;Configuration...</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VISO Configuration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Manage VISO Configuration</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Dialog Options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Manage Dialog Options</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>VISO Name:</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <source>Add selected file objects to ISO</source>
+        <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
     <name>UIWelcomePane</name>
     <message>
         <source>&lt;h3&gt;Welcome to VirtualBox!&lt;/h3&gt;&lt;p&gt;The left part of application window contains global tools and lists all virtual machines and virtual machine groups on your computer. You can import, add and create new VMs using corresponding toolbar buttons. You can popup a tools of currently selected element using corresponding element button.&lt;/p&gt;&lt;p&gt;You can press the &lt;b&gt;%1&lt;/b&gt; key to get instant help, or visit &lt;a href=https://www.virtualbox.org&gt;www.virtualbox.org&lt;/a&gt; for more information and latest news.&lt;/p&gt;</source>
@@ -17390,7 +17556,7 @@ bu basamağı atlayarak sabit diskleri Sanal Makine Ayarları penceresinden ekle
     </message>
     <message>
         <source>These are the virtual machines contained in the appliance and the suggested settings of the imported VirtualBox machines. You can change many of the properties shown by double-clicking on the items and disable others using the check boxes below.</source>
-        <translation>Bunlar cihaz içinde bulunan sanal makineler ve içe aktarılmış VirtualBox makinelerinin önerilen ayarlarıdır. Ögelere çift tıklandığında gösterilen çoğu özellikleri değiştirebilirsiniz ve aşağıdan işaretleme kutularını kullanarak diğerlerini etkisizleştirebilirsiniz.</translation>
+        <translation>Bunlar cihaz içinde bulunan sanal makineler ve içe aktarılmış VirtualBox makinelerinin önerilen ayarlarıdır. Öğelere çift tıklandığında gösterilen çoğu özellikleri değiştirebilirsiniz ve aşağıdan onay kutularını kullanarak diğerlerini etkisizleştirebilirsiniz.</translation>
     </message>
     <message>
         <source>Import Virtual Appliance</source>
@@ -18618,7 +18784,7 @@ Version %1</source>
     </message>
     <message>
         <source>Please use the &lt;b&gt;Other...&lt;/b&gt; item from the drop-down list to select a path.</source>
-        <translation type="vanished">Lütfen bir yol seçmek için aşağı açılır listeden &lt;b&gt;Diğer...&lt;/b&gt; ögesini kullanın.</translation>
+        <translation type="vanished">Lütfen bir yol seçmek için aşağı açılır listeden &lt;b&gt;Diğer...&lt;/b&gt; öğesini kullanın.</translation>
     </message>
     <message>
         <source>Other...</source>
@@ -20936,7 +21102,7 @@ Version %1</source>
     </message>
     <message>
         <source>Please select files to be on the VISO</source>
-        <translation>Lütfen VISO üzerinde olacak dosyaları seçin</translation>
+        <translation type="vanished">Lütfen VISO üzerinde olacak dosyaları seçin</translation>
     </message>
     <message>
         <source>None</source>

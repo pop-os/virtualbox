@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -53,9 +53,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-
-#ifndef ___VBoxGuest_haiku_h
-#define ___VBoxGuest_haiku_h
+#ifndef GA_INCLUDED_SRC_common_VBoxGuest_VBoxGuest_haiku_h
+#define GA_INCLUDED_SRC_common_VBoxGuest_VBoxGuest_haiku_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <OS.h>
 #include <Drivers.h>
@@ -232,5 +234,5 @@ struct vboxguest_module_info
 extern struct vboxguest_module_info *g_VBoxGuest;
 #endif
 
-#endif /* !___VBoxGuest_haiku_h */
+#endif /* !GA_INCLUDED_SRC_common_VBoxGuest_VBoxGuest_haiku_h */
 

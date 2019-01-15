@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_rawpci_h
-#define ___VBox_rawpci_h
+#ifndef VBOX_INCLUDED_rawpci_h
+#define VBOX_INCLUDED_rawpci_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 #include <VBox/sup.h>
@@ -602,4 +605,4 @@ RT_C_DECLS_END
 
 /* #define VBOX_WITH_SHARED_PCI_INTERRUPTS */
 
-#endif
+#endif /* !VBOX_INCLUDED_rawpci_h */

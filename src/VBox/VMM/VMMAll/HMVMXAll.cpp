@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018 Oracle Corporation
+ * Copyright (C) 2018-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,7 @@
 #include "HMInternal.h"
 #include <VBox/vmm/vm.h>
 #include <VBox/vmm/pdmapi.h>
+#include <VBox/err.h>
 
 
 /*********************************************************************************************************************************
@@ -89,6 +90,7 @@ static const char * const g_apszVmxVDiagDesc[] =
     VMXV_DIAG_DESC(kVmxVDiag_Vmptrld_PtrVmxon                 , "PtrVmxon"                  ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmptrld_PtrWidth                 , "PtrWidth"                  ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmptrld_RealOrV86Mode            , "RealOrV86Mode"             ),
+    VMXV_DIAG_DESC(kVmxVDiag_Vmptrld_RevPtrReadPhys           , "RevPtrReadPhys"            ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmptrld_ShadowVmcs               , "ShadowVmcs"                ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmptrld_VmcsRevId                , "VmcsRevId"                 ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmptrld_VmxRoot                  , "VmxRoot"                   ),
@@ -325,7 +327,6 @@ static const char * const g_apszVmxVDiagDesc[] =
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_ProcCtls2Allowed1        , "ProcCtls2Allowed1"         ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_ProcCtls2Disallowed0     , "ProcCtls2Disallowed0"      ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_PtrInvalid               , "PtrInvalid"                ),
-    VMXV_DIAG_DESC(kVmxVDiag_Vmentry_PtrReadPhys              , "PtrReadPhys"               ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_RealOrV86Mode            , "RealOrV86Mode"             ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_SavePreemptTimer         , "SavePreemptTimer"          ),
     VMXV_DIAG_DESC(kVmxVDiag_Vmentry_TprThresholdRsvd         , "TprThresholdRsvd"          ),
@@ -363,85 +364,6 @@ AssertCompile(RT_ELEMENTS(g_apszVmxVDiagDesc) == kVmxVDiag_End);
 
 
 /**
- * Gets a copy of the VMX host MSRs that were read by HM during ring-0
- * initialization.
- *
- * @return VBox status code.
- * @param   pVM        The cross context VM structure.
- * @param   pVmxMsrs   Where to store the VMXMSRS struct (only valid when
- *                     VINF_SUCCESS is returned).
- *
- * @remarks Caller needs to take care not to call this function too early. Call
- *          after HM initialization is fully complete.
- */
-VMM_INT_DECL(int) HMVmxGetHostMsrs(PVM pVM, PVMXMSRS pVmxMsrs)
-{
-    AssertPtrReturn(pVM,      VERR_INVALID_PARAMETER);
-    AssertPtrReturn(pVmxMsrs, VERR_INVALID_PARAMETER);
-    if (pVM->hm.s.vmx.fSupported)
-    {
-        *pVmxMsrs = pVM->hm.s.vmx.Msrs;
-        return VINF_SUCCESS;
-    }
-    return VERR_VMX_NO_VMX;
-}
-
-
-/**
- * Gets the specified VMX host MSR that was read by HM during ring-0
- * initialization.
- *
- * @return VBox status code.
- * @param   pVM        The cross context VM structure.
- * @param   idMsr      The MSR.
- * @param   puValue    Where to store the MSR value (only updated when VINF_SUCCESS
- *                     is returned).
- *
- * @remarks Caller needs to take care not to call this function too early. Call
- *          after HM initialization is fully complete.
- */
-VMM_INT_DECL(int) HMVmxGetHostMsr(PVM pVM, uint32_t idMsr, uint64_t *puValue)
-{
-    AssertPtrReturn(pVM,     VERR_INVALID_PARAMETER);
-    AssertPtrReturn(puValue, VERR_INVALID_PARAMETER);
-
-    if (pVM->hm.s.vmx.fSupported)
-    {
-        PCVMXMSRS pVmxMsrs = &pVM->hm.s.vmx.Msrs;
-        switch (idMsr)
-        {
-            case MSR_IA32_FEATURE_CONTROL:         *puValue =  pVmxMsrs->u64FeatCtrl;      break;
-            case MSR_IA32_VMX_BASIC:               *puValue =  pVmxMsrs->u64Basic;         break;
-            case MSR_IA32_VMX_PINBASED_CTLS:       *puValue =  pVmxMsrs->PinCtls.u;        break;
-            case MSR_IA32_VMX_PROCBASED_CTLS:      *puValue =  pVmxMsrs->ProcCtls.u;       break;
-            case MSR_IA32_VMX_PROCBASED_CTLS2:     *puValue =  pVmxMsrs->ProcCtls2.u;      break;
-            case MSR_IA32_VMX_EXIT_CTLS:           *puValue =  pVmxMsrs->ExitCtls.u;       break;
-            case MSR_IA32_VMX_ENTRY_CTLS:          *puValue =  pVmxMsrs->EntryCtls.u;      break;
-            case MSR_IA32_VMX_TRUE_PINBASED_CTLS:  *puValue =  pVmxMsrs->TruePinCtls.u;    break;
-            case MSR_IA32_VMX_TRUE_PROCBASED_CTLS: *puValue =  pVmxMsrs->TrueProcCtls.u;   break;
-            case MSR_IA32_VMX_TRUE_ENTRY_CTLS:     *puValue =  pVmxMsrs->TrueEntryCtls.u;  break;
-            case MSR_IA32_VMX_TRUE_EXIT_CTLS:      *puValue =  pVmxMsrs->TrueExitCtls.u;   break;
-            case MSR_IA32_VMX_MISC:                *puValue =  pVmxMsrs->u64Misc;          break;
-            case MSR_IA32_VMX_CR0_FIXED0:          *puValue =  pVmxMsrs->u64Cr0Fixed0;     break;
-            case MSR_IA32_VMX_CR0_FIXED1:          *puValue =  pVmxMsrs->u64Cr0Fixed1;     break;
-            case MSR_IA32_VMX_CR4_FIXED0:          *puValue =  pVmxMsrs->u64Cr4Fixed0;     break;
-            case MSR_IA32_VMX_CR4_FIXED1:          *puValue =  pVmxMsrs->u64Cr4Fixed1;     break;
-            case MSR_IA32_VMX_VMCS_ENUM:           *puValue =  pVmxMsrs->u64VmcsEnum;      break;
-            case MSR_IA32_VMX_VMFUNC:              *puValue =  pVmxMsrs->u64VmFunc;        break;
-            case MSR_IA32_VMX_EPT_VPID_CAP:        *puValue =  pVmxMsrs->u64EptVpidCaps;   break;
-            default:
-            {
-                AssertMsgFailed(("Invalid MSR %#x\n", idMsr));
-                return VERR_NOT_FOUND;
-            }
-        }
-        return VINF_SUCCESS;
-    }
-    return VERR_VMX_NO_VMX;
-}
-
-
-/**
  * Gets the descriptive name of a VMX instruction/VM-exit diagnostic code.
  *
  * @returns The descriptive string.
@@ -472,6 +394,93 @@ VMM_INT_DECL(const char *) HMVmxGetAbortDesc(VMXABORT enmAbort)
         case VMXABORT_LOAD_HOST_MSR:            return "VMXABORT_LOAD_HOST_MSR";
         case VMXABORT_MACHINE_CHECK_XCPT:       return "VMXABORT_MACHINE_CHECK_XCPT";
         case VMXABORT_HOST_NOT_IN_LONG_MODE:    return "VMXABORT_HOST_NOT_IN_LONG_MODE";
+        default:
+            break;
+    }
+    return "Unknown/invalid";
+}
+
+
+/**
+ * Gets the description for a virtual VMCS state.
+ *
+ * @returns The descriptive string.
+ * @param   fVmcsState      The virtual-VMCS state.
+ */
+VMM_INT_DECL(const char *) HMVmxGetVmcsStateDesc(uint8_t fVmcsState)
+{
+    switch (fVmcsState)
+    {
+        case VMX_V_VMCS_STATE_CLEAR:        return "Clear";
+        case VMX_V_VMCS_STATE_LAUNCHED:     return "Launched";
+        default:                            return "Unknown";
+    }
+}
+
+
+/**
+ * Gets the description for a VM-entry interruption information event type.
+ *
+ * @returns The descriptive string.
+ * @param   uType    The event type.
+ */
+VMM_INT_DECL(const char *) HMVmxGetEntryIntInfoTypeDesc(uint8_t uType)
+{
+    switch (uType)
+    {
+        case VMX_ENTRY_INT_INFO_TYPE_EXT_INT:       return "External Interrupt";
+        case VMX_ENTRY_INT_INFO_TYPE_NMI:           return "NMI";
+        case VMX_ENTRY_INT_INFO_TYPE_HW_XCPT:       return "Hardware Exception";
+        case VMX_ENTRY_INT_INFO_TYPE_SW_INT:        return "Software Interrupt";
+        case VMX_ENTRY_INT_INFO_TYPE_PRIV_SW_XCPT:  return "Priv. Software Exception";
+        case VMX_ENTRY_INT_INFO_TYPE_SW_XCPT:       return "Software Exception";
+        case VMX_ENTRY_INT_INFO_TYPE_OTHER_EVENT:   return "Other Event";
+        default:
+            break;
+    }
+    return "Unknown/invalid";
+}
+
+
+/**
+ * Gets the description for a VM-exit interruption information event type.
+ *
+ * @returns The descriptive string.
+ * @param   uType    The event type.
+ */
+VMM_INT_DECL(const char *) HMVmxGetExitIntInfoTypeDesc(uint8_t uType)
+{
+    switch (uType)
+    {
+        case VMX_EXIT_INT_INFO_TYPE_EXT_INT:       return "External Interrupt";
+        case VMX_EXIT_INT_INFO_TYPE_NMI:           return "NMI";
+        case VMX_EXIT_INT_INFO_TYPE_HW_XCPT:       return "Hardware Exception";
+        case VMX_EXIT_INT_INFO_TYPE_SW_INT:        return "Software Interrupt";
+        case VMX_EXIT_INT_INFO_TYPE_PRIV_SW_XCPT:  return "Priv. Software Exception";
+        case VMX_EXIT_INT_INFO_TYPE_SW_XCPT:       return "Software Exception";
+        default:
+            break;
+    }
+    return "Unknown/invalid";
+}
+
+
+/**
+ * Gets the description for an IDT-vectoring information event type.
+ *
+ * @returns The descriptive string.
+ * @param   uType    The event type.
+ */
+VMM_INT_DECL(const char *) HMVmxGetIdtVectoringInfoTypeDesc(uint8_t uType)
+{
+    switch (uType)
+    {
+        case VMX_IDT_VECTORING_INFO_TYPE_EXT_INT:       return "External Interrupt";
+        case VMX_IDT_VECTORING_INFO_TYPE_NMI:           return "NMI";
+        case VMX_IDT_VECTORING_INFO_TYPE_HW_XCPT:       return "Hardware Exception";
+        case VMX_IDT_VECTORING_INFO_TYPE_SW_INT:        return "Software Interrupt";
+        case VMX_IDT_VECTORING_INFO_TYPE_PRIV_SW_XCPT:  return "Priv. Software Exception";
+        case VMX_IDT_VECTORING_INFO_TYPE_SW_XCPT:       return "Software Exception";
         default:
             break;
     }
@@ -643,7 +652,6 @@ VMM_INT_DECL(bool) HMVmxCanExecuteGuest(PVMCPU pVCpu, PCCPUMCTX pCtx)
 {
     PVM pVM = pVCpu->CTX_SUFF(pVM);
     Assert(HMIsEnabled(pVM));
-    Assert(!CPUMIsGuestVmxEnabled(pCtx));
     Assert(   ( pVM->hm.s.vmx.fUnrestrictedGuest && !pVM->hm.s.vmx.pRealModeTSS)
            || (!pVM->hm.s.vmx.fUnrestrictedGuest && pVM->hm.s.vmx.pRealModeTSS));
 

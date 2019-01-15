@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2018 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef _DHCP_OPTIONS_H_
-#define _DHCP_OPTIONS_H_
+#ifndef VBOX_INCLUDED_SRC_Dhcpd_DhcpOptions_h
+#define VBOX_INCLUDED_SRC_Dhcpd_DhcpOptions_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "Defs.h"
 
@@ -636,4 +639,4 @@ typedef OptString<66>                   OptTFTPServer;   /* when overloaded */
 typedef OptString<67>                   OptBootFileName; /* when overloaded */
 typedef OptNoValue<80>                  OptRapidCommit;  /* RFC4039 */
 
-#endif /* _DHCP_OPTIONS_H_ */
+#endif /* !VBOX_INCLUDED_SRC_Dhcpd_DhcpOptions_h */

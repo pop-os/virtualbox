@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,13 +15,15 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_HOSTUSBDEVICEIMPL
-#define ____H_HOSTUSBDEVICEIMPL
+#ifndef MAIN_INCLUDED_HostUSBDeviceImpl_h
+#define MAIN_INCLUDED_HostUSBDeviceImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "VirtualBoxBase.h"
 #include "USBDeviceFilterImpl.h"
 #include <VBox/usb.h>
-#include "Logging.h"
 #include "HostUSBDeviceWrap.h"
 
 class SessionMachine;
@@ -310,5 +312,5 @@ private:
     void        *m_pvBackendUser;
 };
 
-#endif // ____H_HOSTUSBDEVICEIMPL
+#endif /* !MAIN_INCLUDED_HostUSBDeviceImpl_h */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

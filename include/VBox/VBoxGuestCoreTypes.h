@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -31,9 +31,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-
-#ifndef ___VBoxGuestCoreTypes_h
-#define ___VBoxGuestCoreTypes_h
+#ifndef VBOX_INCLUDED_VBoxGuestCoreTypes_h
+#define VBOX_INCLUDED_VBoxGuestCoreTypes_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 #include <iprt/assertcompile.h>
@@ -232,5 +234,5 @@ typedef FNVBOXGUESTMOUSENOTIFY *PFNVBOXGUESTMOUSENOTIFY; /**< @todo fix type pre
 
 /** @} */
 
-#endif
+#endif /* !VBOX_INCLUDED_VBoxGuestCoreTypes_h */
 

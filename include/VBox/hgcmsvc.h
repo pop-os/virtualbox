@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,15 +23,18 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_hgcm_h
-#define ___VBox_hgcm_h
+#ifndef VBOX_INCLUDED_hgcmsvc_h
+#define VBOX_INCLUDED_hgcmsvc_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/assert.h>
 #include <iprt/stdarg.h>
 #include <iprt/string.h>
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
-#include <VBox/err.h>
+#include <iprt/err.h>
 #ifdef IN_RING3
 # include <VBox/vmm/stam.h>
 # include <VBox/vmm/dbgf.h>
@@ -424,7 +427,7 @@ DECLINLINE(void) HGCMSvcSetStr(VBOXHGCMSVCPARM *pParm, const char *psz)
 }
 
 #ifdef __cplusplus
-# ifdef ___iprt_cpp_ministring_h
+# ifdef IPRT_INCLUDED_cpp_ministring_h
 /** Set a const string value to an HGCM parameter structure */
 DECLINLINE(void) HGCMSvcSetRTCStr(VBOXHGCMSVCPARM *pParm, const RTCString &rString)
 {
@@ -570,5 +573,5 @@ typedef DECLCALLBACK(int) VBOXHGCMSVCLOAD(VBOXHGCMSVCFNTABLE *ptable);
 typedef VBOXHGCMSVCLOAD *PFNVBOXHGCMSVCLOAD;
 #define VBOX_HGCM_SVCLOAD_NAME "VBoxHGCMSvcLoad"
 
+#endif /* !VBOX_INCLUDED_hgcmsvc_h */
 
-#endif

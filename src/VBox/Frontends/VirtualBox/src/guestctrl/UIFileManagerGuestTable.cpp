@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2018 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,31 +15,27 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QDateTime>
-# include <QFileInfo>
-# include <QUuid>
+#include <QDateTime>
+#include <QFileInfo>
+#include <QUuid>
 
 /* GUI includes: */
-# include "QILabel.h"
-# include "UIActionPool.h"
-# include "UIErrorString.h"
-# include "UIFileManager.h"
-# include "UIFileManagerGuestTable.h"
-# include "UIMessageCenter.h"
-# include "UIToolBar.h"
+#include "QILabel.h"
+#include "UIActionPool.h"
+#include "UIErrorString.h"
+#include "UICustomFileSystemModel.h"
+#include "UIFileManager.h"
+#include "UIFileManagerGuestTable.h"
+#include "UIMessageCenter.h"
+#include "UIPathOperations.h"
+#include "UIToolBar.h"
 
 /* COM includes: */
-# include "CFsObjInfo.h"
-# include "CGuestFsObjInfo.h"
-# include "CGuestDirectory.h"
-# include "CProgress.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CFsObjInfo.h"
+#include "CGuestFsObjInfo.h"
+#include "CGuestDirectory.h"
+#include "CProgress.h"
 
 
 /*********************************************************************************************************************************
@@ -172,7 +168,7 @@ void UIFileManagerGuestTable::retranslateUi()
 }
 
 void UIFileManagerGuestTable::readDirectory(const QString& strPath,
-                                     UIFileTableItem *parent, bool isStartDir /*= false*/)
+                                     UICustomFileSystemItem *parent, bool isStartDir /*= false*/)
 
 {
     if (!parent)
@@ -193,37 +189,29 @@ void UIFileManagerGuestTable::readDirectory(const QString& strPath,
     if (directory.isOk())
     {
         CFsObjInfo fsInfo = directory.Read();
-        QMap<QString, UIFileTableItem*> directories;
-        QMap<QString, UIFileTableItem*> files;
+        QMap<QString, UICustomFileSystemItem*> fileObjects;
 
         while (fsInfo.isOk())
         {
-            QVector<QVariant> data;
-            QDateTime changeTime = QDateTime::fromMSecsSinceEpoch(fsInfo.GetChangeTime()/RT_NS_1MS);
-
-            data << fsInfo.GetName() << static_cast<qulonglong>(fsInfo.GetObjectSize())
-                 << changeTime << fsInfo.GetUserName() << permissionString(fsInfo);
-
-            FileObjectType fsObjectType = fileType(fsInfo);
-            UIFileTableItem *item = new UIFileTableItem(data, parent, fsObjectType);
-
-            if (!item)
-                continue;
-            item->setPath(UIPathOperations::mergePaths(strPath, fsInfo.GetName()));
-            if (fsObjectType == FileObjectType_Directory)
+            if (fsInfo.GetName() != "." && fsInfo.GetName() != "..")
             {
-                directories.insert(fsInfo.GetName(), item);
+                QVector<QVariant> data;
+                QDateTime changeTime = QDateTime::fromMSecsSinceEpoch(fsInfo.GetChangeTime()/RT_NS_1MS);
+
+                KFsObjType fsObjectType = fileType(fsInfo);
+                UICustomFileSystemItem *item = new UICustomFileSystemItem(fsInfo.GetName(), parent, fsObjectType);
+
+                if (!item)
+                    continue;
+
+                item->setData(static_cast<qulonglong>(fsInfo.GetObjectSize()), UICustomFileSystemModelColumn_Size);
+                item->setData(changeTime, UICustomFileSystemModelColumn_ChangeTime);
+                item->setData(fsInfo.GetUserName(), UICustomFileSystemModelColumn_Owner);
+                item->setData(permissionString(fsInfo), UICustomFileSystemModelColumn_Permissions);
+                item->setPath(UIPathOperations::mergePaths(strPath, fsInfo.GetName()));
                 item->setIsOpened(false);
-            }
-            else if(fsObjectType == FileObjectType_File)
-            {
-                files.insert(fsInfo.GetName(), item);
-                item->setIsOpened(false);
-            }
-            else if(fsObjectType == FileObjectType_SymLink)
-            {
-                files.insert(fsInfo.GetName(), item);
-                item->setIsOpened(false);
+                item->setIsHidden(isFileObjectHidden(fsInfo));
+                fileObjects.insert(fsInfo.GetName(), item);
                 /* @todo. We will need to wait a fully implemented SymlinkRead function
                  * to be able to handle sym links properly: */
                 // QString path = UIPathOperations::mergePaths(strPath, fsInfo.GetName());
@@ -231,16 +219,14 @@ void UIFileManagerGuestTable::readDirectory(const QString& strPath,
                 // printf("%s %s %s\n", qPrintable(fsInfo.GetName()), qPrintable(path),
                 //        qPrintable(m_comGuestSession.SymlinkRead(path, aFlags)));
             }
-
             fsInfo = directory.Read();
         }
-        insertItemsToTree(directories, parent, true, isStartDir);
-        insertItemsToTree(files, parent, false, isStartDir);
+        checkDotDot(fileObjects, parent, isStartDir);
     }
     directory.Close();
 }
 
-void UIFileManagerGuestTable::deleteByItem(UIFileTableItem *item)
+void UIFileManagerGuestTable::deleteByItem(UICustomFileSystemItem *item)
 {
     if (!item)
         return;
@@ -266,12 +252,12 @@ void UIFileManagerGuestTable::deleteByPath(const QStringList &pathList)
     foreach (const QString &strPath, pathList)
     {
         CGuestFsObjInfo fileInfo = m_comGuestSession.FsObjQueryInfo(strPath, true);
-        FileObjectType eType = fileType(fileInfo);
-        if (eType == FileObjectType_File || eType == FileObjectType_SymLink)
+        KFsObjType eType = fileType(fileInfo);
+        if (eType == KFsObjType_File || eType == KFsObjType_Symlink)
         {
               m_comGuestSession.FsObjRemove(strPath);
         }
-        else if (eType == FileObjectType_Directory)
+        else if (eType == KFsObjType_Directory)
         {
             QVector<KDirectoryRemoveRecFlag> flags(KDirectoryRemoveRecFlag_ContentAndDir);
             m_comGuestSession.DirectoryRemoveRecursive(strPath, flags);
@@ -284,9 +270,9 @@ void UIFileManagerGuestTable::goToHomeDirectory()
 {
     if (m_comGuestSession.isNull())
         return;
-    if (!m_pRootItem || m_pRootItem->childCount() <= 0)
+    if (!rootItem() || rootItem()->childCount() <= 0)
         return;
-    UIFileTableItem *startDirItem = m_pRootItem->child(0);
+    UICustomFileSystemItem *startDirItem = rootItem()->child(0);
     if (!startDirItem)
         return;
 
@@ -300,7 +286,7 @@ void UIFileManagerGuestTable::goToHomeDirectory()
     goIntoDirectory(UIPathOperations::pathTrail(userHome));
 }
 
-bool UIFileManagerGuestTable::renameItem(UIFileTableItem *item, QString newBaseName)
+bool UIFileManagerGuestTable::renameItem(UICustomFileSystemItem *item, QString newBaseName)
 {
 
     if (!item || item->isUpDirectory() || newBaseName.isEmpty())
@@ -390,32 +376,32 @@ void UIFileManagerGuestTable::copyGuestToHost(const QString& hostDestinationPath
     emit sigNewFileOperation(progress);
 }
 
-FileObjectType UIFileManagerGuestTable::fileType(const CFsObjInfo &fsInfo)
+KFsObjType UIFileManagerGuestTable::fileType(const CFsObjInfo &fsInfo)
 {
     if (fsInfo.isNull() || !fsInfo.isOk())
-        return FileObjectType_Unknown;
+        return KFsObjType_Unknown;
     if (fsInfo.GetType() == KFsObjType_Directory)
-         return FileObjectType_Directory;
+         return KFsObjType_Directory;
     else if (fsInfo.GetType() == KFsObjType_File)
-        return FileObjectType_File;
+        return KFsObjType_File;
     else if (fsInfo.GetType() == KFsObjType_Symlink)
-        return FileObjectType_SymLink;
+        return KFsObjType_Symlink;
 
-    return FileObjectType_Other;
+    return KFsObjType_Unknown;
 }
 
-FileObjectType UIFileManagerGuestTable::fileType(const CGuestFsObjInfo &fsInfo)
+KFsObjType UIFileManagerGuestTable::fileType(const CGuestFsObjInfo &fsInfo)
 {
     if (fsInfo.isNull() || !fsInfo.isOk())
-        return FileObjectType_Unknown;
+        return KFsObjType_Unknown;
     if (fsInfo.GetType() == KFsObjType_Directory)
-         return FileObjectType_Directory;
+         return KFsObjType_Directory;
     else if (fsInfo.GetType() == KFsObjType_File)
-        return FileObjectType_File;
+        return KFsObjType_File;
     else if (fsInfo.GetType() == KFsObjType_Symlink)
-        return FileObjectType_SymLink;
+        return KFsObjType_Symlink;
 
-    return FileObjectType_Other;
+    return KFsObjType_Unknown;
 }
 
 
@@ -439,7 +425,7 @@ QString UIFileManagerGuestTable::fsObjectPropertyString()
         QStringList propertyStringList;
 
         /* Name: */
-        propertyStringList << QString("<b>Name:</b> %1<br/>").arg(UIPathOperations::getObjectName(fileInfo.GetName()));
+        propertyStringList << UIFileManager::tr("<b>Name:</b> %1<br/>").arg(UIPathOperations::getObjectName(fileInfo.GetName()));
 
         /* Size: */
         LONG64 size = fileInfo.GetObjectSize();
@@ -529,11 +515,11 @@ QString UIFileManagerGuestTable::fsObjectPropertyString()
             continue;
         }
 
-        FileObjectType type = fileType(fileInfo);
+        KFsObjType type = fileType(fileInfo);
 
-        if (type == FileObjectType_File)
+        if (type == KFsObjType_File)
             ++fileCount;
-        if (type == FileObjectType_Directory)
+        if (type == KFsObjType_Directory)
             ++directoryCount;
         totalSize += fileInfo.GetObjectSize();
     }
@@ -568,7 +554,7 @@ void UIFileManagerGuestTable::showProperties()
        to compute total size of the selection (recusively) */
     // bool createWorkerThread = (selectedObjects.size() > 1);
     // if (!createWorkerThread &&
-    //     fileType(m_comGuestSession.FsObjQueryInfo(selectedObjects[0], true)) == FileObjectType_Directory)
+    //     fileType(m_comGuestSession.FsObjQueryInfo(selectedObjects[0], true)) == KFsObjType_Directory)
     //     createWorkerThread = true;
     // if (createWorkerThread)
     // {
@@ -750,6 +736,23 @@ QString UIFileManagerGuestTable::permissionString(const CFsObjInfo &fsInfo)
     if (offSpace < 0)
         offSpace = strAttributes.length();
     return strAttributes.left(offSpace);
+}
+
+bool UIFileManagerGuestTable::isFileObjectHidden(const CFsObjInfo &fsInfo)
+{
+    QString strAttributes = fsInfo.GetFileAttributes();
+
+    if (strAttributes.isEmpty())
+        return false;
+
+    int offSpace = strAttributes.indexOf(' ');
+    if (offSpace < 0)
+        offSpace = strAttributes.length();
+    QString strRight(strAttributes.mid(offSpace + 1).trimmed());
+
+    if (strRight.indexOf('H', Qt::CaseSensitive) == -1)
+        return false;
+    return true;
 }
 
 #include "UIFileManagerGuestTable.moc"

@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,8 +17,11 @@
  * WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBoxDTraceLibCWrappers_h___
-#define ___VBoxDTraceLibCWrappers_h___
+#ifndef VBOX_INCLUDED_SRC_VBoxDTrace_include_VBoxDTraceLibCWrappers_h
+#define VBOX_INCLUDED_SRC_VBoxDTrace_include_VBoxDTraceLibCWrappers_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <assert.h>
 #include <stdlib.h>
@@ -93,5 +96,5 @@
 #undef bcmp
 #define bcmp(a_p1, a_p2, a_cb)      (memcmp(a_p1, a_p2, a_cb))
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_VBoxDTrace_include_VBoxDTraceLibCWrappers_h */
 

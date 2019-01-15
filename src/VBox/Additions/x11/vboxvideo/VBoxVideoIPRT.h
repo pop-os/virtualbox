@@ -1,6 +1,6 @@
 /* $Id: VBoxVideoIPRT.h $ */
 /*
- * Copyright (C) 2017 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -27,8 +27,12 @@
 /* In builds inside of the VirtualBox source tree we override the default
  * VBoxVideoIPRT.h using -include, therefore this define must match the one
  * there. */
-#ifndef ___VBox_Graphics_VBoxVideoIPRT_h
-#define ___VBox_Graphics_VBoxVideoIPRT_h
+
+#ifndef VBOX_INCLUDED_Graphics_VBoxVideoIPRT_h
+#define VBOX_INCLUDED_Graphics_VBoxVideoIPRT_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 # include "VBoxVideoErr.h"
 
@@ -230,4 +234,4 @@ typedef struct RTRECTSIZE
 
 /** @}  */
 
-#endif
+#endif /* !VBOX_INCLUDED_Graphics_VBoxVideoIPRT_h */

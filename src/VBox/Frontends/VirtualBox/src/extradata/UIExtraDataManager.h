@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2018 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIExtraDataManager_h___
-#define ___UIExtraDataManager_h___
+#ifndef FEQT_INCLUDED_SRC_extradata_UIExtraDataManager_h
+#define FEQT_INCLUDED_SRC_extradata_UIExtraDataManager_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QMap>
@@ -650,10 +653,13 @@ public:
     /** @name File Manager options
       * @{ */
         void setFileManagerOptions(bool fListDirectoriesFirst,
-                                   bool fShowDeleteConfirmation, bool fshowHumanReadableSizes);
+                                   bool fShowDeleteConfirmation,
+                                   bool fshowHumanReadableSizes,
+                                   bool fShowHiddenObjects);
         bool fileManagerListDirectoriesFirst();
         bool fileManagerShowDeleteConfirmation();
         bool fileManagerShowHumanReadableSizes();
+        bool fileManagerShowHiddenObjects();
     /** @} */
 
     /** @name Virtual Machine: Close dialog
@@ -801,4 +807,4 @@ private:
 /** Singleton Extra-data Manager 'official' name. */
 #define gEDataManager UIExtraDataManager::instance()
 
-#endif /* !___UIExtraDataManager_h___ */
+#endif /* !FEQT_INCLUDED_SRC_extradata_UIExtraDataManager_h */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2018 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,35 +15,28 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QHBoxLayout>
-# include <QGridLayout>
-# include <QLabel>
-# include <QMenu>
-# include <QProgressBar>
-# include <QScrollArea>
-# include <QScrollBar>
-# include <QStyle>
+#include <QHBoxLayout>
+#include <QGridLayout>
+#include <QLabel>
+#include <QMenu>
+#include <QProgressBar>
+#include <QScrollArea>
+#include <QScrollBar>
+#include <QStyle>
 
 
 /* GUI includes: */
-# include "QIToolButton.h"
-# include "QILabel.h"
-# include "UIErrorString.h"
-# include "UIIconPool.h"
-# include "UIFileManager.h"
-# include "UIFileManagerOperationsPanel.h"
-# include "UIProgressEventHandler.h"
+#include "QIToolButton.h"
+#include "QILabel.h"
+#include "UIErrorString.h"
+#include "UIIconPool.h"
+#include "UIFileManager.h"
+#include "UIFileManagerOperationsPanel.h"
+#include "UIProgressEventHandler.h"
 
 /* COM includes: */
-# include "CProgress.h"
-
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CProgress.h"
 
 
 /*********************************************************************************************************************************

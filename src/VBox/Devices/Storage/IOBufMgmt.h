@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2017 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,8 +14,12 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-#ifndef __IOBufMgmt_h
-#define __IOBufMgmt_h
+
+#ifndef VBOX_INCLUDED_SRC_Storage_IOBufMgmt_h
+#define VBOX_INCLUDED_SRC_Storage_IOBufMgmt_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/cdefs.h>
 #include <iprt/sg.h>
@@ -104,4 +108,4 @@ DECLHIDDEN(void) IOBUFMgrFreeBuf(PIOBUFDESC pIoBufDesc);
 
 RT_C_DECLS_END
 
-#endif /* __HBDMgmt_h */
+#endif /* !VBOX_INCLUDED_SRC_Storage_IOBufMgmt_h */

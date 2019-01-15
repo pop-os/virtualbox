@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIDefs_h___
-#define ___UIDefs_h___
+#ifndef FEQT_INCLUDED_SRC_globals_UIDefs_h
+#define FEQT_INCLUDED_SRC_globals_UIDefs_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
+
+/* Define GUI log group: */
+// WORKAROUND:
+// This define should go *before* VBox/log.h include!
+#ifndef LOG_GROUP
+# define LOG_GROUP LOG_GROUP_GUI
+#endif
 
 /* Qt includes: */
 #include <QEvent>
@@ -28,30 +38,17 @@
 /* COM includes: */
 #include "COMEnums.h"
 
-/* Define GUI log group: */
-// WORKAROUND:
-// This define should go *before* VBox/log.h include!
-#ifndef VBOX_WITH_PRECOMPILED_HEADERS
-# define LOG_GROUP LOG_GROUP_GUI
-#endif
-
 /* Other VBox includes: */
 #include <VBox/log.h>
 #include <VBox/com/defs.h>
 
 /* Defines: */
-#ifdef DEBUG
-# define AssertWrapperOk(w)      \
-    AssertMsg (w.isOk(), (#w " is not okay (RC=0x%08X)", w.lastRC()))
-# define AssertWrapperOkMsg(w, m)      \
-    AssertMsg (w.isOk(), (#w ": " m " (RC=0x%08X)", w.lastRC()))
-#else /* !DEBUG */
-# define AssertWrapperOk(w)          do {} while (0)
-# define AssertWrapperOkMsg(w, m)    do {} while (0)
-#endif /* !DEBUG */
-
-#ifndef SIZEOF_ARRAY
-# define SIZEOF_ARRAY(a) (sizeof(a) / sizeof(a[0]))
+#ifdef RT_STRICT
+# define AssertWrapperOk(w)         AssertMsg(w.isOk(), (#w " is not okay (RC=0x%08X)", w.lastRC()))
+# define AssertWrapperOkMsg(w, m)   AssertMsg(w.isOk(), (#w ": " m " (RC=0x%08X)", w.lastRC()))
+#else
+# define AssertWrapperOk(w)         do {} while (0)
+# define AssertWrapperOkMsg(w, m)   do {} while (0)
 #endif
 
 
@@ -155,4 +152,4 @@ struct ExactStorageSlot : public StorageSlot
 };
 
 
-#endif /* !___UIDefs_h___ */
+#endif /* !FEQT_INCLUDED_SRC_globals_UIDefs_h */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,35 +15,30 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QButtonGroup>
-# include <QComboBox>
-# include <QFrame>
-# include <QHBoxLayout>
-# if defined(RT_OS_SOLARIS)
-#  include <QFontDatabase>
-# endif
-# include <QLabel>
-# include <QLineEdit>
-# include <QPlainTextEdit>
-# include <QTextCursor>
-# include <QRadioButton>
-# include <QScrollArea>
+#include <QButtonGroup>
+#include <QComboBox>
+#include <QFrame>
+#include <QHBoxLayout>
+#if defined(RT_OS_SOLARIS)
+# include <QFontDatabase>
+#endif
+#include <QLabel>
+#include <QLineEdit>
+#include <QPlainTextEdit>
+#include <QTextCursor>
+#include <QRadioButton>
+#include <QScrollArea>
 
 /* GUI includes: */
-# include "QIToolButton.h"
-# include "UIIconPool.h"
-# include "UIVMLogPage.h"
-# include "UIVMLogViewerFilterPanel.h"
-# include "UIVMLogViewerWidget.h"
-# ifdef VBOX_WS_MAC
-#  include "VBoxUtils-darwin.h"
-# endif
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "QIToolButton.h"
+#include "UIIconPool.h"
+#include "UIVMLogPage.h"
+#include "UIVMLogViewerFilterPanel.h"
+#include "UIVMLogViewerWidget.h"
+#ifdef VBOX_WS_MAC
+# include "VBoxUtils-darwin.h"
+#endif
 
 
 /*********************************************************************************************************************************

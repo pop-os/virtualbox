@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -45,6 +45,7 @@
 #include <VBox/vmm/pdmapi.h>
 #include <VBox/vmm/pgm.h>
 #include <VBox/vmm/ssm.h>
+#include <VBox/vmm/gim.h>
 #include <VBox/vmm/trpm.h>
 #include <VBox/vmm/dbgf.h>
 #include <VBox/vmm/iom.h>
@@ -399,7 +400,7 @@ static DECLCALLBACK(int)  hmR3Load(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, 
 static DECLCALLBACK(void) hmR3InfoSvmNstGstVmcbCache(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 static DECLCALLBACK(void) hmR3Info(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 static DECLCALLBACK(void) hmR3InfoEventPending(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
-static int                hmR3InitCPU(PVM pVM);
+static int                hmR3InitFinalizeR3(PVM pVM);
 static int                hmR3InitFinalizeR0(PVM pVM);
 static int                hmR3InitFinalizeR0Intel(PVM pVM);
 static int                hmR3InitFinalizeR0Amd(PVM pVM);
@@ -483,6 +484,8 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
                               "|IBPBOnVMExit"
                               "|IBPBOnVMEntry"
                               "|SpecCtrlByHost"
+                              "|L1DFlushOnSched"
+                              "|L1DFlushOnVMEntry"
                               "|TPRPatchingEnabled"
                               "|64bitEnabled"
                               "|Exclusive"
@@ -674,6 +677,20 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
     rc = CFGMR3QueryBoolDef(pCfgHm, "IBPBOnVMEntry", &pVM->hm.s.fIbpbOnVmEntry, false);
     AssertLogRelRCReturn(rc, rc);
 
+    /** @cfgm{/HM/L1DFlushOnSched, bool, true}
+     * CVS-2018-3646 workaround, ignored on CPUs that aren't affected. */
+    rc = CFGMR3QueryBoolDef(pCfgHm, "L1DFlushOnSched", &pVM->hm.s.fL1dFlushOnSched, true);
+    AssertLogRelRCReturn(rc, rc);
+
+    /** @cfgm{/HM/L1DFlushOnVMEntry, bool}
+     * CVS-2018-3646 workaround, ignored on CPUs that aren't affected. */
+    rc = CFGMR3QueryBoolDef(pCfgHm, "L1DFlushOnVMEntry", &pVM->hm.s.fL1dFlushOnVmEntry, false);
+    AssertLogRelRCReturn(rc, rc);
+
+    /* Disable L1DFlushOnSched if L1DFlushOnVMEntry is enabled. */
+    if (pVM->hm.s.fL1dFlushOnVmEntry)
+        pVM->hm.s.fL1dFlushOnSched = false;
+
     /** @cfgm{/HM/SpecCtrlByHost, bool}
      * Another expensive paranoia setting. */
     rc = CFGMR3QueryBoolDef(pCfgHm, "SpecCtrlByHost", &pVM->hm.s.fSpecCtrlByHost, false);
@@ -701,8 +718,8 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
         {
             if (fCaps & SUPVTCAPS_AMD_V)
             {
-                LogRel(("HM: HMR3Init: AMD-V%s\n", fCaps & SUPVTCAPS_NESTED_PAGING ? " w/ nested paging" : ""));
                 pVM->hm.s.svm.fSupported = true;
+                LogRel(("HM: HMR3Init: AMD-V%s\n", fCaps & SUPVTCAPS_NESTED_PAGING ? " w/ nested paging" : ""));
                 VM_SET_MAIN_EXECUTION_ENGINE(pVM, VM_EXEC_ENGINE_HW_VIRT);
             }
             else if (fCaps & SUPVTCAPS_VT_X)
@@ -711,11 +728,11 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
                 rc = SUPR3QueryVTxSupported(&pszWhy);
                 if (RT_SUCCESS(rc))
                 {
+                    pVM->hm.s.vmx.fSupported = true;
                     LogRel(("HM: HMR3Init: VT-x%s%s%s\n",
                             fCaps & SUPVTCAPS_NESTED_PAGING ? " w/ nested paging" : "",
                             fCaps & SUPVTCAPS_VTX_UNRESTRICTED_GUEST ? " and unrestricted guest execution" : "",
                             (fCaps & (SUPVTCAPS_NESTED_PAGING | SUPVTCAPS_VTX_UNRESTRICTED_GUEST)) ? " hw support" : ""));
-                    pVM->hm.s.vmx.fSupported = true;
                     VM_SET_MAIN_EXECUTION_ENGINE(pVM, VM_EXEC_ENGINE_HW_VIRT);
                 }
                 else
@@ -843,12 +860,12 @@ VMMR3_INT_DECL(int) HMR3Init(PVM pVM)
 
 
 /**
- * Initializes the per-VCPU HM.
+ * Initializes HM components after ring-3 phase has been fully initialized.
  *
  * @returns VBox status code.
  * @param   pVM         The cross context VM structure.
  */
-static int hmR3InitCPU(PVM pVM)
+static int hmR3InitFinalizeR3(PVM pVM)
 {
     LogFlow(("HMR3InitCPU\n"));
 
@@ -859,6 +876,7 @@ static int hmR3InitCPU(PVM pVM)
     {
         PVMCPU pVCpu = &pVM->aCpus[i];
         pVCpu->hm.s.fActive = false;
+        pVCpu->hm.s.fGIMTrapXcptUD = GIMShouldTrapXcptUD(pVCpu);    /* Is safe to call now since GIMR3Init() has completed. */
     }
 
 #ifdef VBOX_WITH_STATISTICS
@@ -1179,7 +1197,7 @@ VMMR3_INT_DECL(int) HMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat)
     switch (enmWhat)
     {
         case VMINITCOMPLETED_RING3:
-            return hmR3InitCPU(pVM);
+            return hmR3InitFinalizeR3(pVM);
         case VMINITCOMPLETED_RING0:
             return hmR3InitFinalizeR0(pVM);
         default:
@@ -1290,6 +1308,16 @@ static int hmR3InitFinalizeR0(PVM pVM)
     }
 
     /*
+     * Check if L1D flush is needed/possible.
+     */
+    if (   !pVM->cpum.ro.HostFeatures.fFlushCmd
+        || pVM->cpum.ro.HostFeatures.enmMicroarch <  kCpumMicroarch_Intel_Core7_Nehalem
+        || pVM->cpum.ro.HostFeatures.enmMicroarch >= kCpumMicroarch_Intel_Core7_End
+        || pVM->cpum.ro.HostFeatures.fArchVmmNeedNotFlushL1d
+        || pVM->cpum.ro.HostFeatures.fArchRdclNo)
+        pVM->hm.s.fL1dFlushOnSched = pVM->hm.s.fL1dFlushOnVmEntry = false;
+
+    /*
      * Sync options.
      */
     /** @todo Move this out of of CPUMCTX and into some ring-0 only HM structure.
@@ -1306,9 +1334,12 @@ static int hmR3InitFinalizeR0(PVM pVM)
             if (pVM->hm.s.fIbpbOnVmEntry)
                 pCpuCtx->fWorldSwitcher |= CPUMCTX_WSF_IBPB_ENTRY;
         }
+        if (pVM->cpum.ro.HostFeatures.fFlushCmd && pVM->hm.s.fL1dFlushOnVmEntry)
+            pCpuCtx->fWorldSwitcher |= CPUMCTX_WSF_L1D_ENTRY;
         if (iCpu == 0)
-            LogRel(("HM: fWorldSwitcher=%#x (fIbpbOnVmExit=%RTbool fIbpbOnVmEntry=%RTbool)\n",
-                    pCpuCtx->fWorldSwitcher, pVM->hm.s.fIbpbOnVmExit, pVM->hm.s.fIbpbOnVmEntry));
+            LogRel(("HM: fWorldSwitcher=%#x (fIbpbOnVmExit=%RTbool fIbpbOnVmEntry=%RTbool fL1dFlushOnVmEntry=%RTbool); fL1dFlushOnSched=%RTbool\n",
+                    pCpuCtx->fWorldSwitcher, pVM->hm.s.fIbpbOnVmExit, pVM->hm.s.fIbpbOnVmEntry, pVM->hm.s.fL1dFlushOnVmEntry,
+                    pVM->hm.s.fL1dFlushOnSched));
     }
 
     /*
@@ -3077,9 +3108,9 @@ VMMR3_INT_DECL(void) HMR3CheckError(PVM pVM, int iStatusCode)
 
             case VERR_VMX_INVALID_VMCS_PTR:
                 LogRel(("HM: VERR_VMX_INVALID_VMCS_PTR:\n"));
-                LogRel(("HM: CPU[%u] Current pointer      %#RGp vs %#RGp\n", i, pVCpu->hm.s.vmx.LastError.u64VMCSPhys,
+                LogRel(("HM: CPU[%u] Current pointer      %#RGp vs %#RGp\n", i, pVCpu->hm.s.vmx.LastError.u64VmcsPhys,
                                                                                 pVCpu->hm.s.vmx.HCPhysVmcs));
-                LogRel(("HM: CPU[%u] Current VMCS version %#x\n", i, pVCpu->hm.s.vmx.LastError.u32VMCSRevision));
+                LogRel(("HM: CPU[%u] Current VMCS version %#x\n", i, pVCpu->hm.s.vmx.LastError.u32VmcsRev));
                 LogRel(("HM: CPU[%u] Entered Host Cpu     %u\n",  i, pVCpu->hm.s.vmx.LastError.idEnteredCpu));
                 LogRel(("HM: CPU[%u] Current Host Cpu     %u\n",  i, pVCpu->hm.s.vmx.LastError.idCurrentCpu));
                 break;
@@ -3089,13 +3120,13 @@ VMMR3_INT_DECL(void) HMR3CheckError(PVM pVM, int iStatusCode)
                 LogRel(("HM: CPU[%u] Instruction error    %#x\n", i, pVCpu->hm.s.vmx.LastError.u32InstrError));
                 LogRel(("HM: CPU[%u] Exit reason          %#x\n", i, pVCpu->hm.s.vmx.LastError.u32ExitReason));
 
-                if (   pVM->aCpus[i].hm.s.vmx.LastError.u32InstrError == VMXINSTRERR_VMLAUNCH_NON_CLEAR_VMCS
-                    || pVM->aCpus[i].hm.s.vmx.LastError.u32InstrError == VMXINSTRERR_VMRESUME_NON_LAUNCHED_VMCS)
+                if (   pVCpu->hm.s.vmx.LastError.u32InstrError == VMXINSTRERR_VMLAUNCH_NON_CLEAR_VMCS
+                    || pVCpu->hm.s.vmx.LastError.u32InstrError == VMXINSTRERR_VMRESUME_NON_LAUNCHED_VMCS)
                 {
                     LogRel(("HM: CPU[%u] Entered Host Cpu     %u\n",  i, pVCpu->hm.s.vmx.LastError.idEnteredCpu));
                     LogRel(("HM: CPU[%u] Current Host Cpu     %u\n",  i, pVCpu->hm.s.vmx.LastError.idCurrentCpu));
                 }
-                else if (pVM->aCpus[i].hm.s.vmx.LastError.u32InstrError == VMXINSTRERR_VMENTRY_INVALID_CTLS)
+                else if (pVCpu->hm.s.vmx.LastError.u32InstrError == VMXINSTRERR_VMENTRY_INVALID_CTLS)
                 {
                     LogRel(("HM: CPU[%u] PinCtls          %#RX32\n", i, pVCpu->hm.s.vmx.u32PinCtls));
                     {

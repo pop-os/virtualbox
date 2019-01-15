@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2018 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_RECORDING_INTERNALS
-#define ____H_RECORDING_INTERNALS
+#ifndef MAIN_INCLUDED_RecordingInternals_h
+#define MAIN_INCLUDED_RecordingInternals_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/assert.h>
 #include <iprt/types.h> /* drag in stdint.h before vpx does it. */
@@ -181,5 +184,5 @@ struct RecordingBlock
 /** List for keeping video recording (data) blocks. */
 typedef std::list<RecordingBlock *> RecordingBlockList;
 
-#endif /* !____H_RECORDING_INTERNALS */
+#endif /* !MAIN_INCLUDED_RecordingInternals_h */
 

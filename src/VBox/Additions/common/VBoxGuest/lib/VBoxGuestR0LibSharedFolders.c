@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -36,6 +36,7 @@
 #include "VBoxGuestR0LibInternal.h"
 #include <VBox/VBoxGuestLibSharedFolders.h>
 #include <VBox/log.h>
+#include <iprt/err.h>
 #include <iprt/time.h>
 #include <iprt/mem.h>
 #include <iprt/path.h>

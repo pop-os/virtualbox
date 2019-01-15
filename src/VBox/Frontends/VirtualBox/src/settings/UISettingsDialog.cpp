@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,36 +15,30 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QCloseEvent>
-# include <QProgressBar>
-# include <QPushButton>
-# include <QStackedWidget>
-# include <QTimer>
+#include <QCloseEvent>
+#include <QProgressBar>
+#include <QPushButton>
+#include <QStackedWidget>
+#include <QTimer>
 
 /* GUI includes: */
-# include "QIWidgetValidator.h"
-# include "VBoxGlobal.h"
-# include "UIConverter.h"
-# include "UIIconPool.h"
-# include "UIMessageCenter.h"
-# include "UIModalWindowManager.h"
-# include "UIPopupCenter.h"
-# include "UISettingsDialog.h"
-# include "UISettingsPage.h"
-# include "UISettingsSelector.h"
-# include "UISettingsSerializer.h"
-# include "UIToolBar.h"
-# include "UIWarningPane.h"
-# ifdef VBOX_WS_MAC
-#  include "VBoxUtils.h"
-# endif
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "QIWidgetValidator.h"
+#include "VBoxGlobal.h"
+#include "UIConverter.h"
+#include "UIIconPool.h"
+#include "UIMessageCenter.h"
+#include "UIModalWindowManager.h"
+#include "UIPopupCenter.h"
+#include "UISettingsDialog.h"
+#include "UISettingsPage.h"
+#include "UISettingsSelector.h"
+#include "UISettingsSerializer.h"
+#include "UIToolBar.h"
+#include "UIWarningPane.h"
+#ifdef VBOX_WS_MAC
+# include "VBoxUtils.h"
+#endif
 
 #ifdef VBOX_WS_MAC
 # define VBOX_GUI_WITH_TOOLBAR_SETTINGS

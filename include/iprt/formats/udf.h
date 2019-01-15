@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_formats_udf_h
-#define ___iprt_formats_udf_h
+#ifndef IPRT_INCLUDED_formats_udf_h
+#define IPRT_INCLUDED_formats_udf_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 #include <iprt/assertcompile.h>
@@ -232,16 +235,16 @@ typedef struct UDFTIMESTAMP
 {
 #ifdef RT_BIG_ENDIAN
     /** 0x00: Type (UDFTIMESTAMP_T_XXX). */
-    uint16_t        fType : 4;
+    RT_GCC_EXTENSION uint16_t   fType : 4;
     /** 0x00: Time zone offset in minutes.
      * For EST this will be -300, whereas for CET it will be 60. */
-    int16_t         offUtcInMin : 12;
+    RT_GCC_EXTENSION int16_t    offUtcInMin : 12;
 #else
     /** 0x00: Time zone offset in minutes.
      * For EST this will be -300, whereas for CET it will be 60. */
-    int16_t         offUtcInMin : 12;
+    RT_GCC_EXTENSION int16_t    offUtcInMin : 12;
     /** 0x00: Type (UDFTIMESTAMP_T_XXX). */
-    uint16_t        fType : 4;
+    RT_GCC_EXTENSION uint16_t   fType : 4;
 #endif
     /** 0x02: The year. */
     int16_t         iYear;
@@ -2207,5 +2210,5 @@ typedef UDFEXTVOLDESCBOOT const *PCUDFEXTVOLDESCBOOT;
 
 /** @} */
 
-#endif
+#endif /* !IPRT_INCLUDED_formats_udf_h */
 

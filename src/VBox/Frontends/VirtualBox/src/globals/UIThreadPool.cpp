@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2018 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,22 +15,16 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QThread>
+#include <QThread>
 
 /* GUI includes: */
-# include "COMDefs.h"
-# include "UIDefs.h"
-# include "UIThreadPool.h"
+#include "COMDefs.h"
+#include "UIDefs.h"
+#include "UIThreadPool.h"
 
 /* Other VBox includes: */
 #include <iprt/assert.h>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 /** QThread extension used as worker-thread.

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_com_Guid_h
-#define ___VBox_com_Guid_h
+#ifndef VBOX_INCLUDED_com_Guid_h
+#define VBOX_INCLUDED_com_Guid_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Make sure all the stdint.h macros are included - must come first! */
 #ifndef __STDC_LIMIT_MACROS
@@ -38,7 +41,6 @@
 #include "VBox/com/string.h"
 
 #include <iprt/uuid.h>
-#include <iprt/err.h>
 
 
 /** @defgroup grp_com_guid  GUID Class
@@ -493,5 +495,5 @@ private:
 
 /** @} */
 
-#endif /* !___VBox_com_Guid_h */
+#endif /* !VBOX_INCLUDED_com_Guid_h */
 

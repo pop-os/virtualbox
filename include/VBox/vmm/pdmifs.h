@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,12 +23,14 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_pdmifs_h
-#define ___VBox_vmm_pdmifs_h
+#ifndef VBOX_INCLUDED_vmm_pdmifs_h
+#define VBOX_INCLUDED_vmm_pdmifs_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/sg.h>
 #include <VBox/types.h>
-#include <VBox/hgcmsvc.h>
 
 
 RT_C_DECLS_BEGIN
@@ -2114,10 +2116,10 @@ typedef struct PDMIHGCMPORT
 /** PDMIHGCMPORT interface ID. */
 # define PDMIHGCMPORT_IID                       "28c0a201-68cd-4752-9404-bb42a0c09eb7"
 
-
+/* forward decl to hgvmsvc.h. */
+struct VBOXHGCMSVCPARM;
 /** Pointer to a HGCM service location structure. */
 typedef struct HGCMSERVICELOCATION *PHGCMSERVICELOCATION;
-
 /** Pointer to a HGCM connector interface. */
 typedef struct PDMIHGCMCONNECTOR *PPDMIHGCMCONNECTOR;
 /**
@@ -2164,7 +2166,7 @@ typedef struct PDMIHGCMCONNECTOR
      * @thread  The emulation thread.
      */
     DECLR3CALLBACKMEMBER(int, pfnCall,(PPDMIHGCMCONNECTOR pInterface, PVBOXHGCMCMD pCmd, uint32_t u32ClientID, uint32_t u32Function,
-                                       uint32_t cParms, PVBOXHGCMSVCPARM paParms, uint64_t tsArrival));
+                                       uint32_t cParms, struct VBOXHGCMSVCPARM *paParms, uint64_t tsArrival));
 
     /**
      * Notification about the guest cancelling a pending request.
@@ -2239,4 +2241,4 @@ typedef struct PDMIPCIRAWCONNECTOR
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_pdmifs_h */

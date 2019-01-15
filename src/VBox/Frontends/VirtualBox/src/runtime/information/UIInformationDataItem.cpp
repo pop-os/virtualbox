@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2017 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,39 +15,33 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QDir>
-# include <QTimer>
+#include <QDir>
+#include <QTimer>
 
 /* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UIMachine.h"
-# include "UISession.h"
-# include "UIConverter.h"
-# include "UIInformationItem.h"
-# include "UIInformationModel.h"
-# include "UIInformationDataItem.h"
+#include "VBoxGlobal.h"
+#include "UIMachine.h"
+#include "UISession.h"
+#include "UIConverter.h"
+#include "UIInformationItem.h"
+#include "UIInformationModel.h"
+#include "UIInformationDataItem.h"
 
 /* COM includes: */
-# include "CMedium.h"
-# include "CSerialPort.h"
-# include "CVRDEServer.h"
-# include "CAudioAdapter.h"
-# include "CSharedFolder.h"
-# include "CUSBController.h"
-# include "CNetworkAdapter.h"
-# include "CVRDEServerInfo.h"
-# include "CUSBDeviceFilter.h"
-# include "CMediumAttachment.h"
-# include "CSystemProperties.h"
-# include "CUSBDeviceFilters.h"
-# include "CStorageController.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CMedium.h"
+#include "CSerialPort.h"
+#include "CVRDEServer.h"
+#include "CAudioAdapter.h"
+#include "CSharedFolder.h"
+#include "CUSBController.h"
+#include "CNetworkAdapter.h"
+#include "CVRDEServerInfo.h"
+#include "CUSBDeviceFilter.h"
+#include "CMediumAttachment.h"
+#include "CSystemProperties.h"
+#include "CUSBDeviceFilters.h"
+#include "CStorageController.h"
 
 
 /*********************************************************************************************************************************

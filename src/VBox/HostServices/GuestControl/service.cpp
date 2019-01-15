@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2018 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -63,6 +63,7 @@
 #include <VBox/HostServices/GuestControlSvc.h>
 #include <VBox/GuestHost/GuestControl.h> /** @todo r=bird: Why two headers??? */
 
+#include <VBox/err.h>
 #include <VBox/log.h>
 #include <VBox/AssertGuest.h>
 #include <VBox/VMMDev.h>
@@ -70,7 +71,6 @@
 #include <iprt/assert.h>
 #include <iprt/cpp/autores.h>
 #include <iprt/cpp/utils.h>
-#include <iprt/err.h>
 #include <iprt/mem.h>
 #include <iprt/list.h>
 #include <iprt/req.h>

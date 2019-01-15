@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2018 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,30 +15,24 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QHelpEvent>
-# include <QToolTip>
+#include <QHelpEvent>
+#include <QToolTip>
 
 /* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UIActionPool.h"
-# include "UIActionPoolManager.h"
-# include "UIActionPoolRuntime.h"
-# include "UIConverter.h"
-# include "UIIconPool.h"
-# include "UIMessageCenter.h"
-# include "UIShortcutPool.h"
-# ifdef VBOX_GUI_WITH_NETWORK_MANAGER
-#  include "UIExtraDataManager.h"
-#  include "UINetworkManager.h"
-#  include "UIUpdateManager.h"
-# endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "VBoxGlobal.h"
+#include "UIActionPool.h"
+#include "UIActionPoolManager.h"
+#include "UIActionPoolRuntime.h"
+#include "UIConverter.h"
+#include "UIIconPool.h"
+#include "UIMessageCenter.h"
+#include "UIShortcutPool.h"
+#ifdef VBOX_GUI_WITH_NETWORK_MANAGER
+# include "UIExtraDataManager.h"
+# include "UINetworkManager.h"
+# include "UIUpdateManager.h"
+#endif /* VBOX_GUI_WITH_NETWORK_MANAGER */
 
 
 /** QEvent extension
@@ -2285,6 +2279,12 @@ UIActionPoolManager *UIActionPool::toManager()
     return qobject_cast<UIActionPoolManager*>(this);
 }
 
+QActionGroup *UIActionPool::actionGroup(int iIndex) const
+{
+    AssertReturn(m_groupPool.contains(iIndex), 0);
+    return m_groupPool.value(iIndex);
+}
+
 bool UIActionPool::isAllowedInMenuBar(UIExtraDataMetaDefs::MenuType enmType) const
 {
     foreach (const UIExtraDataMetaDefs::MenuType &enmRestriction, m_restrictedMenus.values())
@@ -2522,7 +2522,7 @@ void UIActionPool::prepareConnections()
 
 void UIActionPool::cleanupPool()
 {
-    /* Cleanup pool: */
+    qDeleteAll(m_groupPool);
     qDeleteAll(m_pool);
 }
 

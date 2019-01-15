@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -60,6 +60,7 @@
 #include "VBoxGuestInternal.h"
 #include <VBox/version.h>
 #include <iprt/assert.h>
+#include <iprt/err.h>
 #include <iprt/initterm.h>
 #include <iprt/log.h>
 #include <iprt/memobj.h>
@@ -143,9 +144,26 @@ DECLASM(int) vgdrvOS2Init(const char *pszArgs)
     if (RT_SUCCESS(rc))
     {
         /*
-         * Process the commandline. Later.
+         * Process the command line.
          */
         bool fVerbose = true;
+        if (pszArgs)
+        {
+            char ch;
+            while ((ch = *pszArgs++) != '\0')
+                if (ch == '-' || ch == '/')
+                {
+                    ch = *pszArgs++;
+                    if (ch == 'Q' || ch == 'q')
+                        fVerbose = false;
+                    else if (ch == 'V' || ch == 'v')
+                        fVerbose = true;
+                    else if (ch == '\0')
+                        break;
+                    /*else: ignore stuff we don't know what is */
+                }
+                /* else: skip spaces and unknown stuff */
+        }
 
         /*
          * Map the MMIO memory if found.

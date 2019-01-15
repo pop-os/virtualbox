@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_formats_mz_h
-#define ___iprt_formats_mz_h
+#ifndef IPRT_INCLUDED_formats_mz_h
+#define IPRT_INCLUDED_formats_mz_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 #include <iprt/assertcompile.h>
@@ -60,5 +63,5 @@ typedef IMAGE_DOS_HEADER *PIMAGE_DOS_HEADER;
 #endif
 
 
-#endif
+#endif /* !IPRT_INCLUDED_formats_mz_h */
 

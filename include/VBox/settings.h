@@ -17,7 +17,7 @@
  */
 
 /*
- * Copyright (C) 2007-2018 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,8 +37,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_settings_h
-#define ___VBox_settings_h
+#ifndef VBOX_INCLUDED_settings_h
+#define VBOX_INCLUDED_settings_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/time.h>
 
@@ -1028,6 +1031,8 @@ struct Hardware
     bool                fIBPBOnVMEntry;         //< added out of cycle, after 1.16 was out.
     bool                fSpecCtrl;              //< added out of cycle, after 1.16 was out.
     bool                fSpecCtrlByHost;        //< added out of cycle, after 1.16 was out.
+    bool                fL1DFlushOnSched ;      //< added out of cycle, after 1.16 was out.
+    bool                fL1DFlushOnVMEntry ;    //< added out of cycle, after 1.16 was out.
     bool                fNestedHWVirt;          //< requires settings version 1.17 (VirtualBox 6.0)
     typedef enum LongModeType { LongMode_Enabled, LongMode_Disabled, LongMode_Legacy } LongModeType;
     LongModeType        enmLongMode;
@@ -1281,4 +1286,4 @@ private:
 } // namespace settings
 
 
-#endif /* ___VBox_settings_h */
+#endif /* !VBOX_INCLUDED_settings_h */

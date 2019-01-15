@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -40,7 +40,7 @@
 #include <iprt/thread.h>
 #include <iprt/log.h>
 #include <iprt/assert.h>
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include "internal/sched.h"
 #include "internal/thread.h"
 
@@ -208,7 +208,21 @@ DECLHIDDEN(int) rtSchedNativeCalcDefaultPriority(RTTHREADTYPE enmType)
 DECLHIDDEN(int) rtProcNativeSetPriority(RTPROCPRIORITY enmPriority)
 {
     Assert(enmPriority > RTPROCPRIORITY_INVALID && enmPriority < RTPROCPRIORITY_LAST);
-    return VINF_SUCCESS;
+
+    if (enmPriority == RTPROCPRIORITY_DEFAULT)
+    {
+        g_pProcessPriority = &g_aDefaultPriority;
+        return VINF_SUCCESS;
+    }
+
+    for (size_t i = 0; i < RT_ELEMENTS(g_aPriorities); i++)
+        if (g_aPriorities[i].enmPriority == enmPriority)
+        {
+            g_pProcessPriority = &g_aPriorities[i];
+            return VINF_SUCCESS;
+        }
+
+    AssertFailedReturn(VERR_INTERNAL_ERROR);
 }
 
 

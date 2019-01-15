@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,6 +32,7 @@
 
 #include <iprt/buildconfig.h>
 #include <iprt/dbg.h>
+#include <iprt/err.h>
 #include <iprt/file.h>
 #include <iprt/formats/mach-o.h>
 #include <iprt/getopt.h>
@@ -238,7 +239,7 @@ static int rtDbgSymCacheAddCreateUuidMapping(const char *pszCacheFile, PRTUUID p
      */
     char szLinkTarget[RTPATH_MAX];
     //szMapPath[cch] = '\0';
-    rc = RTPathCalcRelative(szLinkTarget, sizeof(szLinkTarget), szMapPath, pszCacheFile);
+    rc = RTPathCalcRelative(szLinkTarget, sizeof(szLinkTarget), szMapPath, false /*fFromFile*/, pszCacheFile);
     //szMapPath[cch] = RTPATH_SLASH;
     if (RT_FAILURE(rc))
         return RTMsgErrorRc(rc, "Failed to calculate relative path from '%s' to '%s': %Rrc", szMapPath, pszCacheFile, rc);

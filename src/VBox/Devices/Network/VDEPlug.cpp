@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,7 +16,14 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+
+/*********************************************************************************************************************************
+*   Header Files                                                                                                                 *
+*********************************************************************************************************************************/
 #define LOG_GROUP RTLOGGROUP_LDR
-/* Declarations of the functions that we need from libdbus-1 */
+#include <VBox/VDEPlug.h>
+
+
+/* Declarations of the functions that we need. */
 #define VDEPLUG_GENERATE_BODY
 #include <VBox/VDEPlugSymDefs.h>

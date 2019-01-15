@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2017 Oracle Corporation
+ * Copyright (C) 2014-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,9 +15,6 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef LOG_GROUP
-# undef LOG_GROUP
-#endif
 #define LOG_GROUP LOG_GROUP_GUEST_DND
 #include <VBox/log.h>
 
@@ -25,11 +22,13 @@
 #include <new> /* For bad_alloc. */
 #include <iprt/win/shlobj.h>
 
+#include <iprt/mem.h>
+#include <iprt/errcore.h>
 #include <iprt/path.h>
 #include <iprt/semaphore.h>
 #include <iprt/string.h>
-#include <iprt/mem.h>
 #include <iprt/uri.h>
+#include <iprt/utf16.h>
 
 #include <QStringList>
 

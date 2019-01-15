@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,6 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifndef VBOX_INCLUDED_SRC_PC_BIOS_vds_h
+#define VBOX_INCLUDED_SRC_PC_BIOS_vds_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Virtual DMA Services (VDS) */
 
@@ -112,4 +117,6 @@ int vds_free_sg_list( vds_edds __far *edds );
 /* Helper for translating 16:16 real mode addresses to 32-bit linear. */
 
 uint32_t vds_real_to_lin( void __far *ptr );
+
+#endif /* !VBOX_INCLUDED_SRC_PC_BIOS_vds_h */
 

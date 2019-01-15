@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +16,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_USBCARDREADER
-#define ____H_USBCARDREADER
+#ifndef MAIN_INCLUDED_UsbCardReader_h
+#define MAIN_INCLUDED_UsbCardReader_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/vmm/pdmcardreaderinfs.h>
 #include <VBox/vmm/pdmdrv.h>
@@ -68,5 +71,5 @@ class UsbCardReader
         UCRREMOTE *m_pRemote;
 };
 
-#endif /* !____H_USBCARDREADER */
+#endif /* !MAIN_INCLUDED_UsbCardReader_h */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

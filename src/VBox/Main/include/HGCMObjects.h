@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___HGCMOBJECTS__H
-#define ___HGCMOBJECTS__H
+#ifndef MAIN_INCLUDED_HGCMObjects_h
+#define MAIN_INCLUDED_HGCMObjects_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/assert.h>
 #include <iprt/avl.h>
@@ -122,4 +125,4 @@ uint32_t    hgcmObjQueryHandleCount();
 void        hgcmObjSetHandleCount(uint32_t u32HandleCount);
 
 
-#endif /* !___HGCMOBJECTS__H */
+#endif /* !MAIN_INCLUDED_HGCMObjects_h */

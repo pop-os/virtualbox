@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_md4_h
-#define ___iprt_md4_h
+#ifndef IPRT_INCLUDED_md4_h
+#define IPRT_INCLUDED_md4_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 
@@ -125,5 +128,5 @@ RTDECL(int) RTMd4FromString(char const *pszDigest, uint8_t pabDigest[RTMD4_HASH_
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !IPRT_INCLUDED_md4_h */
 

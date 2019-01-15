@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +16,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_VBOXIMGCRYPTO
-#define ____H_VBOXIMGCRYPTO
+#ifndef VBOX_INCLUDED_SRC_vboximg_mount_vboximgCrypto_h
+#define VBOX_INCLUDED_SRC_vboximg_mount_vboximgCrypto_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <map>
 
@@ -248,5 +251,5 @@ DECLCALLBACK(int)  vboximgVdCryptoKeyStoreReturnParameters(void *pvUser, const c
                                                              const uint8_t *pbDek, size_t cbDek);
 
 
-#endif /* !____H_VBOXIMGCRYPTO */
+#endif /* !VBOX_INCLUDED_SRC_vboximg_mount_vboximgCrypto_h */
 

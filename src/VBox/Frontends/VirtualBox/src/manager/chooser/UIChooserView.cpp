@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2018 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,24 +15,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QAccessibleWidget>
-# include <QScrollBar>
+#include <QAccessibleWidget>
+#include <QScrollBar>
 
 /* GUI includes: */
-# include "UIChooser.h"
-# include "UIChooserItem.h"
-# include "UIChooserModel.h"
-# include "UIChooserView.h"
+#include "UIChooser.h"
+#include "UIChooserItem.h"
+#include "UIChooserModel.h"
+#include "UIChooserView.h"
 
 /* Other VBox includes: */
-# include <iprt/assert.h>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include <iprt/assert.h>
 
 
 /** QAccessibleWidget extension used as an accessibility interface for Chooser-view. */

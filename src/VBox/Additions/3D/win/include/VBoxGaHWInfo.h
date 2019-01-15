@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2017 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBoxGaHWInfo_h__
-#define ___VBoxGaHWInfo_h__
+#ifndef GA_INCLUDED_3D_WIN_VBoxGaHWInfo_h
+#define GA_INCLUDED_3D_WIN_VBoxGaHWInfo_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/assert.h>
 
@@ -48,4 +51,4 @@ typedef struct VBOXGAHWINFO
 
 AssertCompile(RT_SIZEOFMEMB(VBOXGAHWINFO, u) <= RT_SIZEOFMEMB(VBOXGAHWINFO, u.au8Raw));
 
-#endif
+#endif /* !GA_INCLUDED_3D_WIN_VBoxGaHWInfo_h */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___HMSVMR0_h
-#define ___HMSVMR0_h
+#ifndef VMM_INCLUDED_SRC_VMMR0_HMSVMR0_h
+#define VMM_INCLUDED_SRC_VMMR0_HMSVMR0_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
@@ -35,11 +38,11 @@ RT_C_DECLS_BEGIN
 
 VMMR0DECL(int)          SVMR0GlobalInit(void);
 VMMR0DECL(void)         SVMR0GlobalTerm(void);
-VMMR0DECL(int)          SVMR0Enter(PVMCPU pVCpu, PHMGLOBALCPUINFO pHostCpu);
+VMMR0DECL(int)          SVMR0Enter(PVMCPU pVCpu);
 VMMR0DECL(void)         SVMR0ThreadCtxCallback(RTTHREADCTXEVENT enmEvent, PVMCPU pVCpu, bool fGlobalInit);
-VMMR0DECL(int)          SVMR0EnableCpu(PHMGLOBALCPUINFO pHostCpu, PVM pVM, void *pvPageCpu, RTHCPHYS HCPhysCpuPage,
-                                       bool fEnabledBySystem, void *pvArg);
-VMMR0DECL(int)          SVMR0DisableCpu(PHMGLOBALCPUINFO pHostCpu, void *pvPageCpu, RTHCPHYS pPageCpuPhys);
+VMMR0DECL(int)          SVMR0EnableCpu(PHMPHYSCPU pHostCpu, PVM pVM, void *pvPageCpu, RTHCPHYS HCPhysCpuPage,
+                                       bool fEnabledBySystem, PCSUPHWVIRTMSRS pHwvirtMsrs);
+VMMR0DECL(int)          SVMR0DisableCpu(void *pvPageCpu, RTHCPHYS pPageCpuPhys);
 VMMR0DECL(int)          SVMR0InitVM(PVM pVM);
 VMMR0DECL(int)          SVMR0TermVM(PVM pVM);
 VMMR0DECL(int)          SVMR0SetupVM(PVM pVM);
@@ -92,5 +95,5 @@ DECLASM(void) SVMR0InvlpgA(RTGCPTR pPageGC, uint32_t u32ASID);
 
 RT_C_DECLS_END
 
-#endif /* !___HMSVMR0_h */
+#endif /* !VMM_INCLUDED_SRC_VMMR0_HMSVMR0_h */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -37,12 +37,13 @@
 #include <VBox/types.h>
 #include <VBox/version.h>
 #include <iprt/assert.h>
-#include <iprt/string.h>
+#include <iprt/err.h>
 #include <iprt/initterm.h>
-#include <iprt/process.h>
 #include <iprt/mem.h>
-#include <iprt/semaphore.h>
+#include <iprt/process.h>
 #include <iprt/path.h>
+#include <iprt/semaphore.h>
+#include <iprt/string.h>
 
 #define USBDRV_MAJOR_VER    2
 #define USBDRV_MINOR_VER    0

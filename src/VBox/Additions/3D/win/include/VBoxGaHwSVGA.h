@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2017 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBoxGaHwSVGA_h__
-#define ___VBoxGaHwSVGA_h__
+#ifndef GA_INCLUDED_3D_WIN_VBoxGaHwSVGA_h
+#define GA_INCLUDED_3D_WIN_VBoxGaHwSVGA_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 
@@ -50,4 +53,4 @@ typedef struct VBOXGAHWINFOSVGA
 } VBOXGAHWINFOSVGA;
 #pragma pack()
 
-#endif
+#endif /* !GA_INCLUDED_3D_WIN_VBoxGaHwSVGA_h */

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,13 +23,14 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_pdmnetshaper_h
-#define ___VBox_vmm_pdmnetshaper_h
+#ifndef VBOX_INCLUDED_vmm_pdmnetshaper_h
+#define VBOX_INCLUDED_vmm_pdmnetshaper_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
-#include <VBox/err.h>
 #include <VBox/vmm/pdmnetifs.h>
-#include <iprt/assert.h>
 #include <iprt/sg.h>
 
 
@@ -60,12 +61,6 @@ typedef struct PDMNSFILTER
     R3PTRTYPE(PPDMINETWORKDOWN)         pIDrvNetR3;
 } PDMNSFILTER;
 
-/** Pointer to a PDM filter handle. */
-typedef struct PDMNSFILTER *PPDMNSFILTER;
-/** Pointer to a network shaper. */
-typedef struct PDMNETSHAPER *PPDMNETSHAPER;
-
-
 VMMDECL(bool)       PDMNsAllocateBandwidth(PPDMNSFILTER pFilter, size_t cbTransfer);
 VMMR3_INT_DECL(int) PDMR3NsAttach(PUVM pUVM, PPDMDRVINS pDrvIns, const char *pcszBwGroup, PPDMNSFILTER pFilter);
 VMMR3_INT_DECL(int) PDMR3NsDetach(PUVM pUVM, PPDMDRVINS pDrvIns, PPDMNSFILTER pFilter);
@@ -75,5 +70,5 @@ VMMR3DECL(int)      PDMR3NsBwGroupSetLimit(PUVM pUVM, const char *pszBwGroup, ui
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_pdmnetshaper_h */
 

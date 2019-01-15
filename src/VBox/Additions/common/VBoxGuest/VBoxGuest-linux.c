@@ -1,4 +1,4 @@
-/* $Rev: 126752 $ */
+/* $Rev: 127855 $ */
 /** @file
  * VBoxGuest - Linux specifics.
  *
@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -60,7 +60,6 @@
 #include <iprt/assert.h>
 #include <iprt/asm.h>
 #include <iprt/ctype.h>
-#include <iprt/err.h>
 #include <iprt/initterm.h>
 #include <iprt/mem.h>
 #include <iprt/mp.h>
@@ -68,6 +67,7 @@
 #include <iprt/spinlock.h>
 #include <iprt/semaphore.h>
 #include <iprt/string.h>
+#include <VBox/err.h>
 #include <VBox/log.h>
 
 
@@ -847,7 +847,7 @@ static int vgdrvLinuxOpen(struct inode *pInode, struct file *pFilp)
     if (MINOR(pInode->i_rdev) == g_MiscDeviceUser.minor)
     {
         fRequestor |= VMMDEV_REQUESTOR_USER_DEVICE;
-        if (vgdrvLinuxIsGroupZero(pInode->i_gid) && vgdrvLinuxIsInGroupEff(pInode->i_gid))
+        if (!vgdrvLinuxIsGroupZero(pInode->i_gid) && vgdrvLinuxIsInGroupEff(pInode->i_gid))
             fRequestor |= VMMDEV_REQUESTOR_GRP_VBOX;
     }
     fRequestor |= vgdrvLinuxRequestorOnConsole();

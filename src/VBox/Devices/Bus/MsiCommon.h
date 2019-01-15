@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___MSI_COMMON_H___
-#define ___MSI_COMMON_H___
+#ifndef VBOX_INCLUDED_SRC_Bus_MsiCommon_h
+#define VBOX_INCLUDED_SRC_Bus_MsiCommon_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 typedef CTX_SUFF(PCPDMPCIHLP) PCPDMPCIHLP;
 
@@ -34,5 +37,5 @@ void     MsixR3PciConfigWrite(PPDMDEVINS pDevIns, PCPDMPCIHLP pPciHlp, PPDMPCIDE
 bool     MsixIsEnabled(PPDMPCIDEV pDev);
 void     MsixNotify(PPDMDEVINS pDevIns, PCPDMPCIHLP pPciHlp, PPDMPCIDEV pDev, int iVector, int iLevel, uint32_t uTagSrc);
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_Bus_MsiCommon_h */
 

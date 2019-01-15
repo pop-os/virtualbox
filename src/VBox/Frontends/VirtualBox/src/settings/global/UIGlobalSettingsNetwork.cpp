@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,32 +15,26 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QHeaderView>
-# include <QMenu>
+#include <QHeaderView>
+#include <QMenu>
 
 /* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UIIconPool.h"
-# include "UIConverter.h"
-# include "UIErrorString.h"
-# include "UIMessageCenter.h"
-# include "UIGlobalSettingsNetwork.h"
-# include "UIGlobalSettingsNetworkDetailsNAT.h"
+#include "VBoxGlobal.h"
+#include "UIIconPool.h"
+#include "UIConverter.h"
+#include "UIErrorString.h"
+#include "UIMessageCenter.h"
+#include "UIGlobalSettingsNetwork.h"
+#include "UIGlobalSettingsNetworkDetailsNAT.h"
 
 /* COM includes: */
-# include "CDHCPServer.h"
-# include "CNATNetwork.h"
-# include "CHostNetworkInterface.h"
+#include "CDHCPServer.h"
+#include "CNATNetwork.h"
+#include "CHostNetworkInterface.h"
 
 /* Other VBox includes: */
-# include <iprt/cidr.h>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include <iprt/cidr.h>
 
 
 /** Global settings: Network page data structure. */

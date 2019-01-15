@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,8 +17,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___build_VBoxDD2_h
-#define ___build_VBoxDD2_h
+#ifndef VBOX_INCLUDED_SRC_build_VBoxDD2_h
+#define VBOX_INCLUDED_SRC_build_VBoxDD2_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/vmm/pdm.h>
 
@@ -66,5 +69,5 @@ extern const PDMDEVREG g_DeviceLPC;
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_build_VBoxDD2_h */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIMediumDetailsWidget_h___
-#define ___UIMediumDetailsWidget_h___
+#ifndef FEQT_INCLUDED_SRC_medium_UIMediumDetailsWidget_h
+#define FEQT_INCLUDED_SRC_medium_UIMediumDetailsWidget_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QWidget>
@@ -350,5 +353,5 @@ private:
     /** @} */
 };
 
-#endif /* !___UIMediumDetailsWidget_h___ */
+#endif /* !FEQT_INCLUDED_SRC_medium_UIMediumDetailsWidget_h */
 

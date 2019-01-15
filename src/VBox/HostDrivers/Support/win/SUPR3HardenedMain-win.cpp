@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,6 +50,7 @@
 #include <iprt/param.h>
 #include <iprt/path.h>
 #include <iprt/thread.h>
+#include <iprt/utf16.h>
 #include <iprt/zero.h>
 
 #include "SUPLibInternal.h"
@@ -4232,7 +4233,7 @@ static DECL_NO_RETURN(void) supR3HardenedWinDoReSpawn(int iWhich)
     PRTUTF16 pwszCmdLine = supR3HardNtChildConstructCmdLine(NULL, iWhich);
 
     supR3HardenedWinEnableThreadCreation();
-    PROCESS_INFORMATION ProcessInfoW32;
+    PROCESS_INFORMATION ProcessInfoW32 = { NULL, NULL, 0, 0 };
     if (!CreateProcessW(g_wszSupLibHardenedExePath,
                         pwszCmdLine,
                         &ProcessSecAttrs,

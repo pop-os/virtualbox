@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018 Oracle Corporation
+ * Copyright (C) 2018-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___DevVGA_SVGA3d_gl_h
-#define ___DevVGA_SVGA3d_gl_h
+#ifndef VBOX_INCLUDED_SRC_Graphics_DevVGA_SVGA3d_glLdr_h
+#define VBOX_INCLUDED_SRC_Graphics_DevVGA_SVGA3d_glLdr_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #ifndef VMSVGA3D_OPENGL
 # error "This include file is for VMSVGA3D_OPENGL."
@@ -60,6 +63,12 @@ typedef void (APIENTRYP PFNGLGETPROGRAMIVARBPROC) (GLenum target, GLenum pname, 
 # define VBOX_VMSVGA3D_GL_HACK_LEVEL 0x103
 #endif
 
+#ifndef __glext_h__
+# undef GL_GLEXT_VERSION    /** @todo r=bird: We include GL/glext.h above which also defines this and we'll end up with
+                             * a clash if the system one does not use the same header guard as ours.  So, I'm wondering
+                             * whether this include is really needed, and if it is, whether we should use a unique header
+                             * guard macro on it, so we'll have the same problems everywhere... */
+#endif
 #include "vmsvga_glext/glext.h"
 
 
@@ -363,4 +372,4 @@ GLPFN int (* pfn_XPending)(Display *display);
 
 #endif
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_Graphics_DevVGA_SVGA3d_glLdr_h */

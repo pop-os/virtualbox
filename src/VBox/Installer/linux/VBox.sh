@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2017 Oracle Corporation
+# Copyright (C) 2006-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -109,6 +109,9 @@ APP=`basename $0`
 case "$APP" in
     VirtualBox|virtualbox)
         exec "$INSTALL_DIR/VirtualBox" "$@"
+        ;;
+    VirtualBoxVM|virtualboxvm)
+        exec "$INSTALL_DIR/VirtualBoxVM" "$@"
         ;;
     VBoxManage|vboxmanage)
         exec "$INSTALL_DIR/VBoxManage" "$@"

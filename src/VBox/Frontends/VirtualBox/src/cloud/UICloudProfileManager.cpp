@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2018 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,37 +15,31 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QHeaderView>
-# include <QPushButton>
-# include <QVBoxLayout>
+#include <QHeaderView>
+#include <QPushButton>
+#include <QVBoxLayout>
 
 /* GUI includes: */
-# include "QIDialogButtonBox.h"
-# include "QIInputDialog.h"
-# include "QITreeWidget.h"
-# include "VBoxGlobal.h"
-# include "UIActionPoolManager.h"
-# include "UIExtraDataManager.h"
-# include "UIIconPool.h"
-# include "UICloudProfileDetailsWidget.h"
-# include "UICloudProfileManager.h"
-# include "UIMessageCenter.h"
-# include "UIToolBar.h"
-# ifdef VBOX_WS_MAC
-#  include "UIWindowMenuManager.h"
-# endif
+#include "QIDialogButtonBox.h"
+#include "QIInputDialog.h"
+#include "QITreeWidget.h"
+#include "VBoxGlobal.h"
+#include "UIActionPoolManager.h"
+#include "UIExtraDataManager.h"
+#include "UIIconPool.h"
+#include "UICloudProfileDetailsWidget.h"
+#include "UICloudProfileManager.h"
+#include "UIMessageCenter.h"
+#include "UIToolBar.h"
+#ifdef VBOX_WS_MAC
+# include "UIWindowMenuManager.h"
+#endif
 
 /* COM includes: */
 #include "CCloudProfile.h"
 #include "CCloudProvider.h"
 #include "CCloudProviderManager.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
 
 
 /** Tree-widget item types. */

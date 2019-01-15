@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,17 +15,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-/*
+/**
  * @todo list:
  *
  * 1) Detection of erroneous metric names
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN_PERFORMANCECOLLECTOR
 #ifndef VBOX_COLLECTOR_TEST_CASE
-#include "VirtualBoxImpl.h"
-#include "MachineImpl.h"
-#include "MediumImpl.h"
-#include "AutoCaller.h"
+# include "VirtualBoxImpl.h"
+# include "MachineImpl.h"
+# include "MediumImpl.h"
+# include "AutoCaller.h"
 #endif
 #include "Performance.h"
 #include "HostNetworkInterfaceImpl.h"
@@ -34,14 +35,14 @@
 #include <VBox/com/array.h>
 #include <VBox/com/ptr.h>
 #include <VBox/com/string.h>
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 #include <iprt/string.h>
 #include <iprt/mem.h>
 #include <iprt/cpuset.h>
 
 #include <algorithm>
 
-#include "Logging.h"
+#include "LoggingNew.h"
 
 using namespace pm;
 

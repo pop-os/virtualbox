@@ -1,10 +1,10 @@
 /* $Id: DragAndDrop.h $ */
 /** @file
- * DnD: Shared functions between host and guest.
+ * DnD - Shared functions between host and guest.
  */
 
 /*
- * Copyright (C) 2014-2018 Oracle Corporation
+ * Copyright (C) 2014-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,15 +24,14 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_GuestHost_DragAndDrop_h
-#define ___VBox_GuestHost_DragAndDrop_h
+#ifndef VBOX_INCLUDED_GuestHost_DragAndDrop_h
+#define VBOX_INCLUDED_GuestHost_DragAndDrop_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/assert.h>
-#include <iprt/cdefs.h>
-#include <iprt/dir.h>
-#include <iprt/err.h>
-#include <iprt/file.h>
-#include <iprt/types.h>
+#include <iprt/fs.h>
 
 #include <iprt/cpp/list.h>
 #include <iprt/cpp/ministring.h>
@@ -321,5 +320,5 @@ protected:
     uint64_t                m_cbTotal;
 };
 
-#endif /* !___VBox_GuestHost_DragAndDrop_h */
+#endif /* !VBOX_INCLUDED_GuestHost_DragAndDrop_h */
 

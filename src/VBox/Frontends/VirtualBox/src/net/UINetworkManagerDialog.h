@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2018 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UINetworkManagerDialog_h___
-#define ___UINetworkManagerDialog_h___
+#ifndef FEQT_INCLUDED_SRC_net_UINetworkManagerDialog_h
+#define FEQT_INCLUDED_SRC_net_UINetworkManagerDialog_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QMainWindow>
@@ -90,5 +93,5 @@ private:
     QMap<QUuid, UINetworkRequestWidget*>  m_widgets;
 };
 
-#endif /* !___UINetworkManagerDialog_h___ */
+#endif /* !FEQT_INCLUDED_SRC_net_UINetworkManagerDialog_h */
 

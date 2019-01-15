@@ -1,5 +1,9 @@
-#ifndef _usbcalls_h__
-#define _usbcalls_h_
+
+#ifndef VBOX_INCLUDED_SRC_VBoxUSB_os2_usbcalls_h
+#define VBOX_INCLUDED_SRC_VBoxUSB_os2_usbcalls_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #ifdef __cplusplus
   extern "C" {
@@ -235,4 +239,4 @@ typedef ULONG ISOHANDLE, *PISOHANDLE;
 }
 #endif
 
-#endif /* _usbcalls_h_ */
+#endif /* !VBOX_INCLUDED_SRC_VBoxUSB_os2_usbcalls_h */

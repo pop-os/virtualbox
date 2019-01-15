@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,6 +24,12 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
+#ifndef IPRT_INCLUDED_SRC_testcase_tstRTR0DbgKrnlInfo_h
+#define IPRT_INCLUDED_SRC_testcase_tstRTR0DbgKrnlInfo_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
+
 #ifdef IN_RING0
 RT_C_DECLS_BEGIN
 DECLEXPORT(int) TSTR0DbgKrnlInfoSrvReqHandler(PSUPDRVSESSION pSession, uint32_t uOperation,
@@ -37,4 +43,6 @@ typedef enum TSTR0DBGKRNLINFO
     TSTRTR0DBGKRNLINFO_SANITY_FAILURE,
     TSTRTR0DBGKRNLINFO_BASIC
 } TSTR0DBGKRNLINFO;
+
+#endif /* !IPRT_INCLUDED_SRC_testcase_tstRTR0DbgKrnlInfo_h */
 

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -27,16 +27,19 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef ___VBox_VMMDev_h
-#define ___VBox_VMMDev_h
+#ifndef VBOX_INCLUDED_VMMDev_h
+#define VBOX_INCLUDED_VMMDev_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/cdefs.h>
 #include <VBox/param.h>                 /* for the PCI IDs. */
 #include <VBox/types.h>
-#include <VBox/err.h>
 #include <VBox/ostypes.h>
 #include <VBox/VMMDevCoreTypes.h>
 #include <iprt/assertcompile.h>
+#include <iprt/errcore.h>
 
 
 #pragma pack(4) /* force structure dword packing here. */
@@ -1401,16 +1404,7 @@ typedef struct
 AssertCompileSize(VMMDevGetCpuHotPlugRequest, 24+4+4+4);
 
 
-/**
- * Shared region description
- */
-typedef struct VMMDEVSHAREDREGIONDESC
-{
-    RTGCPTR64           GCRegionAddr;
-    uint32_t            cbRegion;
-    uint32_t            u32Alignment;
-} VMMDEVSHAREDREGIONDESC;
-AssertCompileSize(VMMDEVSHAREDREGIONDESC, 16);
+AssertCompileSize(VMMDEVSHAREDREGIONDESC, 16); /* structure was promoted to VBox/types.h. */
 
 #define VMMDEVSHAREDREGIONDESC_MAX          32
 
@@ -1991,5 +1985,5 @@ AssertCompileMemberOffset(VMMDevMemory, vbvaMemory, 16);
 RT_C_DECLS_END
 #pragma pack()
 
-#endif
+#endif /* !VBOX_INCLUDED_VMMDev_h */
 

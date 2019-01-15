@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -28,9 +28,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-
-#ifndef ___VBox_Graphics_HGSMIContext_h___
-#define ___VBox_Graphics_HGSMIContext_h___
+#ifndef VBOX_INCLUDED_Graphics_HGSMIContext_h
+#define VBOX_INCLUDED_Graphics_HGSMIContext_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "HGSMI.h"
 #include "HGSMIChSetup.h"
@@ -108,5 +110,5 @@ DECLHIDDEN(void)     VBoxHGSMISetupHostContext(PHGSMIHOSTCOMMANDCONTEXT pCtx,
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_Graphics_HGSMIContext_h */
 

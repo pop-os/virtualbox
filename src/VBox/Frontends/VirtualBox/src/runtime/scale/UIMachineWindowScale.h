@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIMachineWindowScale_h___
-#define ___UIMachineWindowScale_h___
+#ifndef FEQT_INCLUDED_SRC_runtime_scale_UIMachineWindowScale_h
+#define FEQT_INCLUDED_SRC_runtime_scale_UIMachineWindowScale_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "UIMachineWindow.h"
@@ -73,5 +76,5 @@ private:
     friend class UIMachineWindow;
 };
 
-#endif /* !___UIMachineWindowScale_h___ */
+#endif /* !FEQT_INCLUDED_SRC_runtime_scale_UIMachineWindowScale_h */
 

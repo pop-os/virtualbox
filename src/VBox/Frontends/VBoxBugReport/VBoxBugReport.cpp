@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,6 @@
 #include <VBox/com/com.h>
 #include <VBox/com/string.h>
 #include <VBox/com/array.h>
-//#include <VBox/com/Guid.h>
 #include <VBox/com/ErrorInfo.h>
 #include <VBox/com/errorprint.h>
 #include <VBox/com/VirtualBox.h>
@@ -27,6 +26,7 @@
 #include <VBox/version.h>
 
 #include <iprt/buildconfig.h>
+#include <iprt/err.h>
 #include <iprt/env.h>
 #include <iprt/file.h>
 #include <iprt/getopt.h>
