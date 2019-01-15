@@ -1,0 +1,28 @@
+Description: fix build failure with new gcc/glibc
+Author: <bird>
+diff --git a/src/VBox/Runtime/r3/linux/semevent-linux.cpp b/src/VBox/Runtime/r3/linux/semevent-linux.cpp
+index 7235861a5..879a4f15e 100644
+--- a/src/VBox/Runtime/r3/linux/semevent-linux.cpp
++++ b/src/VBox/Runtime/r3/linux/semevent-linux.cpp
+@@ -37,7 +37,7 @@
+  * against glibc < 2.6.
+  */
+ #include "../posix/semevent-posix.cpp"
+-asm volatile (".global epoll_pwait");
++__asm__(".global epoll_pwait");
+ 
+ #else /* glibc < 2.6 */
+ 
+diff --git a/src/VBox/Runtime/r3/linux/semeventmulti-linux.cpp b/src/VBox/Runtime/r3/linux/semeventmulti-linux.cpp
+index a228ad82d..f521fef2e 100644
+--- a/src/VBox/Runtime/r3/linux/semeventmulti-linux.cpp
++++ b/src/VBox/Runtime/r3/linux/semeventmulti-linux.cpp
+@@ -39,7 +39,7 @@
+  * against glibc < 2.6.
+  */
+ #include "../posix/semeventmulti-posix.cpp"
+-asm volatile (".global epoll_pwait");
++__asm__(".global epoll_pwait");
+ 
+ #else /* glibc < 2.6 */
+ 
