@@ -29,7 +29,7 @@ export DEB_BUILD_HARDENING_FORMAT=0
 export DEB_BUILD_HARDENING_BINDNOW=0
 DEB_HOST_ARCH ?= $(shell dpkg-architecture -qDEB_HOST_ARCH)
 
-export DEB_BUILD_MAINT_OPTIONS = hardening=+all,-pie,-format,-bindnow
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
 %:
 	dh $@ --with python3,dkms,systemd
