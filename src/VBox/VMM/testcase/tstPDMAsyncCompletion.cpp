@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,7 +32,7 @@
 #include <VBox/vmm/pdmasynccompletion.h>
 #include <VBox/vmm/vmm.h>
 #include <VBox/vmm/cpum.h>
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 #include <VBox/log.h>
 #include <VBox/vmm/pdmapi.h>
 #include <iprt/alloc.h>

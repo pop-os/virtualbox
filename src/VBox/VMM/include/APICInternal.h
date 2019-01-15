@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2017 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,12 +15,16 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___APICInternal_h
-#define ___APICInternal_h
+#ifndef VMM_INCLUDED_SRC_include_APICInternal_h
+#define VMM_INCLUDED_SRC_include_APICInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/sup.h>
 #include <VBox/types.h>
 #include <VBox/vmm/apic.h>
+#include <VBox/vmm/pdmdev.h>
 
 /** @defgroup grp_apic_int       Internal
  * @ingroup grp_apic
@@ -1463,5 +1467,5 @@ RT_C_DECLS_END
 
 /** @} */
 
-#endif
+#endif /* !VMM_INCLUDED_SRC_include_APICInternal_h */
 

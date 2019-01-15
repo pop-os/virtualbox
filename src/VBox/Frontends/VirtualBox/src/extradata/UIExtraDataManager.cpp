@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2018 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,67 +15,58 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QFontDatabase>
-# include <QMetaEnum>
-# include <QMutex>
-# include <QRegularExpression>
-# ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
-#  include <QComboBox>
-#  include <QHeaderView>
-#  include <QLabel>
-#  include <QLineEdit>
-#  include <QListView>
-#  include <QMenuBar>
-#  include <QPainter>
-#  include <QPushButton>
-#  include <QSortFilterProxyModel>
-#  include <QStyledItemDelegate>
-#  include <QTableView>
-#  include <QVBoxLayout>
-# endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
-
-/* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UIActionPool.h"
-# include "UIConverter.h"
-# include "UIDesktopWidgetWatchdog.h"
-# include "UIExtraDataManager.h"
-# include "UIHostComboEditor.h"
-# include "UIMainEventListener.h"
-# include "UIMessageCenter.h"
-# include "UISettingsDefs.h"
-# ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
-#  include "QIDialog.h"
-#  include "QIDialogButtonBox.h"
-#  include "QIFileDialog.h"
-#  include "QIMainWindow.h"
-#  include "QISplitter.h"
-#  include "QIWidgetValidator.h"
-#  include "VBoxUtils.h"
-#  include "UIIconPool.h"
-#  include "UIToolBar.h"
-#  include "UIVirtualBoxEventHandler.h"
-# endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
-
-/* COM includes: */
-# include "COMEnums.h"
-# include "CEventListener.h"
-# include "CEventSource.h"
-# include "CMachine.h"
-# include "CVirtualBox.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
+#include <QFontDatabase>
+#include <QMetaEnum>
+#include <QMutex>
+#include <QRegularExpression>
 #ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
+# include <QComboBox>
+# include <QHeaderView>
+# include <QLabel>
+# include <QLineEdit>
+# include <QListView>
+# include <QMenuBar>
+# include <QPainter>
+# include <QPushButton>
+# include <QSortFilterProxyModel>
+# include <QStyledItemDelegate>
+# include <QTableView>
+# include <QVBoxLayout>
 # include <QStandardItemModel>
 # include <QXmlStreamWriter>
 # include <QXmlStreamReader>
 #endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
+
+/* GUI includes: */
+#include "VBoxGlobal.h"
+#include "UIActionPool.h"
+#include "UIConverter.h"
+#include "UIDesktopWidgetWatchdog.h"
+#include "UIExtraDataManager.h"
+#include "UIHostComboEditor.h"
+#include "UIMainEventListener.h"
+#include "UIMessageCenter.h"
+#include "UISettingsDefs.h"
+#ifdef VBOX_GUI_WITH_EXTRADATA_MANAGER_UI
+# include "QIDialog.h"
+# include "QIDialogButtonBox.h"
+# include "QIFileDialog.h"
+# include "QIMainWindow.h"
+# include "QISplitter.h"
+# include "QIWidgetValidator.h"
+# include "VBoxUtils.h"
+# include "UIIconPool.h"
+# include "UIToolBar.h"
+# include "UIVirtualBoxEventHandler.h"
+#endif /* VBOX_GUI_WITH_EXTRADATA_MANAGER_UI */
+
+/* COM includes: */
+#include "COMEnums.h"
+#include "CEventListener.h"
+#include "CEventSource.h"
+#include "CMachine.h"
+#include "CVirtualBox.h"
 
 
 /* Namespaces: */
@@ -4248,7 +4239,9 @@ QStringList UIExtraDataManager::fileManagerVisiblePanels()
 }
 
 void UIExtraDataManager::setFileManagerOptions(bool fListDirectoriesFirst,
-                                               bool fShowDeleteConfirmation, bool fShowHumanReadableSizes)
+                                               bool fShowDeleteConfirmation,
+                                               bool fShowHumanReadableSizes,
+                                               bool fShowHiddenObjects)
 {
     /* Serialize passed values: */
     QStringList data;
@@ -4259,7 +4252,8 @@ void UIExtraDataManager::setFileManagerOptions(bool fListDirectoriesFirst,
         data << GUI_GuestControl_FileManagerShowDeleteConfirmation;
     if (fShowHumanReadableSizes)
         data << GUI_GuestControl_FileManagerShowHumanReadableSizes;
-
+    if (fShowHiddenObjects)
+        data << GUI_GuestControl_FileManagerShowHiddenObjects;
     /* Re-cache corresponding extra-data: */
     setExtraDataStringList(GUI_GuestControl_FileManagerOptions, data);
 }
@@ -4292,6 +4286,17 @@ bool UIExtraDataManager::fileManagerShowHumanReadableSizes()
     for (int i = 0; i < data.size(); ++i)
     {
         if (data[i] == GUI_GuestControl_FileManagerShowHumanReadableSizes)
+            return true;
+    }
+    return false;
+}
+
+bool UIExtraDataManager::fileManagerShowHiddenObjects()
+{
+    const QStringList data = extraDataStringList(GUI_GuestControl_FileManagerOptions);
+    for (int i = 0; i < data.size(); ++i)
+    {
+        if (data[i] == GUI_GuestControl_FileManagerShowHiddenObjects)
             return true;
     }
     return false;

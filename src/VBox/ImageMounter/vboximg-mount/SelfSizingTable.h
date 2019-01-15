@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018 Oracle Corporation
+ * Copyright (C) 2018-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -65,8 +65,11 @@
  *
  */
 
-#ifndef ___SELFSIZINGTABLE_H
-#define ___SELFSIZINGTABLE_H
+#ifndef VBOX_INCLUDED_SRC_vboximg_mount_SelfSizingTable_h
+#define VBOX_INCLUDED_SRC_vboximg_mount_SelfSizingTable_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 #include <iprt/string.h>
@@ -307,4 +310,4 @@ void SELFSIZINGTABLE::displayTable()
         pRow = pRow->next;
     }
 }
-#endif
+#endif /* !VBOX_INCLUDED_SRC_vboximg_mount_SelfSizingTable_h */

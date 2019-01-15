@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1237,6 +1237,17 @@ int vusbDevDetach(PVUSBDEV pDev)
 
     pDev->pHub->pOps->pfnDetach(pDev->pHub, pDev);
     pDev->i16Port = -1;
+
+    /*
+     * Destroy I/O thread and request queue last because they might still be used
+     * when cancelling URBs.
+     */
+    vusbDevUrbIoThreadDestroy(pDev);
+
+    int rc = RTReqQueueDestroy(pDev->hReqQueueSync);
+    AssertRC(rc);
+    pDev->hReqQueueSync = NIL_RTREQQUEUE;
+
     vusbDevSetState(pDev, VUSB_DEVICE_STATE_DETACHED);
     pDev->pHub = NULL;
 
@@ -1266,15 +1277,6 @@ void vusbDevDestroy(PVUSBDEV pDev)
         Assert(pDev->aPipes[i].pCtrl == NULL);
         RTCritSectDelete(&pDev->aPipes[i].CritSectCtrl);
     }
-
-    /*
-     * Destroy I/O thread and request queue last because they might still be used
-     * when cancelling URBs.
-     */
-    vusbDevUrbIoThreadDestroy(pDev);
-
-    int rc = RTReqQueueDestroy(pDev->hReqQueueSync);
-    AssertRC(rc);
 
     if (pDev->hSniffer != VUSBSNIFFER_NIL)
         VUSBSnifferDestroy(pDev->hSniffer);

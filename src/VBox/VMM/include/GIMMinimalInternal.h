@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2017 Oracle Corporation
+ * Copyright (C) 2014-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___GIMMinimalInternal_h
-#define ___GIMMinimalInternal_h
+#ifndef VMM_INCLUDED_SRC_include_GIMMinimalInternal_h
+#define VMM_INCLUDED_SRC_include_GIMMinimalInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/cdefs.h>
 #include <VBox/types.h>
@@ -31,5 +34,5 @@ VMMR3_INT_DECL(void)        gimR3MinimalRelocate(PVM pVM, RTGCINTPTR offDelta);
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VMM_INCLUDED_SRC_include_GIMMinimalInternal_h */
 

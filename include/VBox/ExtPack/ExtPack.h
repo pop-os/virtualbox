@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_ExtPack_ExtPack_h
-#define ___VBox_ExtPack_ExtPack_h
+#ifndef VBOX_INCLUDED_ExtPack_ExtPack_h
+#define VBOX_INCLUDED_ExtPack_ExtPack_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 
@@ -581,5 +584,5 @@ typedef FNVBOXEXTPACKVMREGISTER *PFNVBOXEXTPACKVMREGISTER;
  */
 #define VBOXEXTPACK_IS_MAJOR_VER_EQUAL(u32Ver1, u32Ver2)  (RT_HIWORD(u32Ver1) == RT_HIWORD(u32Ver2))
 
-#endif
+#endif /* !VBOX_INCLUDED_ExtPack_ExtPack_h */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1678,8 +1678,115 @@ static PCCPUMCPUIDLEAF cpumR3CpuIdFindLeafEx(PCCPUMCPUIDLEAF paLeaves, uint32_t 
 }
 
 
-int cpumR3CpuIdExplodeFeatures(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCPUMFEATURES pFeatures)
+static void cpumR3ExplodeVmxFeatures(PCVMXMSRS pVmxMsrs, PCPUMFEATURES pFeatures)
 {
+    Assert(pVmxMsrs);
+    Assert(pFeatures);
+    Assert(pFeatures->fVmx);
+
+    /* Basic information. */
+    {
+        uint64_t const u64Basic = pVmxMsrs->u64Basic;
+        pFeatures->fVmxInsOutInfo            = RT_BF_GET(u64Basic, VMX_BF_BASIC_VMCS_INS_OUTS);
+    }
+
+    /* Pin-based VM-execution controls. */
+    {
+        uint32_t const fPinCtls = pVmxMsrs->PinCtls.n.allowed1;
+        pFeatures->fVmxExtIntExit            = RT_BOOL(fPinCtls & VMX_PIN_CTLS_EXT_INT_EXIT);
+        pFeatures->fVmxNmiExit               = RT_BOOL(fPinCtls & VMX_PIN_CTLS_NMI_EXIT);
+        pFeatures->fVmxVirtNmi               = RT_BOOL(fPinCtls & VMX_PIN_CTLS_VIRT_NMI);
+        pFeatures->fVmxPreemptTimer          = RT_BOOL(fPinCtls & VMX_PIN_CTLS_PREEMPT_TIMER);
+        pFeatures->fVmxPostedInt             = RT_BOOL(fPinCtls & VMX_PIN_CTLS_POSTED_INT);
+    }
+
+    /* Processor-based VM-execution controls. */
+    {
+        uint32_t const fProcCtls = pVmxMsrs->ProcCtls.n.allowed1;
+        pFeatures->fVmxIntWindowExit         = RT_BOOL(fProcCtls & VMX_PROC_CTLS_INT_WINDOW_EXIT);
+        pFeatures->fVmxTscOffsetting         = RT_BOOL(fProcCtls & VMX_PROC_CTLS_USE_TSC_OFFSETTING);
+        pFeatures->fVmxHltExit               = RT_BOOL(fProcCtls & VMX_PROC_CTLS_HLT_EXIT);
+        pFeatures->fVmxInvlpgExit            = RT_BOOL(fProcCtls & VMX_PROC_CTLS_INVLPG_EXIT);
+        pFeatures->fVmxMwaitExit             = RT_BOOL(fProcCtls & VMX_PROC_CTLS_MWAIT_EXIT);
+        pFeatures->fVmxRdpmcExit             = RT_BOOL(fProcCtls & VMX_PROC_CTLS_RDPMC_EXIT);
+        pFeatures->fVmxRdtscExit             = RT_BOOL(fProcCtls & VMX_PROC_CTLS_RDTSC_EXIT);
+        pFeatures->fVmxCr3LoadExit           = RT_BOOL(fProcCtls & VMX_PROC_CTLS_CR3_LOAD_EXIT);
+        pFeatures->fVmxCr3StoreExit          = RT_BOOL(fProcCtls & VMX_PROC_CTLS_CR3_STORE_EXIT);
+        pFeatures->fVmxCr8LoadExit           = RT_BOOL(fProcCtls & VMX_PROC_CTLS_CR8_LOAD_EXIT);
+        pFeatures->fVmxCr8StoreExit          = RT_BOOL(fProcCtls & VMX_PROC_CTLS_CR8_STORE_EXIT);
+        pFeatures->fVmxUseTprShadow          = RT_BOOL(fProcCtls & VMX_PROC_CTLS_USE_TPR_SHADOW);
+        pFeatures->fVmxNmiWindowExit         = RT_BOOL(fProcCtls & VMX_PROC_CTLS_NMI_WINDOW_EXIT);
+        pFeatures->fVmxMovDRxExit            = RT_BOOL(fProcCtls & VMX_PROC_CTLS_MOV_DR_EXIT);
+        pFeatures->fVmxUncondIoExit          = RT_BOOL(fProcCtls & VMX_PROC_CTLS_UNCOND_IO_EXIT);
+        pFeatures->fVmxUseIoBitmaps          = RT_BOOL(fProcCtls & VMX_PROC_CTLS_USE_IO_BITMAPS);
+        pFeatures->fVmxMonitorTrapFlag       = RT_BOOL(fProcCtls & VMX_PROC_CTLS_MONITOR_TRAP_FLAG);
+        pFeatures->fVmxUseMsrBitmaps         = RT_BOOL(fProcCtls & VMX_PROC_CTLS_USE_MSR_BITMAPS);
+        pFeatures->fVmxMonitorExit           = RT_BOOL(fProcCtls & VMX_PROC_CTLS_MONITOR_EXIT);
+        pFeatures->fVmxPauseExit             = RT_BOOL(fProcCtls & VMX_PROC_CTLS_PAUSE_EXIT);
+        pFeatures->fVmxSecondaryExecCtls     = RT_BOOL(fProcCtls & VMX_PROC_CTLS_USE_SECONDARY_CTLS);
+    }
+
+    /* Secondary processor-based VM-execution controls. */
+    {
+        uint32_t const fProcCtls2 = pFeatures->fVmxSecondaryExecCtls ? pVmxMsrs->ProcCtls2.n.allowed1 : 0;
+        pFeatures->fVmxVirtApicAccess        = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_VIRT_APIC_ACCESS);
+        pFeatures->fVmxEpt                   = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_EPT);
+        pFeatures->fVmxDescTableExit         = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_DESC_TABLE_EXIT);
+        pFeatures->fVmxRdtscp                = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_RDTSCP);
+        pFeatures->fVmxVirtX2ApicMode        = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_VIRT_X2APIC_MODE);
+        pFeatures->fVmxVpid                  = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_VPID);
+        pFeatures->fVmxWbinvdExit            = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_WBINVD_EXIT);
+        pFeatures->fVmxUnrestrictedGuest     = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_UNRESTRICTED_GUEST);
+        pFeatures->fVmxApicRegVirt           = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_APIC_REG_VIRT);
+        pFeatures->fVmxVirtIntDelivery       = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_VIRT_INT_DELIVERY);
+        pFeatures->fVmxPauseLoopExit         = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_PAUSE_LOOP_EXIT);
+        pFeatures->fVmxRdrandExit            = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_RDRAND_EXIT);
+        pFeatures->fVmxInvpcid               = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_INVPCID);
+        pFeatures->fVmxVmFunc                = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_VMFUNC);
+        pFeatures->fVmxVmcsShadowing         = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_VMCS_SHADOWING);
+        pFeatures->fVmxRdseedExit            = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_RDSEED_EXIT);
+        pFeatures->fVmxPml                   = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_PML);
+        pFeatures->fVmxEptXcptVe             = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_EPT_VE);
+        pFeatures->fVmxXsavesXrstors         = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_XSAVES_XRSTORS);
+        pFeatures->fVmxUseTscScaling         = RT_BOOL(fProcCtls2 & VMX_PROC_CTLS2_TSC_SCALING);
+    }
+
+    /* VM-exit controls. */
+    {
+        uint32_t const fExitCtls = pVmxMsrs->ExitCtls.n.allowed1;
+        pFeatures->fVmxExitSaveDebugCtls     = RT_BOOL(fExitCtls & VMX_EXIT_CTLS_SAVE_DEBUG);
+        pFeatures->fVmxHostAddrSpaceSize     = RT_BOOL(fExitCtls & VMX_EXIT_CTLS_HOST_ADDR_SPACE_SIZE);
+        pFeatures->fVmxExitAckExtInt         = RT_BOOL(fExitCtls & VMX_EXIT_CTLS_ACK_EXT_INT);
+        pFeatures->fVmxExitSavePatMsr        = RT_BOOL(fExitCtls & VMX_EXIT_CTLS_SAVE_PAT_MSR);
+        pFeatures->fVmxExitLoadPatMsr        = RT_BOOL(fExitCtls & VMX_EXIT_CTLS_LOAD_PAT_MSR);
+        pFeatures->fVmxExitSaveEferMsr       = RT_BOOL(fExitCtls & VMX_EXIT_CTLS_SAVE_EFER_MSR);
+        pFeatures->fVmxExitLoadEferMsr       = RT_BOOL(fExitCtls & VMX_EXIT_CTLS_LOAD_EFER_MSR);
+        pFeatures->fVmxSavePreemptTimer      = RT_BOOL(fExitCtls & VMX_EXIT_CTLS_SAVE_PREEMPT_TIMER);
+    }
+
+    /* VM-entry controls. */
+    {
+        uint32_t const fEntryCtls = pVmxMsrs->EntryCtls.n.allowed1;
+        pFeatures->fVmxEntryLoadDebugCtls    = RT_BOOL(fEntryCtls & VMX_ENTRY_CTLS_LOAD_DEBUG);
+        pFeatures->fVmxIa32eModeGuest        = RT_BOOL(fEntryCtls & VMX_ENTRY_CTLS_IA32E_MODE_GUEST);
+        pFeatures->fVmxEntryLoadEferMsr      = RT_BOOL(fEntryCtls & VMX_ENTRY_CTLS_LOAD_EFER_MSR);
+        pFeatures->fVmxEntryLoadPatMsr       = RT_BOOL(fEntryCtls & VMX_ENTRY_CTLS_LOAD_PAT_MSR);
+    }
+
+    /* Miscellaneous data. */
+    {
+        uint32_t const fMiscData = pVmxMsrs->u64Misc;
+        pFeatures->fVmxExitSaveEferLma       = RT_BOOL(fMiscData & VMX_MISC_EXIT_SAVE_EFER_LMA);
+        pFeatures->fVmxIntelPt               = RT_BOOL(fMiscData & VMX_MISC_INTEL_PT);
+        pFeatures->fVmxVmwriteAll            = RT_BOOL(fMiscData & VMX_MISC_VMWRITE_ALL);
+        pFeatures->fVmxEntryInjectSoftInt    = RT_BOOL(fMiscData & VMX_MISC_ENTRY_INJECT_SOFT_INT);
+    }
+}
+
+
+int cpumR3CpuIdExplodeFeatures(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCCPUMMSRS pMsrs, PCPUMFEATURES pFeatures)
+{
+    Assert(pMsrs);
     RT_ZERO(*pFeatures);
     if (cLeaves >= 2)
     {
@@ -1746,7 +1853,8 @@ int cpumR3CpuIdExplodeFeatures(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCPUM
         pFeatures->fClFlush             = RT_BOOL(pStd1Leaf->uEdx & X86_CPUID_FEATURE_EDX_CLFSH);
         pFeatures->fPcid                = RT_BOOL(pStd1Leaf->uEcx & X86_CPUID_FEATURE_ECX_PCID);
         pFeatures->fVmx                 = RT_BOOL(pStd1Leaf->uEcx & X86_CPUID_FEATURE_ECX_VMX);
-        /* VMX sub-features will be initialized in cpumR3InitVmxCpuFeatures(). */
+        if (pFeatures->fVmx)
+            cpumR3ExplodeVmxFeatures(&pMsrs->hwvirt.vmx, pFeatures);
 
         /* Structured extended features. */
         PCCPUMCPUIDLEAF const pSxfLeaf0 = cpumR3CpuIdFindLeafEx(paLeaves, cLeaves, 7, 0);
@@ -1761,18 +1869,15 @@ int cpumR3CpuIdExplodeFeatures(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCPUM
             pFeatures->fIbpb                = RT_BOOL(pSxfLeaf0->uEdx & X86_CPUID_STEXT_FEATURE_EDX_IBRS_IBPB);
             pFeatures->fIbrs                = pFeatures->fIbpb;
             pFeatures->fStibp               = RT_BOOL(pSxfLeaf0->uEdx & X86_CPUID_STEXT_FEATURE_EDX_STIBP);
-#if 0   // Disabled until IA32_ARCH_CAPABILITIES support can be tested
+            pFeatures->fFlushCmd            = RT_BOOL(pSxfLeaf0->uEdx & X86_CPUID_STEXT_FEATURE_EDX_FLUSH_CMD);
             pFeatures->fArchCap             = RT_BOOL(pSxfLeaf0->uEdx & X86_CPUID_STEXT_FEATURE_EDX_ARCHCAP);
-#endif
         }
 
         /* MWAIT/MONITOR leaf. */
         PCCPUMCPUIDLEAF const pMWaitLeaf = cpumR3CpuIdFindLeaf(paLeaves, cLeaves, 5);
         if (pMWaitLeaf)
-        {
             pFeatures->fMWaitExtensions = (pMWaitLeaf->uEcx & (X86_CPUID_MWAIT_ECX_EXT | X86_CPUID_MWAIT_ECX_BREAKIRQIF0))
-                                                           == (X86_CPUID_MWAIT_ECX_EXT | X86_CPUID_MWAIT_ECX_BREAKIRQIF0);
-        }
+                                        ==                    (X86_CPUID_MWAIT_ECX_EXT | X86_CPUID_MWAIT_ECX_BREAKIRQIF0);
 
         /* Extended features. */
         PCCPUMCPUIDLEAF const pExtLeaf  = cpumR3CpuIdFindLeaf(paLeaves, cLeaves, 0x80000001);
@@ -2185,8 +2290,9 @@ static int cpumR3CpuIdInitLoadOverrideSet(uint32_t uStart, PCPUMCPUID paLeaves, 
  * @param   pCpum       The CPUM part of @a VM.
  * @param   paLeaves    The leaves.  These will be copied (but not freed).
  * @param   cLeaves     The number of leaves.
+ * @param   pMsrs       The MSRs.
  */
-static int cpumR3CpuIdInstallAndExplodeLeaves(PVM pVM, PCPUM pCpum, PCPUMCPUIDLEAF paLeaves, uint32_t cLeaves)
+static int cpumR3CpuIdInstallAndExplodeLeaves(PVM pVM, PCPUM pCpum, PCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCCPUMMSRS pMsrs)
 {
     cpumR3CpuIdAssertOrder(paLeaves, cLeaves);
 
@@ -2234,7 +2340,8 @@ static int cpumR3CpuIdInstallAndExplodeLeaves(PVM pVM, PCPUM pCpum, PCPUMCPUIDLE
     /*
      * Explode the guest CPU features.
      */
-    rc = cpumR3CpuIdExplodeFeatures(pCpum->GuestInfo.paCpuIdLeavesR3, pCpum->GuestInfo.cCpuIdLeaves, &pCpum->GuestFeatures);
+    rc = cpumR3CpuIdExplodeFeatures(pCpum->GuestInfo.paCpuIdLeavesR3, pCpum->GuestInfo.cCpuIdLeaves, pMsrs,
+                                    &pCpum->GuestFeatures);
     AssertLogRelRCReturn(rc, rc);
 
     /*
@@ -2362,6 +2469,7 @@ typedef struct CPUMCPUIDCONFIG
     CPUMISAEXTCFG   enmFsGsBase;
     CPUMISAEXTCFG   enmPcid;
     CPUMISAEXTCFG   enmInvpcid;
+    CPUMISAEXTCFG   enmFlushCmdMsr;
 
     CPUMISAEXTCFG   enmAbm;
     CPUMISAEXTCFG   enmSse4A;
@@ -3163,6 +3271,7 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
                 pCurLeaf->uEdx &= 0
                                //| X86_CPUID_STEXT_FEATURE_EDX_IBRS_IBPB         RT_BIT(26)
                                //| X86_CPUID_STEXT_FEATURE_EDX_STIBP             RT_BIT(27)
+                               | (pConfig->enmFlushCmdMsr ? X86_CPUID_STEXT_FEATURE_EDX_FLUSH_CMD : 0)
                                //| X86_CPUID_STEXT_FEATURE_EDX_ARCHCAP           RT_BIT(29)
                                ;
 
@@ -3191,6 +3300,7 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
                     PORTABLE_DISABLE_FEATURE_BIT(    1, pCurLeaf->uEbx, SMAP,       X86_CPUID_STEXT_FEATURE_EBX_SMAP);
                     PORTABLE_DISABLE_FEATURE_BIT(    1, pCurLeaf->uEbx, SHA,        X86_CPUID_STEXT_FEATURE_EBX_SHA);
                     PORTABLE_DISABLE_FEATURE_BIT(    1, pCurLeaf->uEcx, PREFETCHWT1, X86_CPUID_STEXT_FEATURE_ECX_PREFETCHWT1);
+                    PORTABLE_DISABLE_FEATURE_BIT_CFG(3, pCurLeaf->uEdx, FLUSH_CMD,  X86_CPUID_STEXT_FEATURE_EDX_FLUSH_CMD, pConfig->enmFlushCmdMsr);
                 }
 
                 /* Force standard feature bits. */
@@ -3204,6 +3314,8 @@ static int cpumR3CpuIdSanitize(PVM pVM, PCPUM pCpum, PCPUMCPUIDCONFIG pConfig)
                     pCurLeaf->uEbx |= X86_CPUID_STEXT_FEATURE_EBX_CLFLUSHOPT;
                 if (pConfig->enmInvpcid == CPUMISAEXTCFG_ENABLED_ALWAYS)
                     pCurLeaf->uEbx |= X86_CPUID_STEXT_FEATURE_EBX_INVPCID;
+                if (pConfig->enmFlushCmdMsr == CPUMISAEXTCFG_ENABLED_ALWAYS)
+                    pCurLeaf->uEdx |= X86_CPUID_STEXT_FEATURE_EDX_FLUSH_CMD;
                 break;
             }
 
@@ -4011,6 +4123,7 @@ static int cpumR3CpuIdReadConfig(PVM pVM, PCPUMCPUIDCONFIG pConfig, PCFGMNODE pC
                                   "|FSGSBASE"
                                   "|PCID"
                                   "|INVPCID"
+                                  "|FlushCmdMsr"
                                   "|ABM"
                                   "|SSE4A"
                                   "|MISALNSSE"
@@ -4166,6 +4279,12 @@ static int cpumR3CpuIdReadConfig(PVM pVM, PCPUMCPUIDCONFIG pConfig, PCFGMNODE pC
     rc = cpumR3CpuIdReadIsaExtCfg(pVM, pIsaExts, "INVPCID", &pConfig->enmInvpcid, pConfig->enmFsGsBase);
     AssertLogRelRCReturn(rc, rc);
 
+    /** @cfgm{/CPUM/IsaExts/FlushCmdMsr, isaextcfg, true}
+     * Whether to expose the IA32_FLUSH_CMD MSR to the guest.
+     */
+    rc = cpumR3CpuIdReadIsaExtCfg(pVM, pIsaExts, "FlushCmdMsr", &pConfig->enmFlushCmdMsr, CPUMISAEXTCFG_ENABLED_SUPPORTED);
+    AssertLogRelRCReturn(rc, rc);
+
 
     /* AMD: */
 
@@ -4218,9 +4337,12 @@ static int cpumR3CpuIdReadConfig(PVM pVM, PCPUMCPUIDCONFIG pConfig, PCFGMNODE pC
  *
  * @returns VBox status code.
  * @param   pVM          The cross context VM structure.
+ * @param   pHostMsrs    Pointer to the host MSRs.
  */
-int cpumR3InitCpuIdAndMsrs(PVM pVM)
+int cpumR3InitCpuIdAndMsrs(PVM pVM, PCCPUMMSRS pHostMsrs)
 {
+    Assert(pHostMsrs);
+
     PCPUM       pCpum    = &pVM->cpum.s;
     PCFGMNODE   pCpumCfg = CFGMR3GetChild(CFGMR3GetRoot(pVM), "CPUM");
 
@@ -4280,11 +4402,17 @@ int cpumR3InitCpuIdAndMsrs(PVM pVM)
                         "Found unsupported configuration node '/CPUM/CPUID/'. "
                         "Please use IMachine::setCPUIDLeaf() instead.");
 
+    CPUMMSRS GuestMsrs;
+    RT_ZERO(GuestMsrs);
+
     /*
      * Pre-explode the CPUID info.
      */
     if (RT_SUCCESS(rc))
-        rc = cpumR3CpuIdExplodeFeatures(pCpum->GuestInfo.paCpuIdLeavesR3, pCpum->GuestInfo.cCpuIdLeaves, &pCpum->GuestFeatures);
+    {
+        rc = cpumR3CpuIdExplodeFeatures(pCpum->GuestInfo.paCpuIdLeavesR3, pCpum->GuestInfo.cCpuIdLeaves, &GuestMsrs,
+                                        &pCpum->GuestFeatures);
+    }
 
     /*
      * Sanitize the cpuid information passed on to the guest.
@@ -4299,6 +4427,12 @@ int cpumR3InitCpuIdAndMsrs(PVM pVM)
         }
     }
 
+    /*
+     * Setup MSRs introduced in microcode updates or that are otherwise not in
+     * the CPU profile, but are advertised in the CPUID info we just sanitized.
+     */
+    if (RT_SUCCESS(rc))
+        rc = cpumR3MsrReconcileWithCpuId(pVM);
     /*
      * MSR fudging.
      */
@@ -4324,7 +4458,7 @@ int cpumR3InitCpuIdAndMsrs(PVM pVM)
          */
         void *pvFree = pCpum->GuestInfo.paCpuIdLeavesR3;
         int rc1 = cpumR3CpuIdInstallAndExplodeLeaves(pVM, pCpum, pCpum->GuestInfo.paCpuIdLeavesR3,
-                                                     pCpum->GuestInfo.cCpuIdLeaves);
+                                                     pCpum->GuestInfo.cCpuIdLeaves, &GuestMsrs);
         RTMemFree(pvFree);
 
         pvFree = pCpum->GuestInfo.paMsrRangesR3;
@@ -4338,6 +4472,26 @@ int cpumR3InitCpuIdAndMsrs(PVM pVM)
         pCpum->GuestInfo.paMsrRangesR0 = MMHyperR3ToR0(pVM, pCpum->GuestInfo.paMsrRangesR3);
         pCpum->GuestInfo.paMsrRangesRC = MMHyperR3ToRC(pVM, pCpum->GuestInfo.paMsrRangesR3);
 
+        /*
+         * Finally, initialize guest VMX MSRs.
+         *
+         * This needs to be done -after- exploding guest features and sanitizing CPUID leaves
+         * as constructing VMX capabilities MSRs rely on CPU feature bits like long mode,
+         * unrestricted-guest execution, CR4 feature bits and possibly more in the future.
+         */
+        if (pVM->cpum.s.GuestFeatures.fVmx)
+        {
+            Assert(Config.fNestedHWVirt);
+            cpumR3InitVmxGuestFeaturesAndMsrs(pVM, &pHostMsrs->hwvirt.vmx, &GuestMsrs.hwvirt.vmx);
+
+            /* Copy MSRs to all VCPUs */
+            PCVMXMSRS pVmxMsrs = &GuestMsrs.hwvirt.vmx;
+            for (VMCPUID idCpu = 0; idCpu < pVM->cCpus; idCpu++)
+            {
+                PVMCPU pVCpu = &pVM->aCpus[idCpu];
+                memcpy(&pVCpu->cpum.s.Guest.hwvirt.vmx.Msrs, pVmxMsrs, sizeof(*pVmxMsrs));
+            }
+        }
 
         /*
          * Some more configuration that we're applying at the end of everything
@@ -4691,6 +4845,7 @@ VMMR3_INT_DECL(void) CPUMR3SetGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFea
                     pMsrRange = cpumLookupMsrRange(pVM, MSR_IA32_PRED_CMD);
                     if (!pMsrRange)
                     {
+                        /** @todo incorrect fWrGpMask. */
                         static CPUMMSRRANGE const s_SpecCtrl =
                         {
                             /*.uFirst =*/ MSR_IA32_PRED_CMD, /*.uLast =*/ MSR_IA32_PRED_CMD,
@@ -4704,7 +4859,8 @@ VMMR3_INT_DECL(void) CPUMR3SetGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmFea
 
                 }
 
-                if (pVM->cpum.s.HostFeatures.fArchCap) {
+                if (pVM->cpum.s.HostFeatures.fArchCap)
+                {
                     pLeaf->uEdx |= X86_CPUID_STEXT_FEATURE_EDX_ARCHCAP;
 
                     /* Install the architectural capabilities MSR. */
@@ -4885,7 +5041,8 @@ VMMR3_INT_DECL(void) CPUMR3ClearGuestCpuIdFeature(PVM pVM, CPUMCPUIDFEATURE enmF
         case CPUMCPUIDFEATURE_SPEC_CTRL:
             pLeaf = cpumR3CpuIdGetExactLeaf(&pVM->cpum.s, UINT32_C(0x00000007), 0);
             if (pLeaf)
-                /*pVM->cpum.s.aGuestCpuIdPatmStd[7].uEdx =*/ pLeaf->uEdx &= ~(X86_CPUID_STEXT_FEATURE_EDX_IBRS_IBPB | X86_CPUID_STEXT_FEATURE_EDX_STIBP | X86_CPUID_STEXT_FEATURE_EDX_ARCHCAP);
+                pLeaf->uEdx &= ~(  X86_CPUID_STEXT_FEATURE_EDX_IBRS_IBPB | X86_CPUID_STEXT_FEATURE_EDX_STIBP
+                                 | X86_CPUID_STEXT_FEATURE_EDX_ARCHCAP);
             pVM->cpum.s.GuestFeatures.fSpeculationControl = 0;
             Log(("CPUM: ClearGuestCpuIdFeature: Disabled speculation control!\n"));
             break;
@@ -5115,8 +5272,9 @@ static int cpumR3LoadGuestCpuIdArray(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion
  * @param   uVersion            The format version.
  * @param   paLeaves            Guest CPUID leaves loaded from the state.
  * @param   cLeaves             The number of leaves in @a paLeaves.
+ * @param   pMsrs               The guest MSRs.
  */
-int cpumR3LoadCpuIdInner(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, PCPUMCPUIDLEAF paLeaves, uint32_t cLeaves)
+int cpumR3LoadCpuIdInner(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, PCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCCPUMMSRS pMsrs)
 {
     AssertMsgReturn(uVersion >= CPUM_SAVED_STATE_VERSION_VER3_2, ("%u\n", uVersion), VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION);
 
@@ -5858,7 +6016,7 @@ int cpumR3LoadCpuIdInner(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, PCPUMCPUID
     pVM->cpum.s.GuestInfo.paCpuIdLeavesR0 = NIL_RTR0PTR;
     pVM->cpum.s.GuestInfo.paCpuIdLeavesRC = NIL_RTRCPTR;
     pVM->cpum.s.GuestInfo.DefCpuId = GuestDefCpuId;
-    rc = cpumR3CpuIdInstallAndExplodeLeaves(pVM, &pVM->cpum.s, paLeaves, cLeaves);
+    rc = cpumR3CpuIdInstallAndExplodeLeaves(pVM, &pVM->cpum.s, paLeaves, cLeaves, pMsrs);
     AssertLogRelRCReturn(rc, rc);
 
     return VINF_SUCCESS;
@@ -5872,8 +6030,9 @@ int cpumR3LoadCpuIdInner(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, PCPUMCPUID
  * @param   pVM                 The cross context VM structure.
  * @param   pSSM                The saved state handle.
  * @param   uVersion            The format version.
+ * @param   pMsrs               The guest MSRs.
  */
-int cpumR3LoadCpuId(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion)
+int cpumR3LoadCpuId(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, PCCPUMMSRS pMsrs)
 {
     AssertMsgReturn(uVersion >= CPUM_SAVED_STATE_VERSION_VER3_2, ("%u\n", uVersion), VERR_SSM_UNSUPPORTED_DATA_UNIT_VERSION);
 
@@ -5887,7 +6046,7 @@ int cpumR3LoadCpuId(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion)
     AssertRC(rc);
     if (RT_SUCCESS(rc))
     {
-        rc = cpumR3LoadCpuIdInner(pVM, pSSM, uVersion, paLeaves, cLeaves);
+        rc = cpumR3LoadCpuIdInner(pVM, pSSM, uVersion, paLeaves, cLeaves, pMsrs);
         RTMemFree(paLeaves);
     }
     return rc;
@@ -6200,6 +6359,7 @@ static DBGFREGSUBFIELD const g_aLeaf7Sub0EdxSubFields[] =
 {
     DBGFREGSUBFIELD_RO("IBRS_IBPB\0"    "IA32_SPEC_CTRL.IBRS and IA32_PRED_CMD.IBPB",   26, 1, 0),
     DBGFREGSUBFIELD_RO("STIBP\0"        "Supports IA32_SPEC_CTRL.STIBP",                27, 1, 0),
+    DBGFREGSUBFIELD_RO("FLUSH_CMD\0"    "Supports IA32_FLUSH_CMD",                      28, 1, 0),
     DBGFREGSUBFIELD_RO("ARCHCAP\0"      "Supports IA32_ARCH_CAP",                       29, 1, 0),
     DBGFREGSUBFIELD_TERMINATOR()
 };

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2017 Oracle Corporation
+ * Copyright (C) 2014-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,8 +18,12 @@
 /*******************************************************************************
 *   Header Files                                                               *
 *******************************************************************************/
-#ifndef ___VDBackends_h
-#define ___VDBackends_h
+
+#ifndef VBOX_INCLUDED_SRC_Storage_VDBackends_h
+#define VBOX_INCLUDED_SRC_Storage_VDBackends_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/vd-plugin.h>
 
@@ -44,5 +48,5 @@ extern const VDCACHEBACKEND g_VciCacheBackend;
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_Storage_VDBackends_h */
 

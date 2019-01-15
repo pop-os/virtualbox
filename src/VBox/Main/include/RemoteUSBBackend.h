@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +16,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_REMOTEUSBBACKEND
-#define ____H_REMOTEUSBBACKEND
+#ifndef MAIN_INCLUDED_RemoteUSBBackend_h
+#define MAIN_INCLUDED_RemoteUSBBackend_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "RemoteUSBDeviceImpl.h"
 
@@ -136,5 +139,5 @@ class RemoteUSBBackend: public RemoteUSBBackendListable
         bool mfDescExt;
 };
 
-#endif /* ____H_REMOTEUSBBACKEND */
+#endif /* !MAIN_INCLUDED_RemoteUSBBackend_h */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

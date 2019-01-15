@@ -58,7 +58,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -69,23 +69,25 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN
 #include "VBox/com/string.h"
 #include "VBox/settings.h"
-#include <iprt/cpp/xml.h>
-#include <iprt/stream.h>
-#include <iprt/ctype.h>
-#include <iprt/file.h>
-#include <iprt/process.h>
-#include <iprt/ldr.h>
 #include <iprt/base64.h>
-#include <iprt/uri.h>
 #include <iprt/cpp/lock.h>
+#include <iprt/cpp/xml.h>
+#include <iprt/ctype.h>
+#include <iprt/err.h>
+#include <iprt/file.h>
+#include <iprt/ldr.h>
+#include <iprt/process.h>
+#include <iprt/stream.h>
+#include <iprt/uri.h>
 
 // generated header
 #include "SchemaDefs.h"
 
-#include "Logging.h"
 #include "HashedPw.h"
+#include "LoggingNew.h"
 
 using namespace com;
 using namespace settings;
@@ -1484,7 +1486,7 @@ bool USBDeviceFilter::operator==(const USBDeviceFilter &u) const
 /**
  * Constructor. Needs to set sane defaults which stand the test of time.
  */
-Medium::Medium() :
+settings::Medium::Medium() :
     fAutoReset(false),
     hdType(MediumType_Normal)
 {
@@ -1495,7 +1497,7 @@ Medium::Medium() :
  * which in turn gets called from Machine::saveSettings to figure out whether
  * machine settings have really changed and thus need to be written out to disk.
  */
-bool Medium::operator==(const Medium &m) const
+bool settings::Medium::operator==(const settings::Medium &m) const
 {
     return (this == &m)
         || (   uuid == m.uuid
@@ -1508,7 +1510,7 @@ bool Medium::operator==(const Medium &m) const
             && llChildren == m.llChildren);         // this is deep and recurses
 }
 
-const struct Medium Medium::Empty; /* default ctor is OK */
+const struct settings::Medium settings::Medium::Empty; /* default ctor is OK */
 
 /**
  * Comparison operator. This gets called from MachineConfigFile::operator==,
@@ -3065,6 +3067,8 @@ Hardware::Hardware() :
     fIBPBOnVMEntry(false),
     fSpecCtrl(false),
     fSpecCtrlByHost(false),
+    fL1DFlushOnSched(true),
+    fL1DFlushOnVMEntry(false),
     fNestedHWVirt(false),
     enmLongMode(HC_ARCH_BITS == 64 ? Hardware::LongMode_Enabled : Hardware::LongMode_Disabled),
     cCPUs(1),
@@ -3198,6 +3202,8 @@ bool Hardware::operator==(const Hardware& h) const
             && fIBPBOnVMEntry            == h.fIBPBOnVMEntry
             && fSpecCtrl                 == h.fSpecCtrl
             && fSpecCtrlByHost           == h.fSpecCtrlByHost
+            && fL1DFlushOnSched          == h.fL1DFlushOnSched
+            && fL1DFlushOnVMEntry        == h.fL1DFlushOnVMEntry
             && fNestedHWVirt             == h.fNestedHWVirt
             && cCPUs                     == h.cCPUs
             && fCpuHotPlug               == h.fCpuHotPlug
@@ -4218,6 +4224,12 @@ void MachineConfigFile::readHardware(const xml::ElementNode &elmHardware,
             pelmCPUChild = pelmHwChild->findChildElement("SpecCtrlByHost");
             if (pelmCPUChild)
                 pelmCPUChild->getAttributeValue("enabled", hw.fSpecCtrlByHost);
+            pelmCPUChild = pelmHwChild->findChildElement("L1DFlushOn");
+            if (pelmCPUChild)
+            {
+                pelmCPUChild->getAttributeValue("scheduling", hw.fL1DFlushOnSched);
+                pelmCPUChild->getAttributeValue("vmentry", hw.fL1DFlushOnVMEntry);
+            }
             pelmCPUChild = pelmHwChild->findChildElement("NestedHWVirt");
             if (pelmCPUChild)
                 pelmCPUChild->getAttributeValue("enabled", hw.fNestedHWVirt);
@@ -5578,11 +5590,19 @@ void MachineConfigFile::buildHardwareXML(xml::ElementNode &elmParent,
             if (hw.fIBPBOnVMEntry)
                 pelmChild->setAttribute("vmentry", hw.fIBPBOnVMEntry);
         }
+        if (hw.fSpecCtrl)
+            pelmCPU->createChild("SpecCtrl")->setAttribute("enabled", hw.fSpecCtrl);
+        if (hw.fSpecCtrlByHost)
+            pelmCPU->createChild("SpecCtrlByHost")->setAttribute("enabled", hw.fSpecCtrlByHost);
+        if (!hw.fL1DFlushOnSched || hw.fL1DFlushOnVMEntry)
+        {
+            xml::ElementNode *pelmChild = pelmCPU->createChild("L1DFlushOn");
+            if (!hw.fL1DFlushOnSched)
+                pelmChild->setAttribute("scheduling", hw.fL1DFlushOnSched);
+            if (hw.fL1DFlushOnVMEntry)
+                pelmChild->setAttribute("vmentry", hw.fL1DFlushOnVMEntry);
+        }
     }
-    if (m->sv >= SettingsVersion_v1_16 && hw.fSpecCtrl)
-        pelmCPU->createChild("SpecCtrl")->setAttribute("enabled", hw.fSpecCtrl);
-    if (m->sv >= SettingsVersion_v1_16 && hw.fSpecCtrlByHost)
-        pelmCPU->createChild("SpecCtrlByHost")->setAttribute("enabled", hw.fSpecCtrlByHost);
     if (m->sv >= SettingsVersion_v1_17 && hw.fNestedHWVirt)
         pelmCPU->createChild("NestedHWVirt")->setAttribute("enabled", hw.fNestedHWVirt);
 
@@ -7343,7 +7363,9 @@ void MachineConfigFile::bumpSettingsVersionIfNeeded()
             || hardwareMachine.fIBPBOnVMExit
             || hardwareMachine.fIBPBOnVMEntry
             || hardwareMachine.fSpecCtrl
-            || hardwareMachine.fSpecCtrlByHost)
+            || hardwareMachine.fSpecCtrlByHost
+            || !hardwareMachine.fL1DFlushOnSched
+            || hardwareMachine.fL1DFlushOnVMEntry)
         {
             m->sv = SettingsVersion_v1_16;
             return;

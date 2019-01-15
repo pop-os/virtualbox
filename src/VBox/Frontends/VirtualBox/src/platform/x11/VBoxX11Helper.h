@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBoxX11Helpers_h___
-#define ___VBoxX11Helpers_h___
+#ifndef FEQT_INCLUDED_SRC_platform_x11_VBoxX11Helper_h
+#define FEQT_INCLUDED_SRC_platform_x11_VBoxX11Helper_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "UILibraryDefs.h"
@@ -50,4 +53,4 @@ SHARED_LIBRARY_STUFF void X11ScreenSaverSettingsRestore();
 /** X11: Returns true if XLib extension with name @p extensionName is avaible, false otherwise. */
 SHARED_LIBRARY_STUFF bool X11CheckExtension(const char *extensionName);
 
-#endif /* !___VBoxX11Helpers_h___ */
+#endif /* !FEQT_INCLUDED_SRC_platform_x11_VBoxX11Helper_h */

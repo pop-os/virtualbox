@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_UNATTENDED
-#define ____H_UNATTENDED
+#ifndef MAIN_INCLUDED_UnattendedImpl_h
+#define MAIN_INCLUDED_UnattendedImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/ostypes.h>
 #include <iprt/time.h>
@@ -259,5 +262,5 @@ private:
     bool i_isGuestOSArchX64(Utf8Str const &rStrGuestOsTypeId);
 };
 
-#endif // !____H_UNATTENDED
+#endif /* !MAIN_INCLUDED_UnattendedImpl_h */
 

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_scsi_h
-#define ___VBox_scsi_h
+#ifndef VBOX_INCLUDED_scsi_h
+#define VBOX_INCLUDED_scsi_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/assert.h>
 
@@ -319,4 +322,4 @@ int SCSILogCueSheet(char *pszBuf, size_t cchBuffer, uint8_t *pbCueSheet,
                     size_t cbCueSheet);
 #endif
 
-#endif
+#endif /* !VBOX_INCLUDED_scsi_h */

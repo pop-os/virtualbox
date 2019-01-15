@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1962,10 +1962,6 @@ static int ichac97R3StreamOpen(PAC97STATE pThis, PAC97STREAM pStream)
 
     PAUDMIXSINK pMixSink = NULL;
 
-    /* Set scheduling hint (if available). */
-    if (pThis->uTimerHz)
-        Cfg.Device.uSchedulingHintMs = 1000 /* ms */ / pThis->uTimerHz;
-
     Cfg.Props.cChannels = 2;
     Cfg.Props.cBytes    = 2 /* 16-bit */;
     Cfg.Props.fSigned   = true;
@@ -2026,6 +2022,23 @@ static int ichac97R3StreamOpen(PAC97STATE pThis, PAC97STREAM pStream)
             {
                 Assert(Cfg.enmDir != PDMAUDIODIR_UNKNOWN);
 
+                /*
+                 * Set the stream's timer Hz rate, based on the PCM properties Hz rate.
+                 */
+                if (pThis->uTimerHz == AC97_TIMER_HZ_DEFAULT) /* Make sure that we don't have any custom Hz rate set we want to enforce */
+                {
+                    if (Cfg.Props.uHz > 44100) /* E.g. 48000 Hz. */
+                        pStream->State.uTimerHz = 200;
+                    else /* Just take the global Hz rate otherwise. */
+                        pStream->State.uTimerHz = pThis->uTimerHz;
+                }
+                else
+                    pStream->State.uTimerHz = pThis->uTimerHz;
+
+                /* Set scheduling hint (if available). */
+                if (pStream->State.uTimerHz)
+                    Cfg.Device.uSchedulingHintMs = 1000 /* ms */ / pStream->State.uTimerHz;
+
                 if (pStream->State.pCircBuf)
                 {
                     RTCircBufDestroy(pStream->State.pCircBuf);
@@ -2041,13 +2054,6 @@ static int ichac97R3StreamOpen(PAC97STATE pThis, PAC97STREAM pStream)
                     if (RT_SUCCESS(rc))
                         rc = DrvAudioHlpStreamCfgCopy(&pStream->State.Cfg, &Cfg);
                 }
-
-                /*
-                 * Set the stream's timer Hz rate.
-                 *
-                 * Currently we simply apply the global Hz rate.
-                 * This might needs tweaking as we add surround support and/or channel striping later. */
-                pStream->State.uTimerHz = pThis->uTimerHz;
 
                 /*
                  * Set up data transfer stuff.

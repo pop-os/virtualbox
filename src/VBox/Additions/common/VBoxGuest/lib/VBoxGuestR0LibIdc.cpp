@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2018 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -33,7 +33,7 @@
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
 #include "VBoxGuestR0LibInternal.h"
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 #include <VBox/VBoxGuest.h>
 /*#include <iprt/asm.h>*/
 

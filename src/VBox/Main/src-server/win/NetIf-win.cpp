@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,11 +20,11 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-#define LOG_GROUP LOG_GROUP_MAIN
+#define LOG_GROUP LOG_GROUP_MAIN_HOST
 
 #define NETIF_WITHOUT_NETCFG
 
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include <list>
 
 #define _WIN32_DCOM
@@ -41,7 +41,7 @@
 #include <iprt/win/iphlpapi.h>
 #include <iprt/win/ntddndis.h>
 
-#include "Logging.h"
+#include "LoggingNew.h"
 #include "HostNetworkInterfaceImpl.h"
 #include "ProgressImpl.h"
 #include "VirtualBoxImpl.h"

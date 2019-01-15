@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_system_h
-#define ___iprt_system_h
+#ifndef IPRT_INCLUDED_system_h
+#define IPRT_INCLUDED_system_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -286,5 +289,5 @@ RTDECL(uint64_t) RTSystemGetNtVersion(void);
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !IPRT_INCLUDED_system_h */
 

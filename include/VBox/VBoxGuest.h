@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -29,8 +29,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef ___VBox_VBoxGuest_h
-#define ___VBox_VBoxGuest_h
+#ifndef VBOX_INCLUDED_VBoxGuest_h
+#define VBOX_INCLUDED_VBoxGuest_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 #include <iprt/assertcompile.h>
@@ -1004,5 +1007,5 @@ RT_C_DECLS_END
 /** @} */
 
 /** @} */
-#endif
+#endif /* !VBOX_INCLUDED_VBoxGuest_h */
 

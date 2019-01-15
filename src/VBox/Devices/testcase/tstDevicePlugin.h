@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2017 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,8 +14,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___tstDevicePlugin_h
-#define ___tstDevicePlugin_h
+#ifndef VBOX_INCLUDED_SRC_testcase_tstDevicePlugin_h
+#define VBOX_INCLUDED_SRC_testcase_tstDevicePlugin_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 
@@ -122,4 +125,4 @@ typedef DECLCALLBACK(int) FNTSTDEVPLUGINLOAD(void *pvUser, PTSTDEVPLUGINREGISTER
 typedef FNTSTDEVPLUGINLOAD *PFNTSTDEVPLUGINLOAD;
 #define TSTDEV_PLUGIN_LOAD_NAME "TSTDevPluginLoad"
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_testcase_tstDevicePlugin_h */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___CPUMInternal_h
-#define ___CPUMInternal_h
+#ifndef VMM_INCLUDED_SRC_include_CPUMInternal_h
+#define VMM_INCLUDED_SRC_include_CPUMInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #ifndef VBOX_FOR_DTRACE_LIB
 # include <VBox/cdefs.h>
@@ -529,15 +532,17 @@ PCPUMCPUIDLEAF      cpumCpuIdGetLeafEx(PVM pVM, uint32_t uLeaf, uint32_t uSubLea
 
 # ifdef IN_RING3
 int                 cpumR3DbgInit(PVM pVM);
-int                 cpumR3CpuIdExplodeFeatures(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCPUMFEATURES pFeatures);
-int                 cpumR3InitCpuIdAndMsrs(PVM pVM);
+int                 cpumR3CpuIdExplodeFeatures(PCCPUMCPUIDLEAF paLeaves, uint32_t cLeaves, PCCPUMMSRS pMsrs, PCPUMFEATURES pFeatures);
+int                 cpumR3InitCpuIdAndMsrs(PVM pVM, PCCPUMMSRS pHostMsrs);
+void                cpumR3InitVmxGuestFeaturesAndMsrs(PVM pVM, PCVMXMSRS pHostVmxMsrs, PVMXMSRS pGuestVmxMsrs);
 void                cpumR3SaveCpuId(PVM pVM, PSSMHANDLE pSSM);
-int                 cpumR3LoadCpuId(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion);
+int                 cpumR3LoadCpuId(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion, PCCPUMMSRS pGuestMsrs);
 int                 cpumR3LoadCpuIdPre32(PVM pVM, PSSMHANDLE pSSM, uint32_t uVersion);
 DECLCALLBACK(void)  cpumR3CpuIdInfo(PVM pVM, PCDBGFINFOHLP pHlp, const char *pszArgs);
 
 int                 cpumR3DbGetCpuInfo(const char *pszName, PCPUMINFO pInfo);
 int                 cpumR3MsrRangesInsert(PVM pVM, PCPUMMSRRANGE *ppaMsrRanges, uint32_t *pcMsrRanges, PCCPUMMSRRANGE pNewRange);
+int                 cpumR3MsrReconcileWithCpuId(PVM pVM);
 int                 cpumR3MsrApplyFudge(PVM pVM);
 int                 cpumR3MsrRegStats(PVM pVM);
 int                 cpumR3MsrStrictInitChecks(void);
@@ -568,5 +573,5 @@ RT_C_DECLS_END
 
 /** @} */
 
-#endif
+#endif /* !VMM_INCLUDED_SRC_include_CPUMInternal_h */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,6 +15,7 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN_APPLIANCE
 #include <iprt/alloca.h>
 #include <iprt/path.h>
 #include <iprt/dir.h>
@@ -44,7 +45,7 @@
 #include "HostImpl.h"
 
 #include "AutoCaller.h"
-#include "Logging.h"
+#include "LoggingNew.h"
 
 #include "ApplianceImplPrivate.h"
 #include "CertificateImpl.h"
@@ -2640,7 +2641,8 @@ void Appliance::i_importOneDiskImage(const ovf::DiskImage &di,
                                                      MediumVariant_Standard,
                                                      hVfsIosReadAhead,
                                                      nullParent,
-                                                     pProgressImportTmp);
+                                                     pProgressImportTmp,
+                                                     true /* aNotify */);
                     RTVfsIoStrmRelease(hVfsIosReadAhead);
                     hVfsIosSrc = NIL_RTVFSIOSTREAM;
                     if (FAILED(rc))

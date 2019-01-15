@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_SHAREDFOLDERIMPL
-#define ____H_SHAREDFOLDERIMPL
+#ifndef MAIN_INCLUDED_SharedFolderImpl_h
+#define MAIN_INCLUDED_SharedFolderImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "SharedFolderWrap.h"
 #include <VBox/shflsvc.h>
@@ -112,5 +115,5 @@ private:
     Data *m;
 };
 
-#endif // !____H_SHAREDFOLDERIMPL
+#endif /* !MAIN_INCLUDED_SharedFolderImpl_h */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIVirtualBoxManager_h___
-#define ___UIVirtualBoxManager_h___
+#ifndef FEQT_INCLUDED_SRC_manager_UIVirtualBoxManager_h
+#define FEQT_INCLUDED_SRC_manager_UIVirtualBoxManager_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QUrl>
@@ -219,6 +222,9 @@ private slots:
         /** Handles call to power machine off. */
         void sltPerformPowerOffMachine();
 
+        /** Handles call to show machine tool corresponding to passed @a pAction. */
+        void sltPerformShowMachineTool(QAction *pAction);
+
         /** Handles call to open machine Log Viewer window. */
         void sltOpenLogViewerWindow();
         /** Handles call to close machine Log Viewer window. */
@@ -259,6 +265,8 @@ private:
 
         /** Saves settings. */
         void saveSettings();
+        /** Cleanups connections. */
+        void cleanupConnections();
         /** Cleanups widgets. */
         void cleanupWidgets();
         /** Cleanups menu-bar. */
@@ -351,4 +359,4 @@ private:
 
 #define gpManager UIVirtualBoxManager::instance()
 
-#endif /* !___UIVirtualBoxManager_h___ */
+#endif /* !FEQT_INCLUDED_SRC_manager_UIVirtualBoxManager_h */

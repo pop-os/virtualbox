@@ -1,10 +1,9 @@
-/* $Id: symvers.h $ */
 /** @file
  * IPRT - Linux symver and compatibility definitions.
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,8 +27,11 @@
  * distributions.  This will almost certainly need updating as time
  * goes by. */
 
-#ifndef ___iprt_linux_symvers_h
-#define ___iprt_linux_symvers_h
+#ifndef IPRT_INCLUDED_linux_symvers_h
+#define IPRT_INCLUDED_linux_symvers_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Please use -fno-stack-protector on the command line to avoid stack check
  * functions which are not available in EL3 for 32-bit builds. */
@@ -71,4 +73,4 @@ __asm__(".symver fcntl64,fcntl@GLIBC_2.2.5");
 __asm__(".symver fcntl64,fcntl@GLIBC_2.0");
 #endif
 
-#endif /* ___iprt_linux_symvers_h */
+#endif /* !IPRT_INCLUDED_linux_symvers_h */

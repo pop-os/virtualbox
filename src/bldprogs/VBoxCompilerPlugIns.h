@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBoxCompilerPlugIns_h__
-#define ___VBoxCompilerPlugIns_h__
+#ifndef VBOX_INCLUDED_SRC_bldprogs_VBoxCompilerPlugIns_h
+#define VBOX_INCLUDED_SRC_bldprogs_VBoxCompilerPlugIns_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 #include <stdio.h>
@@ -120,5 +123,5 @@ bool            VFmtChkRequireVaListPtrArg(PVFMTCHKSTATE pState, const char *psz
 void            MyCheckFormatCString(PVFMTCHKSTATE pState, const char *pszFmt);
 
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_bldprogs_VBoxCompilerPlugIns_h */
 

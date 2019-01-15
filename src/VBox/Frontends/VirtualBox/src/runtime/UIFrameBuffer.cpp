@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,44 +15,38 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
 /* Qt includes: */
-# include <QImage>
-# include <QRegion>
-# include <QPainter>
-# include <QTransform>
+#include <QImage>
+#include <QRegion>
+#include <QPainter>
+#include <QTransform>
+
 /* GUI includes: */
-# include "UIActionPool.h"
-# include "UIActionPoolRuntime.h"
-# include "UIFrameBuffer.h"
-# include "UISession.h"
-# include "UIMachineLogic.h"
+#include "UIActionPool.h"
+#include "UIActionPoolRuntime.h"
+#include "UIFrameBuffer.h"
+#include "UISession.h"
+#include "UIMachineLogic.h"
+#include "UIMachineWindow.h"
+#include "UIMachineView.h"
+#include "UIPopupCenter.h"
+#include "UIExtraDataManager.h"
+#include "VBoxGlobal.h"
+#ifdef VBOX_WITH_MASKED_SEAMLESS
 # include "UIMachineWindow.h"
-# include "UIMachineView.h"
-# include "UIPopupCenter.h"
-# include "UIExtraDataManager.h"
-# include "VBoxGlobal.h"
-# ifdef VBOX_WITH_MASKED_SEAMLESS
-#  include "UIMachineWindow.h"
-# endif /* VBOX_WITH_MASKED_SEAMLESS */
-# ifdef VBOX_WITH_VIDEOHWACCEL
-#  include "VBoxFBOverlay.h"
-# endif /* VBOX_WITH_VIDEOHWACCEL */
+#endif /* VBOX_WITH_MASKED_SEAMLESS */
+#ifdef VBOX_WITH_VIDEOHWACCEL
+# include "VBoxFBOverlay.h"
+#endif /* VBOX_WITH_VIDEOHWACCEL */
+
 /* COM includes: */
-# include "CConsole.h"
-# include "CDisplay.h"
-# include "CFramebuffer.h"
-# include "CDisplaySourceBitmap.h"
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CConsole.h"
+#include "CDisplay.h"
+#include "CFramebuffer.h"
+#include "CDisplaySourceBitmap.h"
 
 /* VirtualBox interface declarations: */
-#ifndef VBOX_WITH_XPCOM
-# include "VirtualBox.h"
-#else /* !VBOX_WITH_XPCOM */
-# include "VirtualBox_XPCOM.h"
-#endif /* VBOX_WITH_XPCOM */
+#include <VBox/com/VirtualBox.h>
 
 /* Other VBox includes: */
 #include <iprt/critsect.h>

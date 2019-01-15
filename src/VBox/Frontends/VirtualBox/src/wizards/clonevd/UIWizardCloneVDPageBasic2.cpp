@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,26 +15,20 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QVBoxLayout>
-# include <QButtonGroup>
-# include <QRadioButton>
+#include <QVBoxLayout>
+#include <QButtonGroup>
+#include <QRadioButton>
 
 /* GUI includes: */
-# include "UIConverter.h"
-# include "UIWizardCloneVDPageBasic2.h"
-# include "UIWizardCloneVD.h"
-# include "VBoxGlobal.h"
-# include "QIRichTextLabel.h"
+#include "UIConverter.h"
+#include "UIWizardCloneVDPageBasic2.h"
+#include "UIWizardCloneVD.h"
+#include "VBoxGlobal.h"
+#include "QIRichTextLabel.h"
 
 /* COM includes: */
-# include "CSystemProperties.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CSystemProperties.h"
 
 
 UIWizardCloneVDPage2::UIWizardCloneVDPage2()

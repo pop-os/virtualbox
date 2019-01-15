@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,12 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-#ifndef __VDIoBackend_h__
-#define __VDIoBackend_h__
+
+#ifndef VBOX_INCLUDED_SRC_testcase_VDIoBackend_h
+#define VBOX_INCLUDED_SRC_testcase_VDIoBackend_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/sg.h>
 
@@ -89,4 +93,4 @@ DECLHIDDEN(int) VDIoBackendDumpToFile(PVDIOSTORAGE pIoStorage, const char *pszPa
 int VDIoBackendTransfer(PVDIOSTORAGE pIoStorage, VDIOTXDIR enmTxDir, uint64_t off,
                         size_t cbTransfer, PRTSGBUF pSgBuf, void *pvUser, bool fSync);
 
-#endif /* __VDIoBackendMem_h__ */
+#endif /* !VBOX_INCLUDED_SRC_testcase_VDIoBackend_h */

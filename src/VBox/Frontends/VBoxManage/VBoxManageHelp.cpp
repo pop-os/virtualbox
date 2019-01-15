@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -516,6 +516,8 @@ void printUsage(USAGECATEGORY fCategory, uint32_t fSubCategory, PRTSTREAM pStrm)
                      "                            [--ibpb-on-vm-exit on|off]\n"
                      "                            [--ibpb-on-vm-entry on|off]\n"
                      "                            [--spec-ctrl on|off]\n"
+                     "                            [--l1d-flush-on-sched on|off]\n"
+                     "                            [--l1d-flush-on-vm-entry on|off]\n"
                      "                            [--nested-hw-virt on|off]\n"
                      "                            [--cpu-profile \"host|Intel 80[86|286|386]\"]\n"
                      "                            [--cpuid-portability-level <0..3>\n"

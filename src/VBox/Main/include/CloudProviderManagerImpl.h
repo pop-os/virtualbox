@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018 Oracle Corporation
+ * Copyright (C) 2018-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,9 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-
-#ifndef ____H_CLOUDPROVIDERMANAGERIMPL
-#define ____H_CLOUDPROVIDERMANAGERIMPL
+#ifndef MAIN_INCLUDED_CloudProviderManagerImpl_h
+#define MAIN_INCLUDED_CloudProviderManagerImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "CloudProviderManagerWrap.h"
 
@@ -62,6 +64,6 @@ private:
     CloudProviderVec m_apCloudProviders;
 };
 
-#endif // !____H_CLOUDPROVIDERMANAGERIMPL
+#endif /* !MAIN_INCLUDED_CloudProviderManagerImpl_h */
 
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

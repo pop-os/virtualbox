@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2017 Oracle Corporation
+ * Copyright (C) 2014-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -67,7 +67,7 @@
 #include <iprt/rand.h>
 #include <iprt/param.h>
 #include <iprt/string.h>
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 #if defined(CIDET_DPRINTF_ENABLED) || defined(CIDET_DEBUG_DISAS)
 # include <VBox/dis.h>
 # include <iprt/stream.h>

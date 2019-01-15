@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  * This file is based on ast_mode.c
  * Copyright 2012 Red Hat Inc.
  * Parts based on xf86-video-ast
@@ -356,8 +356,9 @@ static struct drm_encoder *vbox_best_single_encoder(struct drm_connector
 	/* pick the encoder ids */
 	if (enc_id)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0) || \
-    (defined(CONFIG_SUSE_VERSION) && CONFIG_SUSE_VERSION == 15) || \
-		defined(RHEL_76)
+    (defined(CONFIG_SUSE_VERSION) && \
+        LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)) || \
+    defined(RHEL_76)
 		return drm_encoder_find(connector->dev, NULL, enc_id);
 #else
 		return drm_encoder_find(connector->dev, enc_id);

@@ -1,10 +1,10 @@
-/* $Id: DevVGA-SVGA3d-shared.cpp 127436 2018-12-12 15:16:19Z sunlover $ */
+/* $Id: DevVGA-SVGA3d-shared.cpp 127855 2019-01-01 01:45:53Z bird $ */
 /** @file
  * DevVMWare - VMWare SVGA device
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -22,7 +22,7 @@
 #define LOG_GROUP LOG_GROUP_DEV_VMSVGA
 #include <VBox/vmm/pdmdev.h>
 #include <VBox/version.h>
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 #include <VBox/log.h>
 #include <VBox/vmm/pgm.h>
 

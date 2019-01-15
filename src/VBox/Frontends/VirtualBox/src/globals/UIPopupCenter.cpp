@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2018 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,31 +15,25 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* GUI includes: */
-# include "QIMessageBox.h"
-# include "VBoxGlobal.h"
-# include "UIErrorString.h"
-# include "UIExtraDataManager.h"
-# include "UIHostComboEditor.h"
-# include "UIPopupCenter.h"
-# include "UIPopupStack.h"
+#include "QIMessageBox.h"
+#include "VBoxGlobal.h"
+#include "UIErrorString.h"
+#include "UIExtraDataManager.h"
+#include "UIHostComboEditor.h"
+#include "UIPopupCenter.h"
+#include "UIPopupStack.h"
 
 /* COM includes: */
-# include "CAudioAdapter.h"
-# include "CConsole.h"
-# include "CEmulatedUSB.h"
-# include "CMachine.h"
-# include "CNetworkAdapter.h"
-# include "CVRDEServer.h"
+#include "CAudioAdapter.h"
+#include "CConsole.h"
+#include "CEmulatedUSB.h"
+#include "CMachine.h"
+#include "CNetworkAdapter.h"
+#include "CVRDEServer.h"
 
 /* Other VBox includes: */
-# include <VBox/sup.h>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include <VBox/sup.h>
 
 
 /* static */

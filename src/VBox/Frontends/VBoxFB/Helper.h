@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +16,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __H_HELPER
-#define __H_HELPER
+#ifndef VBOX_INCLUDED_SRC_VBoxFB_Helper_h
+#define VBOX_INCLUDED_SRC_VBoxFB_Helper_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #define MAX_VIDEOMODES 64
 struct videoMode
@@ -33,4 +36,4 @@ DFBEnumerationResult enumVideoModesHandler(int width, int height, int bpp, void 
 int32_t getBestVideoMode(uint32_t width, uint32_t height, uint32_t bpp);
 
 
-#endif // __H_HELPER
+#endif /* !VBOX_INCLUDED_SRC_VBoxFB_Helper_h */

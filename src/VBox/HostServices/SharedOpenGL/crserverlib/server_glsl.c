@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -181,7 +181,7 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchDeleteProgramsARB(GLsizei n, const
     GLuint *pLocalProgs;
     GLint i;
 
-    if (n >= INT32_MAX / sizeof(GLuint))
+    if (n <= 0 || n >= INT32_MAX / sizeof(GLuint))
     {
         crError("crServerDispatchDeleteProgramsARB: parameter 'n' is out of range");
         return;
@@ -222,7 +222,7 @@ crServerDispatchAreProgramsResidentNV(GLsizei n, const GLuint *programs,
     GLsizei i;
     (void) residences;
 
-    if (n >= INT32_MAX / sizeof(GLuint))
+    if (n <= 0 || n >= INT32_MAX / sizeof(GLuint))
     {
         crError("crServerDispatchAreProgramsResidentNV: parameter 'n' is out of range");
         return GL_FALSE;

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2018 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,27 +15,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QAccessibleObject>
-# include <QApplication>
-# include <QGraphicsScene>
-# include <QPainter>
-# include <QStyleOptionGraphicsItem>
+#include <QAccessibleObject>
+#include <QApplication>
+#include <QGraphicsScene>
+#include <QPainter>
+#include <QStyleOptionGraphicsItem>
 
 /* GUI includes: */
-# include "UIGraphicsTextPane.h"
-# include "UIDetails.h"
-# include "UIDetailsElement.h"
-# include "UIDetailsGroup.h"
-# include "UIDetailsModel.h"
-# include "UIDetailsSet.h"
-# include "UIDetailsView.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "UIGraphicsTextPane.h"
+#include "UIDetails.h"
+#include "UIDetailsElement.h"
+#include "UIDetailsGroup.h"
+#include "UIDetailsModel.h"
+#include "UIDetailsSet.h"
+#include "UIDetailsView.h"
 
 
 /** QAccessibleObject extension used as an accessibility interface for Details-view items. */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___IEMInternal_h
-#define ___IEMInternal_h
+#ifndef VMM_INCLUDED_SRC_include_IEMInternal_h
+#define VMM_INCLUDED_SRC_include_IEMInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/vmm/cpum.h>
 #include <VBox/vmm/iem.h>
@@ -1906,5 +1909,5 @@ typedef IEMOPMEDIAF1H1 const *PCIEMOPMEDIAF1H1;
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VMM_INCLUDED_SRC_include_IEMInternal_h */
 

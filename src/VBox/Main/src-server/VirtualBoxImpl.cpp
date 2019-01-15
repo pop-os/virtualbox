@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,6 +15,7 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN_VIRTUALBOX
 #include <iprt/asm.h>
 #include <iprt/base64.h>
 #include <iprt/buildconfig.h>
@@ -77,11 +78,10 @@
 #endif
 #include "AutostartDb.h"
 #include "ClientWatcher.h"
-
 #include "AutoCaller.h"
-#include "Logging.h"
-
-# include "CloudProviderManagerImpl.h"
+#include "LoggingNew.h"
+#include "CloudProviderManagerImpl.h"
+#include "ThreadTask.h"
 
 #include <QMTranslator.h>
 
@@ -90,7 +90,6 @@
 # include "tchar.h"
 #endif
 
-#include "ThreadTask.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -1962,7 +1961,10 @@ HRESULT VirtualBox::createMedium(const com::Utf8Str &aFormat,
     }
 
     if (SUCCEEDED(rc))
+    {
         medium.queryInterfaceTo(aMedium.asOutParam());
+        i_onMediumRegistered(medium->i_getId(), medium->i_getDeviceType(), TRUE);
+    }
 
     return rc;
 }
@@ -2013,6 +2015,7 @@ HRESULT VirtualBox::openMedium(const com::Utf8Str &aLocation,
             return setError(E_INVALIDARG, "Device type must be HardDisk, DVD or Floppy %d", aDeviceType);
     }
 
+    bool fMediumRegistered = false;
     if (pMedium.isNull())
     {
         pMedium.createObject();
@@ -2039,6 +2042,10 @@ HRESULT VirtualBox::openMedium(const com::Utf8Str &aLocation,
                 pMedium->uninit();
                 rc = VBOX_E_OBJECT_NOT_FOUND;
             }
+            else
+            {
+                fMediumRegistered = true;
+            }
         }
         else
         {
@@ -2048,7 +2055,11 @@ HRESULT VirtualBox::openMedium(const com::Utf8Str &aLocation,
     }
 
     if (SUCCEEDED(rc))
+    {
         pMedium.queryInterfaceTo(aMedium.asOutParam());
+        if (fMediumRegistered)
+            i_onMediumRegistered(pMedium->i_getId(), pMedium->i_getDeviceType() ,TRUE);
+    }
 
     return rc;
 }
@@ -2251,6 +2262,15 @@ int VirtualBox::i_decryptSettings()
         int vrc = i_decryptMediumSettings(pMedium);
         if (RT_FAILURE(vrc))
             fFailure = true;
+    }
+    if (!fFailure)
+    {
+        for (MediaList::const_iterator mt = m->allHardDisks.begin();
+             mt != m->allHardDisks.end();
+             ++mt)
+        {
+            i_onMediumConfigChanged(*mt);
+        }
     }
     return fFailure ? VERR_INVALID_PARAMETER : VINF_SUCCESS;
 }
@@ -2916,6 +2936,100 @@ int VirtualBox::i_unloadVDPlugin(const char *pszPluginLibrary)
     return m->pSystemProperties->i_unloadVDPlugin(pszPluginLibrary);
 }
 
+
+/** Event for onMediumRegistered() */
+struct MediumRegisteredEventStruct : public VirtualBox::CallbackEvent
+{
+    MediumRegisteredEventStruct(VirtualBox *aVB, const Guid &aMediumId,
+                          const DeviceType_T aDevType, const BOOL aRegistered)
+        : CallbackEvent(aVB, VBoxEventType_OnMediumRegistered)
+        , mMediumId(aMediumId.toUtf16()), mDevType(aDevType), mRegistered(aRegistered)
+    {}
+
+    virtual HRESULT prepareEventDesc(IEventSource *aSource, VBoxEventDesc &aEvDesc)
+    {
+        return aEvDesc.init(aSource, VBoxEventType_OnMediumRegistered, mMediumId.raw(), mDevType, mRegistered);
+    }
+
+    Bstr mMediumId;
+    DeviceType_T mDevType;
+    BOOL mRegistered;
+};
+
+/**
+ *  @note Doesn't lock any object.
+ */
+void VirtualBox::i_onMediumRegistered(const Guid &aMediumId, const DeviceType_T aDevType, const BOOL aRegistered)
+{
+    i_postEvent(new MediumRegisteredEventStruct(this, aMediumId, aDevType, aRegistered));
+}
+
+/** Event for onMediumConfigChanged() */
+struct MediumConfigChangedEventStruct : public VirtualBox::CallbackEvent
+{
+    MediumConfigChangedEventStruct(VirtualBox *aVB, IMedium *aMedium)
+        : CallbackEvent(aVB, VBoxEventType_OnMediumConfigChanged)
+        , mMedium(aMedium)
+    {}
+
+    virtual HRESULT prepareEventDesc(IEventSource *aSource, VBoxEventDesc &aEvDesc)
+    {
+        return aEvDesc.init(aSource, VBoxEventType_OnMediumConfigChanged, mMedium);
+    }
+
+    IMedium* mMedium;
+};
+
+void VirtualBox::i_onMediumConfigChanged(IMedium *aMedium)
+{
+    i_postEvent(new MediumConfigChangedEventStruct(this, aMedium));
+}
+
+/** Event for onMediumChanged() */
+struct MediumChangedEventStruct : public VirtualBox::CallbackEvent
+{
+    MediumChangedEventStruct(VirtualBox *aVB, IMediumAttachment *aMediumAttachment)
+        : CallbackEvent(aVB, VBoxEventType_OnMediumChanged)
+        , mMediumAttachment(aMediumAttachment)
+    {}
+
+    virtual HRESULT prepareEventDesc(IEventSource *aSource, VBoxEventDesc &aEvDesc)
+    {
+        return aEvDesc.init(aSource, VBoxEventType_OnMediumChanged, mMediumAttachment);
+    }
+
+    IMediumAttachment* mMediumAttachment;
+};
+
+void VirtualBox::i_onMediumChanged(IMediumAttachment *aMediumAttachment)
+{
+    i_postEvent(new MediumChangedEventStruct(this, aMediumAttachment));
+}
+
+/** Event for onStorageDeviceChanged() */
+struct StorageDeviceChangedEventStruct : public VirtualBox::CallbackEvent
+{
+    StorageDeviceChangedEventStruct(VirtualBox *aVB, IMediumAttachment *aStorageDevice, BOOL fRemoved, BOOL fSilent)
+        : CallbackEvent(aVB, VBoxEventType_OnStorageDeviceChanged)
+        , mStorageDevice(aStorageDevice)
+        , mRemoved(fRemoved)
+        , mSilent(fSilent)
+    {}
+
+    virtual HRESULT prepareEventDesc(IEventSource *aSource, VBoxEventDesc &aEvDesc)
+    {
+        return aEvDesc.init(aSource, VBoxEventType_OnStorageDeviceChanged, mStorageDevice, mRemoved, mSilent);
+    }
+
+    IMediumAttachment* mStorageDevice;
+    BOOL mRemoved;
+    BOOL mSilent;
+};
+
+void VirtualBox::i_onStorageDeviceChanged(IMediumAttachment *aStorageDevice, const BOOL fRemoved, const BOOL fSilent)
+{
+    i_postEvent(new StorageDeviceChangedEventStruct(this, aStorageDevice, fRemoved, fSilent));
+}
 
 /**
  *  @note Doesn't lock any object.

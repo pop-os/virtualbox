@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,9 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-
-#ifndef ___common_crypto_keys_internal_h
-#define ___common_crypto_keys_internal_h
+#ifndef IPRT_INCLUDED_SRC_common_crypto_key_internal_h
+#define IPRT_INCLUDED_SRC_common_crypto_key_internal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/crypto/key.h>
 #include <iprt/bignum.h>
@@ -105,4 +107,4 @@ DECLHIDDEN(int) rtCrKeyCreateRsaPublic(PRTCRKEY phKey, const void *pvKeyBits, ui
 DECLHIDDEN(int) rtCrKeyCreateRsaPrivate(PRTCRKEY phKey, const void *pvKeyBits, uint32_t cbKeyBits,
                                         PRTERRINFO pErrInfo, const char *pszErrorTag);
 
-#endif
+#endif /* !IPRT_INCLUDED_SRC_common_crypto_key_internal_h */

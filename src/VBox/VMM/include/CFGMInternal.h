@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___CFGMInternal_h
-#define ___CFGMInternal_h
+#ifndef VMM_INCLUDED_SRC_include_CFGMInternal_h
+#define VMM_INCLUDED_SRC_include_CFGMInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
@@ -128,4 +131,4 @@ typedef struct CFGM
 
 /** @} */
 
-#endif
+#endif /* !VMM_INCLUDED_SRC_include_CFGMInternal_h */

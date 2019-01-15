@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBoxStubBld_h___
-#define ___VBoxStubBld_h___
+#ifndef VBOX_INCLUDED_SRC_StubBld_VBoxStubBld_h
+#define VBOX_INCLUDED_SRC_StubBld_VBoxStubBld_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #define VBOXSTUB_MAX_PACKAGES 128
 
@@ -63,4 +66,4 @@ typedef struct VBOXSTUBBUILDPKG
 } VBOXSTUBBUILDPKG;
 typedef VBOXSTUBBUILDPKG *PVBOXSTUBBUILDPKG;
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_StubBld_VBoxStubBld_h */

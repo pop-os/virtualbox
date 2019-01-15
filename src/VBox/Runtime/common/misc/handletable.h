@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,6 +23,12 @@
  * You may elect to license modified versions of this file under the
  * terms and conditions of either the GPL or the CDDL or both.
  */
+
+#ifndef IPRT_INCLUDED_SRC_common_misc_handletable_h
+#define IPRT_INCLUDED_SRC_common_misc_handletable_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 
 /*******************************************************************************
@@ -236,4 +242,6 @@ DECLINLINE(void) rtHandleTableUnlock(PRTHANDLETABLEINT pThis)
     if (pThis->hSpinlock != NIL_RTSPINLOCK)
         RTSpinlockRelease(pThis->hSpinlock);
 }
+
+#endif /* !IPRT_INCLUDED_SRC_common_misc_handletable_h */
 

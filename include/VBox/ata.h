@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_ata_h
-#define ___VBox_ata_h
+#ifndef VBOX_INCLUDED_ata_h
+#define VBOX_INCLUDED_ata_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 
 /* Bits of HD_STATUS */
@@ -205,5 +208,5 @@ typedef enum ATACMD
 const char * ATACmdText(uint8_t uCmd);
 #endif
 
-#endif /* !___VBox_ata_h */
+#endif /* !VBOX_INCLUDED_ata_h */
 

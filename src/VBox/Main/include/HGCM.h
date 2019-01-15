@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,14 +15,14 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___HGCM_h_
-#define ___HGCM_h_
+#ifndef MAIN_INCLUDED_HGCM_h
+#define MAIN_INCLUDED_HGCM_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
-#include <VBox/cdefs.h>
-#include <VBox/types.h>
 #include <VBox/vmm/pdmifs.h>
 
-#include <VBox/VMMDev.h>
 #include <VBox/hgcmsvc.h>
 
 /* Handle of a HGCM service extension. */
@@ -61,5 +61,5 @@ int HGCMHostLoadState(PSSMHANDLE pSSM, uint32_t uVersion);
 
 RT_C_DECLS_END
 
-#endif /* !___HGCM_h_ */
+#endif /* !MAIN_INCLUDED_HGCM_h */
 

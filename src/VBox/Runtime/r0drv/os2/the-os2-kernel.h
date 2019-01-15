@@ -28,9 +28,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-
-#ifndef ___the_os2_kernel_h
-#define ___the_os2_kernel_h
+#ifndef IPRT_INCLUDED_SRC_r0drv_os2_the_os2_kernel_h
+#define IPRT_INCLUDED_SRC_r0drv_os2_the_os2_kernel_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 
@@ -54,4 +56,4 @@ DECLASM(int) RTR0Os2DHVMGlobalToProcess(ULONG fFlags, PVOID pvR0, ULONG cb, PPVO
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !IPRT_INCLUDED_SRC_r0drv_os2_the_os2_kernel_h */

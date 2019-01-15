@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_uint32_h
-#define ___iprt_uint32_h
+#ifndef IPRT_INCLUDED_uint32_h
+#define IPRT_INCLUDED_uint32_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -1051,5 +1054,5 @@ DECLINLINE(PRTUINT32U) RTUInt32DivRem(PRTUINT32U pQuotient, PRTUINT32U pRemainde
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !IPRT_INCLUDED_uint32_h */
 

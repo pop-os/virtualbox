@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2018 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIGuestTable_h___
-#define ___UIGuestTable_h___
+#ifndef FEQT_INCLUDED_SRC_guestctrl_UIFileManagerGuestTable_h
+#define FEQT_INCLUDED_SRC_guestctrl_UIFileManagerGuestTable_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 # include <QUuid>
@@ -30,6 +33,7 @@
 
 /* Forward declarations: */
 class UIActionPool;
+class UICustomFileSystemItem;
 
 /** This class scans the guest file system by using the VBox Guest Control API
  *  and populates the UIGuestControlFileModel*/
@@ -52,11 +56,11 @@ signals:
 protected:
 
     void            retranslateUi() /* override */;
-    virtual void    readDirectory(const QString& strPath, UIFileTableItem *parent, bool isStartDir = false) /* override */;
-    virtual void    deleteByItem(UIFileTableItem *item) /* override */;
+    virtual void    readDirectory(const QString& strPath, UICustomFileSystemItem *parent, bool isStartDir = false) /* override */;
+    virtual void    deleteByItem(UICustomFileSystemItem *item) /* override */;
     virtual void    deleteByPath(const QStringList &pathList) /* override */;
     virtual void    goToHomeDirectory() /* override */;
-    virtual bool    renameItem(UIFileTableItem *item, QString newBaseName);
+    virtual bool    renameItem(UICustomFileSystemItem *item, QString newBaseName);
     virtual bool    createDirectory(const QString &path, const QString &directoryName);
     virtual QString fsObjectPropertyString() /* override */;
     virtual void    showProperties() /* override */;
@@ -72,13 +76,15 @@ protected:
 
 private:
 
-    FileObjectType  fileType(const CFsObjInfo &fsInfo);
-    FileObjectType  fileType(const CGuestFsObjInfo &fsInfo);
+    KFsObjType  fileType(const CFsObjInfo &fsInfo);
+    KFsObjType  fileType(const CGuestFsObjInfo &fsInfo);
 
     void prepareActionConnections();
     bool checkGuestSession();
     QString permissionString(const CFsObjInfo &fsInfo);
+    bool isFileObjectHidden(const CFsObjInfo &fsInfo);
+
     mutable CGuestSession     m_comGuestSession;
 };
 
-#endif /* !___UIFileManagerGuestTable_h___ */
+#endif /* !FEQT_INCLUDED_SRC_guestctrl_UIFileManagerGuestTable_h */

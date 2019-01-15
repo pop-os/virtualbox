@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2018 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -30,6 +30,7 @@
 RT_C_DECLS_BEGIN
 #include <X11/Xatom.h>
 #include <X11/Xlib.h>
+#undef BOOL /* VBox/com/defs.h conflict */
 #include <X11/extensions/dpms.h>
 RT_C_DECLS_END
 

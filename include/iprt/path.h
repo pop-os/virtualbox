@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_path_h
-#define ___iprt_path_h
+#ifndef IPRT_INCLUDED_path_h
+#define IPRT_INCLUDED_path_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -45,7 +48,7 @@ RT_C_DECLS_BEGIN
  * Host max path (the reasonable value).
  * @remarks defined both by iprt/param.h and iprt/path.h.
  */
-#if !defined(___iprt_param_h) || defined(DOXYGEN_RUNNING)
+#if !defined(IPRT_INCLUDED_param_h) || defined(DOXYGEN_RUNNING)
 # define RTPATH_MAX         (4096 + 4)    /* (PATH_MAX + 1) on linux w/ some alignment */
 #endif
 
@@ -1082,11 +1085,13 @@ RTDECL(int) RTPathTraverseList(const char *pszPathList, char chSep, PFNRTPATHTRA
  * @param   cbPathDst       The size of the buffer pszPathDst points to,
  *                          terminator included.
  * @param   pszPathFrom     The path to start from creating the relative path.
+ * @param   fFromFile       Whether @a pszPathFrom is a file and we should work
+ *                          relative to it's parent directory (@c true), or if
+ *                          we should assume @a pszPathFrom is a directory and
+ *                          work relative to it.
  * @param   pszPathTo       The path to reach with the created relative path.
  */
-RTDECL(int) RTPathCalcRelative(char *pszPathDst, size_t cbPathDst,
-                               const char *pszPathFrom,
-                               const char *pszPathTo);
+RTDECL(int) RTPathCalcRelative(char *pszPathDst, size_t cbPathDst, const char *pszPathFrom, bool fFromFile, const char *pszPathTo);
 
 #ifdef IN_RING3
 
@@ -1534,5 +1539,5 @@ RTDECL(void) RTPathWinFree(PRTUTF16 pwszPath);
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !IPRT_INCLUDED_path_h */
 

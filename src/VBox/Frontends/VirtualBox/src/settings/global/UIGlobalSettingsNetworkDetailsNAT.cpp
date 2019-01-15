@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,19 +15,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QRegExpValidator>
+#include <QRegExpValidator>
 
 /* GUI includes: */
-# include "UIGlobalSettingsNetwork.h"
-# include "UIGlobalSettingsNetworkDetailsNAT.h"
-# include "UIGlobalSettingsPortForwardingDlg.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "UIGlobalSettingsNetwork.h"
+#include "UIGlobalSettingsNetworkDetailsNAT.h"
+#include "UIGlobalSettingsPortForwardingDlg.h"
 
 
 UIGlobalSettingsNetworkDetailsNAT::UIGlobalSettingsNetworkDetailsNAT(QWidget *pParent,

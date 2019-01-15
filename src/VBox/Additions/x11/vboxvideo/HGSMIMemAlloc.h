@@ -1,6 +1,6 @@
 /* $Id: HGSMIMemAlloc.h $ */
 /*
- * Copyright (C) 2017 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -28,8 +28,12 @@
 /* In builds inside of the VirtualBox source tree we override the default
  * HGSMIMemAlloc.h using -include, therefore this define must match the one
  * there. */
-#ifndef ___VBox_Graphics_HGSMIMemAlloc_h
-#define ___VBox_Graphics_HGSMIMemAlloc_h
+
+#ifndef VBOX_INCLUDED_Graphics_HGSMIMemAlloc_h
+#define VBOX_INCLUDED_Graphics_HGSMIMemAlloc_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "HGSMIDefs.h"
 #include "VBoxVideoIPRT.h"
@@ -56,4 +60,4 @@ void HGSMIMAFree(HGSMIMADATA *pMA, void RT_UNTRUSTED_VOLATILE_GUEST *pv);
 
 RT_C_DECLS_END
 
-#endif /* !___VBox_Graphics_HGSMIMemAlloc_h */
+#endif /* !VBOX_INCLUDED_Graphics_HGSMIMemAlloc_h */

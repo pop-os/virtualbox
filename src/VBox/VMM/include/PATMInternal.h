@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___PATMInternal_h
-#define ___PATMInternal_h
+#ifndef VMM_INCLUDED_SRC_include_PATMInternal_h
+#define VMM_INCLUDED_SRC_include_PATMInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
@@ -686,4 +689,4 @@ void patmR3DbgAddPatch(PVM pVM, PPATMPATCHREC pPatchRec);
 
 PGM_ALL_CB2_PROTO(FNPGMVIRTHANDLER) patmVirtPageHandler;
 
-#endif
+#endif /* !VMM_INCLUDED_SRC_include_PATMInternal_h */

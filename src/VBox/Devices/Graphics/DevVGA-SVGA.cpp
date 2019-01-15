@@ -11,7 +11,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -2853,7 +2853,8 @@ static void vmsvgaR3FifoHandleExtCmd(PVGASTATE pThis)
             AssertLogRelMsgBreak(RT_VALID_PTR(pSSM), ("pSSM=%p\n", pSSM));
             vmsvgaSaveExecFifo(pThis, pSSM);
 # ifdef VBOX_WITH_VMSVGA3D
-            vmsvga3dSaveExec(pThis, pSSM);
+            if (pThis->svga.f3DEnabled)
+                vmsvga3dSaveExec(pThis, pSSM);
 # endif
             break;
         }
@@ -2865,7 +2866,8 @@ static void vmsvgaR3FifoHandleExtCmd(PVGASTATE pThis)
             AssertLogRelMsgBreak(RT_VALID_PTR(pLoadState), ("pLoadState=%p\n", pLoadState));
             vmsvgaLoadExecFifo(pThis, pLoadState->pSSM, pLoadState->uVersion, pLoadState->uPass);
 # ifdef VBOX_WITH_VMSVGA3D
-            vmsvga3dLoadExec(pThis, pLoadState->pSSM, pLoadState->uVersion, pLoadState->uPass);
+            if (pThis->svga.f3DEnabled)
+                vmsvga3dLoadExec(pThis, pLoadState->pSSM, pLoadState->uVersion, pLoadState->uPass);
 # endif
             break;
         }
@@ -3799,37 +3801,52 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                          pCmd->screen.id, pCmd->screen.flags, pCmd->screen.size.width, pCmd->screen.size.height, pCmd->screen.root.x, pCmd->screen.root.y,
                          pCmd->screen.backingStore.ptr.gmrId, pCmd->screen.backingStore.ptr.offset, pCmd->screen.backingStore.pitch));
 
-                AssertBreak(pCmd->screen.id < RT_ELEMENTS(pThis->svga.pSvgaR3State->aScreens));
+                uint32_t const idScreen = pCmd->screen.id;
+                AssertBreak(idScreen < RT_ELEMENTS(pThis->svga.pSvgaR3State->aScreens));
 
                 uint32_t const uWidth = pCmd->screen.size.width;
-                AssertBreak(0 < uWidth && uWidth <= pThis->svga.u32MaxWidth);
+                AssertBreak(uWidth <= pThis->svga.u32MaxWidth);
 
                 uint32_t const uHeight = pCmd->screen.size.height;
-                AssertBreak(0 < uHeight && uHeight <= pThis->svga.u32MaxHeight);
+                AssertBreak(uHeight <= pThis->svga.u32MaxHeight);
 
                 uint32_t const cbWidth = uWidth * ((32 + 7) / 8); /** @todo 32? */
                 uint32_t const cbPitch = pCmd->screen.backingStore.pitch ? pCmd->screen.backingStore.pitch : cbWidth;
-                AssertBreak(0 < cbWidth && cbWidth <= cbPitch);
+                AssertBreak(cbWidth <= cbPitch);
 
                 uint32_t const uScreenOffset = pCmd->screen.backingStore.ptr.offset;
                 AssertBreak(uScreenOffset < pThis->vram_size);
 
                 uint32_t const cbVram = pThis->vram_size - uScreenOffset;
-                AssertBreak(uHeight <= cbVram / cbPitch);
+                /* If we have a not zero pitch, then height can't exceed the available VRAM. */
+                AssertBreak(   (uHeight == 0 && cbPitch == 0)
+                            || (cbPitch > 0 && uHeight <= cbVram / cbPitch));
                 RT_UNTRUSTED_VALIDATED_FENCE();
 
-                VMSVGASCREENOBJECT *pScreen = &pThis->svga.pSvgaR3State->aScreens[pCmd->screen.id];
+                VMSVGASCREENOBJECT *pScreen = &pThis->svga.pSvgaR3State->aScreens[idScreen];
+
+                bool const fBlank = RT_BOOL(pCmd->screen.flags & (SVGA_SCREEN_DEACTIVATE | SVGA_SCREEN_BLANKING));
+
                 pScreen->fDefined  = true;
                 pScreen->fModified = true;
                 pScreen->fuScreen  = pCmd->screen.flags;
-                pScreen->idScreen  = pCmd->screen.id;
-                pScreen->xOrigin   = pCmd->screen.root.x;
-                pScreen->yOrigin   = pCmd->screen.root.y;
-                pScreen->cWidth    = uWidth;
-                pScreen->cHeight   = uHeight;
-                pScreen->offVRAM   = uScreenOffset;
-                pScreen->cbPitch   = cbPitch;
-                pScreen->cBpp      = 32;
+                pScreen->idScreen  = idScreen;
+                if (!fBlank)
+                {
+                    AssertBreak(uWidth > 0 && uHeight > 0);
+
+                    pScreen->xOrigin = pCmd->screen.root.x;
+                    pScreen->yOrigin = pCmd->screen.root.y;
+                    pScreen->cWidth  = uWidth;
+                    pScreen->cHeight = uHeight;
+                    pScreen->offVRAM = uScreenOffset;
+                    pScreen->cbPitch = cbPitch;
+                    pScreen->cBpp    = 32;
+                }
+                else
+                {
+                    /* Keep old values. */
+                }
 
                 pThis->svga.fGFBRegisters = false;
                 vmsvgaChangeMode(pThis);
@@ -3843,12 +3860,15 @@ static DECLCALLBACK(int) vmsvgaFIFOLoop(PPDMDEVINS pDevIns, PPDMTHREAD pThread)
                 STAM_REL_COUNTER_INC(&pSVGAState->StatR3CmdDestroyScreen);
 
                 Log(("vmsvgaFIFOLoop: SVGA_CMD_DESTROY_SCREEN id=%x\n", pCmd->screenId));
-                AssertBreak(pCmd->screenId < RT_ELEMENTS(pThis->svga.pSvgaR3State->aScreens));
+
+                uint32_t const idScreen = pCmd->screenId;
+                AssertBreak(idScreen < RT_ELEMENTS(pThis->svga.pSvgaR3State->aScreens));
                 RT_UNTRUSTED_VALIDATED_FENCE();
 
-                VMSVGASCREENOBJECT *pScreen = &pThis->svga.pSvgaR3State->aScreens[pCmd->screenId];
+                VMSVGASCREENOBJECT *pScreen = &pThis->svga.pSvgaR3State->aScreens[idScreen];
                 pScreen->fModified = true;
                 pScreen->fDefined  = false;
+                pScreen->idScreen  = idScreen;
 
                 vmsvgaChangeMode(pThis);
                 break;
@@ -5366,21 +5386,16 @@ int vmsvgaLoadExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM, uint32_t uVersion, uint3
         }
     }
 
-# ifdef VBOX_WITH_VMSVGA3D
-    if (pThis->svga.f3DEnabled)
-    {
 #  ifdef RT_OS_DARWIN  /** @todo r=bird: this is normally done on the EMT, so for DARWIN we do that when loading saved state too now. See DevVGA-SVGA3d-shared.h. */
-        vmsvga3dPowerOn(pThis);
+    vmsvga3dPowerOn(pThis);
 #  endif
 
-        VMSVGA_STATE_LOAD LoadState;
-        LoadState.pSSM     = pSSM;
-        LoadState.uVersion = uVersion;
-        LoadState.uPass    = uPass;
-        rc = vmsvgaR3RunExtCmdOnFifoThread(pThis, VMSVGA_FIFO_EXTCMD_LOADSTATE, &LoadState, RT_INDEFINITE_WAIT);
-        AssertLogRelRCReturn(rc, rc);
-    }
-# endif
+    VMSVGA_STATE_LOAD LoadState;
+    LoadState.pSSM     = pSSM;
+    LoadState.uVersion = uVersion;
+    LoadState.uPass    = uPass;
+    rc = vmsvgaR3RunExtCmdOnFifoThread(pThis, VMSVGA_FIFO_EXTCMD_LOADSTATE, &LoadState, RT_INDEFINITE_WAIT);
+    AssertLogRelRCReturn(rc, rc);
 
     return VINF_SUCCESS;
 }
@@ -5489,16 +5504,12 @@ int vmsvgaSaveExec(PPDMDEVINS pDevIns, PSSMHANDLE pSSM)
         }
     }
 
-# ifdef VBOX_WITH_VMSVGA3D
     /*
-     * Must save the 3d state in the FIFO thread.
+     * Must save the some state (3D in particular) in the FIFO thread.
      */
-    if (pThis->svga.f3DEnabled)
-    {
-        rc = vmsvgaR3RunExtCmdOnFifoThread(pThis, VMSVGA_FIFO_EXTCMD_SAVESTATE, pSSM, RT_INDEFINITE_WAIT);
-        AssertLogRelRCReturn(rc, rc);
-    }
-# endif
+    rc = vmsvgaR3RunExtCmdOnFifoThread(pThis, VMSVGA_FIFO_EXTCMD_SAVESTATE, pSSM, RT_INDEFINITE_WAIT);
+    AssertLogRelRCReturn(rc, rc);
+
     return VINF_SUCCESS;
 }
 

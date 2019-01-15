@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,11 +15,15 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_VMMDEV
-#define ____H_VMMDEV
+#ifndef MAIN_INCLUDED_VMMDev_h
+#define MAIN_INCLUDED_VMMDev_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "VirtualBoxBase.h"
 #include <VBox/vmm/pdmdrv.h>
+#include <VBox/hgcmsvc.h>
 #include <iprt/asm.h>
 
 class Console;
@@ -96,5 +100,5 @@ private:
 #endif /* VBOX_WITH_HGCM */
 };
 
-#endif // !____H_VMMDEV
+#endif /* !MAIN_INCLUDED_VMMDev_h */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

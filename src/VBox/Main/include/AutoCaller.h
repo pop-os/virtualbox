@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +16,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_AUTOCALLER
-#define ____H_AUTOCALLER
+#ifndef MAIN_INCLUDED_AutoCaller_h
+#define MAIN_INCLUDED_AutoCaller_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "ObjectState.h"
 
@@ -500,4 +503,4 @@ private:
     bool mUninitFailed : 1;
 };
 
-#endif // !____H_AUTOCALLER
+#endif /* !MAIN_INCLUDED_AutoCaller_h */

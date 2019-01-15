@@ -1,12 +1,10 @@
 /* $Id: PerformanceWin.cpp $ */
-
 /** @file
- *
  * VBox Windows-specific Performance Classes implementation.
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -17,12 +15,13 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN_PERFORMANCECOLLECTOR
 #ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x0500
+# define _WIN32_WINNT 0x0500
 #else /* !_WIN32_WINNT */
-#if (_WIN32_WINNT < 0x0500)
-#error Win XP or later required!
-#endif /* _WIN32_WINNT < 0x0500 */
+# if (_WIN32_WINNT < 0x0500)
+#  error Win XP or later required!
+# endif /* _WIN32_WINNT < 0x0500 */
 #endif /* !_WIN32_WINNT */
 
 #include <iprt/win/windows.h>
@@ -32,7 +31,7 @@ extern "C" {
 #include <powrprof.h>
 }
 
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include <iprt/ldr.h>
 #include <iprt/mp.h>
 #include <iprt/mem.h>
@@ -40,7 +39,7 @@ extern "C" {
 
 #include <map>
 
-#include "Logging.h"
+#include "LoggingNew.h"
 #include "Performance.h"
 
 #ifndef NT_ERROR

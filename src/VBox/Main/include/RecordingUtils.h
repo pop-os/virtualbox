@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2018 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_RECORDING_UTILS
-#define ____H_RECORDING_UTILS
+#ifndef MAIN_INCLUDED_RecordingUtils_h
+#define MAIN_INCLUDED_RecordingUtils_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/asm.h>
 #include <iprt/assert.h>
@@ -201,5 +204,5 @@ int RecordingUtilsRGBToYUV(uint32_t uPixelFormat,
                            uint8_t *paDst, uint32_t uDstWidth, uint32_t uDstHeight,
                            uint8_t *paSrc, uint32_t uSrcWidth, uint32_t uSrcHeight);
 
-#endif /* ____H_RECORDING_UTILS */
+#endif /* !MAIN_INCLUDED_RecordingUtils_h */
 

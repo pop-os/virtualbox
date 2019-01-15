@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2018 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,24 +15,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QApplication>
-# include <QHBoxLayout>
-# include <QLineEdit>
-# include <QKeyEvent>
-# include <QStyle>
+#include <QApplication>
+#include <QHBoxLayout>
+#include <QLineEdit>
+#include <QKeyEvent>
+#include <QStyle>
 
 /* GUI includes; */
-# include "UIHostComboEditor.h"
-# include "UIHotKeyEditor.h"
-# include "UIIconPool.h"
-# include "QIToolButton.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "UIHostComboEditor.h"
+#include "UIHotKeyEditor.h"
+#include "UIIconPool.h"
+#include "QIToolButton.h"
 
 
 /** QLineEdit extension representing hot-key editor. */

@@ -3,7 +3,7 @@
 # Sub-Makefile for the vboximg-mount Program.
 
 #
-# Copyright (C) 2006-2018 Oracle Corporation
+# Copyright (C) 2006-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,7 @@ SUB_DEPTH = ../../../..
 include $(KBUILD_PATH)/subheader.kmk
 
 ifeq ($(KBUILD_TARGET),darwin)
- VBOX_PATH_FUSE := $(lastword $(sort $(wildcard $(KBUILD_DEVTOOLS_TRG)/osxfuse/v*)))
+ VBOX_PATH_FUSE ?= $(lastword $(sort $(wildcard $(KBUILD_DEVTOOLS_TRG)/osxfuse/v*)))
  ifneq ($(VBOX_PATH_FUSE),)
   LIB_FUSE     := $(VBOX_PATH_FUSE)/lib/libosxfuse.dylib
   LIBPATH_FUSE := $(VBOX_PATH_FUSE)/lib

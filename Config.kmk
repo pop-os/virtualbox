@@ -7,7 +7,7 @@
 #
 
 #
-# Copyright (C) 2006-2017 Oracle Corporation
+# Copyright (C) 2006-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -1703,6 +1703,7 @@ ifdef VBOX_PATH_APP_DOCS
  CDEFS += RTPATH_APP_DOCS=\"$(VBOX_PATH_APP_DOCS)\"
 endif
 CXXDEFS  += $(CDEFS)
+PCHDEFS  += $(CDEFS)
 OBJCDEFS += $(CDEFS)
 
 USES += dtrace
@@ -3042,7 +3043,6 @@ ifdef VBOX_WITH_GCC_SANITIZER
  	-fno-sanitize=alignment \
  	-fno-sanitize=vptr \
  	-fno-common \
-  	-include sanitizer/lsan_interface.h \
  	-DIPRT_WITH_GCC_SANITIZER \
  	-DVBOX_WITH_GCC_SANITIZER
 else
@@ -4050,7 +4050,7 @@ SDK_VBOX_LIBPNG_LIBS ?= $(PATH_STAGE_LIB)/VBox-libpng$(VBOX_SUFF_LIB)
 
 SDK_VBOX_ZLIB         = .
 if1of ($(KBUILD_TARGET), os2 solaris win)
- SDK_VBOX_ZLIB_INCS  ?= $(PATH_ROOT)/src/libs/zlib-1.2.8
+ SDK_VBOX_ZLIB_INCS  ?= $(PATH_ROOT)/src/libs/zlib-1.2.11
  SDK_VBOX_ZLIB_LIBS  ?= $(PATH_STAGE_LIB)/VBox-zlib$(VBOX_SUFF_LIB)
 else
  SDK_VBOX_ZLIB_INCS  ?=
@@ -4250,6 +4250,9 @@ ifdef VBOX_WITH_RAW_MODE
  TEMPLATE_VBoxRc_TOOL                = $(VBOX_GCC32_TOOL)
  TEMPLATE_VBoxRc_CXXFLAGS            = -fno-pie -nostdinc -g $(VBOX_GCC_pipe) $(VBOX_GCC_WERR) $(VBOX_GCC_PEDANTIC_CXX) $(VBOX_GCC32_Wno-variadic-macros) -fno-exceptions $(VBOX_GCC_GC_OPT) $(VBOX_GCC_GC_FP) -mno-sse -mno-mmx -mno-sse2 -mno-3dnow -fno-strict-aliasing $(VBOX_GCC_fno-stack-protector) $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_fvisibility-inlines-hidden) -fno-rtti $(VBOX_GCC_IPRT_FMT_CHECK)
  TEMPLATE_VBoxRc_CFLAGS              = -fno-pie -nostdinc -g $(VBOX_GCC_pipe) $(VBOX_GCC_WERR) $(VBOX_GCC_PEDANTIC_C)   $(VBOX_GCC32_Wno-variadic-macros) -fno-exceptions $(VBOX_GCC_GC_OPT) $(VBOX_GCC_GC_FP) -mno-sse -mno-mmx -mno-sse2 -mno-3dnow -fno-strict-aliasing $(VBOX_GCC_fno-stack-protector) $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_IPRT_FMT_CHECK)
+  if $(VBOX_GCC32_VERSION_CC) < 30400
+   TEMPLATE_VBoxRc_DEFS             += RT_WITHOUT_PRAGMA_ONCE
+  endif
   ifeq ($(KBUILD_TARGET),solaris)
    TEMPLATE_VBoxRc_LDFLAGS           = -r
   else
@@ -4277,6 +4280,9 @@ ifdef VBOX_WITH_RAW_MODE
 
  ifeq ($(VBOX_LDR_FMT32),lx)
  TEMPLATE_VBoxRc_TOOL                = GXX3OMF
+  if $(VBOX_GCC_VERSION_CC) < 30400
+   TEMPLATE_VBoxRc_DEFS             += RT_WITHOUT_PRAGMA_ONCE
+  endif
  TEMPLATE_VBoxRc_CXXFLAGS            = -nostdinc -g $(VBOX_GCC_pipe) $(VBOX_GCC_WERR) $(VBOX_GCC_PEDANTIC_CXX) $(VBOX_GCC32_Wno-variadic-macros) $(VBOX_GCC_GC_OPT) $(VBOX_GCC_GC_FP) -fno-strict-aliasing -fno-exceptions -fno-rtti
  TEMPLATE_VBoxRc_CFLAGS              = -nostdinc -g $(VBOX_GCC_pipe) $(VBOX_GCC_WERR) $(VBOX_GCC_PEDANTIC_C)   $(VBOX_GCC32_Wno-variadic-macros) $(VBOX_GCC_GC_OPT) $(VBOX_GCC_GC_FP) -fno-strict-aliasing -fno-exceptions
  TEMPLATE_VBoxRc_LDFLAGS             = -Zdll -nostdlib
@@ -4393,6 +4399,9 @@ TEMPLATE_VBoxR0_CFLAGS              = -fno-pie -nostdinc -g $(VBOX_GCC_pipe) $(V
 TEMPLATE_VBoxR0_CXXFLAGS            = -fno-pie -nostdinc -g $(VBOX_GCC_pipe) $(VBOX_GCC_WERR) $(VBOX_GCC_PEDANTIC_CXX) $(VBOX_GCC_Wno-variadic-macros) $(VBOX_GCC_R0_OPT) $(VBOX_GCC_R0_FP) -fno-strict-aliasing -fno-exceptions $(VBOX_GCC_fno-stack-protector) -fno-common $(VBOX_GCC_fvisibility-inlines-hidden) $(VBOX_GCC_fvisibility-hidden) -fno-rtti $(VBOX_GCC_IPRT_FMT_CHECK)
 TEMPLATE_VBoxR0_CFLAGS.amd64        = -m64 -mno-red-zone -mcmodel=kernel -mno-sse -mno-mmx -mno-sse2 -mno-3dnow -fasynchronous-unwind-tables -ffreestanding
 TEMPLATE_VBoxR0_CXXFLAGS.amd64      = -m64 -mno-red-zone -mcmodel=kernel -mno-sse -mno-mmx -mno-sse2 -mno-3dnow -fasynchronous-unwind-tables
+ if $(VBOX_GCC_VERSION_CC) < 30400
+  TEMPLATE_VBoxR0_DEFS             += RT_WITHOUT_PRAGMA_ONCE
+ endif
 ifeq ($(KBUILD_TARGET),solaris)
  TEMPLATE_VBoxR0_LDFLAGS            = -r
  TEMPLATE_VBoxR0_LDFLAGS.solaris    = -u _init -u _info
@@ -4444,6 +4453,9 @@ ifeq ($(VBOX_LDR_FMT),lx)
 TEMPLATE_VBoxR0_TOOL                = GXX3OMF
 TEMPLATE_VBoxR0_CFLAGS              = -nostdinc -g $(VBOX_GCC_pipe) $(VBOX_GCC_WERR) $(VBOX_GCC_PEDANTIC_C)   $(VBOX_GCC_Wno-variadic-macros) $(VBOX_GCC_R0_OPT) $(VBOX_GCC_R0_FP) -fno-strict-aliasing -fno-exceptions -fno-common
 TEMPLATE_VBoxR0_CXXFLAGS            = -nostdinc -g $(VBOX_GCC_pipe) $(VBOX_GCC_WERR) $(VBOX_GCC_PEDANTIC_CXX) $(VBOX_GCC_Wno-variadic-macros) $(VBOX_GCC_R0_OPT) $(VBOX_GCC_R0_FP) -fno-strict-aliasing -fno-exceptions -fno-common -fno-rtti
+ if $(VBOX_GCC_VERSION_CC) < 30400
+TEMPLATE_VBoxR0_DEFS               += RT_WITHOUT_PRAGMA_ONCE
+ endif
 TEMPLATE_VBoxR0_LDFLAGS             = -nostdlib -Zdll
 TEMPLATE_VBoxR0_LIBS                = \
 	$(VBOX_GCC_LIBGCC) \
@@ -4518,44 +4530,68 @@ ifeq ($(KBUILD_TARGET),linux)
  endif
 
  ##
- # Using the extra expansion to replace $(module) before eval, thus everything
- # else needs escaped dollars.
- #
- # Since Linux KBuild will not abort due to undefined symbols when building
- # external modules we need to grep the error output ourselves.  Since vboxdrv
- # and vboxguest respectively provide symbols that other modules use, we use
- # the rule target (tst*.run) to save those symbols so that KBuild can do its
- # checking.  Note in this context the (unescaped) variables $(save_symvers)
- # and $(use_symvers).
- define VBOX_LINUX_GENERATE_KMOD_TEST
-  VBOX_TARGET_$(module) = $$(PATH_TARGET)/tst$(module)$(subst /,_,$(KERN_DIR))_mod.run
-  symvers_$(module)_dep = $$(if $(use_symvers),$$(if $$(eq $(use_symvers),$(module)),,\
-$$(PATH_TARGET)/tst$(use_symvers)$(subst /,_,$(KERN_DIR))_mod.run))
-  TESTING      += $$(VBOX_TARGET_$(module))
-  OTHERS       += $$(VBOX_TARGET_$(module))
-  OTHERS_CLEAN += $$(VBOX_TARGET_$(module))
-  $$(VBOX_TARGET_$(module)): $$$$($(module)_2_STAGE_TARGETS) $$(symvers_$(module)_dep)
-	$(QUIET)$$(call MSG_L1,Doing a test build of the $(module) kernel module)
-	$(QUIET)$$(RM) -f -- "$$@"
-	$(QUIET)$$(TEST) -n "$$($(module)_INST)"
-	$(QUIET)$$(RM) -Rf   -- "$$(PATH_TARGET)/tst$(module)_mod"
-	$(QUIET)$$(MKDIR) -p -- "$$(PATH_TARGET)/tst$(module)_mod"
-	$(QUIET)$$(CP) -R -- "$$(PATH_STAGE_BIN)/../$$($(module)_INST)" "$$(PATH_TARGET)/tst$(module)_mod/"
-	+ $(QUIET)make KBUILD_VERBOSE=$(KBUILD_VERBOSE) KERN_DIR=$(KERN_DIR) -C $$(PATH_TARGET)/tst$(module)_mod clean
-	$(QUIET)$$(if $$(eq $$(symvers_$(module)_dep),),,\
-$$(CP) $$(symvers_$(module)_dep) "$$(PATH_TARGET)/tst$(module)_mod/Module.symvers")
-	+ $(QUIET)make KBUILD_VERBOSE=$(KBUILD_VERBOSE) KERN_DIR=$(KERN_DIR) $(if-expr $(KMK_OPTS_JOBS) != 0,JOBS=$(KMK_OPTS_JOBS),) -C $$(PATH_TARGET)/tst$(module)_mod \
-		2>&1 | tee "$$(PATH_TARGET)/tst$(module)_mod/make.err"
-	$(QUIET)! grep "^WARNING: .* undefined!$$$$" "$$(PATH_TARGET)/tst$(module)_mod/make.err"
-  if1of ($(USERNAME), bird)
-	- nm -u "$$(PATH_TARGET)/tst$(module)_mod/"*.ko | sort
+ ## Generates a rule for test-building a linux kernel module (use evalcall2 to invoke).
+ ##
+ ## Since Linux KBuild will not abort due to undefined symbols when building
+ ## external modules we need to grep the error output ourselves.  Since vboxdrv
+ ## and vboxguest respectively provide symbols that other modules use, we use
+ ## the rule target (tst*.run) to save those symbols so that KBuild can do its
+ ## checking.
+ ##
+ ## @param 1    Module name.
+ ## @param 2    The test build which symvers we need (empty if none)
+ ## @param 3	 Save symvers if non-empty.
+ ##
+ ## @note Using the extra expansion to replace $(1), $(2) and $(3) before eval,
+ ##       thus everything else needs escaped dollars.
+ ##
+ if   defined(VBOX_WITH_TESTCASES) \
+  && "$(KBUILD_HOST)" == "linux" \
+  && "$(KBUILD_HOST_ARCH)" == "$(KBUILD_TARGET_ARCH)" \
+  && !defined(VBOX_WITHOUT_LINUX_TEST_BUILDS) \
+  && !defined(VBOX_ONLY_SDK) \
+  && !defined(VBOX_ONLY_DOCS) \
+  && !defined(VBOX_ONLY_VALIDATIONKIT)
+  define VBOX_LINUX_KMOD_TEST_BUILD_RULE_FN
+   ifneq ($(KERN_DIR),)
+TESTING      += $$(PATH_TARGET)/tst$(1)$(subst /,_,$(KERN_DIR))_mod.run
+OTHERS       += $$(PATH_TARGET)/tst$(1)$(subst /,_,$(KERN_DIR))_mod.run
+OTHERS_CLEAN += $$(PATH_TARGET)/tst$(1)$(subst /,_,$(KERN_DIR))_mod.run
+$$(PATH_TARGET)/tst$(1)$(subst /,_,$(KERN_DIR))_mod.run: \
+		$$(if $(2),$$(PATH_TARGET)/tst$(2)$(subst /,_,$(KERN_DIR))_mod.run,) \
+		$$$$($(1)_2_STAGE_TARGETS)
+	$(QUIET)$$(call MSG_L1,Doing a test build of the $(1) kernel module)
+	$(QUIET)$$(RM) -f    -- "$$@"
+	$(QUIET)$$(TEST) -n "$$($(1)_INST)"
+	$(QUIET)$$(RM) -Rf   -- "$$(PATH_TARGET)/tst$(1)_mod"
+	$(QUIET)$$(MKDIR) -p -- "$$(PATH_TARGET)/tst$(1)_mod"
+	$(QUIET)$$(CP) -R    -- "$$(PATH_STAGE_BIN)/../$$($(1)_INST)" "$$(PATH_TARGET)/tst$(1)_mod/"
+	+ $(QUIET)make KBUILD_VERBOSE=$(KBUILD_VERBOSE) KERN_DIR=$(KERN_DIR) -C $$(PATH_TARGET)/tst$(1)_mod clean
+   ifneq ($(2),)
+	$(QUIET)$$(CP) -f    -- "$$<" "$$(PATH_TARGET)/tst$(1)_mod/Module.symvers"
+   endif
+	+ $(QUIET)$(REDIRECT_EXT) -d2=1 -w1 "$$(PATH_TARGET)/tst$(1)_mod/make.err" -- \
+		make KBUILD_VERBOSE=$(KBUILD_VERBOSE) KERN_DIR=$(KERN_DIR) $(if-expr $(KMK_OPTS_JOBS) != 0,JOBS=$(KMK_OPTS_JOBS),) -C $$(PATH_TARGET)/tst$(1)_mod
+	$(CAT) "$$(PATH_TARGET)/tst$(1)_mod/make.err"
+	$(QUIET)! grep "^WARNING: .* undefined!$$$$" "$$(PATH_TARGET)/tst$(1)_mod/make.err"
+   if1of ($(USERNAME), bird)
+	- nm -u "$$(PATH_TARGET)/tst$(1)_mod/"*.ko | sort
+   endif
+   ifneq ($(3),)
+	$(QUIET)$$(CP) -f    -- "$$(PATH_TARGET)/tst$(1)_mod/Module.symvers" "$$@"
+   else
+	$(QUIET)$$(APPEND) -t "$$@" "done"
+   endif
+	$(QUIET)$$(RM) -Rf   -- "$$(PATH_TARGET)/tst$(1)_mod"
+vbox-linux-kmod-test-builds: $$(PATH_TARGET)/tst$(1)$(subst /,_,$(KERN_DIR))_mod.run
   endif
-	$(QUIET)$$(if $$(eq $(save_symvers),$(module)),\
-$$(CP) "$$(PATH_TARGET)/tst$(module)_mod/Module.symvers" "$$@",\
-$(QUIET)$$(APPEND) -t "$$@" "done")
-	$(QUIET)$$(RM) -Rf -- $$(PATH_TARGET)/tst$(module)_mod
- endef
-endif
+ endef # VBOX_LINUX_KMOD_TEST_BUILD_RULE_FN
+ else
+  VBOX_LINUX_KMOD_TEST_BUILD_RULE_FN =
+ endif
+else
+  VBOX_LINUX_KMOD_TEST_BUILD_RULE_FN =
+endif # linux target
 
 ifeq ($(KBUILD_TARGET),os2)
  ifndef VBOX_USE_WATCOM_FOR_OS2
@@ -4672,6 +4708,9 @@ VBOX_SOLARIS_SYS_INCS ?= /usr/platform/i86pc/include /usr/include
 
 TEMPLATE_VBOXR0DRV_TOOL                = $(VBOX_GCC_TOOL)
 TEMPLATE_VBOXR0DRV_DEFS               += _MACHDEP _KERNEL _STRICT_STDC
+ if $(VBOX_GCC_VERSION_CC) < 30400
+TEMPLATE_VBOXR0DRV_DEFS               += RT_WITHOUT_PRAGMA_ONCE
+ endif
 TEMPLATE_VBOXR0DRV_INCS                = $(VBOX_SOLARIS_SYS_INCS)
 TEMPLATE_VBOXR0DRV_LDFLAGS             = -r -dy
 TEMPLATE_VBOXR0DRV_LDFLAGS.amd64       = $(if $(eq $(KBUILD_HOST),solaris),-64,-m elf_x86_64)
@@ -4728,6 +4767,9 @@ VBOX_FREEBSD_SYS_INCS ?= /usr/include
 TEMPLATE_VBOXR0DRV_TOOL                = $(VBOX_GCC_TOOL)
 TEMPLATE_VBOXR0DRV_LDTOOL              = FREEBSDKMODLD
 TEMPLATE_VBOXR0DRV_DEFS               += _KERNEL KLD_MODULE
+ if $(VBOX_GCC_VERSION_CC) < 30400
+TEMPLATE_VBOXR0DRV_DEFS               += RT_WITHOUT_PRAGMA_ONCE
+ endif
 TEMPLATE_VBOXR0DRV_INCS                = \
 	$(VBOX_FREEBSD_SRC) \
 	$(VBOX_FREEBSD_SRC)/contrib/altq \
@@ -4810,6 +4852,9 @@ VBOX_NETBSD_TARGET_SRC=$(VBOX_NETBSD_SRC)/sys/arch/$(VBOX_NETBSD_TARGET_ARCH)
 
 TEMPLATE_VBOXR0DRV_TOOL                = $(VBOX_GCC_TOOL)
 TEMPLATE_VBOXR0DRV_DEFS               += _KERNEL _MODULE
+ if $(VBOX_GCC_VERSION_CC) < 30400
+TEMPLATE_VBOXR0DRV_DEFS               += RT_WITHOUT_PRAGMA_ONCE
+ endif
 TEMPLATE_VBOXR0DRV_INCS                = \
 	$(VBOX_NETBSD_SRC)/sys \
 	$(VBOX_NETBSD_SRC)/common/include \
@@ -4869,6 +4914,9 @@ VBOX_HAIKU_SYS_INCS ?= /boot/develop/headers/os/kernel /boot/develop/headers/os/
 TEMPLATE_VBOXR0DRV_TOOL                = $(VBOX_GCC_TOOL)
 TEMPLATE_VBOXR0DRV_LDTOOL              = $(VBOX_GCC_TOOL)
 TEMPLATE_VBOXR0DRV_DEFS                = _KERNEL_MODE=1 _STRICT_STDC IN_RING0 IN_RT_R0
+ if $(VBOX_GCC_VERSION_CC) < 30400
+TEMPLATE_VBOXR0DRV_DEFS               += RT_WITHOUT_PRAGMA_ONCE
+ endif
 TEMPLATE_VBOXR0DRV_INCS                = $(VBOX_HAIKU_SYS_INCS)
 #TODO: sort this out
 TEMPLATE_VBOXR0DRV_LDFLAGS             = -shared $(VBOX_GCC_NO_UNDEFINED_R0) -dc -dy -lroot -rpath-link /boot/system/develop/lib/x86 --no-add-needed /boot/system/develop/lib/_KERNEL_ --no-add-needed /boot/system/develop/lib/haiku_version_glue.o
@@ -4965,6 +5013,10 @@ ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBOXR3EXE_CFLAGS.debug       = $(TEMPLATE_VBOXR3EXE_CXXFLAGS.debug)
  TEMPLATE_VBOXR3EXE_CFLAGS.dbgopt      = $(TEMPLATE_VBOXR3EXE_CXXFLAGS.dbgopt)
  TEMPLATE_VBOXR3EXE_CFLAGS.kprofile    = $(TEMPLATE_VBOXR3EXE_CXXFLAGS.kprofile)
+ TEMPLATE_VBOXR3EXE_PCHFLAGS           = $(TEMPLATE_VBOXR3EXE_CXXFLAGS)
+ TEMPLATE_VBOXR3EXE_PCHFLAGS.debug     = $(TEMPLATE_VBOXR3EXE_CXXFLAGS.debug)
+ TEMPLATE_VBOXR3EXE_PCHFLAGS.dbgopt    = $(TEMPLATE_VBOXR3EXE_CXXFLAGS.dbgopt)
+ TEMPLATE_VBOXR3EXE_PCHFLAGS.kprofile  = $(TEMPLATE_VBOXR3EXE_CXXFLAGS.kprofile)
  TEMPLATE_VBOXR3EXE_LDFLAGS            = -Ignore:4197 \
 	/NOD /INCREMENTAL:NO /MAPINFO:EXPORTS /LargeAddressAware /DynamicBase /NxCompat /Release /Debug /Opt:Ref /Opt:Icf \
 	/Version:$(VBOX_VERSION_MAJOR)0$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD) \
@@ -5007,6 +5059,9 @@ ifeq ($(KBUILD_TARGET),win)
 
 else # the gcc guys
 TEMPLATE_VBOXR3EXE_TOOL                = $(VBOX_GCC_TOOL)
+ if $(VBOX_GCC_VERSION_CC) < 30400
+TEMPLATE_VBOXR3EXE_DEFS               += RT_WITHOUT_PRAGMA_ONCE
+ endif
 TEMPLATE_VBOXR3EXE_CXXFLAGS            = -g $(VBOX_GCC_pipe) $(VBOX_GCC_PEDANTIC_CXX) $(VBOX_GCC_Wno-variadic-macros) $(VBOX_GCC_OPT) \
  	$(VBOX_GCC_FP) -fno-strict-aliasing $(VBOX_GCC_fvisibility-hidden) $(VBOX_GCC_fvisibility-inlines-hidden) $(VBOX_GCC_IPRT_FMT_CHECK)
  ifdef VBOX_WITH_NO_GCC_WARNING_POLICY
@@ -5038,6 +5093,11 @@ TEMPLATE_VBOXR3EXE_OBJCXXFLAGS.x86     = $(TEMPLATE_VBOXR3EXE_CXXFLAGS.x86)
 TEMPLATE_VBOXR3EXE_OBJCXXFLAGS.amd64   = $(TEMPLATE_VBOXR3EXE_CXXFLAGS.amd64)
 TEMPLATE_VBOXR3EXE_OBJCXXFLAGS.debug   = $(TEMPLATE_VBOXR3EXE_CXXFLAGS.debug)
 TEMPLATE_VBOXR3EXE_OBJCXXFLAGS.kprofile= $(TEMPLATE_VBOXR3EXE_CXXFLAGS.kprofile)
+TEMPLATE_VBOXR3EXE_PCHFLAGS            = $(TEMPLATE_VBOXR3EXE_CXXFLAGS)
+TEMPLATE_VBOXR3EXE_PCHFLAGS.x86        = $(TEMPLATE_VBOXR3EXE_CXXFLAGS.x86)
+TEMPLATE_VBOXR3EXE_PCHFLAGS.amd64      = $(TEMPLATE_VBOXR3EXE_CXXFLAGS.amd64)
+TEMPLATE_VBOXR3EXE_PCHFLAGS.debug      = $(TEMPLATE_VBOXR3EXE_CXXFLAGS.debug)
+TEMPLATE_VBOXR3EXE_PCHFLAGS.kprofile   = $(TEMPLATE_VBOXR3EXE_CXXFLAGS.kprofile)
 TEMPLATE_VBOXR3EXE_LDFLAGS.x86         = -m32
 TEMPLATE_VBOXR3EXE_LDFLAGS.amd64       = -m64
 TEMPLATE_VBOXR3EXE_LDFLAGS.sparc32     = -m32
@@ -5057,6 +5117,7 @@ TEMPLATE_VBOXR3EXE_LIBS                =
 TEMPLATE_VBOXR3EXE_DEFS.darwin         = $(VBOX_DARWIN_DEF_SDK_DEFS)
 TEMPLATE_VBOXR3EXE_CFLAGS.darwin       = $(VBOX_DARWIN_DEF_SDK_CFLAGS) -fno-common
 TEMPLATE_VBOXR3EXE_CXXFLAGS.darwin     = $(VBOX_DARWIN_DEF_SDK_CXXFLAGS)
+TEMPLATE_VBOXR3EXE_PCHFLAGS.darwin     = $(VBOX_DARWIN_DEF_SDK_CXXFLAGS)
 TEMPLATE_VBOXR3EXE_OBJCFLAGS.darwin    = $(VBOX_DARWIN_DEF_SDK_OBJCFLAGS)
 TEMPLATE_VBOXR3EXE_OBJCXXFLAGS.darwin  = $(VBOX_DARWIN_DEF_SDK_OBJCXXFLAGS)
 TEMPLATE_VBOXR3EXE_LDFLAGS.darwin      = $(VBOX_DARWIN_DEF_SDK_LDFLAGS)
@@ -5127,12 +5188,14 @@ ifn1of ($(KBUILD_TARGET), darwin win os2)
  TEMPLATE_VBOXR3_DEFS                  = $(TEMPLATE_VBOXR3EXE_DEFS) PIC
  TEMPLATE_VBOXR3_CFLAGS                = $(TEMPLATE_VBOXR3EXE_CFLAGS) -fPIC
  TEMPLATE_VBOXR3_CXXFLAGS              = $(TEMPLATE_VBOXR3EXE_CXXFLAGS) -fPIC
+ TEMPLATE_VBOXR3_PCHFLAGS              = $(TEMPLATE_VBOXR3EXE_PCHFLAGS) -fPIC
  TEMPLATE_VBOXR3_LDFLAGS               = $(TEMPLATE_VBOXR3EXE_LDFLAGS) -fPIC
 endif
 ifeq ($(KBUILD_TARGET),haiku)
  # Haiku uses PIC by default...
  TEMPLATE_VBOXR3_CFLAGS               = $(TEMPLATE_VBOXR3EXE_CFLAGS) -fno-pic
  TEMPLATE_VBOXR3_CXXFLAGS             = $(TEMPLATE_VBOXR3EXE_CXXFLAGS) -fno-pic
+ TEMPLATE_VBOXR3_PCHFLAGS             = $(TEMPLATE_VBOXR3EXE_PCHFLAGS) -fno-pic
  TEMPLATE_VBOXR3_LDFLAGS              = $(TEMPLATE_VBOXR3EXE_LDFLAGS) -fno-pic
 endif
 
@@ -5145,10 +5208,12 @@ TEMPLATE_VBoxR3Dll_EXTENDS_BY          += appending
 ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBoxR3Dll_CFLAGS            += $(VBOX_VCC_WERR)
  TEMPLATE_VBoxR3Dll_CXXFLAGS          += $(VBOX_VCC_WERR)
+ TEMPLATE_VBoxR3Dll_PCHFLAGS          += $(VBOX_VCC_WERR)
  TEMPLATE_VBoxR3Dll_LDFLAGS           += $(VBOX_VCC_LD_WERR)
 else
  TEMPLATE_VBoxR3Dll_CFLAGS            += $(VBOX_GCC_WERR)
  TEMPLATE_VBoxR3Dll_CXXFLAGS          += $(VBOX_GCC_WERR)
+ TEMPLATE_VBoxR3Dll_PCHFLAGS          += $(VBOX_GCC_WERR)
 endif
 
 # x86 edition of the above template for use on AMD64 targets.
@@ -5176,6 +5241,7 @@ if1of ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH), linux.x86 freebsd.x86)
  TEMPLATE_VBoxR3DllNoPic_DEFS              = $(TEMPLATE_VBOXR3EXE_DEFS)
  TEMPLATE_VBoxR3DllNoPic_CFLAGS            = $(TEMPLATE_VBOXR3EXE_CFLAGS)   $(VBOX_GCC_WERR)
  TEMPLATE_VBoxR3DllNoPic_CXXFLAGS          = $(TEMPLATE_VBOXR3EXE_CXXFLAGS) $(VBOX_GCC_WERR)
+ TEMPLATE_VBoxR3DllNoPic_PCHFLAGS          = $(TEMPLATE_VBOXR3EXE_CXXFLAGS) $(VBOX_GCC_WERR)
  TEMPLATE_VBoxR3DllNoPic_LDFLAGS           = $(TEMPLATE_VBOXR3EXE_LDFLAGS)
 else ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBoxR3DllNoPic_CFLAGS            = $(filter-out -W3 -wd%,$(TEMPLATE_VBOXR3_CFLAGS)) $(VBOX_VCC_WARN_ALL) $(VBOX_VCC_WERR)
@@ -5184,10 +5250,14 @@ else ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBoxR3DllNoPic_CXXFLAGS          = $(filter-out -W3 -wd%,$(TEMPLATE_VBOXR3_CXXFLAGS)) $(VBOX_VCC_WARN_ALL) $(VBOX_VCC_WERR)
  TEMPLATE_VBoxR3DllNoPic_CXXFLAGS.debug    = $(filter-out -RTC%,$(TEMPLATE_VBOXR3_CXXFLAGS.debug)) # RTCsu Prevents IEM opt.
  TEMPLATE_VBoxR3DllNoPic_CXXFLAGS.release  = $(TEMPLATE_VBOXR3_CXXFLAGS.release) -GS-
+ TEMPLATE_VBoxR3DllNoPic_PCHFLAGS          = $(filter-out -W3 -wd%,$(TEMPLATE_VBOXR3_PCHFLAGS)) $(VBOX_VCC_WARN_ALL) $(VBOX_VCC_WERR)
+ TEMPLATE_VBoxR3DllNoPic_PCHFLAGS.debug    = $(filter-out -RTC%,$(TEMPLATE_VBOXR3_PCHFLAGS.debug)) # RTCsu Prevents IEM opt.
+ TEMPLATE_VBoxR3DllNoPic_PCHFLAGS.release  = $(TEMPLATE_VBOXR3_PCHFLAGS.release) -GS-
  TEMPLATE_VBoxR3DllNoPic_LDFLAGS           = $(TEMPLATE_VBOXR3_LDFLAGS)  $(VBOX_VCC_LD_WERR)
 else
  TEMPLATE_VBoxR3DllNoPic_CFLAGS            = $(TEMPLATE_VBOXR3_CFLAGS)   $(VBOX_GCC_WERR)
  TEMPLATE_VBoxR3DllNoPic_CXXFLAGS          = $(TEMPLATE_VBOXR3_CXXFLAGS) $(VBOX_GCC_WERR)
+ TEMPLATE_VBoxR3DllNoPic_PCHFLAGS          = $(TEMPLATE_VBOXR3_PCHFLAGS) $(VBOX_GCC_WERR)
 endif
 
 # x86 edition of the above template for use on AMD64 targets.
@@ -5207,10 +5277,12 @@ if1of ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH), linux.x86 freebsd.x86)
  TEMPLATE_VBoxR3DllWarnNoPic_DEFS          = $(TEMPLATE_VBOXR3EXE_DEFS)
  TEMPLATE_VBoxR3DllWarnNoPic_CFLAGS        = $(TEMPLATE_VBOXR3EXE_CFLAGS)
  TEMPLATE_VBoxR3DllWarnNoPic_CXXFLAGS      = $(TEMPLATE_VBOXR3EXE_CXXFLAGS)
+ TEMPLATE_VBoxR3DllWarnNoPic_PCHFLAGS      = $(TEMPLATE_VBOXR3EXE_PCHFLAGS)
  TEMPLATE_VBoxR3DllWarnNoPic_LDFLAGS       = $(TEMPLATE_VBOXR3EXE_LDFLAGS)
 else ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBoxR3DllWarnNoPic_CFLAGS.release   = $(TEMPLATE_VBOXR3_CFLAGS.release) -GS-
  TEMPLATE_VBoxR3DllWarnNoPic_CXXFLAGS.release = $(TEMPLATE_VBOXR3_CXXFLAGS.release) -GS-
+ TEMPLATE_VBoxR3DllWarnNoPic_PCHFLAGS.release = $(TEMPLATE_VBOXR3_PCHFLAGS.release) -GS-
 endif
 
 #
@@ -5222,7 +5294,8 @@ TEMPLATE_VBOXR3STATIC_EXTENDS          = VBOXR3EXE
 TEMPLATE_VBOXR3STATIC_DEFS             = IN_RT_STATIC IN_RT_R3 IN_SUP_STATIC $(TEMPLATE_VBOXR3EXE_DEFS)
 ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBOXR3STATIC_CFLAGS          = $(filter-out -MD$(VBOX_VCC_CRT_TYPE), $(TEMPLATE_VBOXR3EXE_CFLAGS)) -MT$(VBOX_VCC_CRT_TYPE)
- TEMPLATE_VBOXR3STATIC_CXXFLAGS        = $(filter-out -MD$(VBOX_VCC_CRT_TYPE), $(TEMPLATE_VBOXR3EXE_CFLAGS)) -MT$(VBOX_VCC_CRT_TYPE)
+ TEMPLATE_VBOXR3STATIC_CXXFLAGS        = $(filter-out -MD$(VBOX_VCC_CRT_TYPE), $(TEMPLATE_VBOXR3EXE_CXXFLAGS)) -MT$(VBOX_VCC_CRT_TYPE)
+ TEMPLATE_VBOXR3STATIC_PCHFLAGS        = $(filter-out -MD$(VBOX_VCC_CRT_TYPE), $(TEMPLATE_VBOXR3EXE_PCHFLAGS)) -MT$(VBOX_VCC_CRT_TYPE)
  TEMPLATE_VBOXR3STATIC_LDFLAGS         = $(filter-out /DISALLOWLIB:libcmt$(VBOX_VCC_CRT_TYPE).lib /DISALLOWLIB:libcpmt$(VBOX_VCC_CRT_TYPE).lib, $(TEMPLATE_VBOXR3EXE_LDFLAGS)) \
 	/DISALLOWLIB:msvcrt.lib \
 	/DISALLOWLIB:msvcrtd.lib \
@@ -5240,6 +5313,7 @@ else ifn1of ($(KBUILD_TARGET), darwin linux solaris)
  # The gcc guys sans darwin, linux and solaris (don't depend on statically compiled system libs there)
  TEMPLATE_VBOXR3STATIC_CFLAGS          = $(TEMPLATE_VBOXR3EXE_CFLAGS) -static
  TEMPLATE_VBOXR3STATIC_CXXFLAGS        = $(TEMPLATE_VBOXR3EXE_CXXFLAGS) -static
+ TEMPLATE_VBOXR3STATIC_PCHFLAGS        = $(TEMPLATE_VBOXR3EXE_PCHFLAGS) -static
  TEMPLATE_VBOXR3STATIC_OBJCFLAGS       = $(TEMPLATE_VBOXR3EXE_OBJCFLAGS) -static
  TEMPLATE_VBOXR3STATIC_OBJCXXFLAGS     = $(TEMPLATE_VBOXR3EXE_OBJCXXFLAGS) -static
  TEMPLATE_VBOXR3STATIC_LDFLAGS         = $(TEMPLATE_VBOXR3EXE_LDFLAGS) -static
@@ -5262,10 +5336,12 @@ TEMPLATE_VBoxR3Static_SDKS.win     += VBOX_NTDLL
 ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBoxR3Static_CFLAGS      += $(VBOX_VCC_WERR)
  TEMPLATE_VBoxR3Static_CXXFLAGS    += $(VBOX_VCC_WERR)
+ TEMPLATE_VBoxR3Static_PCHFLAGS    += $(VBOX_VCC_WERR)
  TEMPLATE_VBoxR3Static_LDFLAGS     += $(VBOX_VCC_LD_WERR)
 else
  TEMPLATE_VBoxR3Static_CFLAGS      += $(VBOX_GCC_WERR)
  TEMPLATE_VBoxR3Static_CXXFLAGS    += $(VBOX_GCC_WERR)
+ TEMPLATE_VBoxR3Static_PCHFLAGS    += $(VBOX_GCC_WERR)
 endif
 TEMPLATE_VBoxR3Static_LIBS         += \
  	$(VBOX_LIB_RUNTIME_STATIC)
@@ -5296,13 +5372,16 @@ endif
 TEMPLATE_VBoxR3StaticNonPedantic            = VBox Static Ring-3 EXE, non-pedantic.
 TEMPLATE_VBoxR3StaticNonPedantic_EXTENDS   = VBoxR3Static
 ifeq ($(KBUILD_TARGET),win)
- TEMPLATE_VBoxR3StaticNonPedantic_CXXFLAGS = $(TEMPLATE_VBoxR3Static_CXXFLAGS) $(VBOX_VCC_NON_PEDANTIC)
  TEMPLATE_VBoxR3StaticNonPedantic_CFLAGS   = $(TEMPLATE_VBoxR3Static_CFLAGS)   $(VBOX_VCC_NON_PEDANTIC)
+ TEMPLATE_VBoxR3StaticNonPedantic_CXXFLAGS = $(TEMPLATE_VBoxR3Static_CXXFLAGS) $(VBOX_VCC_NON_PEDANTIC)
+ TEMPLATE_VBoxR3StaticNonPedantic_PCHFLAGS = $(TEMPLATE_VBoxR3Static_PCHFLAGS) $(VBOX_VCC_NON_PEDANTIC)
 else # gcc:
  TEMPLATE_VBoxR3StaticNonPedantic_TOOL     = $(VBOX_GCC_TOOL)
+ TEMPLATE_VBoxR3StaticNonPedantic_CFLAGS   = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_C)  ,$(TEMPLATE_VBoxR3Static_CFLAGS)) \
+ 	$(VBOX_GCC_NON_PEDANTIC_CXX)
  TEMPLATE_VBoxR3StaticNonPedantic_CXXFLAGS = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_CXX),$(TEMPLATE_VBoxR3Static_CXXFLAGS)) \
  	$(VBOX_GCC_NON_PEDANTIC_CXX)
- TEMPLATE_VBoxR3StaticNonPedantic_CFLAGS   = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_C)  ,$(TEMPLATE_VBoxR3Static_CFLAGS)) \
+ TEMPLATE_VBoxR3StaticNonPedantic_PCHFLAGS = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_CXX),$(TEMPLATE_VBoxR3Static_PCHFLAGS)) \
  	$(VBOX_GCC_NON_PEDANTIC_CXX)
 endif
 
@@ -5319,8 +5398,10 @@ TEMPLATE_VBOXR3EXENOXCPT_EXTENDS       = VBOXR3EXE
 ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBOXR3EXENOXCPT_CFLAGS       = $(filter-out -EH%,$(TEMPLATE_VBOXR3EXE_CFLAGS)  ) -EHs-
  TEMPLATE_VBOXR3EXENOXCPT_CXXFLAGS     = $(filter-out -EH%,$(TEMPLATE_VBOXR3EXE_CXXFLAGS)) -EHs-
+ TEMPLATE_VBOXR3EXENOXCPT_PCHFLAGS     = $(filter-out -EH%,$(TEMPLATE_VBOXR3EXE_PCHFLAGS)) -EHs-
 else
  TEMPLATE_VBOXR3EXENOXCPT_CXXFLAGS     = $(TEMPLATE_VBOXR3EXE_CXXFLAGS) -fno-exceptions
+ TEMPLATE_VBOXR3EXENOXCPT_PCHFLAGS     = $(TEMPLATE_VBOXR3EXE_PCHFLAGS) -fno-exceptions
 endif
 
 #
@@ -5331,8 +5412,10 @@ TEMPLATE_VBOXR3DLLNOXCPT_EXTENDS       = VBOXR3
 ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBOXR3DLLNOXCPT_CFLAGS       = $(filter-out -EH%,$(TEMPLATE_VBOXR3_CFLAGS)  ) -EHs-
  TEMPLATE_VBOXR3DLLNOXCPT_CXXFLAGS     = $(filter-out -EH%,$(TEMPLATE_VBOXR3_CXXFLAGS)) -EHs-
+ TEMPLATE_VBOXR3DLLNOXCPT_PCHFLAGS     = $(filter-out -EH%,$(TEMPLATE_VBOXR3_PCHFLAGS)) -EHs-
 else
  TEMPLATE_VBOXR3DLLNOXCPT_CXXFLAGS     = $(TEMPLATE_VBOXR3_CXXFLAGS) -fno-exceptions
+ TEMPLATE_VBOXR3DLLNOXCPT_PCHFLAGS     = $(TEMPLATE_VBOXR3_PCHFLAGS) -fno-exceptions
 endif
 
 #
@@ -5359,6 +5442,8 @@ ifeq ($(KBUILD_TARGET),win) # No CRT!
  	$(PATH_TOOL_$(TEMPLATE_VBOXR3HARDENEDEXE_TOOL.win.x86)_LIB)/chkstk.obj
  TEMPLATE_VBOXR3HARDENEDEXE_CXXFLAGS      = $(filter-out -RTC% -GZ -GS,$(TEMPLATE_VBOXR3EXE_CXXFLAGS)) -GS-
  TEMPLATE_VBOXR3HARDENEDEXE_CXXFLAGS.debug= $(filter-out -RTC% -GZ -GS,$(TEMPLATE_VBOXR3EXE_CXXFLAGS.debug)) -GS- #-O2 -Oy-
+ TEMPLATE_VBOXR3HARDENEDEXE_PCHFLAGS      = $(filter-out -RTC% -GZ -GS,$(TEMPLATE_VBOXR3EXE_PCHFLAGS)) -GS-
+ TEMPLATE_VBOXR3HARDENEDEXE_PCHFLAGS.debug= $(filter-out -RTC% -GZ -GS,$(TEMPLATE_VBOXR3EXE_PCHFLAGS.debug)) -GS- #-O2 -Oy-
  TEMPLATE_VBOXR3HARDENEDEXE_CFLAGS        = $(filter-out -RTC% -GZ -GS,$(TEMPLATE_VBOXR3EXE_CFLAGS)) -GS-
  TEMPLATE_VBOXR3HARDENEDEXE_CFLAGS.debug  = $(filter-out -RTC% -GZ -GS,$(TEMPLATE_VBOXR3EXE_CFLAGS.debug)) -GS- -O2 -Oy-
  TEMPLATE_VBOXR3HARDENEDEXE_LDFLAGS       = $(TEMPLATE_VBOXR3EXE_LDFLAGS) \
@@ -5433,10 +5518,12 @@ TEMPLATE_VBoxR3Tool_INST       = $(VBOX_INST_TOOLS)
 ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBoxR3Tool_CFLAGS    = $(TEMPLATE_VBOXR3EXE_CFLAGS) $(VBOX_VCC_WERR)
  TEMPLATE_VBoxR3Tool_CXXFLAGS  = $(TEMPLATE_VBOXR3EXE_CXXFLAGS) $(VBOX_VCC_WERR)
+ TEMPLATE_VBoxR3Tool_PCHFLAGS  = $(TEMPLATE_VBOXR3EXE_PCHFLAGS) $(VBOX_VCC_WERR)
  TEMPLATE_VBoxR3Tool_LDFLAGS   = $(TEMPLATE_VBOXR3EXE_LDFLAGS) $(VBOX_VCC_LD_WERR)
 else
  TEMPLATE_VBoxR3Tool_CFLAGS    = $(TEMPLATE_VBOXR3EXE_CFLAGS) $(VBOX_GCC_WERR)
  TEMPLATE_VBoxR3Tool_CXXFLAGS  = $(TEMPLATE_VBOXR3EXE_CXXFLAGS) $(VBOX_GCC_WERR)
+ TEMPLATE_VBoxR3Tool_PCHFLAGS  = $(TEMPLATE_VBOXR3EXE_PCHFLAGS) $(VBOX_GCC_WERR)
  ifdef VBOX_WITH_RUNPATH
   TEMPLATE_VBoxR3Tool_LDFLAGS  = '$(VBOX_GCC_RPATH_OPT)$(VBOX_WITH_RUNPATH)' $(TEMPLATE_VBOXR3EXE_LDFLAGS)
  else ifdef VBOX_WITH_RELATIVE_RUNPATH
@@ -5459,6 +5546,7 @@ TEMPLATE_VBOXR3OSX105_EXTENDS = VBOXR3EXE
 TEMPLATE_VBOXR3OSX105_DEFS.darwin        = $(VBOX_DARWIN_DEF_SDK_10_5_DEFS) PIC
 TEMPLATE_VBOXR3OSX105_CFLAGS.darwin      = $(VBOX_DARWIN_DEF_SDK_10_5_CFLAGS) -fno-common
 TEMPLATE_VBOXR3OSX105_CXXFLAGS.darwin    = $(VBOX_DARWIN_DEF_SDK_10_5_CXXFLAGS)
+TEMPLATE_VBOXR3OSX105_PCHFLAGS.darwin    = $(VBOX_DARWIN_DEF_SDK_10_5_PCHFLAGS)
 TEMPLATE_VBOXR3OSX105_OBJCFLAGS.darwin   = $(VBOX_DARWIN_DEF_SDK_10_5_OBJCFLAGS)
 TEMPLATE_VBOXR3OSX105_OBJCXXFLAGS.darwin = $(VBOX_DARWIN_DEF_SDK_10_5_OBJCFLAGS)
 TEMPLATE_VBOXR3OSX105_LDFLAGS.darwin     = $(VBOX_DARWIN_DEF_SDK_10_5_LDFLAGS) \
@@ -5476,6 +5564,7 @@ TEMPLATE_VBoxR3DllOsX107_TOOL               = LLVMGXX42MACHO
 TEMPLATE_VBoxR3DllOsX107_DEFS.darwin        = $(VBOX_DARWIN_DEF_SDK_10_7_DEFS) PIC
 TEMPLATE_VBoxR3DllOsX107_CFLAGS.darwin      = $(VBOX_DARWIN_DEF_SDK_10_7_CFLAGS) -fno-common
 TEMPLATE_VBoxR3DllOsX107_CXXFLAGS.darwin    = $(VBOX_DARWIN_DEF_SDK_10_7_CXXFLAGS)
+TEMPLATE_VBoxR3DllOsX107_PCHFLAGS.darwin    = $(VBOX_DARWIN_DEF_SDK_10_7_PCHFLAGS)
 TEMPLATE_VBoxR3DllOsX107_OBJCFLAGS.darwin   = $(VBOX_DARWIN_DEF_SDK_10_7_OBJCFLAGS)
 TEMPLATE_VBoxR3DllOsX107_OBJCXXFLAGS.darwin = $(VBOX_DARWIN_DEF_SDK_10_7_OBJCFLAGS)
 TEMPLATE_VBoxR3DllOsX107_LDFLAGS.darwin     = $(VBOX_DARWIN_DEF_SDK_10_7_LDFLAGS) \
@@ -5532,9 +5621,11 @@ TEMPLATE_VBOXR3TSTNPEXE  = VBox Ring 3 Testcase Exe Non-pedantic
 TEMPLATE_VBOXR3TSTNPEXE_EXTENDS = VBOXR3TSTEXE
 ifneq ($(KBUILD_TARGET),win) # (only gcc)
  TEMPLATE_VBOXR3TSTNPEXE_TOOL             = $(VBOX_GCC_TOOL)
+ TEMPLATE_VBOXR3TSTNPEXE_CFLAGS           = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_C)  ,$(TEMPLATE_VBOXR3TSTEXE_CFLAGS)) \
+ 	-Wno-sign-compare
  TEMPLATE_VBOXR3TSTNPEXE_CXXFLAGS         = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_CXX),$(TEMPLATE_VBOXR3TSTEXE_CXXFLAGS)) \
  	-Wno-sign-compare
- TEMPLATE_VBOXR3TSTNPEXE_CFLAGS           = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_C)  ,$(TEMPLATE_VBOXR3TSTEXE_CFLAGS)) \
+ TEMPLATE_VBOXR3TSTNPEXE_PCHFLAGS         = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_CXX),$(TEMPLATE_VBOXR3TSTEXE_PCHFLAGS)) \
  	-Wno-sign-compare
 endif
 
@@ -5548,6 +5639,7 @@ ifn1of ($(KBUILD_TARGET), darwin win os2)
  TEMPLATE_VBoxR3TstDll_DEFS     = $(TEMPLATE_VBOXR3TSTEXE_DEFS) PIC
  TEMPLATE_VBoxR3TstDll_CFLAGS   = $(TEMPLATE_VBOXR3TSTEXE_CFLAGS) -fPIC
  TEMPLATE_VBoxR3TstDll_CXXFLAGS = $(TEMPLATE_VBOXR3TSTEXE_CXXFLAGS) -fPIC
+ TEMPLATE_VBoxR3TstDll_PCHFLAGS = $(TEMPLATE_VBOXR3TSTEXE_PCHFLAGS) -fPIC
  TEMPLATE_VBoxR3TstDll_LDFLAGS  = $(TEMPLATE_VBOXR3TSTEXE_LDFLAGS) -fPIC
 endif
 
@@ -5570,10 +5662,12 @@ TEMPLATE_VBOXR3NPEXE                     = VBox Ring 3 Non-pedantic
 TEMPLATE_VBOXR3NPEXE_EXTENDS             = VBOXR3EXE
 ifneq ($(KBUILD_TARGET),win) # (only gcc)
  TEMPLATE_VBOXR3NPEXE_TOOL               = $(VBOX_GCC_TOOL)
- TEMPLATE_VBOXR3NPEXE_CXXFLAGS           = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_CXX),$(TEMPLATE_VBOXR3EXE_CXXFLAGS)) \
- 	$(VBOX_GCC_NON_PEDANTIC_CXX)
  TEMPLATE_VBOXR3NPEXE_CFLAGS             = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_C)  ,$(TEMPLATE_VBOXR3EXE_CFLAGS)) \
  	$(VBOX_GCC_NON_PEDANTIC_C)
+ TEMPLATE_VBOXR3NPEXE_CXXFLAGS           = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_CXX),$(TEMPLATE_VBOXR3EXE_CXXFLAGS)) \
+ 	$(VBOX_GCC_NON_PEDANTIC_CXX)
+ TEMPLATE_VBOXR3NPEXE_PCHFLAGS           = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_CXX),$(TEMPLATE_VBOXR3EXE_PCHFLAGS)) \
+ 	$(VBOX_GCC_NON_PEDANTIC_CXX)
 endif
 
 
@@ -5587,10 +5681,12 @@ TEMPLATE_VBOXR3NP = VBox Ring 3 Non-pedantic
 TEMPLATE_VBOXR3NP_EXTENDS = VBOXR3
 ifneq ($(KBUILD_TARGET),win) # (only gcc)
  TEMPLATE_VBOXR3NP_TOOL                  = $(VBOX_GCC_TOOL)
- TEMPLATE_VBOXR3NP_CXXFLAGS              = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_CXX),$(TEMPLATE_VBOXR3_CXXFLAGS)) \
- 	$(VBOX_GCC_NON_PEDANTIC_CXX)
  TEMPLATE_VBOXR3NP_CFLAGS                = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_C)  ,$(TEMPLATE_VBOXR3_CFLAGS)) \
 	$(VBOX_GCC_NON_PEDANTIC_C)
+ TEMPLATE_VBOXR3NP_CXXFLAGS              = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_CXX),$(TEMPLATE_VBOXR3_CXXFLAGS)) \
+ 	$(VBOX_GCC_NON_PEDANTIC_CXX)
+ TEMPLATE_VBOXR3NP_PCHFLAGS              = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_CXX),$(TEMPLATE_VBOXR3_PCHFLAGS)) \
+ 	$(VBOX_GCC_NON_PEDANTIC_CXX)
  TEMPLATE_VBOXR3NP_OBJCFLAGS             = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) -pedantic -Wstrict-prototypes,$(TEMPLATE_VBOXR3_OBJCFLAGS))
  TEMPLATE_VBOXR3NP_OBJCXXFLAGS           = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) -pedantic,$(TEMPLATE_VBOXR3_OBJCXXFLAGS))
 endif
@@ -5603,14 +5699,17 @@ endif
 TEMPLATE_VBoxR3DllNonPedantic               = VBox ring-3 Non-pedantic, with warnings.
 TEMPLATE_VBoxR3DllNonPedantic_EXTENDS       = VBOXR3
 ifeq ($(KBUILD_TARGET),win)
- TEMPLATE_VBoxR3DllNonPedantic_CXXFLAGS     = $(TEMPLATE_VBOXR3_CXXFLAGS) $(VBOX_VCC_NON_PEDANTIC)
  TEMPLATE_VBoxR3DllNonPedantic_CFLAGS       = $(TEMPLATE_VBOXR3_CFLAGS)   $(VBOX_VCC_NON_PEDANTIC)
+ TEMPLATE_VBoxR3DllNonPedantic_CXXFLAGS     = $(TEMPLATE_VBOXR3_CXXFLAGS) $(VBOX_VCC_NON_PEDANTIC)
+ TEMPLATE_VBoxR3DllNonPedantic_PCHFLAGS     = $(TEMPLATE_VBOXR3_PCHFLAGS) $(VBOX_VCC_NON_PEDANTIC)
 else # gcc:
  TEMPLATE_VBoxR3DllNonPedantic_TOOL         = $(VBOX_GCC_TOOL)
- TEMPLATE_VBoxR3DllNonPedantic_CXXFLAGS     = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_CXX),$(TEMPLATE_VBOXR3_CXXFLAGS)) \
- 	$(VBOX_GCC_NON_PEDANTIC_CXX)
  TEMPLATE_VBoxR3DllNonPedantic_CFLAGS       = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_C)  ,$(TEMPLATE_VBOXR3_CFLAGS)) \
 	$(VBOX_GCC_NON_PEDANTIC_C)
+ TEMPLATE_VBoxR3DllNonPedantic_CXXFLAGS     = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_CXX),$(TEMPLATE_VBOXR3_CXXFLAGS)) \
+ 	$(VBOX_GCC_NON_PEDANTIC_CXX)
+ TEMPLATE_VBoxR3DllNonPedantic_PCHFLAGS     = $(filter-out $(VBOX_GCC_WERR) $(VBOX_GCC_WARN_MASOCHISTIC) $(VBOX_GCC_PEDANTIC_CXX),$(TEMPLATE_VBOXR3_PCHFLAGS)) \
+ 	$(VBOX_GCC_NON_PEDANTIC_CXX)
 endif
 
 # x86 edition of the above template for use on AMD64 targets.
@@ -5629,13 +5728,16 @@ TEMPLATE_VBoxR3DllNonPedanticFast            = VBox ring-3 Non-pedantic, with wa
 TEMPLATE_VBoxR3DllNonPedanticFast_EXTENDS    = VBoxR3DllNonPedantic
 ifeq ($(KBUILD_TYPE),debug)
  ifeq ($(KBUILD_TARGET),win)
-  TEMPLATE_VBoxR3DllNonPedanticFast_CXXFLAGS       = $(filter-out -O0,   $(TEMPLATE_VBoxR3DllNonPedantic_CXXFLAGS)) -O2 -Oy-
-  TEMPLATE_VBoxR3DllNonPedanticFast_CXXFLAGS.debug = $(filter-out -RTC%, $(TEMPLATE_VBoxR3DllNonPedantic_CXXFLAGS.debug))
   TEMPLATE_VBoxR3DllNonPedanticFast_CFLAGS         = $(filter-out -O0,   $(TEMPLATE_VBoxR3DllNonPedantic_CFLAGS)) -O2 -Oy-
   TEMPLATE_VBoxR3DllNonPedanticFast_CFLAGS.debug   = $(filter-out -RTC%, $(TEMPLATE_VBoxR3DllNonPedantic_CFLAGS.debug))
+  TEMPLATE_VBoxR3DllNonPedanticFast_CXXFLAGS       = $(filter-out -O0,   $(TEMPLATE_VBoxR3DllNonPedantic_CXXFLAGS)) -O2 -Oy-
+  TEMPLATE_VBoxR3DllNonPedanticFast_CXXFLAGS.debug = $(filter-out -RTC%, $(TEMPLATE_VBoxR3DllNonPedantic_CXXFLAGS.debug))
+  TEMPLATE_VBoxR3DllNonPedanticFast_PCHFLAGS       = $(filter-out -O0,   $(TEMPLATE_VBoxR3DllNonPedantic_PCHFLAGS)) -O2 -Oy-
+  TEMPLATE_VBoxR3DllNonPedanticFast_PCHFLAGS.debug = $(filter-out -RTC%, $(TEMPLATE_VBoxR3DllNonPedantic_PCHFLAGS.debug))
  else
-  TEMPLATE_VBoxR3DllNonPedanticFast_CXXFLAGS       = $(TEMPLATE_VBoxR3DllNonPedantic_CXXFLAGS) -O2 -fno-omit-frame-pointer
   TEMPLATE_VBoxR3DllNonPedanticFast_CFLAGS         = $(TEMPLATE_VBoxR3DllNonPedantic_CFLAGS) -O2 -fno-omit-frame-pointer
+  TEMPLATE_VBoxR3DllNonPedanticFast_CXXFLAGS       = $(TEMPLATE_VBoxR3DllNonPedantic_CXXFLAGS) -O2 -fno-omit-frame-pointer
+  TEMPLATE_VBoxR3DllNonPedanticFast_PCHFLAGS       = $(TEMPLATE_VBoxR3DllNonPedantic_PCHFLAGS) -O2 -fno-omit-frame-pointer
  endif
 endif
 
@@ -5649,6 +5751,7 @@ TEMPLATE_VBoxR3RuntimeDll_EXTENDS = VBoxR3Dll
 if defined(VBOX_WITH_MORE_NT4_COMPAT_BINARIES) && "$(KBUILD_TARGET).$(KBUILD_TARGET_ARCH)" == "win.x86"
  TEMPLATE_VBoxR3RuntimeDll_CFLAGS   = $(filter-out -MD$(VBOX_VCC_CRT_TYPE), $(TEMPLATE_VBoxR3Dll_CFLAGS)) -MT$(VBOX_VCC_CRT_TYPE)
  TEMPLATE_VBoxR3RuntimeDll_CXXFLAGS = $(filter-out -MD$(VBOX_VCC_CRT_TYPE), $(TEMPLATE_VBoxR3Dll_CXXFLAGS)) -MT$(VBOX_VCC_CRT_TYPE)
+ TEMPLATE_VBoxR3RuntimeDll_PCHFLAGS = $(filter-out -MD$(VBOX_VCC_CRT_TYPE), $(TEMPLATE_VBoxR3Dll_PCHFLAGS)) -MT$(VBOX_VCC_CRT_TYPE)
  TEMPLATE_VBoxR3RuntimeDll_LIBS.x86 = $(filter-out $(PATH_TOOL_$(TEMPLATE_VBOXR3EXE_TOOL.win.x86)_LIB)/%, $(TEMPLATE_VBoxR3Dll_LIBS.x86)) \
  	$(PATH_TOOL_$(TEMPLATE_VBoxR3RuntimeDll_TOOL.win.x86)_LIB)/oldnames.lib \
  	$(PATH_TOOL_$(TEMPLATE_VBoxR3RuntimeDll_TOOL.win.x86)_LIB)/libcmt$(VBOX_VCC_CRT_TYPE).lib \
@@ -5664,6 +5767,7 @@ TEMPLATE_VBoxR3RuntimeDllNonPedantic_EXTENDS = VBoxR3DllNonPedantic
 if defined(VBOX_WITH_MORE_NT4_COMPAT_BINARIES) && $(KBUILD_TARGET_ARCH) == "x86"
  TEMPLATE_VBoxR3RuntimeDllNonPedantic_CFLAGS   = $(filter-out -MD$(VBOX_VCC_CRT_TYPE), $(TEMPLATE_VBoxR3DllNonPedantic_CFLAGS)) -MT$(VBOX_VCC_CRT_TYPE)
  TEMPLATE_VBoxR3RuntimeDllNonPedantic_CXXFLAGS = $(filter-out -MD$(VBOX_VCC_CRT_TYPE), $(TEMPLATE_VBoxR3DllNonPedantic_CXXFLAGS)) -MT$(VBOX_VCC_CRT_TYPE)
+ TEMPLATE_VBoxR3RuntimeDllNonPedantic_PCHFLAGS = $(filter-out -MD$(VBOX_VCC_CRT_TYPE), $(TEMPLATE_VBoxR3DllNonPedantic_PCHFLAGS)) -MT$(VBOX_VCC_CRT_TYPE)
 endif
 
 #
@@ -5673,13 +5777,16 @@ TEMPLATE_VBoxR3RuntimeDllNonPedanticFast = For libraries that are linked into VB
 TEMPLATE_VBoxR3RuntimeDllNonPedanticFast_EXTENDS = VBoxR3RuntimeDllNonPedantic
 ifeq ($(KBUILD_TYPE),debug)
  ifeq ($(KBUILD_TARGET),win)
-  TEMPLATE_VBoxR3RuntimeDllNonPedanticFast_CXXFLAGS       = $(filter-out -O0,   $(TEMPLATE_VBoxR3RuntimeDllNonPedantic_CXXFLAGS)) -O2 -Oy-
-  TEMPLATE_VBoxR3RuntimeDllNonPedanticFast_CXXFLAGS.debug = $(filter-out -RTC%, $(TEMPLATE_VBoxR3RuntimeDllNonPedantic_CXXFLAGS.debug))
   TEMPLATE_VBoxR3RuntimeDllNonPedanticFast_CFLAGS         = $(filter-out -O0,   $(TEMPLATE_VBoxR3RuntimeDllNonPedantic_CFLAGS)) -O2 -Oy-
   TEMPLATE_VBoxR3RuntimeDllNonPedanticFast_CFLAGS.debug   = $(filter-out -RTC%, $(TEMPLATE_VBoxR3RuntimeDllNonPedantic_CFLAGS.debug))
+  TEMPLATE_VBoxR3RuntimeDllNonPedanticFast_CXXFLAGS       = $(filter-out -O0,   $(TEMPLATE_VBoxR3RuntimeDllNonPedantic_CXXFLAGS)) -O2 -Oy-
+  TEMPLATE_VBoxR3RuntimeDllNonPedanticFast_CXXFLAGS.debug = $(filter-out -RTC%, $(TEMPLATE_VBoxR3RuntimeDllNonPedantic_CXXFLAGS.debug))
+  TEMPLATE_VBoxR3RuntimeDllNonPedanticFast_PCHFLAGS       = $(filter-out -O0,   $(TEMPLATE_VBoxR3RuntimeDllNonPedantic_PCHFLAGS)) -O2 -Oy-
+  TEMPLATE_VBoxR3RuntimeDllNonPedanticFast_PCHFLAGS.debug = $(filter-out -RTC%, $(TEMPLATE_VBoxR3RuntimeDllNonPedantic_PCHFLAGS.debug))
  else
-  TEMPLATE_VBoxR3RuntimeDllNonPedanticFast_CXXFLAGS       = $(TEMPLATE_VBoxR3RuntimeDllNonPedantic_CXXFLAGS) -O2 -fno-omit-frame-pointer
   TEMPLATE_VBoxR3RuntimeDllNonPedanticFast_CFLAGS         = $(TEMPLATE_VBoxR3RuntimeDllNonPedantic_CFLAGS) -O2 -fno-omit-frame-pointer
+  TEMPLATE_VBoxR3RuntimeDllNonPedanticFast_CXXFLAGS       = $(TEMPLATE_VBoxR3RuntimeDllNonPedantic_CXXFLAGS) -O2 -fno-omit-frame-pointer
+  TEMPLATE_VBoxR3RuntimeDllNonPedanticFast_PCHFLAGS       = $(TEMPLATE_VBoxR3RuntimeDllNonPedantic_PCHFLAGS) -O2 -fno-omit-frame-pointer
  endif
 endif
 
@@ -5703,6 +5810,9 @@ TEMPLATE_VBoxNoCrtGccLib_CFLAGS.darwin     = -static
 TEMPLATE_VBoxNoCrtGccLib_CXXFLAGS          = $(filter-out -Werror-implicit-function-declaration,$(TEMPLATE_VBoxNoCrtGccLib_CFLAGS))
 TEMPLATE_VBoxNoCrtGccLib_CXXFLAGS.$(KBUILD_TARGET) = $(TEMPLATE_VBoxNoCrtGccLib_CFLAGS.$(KBUILD_TARGET))
 TEMPLATE_VBoxNoCrtGccLib_CXXFLAGS.$(KBUILD_TARGET_ARCH) = $(TEMPLATE_VBoxNoCrtGccLib_CFLAGS.$(KBUILD_TARGET_ARCH))
+TEMPLATE_VBoxNoCrtGccLib_PCHFLAGS          = $(TEMPLATE_VBoxNoCrtGccLib_CXXFLAGS)
+TEMPLATE_VBoxNoCrtGccLib_PCHFLAGS.$(KBUILD_TARGET) = $(TEMPLATE_VBoxNoCrtGccLib_CXXFLAGS.$(KBUILD_TARGET))
+TEMPLATE_VBoxNoCrtGccLib_PCHFLAGS.$(KBUILD_TARGET_ARCH) =  $(TEMPLATE_VBoxNoCrtGccLib_CXXFLAGS.$(KBUILD_TARGET_ARCH))
 TEMPLATE_VBoxNoCrtGccLib_INCS              = $(PATH_ROOT)/include/iprt/nocrt
 
 ifeq (disabled-by-mingw-w64 $(KBUILD_TARGET).$(KBUILD_TARGET_ARCH),win.amd64)
@@ -5717,6 +5827,9 @@ else if1of ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH), win.x86 win.amd64)
  # Use the default GCC (MinGW) with the Microsoft linker.
  # (Drop all '-g' options as we're unable to strip the debug info.)
  TEMPLATE_VBoxNoCrtGccLib_TOOL             = $(VBOX_GCC_TOOL)
+ if $(VBOX_GCC_VERSION_CC) < 30400
+  TEMPLATE_VBoxNoCrtGccLib_DEFS           += RT_WITHOUT_PRAGMA_ONCE
+ endif
  TEMPLATE_VBoxNoCrtGccLib_ASTOOL           = $(VBOX_ASTOOL)
  TEMPLATE_VBoxNoCrtGccLib_ASFLAGS          = $(VBOX_ASFLAGS)
  TEMPLATE_VBoxNoCrtGccLib_LDTOOL           = $(VBOX_VCC_TOOL)
@@ -5724,15 +5837,20 @@ else if1of ($(KBUILD_TARGET).$(KBUILD_TARGET_ARCH), win.x86 win.amd64)
  TEMPLATE_VBoxNoCrtGccLib_LIBS             = $(VBOX_GCC_LIBGCC)
  TEMPLATE_VBoxNoCrtGccLib_CFLAGS          := $(filter-out -g,$(TEMPLATE_VBoxNoCrtGccLib_CFLAGS)) -s
  TEMPLATE_VBoxNoCrtGccLib_CXXFLAGS        := $(filter-out -g,$(TEMPLATE_VBoxNoCrtGccLib_CXXFLAGS)) -s
+ TEMPLATE_VBoxNoCrtGccLib_PCHFLAGS        := $(filter-out -g,$(TEMPLATE_VBoxNoCrtGccLib_PCHFLAGS)) -s
 
 else
  # Use the default GCC.
  # The use of --exclude-libs ALL is to avoid confusing the linux ld.so.
  TEMPLATE_VBoxNoCrtGccLib_TOOL             = $(VBOX_GCC_TOOL)
+ if $(VBOX_GCC_VERSION_CC) < 30400
+  TEMPLATE_VBoxNoCrtGccLib_DEFS           += RT_WITHOUT_PRAGMA_ONCE
+ endif
  TEMPLATE_VBoxNoCrtGccLib_ASTOOL           = $(VBOX_ASTOOL)
  TEMPLATE_VBoxNoCrtGccLib_ASFLAGS          = $(VBOX_ASFLAGS)
  TEMPLATE_VBoxNoCrtGccLib_CFLAGS          += $(VBOX_GCC_fno-stack-protector)
  TEMPLATE_VBoxNoCrtGccLib_CXXFLAGS        += $(VBOX_GCC_fno-stack-protector)
+ TEMPLATE_VBoxNoCrtGccLib_PCHFLAGS        += $(VBOX_GCC_fno-stack-protector)
  ifeq ($(KBUILD_TARGET_ARCH),amd64)
   # in 64-bit mode we'll build a sys-module (VBoxREM2).
   if1of ($(KBUILD_TARGET), darwin solaris)
@@ -5812,6 +5930,10 @@ ifeq ($(KBUILD_TARGET),win)
  TEMPLATE_VBOXMAINEXE_CFLAGS.debug       = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.debug)
  TEMPLATE_VBOXMAINEXE_CFLAGS.dbgopt      = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.dbgopt)
  TEMPLATE_VBOXMAINEXE_CFLAGS.kprofile    = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.kprofile)
+ TEMPLATE_VBOXMAINEXE_PCHFLAGS           = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS)
+ TEMPLATE_VBOXMAINEXE_PCHFLAGS.debug     = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.debug)
+ TEMPLATE_VBOXMAINEXE_PCHFLAGS.dbgopt    = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.dbgopt)
+ TEMPLATE_VBOXMAINEXE_PCHFLAGS.kprofile  = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.kprofile)
  TEMPLATE_VBOXMAINEXE_LDFLAGS            = -Ignore:4197 \
 	/NOD /INCREMENTAL:NO /MAPINFO:EXPORTS /LargeAddressAware /DynamicBase /NxCompat /Release /Debug /Opt:Ref /Opt:Icf \
 	/Version:$(VBOX_VERSION_MAJOR)0$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD) \
@@ -5843,6 +5965,9 @@ ifeq ($(KBUILD_TARGET),win)
 else # the GCC guys:
 
 TEMPLATE_VBOXMAINEXE_TOOL                = $(VBOX_GCC_TOOL)
+ if $(VBOX_GCC_VERSION_CC) < 30400
+  TEMPLATE_VBOXMAINEXE_DEFS             += RT_WITHOUT_PRAGMA_ONCE
+ endif
 TEMPLATE_VBOXMAINEXE_CXXFLAGS            = -g $(VBOX_GCC_pipe) \
 	$(VBOX_GCC_PEDANTIC_CXX) $(VBOX_GCC_Wno-variadic-macros) $(VBOX_GCC_Wno-multistatement-macros) $(VBOX_GCC_Wno-class-memaccess) -Wshadow \
 	-fshort-wchar -fpermissive -fexceptions -frtti $(VBOX_GCC_OPT) $(VBOX_GCC_FP) -fno-strict-aliasing \
@@ -5872,11 +5997,18 @@ TEMPLATE_VBOXMAINEXE_CFLAGS.debug        = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.debug
 TEMPLATE_VBOXMAINEXE_OBJCFLAGS           = $(TEMPLATE_VBOXMAINEXE_CFLAGS)
 TEMPLATE_VBOXMAINEXE_OBJCFLAGS.x86       = $(TEMPLATE_VBOXMAINEXE_CFLAGS.x86)
 TEMPLATE_VBOXMAINEXE_OBJCFLAGS.amd64     = $(TEMPLATE_VBOXMAINEXE_CFLAGS.amd64)
+TEMPLATE_VBOXMAINEXE_OBJCFLAGS.debug     = $(TEMPLATE_VBOXMAINEXE_CFLAGS.debug)
 TEMPLATE_VBOXMAINEXE_OBJCFLAGS.kprofile  = $(TEMPLATE_VBOXMAINEXE_CFLAGS.kprofile)
 TEMPLATE_VBOXMAINEXE_OBJCXXFLAGS         = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS)
 TEMPLATE_VBOXMAINEXE_OBJCXXFLAGS.x86     = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.x86)
 TEMPLATE_VBOXMAINEXE_OBJCXXFLAGS.amd64   = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.amd64)
+TEMPLATE_VBOXMAINEXE_OBJCXXFLAGS.debug   = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.debug)
 TEMPLATE_VBOXMAINEXE_OBJCXXFLAGS.kprofile= $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.kprofile)
+TEMPLATE_VBOXMAINEXE_PCHFLAGS            = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS)
+TEMPLATE_VBOXMAINEXE_PCHFLAGS.x86        = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.x86)
+TEMPLATE_VBOXMAINEXE_PCHFLAGS.amd64      = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.amd64)
+TEMPLATE_VBOXMAINEXE_PCHFLAGS.debug      = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.debug)
+TEMPLATE_VBOXMAINEXE_PCHFLAGS.kprofile   = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.kprofile)
 TEMPLATE_VBOXMAINEXE_LDFLAGS.x86         = -m32
 TEMPLATE_VBOXMAINEXE_LDFLAGS.amd64       = -m64
 TEMPLATE_VBOXMAINEXE_LDFLAGS.debug       = $(VBOX_GCC_SANITIZER_FLAGS)
@@ -5974,6 +6106,7 @@ ifn1of ($(KBUILD_TARGET), darwin haiku os2 win)
  TEMPLATE_VBOXMAINDLL_DEFS     = PIC $(TEMPLATE_VBOXMAINEXE_DEFS)
  TEMPLATE_VBOXMAINDLL_CFLAGS   = -fPIC $(TEMPLATE_VBOXMAINEXE_CFLAGS)
  TEMPLATE_VBOXMAINDLL_CXXFLAGS = -fPIC $(TEMPLATE_VBOXMAINEXE_CXXFLAGS)
+ TEMPLATE_VBOXMAINDLL_PCHFLAGS = -fPIC $(TEMPLATE_VBOXMAINEXE_PCHFLAGS)
  TEMPLATE_VBOXMAINDLL_LDFLAGS  = -fPIC $(TEMPLATE_VBOXMAINEXE_LDFLAGS)
 endif
 TEMPLATE_VBOXMAINDLL_LDFLAGS.darwin = $(filter-out -bind_at_load,$(TEMPLATE_VBOXMAINEXE_LDFLAGS.darwin)) \
@@ -6000,6 +6133,7 @@ ifneq ($(KBUILD_TARGET),win)
   TEMPLATE_VBOXMAINCOMP_DEFS     = PIC $(TEMPLATE_VBOXMAINEXE_DEFS)
   TEMPLATE_VBOXMAINCOMP_CFLAGS   = -fPIC $(TEMPLATE_VBOXMAINEXE_CFLAGS)
   TEMPLATE_VBOXMAINCOMP_CXXFLAGS = -fPIC $(TEMPLATE_VBOXMAINEXE_CXXFLAGS)
+  TEMPLATE_VBOXMAINCOMP_PCHFLAGS = -fPIC $(TEMPLATE_VBOXMAINEXE_PCHFLAGS)
   if defined(VBOX_WITH_RELATIVE_RUNPATH) && !defined(VBOX_WITH_HARDENING)
    TEMPLATE_VBOXMAINCOMP_LDFLAGS = -fPIC $(filter-out '$(VBOX_GCC_RPATH_OPT)%',$(TEMPLATE_VBOXMAINEXE_LDFLAGS)) '$(VBOX_GCC_RPATH_OPT)$(VBOX_WITH_RELATIVE_RUNPATH)/..'
   else
@@ -6085,8 +6219,8 @@ else
  TEMPLATE_VBOXMAINCLIENTEXE_DEPS		= $(VBOX_PATH_SDK)/bindings/xpcom/include/VirtualBox_XPCOM.h
  TEMPLATE_VBOXMAINCLIENTEXE_DEFS		= $(TEMPLATE_VBOXMAINEXE_DEFS) \
 	NDEBUG TRIMMED
- TEMPLATE_VBOXMAINCLIENTEXE_CXXFLAGS.linux = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.linux) \
-	-pthread
+ TEMPLATE_VBOXMAINCLIENTEXE_CXXFLAGS.linux = $(TEMPLATE_VBOXMAINEXE_CXXFLAGS.linux) -pthread
+ TEMPLATE_VBOXMAINCLIENTEXE_PCHFLAGS.linux = $(TEMPLATE_VBOXMAINEXE_PCHFLAGS.linux) -pthread
 endif
 
 #
@@ -6100,6 +6234,7 @@ ifn1of ($(KBUILD_TARGET), darwin os2 win)
  TEMPLATE_VBOXMAINCLIENTDLL_DEFS        = PIC $(TEMPLATE_VBOXMAINCLIENTEXE_DEFS)
  TEMPLATE_VBOXMAINCLIENTDLL_CFLAGS      = -fPIC $(TEMPLATE_VBOXMAINCLIENTEXE_CFLAGS)
  TEMPLATE_VBOXMAINCLIENTDLL_CXXFLAGS    = -fPIC $(TEMPLATE_VBOXMAINCLIENTEXE_CXXFLAGS)
+ TEMPLATE_VBOXMAINCLIENTDLL_PCHFLAGS    = -fPIC $(TEMPLATE_VBOXMAINCLIENTEXE_PCHFLAGS)
  TEMPLATE_VBOXMAINCLIENTDLL_LDFLAGS     = -fPIC $(TEMPLATE_VBOXMAINCLIENTEXE_LDFLAGS)
 endif
 TEMPLATE_VBOXMAINCLIENTDLL_LDFLAGS.darwin = $(filter-out -bind_at_load,$(TEMPLATE_VBOXMAINCLIENTEXE_LDFLAGS.darwin))
@@ -6137,6 +6272,7 @@ ifdef VBOX_WITH_EXTPACK
  endif
  ifneq ($(KBUILD_TARGET),win)
   TEMPLATE_VBoxR3ExtPack_CXXFLAGS = $(TEMPLATE_VBOXR3DLLNOXCPT_CXXFLAGS) -fno-rtti
+  TEMPLATE_VBoxR3ExtPack_PCHFLAGS = $(TEMPLATE_VBOXR3DLLNOXCPT_PCHFLAGS) -fno-rtti
  endif
  TEMPLATE_VBoxR3ExtPack_INST = $(INST_EXTPACK)YouShallOverrideThis/
  ifeq ($(KBUILD_TARGET),linux)
@@ -6383,7 +6519,11 @@ ifdef VBOX_WITH_QTGUI
    TEMPLATE_VBOXQTGUIEXE_CXXFLAGS += -wd4619
   endif
   TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.debug = -RTCsu
+  TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.debug = -RTCsu
   TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.dbgopt = $(NO_SUCH_VARIABLE)
+  TEMPLATE_VBOXQTGUIEXE_PCHFLAGS        = $(TEMPLATE_VBOXQTGUIEXE_CXXFLAGS)
+  TEMPLATE_VBOXQTGUIEXE_PCHFLAGS.debug  = $(TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.debug)
+  TEMPLATE_VBOXQTGUIEXE_PCHFLAGS.dbgopt = $(TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.dbgopt)
   TEMPLATE_VBOXQTGUIEXE_LDFLAGS = -Ignore:4197 \
 	/NOD /INCREMENTAL:NO /MAPINFO:EXPORTS /LargeAddressAware /DynamicBase /NxCompat /Release /Debug /Opt:Ref /Opt:Icf \
 	/Version:$(VBOX_VERSION_MAJOR)0$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD) \
@@ -6404,8 +6544,10 @@ ifdef VBOX_WITH_QTGUI
 
  else # the gcc guys:
   TEMPLATE_VBOXQTGUIEXE_TOOL = $(VBOX_GCC_TOOL)
+  if $(VBOX_GCC_VERSION_CC) < 30400
+   TEMPLATE_VBOXQTGUIEXE_DEFS += RT_WITHOUT_PRAGMA_ONCE
+  endif
   TEMPLATE_VBOXQTGUIEXE_DEFS.linux = _REENTRANT
-
   TEMPLATE_VBOXQTGUIEXE_DEFS.solaris = _REENTRANT
 
   ## @todo Use VBOX_GCC_PEDANTIC_CXX?
@@ -6421,6 +6563,12 @@ ifdef VBOX_WITH_QTGUI
   TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.amd64 = -m64
   TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.linux = -pthread
   TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.debug = $(VBOX_GCC_SANITIZER_FLAGS)
+  TEMPLATE_VBOXQTGUIEXE_PCHFLAGS       = $(TEMPLATE_VBOXQTGUIEXE_CXXFLAGS)
+  TEMPLATE_VBOXQTGUIEXE_PCHFLAGS.x86   = $(TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.x86)
+  TEMPLATE_VBOXQTGUIEXE_PCHFLAGS.amd64 = $(TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.amd64)
+  TEMPLATE_VBOXQTGUIEXE_PCHFLAGS.linux = $(TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.linux)
+  TEMPLATE_VBOXQTGUIEXE_PCHFLAGS.debug = $(TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.debug)
+  TEMPLATE_VBOXQTGUIEXE_PCHFLAGS.dbgopt = $(TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.dbgopt)
   TEMPLATE_VBOXQTGUIEXE_OBJCFLAGS = -g $(VBOX_GCC_pipe) $(VBOX_GCC_PEDANTIC_C) -fno-exceptions $(VBOX_GCC_IPRT_FMT_CHECK)
   TEMPLATE_VBOXQTGUIEXE_OBJCFLAGS.x86 = $(TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.x86)
   TEMPLATE_VBOXQTGUIEXE_OBJCFLAGS.amd64 = $(TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.amd64)
@@ -6457,6 +6605,7 @@ ifdef VBOX_WITH_QTGUI
    TEMPLATE_VBOXQTGUIEXE_DEFS.darwin        += $(VBOX_DARWIN_DEF_SDK_DEFS)
    TEMPLATE_VBOXQTGUIEXE_CFLAGS.darwin      += $(VBOX_DARWIN_DEF_SDK_CFLAGS)
    TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.darwin    += $(VBOX_DARWIN_DEF_SDK_CXXFLAGS)
+   TEMPLATE_VBOXQTGUIEXE_PCHFLAGS.darwin    += $(TEMPLATE_VBOXQTGUIEXE_CXXFLAGS.darwin)
    TEMPLATE_VBOXQTGUIEXE_OBJCFLAGS.darwin   += $(VBOX_DARWIN_DEF_SDK_OBJCFLAGS)
    TEMPLATE_VBOXQTGUIEXE_OBJCXXFLAGS.darwin += $(VBOX_DARWIN_DEF_SDK_OBJCXXFLAGS)
    TEMPLATE_VBOXQTGUIEXE_LDFLAGS.darwin     += $(VBOX_DARWIN_DEF_SDK_LDFLAGS) -bind_at_load
@@ -6543,6 +6692,7 @@ ifdef VBOX_WITH_QTGUI
    TEMPLATE_VBOXQTGUI_DEFS     = PIC $(TEMPLATE_VBOXQTGUIEXE_DEFS)
    TEMPLATE_VBOXQTGUI_CFLAGS   = -fPIC $(TEMPLATE_VBOXQTGUIEXE_CFLAGS)
    TEMPLATE_VBOXQTGUI_CXXFLAGS = -fPIC $(TEMPLATE_VBOXQTGUIEXE_CXXFLAGS)
+   TEMPLATE_VBOXQTGUI_PCHFLAGS = $(TEMPLATE_VBOXQTGUI_CXXFLAGS)
    TEMPLATE_VBOXQTGUI_LDFLAGS  = -fPIC $(TEMPLATE_VBOXQTGUIEXE_LDFLAGS)
  endif
 
@@ -6602,6 +6752,12 @@ ifeq ($(KBUILD_HOST),win)
  TEMPLATE_VBoxBldProg_CFLAGS.release     = $(TEMPLATE_VBoxBldProg_CXXFLAGS.release)
  TEMPLATE_VBoxBldProg_CFLAGS.profile     = $(TEMPLATE_VBoxBldProg_CXXFLAGS.profile)
  TEMPLATE_VBoxBldProg_CFLAGS.kprofile    = $(TEMPLATE_VBoxBldProg_CXXFLAGS.kprofile)
+ TEMPLATE_VBoxBldProg_PCHFLAGS           = $(TEMPLATE_VBoxBldProg_CXXFLAGS)
+ TEMPLATE_VBoxBldProg_PCHFLAGS.debug     = $(TEMPLATE_VBoxBldProg_CXXFLAGS.debug)
+ TEMPLATE_VBoxBldProg_PCHFLAGS.dbgopt    = $(TEMPLATE_VBoxBldProg_CXXFLAGS.dbgopt)
+ TEMPLATE_VBoxBldProg_PCHFLAGS.release   = $(TEMPLATE_VBoxBldProg_CXXFLAGS.release)
+ TEMPLATE_VBoxBldProg_PCHFLAGS.profile   = $(TEMPLATE_VBoxBldProg_CXXFLAGS.profile)
+ TEMPLATE_VBoxBldProg_PCHFLAGS.kprofile  = $(TEMPLATE_VBoxBldProg_CXXFLAGS.kprofile)
  TEMPLATE_VBoxBldProg_LDFLAGS            = -Ignore:4197 \
 	/NOD /INCREMENTAL:NO /MAPINFO:EXPORTS /LargeAddressAware /DynamicBase /NxCompat /Release /Debug /Opt:Ref /Opt:Icf \
 	/Version:$(VBOX_VERSION_MAJOR)0$(VBOX_VERSION_MINOR).$(VBOX_VERSION_BUILD) \
@@ -6619,6 +6775,9 @@ ifeq ($(KBUILD_HOST),win)
 else
 # (gcc of some kind )
 TEMPLATE_VBoxBldProg_TOOL                = GXX3
+ if $(VBOX_GCC_VERSION_CC) < 30400
+TEMPLATE_VBoxBldProg_DEFS               += RT_WITHOUT_PRAGMA_ONCE
+ endif
 TEMPLATE_VBoxBldProg_CFLAGS              = -g $(VBOX_GCC_pipe) $(VBOX_GCC_PEDANTIC_C) $(VBOX_GCC_Wno-variadic-macros)
  ifdef VBOX_WITH_NO_GCC_WARNING_POLICY
   TEMPLATE_VBoxBldProg_CFLAGS           += $(VBOX_GCC_WERR)
@@ -6653,6 +6812,12 @@ TEMPLATE_VBoxBldProg_OBJCXXFLAGS.amd64   = $(TEMPLATE_VBoxBldProg_CXXFLAGS.amd64
 TEMPLATE_VBoxBldProg_OBJCXXFLAGS.release = $(TEMPLATE_VBoxBldProg_CXXFLAGS.release)
 TEMPLATE_VBoxBldProg_OBJCXXFLAGS.profile = $(TEMPLATE_VBoxBldProg_CXXFLAGS.profile)
 TEMPLATE_VBoxBldProg_OBJCXXFLAGS.kprofile= $(TEMPLATE_VBoxBldProg_CXXFLAGS.kprofile)
+TEMPLATE_VBoxBldProg_PCHFLAGS         = $(TEMPLATE_VBoxBldProg_CXXFLAGS)
+TEMPLATE_VBoxBldProg_PCHFLAGS.x86     = $(TEMPLATE_VBoxBldProg_CXXFLAGS.x86)
+TEMPLATE_VBoxBldProg_PCHFLAGS.amd64   = $(TEMPLATE_VBoxBldProg_CXXFLAGS.amd64)
+TEMPLATE_VBoxBldProg_PCHFLAGS.release = $(TEMPLATE_VBoxBldProg_CXXFLAGS.release)
+TEMPLATE_VBoxBldProg_PCHFLAGS.profile = $(TEMPLATE_VBoxBldProg_CXXFLAGS.profile)
+TEMPLATE_VBoxBldProg_PCHFLAGS.kprofile= $(TEMPLATE_VBoxBldProg_CXXFLAGS.kprofile)
 TEMPLATE_VBoxBldProg_LDFLAGS.x86         = -m32
 TEMPLATE_VBoxBldProg_LDFLAGS.sparc32     = -m32
 TEMPLATE_VBoxBldProg_LDFLAGS.amd64       = -m64
@@ -6668,6 +6833,7 @@ TEMPLATE_VBoxBldProg_TOOL                = $(VBOX_GCC_TOOL)
 TEMPLATE_VBoxBldProg_DEFS.darwin         = $(VBOX_DARWIN_DEF_SDK_10_7_DEFS)
 TEMPLATE_VBoxBldProg_CFLAGS.darwin       = $(VBOX_DARWIN_DEF_SDK_10_7_CFLAGS) -fno-common
 TEMPLATE_VBoxBldProg_CXXFLAGS.darwin     = $(VBOX_DARWIN_DEF_SDK_10_7_CXXFLAGS)
+TEMPLATE_VBoxBldProg_PCHFLAGS.darwin     = $(VBOX_DARWIN_DEF_SDK_10_7_CXXFLAGS)
 TEMPLATE_VBoxBldProg_OBJCFLAGS.darwin    = $(VBOX_DARWIN_DEF_SDK_10_7_OBJCFLAGS) $(VBOX_GCC_PEDANTIC_C)
 TEMPLATE_VBoxBldProg_OBJCXXFLAGS.darwin  = $(VBOX_DARWIN_DEF_SDK_10_7_OBJCXXFLAGS) $(VBOX_GCC_PEDANTIC_CXX)
 TEMPLATE_VBoxBldProg_LDFLAGS.darwin      = $(VBOX_DARWIN_DEF_SDK_10_7_LDFLAGS)
@@ -6675,6 +6841,7 @@ TEMPLATE_VBoxBldProg_LDFLAGS.darwin      = $(VBOX_DARWIN_DEF_SDK_10_7_LDFLAGS)
 TEMPLATE_VBoxBldProg_DEFS.darwin         = $(VBOX_DARWIN_DEF_SDK_10_6_DEFS)
 TEMPLATE_VBoxBldProg_CFLAGS.darwin       = $(VBOX_DARWIN_DEF_SDK_10_6_CFLAGS) -fno-common
 TEMPLATE_VBoxBldProg_CXXFLAGS.darwin     = $(VBOX_DARWIN_DEF_SDK_10_6_CXXFLAGS)
+TEMPLATE_VBoxBldProg_PCHFLAGS.darwin     = $(VBOX_DARWIN_DEF_SDK_10_6_CXXFLAGS)
 TEMPLATE_VBoxBldProg_OBJCFLAGS.darwin    = $(VBOX_DARWIN_DEF_SDK_10_6_OBJCFLAGS) $(VBOX_GCC_PEDANTIC_C)
 TEMPLATE_VBoxBldProg_OBJCXXFLAGS.darwin  = $(VBOX_DARWIN_DEF_SDK_10_6_OBJCXXFLAGS) $(VBOX_GCC_PEDANTIC_CXX)
 TEMPLATE_VBoxBldProg_LDFLAGS.darwin      = $(VBOX_DARWIN_DEF_SDK_10_6_LDFLAGS)
@@ -6682,6 +6849,7 @@ TEMPLATE_VBoxBldProg_LDFLAGS.darwin      = $(VBOX_DARWIN_DEF_SDK_10_6_LDFLAGS)
 TEMPLATE_VBoxBldProg_DEFS.darwin         = $(VBOX_DARWIN_DEF_SDK_10_5_DEFS)
 TEMPLATE_VBoxBldProg_CFLAGS.darwin       = $(VBOX_DARWIN_DEF_SDK_10_5_CFLAGS) -fno-common
 TEMPLATE_VBoxBldProg_CXXFLAGS.darwin     = $(VBOX_DARWIN_DEF_SDK_10_5_CXXFLAGS)
+TEMPLATE_VBoxBldProg_PCHFLAGS.darwin     = $(VBOX_DARWIN_DEF_SDK_10_5_CXXFLAGS)
 TEMPLATE_VBoxBldProg_OBJCFLAGS.darwin    = $(VBOX_DARWIN_DEF_SDK_10_5_OBJCFLAGS) $(VBOX_GCC_PEDANTIC_C)
 TEMPLATE_VBoxBldProg_OBJCXXFLAGS.darwin  = $(VBOX_DARWIN_DEF_SDK_10_5_OBJCXXFLAGS) $(VBOX_GCC_PEDANTIC_CXX)
 TEMPLATE_VBoxBldProg_LDFLAGS.darwin      = $(VBOX_DARWIN_DEF_SDK_10_5_LDFLAGS)
@@ -6689,6 +6857,7 @@ TEMPLATE_VBoxBldProg_LDFLAGS.darwin      = $(VBOX_DARWIN_DEF_SDK_10_5_LDFLAGS)
 TEMPLATE_VBoxBldProg_DEFS.darwin         = $(VBOX_DARWIN_DEF_SDK_DEFS)
 TEMPLATE_VBoxBldProg_CFLAGS.darwin       = $(VBOX_DARWIN_DEF_SDK_CFLAGS) -fno-common
 TEMPLATE_VBoxBldProg_CXXFLAGS.darwin     = $(VBOX_DARWIN_DEF_SDK_CXXFLAGS)
+TEMPLATE_VBoxBldProg_PCHFLAGS.darwin     = $(VBOX_DARWIN_DEF_SDK_CXXFLAGS)
 TEMPLATE_VBoxBldProg_OBJCFLAGS.darwin    = $(VBOX_DARWIN_DEF_SDK_OBJCFLAGS) $(VBOX_GCC_PEDANTIC_C)
 TEMPLATE_VBoxBldProg_OBJCXXFLAGS.darwin  = $(VBOX_DARWIN_DEF_SDK_OBJCXXFLAGS) $(VBOX_GCC_PEDANTIC_CXX)
 TEMPLATE_VBoxBldProg_LDFLAGS.darwin      = $(VBOX_DARWIN_DEF_SDK_LDFLAGS)
@@ -6740,6 +6909,7 @@ TEMPLATE_VBoxAdvBldProg_DEFS    = $(TEMPLATE_VBoxBldProg_DEFS) IN_RT_R3 IN_ADV_B
 ifeq ($(KBUILD_HOST),win)
  TEMPLATE_VBoxAdvBldProg_CFLAGS = $(TEMPLATE_VBoxBldProg_CFLAGS) $(VBOX_VCC_WERR)
  TEMPLATE_VBoxAdvBldProg_CXXFLAGS = $(TEMPLATE_VBoxBldProg_CXXFLAGS) $(VBOX_VCC_WERR)
+ TEMPLATE_VBoxAdvBldProg_PCHFLAGS = $(TEMPLATE_VBoxAdvBldProg_CXXFLAGS)
 endif
 TEMPLATE_VBoxAdvBldProg_LIBS    = \
 	$(PATH_STAGE_LIB)/RuntimeBldProg$(VBOX_HOSTSUFF_LIB) \
@@ -6863,6 +7033,9 @@ TEMPLATE_NewVBoxGuestR3Exe_LIBS     = \
 	$(TEMPLATE_VBOXGUESTR3EXE_LIBS)
 ifeq ($(KBUILD_TARGET),linux)
 TEMPLATE_NewVBoxGuestR3Exe_LIBS += crypt
+endif
+ifeq ($(KBUILD_TARGET),solaris)
+TEMPLATE_NewVBoxGuestR3Exe_LIBS += contract
 endif
 
 #
@@ -7506,7 +7679,7 @@ endif
 SVN                    ?= svn$(HOSTSUFF_EXE)
 VBOX_SVN_REV_KMK        = $(PATH_OUT)/revision.kmk
 ifndef VBOX_SVN_REV
- VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 127442 $  )
+ VBOX_SVN_REV_FALLBACK := $(patsubst %:,,  $Rev: 127994 $  )
  VBOX_SVN_DEP          := $(firstword $(wildcard $(PATH_ROOT)/.svn/wc.db $(abspath $(PATH_ROOT)/../.svn/wc.db) $(abspath $(PATH_ROOT)/../../.svn/wc.db) $(PATH_ROOT)/.svn/entries))
  ifeq ($(which $(SVN)),)
   VBOX_SVN_DEP         :=

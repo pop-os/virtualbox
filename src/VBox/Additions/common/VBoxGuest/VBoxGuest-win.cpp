@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,12 +39,14 @@
 #include <iprt/asm-amd64-x86.h>
 #include <iprt/critsect.h>
 #include <iprt/dbg.h>
+#include <iprt/err.h>
 #include <iprt/initterm.h>
 #include <iprt/memobj.h>
 #include <iprt/mem.h>
 #include <iprt/mp.h>
 #include <iprt/spinlock.h>
 #include <iprt/string.h>
+#include <iprt/utf16.h>
 
 #ifdef TARGET_NT4
 # include <VBox/pci.h>

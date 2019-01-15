@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,22 +15,16 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QApplication>
-# include <QGraphicsScene>
-# include <QGraphicsView>
-# include <QPainter>
-# include <QStyle>
-# include <QGraphicsSceneMouseEvent>
+#include <QApplication>
+#include <QGraphicsScene>
+#include <QGraphicsView>
+#include <QPainter>
+#include <QStyle>
+#include <QGraphicsSceneMouseEvent>
 
 /* GUI includes: */
-# include "UIGraphicsButton.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "UIGraphicsButton.h"
 
 
 UIGraphicsButton::UIGraphicsButton(QIGraphicsWidget *pParent, const QIcon &icon)

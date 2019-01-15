@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIGraphicsTextPane_h___
-#define ___UIGraphicsTextPane_h___
+#ifndef FEQT_INCLUDED_SRC_widgets_graphics_UIGraphicsTextPane_h
+#define FEQT_INCLUDED_SRC_widgets_graphics_UIGraphicsTextPane_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "QIGraphicsWidget.h"
@@ -188,5 +191,5 @@ private:
     QString m_strHoveredAnchor;
 };
 
-#endif /* !___UIGraphicsTextPane_h___ */
+#endif /* !FEQT_INCLUDED_SRC_widgets_graphics_UIGraphicsTextPane_h */
 

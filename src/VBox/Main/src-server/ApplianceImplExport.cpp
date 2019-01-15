@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,6 +15,7 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN_APPLIANCE
 #include <iprt/path.h>
 #include <iprt/dir.h>
 #include <iprt/param.h>
@@ -30,12 +31,12 @@
 #include "ProgressImpl.h"
 #include "MachineImpl.h"
 #include "MediumImpl.h"
+#include "LoggingNew.h"
 #include "Global.h"
 #include "MediumFormatImpl.h"
 #include "SystemPropertiesImpl.h"
 
 #include "AutoCaller.h"
-#include "Logging.h"
 
 #include "ApplianceImplPrivate.h"
 

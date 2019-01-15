@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,6 +36,7 @@
 #include <iprt/sha.h>
 #include <iprt/string.h>
 #include <iprt/stream.h>
+#include <iprt/utf16.h>
 #include <iprt/vfs.h>
 #include <iprt/zip.h>
 #include <iprt/cpp/ministring.h>

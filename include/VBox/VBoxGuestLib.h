@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -27,8 +27,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef ___VBox_VBoxGuestLib_h
-#define ___VBox_VBoxGuestLib_h
+#ifndef VBOX_INCLUDED_VBoxGuestLib_h
+#define VBOX_INCLUDED_VBoxGuestLib_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 #include <VBox/VMMDev.h>
@@ -181,7 +184,7 @@ DECLR0VBGL(int) VbglR0IdcClose(PVBGLIDCHANDLE pHandle);
  * @param   cbReq       Size of memory block required for the request.
  * @param   enmReqType  the generic request type.
  */
-# if defined(___VBox_VMMDev_h) || defined(DOXYGEN_RUNNING)
+# if defined(VBOX_INCLUDED_VMMDev_h) || defined(DOXYGEN_RUNNING)
 DECLR0VBGL(int) VbglR0GRAlloc(struct VMMDevRequestHeader **ppReq, size_t cbReq, VMMDevRequestType enmReqType);
 # else
 DECLR0VBGL(int) VbglR0GRAlloc(struct VMMDevRequestHeader **ppReq, size_t cbReq, int32_t enmReqType);
@@ -541,7 +544,7 @@ DECLR0VBGL(int)     VbglR0SetMouseStatus(uint32_t fFeatures);
 VBGLR3DECL(int)     VbglR3Init(void);
 VBGLR3DECL(int)     VbglR3InitUser(void);
 VBGLR3DECL(void)    VbglR3Term(void);
-# ifdef ___iprt_time_h
+# ifdef IPRT_INCLUDED_time_h
 VBGLR3DECL(int)     VbglR3GetHostTime(PRTTIMESPEC pTime);
 # endif
 VBGLR3DECL(int)     VbglR3InterruptEventWaits(void);
@@ -629,7 +632,7 @@ VBGLR3DECL(int)     VbglR3VrdpGetChangeRequest(bool *pfActive, uint32_t *puExper
 /** @name VM Statistics
  * @{ */
 VBGLR3DECL(int)     VbglR3StatQueryInterval(uint32_t *pu32Interval);
-# if defined(___VBox_VMMDev_h) || defined(DOXYGEN_RUNNING)
+# if defined(VBOX_INCLUDED_VMMDev_h) || defined(DOXYGEN_RUNNING)
 VBGLR3DECL(int)     VbglR3StatReport(VMMDevReportGuestStats *pReq);
 # endif
 /** @}  */
@@ -1087,5 +1090,5 @@ RT_C_DECLS_END
 
 /** @} */
 
-#endif
+#endif /* !VBOX_INCLUDED_VBoxGuestLib_h */
 

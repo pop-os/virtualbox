@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -50,8 +50,11 @@
  * SUCH DAMAGE.
  */
 
-#ifndef ___iprt_nocrt_amd64_fenv_h
-#define ___iprt_nocrt_amd64_fenv_h
+#ifndef IPRT_INCLUDED_nocrt_amd64_fenv_h
+#define IPRT_INCLUDED_nocrt_amd64_fenv_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 
@@ -108,6 +111,11 @@ extern const fenv_t     RT_NOCRT(__fe_dfl_env);
 #define __fwait()               __asm __volatile("fwait")
 #define __ldmxcsr(__csr)        __asm __volatile("ldmxcsr %0" : : "m" (__csr))
 #define __stmxcsr(__csr)        __asm __volatile("stmxcsr %0" : "=m" (*(__csr)))
+
+#if RT_GNUC_PREREQ(4, 6)
+# pragma GCC diagnostic push
+# pragma GCC diagnostic ignored "-Wshadow"
+#endif
 
 DECLINLINE(int)
 feclearexcept(int __excepts)
@@ -216,6 +224,10 @@ fegetexcept(void)
         return (~__control & FE_ALL_EXCEPT);
 }
 
+#if RT_GNUC_PREREQ(4, 6)
+# pragma GCC diagnostic pop
+#endif
+
 RT_C_DECLS_END
 
 #ifndef RT_WITHOUT_NOCRT_WRAPPERS
@@ -229,4 +241,4 @@ RT_C_DECLS_END
 # define __fe_dfl_env RT_NOCRT(__fe_dfl_env)
 #endif
 
-#endif  /* !__iprt_nocrt_amd64_fenv_h__ */
+#endif /* !IPRT_INCLUDED_nocrt_amd64_fenv_h */

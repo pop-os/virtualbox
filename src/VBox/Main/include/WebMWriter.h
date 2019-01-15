@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2018 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,10 +15,19 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____WEBMWRITER
-#define ____WEBMWRITER
+#ifndef MAIN_INCLUDED_WebMWriter_h
+#define MAIN_INCLUDED_WebMWriter_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "EBMLWriter.h"
+
+#include <queue>
+#include <map>
+#include <list>
+
+#include <iprt/rand.h>
 
 #ifdef VBOX_WITH_LIBVPX
 # ifdef _MSC_VER
@@ -83,7 +92,6 @@
 # pragma pack(pop)
 #endif /* VBOX_WITH_LIBOPUS */
 
-using namespace com;
 
 class WebMWriter : public EBMLWriter
 {
@@ -536,7 +544,7 @@ public:
 
     int WriteBlock(uint8_t uTrack, const void *pvData, size_t cbData);
 
-    const Utf8Str& GetFileName(void);
+    const com::Utf8Str& GetFileName(void);
 
     uint64_t GetFileSize(void);
 
@@ -573,4 +581,4 @@ protected:
     typedef std::map <uint8_t, WebMTrack *> WebMTracks;
 };
 
-#endif /* !____WEBMWRITER */
+#endif /* !MAIN_INCLUDED_WebMWriter_h */

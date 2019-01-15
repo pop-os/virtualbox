@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,27 +15,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# ifndef VBOX_WS_MAC
-#  include <QMainWindow>
-#  include <QMenuBar>
-#  include <QKeyEvent>
-#  include <QTimer>
-# endif /* !VBOX_WS_MAC */
+#ifndef VBOX_WS_MAC
+# include <QMainWindow>
+# include <QMenuBar>
+# include <QKeyEvent>
+# include <QTimer>
+#endif /* !VBOX_WS_MAC */
 
 /* GUI includes: */
-# include "UIKeyboardHandlerNormal.h"
-# ifndef VBOX_WS_MAC
-#  include "UIMachineLogic.h"
-#  include "UIMachineWindow.h"
-#  include "UIShortcutPool.h"
-# endif /* !VBOX_WS_MAC */
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "UIKeyboardHandlerNormal.h"
+#ifndef VBOX_WS_MAC
+# include "UIMachineLogic.h"
+# include "UIMachineWindow.h"
+# include "UIShortcutPool.h"
+#endif /* !VBOX_WS_MAC */
 
 
 /* Namespaces: */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,25 +15,19 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QApplication>
-# include <QHBoxLayout>
-# include <QPainter>
-# include <QStyle>
-# include <QToolButton>
+#include <QApplication>
+#include <QHBoxLayout>
+#include <QPainter>
+#include <QStyle>
+#include <QToolButton>
 
 /* GUI includes: */
-# include "UIMenuToolBar.h"
-# include "UIToolBar.h"
+#include "UIMenuToolBar.h"
+#include "UIToolBar.h"
 
 /* Other VBox includes: */
 #include "iprt/assert.h"
-
-#endif /* VBOX_WS_MAC */
 
 
 /** UIToolBar extension

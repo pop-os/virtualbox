@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,8 +43,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef ___vboxsf_h
-#define ___vboxsf_h
+#ifndef GA_INCLUDED_SRC_haiku_SharedFolders_vboxsf_h
+#define GA_INCLUDED_SRC_haiku_SharedFolders_vboxsf_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <malloc.h>
 #include <dirent.h>
@@ -103,5 +106,5 @@ extern mutex g_vnodeCacheLock;
 }
 #endif
 
-#endif /* ___vboxsf_h */
+#endif /* !GA_INCLUDED_SRC_haiku_SharedFolders_vboxsf_h */
 

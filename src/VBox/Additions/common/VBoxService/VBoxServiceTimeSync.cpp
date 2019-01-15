@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -92,11 +92,12 @@
 # include <sys/time.h>
 #endif
 
-#include <iprt/thread.h>
+#include <iprt/assert.h>
 #include <iprt/string.h>
 #include <iprt/semaphore.h>
 #include <iprt/time.h>
-#include <iprt/assert.h>
+#include <iprt/thread.h>
+#include <VBox/err.h>
 #include <VBox/VBoxGuestLib.h>
 #include "VBoxServiceInternal.h"
 #include "VBoxServiceUtils.h"

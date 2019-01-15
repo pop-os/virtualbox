@@ -40,6 +40,9 @@
 
 #ifndef _SVGA3D_CAPS_H_
 #define _SVGA3D_CAPS_H_
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #define SVGA_FIFO_3D_CAPS_SIZE   (SVGA_FIFO_3D_CAPS_LAST - \
                                   SVGA_FIFO_3D_CAPS + 1)
@@ -136,4 +139,4 @@ SVGA3dCaps_FindRecord(const uint32_t *capsBlock,
 }
 #endif
 
-#endif // _SVGA3D_CAPS_H_
+#endif /* !_SVGA3D_CAPS_H_ */

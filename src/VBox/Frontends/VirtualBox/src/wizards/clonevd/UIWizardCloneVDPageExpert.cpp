@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,33 +15,27 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QButtonGroup>
-# include <QCheckBox>
-# include <QGridLayout>
-# include <QGroupBox>
-# include <QHBoxLayout>
-# include <QLineEdit>
-# include <QRadioButton>
-# include <QVBoxLayout>
+#include <QButtonGroup>
+#include <QCheckBox>
+#include <QGridLayout>
+#include <QGroupBox>
+#include <QHBoxLayout>
+#include <QLineEdit>
+#include <QRadioButton>
+#include <QVBoxLayout>
 
 /* GUI includes: */
-# include "QIToolButton.h"
-# include "UIConverter.h"
-# include "UIIconPool.h"
-# include "UIMediaComboBox.h"
-# include "UIMessageCenter.h"
-# include "UIWizardCloneVD.h"
-# include "UIWizardCloneVDPageExpert.h"
+#include "QIToolButton.h"
+#include "UIConverter.h"
+#include "UIIconPool.h"
+#include "UIMediaComboBox.h"
+#include "UIMessageCenter.h"
+#include "UIWizardCloneVD.h"
+#include "UIWizardCloneVDPageExpert.h"
 
 /* COM includes: */
-# include "CSystemProperties.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CSystemProperties.h"
 
 
 UIWizardCloneVDPageExpert::UIWizardCloneVDPageExpert(const CMedium &comSourceVirtualDisk, KDeviceType enmDeviceType)

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_APPLIANCEIMPL
-#define ____H_APPLIANCEIMPL
+#ifndef MAIN_INCLUDED_ApplianceImpl_h
+#define MAIN_INCLUDED_ApplianceImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* VBox includes */
 #include "VirtualSystemDescriptionWrap.h"
@@ -328,5 +331,5 @@ private:
     friend class Machine;
 };
 
-#endif // !____H_APPLIANCEIMPL
+#endif /* !MAIN_INCLUDED_ApplianceImpl_h */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

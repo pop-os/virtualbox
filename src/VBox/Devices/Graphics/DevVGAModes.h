@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,9 +18,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifndef VBOX_INCLUDED_SRC_Graphics_DevVGAModes_h
+#define VBOX_INCLUDED_SRC_Graphics_DevVGAModes_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
+
 #include <VBoxVideoVBE.h>
 #include <VBoxVideoVBEPrivate.h>
 
 #include "vbetables.h"
 
 #define MODE_INFO_SIZE ( sizeof(mode_info_list) / sizeof(ModeInfoListItem) )
+
+#endif /* !VBOX_INCLUDED_SRC_Graphics_DevVGAModes_h */
+

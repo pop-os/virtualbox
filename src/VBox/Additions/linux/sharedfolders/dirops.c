@@ -1,11 +1,10 @@
+/* $Id: dirops.c $ */
 /** @file
- *
- * vboxsf -- VirtualBox Guest Additions for Linux:
- * Directory inode and file operations
+ * vboxsf - VBox Linux Shared Folders VFS, directory inode and file operations.
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -30,6 +29,7 @@
  */
 
 #include "vfsmod.h"
+#include <iprt/err.h>
 
 /**
  * Open a directory. Read the complete content into a buffer.
@@ -351,7 +351,7 @@ struct file_operations sf_dir_fops = {
 	.release = sf_dir_release,
 	.read = generic_read_dir
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
-	    ,.llseek = generic_file_llseek
+	, .llseek = generic_file_llseek
 #endif
 };
 
@@ -874,7 +874,7 @@ static int sf_symlink(struct inode *parent, struct dentry *dentry,
  fail0:
 	return err;
 }
-#endif
+#endif /* LINUX_VERSION_CODE >= 2.6.0 */
 
 struct inode_operations sf_dir_iops = {
 	.lookup = sf_lookup,

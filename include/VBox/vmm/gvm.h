@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,9 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-
-#ifndef ___VBox_vmm_gvm_h
-#define ___VBox_vmm_gvm_h
+#ifndef VBOX_INCLUDED_vmm_gvm_h
+#define VBOX_INCLUDED_vmm_gvm_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 #include <iprt/thread.h>
@@ -61,7 +63,7 @@ typedef struct GVMCPU
     /** The GVMM per vcpu data. */
     union
     {
-#ifdef ___GVMMR0Internal_h
+#ifdef VMM_INCLUDED_SRC_VMMR0_GVMMR0Internal_h
         struct GVMMPERVCPU  s;
 #endif
         uint8_t             padding[64];
@@ -71,7 +73,7 @@ typedef struct GVMCPU
     /** The NEM per vcpu data. */
     union
     {
-# ifdef ___NEMInternal_h
+# ifdef VMM_INCLUDED_SRC_include_NEMInternal_h
         struct NEMR0PERVCPU s;
 # endif
         uint8_t             padding[64];
@@ -123,7 +125,7 @@ typedef struct GVM
     /** The GVMM per vm data. */
     union
     {
-#ifdef ___GVMMR0Internal_h
+#ifdef VMM_INCLUDED_SRC_VMMR0_GVMMR0Internal_h
         struct GVMMPERVM    s;
 #endif
         uint8_t             padding[256];
@@ -132,7 +134,7 @@ typedef struct GVM
     /** The GMM per vm data. */
     union
     {
-#ifdef ___GMMR0Internal_h
+#ifdef VMM_INCLUDED_SRC_VMMR0_GMMR0Internal_h
         struct GMMPERVM     s;
 #endif
         uint8_t             padding[512];
@@ -142,7 +144,7 @@ typedef struct GVM
     /** The NEM per vcpu data. */
     union
     {
-# ifdef ___NEMInternal_h
+# ifdef VMM_INCLUDED_SRC_include_NEMInternal_h
         struct NEMR0PERVM   s;
 # endif
         uint8_t             padding[256];
@@ -152,7 +154,7 @@ typedef struct GVM
     /** The RAWPCIVM per vm data. */
     union
     {
-#ifdef ___VBox_rawpci_h
+#ifdef VBOX_INCLUDED_rawpci_h
         struct RAWPCIPERVM s;
 #endif
         uint8_t             padding[64];
@@ -177,5 +179,5 @@ AssertCompileMemberOffset(GVM, aCpus,  64 + 256 + 512 + 64);
 
 /** @} */
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_gvm_h */
 

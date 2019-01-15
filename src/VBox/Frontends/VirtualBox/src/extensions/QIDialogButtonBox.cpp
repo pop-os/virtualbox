@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2018 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,23 +14,17 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QBoxLayout>
-# include <QEvent>
-# include <QPushButton>
+#include <QBoxLayout>
+#include <QEvent>
+#include <QPushButton>
 
 /* GUI includes: */
-# include "QIDialogButtonBox.h"
-# include "UISpecialControls.h"
+#include "QIDialogButtonBox.h"
+#include "UISpecialControls.h"
 
 /* Other VBox includes: */
-# include <iprt/assert.h>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include <iprt/assert.h>
 
 
 QIDialogButtonBox::QIDialogButtonBox(QWidget *pParent /* = 0 */)

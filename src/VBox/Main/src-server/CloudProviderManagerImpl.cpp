@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2018 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,13 +16,14 @@
  */
 
 
+#define LOG_GROUP LOG_GROUP_MAIN_CLOUDPROVIDERMANAGER
 #include <VBox/com/array.h>
 
 #include "VirtualBoxImpl.h"
 #include "CloudProviderManagerImpl.h"
 #include "ExtPackManagerImpl.h"
 #include "AutoCaller.h"
-#include "Logging.h"
+#include "LoggingNew.h"
 
 
 ////////////////////////////////////////////////////////////////////////////////

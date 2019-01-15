@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2018 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -335,6 +335,10 @@ int hdaR3StreamInit(PHDASTREAM pStream, uint8_t uSD)
             rc = VERR_NOT_SUPPORTED;
             break;
     }
+
+    /* Set scheduling hint (if available). */
+    if (pStream->State.uTimerHz)
+        pCfg->Device.uSchedulingHintMs = 1000 /* ms */ / pStream->State.uTimerHz;
 
     LogFunc(("[SD%RU8] DMA @ 0x%x (%RU32 bytes), LVI=%RU16, FIFOS=%RU16\n",
              pStream->u8SD, pStream->u64BDLBase, pStream->u32CBL, pStream->u16LVI, pStream->u16FIFOS));

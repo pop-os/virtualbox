@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +16,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_PROGRESSIMPL
-#define ____H_PROGRESSIMPL
+#ifndef MAIN_INCLUDED_ProgressImpl_h
+#define MAIN_INCLUDED_ProgressImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "ProgressWrap.h"
 #include "VirtualBoxBase.h"
@@ -229,5 +232,5 @@ private:
     DECLARE_CLS_COPY_CTOR_ASSIGN_NOOP(Progress); /* Shuts up MSC warning C4625. */
 };
 
-#endif /* ____H_PROGRESSIMPL */
+#endif /* !MAIN_INCLUDED_ProgressImpl_h */
 

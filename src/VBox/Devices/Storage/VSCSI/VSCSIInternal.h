@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,12 +14,17 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-#ifndef ___VSCSIInternal_h
-#define ___VSCSIInternal_h
+
+#ifndef VBOX_INCLUDED_SRC_Storage_VSCSI_VSCSIInternal_h
+#define VBOX_INCLUDED_SRC_Storage_VSCSI_VSCSIInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/vscsi.h>
 #include <VBox/scsi.h>
 #include <VBox/scsiinline.h>
+#include <iprt/err.h>
 #include <iprt/memcache.h>
 #include <iprt/sg.h>
 #include <iprt/list.h>
@@ -684,5 +689,5 @@ DECLINLINE(int) vscsiLunReqSenseErrorInfoSet(PVSCSILUNINT pVScsiLun, PVSCSIREQIN
     return vscsiReqSenseErrorInfoSet(&pVScsiLun->pVScsiDevice->VScsiSense, pVScsiReq, uSCSISenseKey, uSCSIASC, uSCSIASCQ, uInfo);
 }
 
-#endif /* ___VSCSIInternal_h */
+#endif /* !VBOX_INCLUDED_SRC_Storage_VSCSI_VSCSIInternal_h */
 

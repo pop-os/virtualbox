@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_vmm_h
-#define ___VBox_vmm_vmm_h
+#ifndef VBOX_INCLUDED_vmm_vmm_h
+#define VBOX_INCLUDED_vmm_vmm_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 #include <VBox/vmm/vmapi.h>
@@ -337,9 +340,9 @@ typedef enum VMMR0OPERATION
     /** Call VMMR0 Per VM Termination. */
     VMMR0_DO_VMMR0_TERM,
 
-    /** Setup the hardware accelerated raw-mode session. */
+    /** Setup hardware-assisted VM session. */
     VMMR0_DO_HM_SETUP_VM = 128,
-    /** Attempt to enable or disable hardware accelerated raw-mode. */
+    /** Attempt to enable or disable hardware-assisted mode. */
     VMMR0_DO_HM_ENABLE,
 
     /** Call PGMR0PhysAllocateHandyPages(). */
@@ -615,4 +618,4 @@ VMMRZDECL(bool)     VMMRZCallRing3IsNotificationSet(PVMCPU pVCpu);
 /** @} */
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_vmm_h */

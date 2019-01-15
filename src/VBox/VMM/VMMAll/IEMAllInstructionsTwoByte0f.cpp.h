@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -4323,9 +4323,9 @@ FNIEMOP_DEF(iemOp_vmread_Ey_Gy)
             IEM_MC_BEGIN(2, 0);
             IEM_MC_ARG(uint64_t *, pu64Dst, 0);
             IEM_MC_ARG(uint64_t,   u64Enc,  1);
-            IEM_MC_FETCH_GREG_U64(u64Enc, (bRm & X86_MODRM_RM_MASK) | pVCpu->iem.s.uRexB);
-            IEM_MC_REF_GREG_U64(pu64Dst, ((bRm >> X86_MODRM_REG_SHIFT) & X86_MODRM_REG_SMASK) | pVCpu->iem.s.uRexReg);
-            IEM_MC_CALL_CIMPL_2(iemCImpl_vmread64_reg, pu64Dst, u64Enc);
+            IEM_MC_FETCH_GREG_U64(u64Enc, ((bRm >> X86_MODRM_REG_SHIFT) & X86_MODRM_REG_SMASK) | pVCpu->iem.s.uRexReg);
+            IEM_MC_REF_GREG_U64(pu64Dst, (bRm & X86_MODRM_RM_MASK) | pVCpu->iem.s.uRexB);
+            IEM_MC_CALL_CIMPL_2(iemCImpl_vmread_reg64, pu64Dst, u64Enc);
             IEM_MC_END();
         }
         else
@@ -4333,16 +4333,16 @@ FNIEMOP_DEF(iemOp_vmread_Ey_Gy)
             IEM_MC_BEGIN(2, 0);
             IEM_MC_ARG(uint32_t *, pu32Dst, 0);
             IEM_MC_ARG(uint32_t,   u32Enc,  1);
-            IEM_MC_FETCH_GREG_U32(u32Enc, (bRm & X86_MODRM_RM_MASK) | pVCpu->iem.s.uRexB);
-            IEM_MC_REF_GREG_U32(pu32Dst, ((bRm >> X86_MODRM_REG_SHIFT) & X86_MODRM_REG_SMASK) | pVCpu->iem.s.uRexReg);
-            IEM_MC_CALL_CIMPL_2(iemCImpl_vmread32_reg, pu32Dst, u32Enc);
+            IEM_MC_FETCH_GREG_U32(u32Enc, ((bRm >> X86_MODRM_REG_SHIFT) & X86_MODRM_REG_SMASK) | pVCpu->iem.s.uRexReg);
+            IEM_MC_REF_GREG_U32(pu32Dst, (bRm & X86_MODRM_RM_MASK) | pVCpu->iem.s.uRexB);
+            IEM_MC_CALL_CIMPL_2(iemCImpl_vmread_reg32, pu32Dst, u32Enc);
             IEM_MC_END();
         }
     }
     else
     {
         /*
-         * Register, memory.
+         * Memory, register.
          */
         if (enmEffOpSize == IEMMODE_64BIT)
         {
@@ -4351,11 +4351,11 @@ FNIEMOP_DEF(iemOp_vmread_Ey_Gy)
             IEM_MC_ARG_CONST(IEMMODE, enmEffAddrMode,/*=*/pVCpu->iem.s.enmEffAddrMode,  1);
             IEM_MC_ARG(RTGCPTR,       GCPtrVal,                                         2);
             IEM_MC_ARG(uint64_t,      u64Enc,                                           3);
-            IEM_MC_FETCH_GREG_U64(u64Enc, (bRm & X86_MODRM_RM_MASK) | pVCpu->iem.s.uRexB);
             IEM_MC_CALC_RM_EFF_ADDR(GCPtrVal, bRm, 0);
             IEMOP_HLP_DONE_DECODING_NO_SIZE_OP_REPZ_OR_REPNZ_PREFIXES();
+            IEM_MC_FETCH_GREG_U64(u64Enc, ((bRm >> X86_MODRM_REG_SHIFT) & X86_MODRM_REG_SMASK) | pVCpu->iem.s.uRexReg);
             IEM_MC_ASSIGN(iEffSeg, pVCpu->iem.s.iEffSeg);
-            IEM_MC_CALL_CIMPL_4(iemCImpl_vmread_mem, iEffSeg, enmEffAddrMode, GCPtrVal, u64Enc);
+            IEM_MC_CALL_CIMPL_4(iemCImpl_vmread_mem_reg64, iEffSeg, enmEffAddrMode, GCPtrVal, u64Enc);
             IEM_MC_END();
         }
         else
@@ -4365,11 +4365,11 @@ FNIEMOP_DEF(iemOp_vmread_Ey_Gy)
             IEM_MC_ARG_CONST(IEMMODE, enmEffAddrMode,/*=*/pVCpu->iem.s.enmEffAddrMode,  1);
             IEM_MC_ARG(RTGCPTR,       GCPtrVal,                                         2);
             IEM_MC_ARG(uint32_t,      u32Enc,                                           3);
-            IEM_MC_FETCH_GREG_U32(u32Enc, (bRm & X86_MODRM_RM_MASK) | pVCpu->iem.s.uRexB);
             IEM_MC_CALC_RM_EFF_ADDR(GCPtrVal, bRm, 0);
             IEMOP_HLP_DONE_DECODING_NO_SIZE_OP_REPZ_OR_REPNZ_PREFIXES();
+            IEM_MC_FETCH_GREG_U32(u32Enc, ((bRm >> X86_MODRM_REG_SHIFT) & X86_MODRM_REG_SMASK) | pVCpu->iem.s.uRexReg);
             IEM_MC_ASSIGN(iEffSeg, pVCpu->iem.s.iEffSeg);
-            IEM_MC_CALL_CIMPL_4(iemCImpl_vmread_mem, iEffSeg, enmEffAddrMode, GCPtrVal, u32Enc);
+            IEM_MC_CALL_CIMPL_4(iemCImpl_vmread_mem_reg32, iEffSeg, enmEffAddrMode, GCPtrVal, u32Enc);
             IEM_MC_END();
         }
     }

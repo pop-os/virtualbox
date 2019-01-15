@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -32,6 +32,7 @@
 #include <iprt/dir.h>
 #include <iprt/fs.h>
 
+#include <iprt/err.h>
 #include <iprt/getopt.h>
 #include <iprt/param.h>
 #include <iprt/path.h>
@@ -210,7 +211,7 @@ int main(int argc, char **argv)
                 break;
 
             case 'V':
-                RTTestPrintf(g_hTest, RTTESTLVL_ALWAYS, "$Revision: 118412 $\n");
+                RTTestPrintf(g_hTest, RTTESTLVL_ALWAYS, "$Revision: 127855 $\n");
                 return RTTestSummaryAndDestroy(g_hTest);
 
             case 'h':

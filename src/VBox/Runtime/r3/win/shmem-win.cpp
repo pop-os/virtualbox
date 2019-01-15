@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018 Oracle Corporation
+ * Copyright (C) 2018-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,6 +39,7 @@
 #include <iprt/err.h>
 #include <iprt/mem.h>
 #include <iprt/string.h>
+#include <iprt/utf16.h>
 #include "internal/magics.h"
 #include "internal/path.h"
 #include "internal-r3-win.h" /* For g_enmWinVer + kRTWinOSType_XXX */

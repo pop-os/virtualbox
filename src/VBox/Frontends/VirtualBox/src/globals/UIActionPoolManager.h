@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2018 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIActionPoolManager_h___
-#define ___UIActionPoolManager_h___
+#ifndef FEQT_INCLUDED_SRC_globals_UIActionPoolManager_h
+#define FEQT_INCLUDED_SRC_globals_UIActionPoolManager_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QList>
@@ -69,6 +72,10 @@ enum UIActionIndexST
     UIActionIndexST_M_Group_M_Close_S_SaveState,
     UIActionIndexST_M_Group_M_Close_S_Shutdown,
     UIActionIndexST_M_Group_M_Close_S_PowerOff,
+    UIActionIndexST_M_Group_M_Tools,
+    UIActionIndexST_M_Group_M_Tools_T_Details,
+    UIActionIndexST_M_Group_M_Tools_T_Snapshots,
+    UIActionIndexST_M_Group_M_Tools_T_Logs,
     UIActionIndexST_M_Group_S_Discard,
     UIActionIndexST_M_Group_S_ShowLogDialog,
     UIActionIndexST_M_Group_S_Refresh,
@@ -96,18 +103,16 @@ enum UIActionIndexST
     UIActionIndexST_M_Machine_M_Close_S_SaveState,
     UIActionIndexST_M_Machine_M_Close_S_Shutdown,
     UIActionIndexST_M_Machine_M_Close_S_PowerOff,
+    UIActionIndexST_M_Machine_M_Tools,
+    UIActionIndexST_M_Machine_M_Tools_T_Details,
+    UIActionIndexST_M_Machine_M_Tools_T_Snapshots,
+    UIActionIndexST_M_Machine_M_Tools_T_Logs,
     UIActionIndexST_M_Machine_S_Discard,
     UIActionIndexST_M_Machine_S_ShowLogDialog,
     UIActionIndexST_M_Machine_S_Refresh,
     UIActionIndexST_M_Machine_S_ShowInFileManager,
     UIActionIndexST_M_Machine_S_CreateShortcut,
     UIActionIndexST_M_Machine_S_SortParent,
-
-    /* Machine Tools actions: */
-    UIActionIndexST_M_Tools_M_Machine,
-    UIActionIndexST_M_Tools_M_Machine_S_Details,
-    UIActionIndexST_M_Tools_M_Machine_S_Snapshots,
-    UIActionIndexST_M_Tools_M_Machine_S_LogViewer,
 
     /* Global Tools actions: */
     UIActionIndexST_M_Tools_M_Global,
@@ -195,6 +200,10 @@ protected:
     void updateMenuGroupClose();
     /** Updates 'Machine' / 'Close' menu. */
     void updateMenuMachineClose();
+    /** Updates 'Group' / 'Tools' menu. */
+    void updateMenuGroupTools();
+    /** Updates 'Machine' / 'Tools' menu. */
+    void updateMenuMachineTools();
 
     /** Updates 'Medium' window menu. */
     void updateMenuMediumWindow();
@@ -236,5 +245,5 @@ private:
 };
 
 
-#endif /* !___UIActionPoolManager_h___ */
+#endif /* !FEQT_INCLUDED_SRC_globals_UIActionPoolManager_h */
 

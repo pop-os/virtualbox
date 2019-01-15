@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,14 +15,18 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_GUESTIMPL
-#define ____H_GUESTIMPL
+#ifndef MAIN_INCLUDED_GuestImpl_h
+#define MAIN_INCLUDED_GuestImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "GuestWrap.h"
 #include "VirtualBoxBase.h"
 #include <iprt/list.h>
 #include <iprt/time.h>
 #include <VBox/ostypes.h>
+#include <VBox/param.h>
 #include <VBox/vmm/stam.h>
 
 #include "AdditionsFacilityImpl.h"
@@ -243,5 +247,5 @@ private:
 };
 #define GUEST_MAGIC 0xCEED2006u /** @todo r=andy Not very well defined!? */
 
-#endif // ____H_GUESTIMPL
+#endif /* !MAIN_INCLUDED_GuestImpl_h */
 

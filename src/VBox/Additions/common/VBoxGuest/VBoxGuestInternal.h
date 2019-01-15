@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBoxGuestInternal_h
-#define ___VBoxGuestInternal_h
+#ifndef GA_INCLUDED_SRC_common_VBoxGuest_VBoxGuestInternal_h
+#define GA_INCLUDED_SRC_common_VBoxGuest_VBoxGuestInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 #include <iprt/list.h>
@@ -398,5 +401,5 @@ int VGDrvNativeSetMouseNotifyCallback(PVBOXGUESTDEVEXT pDevExt, PVBGLIOCSETMOUSE
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !GA_INCLUDED_SRC_common_VBoxGuest_VBoxGuestInternal_h */
 

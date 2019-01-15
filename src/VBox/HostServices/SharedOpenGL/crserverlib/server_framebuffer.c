@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,6 +21,7 @@
 #include "cr_net.h"
 #include "server_dispatch.h"
 #include "server.h"
+#include "cr_unpack.h"
 
 void SERVER_DISPATCH_APIENTRY
 crServerDispatchGenFramebuffersEXT(GLsizei n, GLuint *framebuffers)
@@ -28,7 +29,7 @@ crServerDispatchGenFramebuffersEXT(GLsizei n, GLuint *framebuffers)
     GLuint *local_buffers;
     (void) framebuffers;
 
-    if (n >= INT32_MAX / sizeof(GLuint))
+    if (n <= 0 || n >= INT32_MAX / sizeof(GLuint))
     {
         crError("crServerDispatchGenFramebuffersEXT: parameter 'n' is out of range");
         return;
@@ -48,7 +49,7 @@ crServerDispatchGenRenderbuffersEXT(GLsizei n, GLuint *renderbuffers)
     GLuint *local_buffers;
     (void) renderbuffers;
 
-    if (n >= INT32_MAX / sizeof(GLuint))
+    if (n <= 0 || n >= INT32_MAX / sizeof(GLuint))
     {
         crError("crServerDispatchGenRenderbuffersEXT: parameter 'n' is out of range");
         return;
@@ -180,12 +181,24 @@ void SERVER_DISPATCH_APIENTRY crServerDispatchBindRenderbufferEXT(GLenum target,
 
 void SERVER_DISPATCH_APIENTRY crServerDispatchDeleteFramebuffersEXT(GLsizei n, const GLuint * framebuffers)
 {
-        crStateDeleteFramebuffersEXT(n, framebuffers);
+    if (n <= 0 || n >= INT32_MAX / sizeof(GLuint) || !DATA_POINTER_CHECK(n * sizeof(GLuint)))
+    {
+        crError("crStateDeleteFramebuffersEXT: parameter 'n' is out of range");
+        return;
+    }
+
+    crStateDeleteFramebuffersEXT(n, framebuffers);
 }
 
 void SERVER_DISPATCH_APIENTRY crServerDispatchDeleteRenderbuffersEXT(GLsizei n, const GLuint * renderbuffers)
 {
-        crStateDeleteRenderbuffersEXT(n, renderbuffers);
+    if (n <= 0 || n >= INT32_MAX / sizeof(GLuint) || !DATA_POINTER_CHECK(n * sizeof(GLuint)))
+    {
+        crError("glDeleteRenderbuffersEXT: parameter 'n' is out of range");
+        return;
+    }
+
+    crStateDeleteRenderbuffersEXT(n, renderbuffers);
 }
 
 void SERVER_DISPATCH_APIENTRY

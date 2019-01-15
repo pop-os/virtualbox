@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___MAPPINGS_H
-#define ___MAPPINGS_H
+#ifndef VBOX_INCLUDED_SRC_SharedFolders_mappings_h
+#define VBOX_INCLUDED_SRC_SharedFolders_mappings_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "shfl.h"
 #include <VBox/shflsvc.h>
@@ -73,5 +76,5 @@ bool vbsfIsHostMappingCaseSensitive(SHFLROOT root);
 int vbsfMappingLoaded(MAPPING const *pLoadedMapping, SHFLROOT root);
 PMAPPING vbsfMappingGetByRoot(SHFLROOT root);
 
-#endif /* !___MAPPINGS_H */
+#endif /* !VBOX_INCLUDED_SRC_SharedFolders_mappings_h */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2018 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,29 +15,23 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QStackedLayout>
-# ifndef VBOX_WS_MAC
-#  include <QStyle>
-# endif
-# include <QUuid>
+#include <QStackedLayout>
+#ifndef VBOX_WS_MAC
+# include <QStyle>
+#endif
+#include <QUuid>
 
 /* GUI includes */
-# include "UIActionPoolManager.h"
-# include "UICloudProfileManager.h"
-# include "UIHostNetworkManager.h"
-# include "UIMediumManager.h"
-# include "UIToolPaneGlobal.h"
-# include "UIWelcomePane.h"
+#include "UIActionPoolManager.h"
+#include "UICloudProfileManager.h"
+#include "UIHostNetworkManager.h"
+#include "UIMediumManager.h"
+#include "UIToolPaneGlobal.h"
+#include "UIWelcomePane.h"
 
 /* Other VBox includes: */
-# include <iprt/assert.h>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include <iprt/assert.h>
 
 
 UIToolPaneGlobal::UIToolPaneGlobal(UIActionPool *pActionPool, QWidget *pParent /* = 0 */)
@@ -61,7 +55,9 @@ UIToolPaneGlobal::~UIToolPaneGlobal()
 
 UIToolType UIToolPaneGlobal::currentTool() const
 {
-    return m_pLayout->currentWidget()->property("ToolType").value<UIToolType>();
+    return   m_pLayout && m_pLayout->currentWidget()
+           ? m_pLayout->currentWidget()->property("ToolType").value<UIToolType>()
+           : UIToolType_Invalid;
 }
 
 bool UIToolPaneGlobal::isToolOpened(UIToolType enmType) const

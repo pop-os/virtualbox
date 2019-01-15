@@ -3,7 +3,7 @@
  * USB Power state Handling
  */
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBoxUsbPwr_h___
-#define ___VBoxUsbPwr_h___
+#ifndef VBOX_INCLUDED_SRC_VBoxUSB_win_dev_VBoxUsbPwr_h
+#define VBOX_INCLUDED_SRC_VBoxUSB_win_dev_VBoxUsbPwr_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 typedef struct VBOXUSB_PWRSTATE
 {
@@ -35,4 +38,4 @@ typedef struct VBOXUSB_PWRSTATE
 DECLHIDDEN(VOID) vboxUsbPwrStateInit(PVBOXUSBDEV_EXT pDevExt);
 DECLHIDDEN(NTSTATUS) vboxUsbDispatchPower(IN PDEVICE_OBJECT pDeviceObject, IN PIRP pIrp);
 
-#endif /* #ifndef ___VBoxUsbPwr_h___ */
+#endif /* !VBOX_INCLUDED_SRC_VBoxUSB_win_dev_VBoxUsbPwr_h */

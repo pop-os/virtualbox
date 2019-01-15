@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2018 Oracle Corporation
+ * Copyright (C) 2018-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___vboximg_mount_h
-#define ___vboximg_mount_h
+#ifndef VBOX_INCLUDED_SRC_vboximg_mount_vboximg_mount_h
+#define VBOX_INCLUDED_SRC_vboximg_mount_vboximg_mount_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #define BOOTSTRAP_CODE_AREA_SIZE    446         /** Impl. specific MBR & EBR block not relevant for our use */
 #define GPT_PARTITION_ENTRY_NAME_SIZE 36        /** 72 bytes for GPT partition entry name, but treated as 36 UTF-16 */
@@ -291,4 +294,4 @@ GPTPARTITIONTYPE g_gptPartitionTypes[] =
     { "734E5AFE-F61A-11E6-BC64-92361F002671", "Atari TOS", "Basic data (GEM, BGM, F32)" },
 };
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_vboximg_mount_vboximg_mount_h */

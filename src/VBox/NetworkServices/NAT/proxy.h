@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___nat_proxy_h___
-#define ___nat_proxy_h___
+#ifndef VBOX_INCLUDED_SRC_NAT_proxy_h
+#define VBOX_INCLUDED_SRC_NAT_proxy_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #if !defined(VBOX)
 #include "vbox-compat.h"
@@ -114,5 +117,5 @@ err_t pxping_init(struct netif *, SOCKET, SOCKET);
 #define DPRINTF1(a) Log2(a)
 #define DPRINTF2(a) Log3(a)
 
-#endif /* !___nat_proxy_h___ */
+#endif /* !VBOX_INCLUDED_SRC_NAT_proxy_h */
 

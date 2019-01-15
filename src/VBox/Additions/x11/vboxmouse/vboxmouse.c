@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -46,7 +46,7 @@
 
 #include <VBox/VMMDev.h> /* for VMMDEV_MOUSE_XXX */
 #include <VBox/VBoxGuestLib.h>
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include <xf86.h>
 #include <xf86Xinput.h>
 #include <mipointer.h>

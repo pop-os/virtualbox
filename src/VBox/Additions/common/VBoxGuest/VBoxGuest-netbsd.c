@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -39,6 +39,7 @@
 #include <sys/bus.h>
 #include <sys/poll.h>
 #include <sys/proc.h>
+#include <sys/kauth.h>
 #include <sys/stat.h>
 #include <sys/selinfo.h>
 #include <sys/queue.h>
@@ -63,6 +64,7 @@
 #endif
 #include "VBoxGuestInternal.h"
 #include <VBox/log.h>
+#include <iprt/err.h>
 #include <iprt/assert.h>
 #include <iprt/initterm.h>
 #include <iprt/process.h>
@@ -643,20 +645,37 @@ static int VBoxGuestNetBSDOpen(dev_t device, int flags, int fmt, struct lwp *pLw
             /*
              * Create a new session.
              */
-            int rc;
             struct kauth_cred *pCred = pLwp->l_cred;
-            uint32_t fRequestor = VMMDEV_REQUESTOR_USERMODE | VMMDEV_REQUESTOR_TRUST_NOT_GIVEN;
-            if (pCred && kauth_cred_geteuid(pCred) == 0)
+            int fHaveCred = (pCred != NULL && pCred != NOCRED && pCred != FSCRED);
+            uint32_t fRequestor;
+            int fIsWheel;
+            int rc;
+
+            fRequestor = VMMDEV_REQUESTOR_USERMODE | VMMDEV_REQUESTOR_TRUST_NOT_GIVEN;
+
+            /* uid */
+            if (fHaveCred && kauth_cred_geteuid(pCred) == (uid_t)0)
                 fRequestor |= VMMDEV_REQUESTOR_USR_ROOT;
             else
                 fRequestor |= VMMDEV_REQUESTOR_USR_USER;
 
-            if (pCred && kauth_cred_ismember_gid(pCred, 0))
+            /* gid */
+            if (fHaveCred
+                && (kauth_cred_getegid(pCred) == (gid_t)0
+                    || (kauth_cred_ismember_gid(pCred, 0, &fIsWheel) == 0
+                        && fIsWheel)))
                 fRequestor |= VMMDEV_REQUESTOR_GRP_WHEEL;
-            fRequestor |= VMMDEV_REQUESTOR_NO_USER_DEVICE; /** @todo implement /dev/vboxuser
+
+#if 0       /** @todo implement /dev/vboxuser */
             if (!fUnrestricted)
-                fRequestor |= VMMDEV_REQUESTOR_USER_DEVICE; */
-            fRequestor |= VMMDEV_REQUESTOR_CON_DONT_KNOW; /** @todo can we find out if pLwp is on the console? */
+                fRequestor |= VMMDEV_REQUESTOR_USER_DEVICE;
+#else
+            fRequestor |= VMMDEV_REQUESTOR_NO_USER_DEVICE;
+#endif
+
+            /** @todo can we find out if pLwp is on the console? */
+            fRequestor |= VMMDEV_REQUESTOR_CON_DONT_KNOW;
+
             rc = VGDrvCommonCreateUserSession(&g_DevExt, fRequestor, &fdata->session);
             if (RT_SUCCESS(rc))
             {
@@ -671,9 +690,8 @@ static int VBoxGuestNetBSDOpen(dev_t device, int flags, int fmt, struct lwp *pLw
         kmem_free(fdata, sizeof(*fdata));
     }
     else
-        error = NOMEM;
+        error = ENOMEM;
     return error;
-
 }
 
 /**

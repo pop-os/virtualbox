@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2018 Oracle Corporation
+ * Copyright (C) 2018-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_crypto_rc4_h
-#define ___iprt_crypto_rc4_h
+#ifndef IPRT_INCLUDED_crypto_rc4_h
+#define IPRT_INCLUDED_crypto_rc4_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 
@@ -56,5 +59,5 @@ RTDECL(void) RTCrRc4(PRTCRRC4KEY pKey, size_t cbData, void const *pvDataIn, void
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !IPRT_INCLUDED_crypto_rc4_h */
 

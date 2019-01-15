@@ -1,11 +1,9 @@
 /** @file
- *
- * Module to dynamically load libvdeplug and load all symbols
- * which are needed by VirtualBox - header file.
+ * libvdeplug header and dynamic symbol loader.
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -25,13 +23,35 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_VDEPlug_h
-#define ___VBox_VDEPlug_h
+#ifndef VBOX_INCLUDED_VDEPlug_h
+#define VBOX_INCLUDED_VDEPlug_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
+
+#include <stddef.h>
+#include <sys/types.h>
 
 #define LIBVDEPLUG_INTERFACE_VERSION 1
 
 #define vde_open(vde_switch, descr, open_args) \
     vde_open_real((vde_switch), (descr), LIBVDEPLUG_INTERFACE_VERSION, (open_args))
+
+/** Opaque connection type */
+struct vdeconn;
+typedef struct vdeconn VDECONN;
+
+/** Structure to be passed to the open function describing the connection.
+ * All members can be left zero to use the default values. */
+struct vde_open_args
+{
+    /** The port of the switch to connect to. */
+    int port;
+    /** The group to set ownership of the port socket to. */
+    char *group;
+    /** The file mode to set the port socket to. */
+    mode_t mode;
+};
 
 /* Declarations of the functions that we need from the library */
 #define VDEPLUG_GENERATE_HEADER
@@ -40,5 +60,5 @@
 
 #undef VDEPLUG_GENERATE_HEADER
 
-#endif /* ___VBox_VDEPlug_h not defined */
+#endif /* !VBOX_INCLUDED_VDEPlug_h */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

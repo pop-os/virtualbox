@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_cpum_h
-#define ___VBox_vmm_cpum_h
+#ifndef VBOX_INCLUDED_vmm_cpum_h
+#define VBOX_INCLUDED_vmm_cpum_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/x86.h>
 #include <VBox/types.h>
@@ -729,6 +732,7 @@ typedef enum CPUMMSRWRFN
     kCpumMsrWrFn_Ia32DebugInterface,
     kCpumMsrWrFn_Ia32SpecCtrl,
     kCpumMsrWrFn_Ia32PredCmd,
+    kCpumMsrWrFn_Ia32FlushCmd,
 
     kCpumMsrWrFn_Amd64Efer,
     kCpumMsrWrFn_Amd64SyscallTarget,
@@ -948,6 +952,24 @@ typedef CPUMMSRRANGE const *PCCPUMMSRRANGE;
 
 
 /**
+ * MSRs.
+ * MSRs which are required while exploding features.
+ */
+typedef struct CPUMMSRS
+{
+    union
+    {
+        VMXMSRS         vmx;
+        SVMMSRS         svm;
+    } hwvirt;
+} CPUMMSRS;
+/** Pointer to an CPUMMSRS struct. */
+typedef CPUMMSRS *PCPUMMSRS;
+/** Pointer to a const CPUMMSRS struct. */
+typedef CPUMMSRS const *PCCPUMMSRS;
+
+
+/**
  * CPU features and quirks.
  * This is mostly exploded CPUID info.
  */
@@ -1039,6 +1061,8 @@ typedef struct CPUMFEATURES
     uint32_t        fIbrs : 1;
     /** Supports IA32_SPEC_CTRL.STIBP. */
     uint32_t        fStibp : 1;
+    /** Supports IA32_FLUSH_CMD. */
+    uint32_t        fFlushCmd : 1;
     /** Supports IA32_ARCH_CAP. */
     uint32_t        fArchCap : 1;
     /** Supports PCID. */
@@ -1079,13 +1103,26 @@ typedef struct CPUMFEATURES
     /** Support for Intel VMX. */
     uint32_t        fVmx : 1;
 
-    /** Indicates that speculative execution control CPUID bits and
-     *  MSRs are exposed. The details are different for Intel and
-     * AMD but both have similar functionality. */
+    /** Indicates that speculative execution control CPUID bits and MSRs are exposed.
+     * The details are different for Intel and AMD but both have similar
+     * functionality. */
     uint32_t        fSpeculationControl : 1;
 
+    /** MSR_IA32_ARCH_CAPABILITIES: RDCL_NO (bit 0).
+     * @remarks Only safe use after CPUM ring-0 init! */
+    uint32_t        fArchRdclNo : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES: IBRS_ALL (bit 1).
+     * @remarks Only safe use after CPUM ring-0 init! */
+    uint32_t        fArchIbrsAll : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES: RSB Override (bit 2).
+     * @remarks Only safe use after CPUM ring-0 init! */
+    uint32_t        fArchRsbOverride : 1;
+    /** MSR_IA32_ARCH_CAPABILITIES: RSB Override (bit 3).
+     * @remarks Only safe use after CPUM ring-0 init! */
+    uint32_t        fArchVmmNeedNotFlushL1d : 1;
+
     /** Alignment padding / reserved for future use. */
-    uint32_t        fPadding : 15;
+    uint32_t        fPadding : 10;
 
     /** SVM: Supports Nested-paging. */
     uint32_t        fSvmNestedPaging : 1;
@@ -1392,6 +1429,7 @@ VMM_INT_DECL(void)     CPUMSetGuestTscAux(PVMCPU pVCpu, uint64_t uValue);
 VMM_INT_DECL(uint64_t) CPUMGetGuestTscAux(PVMCPU pVCpu);
 VMM_INT_DECL(void)     CPUMSetGuestSpecCtrl(PVMCPU pVCpu, uint64_t uValue);
 VMM_INT_DECL(uint64_t) CPUMGetGuestSpecCtrl(PVMCPU pVCpu);
+VMM_INT_DECL(uint64_t) CPUMGetGuestCR4ValidMask(PVM pVM);
 /** @} */
 
 
@@ -1492,6 +1530,18 @@ VMM_INT_DECL(int) CPUMImportGuestStateOnDemand(PVMCPU pVCpu, uint64_t fExtrnImpo
 /** @} */
 
 #ifndef IPRT_WITHOUT_NAMED_UNIONS_AND_STRUCTS
+
+/**
+ * Gets valid CR0 bits for the guest.
+ *
+ * @returns Valid CR0 bits.
+ */
+DECLINLINE(uint64_t) CPUMGetGuestCR0ValidMask(void)
+{
+    return (  X86_CR0_PE | X86_CR0_MP | X86_CR0_EM | X86_CR0_TS
+            | X86_CR0_ET | X86_CR0_NE | X86_CR0_WP | X86_CR0_AM
+            | X86_CR0_NW | X86_CR0_CD | X86_CR0_PG);
+}
 
 /**
  * Tests if the guest is running in real mode or not.
@@ -2194,7 +2244,7 @@ VMM_INT_DECL(CPUMINTERRUPTIBILITY) CPUMGetGuestInterruptibility(PVMCPU pVCpu);
 
 VMMR3DECL(int)          CPUMR3Init(PVM pVM);
 VMMR3DECL(int)          CPUMR3InitCompleted(PVM pVM, VMINITCOMPLETED enmWhat);
-VMMR3DECL(void)         CPUMR3LogCpuIds(PVM pVM);
+VMMR3DECL(void)         CPUMR3LogCpuIdAndMsrFeatures(PVM pVM);
 VMMR3DECL(void)         CPUMR3Relocate(PVM pVM);
 VMMR3DECL(int)          CPUMR3Term(PVM pVM);
 VMMR3DECL(void)         CPUMR3Reset(PVM pVM);
@@ -2313,5 +2363,5 @@ VMMRZ_INT_DECL(void)    CPUMRZFpuStateActualizeAvxForRead(PVMCPU pVCpu);
 RT_C_DECLS_END
 
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_cpum_h */
 

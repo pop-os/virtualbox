@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -337,15 +337,13 @@ static RTEXITCODE handleOp(HandlerArg *a, OPCODE enmCode, int iStart)
                 {
                     if (RT_C_IS_GRAPH(c))
                         return errorSyntax(USAGE_DHCPSERVER, "unhandled option: -%c", c);
-                    else
-                        return errorSyntax(USAGE_DHCPSERVER, "unhandled option: %i", c);
+                    return errorSyntax(USAGE_DHCPSERVER, "unhandled option: %i", c);
                 }
-                else if (c == VERR_GETOPT_UNKNOWN_OPTION)
+                if (c == VERR_GETOPT_UNKNOWN_OPTION)
                     return errorSyntax(USAGE_DHCPSERVER, "unknown option: %s", ValueUnion.psz);
-                else if (ValueUnion.pDef)
+                if (ValueUnion.pDef)
                     return errorSyntax(USAGE_DHCPSERVER, "%s: %Rrs", ValueUnion.pDef->pszLong, c);
-                else
-                    return errorSyntax(USAGE_DHCPSERVER, "%Rrs", c);
+                return errorSyntax(USAGE_DHCPSERVER, "%Rrs", c);
         }
     }
 

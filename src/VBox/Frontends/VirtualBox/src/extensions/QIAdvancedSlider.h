@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2018 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___QIAdvancedSlider_h___
-#define ___QIAdvancedSlider_h___
+#ifndef FEQT_INCLUDED_SRC_extensions_QIAdvancedSlider_h
+#define FEQT_INCLUDED_SRC_extensions_QIAdvancedSlider_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QWidget>
@@ -127,4 +130,4 @@ private:
     bool             m_fSnappingEnabled;
 };
 
-#endif /* !___QIAdvancedSlider_h___ */
+#endif /* !FEQT_INCLUDED_SRC_extensions_QIAdvancedSlider_h */

@@ -16,7 +16,7 @@ from __future__ import print_function;
 
 __copyright__ = \
 """
-Copyright (C) 2012-2017 Oracle Corporation
+Copyright (C) 2012-2019 Oracle Corporation
 
 This file is part of VirtualBox Open Source Edition (OSE), as
 available from http://www.virtualbox.org. This file is free software;
@@ -35,13 +35,19 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 123735 $"
+__version__ = "$Revision: 127929 $"
 
 
 # Standard python imports
 import sys;
 import os;
 import hashlib;
+import subprocess;
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.utils import COMMASPACE
+
 if sys.version_info[0] >= 3:
     from io       import StringIO as StringIO;      # pylint: disable=import-error,no-name-in-module
 else:
@@ -64,6 +70,8 @@ from testmanager.core.testset               import TestSetLogic, TestSetData;
 from testmanager.core.testresults           import TestResultLogic, TestResultFileData;
 from testmanager.core.testresultfailures    import TestResultFailureLogic, TestResultFailureData;
 from testmanager.core.useraccount           import UserAccountLogic;
+from testmanager.config                     import g_ksSmtpHost, g_kcSmtpPort, g_ksAlertFrom, \
+                                                   g_ksAlertSubject, g_asAlertList, g_ksLomPassword;
 
 # Python 3 hacks:
 if sys.version_info[0] >= 3:
@@ -302,7 +310,7 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
 
         if self.oConfig.sLogFile:
             self.oLogFile = open(self.oConfig.sLogFile, "a");
-            self.oLogFile.write('VirtualTestSheriff: $Revision: 123735 $ \n');
+            self.oLogFile.write('VirtualTestSheriff: $Revision: 127929 $ \n');
 
 
     def eprint(self, sText):
@@ -358,7 +366,45 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
                 rcExit = self.eprint(u'Cannot find my user account "%s"!' % (VirtualTestSheriff.ksLoginName,));
         return rcExit;
 
+    def sendEmailAlert(self, uidAuthor, sBodyText):
+        """
+        Sends email alert.
+        """
 
+        # Get author email
+        self.oDb.execute('SELECT sEmail FROM Users WHERE uid=%s', (uidAuthor,));
+        sFrom = self.oDb.fetchOne();
+        if sFrom is not None:
+            sFrom = sFrom[0];
+        else:
+            sFrom = g_ksAlertFrom;
+
+        # Gather recipient list.
+        asEmailList = [];
+        for sUser in g_asAlertList:
+            self.oDb.execute('SELECT sEmail FROM Users WHERE sUsername=%s', (sUser,));
+            sEmail = self.oDb.fetchOne();
+            if sEmail:
+                asEmailList.append(sEmail[0]);
+        if not asEmailList:
+            return self.eprint('No email addresses to send alter to!');
+
+        # Compose the message.
+        oMsg = MIMEMultipart();
+        oMsg['From'] = sFrom;
+        oMsg['To'] = COMMASPACE.join(asEmailList);
+        oMsg['Subject'] = g_ksAlertSubject;
+        oMsg.attach(MIMEText(sBodyText, 'plain'))
+
+        # Try send it.
+        try:
+            oSMTP = smtplib.SMTP(g_ksSmtpHost, g_kcSmtpPort);
+            oSMTP.sendmail(sFrom, asEmailList, oMsg.as_string())
+            oSMTP.quit()
+        except smtplib.SMTPException as oXcpt:
+            return self.eprint('Failed to send mail: %s' % (oXcpt,));
+
+        return 0;
 
     def badTestBoxManagement(self):
         """
@@ -453,10 +499,45 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
                                                         sComment = 'Automatically rebooted (iFirstOkay=%u cBad=%u cOkay=%u)'
                                                                  % (iFirstOkay, cBad, cOkay),);
                         except Exception as oXcpt:
-                            rcExit = self.eprint(u'Error rebooting testbox #%u (%u): %s\n' % (idTestBox, oTestBox.sName, oXcpt,));
+                            rcExit = self.eprint(u'Error rebooting testbox #%u (%s): %s\n' % (idTestBox, oTestBox.sName, oXcpt,));
             else:
                 self.dprint(u'badTestBoxManagement: #%u (%s) looks ok:  iFirstOkay=%u cBad=%u cOkay=%u'
                             % ( idTestBox, oTestBox.sName, iFirstOkay, cBad, cOkay));
+        #
+        # Reset hanged testboxes
+        #
+        cStatusTimeoutMins = 10;
+
+        self.oDb.execute('SELECT idTestBox FROM TestBoxStatuses WHERE tsUpdated < (CURRENT_TIMESTAMP - interval \'%s minutes\')', (cStatusTimeoutMins,));
+        for idTestBox in self.oDb.fetchAll():
+            idTestBox = idTestBox[0];
+            try:
+                oTestBox = TestBoxData().initFromDbWithId(self.oDb, idTestBox);
+            except Exception as oXcpt:
+                rcExit = self.eprint('Failed to get data for test box #%u in badTestBoxManagement: %s' % (idTestBox, oXcpt,));
+                continue;
+            # Skip if the testbox is already disabled, already reset or there's no iLOM
+            if not oTestBox.fEnabled or oTestBox.ipLom is None or oTestBox.sComment is not None and oTestBox.sComment.find('Automatically reset') >= 0:
+                self.dprint(u'badTestBoxManagement: Skipping test box #%u (%s) as it has been disabled already.'
+                            % ( idTestBox, oTestBox.sName, ));
+                continue;
+            ## @todo get iLOM credentials from a table?
+            sCmd = 'sshpass -p%s ssh -oStrictHostKeyChecking=no root@%s show /SP && reset /SYS' % (g_ksLomPassword, oTestBox.ipLom,);
+            try:
+                oPs = subprocess.Popen(sCmd, stdout=subprocess.PIPE, shell=True);
+                sStdout = oPs.communicate()[0];
+                iRC = oPs.wait();
+
+                oTestBox.sComment = 'Automatically reset (iRC=%u sStdout=%s)' % (iRC, sStdout,);
+                oTestBoxLogic.editEntry(oTestBox, self.uidSelf, fCommit = True);
+
+                sComment = u'Reset testbox #%u (%s) - iRC=%u sStduot=%s' % ( idTestBox, oTestBox.sName, iRC, sStdout);
+                self.vprint(sComment);
+                self.sendEmailAlert(self.uidSelf, sComment);
+
+            except Exception as oXcpt:
+                rcExit = self.eprint(u'Error reseting testbox #%u (%s): %s\n' % (idTestBox, oTestBox.sName, oXcpt,));
+
         return rcExit;
 
 
@@ -576,7 +657,7 @@ class VirtualTestSheriff(object): # pylint: disable=R0903
         for idTestResult, tReason in dReasonForResultId.items():
             oFailureReason = self.getFailureReason(tReason);
             if oFailureReason is not None:
-                sComment = 'Set by $Revision: 123735 $' # Handy for reverting later.
+                sComment = 'Set by $Revision: 127929 $' # Handy for reverting later.
                 if idTestResult in dCommentForResultId:
                     sComment += ': ' + dCommentForResultId[idTestResult];
 

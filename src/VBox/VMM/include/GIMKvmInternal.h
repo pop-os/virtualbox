@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2015-2017 Oracle Corporation
+ * Copyright (C) 2015-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___GIMKvmInternal_h
-#define ___GIMKvmInternal_h
+#ifndef VMM_INCLUDED_SRC_include_GIMKvmInternal_h
+#define VMM_INCLUDED_SRC_include_GIMKvmInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/vmm/gim.h>
 #include <VBox/vmm/cpum.h>
@@ -274,5 +277,5 @@ VMM_INT_DECL(VBOXSTRICTRC)      gimKvmHypercallEx(PVMCPU pVCpu, PCPUMCTX pCtx, u
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VMM_INCLUDED_SRC_include_GIMKvmInternal_h */
 

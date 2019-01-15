@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2018 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_nt_nt_structures_h___
-#define ___iprt_nt_nt_structures_h___
+#ifndef IPRT_INCLUDED_nt_nt_structures_h
+#define IPRT_INCLUDED_nt_nt_structures_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 
 #include <iprt/types.h>
@@ -129,5 +132,5 @@ typedef KTRAP_FRAME_AMD64 const *PCKTRAP_FRAME_AMD64;
 /** @} */
 
 
-#endif
+#endif /* !IPRT_INCLUDED_nt_nt_structures_h */
 

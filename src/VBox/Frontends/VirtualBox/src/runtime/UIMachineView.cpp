@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,84 +15,60 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QMainWindow>
-# include <QPainter>
-# include <QScrollBar>
-# include <QTimer>
+#include <QMainWindow>
+#include <QPainter>
+#include <QScrollBar>
+#include <QTimer>
+#include <QAbstractNativeEventFilter>
 
 /* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UIActionPoolRuntime.h"
-# include "UIDesktopWidgetWatchdog.h"
-# include "UIExtraDataManager.h"
-# include "UIMessageCenter.h"
-# include "UISession.h"
-# include "UIMachineLogic.h"
-# include "UIMachineWindow.h"
-# include "UIMachineViewNormal.h"
-# include "UIMachineViewFullscreen.h"
-# include "UIMachineViewSeamless.h"
-# include "UIMachineViewScale.h"
-# include "UIKeyboardHandler.h"
-# include "UIMouseHandler.h"
-# include "UIFrameBuffer.h"
-# include "VBoxFBOverlay.h"
-# ifdef VBOX_WS_MAC
-#  include "UICocoaApplication.h"
-# endif /* VBOX_WS_MAC */
-# ifdef VBOX_WITH_DRAG_AND_DROP
-#  include "UIDnDHandler.h"
-# endif /* VBOX_WITH_DRAG_AND_DROP */
-
-/* VirtualBox interface declarations: */
-# ifndef VBOX_WITH_XPCOM
-#  include "VirtualBox.h"
-# else /* VBOX_WITH_XPCOM */
-#  include "VirtualBox_XPCOM.h"
-# endif /* VBOX_WITH_XPCOM */
-
-/* COM includes: */
-# include "CConsole.h"
-# include "CDisplay.h"
-# include "CSession.h"
-# ifdef VBOX_WITH_DRAG_AND_DROP
-#  include "CDnDSource.h"
-#  include "CDnDTarget.h"
-#  include "CGuest.h"
-# endif /* VBOX_WITH_DRAG_AND_DROP */
-
-/* Other VBox includes: */
-# include <iprt/asm.h>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-/* Qt includes: */
-# include <QAbstractNativeEventFilter>
-
-/* GUI includes: */
+#include "VBoxGlobal.h"
+#include "UIActionPoolRuntime.h"
+#include "UIDesktopWidgetWatchdog.h"
+#include "UIExtraDataManager.h"
+#include "UIMessageCenter.h"
+#include "UISession.h"
+#include "UIMachineLogic.h"
+#include "UIMachineWindow.h"
+#include "UIMachineViewNormal.h"
+#include "UIMachineViewFullscreen.h"
+#include "UIMachineViewSeamless.h"
+#include "UIMachineViewScale.h"
+#include "UIKeyboardHandler.h"
+#include "UIMouseHandler.h"
+#include "UIFrameBuffer.h"
+#include "VBoxFBOverlay.h"
 #ifdef VBOX_WS_MAC
+# include "UICocoaApplication.h"
 # include "DarwinKeyboard.h"
 # include "DockIconPreview.h"
-#endif /* VBOX_WS_MAC */
+#endif
+#ifdef VBOX_WITH_DRAG_AND_DROP
+# include "UIDnDHandler.h"
+#endif
+
+/* VirtualBox interface declarations: */
+#include <VBox/com/VirtualBox.h>
 
 /* COM includes: */
+#include "CConsole.h"
+#include "CDisplay.h"
+#include "CSession.h"
 #include "CFramebuffer.h"
 #ifdef VBOX_WITH_DRAG_AND_DROP
+# include "CDnDSource.h"
+# include "CDnDTarget.h"
+# include "CGuest.h"
 # include "CGuestDnDSource.h"
 # include "CGuestDnDTarget.h"
-#endif /* VBOX_WITH_DRAG_AND_DROP */
+#endif
 
 /* Other VBox includes: */
 #include <VBox/VBoxOGL.h>
 #include <VBoxVideo.h>
-#ifdef VBOX_WS_MAC
-# include <VBox/err.h>
-#endif /* VBOX_WS_MAC */
+#include <iprt/asm.h>
+#include <iprt/errcore.h>
 
 /* External includes: */
 #include <math.h>
@@ -1578,12 +1554,13 @@ void UIMachineView::focusOutEvent(QFocusEvent *pEvent)
 }
 
 #ifdef VBOX_WITH_DRAG_AND_DROP
+
 bool UIMachineView::dragAndDropCanAccept(void) const
 {
     bool fAccept =  m_pDnDHandler
-#ifdef VBOX_WITH_DRAG_AND_DROP_GH
+# ifdef VBOX_WITH_DRAG_AND_DROP_GH
                  && !m_fIsDraggingFromGuest
-#endif
+# endif
                  && machine().GetDnDMode() != KDnDMode_Disabled;
     return fAccept;
 }
@@ -1667,7 +1644,7 @@ int UIMachineView::dragCheckPending(void)
 
     if (!dragAndDropIsActive())
         rc = VERR_ACCESS_DENIED;
-#ifdef VBOX_WITH_DRAG_AND_DROP_GH
+# ifdef VBOX_WITH_DRAG_AND_DROP_GH
     else if (!m_fIsDraggingFromGuest)
     {
         /// @todo Add guest->guest DnD functionality here by getting
@@ -1678,9 +1655,9 @@ int UIMachineView::dragCheckPending(void)
     }
     else /* Already dragging, so report success. */
         rc = VINF_SUCCESS;
-#else
+# else
     rc = VERR_NOT_SUPPORTED;
-#endif
+# endif
 
     DNDDEBUG(("DnD: dragCheckPending ended with rc=%Rrc\n", rc));
     return rc;
@@ -1692,7 +1669,7 @@ int UIMachineView::dragStart(void)
 
     if (!dragAndDropIsActive())
         rc = VERR_ACCESS_DENIED;
-#ifdef VBOX_WITH_DRAG_AND_DROP_GH
+# ifdef VBOX_WITH_DRAG_AND_DROP_GH
     else if (!m_fIsDraggingFromGuest)
         rc = VERR_WRONG_ORDER;
     else
@@ -1703,9 +1680,9 @@ int UIMachineView::dragStart(void)
 
         m_fIsDraggingFromGuest = false;
     }
-#else
+# else
     rc = VERR_NOT_SUPPORTED;
-#endif
+# endif
 
     DNDDEBUG(("DnD: dragStart ended with rc=%Rrc\n", rc));
     return rc;
@@ -1717,14 +1694,14 @@ int UIMachineView::dragStop(void)
 
     if (!dragAndDropIsActive())
         rc = VERR_ACCESS_DENIED;
-#ifdef VBOX_WITH_DRAG_AND_DROP_GH
+# ifdef VBOX_WITH_DRAG_AND_DROP_GH
     else if (!m_fIsDraggingFromGuest)
         rc = VERR_WRONG_ORDER;
     else
         rc = m_pDnDHandler->dragStop(screenId());
-#else
+# else
     rc = VERR_NOT_SUPPORTED;
-#endif
+# endif
 
     DNDDEBUG(("DnD: dragStop ended with rc=%Rrc\n", rc));
     return rc;
@@ -1755,6 +1732,7 @@ void UIMachineView::dropEvent(QDropEvent *pEvent)
 
     DNDDEBUG(("DnD: dropEvent ended with rc=%Rrc\n", rc));
 }
+
 #endif /* VBOX_WITH_DRAG_AND_DROP */
 
 bool UIMachineView::nativeEventPreprocessor(const QByteArray &eventType, void *pMessage)

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2018 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef HDA_STREAM_H
-#define HDA_STREAM_H
+#ifndef VBOX_INCLUDED_SRC_Audio_HDAStream_h
+#define VBOX_INCLUDED_SRC_Audio_HDAStream_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "DevHDACommon.h"
 
@@ -302,5 +305,5 @@ void              hdaR3StreamAsyncIOEnable(PHDASTREAM pStream, bool fEnable);
 /** @} */
 
 #endif /* IN_RING3 */
-#endif /* !HDA_STREAM_H */
+#endif /* !VBOX_INCLUDED_SRC_Audio_HDAStream_h */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -35,6 +35,7 @@
 #include <iprt/avl.h>
 #include <iprt/assert.h>
 #include <iprt/ctype.h>
+#include <iprt/err.h>
 #include <iprt/file.h>
 #include <iprt/log.h>
 #include <iprt/mem.h>

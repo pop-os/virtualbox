@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2018 Oracle Corporation
+ * Copyright (C) 2004-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,7 +19,8 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
-# include <iprt/win/windows.h>
+#define LOG_GROUP LOG_GROUP_MAIN_VBOXSVC
+#include <iprt/win/windows.h>
 #ifdef DEBUG_bird
 # include <RpcAsync.h>
 #endif
@@ -29,11 +30,11 @@
 #include "VBox/com/VirtualBox.h"
 
 #include "VirtualBoxImpl.h"
-#include "Logging.h"
+#include "LoggingNew.h"
 
 #include "svchlp.h"
 
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 #include <iprt/buildconfig.h>
 #include <iprt/initterm.h>
 #include <iprt/string.h>

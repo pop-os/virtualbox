@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2016-2018 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -26,8 +26,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_GuestHost_GuestControl_h
-#define ___VBox_GuestHost_GuestControl_h
+#ifndef VBOX_INCLUDED_GuestHost_GuestControl_h
+#define VBOX_INCLUDED_GuestHost_GuestControl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 
@@ -195,5 +198,5 @@ enum eInputStatus
 
 } /* namespace guestControl */
 
-#endif /* !___VBox_GuestHost_GuestControl_h */
+#endif /* !VBOX_INCLUDED_GuestHost_GuestControl_h */
 

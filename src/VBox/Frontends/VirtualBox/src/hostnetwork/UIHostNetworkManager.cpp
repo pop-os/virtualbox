@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,41 +15,35 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QHeaderView>
-# include <QMenuBar>
-# include <QPushButton>
-# include <QVBoxLayout>
+#include <QHeaderView>
+#include <QMenuBar>
+#include <QPushButton>
+#include <QVBoxLayout>
 
 /* GUI includes: */
-# include "QIDialogButtonBox.h"
-# include "QITreeWidget.h"
-# include "UIActionPoolManager.h"
-# include "UIExtraDataManager.h"
-# include "UIIconPool.h"
-# include "UIHostNetworkDetailsWidget.h"
-# include "UIHostNetworkManager.h"
-# include "UIHostNetworkUtils.h"
-# include "UIMessageCenter.h"
-# include "UIToolBar.h"
-# ifdef VBOX_WS_MAC
-#  include "UIWindowMenuManager.h"
-# endif /* VBOX_WS_MAC */
-# include "VBoxGlobal.h"
+#include "QIDialogButtonBox.h"
+#include "QITreeWidget.h"
+#include "UIActionPoolManager.h"
+#include "UIExtraDataManager.h"
+#include "UIIconPool.h"
+#include "UIHostNetworkDetailsWidget.h"
+#include "UIHostNetworkManager.h"
+#include "UIHostNetworkUtils.h"
+#include "UIMessageCenter.h"
+#include "UIToolBar.h"
+#ifdef VBOX_WS_MAC
+# include "UIWindowMenuManager.h"
+#endif /* VBOX_WS_MAC */
+#include "VBoxGlobal.h"
 
 /* COM includes: */
-# include "CDHCPServer.h"
-# include "CHost.h"
-# include "CHostNetworkInterface.h"
+#include "CDHCPServer.h"
+#include "CHost.h"
+#include "CHostNetworkInterface.h"
 
 /* Other VBox includes: */
-# include <iprt/cidr.h>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include <iprt/cidr.h>
 
 
 /** Tree-widget column tags. */

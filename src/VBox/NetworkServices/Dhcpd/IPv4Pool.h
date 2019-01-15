@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2017-2018 Oracle Corporation
+ * Copyright (C) 2017-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef _DHCPD_IPV4_POOL_H_
-#define _DHCPD_IPV4_POOL_H_
+#ifndef VBOX_INCLUDED_SRC_Dhcpd_IPv4Pool_h
+#define VBOX_INCLUDED_SRC_Dhcpd_IPv4Pool_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/asm.h>
 #include <iprt/stdint.h>
@@ -120,4 +123,4 @@ public:
     bool allocate(RTNETADDRIPV4);
 };
 
-#endif  /* _DHCPD_IPV4_POOL_H_ */
+#endif /* !VBOX_INCLUDED_SRC_Dhcpd_IPv4Pool_h */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,8 +44,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef ___VBOX_ACCELERANT_H
-#define ___VBOX_ACCELERANT_H
+#ifndef GA_INCLUDED_SRC_haiku_VBoxVideo_accelerant_accelerant_h
+#define GA_INCLUDED_SRC_haiku_VBoxVideo_accelerant_accelerant_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <Accelerant.h>
 #include "../common/VBoxVideo_common.h"
@@ -98,5 +101,5 @@ void vboxvideo_fill_rectangle(engine_token *et, uint32 color, fill_rect_params *
 void vboxvideo_invert_rectangle(engine_token *et, fill_rect_params *list, uint32 count);
 void vboxvideo_fill_span(engine_token *et, uint32 color, uint16 *list, uint32 count);
 
-#endif /* ___VBOX_ACCELERANT_H */
+#endif /* !GA_INCLUDED_SRC_haiku_VBoxVideo_accelerant_accelerant_h */
 

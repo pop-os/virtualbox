@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,36 +15,30 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QCheckBox>
-# include <QComboBox>
-# include <QDir>
-# include <QHeaderView>
-# include <QLabel>
-# include <QLineEdit>
-# include <QSpinBox>
-# include <QTextEdit>
-# include <QVBoxLayout>
+#include <QCheckBox>
+#include <QComboBox>
+#include <QDir>
+#include <QHeaderView>
+#include <QLabel>
+#include <QLineEdit>
+#include <QSpinBox>
+#include <QTextEdit>
+#include <QVBoxLayout>
 
 /* GUI includes: */
-# include "QITreeView.h"
-# include "VBoxGlobal.h"
-# include "UIGuestOSTypeSelectionButton.h"
-# include "UIApplianceEditorWidget.h"
-# include "UIConverter.h"
-# include "UIFilePathSelector.h"
-# include "UIIconPool.h"
-# include "UILineTextEdit.h"
-# include "UIMessageCenter.h"
+#include "QITreeView.h"
+#include "VBoxGlobal.h"
+#include "UIGuestOSTypeSelectionButton.h"
+#include "UIApplianceEditorWidget.h"
+#include "UIConverter.h"
+#include "UIFilePathSelector.h"
+#include "UIIconPool.h"
+#include "UILineTextEdit.h"
+#include "UIMessageCenter.h"
 
 /* COM includes: */
-# include "CSystemProperties.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CSystemProperties.h"
 
 
 /** Describes the interface of Appliance item.

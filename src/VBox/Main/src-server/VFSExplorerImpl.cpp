@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,6 +15,7 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN_VFSEXPLORER
 #include <iprt/dir.h>
 #include <iprt/path.h>
 #include <iprt/file.h>
@@ -31,7 +32,7 @@
 #include "ProgressImpl.h"
 
 #include "AutoCaller.h"
-#include "Logging.h"
+#include "LoggingNew.h"
 #include "ThreadTask.h"
 
 #include <memory>
@@ -209,7 +210,7 @@ void VFSExplorer::TaskVFSExplorer::handler()
             if (pVFSExplorer->m->storageType == VFSType_File)
                 rc = pVFSExplorer->i_updateFS(this);
             else if (pVFSExplorer->m->storageType == VFSType_S3)
-                rc = VERR_NOT_IMPLEMENTED;
+                rc = E_NOTIMPL;
             break;
         }
         case TaskVFSExplorer::Delete:
@@ -217,7 +218,7 @@ void VFSExplorer::TaskVFSExplorer::handler()
             if (pVFSExplorer->m->storageType == VFSType_File)
                 rc = pVFSExplorer->i_deleteFS(this);
             else if (pVFSExplorer->m->storageType == VFSType_S3)
-                rc = VERR_NOT_IMPLEMENTED;
+                rc = E_NOTIMPL;
             break;
         }
         default:
@@ -335,7 +336,7 @@ HRESULT VFSExplorer::i_updateFS(TaskVFSExplorer *aTask)
     LogFlowFunc(("rc=%Rhrc\n", rc));
     LogFlowFuncLeave();
 
-    return VINF_SUCCESS;
+    return S_OK; /** @todo ??? */
 }
 
 HRESULT VFSExplorer::i_deleteFS(TaskVFSExplorer *aTask)

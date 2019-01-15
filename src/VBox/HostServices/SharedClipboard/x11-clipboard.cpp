@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -29,9 +29,14 @@
 
 #include <VBox/GuestHost/SharedClipboard.h>
 #include <VBox/HostServices/VBoxClipboardSvc.h>
+#include <VBox/err.h>
 
 #include "VBoxClipboard.h"
 
+
+/*********************************************************************************************************************************
+*   Structures and Typedefs                                                                                                      *
+*********************************************************************************************************************************/
 struct _VBOXCLIPBOARDREQFROMVBOX;
 typedef struct _VBOXCLIPBOARDREQFROMVBOX VBOXCLIPBOARDREQFROMVBOX;
 
@@ -59,6 +64,8 @@ struct _VBOXCLIPBOARDCONTEXT
      * requests. */
     bool fShuttingDown;
 };
+
+
 
 /**
  * Report formats available in the X11 clipboard to VBox.

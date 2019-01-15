@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,8 +14,12 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-#ifndef _VDIoRnd_h__
-#define _VDIoRnd_h__
+
+#ifndef VBOX_INCLUDED_SRC_testcase_VDIoRnd_h
+#define VBOX_INCLUDED_SRC_testcase_VDIoRnd_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /** Pointer to the I/O random number generator. */
 typedef struct VDIORND *PVDIORND;
@@ -52,4 +56,4 @@ void VDIoRndDestroy(PVDIORND pIoRnd);
 int VDIoRndGetBuffer(PVDIORND pIoRnd, void **ppv, size_t cb);
 
 uint32_t VDIoRndGetU32Ex(PVDIORND pIoRnd, uint32_t uMin, uint32_t uMax);
-#endif /* _VDIoRnd_h__ */
+#endif /* !VBOX_INCLUDED_SRC_testcase_VDIoRnd_h */

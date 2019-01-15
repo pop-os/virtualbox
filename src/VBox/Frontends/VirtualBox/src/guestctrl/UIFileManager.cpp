@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2018 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,51 +15,46 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QAbstractItemModel>
-# include <QCheckBox>
-# include <QHBoxLayout>
-# include <QHeaderView>
-# include <QPushButton>
-# include <QSplitter>
-# include <QTableWidget>
-# include <QTextEdit>
+#include <QAbstractItemModel>
+#include <QCheckBox>
+#include <QHBoxLayout>
+#include <QHeaderView>
+#include <QPushButton>
+#include <QSplitter>
+#include <QTableWidget>
+#include <QTextEdit>
 
 /* GUI includes: */
-# include "QILabel.h"
-# include "QILineEdit.h"
-# include "QITabWidget.h"
-# include "QITreeWidget.h"
-# include "QIWithRetranslateUI.h"
-# include "UIActionPool.h"
-# include "UIErrorString.h"
-# include "UIExtraDataManager.h"
-# include "UIIconPool.h"
-# include "UIGuestControlConsole.h"
-# include "UIFileManager.h"
-# include "UIFileManagerSessionPanel.h"
-# include "UIFileManagerOptionsPanel.h"
-# include "UIFileManagerLogPanel.h"
-# include "UIFileManagerOperationsPanel.h"
-# include "UIFileManagerGuestTable.h"
-# include "UIGuestControlInterface.h"
-# include "UIFileManagerHostTable.h"
-# include "UIToolBar.h"
-# include "VBoxGlobal.h"
+#include "QILabel.h"
+#include "QILineEdit.h"
+#include "QITabWidget.h"
+#include "QITreeWidget.h"
+#include "QIWithRetranslateUI.h"
+#include "UIActionPool.h"
+#include "UIErrorString.h"
+#include "UIExtraDataManager.h"
+#include "UIIconPool.h"
+#include "UIGuestControlConsole.h"
+#include "UIFileManager.h"
+#include "UIFileManagerSessionPanel.h"
+#include "UIFileManagerOptionsPanel.h"
+#include "UIFileManagerLogPanel.h"
+#include "UIFileManagerOperationsPanel.h"
+#include "UIFileManagerGuestTable.h"
+#include "UIGuestControlInterface.h"
+#include "UIFileManagerHostTable.h"
+#include "UIToolBar.h"
+#include "VBoxGlobal.h"
 
 /* COM includes: */
-# include "CFsObjInfo.h"
-# include "CGuest.h"
-# include "CGuestDirectory.h"
-# include "CGuestFsObjInfo.h"
-# include "CGuestProcess.h"
-# include "CGuestSession.h"
-# include "CGuestSessionStateChangedEvent.h"
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CFsObjInfo.h"
+#include "CGuest.h"
+#include "CGuestDirectory.h"
+#include "CGuestFsObjInfo.h"
+#include "CGuestProcess.h"
+#include "CGuestSession.h"
+#include "CGuestSessionStateChangedEvent.h"
 
 
 /*********************************************************************************************************************************
@@ -109,9 +104,10 @@ void UIFileManagerOptions::destroy()
 }
 
 UIFileManagerOptions::UIFileManagerOptions()
-    : bListDirectoriesOnTop(true)
-    , bAskDeleteConfirmation(false)
-    , bShowHumanReadableSizes(true)
+    : fListDirectoriesOnTop(true)
+    , fAskDeleteConfirmation(false)
+    , fShowHumanReadableSizes(true)
+    , fShowHiddenObjects(true)
 {
 }
 
@@ -280,7 +276,7 @@ void UIFileManager::prepareObjects()
         m_pOptionsPanel->hide();
         m_panelActionMap.insert(m_pOptionsPanel, m_pActionPool->action(UIActionIndex_M_FileManager_T_Options));
         connect(m_pOptionsPanel, &UIFileManagerOptionsPanel::sigOptionsChanged,
-                this, &UIFileManager::sltListDirectoriesBeforeChanged);
+                this, &UIFileManager::sltHandleOptionsUpdated);
         pTopLayout->addWidget(m_pOptionsPanel);
     }
 
@@ -386,21 +382,6 @@ void UIFileManager::prepareToolBar()
                 this, &UIFileManager::sltPanelActionToggled);
         connect(m_pActionPool->action(UIActionIndex_M_FileManager_T_Operations), &QAction::toggled,
                 this, &UIFileManager::sltPanelActionToggled);
-
-#ifdef TEST_COPY
-
-        m_pToolBar->addSeparator();
-        QAction *pSession = new QAction("session", this);
-        QAction *pCopy = new QAction("Copy", this);
-        m_pToolBar->addAction(pSession);
-        m_pToolBar->addAction(pCopy);
-
-        connect(pSession, &QAction::triggered,
-                this, &UIFileManager::sltTestSession);
-        connect(pCopy, &QAction::triggered,
-                this, &UIFileManager::sltTestCopy);
-
-#endif
 
 #ifdef VBOX_WS_MAC
         /* Check whether we are embedded into a stack: */
@@ -518,14 +499,6 @@ void UIFileManager::sltPanelActionToggled(bool fChecked)
         hidePanel(pPanel);
 }
 
-void UIFileManager::sltListDirectoriesBeforeChanged()
-{
-    if (m_pGuestFileTable)
-        m_pGuestFileTable->relist();
-    if (m_pHostFileTable)
-        m_pHostFileTable->relist();
-}
-
 void UIFileManager::sltReceieveNewFileOperation(const CProgress &comProgress)
 {
     if (m_pOperationsPanel)
@@ -548,6 +521,11 @@ void UIFileManager::sltHandleOptionsUpdated()
     {
         m_pOptionsPanel->update();
     }
+
+    if (m_pGuestFileTable)
+        m_pGuestFileTable->optionsUpdated();
+    if (m_pHostFileTable)
+        m_pHostFileTable->optionsUpdated();
 }
 
 void UIFileManager::copyToHost()
@@ -706,9 +684,10 @@ void UIFileManager::saveOptions()
     UIFileManagerOptions *pOptions = UIFileManagerOptions::instance();
     if (pOptions)
     {
-        gEDataManager->setFileManagerOptions(pOptions->bListDirectoriesOnTop,
-                                                         pOptions->bAskDeleteConfirmation,
-                                                         pOptions->bShowHumanReadableSizes);
+        gEDataManager->setFileManagerOptions(pOptions->fListDirectoriesOnTop,
+                                             pOptions->fAskDeleteConfirmation,
+                                             pOptions->fShowHumanReadableSizes,
+                                             pOptions->fShowHiddenObjects);
     }
 }
 
@@ -744,9 +723,10 @@ void UIFileManager::loadOptions()
     UIFileManagerOptions *pOptions = UIFileManagerOptions::instance();
     if (pOptions)
     {
-        pOptions->bListDirectoriesOnTop = gEDataManager->fileManagerListDirectoriesFirst();
-        pOptions->bAskDeleteConfirmation = gEDataManager->fileManagerShowDeleteConfirmation();
-        pOptions->bShowHumanReadableSizes = gEDataManager->fileManagerShowHumanReadableSizes();
+        pOptions->fListDirectoriesOnTop = gEDataManager->fileManagerListDirectoriesFirst();
+        pOptions->fAskDeleteConfirmation = gEDataManager->fileManagerShowDeleteConfirmation();
+        pOptions->fShowHumanReadableSizes = gEDataManager->fileManagerShowHumanReadableSizes();
+        pOptions->fShowHiddenObjects = gEDataManager->fileManagerShowHiddenObjects();
     }
 }
 
@@ -803,19 +783,6 @@ void UIFileManager::appendLog(const QString &strLog, FileManagerLogType eLogType
     if (!m_pLogPanel)
         return;
     m_pLogPanel->appendLog(strLog, eLogType);
-}
-
-void UIFileManager::sltTestSession()
-{
-    createSession("vbox", "password");
-}
-
-void UIFileManager::sltTestCopy()
-{
-    QStringList sources;
-    sources << "/home/serkan/misos/xenialpup-7.5-uefi.iso";
-    if ( m_pGuestFileTable)
-        m_pGuestFileTable->copyHostToGuest(sources, "/home/vbox/test");
 }
 
 #include "UIFileManager.moc"

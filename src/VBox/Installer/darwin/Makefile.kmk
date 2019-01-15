@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2017 Oracle Corporation
+# Copyright (C) 2006-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -873,6 +873,10 @@ $(VBOX_PATH_PACK_TMP)/Packages/VirtualBoxCLI.pkg: \
 	@# Generate the wrapper scripts.
 	$(APPEND) -tn  $(VBOX_PATH_PACK_TMP)/VirtualBoxCLI.pkg.root/usr/local/bin/VirtualBox \
 		'#!/bin/bash' 'exec /Applications/VirtualBox.app/Contents/MacOS/VirtualBox "$$@"'
+ifdef VBOX_GUI_WITH_SHARED_LIBRARY
+	$(APPEND) -tn  $(VBOX_PATH_PACK_TMP)/VirtualBoxCLI.pkg.root/usr/local/bin/VirtualBoxVM \
+		'#!/bin/bash' 'exec /Applications/VirtualBox.app/Contents/MacOS/VirtualBoxVM "$$@"'
+endif
 	$(APPEND) -tn  $(VBOX_PATH_PACK_TMP)/VirtualBoxCLI.pkg.root/usr/local/bin/VBoxManage \
 		'#!/bin/bash' 'exec /Applications/VirtualBox.app/Contents/MacOS/VBoxManage "$$@"'
 	$(APPEND) -tn $(VBOX_PATH_PACK_TMP)/VirtualBoxCLI.pkg.root/usr/local/bin/VBoxVRDP \

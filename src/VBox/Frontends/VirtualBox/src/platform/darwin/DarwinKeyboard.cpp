@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -36,7 +36,7 @@
 # include <iprt/stream.h>
 #endif
 #ifdef VBOX_WITH_KBD_LEDS_SYNC
-# include <iprt/err.h>
+# include <iprt/errcore.h>
 # include <iprt/semaphore.h>
 # include <VBox/sup.h>
 #endif

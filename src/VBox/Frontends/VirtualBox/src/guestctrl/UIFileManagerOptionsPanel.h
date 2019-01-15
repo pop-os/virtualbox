@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2018 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIFileManagerOptionsPanel_h___
-#define ___UIFileManagerOptionsPanel_h___
+#ifndef FEQT_INCLUDED_SRC_guestctrl_UIFileManagerOptionsPanel_h
+#define FEQT_INCLUDED_SRC_guestctrl_UIFileManagerOptionsPanel_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "UIFileManagerPanel.h"
@@ -60,13 +63,15 @@ private slots:
     void sltListDirectoryCheckBoxToogled(bool bChecked);
     void sltDeleteConfirmationCheckBoxToogled(bool bChecked);
     void sltHumanReabableSizesCheckBoxToogled(bool bChecked);
+    void sltShowHiddenObjectsCheckBoxToggled(bool bChecked);
 
 private:
 
     QCheckBox  *m_pListDirectoriesOnTopCheckBox;
     QCheckBox  *m_pDeleteConfirmationCheckBox;
     QCheckBox  *m_pHumanReabableSizesCheckBox;
+    QCheckBox  *m_pShowHiddenObjectsCheckBox;
     UIFileManagerOptions *m_pFileManagerOptions;
 };
 
-#endif /* !___UIFileManagerOptionsPanel_h___ */
+#endif /* !FEQT_INCLUDED_SRC_guestctrl_UIFileManagerOptionsPanel_h */

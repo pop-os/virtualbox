@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,8 +18,8 @@
 #ifndef ___cr_blitter_h
 #define ___cr_blitter_h
 
-#include <iprt/cdefs.h>
 #include <iprt/asm.h>
+#include <iprt/err.h>
 #include <iprt/string.h>
 #include "cr_vreg.h"
 #ifdef IN_VMSVGA3D

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2018 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIFileManager_h___
-#define ___UIFileManager_h___
+#ifndef FEQT_INCLUDED_SRC_guestctrl_UIFileManager_h
+#define FEQT_INCLUDED_SRC_guestctrl_UIFileManager_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QWidget>
@@ -66,9 +69,10 @@ public:
     static void create();
     static void destroy();
 
-    bool bListDirectoriesOnTop;
-    bool bAskDeleteConfirmation;
-    bool bShowHumanReadableSizes;
+    bool fListDirectoriesOnTop;
+    bool fAskDeleteConfirmation;
+    bool fShowHumanReadableSizes;
+    bool fShowHiddenObjects;
 
 private:
 
@@ -115,14 +119,10 @@ private slots:
     void sltCopyGuestToHost();
     void sltCopyHostToGuest();
     void sltPanelActionToggled(bool fChecked);
-    void sltListDirectoriesBeforeChanged();
     void sltReceieveNewFileOperation(const CProgress &comProgress);
     void sltFileOperationComplete(QUuid progressId);
     /** Performs whatever necessary when some signal about option change has been receieved. */
     void sltHandleOptionsUpdated();
-
-    void sltTestCopy();
-    void sltTestSession();
 
 private:
 
@@ -199,4 +199,4 @@ private:
     friend class UIFileManagerDialog;
 };
 
-#endif /* !___UIFileManager_h___ */
+#endif /* !FEQT_INCLUDED_SRC_guestctrl_UIFileManager_h */

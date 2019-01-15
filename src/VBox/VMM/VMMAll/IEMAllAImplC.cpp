@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -21,6 +21,7 @@
 *********************************************************************************************************************************/
 #include "IEMInternal.h"
 #include <VBox/vmm/vm.h>
+#include <VBox/err.h>
 #include <iprt/x86.h>
 #include <iprt/uint128.h>
 

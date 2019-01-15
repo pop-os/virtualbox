@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_asm_h
-#define ___iprt_asm_h
+#ifndef IPRT_INCLUDED_asm_h
+#define IPRT_INCLUDED_asm_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/cdefs.h>
 #include <iprt/types.h>
@@ -2575,7 +2578,7 @@ DECLINLINE(void) ASMAtomicWritePtrVoid(void RT_FAR * volatile RT_FAR *ppv, const
  * @remarks This is relatively type safe on GCC platforms when @a pv isn't
  *          NULL.
  */
-#ifdef __GNUC__
+#if RT_GNUC_PREREQ(4, 2)
 # define ASMAtomicUoWritePtr(ppv, pv) \
     do \
     { \
@@ -5691,13 +5694,13 @@ DECLINLINE(uint64_t) ASMRotateRightU64(uint64_t u64, uint32_t cShift)
  */
 #if defined(__WATCOMC__) && ARCH_BITS == 16 && defined(RT_ARCH_X86)
 # define IPRT_ASM_WATCOM_X86_16_WITH_PRAGMAS
-# undef ___iprt_asm_watcom_x86_16_h
+# undef IPRT_INCLUDED_asm_watcom_x86_16_h
 # include "asm-watcom-x86-16.h"
 #elif defined(__WATCOMC__) && ARCH_BITS == 32 && defined(RT_ARCH_X86)
 # define IPRT_ASM_WATCOM_X86_32_WITH_PRAGMAS
-# undef ___iprt_asm_watcom_x86_32_h
+# undef IPRT_INCLUDED_asm_watcom_x86_32_h
 # include "asm-watcom-x86-32.h"
 #endif
 
-#endif
+#endif /* !IPRT_INCLUDED_asm_h */
 

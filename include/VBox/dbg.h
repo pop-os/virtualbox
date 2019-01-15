@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -27,8 +27,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_dbg_h
-#define ___VBox_dbg_h
+#ifndef VBOX_INCLUDED_dbg_h
+#define VBOX_INCLUDED_dbg_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/cdefs.h>
 #include <VBox/types.h>
@@ -36,7 +39,7 @@
 
 #include <iprt/stdarg.h>
 #ifdef IN_RING3
-# include <iprt/err.h>
+# include <iprt/errcore.h>
 #endif
 
 RT_C_DECLS_BEGIN
@@ -1172,4 +1175,4 @@ DBGDECL(int)    DBGCTcpTerminate(PUVM pUVM, void *pvData);
 /** @} */
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_dbg_h */

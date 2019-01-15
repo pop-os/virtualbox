@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,12 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-#ifndef __VBOXLWIPCORE_H__
-#define __VBOXLWIPCORE_H__
+
+#ifndef VBOX_INCLUDED_SRC_Network_lwip_new_vbox_VBoxLwipCore_h
+#define VBOX_INCLUDED_SRC_Network_lwip_new_vbox_VBoxLwipCore_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 
 typedef DECLCALLBACKPTR(void, PFNRT1)(void *);
@@ -26,4 +30,4 @@ typedef DECLCALLBACKPTR(void, PFNRT1)(void *);
  */
 int vboxLwipCoreInitialize(PFNRT1 pfnCallback, void * pfnCallbackArg);
 void vboxLwipCoreFinalize(PFNRT1 pfnCallback, void * pfnCallbackArg);
-#endif
+#endif /* !VBOX_INCLUDED_SRC_Network_lwip_new_vbox_VBoxLwipCore_h */

@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2006-2018 Oracle Corporation
+# Copyright (C) 2006-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -349,6 +349,7 @@ VBOX_GUI_INC_DIRS = \
 	./src/hostnetwork \
 	./src/logviewer \
 	./src/medium \
+	./src/medium/viso \
 	./src/objects \
 	./src/platform \
 	./src/platform/darwin \
@@ -803,6 +804,7 @@ ifndef VBOX_GUI_WITH_SHARED_LIBRARY
 	src/globals/UIActionPoolManager.h \
 	src/globals/UIActionPoolRuntime.h \
 	src/globals/UIAnimationFramework.h \
+	src/globals/UICustomFileSystemModel.h \
 	src/globals/UIDesktopWidgetWatchdog.h \
 	src/globals/UIMainEventListener.h \
 	src/globals/UIMessageCenter.h \
@@ -827,6 +829,12 @@ ifndef VBOX_GUI_WITH_SHARED_LIBRARY
 	src/medium/UIMediumEnumerator.h \
 	src/medium/UIMediumItem.h \
 	src/medium/UIMediumSelector.h \
+	src/medium/viso/UIVisoBrowserBase.h \
+	src/medium/viso/UIVisoContentBrowser.h \
+	src/medium/viso/UIVisoCreator.h \
+	src/medium/viso/UIVisoConfigurationDialog.h \
+	src/medium/viso/UIVisoCreatorOptionsDialog.h \
+	src/medium/viso/UIVisoHostBrowser.h \
 	src/runtime/UIConsoleEventHandler.h \
 	src/runtime/UIFrameBuffer.h \
 	src/runtime/UIIndicatorsPool.h \
@@ -858,7 +866,6 @@ ifndef VBOX_GUI_WITH_SHARED_LIBRARY
 	src/guestctrl/UIFileManagerOptionsPanel.h \
 	src/guestctrl/UIFileManagerPanel.h \
 	src/guestctrl/UIFileManagerSessionPanel.h \
-	src/guestctrl/UIFileManagerModel.h \
 	src/guestctrl/UIFileManagerTable.h \
 	src/guestctrl/UIGuestControlInterface.h \
 	src/guestctrl/UIGuestControlTreeItem.h \
@@ -1014,7 +1021,6 @@ ifdef VBOX_GUI_WITH_SHARED_LIBRARY
 	src/guestctrl/UIFileManagerOptionsPanel.h \
 	src/guestctrl/UIFileManagerPanel.h \
 	src/guestctrl/UIFileManagerSessionPanel.h \
-	src/guestctrl/UIFileManagerModel.h \
 	src/guestctrl/UIFileManagerTable.h \
 	src/guestctrl/UIGuestControlInterface.h \
 	src/guestctrl/UIGuestControlTreeItem.h \
@@ -1095,10 +1101,12 @@ ifdef VBOX_GUI_WITH_SHARED_LIBRARY
 	src/globals/UIActionPoolManager.h \
 	src/globals/UIActionPoolRuntime.h \
 	src/globals/UIAnimationFramework.h \
+	src/globals/UICustomFileSystemModel.h \
 	src/globals/UIDesktopWidgetWatchdog.h \
 	src/globals/UIMainEventListener.h \
 	src/globals/UIMessageCenter.h \
 	src/globals/UIModalWindowManager.h \
+	src/globals/UIPathOperations.h \
 	src/globals/UIPopupCenter.h \
 	src/globals/UIProgressEventHandler.h \
 	src/globals/UIShortcutPool.h \
@@ -1119,6 +1127,12 @@ ifdef VBOX_GUI_WITH_SHARED_LIBRARY
 	src/medium/UIMediumEnumerator.h \
 	src/medium/UIMediumItem.h \
 	src/medium/UIMediumSelector.h \
+	src/medium/viso/UIVisoBrowserBase.h \
+	src/medium/viso/UIVisoContentBrowser.h \
+	src/medium/viso/UIVisoCreator.h \
+	src/medium/viso/UIVisoConfigurationDialog.h \
+	src/medium/viso/UIVisoCreatorOptionsDialog.h \
+	src/medium/viso/UIVisoHostBrowser.h \
 	src/settings/UISettingsDialog.h \
 	src/settings/UISettingsDialogSpecific.h \
 	src/settings/UISettingsPage.h \
@@ -1238,6 +1252,8 @@ ifndef VBOX_GUI_WITH_SHARED_LIBRARY
 	src/logviewer/UIVMLogViewerTextEdit.cpp \
 	src/medium/UIMediumEnumerator.cpp \
 	src/medium/UIMediumSelector.cpp \
+	src/medium/viso/UIVisoContentBrowser.cpp \
+	src/medium/viso/UIVisoHostBrowser.cpp \
 	src/runtime/UIConsoleEventHandler.cpp \
 	src/runtime/UIFrameBuffer.cpp \
 	src/runtime/UIIndicatorsPool.cpp \
@@ -1327,6 +1343,8 @@ ifdef VBOX_GUI_WITH_SHARED_LIBRARY
 	src/logviewer/UIVMLogViewerTextEdit.cpp \
 	src/medium/UIMediumEnumerator.cpp \
 	src/medium/UIMediumSelector.cpp \
+	src/medium/viso/UIVisoContentBrowser.cpp \
+	src/medium/viso/UIVisoHostBrowser.cpp \
 	src/settings/global/UIGlobalSettingsExtension.cpp \
 	src/settings/global/UIGlobalSettingsInput.cpp \
 	src/settings/global/UIGlobalSettingsLanguage.cpp \
@@ -1525,6 +1543,7 @@ ifndef VBOX_GUI_WITH_SHARED_LIBRARY
 	src/globals/UIActionPoolManager.cpp \
 	src/globals/UIActionPoolRuntime.cpp \
 	src/globals/UIAnimationFramework.cpp \
+	src/globals/UICustomFileSystemModel.cpp \
 	src/globals/UIDefs.cpp \
 	src/globals/UIDesktopWidgetWatchdog.cpp \
 	src/globals/UIErrorString.cpp \
@@ -1533,6 +1552,7 @@ ifndef VBOX_GUI_WITH_SHARED_LIBRARY
 	src/globals/UIMainEventListener.cpp \
 	src/globals/UIMessageCenter.cpp \
 	src/globals/UIModalWindowManager.cpp \
+	src/globals/UIPathOperations.cpp \
 	src/globals/UIPopupCenter.cpp \
 	src/globals/UIProgressEventHandler.cpp \
 	src/globals/UIShortcutPool.cpp \
@@ -1555,6 +1575,12 @@ ifndef VBOX_GUI_WITH_SHARED_LIBRARY
 	src/medium/UIMediumEnumerator.cpp \
 	src/medium/UIMediumItem.cpp \
 	src/medium/UIMediumSelector.cpp \
+	src/medium/viso/UIVisoBrowserBase.cpp \
+	src/medium/viso/UIVisoContentBrowser.cpp \
+	src/medium/viso/UIVisoCreator.cpp \
+	src/medium/viso/UIVisoConfigurationDialog.cpp \
+	src/medium/viso/UIVisoCreatorOptionsDialog.cpp \
+	src/medium/viso/UIVisoHostBrowser.cpp \
 	src/objects/UIRichTextString.cpp \
 	src/runtime/UIConsoleEventHandler.cpp \
 	src/runtime/UIFrameBuffer.cpp \
@@ -1587,7 +1613,6 @@ ifndef VBOX_GUI_WITH_SHARED_LIBRARY
 	src/guestctrl/UIFileManagerOptionsPanel.cpp \
 	src/guestctrl/UIFileManagerPanel.cpp \
 	src/guestctrl/UIFileManagerSessionPanel.cpp \
-	src/guestctrl/UIFileManagerModel.cpp \
 	src/guestctrl/UIFileManagerTable.cpp \
 	src/guestctrl/UIGuestControlInterface.cpp \
 	src/guestctrl/UIGuestControlTreeItem.cpp \
@@ -1766,7 +1791,6 @@ ifdef VBOX_GUI_WITH_SHARED_LIBRARY
 	src/guestctrl/UIFileManagerOptionsPanel.cpp \
 	src/guestctrl/UIFileManagerPanel.cpp \
 	src/guestctrl/UIFileManagerSessionPanel.cpp \
-	src/guestctrl/UIFileManagerModel.cpp \
 	src/guestctrl/UIFileManagerTable.cpp \
 	src/guestctrl/UIGuestControlInterface.cpp \
 	src/guestctrl/UIGuestControlTreeItem.cpp \
@@ -1869,6 +1893,7 @@ ifdef VBOX_GUI_WITH_SHARED_LIBRARY
 	src/globals/UIActionPoolManager.cpp \
 	src/globals/UIActionPoolRuntime.cpp \
 	src/globals/UIAnimationFramework.cpp \
+	src/globals/UICustomFileSystemModel.cpp \
 	src/globals/UIDefs.cpp \
 	src/globals/UIDesktopWidgetWatchdog.cpp \
 	src/globals/UIErrorString.cpp \
@@ -1877,6 +1902,7 @@ ifdef VBOX_GUI_WITH_SHARED_LIBRARY
 	src/globals/UIMainEventListener.cpp \
 	src/globals/UIMessageCenter.cpp \
 	src/globals/UIModalWindowManager.cpp \
+	src/globals/UIPathOperations.cpp \
 	src/globals/UIPopupCenter.cpp \
 	src/globals/UIProgressEventHandler.cpp \
 	src/globals/UIShortcutPool.cpp \
@@ -1899,6 +1925,12 @@ ifdef VBOX_GUI_WITH_SHARED_LIBRARY
 	src/medium/UIMediumEnumerator.cpp \
 	src/medium/UIMediumItem.cpp \
 	src/medium/UIMediumSelector.cpp \
+	src/medium/viso/UIVisoBrowserBase.cpp \
+	src/medium/viso/UIVisoContentBrowser.cpp \
+	src/medium/viso/UIVisoCreator.cpp \
+	src/medium/viso/UIVisoConfigurationDialog.cpp \
+	src/medium/viso/UIVisoCreatorOptionsDialog.cpp \
+	src/medium/viso/UIVisoHostBrowser.cpp \
 	src/objects/UIRichTextString.cpp \
 	src/settings/UISettingsDefs.cpp \
 	src/settings/UISettingsDialog.cpp \
@@ -2269,6 +2301,8 @@ $(VBOX_VIRTUALBOX_OUT_DIR)/VirtualBoxBrand.qrc: \
 # Precompiled header
 # 	win.amd64 without:  kmk_time: 3m51.962058s
 # 	win.amd64 with:     kmk_time: 2m23.336252s
+#      linux.amd64 without: time: real 1m03.719s   user 26m26.766s  sys 2m03.526s
+#      linux.amd64 with:    time: real 0m42.650s   user 14m46.332s  sys 1m28.463s
 #
 ifdef VBOX_WITH_PRECOMPILED_HEADERS
  if1of ($(KBUILD_TARGET),win)
@@ -2281,39 +2315,25 @@ ifdef VBOX_WITH_PRECOMPILED_HEADERS
   VBoxGlobal_USES      += vccprecomp
   VBoxGlobal_PCH_HDR   := $(PATH_SUB_CURRENT)/src/precomp_vcc.h
 
- else if 0 # Obsolete experiment - non-functional.  Needs to be redone the same way as on windows.
-  VirtualBox_DEFS           += VBOX_WITH_PRECOMPILED_HEADERS
-  VirtualBox_INCS           <= $(VirtualBoxPch_0_OUTDIR)/src
-  VirtualBox_CXXFLAGS      += -Winvalid-pch -fpch-preprocess
-  $(foreach x,$(filter-out include/COMWrappers.cpp, $(filter %.cpp, \
-  	$(VirtualBox_SOURCES) \
-  	$(VirtualBox_SOURCES.$(KBUILD_TARGET)) \
-  	$(VirtualBox_SOURCES.$(KBUILD_TYPE)) \
-  )),$(eval $(abspath $(PATH_OBJ)/VirtualBox/$(basename $(x)).o): $$$$(VirtualBoxPch_0_OUTDIR)/src/precomp.h.gch))
+ else if $(KBUILD_KMK_REVISION) >= 3256 && "$(KBUILD_TARGET)" != "darwin" && !defined(VBOX_WITHOUT_PRECOMPILED_HEADERS)
+  if $(VBOX_GCC_VERSION_CXX) >= 50000 # GCC 4.x runs into trouble compiling the header.
+   VBoxGlobal_USES      += gccprecomp
+   VBoxGlobal_PCH_HDR   := $(PATH_SUB_CURRENT)/src/precomp_gcc.h
+   #VBoxGlobal_CXXFLAGS.linux += -H
 
-  TOOL_VirtualBoxPchLinker = Linker for VirtualBoxPch
-  define TOOL_VirtualBoxPchLinker_LINK_MISCBIN_CMDS
-	$(APPEND) -t $(out)
-  endef
+   VirtualBox_USES      += gccprecomp
+   VirtualBox_PCH_HDR   := $(PATH_SUB_CURRENT)/src/precomp_gcc.h
+   #VirtualBox_CXXFLAGS.linux += -H
 
-  MISCBINS += VirtualBoxPch
-  VirtualBoxPch_EXTENDS = VirtualBox
-  VirtualBoxPch_LDTOOL   = VirtualBoxPchLinker
-  VirtualBoxPch_INSTTYPE = none
-  VirtualBoxPch_NAME            = VirtualBoxPch
-  VirtualBoxPch_INTERMEDIATES  = $(filter-out %.h.gch, $(VirtualBox_INTERMEDIATES))
-  VirtualBoxPch_SOURCES        = src/precomp.h
-  VirtualBoxPch_CXXFLAGS       = $(filter-out -Winvalid-pch -fpch-preprocess, $(VirtualBox_CXXFLAGS)) -x c++-header
-  VirtualBoxPch_CXXOBJSUFF     = .h.gch
-  VirtualBoxPch_SRC_HANDLERS   = .h:def_src_handler_cxx
-  VirtualBoxPch_SOURCES.darwin  = $(NO_SUCH_VARIABLE)
-  VirtualBoxPch_SOURCES.solaris = $(NO_SUCH_VARIABLE)
-  VirtualBoxPch_SOURCES.freebsd = $(NO_SUCH_VARIABLE)
-  VirtualBoxPch_SOURCES.linux   = $(NO_SUCH_VARIABLE)
-  VirtualBoxPch_SOURCES.win     = $(NO_SUCH_VARIABLE)
-  VirtualBoxPch_QT_MODULES      = $(VirtualBox_QT_MODULES) # "bug" - not inherited.
-  VirtualBoxPch_INCS            = $(VirtualBox_INCS)       # "bug" - missing qtuic and qtmoc
- endif # obsolete experiment
+   VirtualBoxVM_USES    += gccprecomp
+   VirtualBoxVM_PCH_HDR := $(PATH_SUB_CURRENT)/src/precomp_gcc.h
+   #VirtualBoxVM_CXXFLAGS.linux += -H
+
+   # GCC precompiled headers seems to work more efficiently when #pragma once is involved.
+   # So, we've cooked our own camel cased qt wrapper headers with #pragma once inside.
+   VBOX_GUI_INC_DIRS <= precomptricks
+  endif
+ endif
 endif
 
 ifeq ($(KBUILD_TARGET),win)
@@ -2603,7 +2623,6 @@ docs.qtgui: $(QTGUI_DOXYFILE_OUTPUT)/docs.qtgui
 if !defined(VBOX_ONLY_DOCS) && defined(VBOX_WITH_ALL_DOXYGEN_TARGETS)
 docs: $(QTGUI_DOXYFILE_OUTPUT)/docs.qtgui
 endif
-
 
 
 # Commit the magic.

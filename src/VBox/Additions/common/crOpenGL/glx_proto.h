@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___CROPENGL_GLX_PROTO_H
-#define ___CROPENGL_GLX_PROTO_H
+#ifndef GA_INCLUDED_SRC_common_crOpenGL_glx_proto_h
+#define GA_INCLUDED_SRC_common_crOpenGL_glx_proto_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "chromium.h"
 #include "stub.h"
@@ -143,4 +146,4 @@ typedef void (*PGLXFUNC_ReleaseTexImageEXT)(Display *dpy, GLXDrawable draw, int 
 
 #endif /* GLX_EXTRAS */
 
-#endif //___CROPENGL_GLX_PROTO_H
+#endif /* !GA_INCLUDED_SRC_common_crOpenGL_glx_proto_h */

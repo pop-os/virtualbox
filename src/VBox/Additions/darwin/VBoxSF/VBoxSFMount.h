@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2018 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBoxSFMount_h___
-#define ___VBoxSFMount_h___
+#ifndef GA_INCLUDED_SRC_darwin_VBoxSF_VBoxSFMount_h
+#define GA_INCLUDED_SRC_darwin_VBoxSF_VBoxSFMount_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 
@@ -37,5 +40,5 @@ typedef VBOXSFDRWNMOUNTINFO *PVBOXSFDRWNMOUNTINFO;
 /** Magic value for VBOXSFDRWNMOUNTINFO::u32Magic.   */
 #define VBOXSFDRWNMOUNTINFO_MAGIC     UINT32_C(0xc001cafe)
 
-#endif
+#endif /* !GA_INCLUDED_SRC_darwin_VBoxSF_VBoxSFMount_h */
 

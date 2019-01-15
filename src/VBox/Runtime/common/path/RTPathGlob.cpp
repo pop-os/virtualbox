@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -43,6 +43,7 @@
 #include <iprt/uni.h>
 
 #if defined(RT_OS_WINDOWS)
+# include <iprt/utf16.h>
 # include <iprt/win/windows.h>
 # include "../../r3/win/internal-r3-win.h"
 

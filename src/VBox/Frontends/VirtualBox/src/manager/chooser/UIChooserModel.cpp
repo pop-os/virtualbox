@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2018 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,51 +15,44 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QDrag>
-# include <QGraphicsScene>
-# include <QGraphicsSceneContextMenuEvent>
-# include <QGraphicsSceneMouseEvent>
-# include <QGraphicsView>
-# include <QPropertyAnimation>
-# include <QScrollBar>
-# include <QRegExp>
-# include <QTimer>
+#include <QDrag>
+#include <QGraphicsScene>
+#include <QGraphicsSceneContextMenuEvent>
+#include <QGraphicsSceneMouseEvent>
+#include <QGraphicsView>
+#include <QPropertyAnimation>
+#include <QScrollBar>
+#include <QRegExp>
+#include <QTimer>
+#include <QParallelAnimationGroup>
 
 /* GUI includes: */
-# include "QIMessageBox.h"
-# include "VBoxGlobal.h"
-# include "UIActionPoolManager.h"
-# include "UIChooser.h"
-# include "UIChooserHandlerMouse.h"
-# include "UIChooserHandlerKeyboard.h"
-# include "UIChooserItemGroup.h"
-# include "UIChooserItemGlobal.h"
-# include "UIChooserItemMachine.h"
-# include "UIChooserModel.h"
-# include "UIExtraDataDefs.h"
-# include "UIExtraDataManager.h"
-# include "UIMessageCenter.h"
-# include "UIModalWindowManager.h"
-# include "UIVirtualBoxManagerWidget.h"
-# include "UIVirtualBoxEventHandler.h"
-# include "UIWizardNewVM.h"
+#include "QIMessageBox.h"
+#include "VBoxGlobal.h"
+#include "UIActionPoolManager.h"
+#include "UIChooser.h"
+#include "UIChooserHandlerMouse.h"
+#include "UIChooserHandlerKeyboard.h"
+#include "UIChooserItemGroup.h"
+#include "UIChooserItemGlobal.h"
+#include "UIChooserItemMachine.h"
+#include "UIChooserModel.h"
+#include "UIExtraDataDefs.h"
+#include "UIExtraDataManager.h"
+#include "UIMessageCenter.h"
+#include "UIModalWindowManager.h"
+#include "UIVirtualBoxManagerWidget.h"
+#include "UIVirtualBoxEventHandler.h"
+#include "UIWizardNewVM.h"
 
 /* COM includes: */
-# include "CExtPack.h"
-# include "CExtPackManager.h"
-# include "CMachine.h"
-# include "CMedium.h"
-# include "CVirtualBox.h"
+#include "CExtPack.h"
+#include "CExtPackManager.h"
+#include "CMachine.h"
+#include "CMedium.h"
+#include "CVirtualBox.h"
 
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
-/* Qt includes: */
-#include <QParallelAnimationGroup>
 
 /* Type defs: */
 typedef QSet<QString> UIStringSet;

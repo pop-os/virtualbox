@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,27 +15,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# if defined(RT_OS_SOLARIS)
-#  include <QFontDatabase>
-# endif
-# include <QMenu>
-# include <QPainter>
-# include <QPlainTextEdit>
-# include <QScrollBar>
-# include <QStyle>
-# include <QTextBlock>
+#if defined(RT_OS_SOLARIS)
+# include <QFontDatabase>
+#endif
+#include <QMenu>
+#include <QPainter>
+#include <QPlainTextEdit>
+#include <QScrollBar>
+#include <QStyle>
+#include <QTextBlock>
 
 /* GUI includes: */
-# include "UIIconPool.h"
-# include "UIVMLogViewerTextEdit.h"
-# include "UIVMLogViewerWidget.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "UIIconPool.h"
+#include "UIVMLogViewerTextEdit.h"
+#include "UIVMLogViewerWidget.h"
 
 /** We use a modified scrollbar style for our QPlainTextEdits to get the
     markings on the scrollbars correctly. The default scrollbarstyle does not
@@ -229,6 +223,7 @@ void UIVMLogViewerTextEdit::prepareWidgets()
     /* Configure this' wrap mode: */
     setWrapLines(false);
     setReadOnly(true);
+    setBackground();
 }
 
 void UIVMLogViewerTextEdit::setCurrentFont(QFont font)
@@ -302,7 +297,11 @@ void UIVMLogViewerTextEdit::retranslateUi()
 
 void UIVMLogViewerTextEdit::setBackground()
 {
-    QPalette mPalette = palette();
+    /* Prepare modified standard palette: */
+    QPalette pal = style() ? style()->standardPalette() : palette(); // fallback if no style exist.
+    pal.setColor(QPalette::Inactive, QPalette::Highlight, pal.color(QPalette::Active, QPalette::Highlight));
+    pal.setColor(QPalette::Inactive, QPalette::HighlightedText, pal.color(QPalette::Active, QPalette::HighlightedText));
+
     /* Paint a string to the background of the text edit to indicate that
        the text has been filtered */
     if (m_bShownTextIsFiltered)
@@ -330,15 +329,11 @@ void UIVMLogViewerTextEdit::setBackground()
         QRect textRect(- 0.5 * imageW, - 0.5 * imageH, imageW, imageH);
         painter.drawText(textRect, Qt::AlignCenter | Qt::AlignVCenter, m_strBackgroungText);
 
-        mPalette.setBrush(QPalette::Base, QBrush(image));
-        setPalette(mPalette);
+        pal.setBrush(QPalette::Base, QBrush(image));
     }
-    else
-    {
-        /* Reset this->palette back to standard one. */
-        if (style())
-            setPalette(style()->standardPalette());
-    }
+
+    /* Apply palette changes finally: */
+    setPalette(pal);
 }
 
 void UIVMLogViewerTextEdit::contextMenuEvent(QContextMenuEvent *pEvent)

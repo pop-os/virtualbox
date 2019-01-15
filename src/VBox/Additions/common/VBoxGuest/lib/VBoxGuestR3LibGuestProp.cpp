@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -38,6 +38,7 @@
 #endif
 #include <iprt/assert.h>
 #include <iprt/stdarg.h>
+#include <VBox/err.h>
 #include <VBox/log.h>
 #include <VBox/HostServices/GuestPropertySvc.h>
 

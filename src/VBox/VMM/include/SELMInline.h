@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___SELMInline_h
-#define ___SELMInline_h
+#ifndef VMM_INCLUDED_SRC_include_SELMInline_h
+#define VMM_INCLUDED_SRC_include_SELMInline_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #ifdef VBOX_WITH_RAW_MODE_NOT_R0
 
@@ -314,4 +317,4 @@ DECLINLINE(void) selmLoadHiddenSRegFromGuestDesc(PVMCPU pVCpu, PCPUMSELREG pSReg
 
 /** @} */
 
-#endif
+#endif /* !VMM_INCLUDED_SRC_include_SELMInline_h */

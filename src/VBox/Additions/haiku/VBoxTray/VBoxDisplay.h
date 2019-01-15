@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,8 +44,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef __VBOXDISPLAY__H
-#define __VBOXDISPLAY__H
+#ifndef GA_INCLUDED_SRC_haiku_VBoxTray_VBoxDisplay_h
+#define GA_INCLUDED_SRC_haiku_VBoxTray_VBoxDisplay_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <Handler.h>
 #include <Screen.h>
@@ -69,5 +72,5 @@ class VBoxDisplayService : public BHandler
         BScreen             fScreen;
 };
 
-#endif /* __VBOXDISPLAY__H */
+#endif /* !GA_INCLUDED_SRC_haiku_VBoxTray_VBoxDisplay_h */
 

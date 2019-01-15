@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2018 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,26 +15,21 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* GUI includes: */
-# include "UIErrorString.h"
-# include "UIGuestControlInterface.h"
-# include "VBoxGlobal.h"
+#include "UIErrorString.h"
+#include "UIGuestControlInterface.h"
+#include "VBoxGlobal.h"
 
 /* COM includes: */
-# include "CFsObjInfo.h"
-# include "CGuestDirectory.h"
-# include "CGuestProcess.h"
-# include "CGuestSession.h"
-# include "CGuestFsObjInfo.h"
+#include "CFsObjInfo.h"
+#include "CGuestDirectory.h"
+#include "CGuestProcess.h"
+#include "CGuestSession.h"
+#include "CGuestFsObjInfo.h"
 
 /* Misc. includes: */
-# include <iprt/getopt.h>
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include <iprt/err.h>
+#include <iprt/getopt.h>
 
 
 #define GCTLCMD_COMMON_OPT_USER             999 /**< The --username option number. */
@@ -44,17 +39,17 @@
 #define GCTLCMD_COMMON_OPT_SESSION_NAME     995 /**< The --sessionname option number. */
 #define GCTLCMD_COMMON_OPT_SESSION_ID       994 /**< The --sessionid option number. */
 
-#define RETURN_ERROR(strError)     \
-    {                              \
-    m_strStatus.append(strError);  \
-    return false;                  \
-    }
+#define RETURN_ERROR(strError)         \
+    do {                               \
+        m_strStatus.append(strError);  \
+        return false;                  \
+    } while (0)
 
-#define RETURN_MESSAGE(strMessage)   \
-    {                                \
-    m_strStatus.append(strMessage);  \
-    return true;                     \
-    }
+#define RETURN_MESSAGE(strMessage)       \
+    do {                                 \
+        m_strStatus.append(strMessage);  \
+        return true;                     \
+    } while (0)
 
 #define GCTLCMD_COMMON_OPTION_DEFS() \
         { "--username",             GCTLCMD_COMMON_OPT_USER,            RTGETOPT_REQ_STRING  }, \
@@ -77,41 +72,36 @@
     QString strType;
     switch(type)
     {
-        case (KFsObjType_Unknown):
+        case KFsObjType_Unknown:
             strType = "Unknown";
             break;
-    case (KFsObjType_Fifo):
-        strType = "Fifo";
-        break;
-
-    case (KFsObjType_DevChar):
-        strType = "DevChar";
-        break;
-
-    case (KFsObjType_Directory):
-        strType = "Directory";
-        break;
-
-    case (KFsObjType_DevBlock):
-        strType = "DevBlock";
-        break;
-
-    case (KFsObjType_File):
-        strType = "File";
-        break;
-    case (KFsObjType_Symlink):
-        strType = "Symlink";
-        break;
-    case (KFsObjType_Socket):
-        strType = "Socket";
-        break;
-
-    case (KFsObjType_WhiteOut):
-        strType = "WhiteOut";
-        break;
-    default:
-        strType = "Unknown";
-        break;
+        case KFsObjType_Fifo:
+            strType = "Fifo";
+            break;
+        case KFsObjType_DevChar:
+            strType = "DevChar";
+            break;
+        case KFsObjType_Directory:
+            strType = "Directory";
+            break;
+        case KFsObjType_DevBlock:
+            strType = "DevBlock";
+            break;
+        case KFsObjType_File:
+            strType = "File";
+            break;
+        case KFsObjType_Symlink:
+            strType = "Symlink";
+            break;
+        case KFsObjType_Socket:
+            strType = "Socket";
+            break;
+        case KFsObjType_WhiteOut:
+            strType = "WhiteOut";
+            break;
+        default:
+            strType = "Unknown";
+            break;
     }
     return strType;
 };
@@ -129,19 +119,19 @@ QString generateErrorString(int getOptErrorCode, const RTGETOPTUNION &/*valueUni
 
     switch (getOptErrorCode)
     {
-        case (VERR_GETOPT_UNKNOWN_OPTION):
+        case VERR_GETOPT_UNKNOWN_OPTION:
             errorString = errorString.append("RTGetOpt: Command line option not recognized.");
             break;
-        case (VERR_GETOPT_REQUIRED_ARGUMENT_MISSING):
+        case VERR_GETOPT_REQUIRED_ARGUMENT_MISSING:
             errorString = errorString.append("RTGetOpt: Command line option needs argument.");
             break;
-        case (VERR_GETOPT_INVALID_ARGUMENT_FORMAT):
+        case VERR_GETOPT_INVALID_ARGUMENT_FORMAT:
             errorString = errorString.append("RTGetOpt: Command line option has argument with bad format.");
             break;
-        case (VINF_GETOPT_NOT_OPTION):
+        case VINF_GETOPT_NOT_OPTION:
             errorString = errorString.append("RTGetOpt: Not an option.");
             break;
-        case (VERR_GETOPT_INDEX_MISSING):
+        case VERR_GETOPT_INDEX_MISSING:
             errorString = errorString.append("RTGetOpt: Command line option needs an index.");
             break;
         default:
@@ -237,11 +227,11 @@ bool UIGuestControlInterface::handleMkdir(int argc , char** argv)
                 }
                 /* Allow only a single NOT_OPTION */
                 else
-                    RETURN_ERROR(generateErrorString(ch, ValueUnion))
+                    RETURN_ERROR(generateErrorString(ch, ValueUnion));
 
                 break;
             default:
-                RETURN_ERROR(generateErrorString(ch, ValueUnion))
+                RETURN_ERROR(generateErrorString(ch, ValueUnion));
         }
     }
     if (commandData.m_strPath.isEmpty())
@@ -306,11 +296,11 @@ bool UIGuestControlInterface::handleStat(int argc, char** argv)
                 }
                 /* Allow only a single NOT_OPTION */
                 else
-                    RETURN_ERROR(generateErrorString(ch, ValueUnion))
+                    RETURN_ERROR(generateErrorString(ch, ValueUnion));
 
                 break;
             default:
-                RETURN_ERROR(generateErrorString(ch, ValueUnion))
+                RETURN_ERROR(generateErrorString(ch, ValueUnion));
         }
     }
     if (commandData.m_strPath.isEmpty())
@@ -330,7 +320,7 @@ bool UIGuestControlInterface::handleStat(int argc, char** argv)
         isAFile = guestSession.FileExists(commandData.m_strPath, false /*BOOL aFollowSymlinks*/);
 
     if (!isADirectory && !isAFile)
-        RETURN_ERROR("Specified object does not exist")
+        RETURN_ERROR("Specified object does not exist");
 
     CGuestFsObjInfo fsObjectInfo = guestSession.FsObjQueryInfo(commandData.m_strPath, false /*BOOL aFollowSymlinks*/);
     if (!fsObjectInfo.isOk())
@@ -409,11 +399,11 @@ bool UIGuestControlInterface::handleStart(int argc, char** argv)
                 commandData.m_strExePath  = ValueUnion.psz;
                 break;
             default:
-                RETURN_ERROR(generateErrorString(ch, ValueUnion))
+                RETURN_ERROR(generateErrorString(ch, ValueUnion));
         }
     }
     if (commandData.m_strExePath.isEmpty())
-        RETURN_ERROR(QString(m_strHelp).append("Syntax error! No executable is given\n"))
+        RETURN_ERROR(QString(m_strHelp).append("Syntax error! No executable is given\n"));
 
     CGuestSession guestSession;
     if (!findOrCreateSession(commandData, guestSession) || !guestSession.isOk())
@@ -425,18 +415,18 @@ bool UIGuestControlInterface::handleStart(int argc, char** argv)
 bool UIGuestControlInterface::findOrCreateSession(const CommandData &commandData, CGuestSession &outGuestSession)
 {
     if (commandData.m_bSessionNameGiven && commandData.m_strSessionName.isEmpty())
-        RETURN_ERROR(QString(m_strHelp).append("'Session Name' is not name valid\n"))
+        RETURN_ERROR(QString(m_strHelp).append("'Session Name' is not name valid\n"));
 
     /* Check if sessionname and sessionid are both supplied */
     if (commandData.m_bSessionIdGiven && commandData.m_bSessionNameGiven)
-        RETURN_ERROR(QString(m_strHelp).append("Both 'Session Name' and 'Session Id' are supplied\n"))
+        RETURN_ERROR(QString(m_strHelp).append("Both 'Session Name' and 'Session Id' are supplied\n"));
 
     /* If sessionid is given then look for the session. if not found return without starting the process: */
     else if (commandData.m_bSessionIdGiven && !commandData.m_bSessionNameGiven)
     {
         if (!findSession(commandData.m_uSessionId, outGuestSession))
         {
-            RETURN_ERROR(QString(m_strHelp).append("No session with id %1 found.\n").arg(commandData.m_uSessionId))
+            RETURN_ERROR(QString(m_strHelp).append("No session with id %1 found.\n").arg(commandData.m_uSessionId));
         }
     }
     /* If sessionname is given then look for the session. if not try to create a session with the provided name: */
@@ -452,11 +442,8 @@ bool UIGuestControlInterface::findOrCreateSession(const CommandData &commandData
     if (findAValidGuestSession(outGuestSession))
         return true;
     /* if neither sessionname and session id is given then create a new session */
-    else
-    {
-        if (!createSession(commandData, outGuestSession))
-            return false;
-    }
+    if (!createSession(commandData, outGuestSession))
+        return false;
     return true;
 }
 
@@ -506,7 +493,7 @@ bool UIGuestControlInterface::handleCreateSession(int argc, char** argv)
                 commandData.m_strSessionName  = ValueUnion.psz;
                 if (commandData.m_strSessionName.isEmpty())
                 {
-                    RETURN_ERROR(QString("'Session Name' is not name valid\n").append(m_strHelp))
+                    RETURN_ERROR(QString("'Session Name' is not name valid\n").append(m_strHelp));
                 }
                 break;
             default:

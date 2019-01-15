@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,15 +23,17 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_pgm_h
-#define ___VBox_vmm_pgm_h
+#ifndef VBOX_INCLUDED_vmm_pgm_h
+#define VBOX_INCLUDED_vmm_pgm_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 #include <VBox/sup.h>
 #include <VBox/vmm/vmapi.h>
 #include <VBox/vmm/gmm.h>               /* for PGMMREGISTERSHAREDMODULEREQ */
 #include <iprt/x86.h>
-#include <VBox/VMMDev.h>                /* for VMMDEVSHAREDREGIONDESC */
 #include <VBox/param.h>
 
 RT_C_DECLS_BEGIN
@@ -952,5 +954,5 @@ VMMR3DECL(int)     PGMR3SharedModuleGetPageState(PVM pVM, RTGCPTR GCPtrPage, boo
 RT_C_DECLS_END
 
 /** @} */
-#endif
+#endif /* !VBOX_INCLUDED_vmm_pgm_h */
 

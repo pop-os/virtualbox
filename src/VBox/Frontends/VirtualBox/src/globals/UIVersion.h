@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIVersion_h___
-#define ___UIVersion_h___
+#ifndef FEQT_INCLUDED_SRC_globals_UIVersion_h
+#define FEQT_INCLUDED_SRC_globals_UIVersion_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QString>
@@ -91,4 +94,4 @@ private:
     QString  m_strPostfix;
 };
 
-#endif /* !___UIVersion_h___ */
+#endif /* !FEQT_INCLUDED_SRC_globals_UIVersion_h */

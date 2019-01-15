@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2018 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_formats_ext_h
-#define ___iprt_formats_ext_h
+#ifndef IPRT_INCLUDED_formats_ext_h
+#define IPRT_INCLUDED_formats_ext_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 #include <iprt/assertcompile.h>
@@ -40,6 +43,9 @@
  * The filesystem structures were retrieved from:
  * https://www.kernel.org/doc/html/latest/filesystems/ext4/index.html
  */
+
+/** Offset where to find the first superblock on the disk, this is constant. */
+#define EXT_SB_OFFSET               1024
 
 /** @name EXT_INODE_NR_XXX - Special inode numbers.
  * @{ */
@@ -135,7 +141,7 @@ typedef struct EXTSUPERBLOCK
     /** 0xcc: Number of blocks to try to preallocate for files(?). */
     uint8_t     cBlocksPrealloc;
     /** 0xcd: Number of blocks to try to preallocate for directories. */
-    uint8_t     cBlocksPreallocDirextory;
+    uint8_t     cBlocksPreallocDirectory;
     /** 0xce: Number of reserved group descriptor entries for future filesystem expansion. */
     uint16_t    cGdtEntriesRsvd;
     /** 0xd0: 128bit UUID for the journal superblock. */
@@ -504,6 +510,9 @@ typedef struct EXTBLOCKGROUPDESC32
 AssertCompileSize(EXTBLOCKGROUPDESC32, 32);
 /** Pointer to an ext block group descriptor. */
 typedef EXTBLOCKGROUPDESC32 *PEXTBLOCKGROUPDESC32;
+/** Pointer to a const 32 byte block group descriptor. */
+typedef const EXTBLOCKGROUPDESC32 *PCEXTBLOCKGROUPDESC32;
+
 
 /**
  * Block group descriptor (64byte version).
@@ -538,17 +547,40 @@ typedef struct EXTBLOCKGROUPDESC64
 AssertCompileSize(EXTBLOCKGROUPDESC64, 64);
 /** Pointer to an ext block group descriptor. */
 typedef EXTBLOCKGROUPDESC64 *PEXTBLOCKGROUPDESC64;
+/** Pointer to a const 64 byte block group descriptor. */
+typedef const EXTBLOCKGROUPDESC64 *PCEXTBLOCKGROUPDESC64;
 
 /** @name EXT_GROUP_DESC_F_XXX - Group descriptor flags
  * @{ */
 /** Inode table and bitmaps are not initialized. */
-#define EXT_GROUP_DESC_F_INODE_UNINIT                RT_BIT_16(0)
+#define EXT_GROUP_DESC_F_INODE_UNINIT                RT_BIT(0)
 /** Block bitmap is not initialized. */
-#define EXT_GROUP_DESC_F_BLOCK_UNINIT                RT_BIT_16(1)
+#define EXT_GROUP_DESC_F_BLOCK_UNINIT                RT_BIT(1)
 /** Inode table is zeroed. */
-#define EXT_GROUP_DESC_F_INODE_ZEROED                RT_BIT_16(2)
+#define EXT_GROUP_DESC_F_INODE_ZEROED                RT_BIT(2)
 /** @} */
 
+
+/**
+ * Combiend view of the different block gorup descriptor versions.
+ */
+typedef union EXTBLOCKGROUPDESC
+{
+    /** 32 byte version. */
+    EXTBLOCKGROUPDESC32    v32;
+    /** 64 byte version. */
+    EXTBLOCKGROUPDESC64    v64;
+    /** Byte view. */
+    uint8_t               au8[64];
+} EXTBLOCKGROUPDESC;
+/** Poiner to a unified block gorup descriptor view. */
+typedef EXTBLOCKGROUPDESC *PEXTBLOCKGROUPDESC;
+/** Poiner to a const unified block gorup descriptor view. */
+typedef const EXTBLOCKGROUPDESC *PCEXTBLOCKGROUPDESC;
+
+
+/** Number of block entries in the inodes block map. */
+#define EXT_INODE_BLOCK_ENTRIES                      15
 
 /**
  * Inode table entry (standard 128 byte version).
@@ -584,7 +616,7 @@ typedef struct EXTINODE
         uint32_t    u32LnxVersion;
     } Osd1;
     /** 0x28: Block map or extent tree. */
-    uint32_t    au32Block[15];
+    uint32_t    au32Block[EXT_INODE_BLOCK_ENTRIES];
     /** 0x64: File version. */
     uint32_t    u32Version;
     /** 0x68: Extended attribute control block (lower 32bits). */
@@ -620,6 +652,7 @@ typedef EXTINODE *PEXTINODE;
 /** Pointer to a const inode. */
 typedef const EXTINODE *PCEXTINODE;
 
+
 /**
  * Extra inode data (coming right behind the fixed inode data).
  */
@@ -649,32 +682,50 @@ typedef EXTINODEEXTRA *PEXTINODEEXTRA;
 /** Pointer to a const extra inode data. */
 typedef const EXTINODEEXTRA *PCEXTINODEEXTRA;
 
+
+/**
+ * Combined inode data.
+ */
+typedef struct EXTINODECOMB
+{
+    /** Core inode structure. */
+    EXTINODE      Core;
+    /** Any extra inode data which might be present. */
+    EXTINODEEXTRA Extra;
+} EXTINODECOMB;
+/** Pointer to combined inode data. */
+typedef EXTINODECOMB *PEXTINODECOMB;
+/** Pointer to a const combined inode data. */
+typedef const EXTINODECOMB *PCEXTINODECOMB;
+
+
+
 /** @name EXT_INODE_MODE_XXX - File mode
  * @{ */
 /** Others can execute the file. */
-#define EXT_INODE_MODE_EXEC_OTHER                    RT_BIT_16(0)
+#define EXT_INODE_MODE_EXEC_OTHER                    RT_BIT(0)
 /** Others can write to the file. */
-#define EXT_INODE_MODE_WRITE_OTHER                   RT_BIT_16(1)
+#define EXT_INODE_MODE_WRITE_OTHER                   RT_BIT(1)
 /** Others can read the file. */
-#define EXT_INODE_MODE_READ_OTHER                    RT_BIT_16(2)
+#define EXT_INODE_MODE_READ_OTHER                    RT_BIT(2)
 /** Members of the same group can execute the file. */
-#define EXT_INODE_MODE_EXEC_GROUP                    RT_BIT_16(3)
+#define EXT_INODE_MODE_EXEC_GROUP                    RT_BIT(3)
 /** Members of the same group can write to the file. */
-#define EXT_INODE_MODE_WRITE_GROUP                   RT_BIT_16(4)
+#define EXT_INODE_MODE_WRITE_GROUP                   RT_BIT(4)
 /** Members of the same group can read the file. */
-#define EXT_INODE_MODE_READ_GROUP                    RT_BIT_16(5)
+#define EXT_INODE_MODE_READ_GROUP                    RT_BIT(5)
 /** Owner can execute the file. */
-#define EXT_INODE_MODE_EXEC_OWNER                    RT_BIT_16(6)
+#define EXT_INODE_MODE_EXEC_OWNER                    RT_BIT(6)
 /** Owner can write to the file. */
-#define EXT_INODE_MODE_WRITE_OWNER                   RT_BIT_16(7)
+#define EXT_INODE_MODE_WRITE_OWNER                   RT_BIT(7)
 /** Owner can read the file. */
-#define EXT_INODE_MODE_READ_OWNER                    RT_BIT_16(8)
+#define EXT_INODE_MODE_READ_OWNER                    RT_BIT(8)
 /** Sticky file mode. */
-#define EXT_INODE_MODE_STICKY                        RT_BIT_16(9)
+#define EXT_INODE_MODE_STICKY                        RT_BIT(9)
 /** File is set GID. */
-#define EXT_INODE_MODE_SET_GROUP_ID                  RT_BIT_16(10)
+#define EXT_INODE_MODE_SET_GROUP_ID                  RT_BIT(10)
 /** File is set UID. */
-#define EXT_INODE_MODE_SET_USER_ID                   RT_BIT_16(11)
+#define EXT_INODE_MODE_SET_USER_ID                   RT_BIT(11)
 /** @} */
 
 /** @name EXT_INODE_MODE_TYPE_XXX - File type
@@ -693,6 +744,8 @@ typedef const EXTINODEEXTRA *PCEXTINODEEXTRA;
 #define EXT_INODE_MODE_TYPE_SYMLINK                  UINT16_C(0xa000)
 /** Inode represents a socket. */
 #define EXT_INODE_MODE_TYPE_SOCKET                   UINT16_C(0xc000)
+/** Returns the inode type from the combined mode field. */
+#define EXT_INODE_MODE_TYPE_GET_TYPE(a_Mode)         ((a_Mode) & 0xf000)
 /** @} */
 
 /** @name EXT_INODE_F_XXX - Inode flags
@@ -780,6 +833,8 @@ typedef const EXTEXTENTHDR *PCEXTEXTENTHDR;
 
 /** Magic number identifying an extent header. */
 #define EXT_EXTENT_HDR_MAGIC                         UINT16_C(0xf30a)
+/** Maximum depth an extent header can have. */
+#define EXT_EXTENT_HDR_DEPTH_MAX                     UINT16_C(5)
 
 
 /**
@@ -823,6 +878,9 @@ typedef EXTEXTENT *PEXTEXTENT;
 /** Pointer to a const leaf node. */
 typedef const EXTEXTENT *PCEXTEXTENT;
 
+/** Length field limit for a populated extent, fields greater than that limit indicate a sparse extent. */
+#define EXT_EXTENT_LENGTH_LIMIT                      UINT16_C(32768)
+
 
 /**
  * Directory entry.
@@ -858,6 +916,26 @@ typedef struct EXTDIRENTRY
 typedef EXTDIRENTRY *PEXTDIRENTRY;
 /** Poiner to a const directory entry. */
 typedef const EXTDIRENTRY *PCEXTDIRENTRY;
+
+
+/**
+ * Extended directory entry with the maximum size (263 bytes).
+ */
+#pragma pack(1)
+typedef union EXTDIRENTRYEX
+{
+    /** The directory entry. */
+    EXTDIRENTRY Core;
+    /** The byte view. */
+    uint8_t     au8[263];
+} EXTDIRENTRYEX;
+#pragma pack()
+AssertCompileSize(EXTDIRENTRYEX, 263);
+/** Pointer to an extended directory entry. */
+typedef EXTDIRENTRYEX *PEXTDIRENTRYEX;
+/** Pointer to a const extended directory entry. */
+typedef const EXTDIRENTRYEX *PCEXTDIRENTRYEX;
+
 
 /** @name EXT_DIRENTRY_TYPE_XXX - file type
  * @{ */
@@ -906,5 +984,5 @@ typedef const EXTDIRENTRYCHKSUM *PCEXTDIRENTRYCHKSUM;
 
 /** @} */
 
-#endif
+#endif /* !IPRT_INCLUDED_formats_ext_h */
 

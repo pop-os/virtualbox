@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -28,8 +28,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef ___VBoxGuestLib_VBoxGuestR0LibInternal_h
-#define ___VBoxGuestLib_VBoxGuestR0LibInternal_h
+#ifndef GA_INCLUDED_SRC_common_VBoxGuest_lib_VBoxGuestR0LibInternal_h
+#define GA_INCLUDED_SRC_common_VBoxGuest_lib_VBoxGuestR0LibInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /*
  * Define the private IDC handle structure before we include the VBoxGuestLib.h header.
@@ -46,7 +49,7 @@ struct VBGLIDCHANDLEPRIVATE
 {
     /** Pointer to the session handle. */
     void           *pvSession;
-# if defined(RT_OS_WINDOWS) && (defined(___iprt_nt_ntddk_h___) || defined(___iprt_nt_nt_h___))
+# if defined(RT_OS_WINDOWS) && (defined(IPRT_INCLUDED_nt_ntddk_h) || defined(IPRT_INCLUDED_nt_nt_h))
     /** Pointer to the NT device object. */
     PDEVICE_OBJECT  pDeviceObject;
     /** Pointer to the NT file object. */
@@ -195,5 +198,5 @@ int VBOXCALL vbglR0QueryIdcHandle(PVBGLIDCHANDLE *ppIdcHandle);
 
 RT_C_DECLS_END
 
-#endif /* !___VBoxGuestLib_VBoxGuestR0LibInternal_h */
+#endif /* !GA_INCLUDED_SRC_common_VBoxGuest_lib_VBoxGuestR0LibInternal_h */
 

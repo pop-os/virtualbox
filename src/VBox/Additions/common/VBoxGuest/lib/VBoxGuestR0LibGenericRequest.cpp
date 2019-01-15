@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -37,6 +37,7 @@
 #include <iprt/asm-amd64-x86.h>
 #include <iprt/assert.h>
 #include <iprt/string.h>
+#include <VBox/err.h>
 
 
 DECLR0VBGL(int) VbglGR0Verify(const VMMDevRequestHeader *pReq, size_t cbReq)

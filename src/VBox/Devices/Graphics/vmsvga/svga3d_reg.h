@@ -31,6 +31,9 @@
 
 #ifndef _SVGA3D_REG_H_
 #define _SVGA3D_REG_H_
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "svga_reg.h"
 
@@ -1899,4 +1902,4 @@ typedef union {
    float  f;
 } SVGA3dDevCapResult;
 
-#endif /* _SVGA3D_REG_H_ */
+#endif /* !_SVGA3D_REG_H_ */

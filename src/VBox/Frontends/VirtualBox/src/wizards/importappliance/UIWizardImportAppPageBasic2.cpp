@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,28 +15,22 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Global includes: */
-# include <QLabel>
-# include <QPointer>
-# include <QPushButton>
-# include <QTextBrowser>
-# include <QVBoxLayout>
+#include <QLabel>
+#include <QPointer>
+#include <QPushButton>
+#include <QTextBrowser>
+#include <QVBoxLayout>
 
 /* Local includes: */
-# include "QIDialogButtonBox.h"
-# include "QIRichTextLabel.h"
-# include "UIWizardImportApp.h"
-# include "UIWizardImportAppPageBasic2.h"
+#include "QIDialogButtonBox.h"
+#include "QIRichTextLabel.h"
+#include "UIWizardImportApp.h"
+#include "UIWizardImportAppPageBasic2.h"
 
 /* COM includes: */
-# include "CAppliance.h"
-# include "CCertificate.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CAppliance.h"
+#include "CCertificate.h"
 
 
 /*********************************************************************************************************************************

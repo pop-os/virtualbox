@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2018 Oracle Corporation
+ * Copyright (C) 2014-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,23 +15,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QHBoxLayout>
+#include <QHBoxLayout>
 
 /* GUI includes: */
-# include "VBoxGlobal.h"
-# include "UISlidingToolBar.h"
-# include "UIAnimationFramework.h"
-# include "UIMachineWindow.h"
-# ifdef VBOX_WS_MAC
-#  include "VBoxUtils-darwin.h"
-# endif /* VBOX_WS_MAC */
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "VBoxGlobal.h"
+#include "UISlidingToolBar.h"
+#include "UIAnimationFramework.h"
+#include "UIMachineWindow.h"
+#ifdef VBOX_WS_MAC
+# include "VBoxUtils-darwin.h"
+#endif
 
 
 UISlidingToolBar::UISlidingToolBar(QWidget *pParentWidget, QWidget *pIndentWidget, QWidget *pChildWidget, Position enmPosition)

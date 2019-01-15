@@ -28,8 +28,6 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#define RT_STRICT
-
 
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
@@ -37,7 +35,7 @@
 #include "the-os2-kernel.h"
 
 #include "internal/initterm.h"
-#include <iprt/err.h>
+#include <iprt/errcore.h>
 #include <iprt/assert.h>
 
 

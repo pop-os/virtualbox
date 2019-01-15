@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2017 Oracle Corporation
+ * Copyright (C) 2014-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,9 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-
-#ifndef ___shaderlib_h___
-#define ___shaderlib_h___
+#ifndef VBOX_INCLUDED_SRC_Graphics_shaderlib_shaderlib_h
+#define VBOX_INCLUDED_SRC_Graphics_shaderlib_shaderlib_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/cdefs.h>
 
@@ -94,5 +96,5 @@ SHADERDECL(int) ShaderTransformProjection(unsigned cxViewPort, unsigned cyViewPo
 
 RT_C_DECLS_END
 
-#endif /* !___shaderlib_h___ */
+#endif /* !VBOX_INCLUDED_SRC_Graphics_shaderlib_shaderlib_h */
 

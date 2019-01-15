@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_PCIRAWDEV
-#define ____H_PCIRAWDEV
+#ifndef MAIN_INCLUDED_PCIRawDevImpl_h
+#define MAIN_INCLUDED_PCIRawDevImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "VirtualBoxBase.h"
 #include <VBox/vmm/pdmdrv.h>
@@ -50,4 +53,4 @@ class PCIRawDev
     Console * const mParent;
 };
 
-#endif // !____H_PCIRAWDEV
+#endif /* !MAIN_INCLUDED_PCIRawDevImpl_h */

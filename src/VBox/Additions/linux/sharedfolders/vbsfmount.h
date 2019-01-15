@@ -1,9 +1,10 @@
+/* $Id: vbsfmount.h $ */
 /** @file
- * vboxsf -- VirtualBox Guest Additions for Linux: mount(2) parameter structure.
+ * vboxsf - VBox Linux Shared Folders VFS, mount(2) parameter structure.
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -27,8 +28,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef VBFS_MOUNT_H
-#define VBFS_MOUNT_H
+#ifndef GA_INCLUDED_SRC_linux_sharedfolders_vbsfmount_h
+#define GA_INCLUDED_SRC_linux_sharedfolders_vbsfmount_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Linux constraints the size of data mount argument to PAGE_SIZE - 1. */
 #define MAX_HOST_NAME  256
@@ -83,4 +87,4 @@ struct vbsf_mount_opts {
 int vbsfmount_complete(const char *host_name, const char *mount_point,
 		       unsigned long flags, struct vbsf_mount_opts *opts);
 
-#endif				/* vbsfmount.h */
+#endif /* !GA_INCLUDED_SRC_linux_sharedfolders_vbsfmount_h */

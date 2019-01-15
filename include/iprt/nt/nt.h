@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___iprt_nt_nt_h___
-#define ___iprt_nt_nt_h___
+#ifndef IPRT_INCLUDED_nt_nt_h
+#define IPRT_INCLUDED_nt_nt_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /** @def IPRT_NT_MAP_TO_ZW
  * Map Nt calls to Zw calls.  In ring-0 the Zw calls let you pass kernel memory
@@ -1561,11 +1564,20 @@ NTSYSAPI NTSTATUS NTAPI ZwOpenProcessToken(HANDLE, ACCESS_MASK, PHANDLE);
 NTSYSAPI NTSTATUS NTAPI ZwOpenThreadToken(HANDLE, ACCESS_MASK, BOOLEAN, PHANDLE);
 
 #ifdef IPRT_NT_USE_WINTERNL
+typedef struct _FILE_FS_SIZE_INFORMATION
+{
+    LARGE_INTEGER   TotalAllocationUnits;
+    LARGE_INTEGER   AvailableAllocationUnits;
+    ULONG           SectorsPerAllocationUnit;
+    ULONG           BytesPerSector;
+} FILE_FS_SIZE_INFORMATION;
+typedef FILE_FS_SIZE_INFORMATION *PFILE_FS_SIZE_INFORMATION;
+
 typedef enum _FSINFOCLASS
 {
     FileFsVolumeInformation = 1,
     FileFsLabelInformation,
-    FileFsSizeInformation,
+    FileFsSizeInformation,          /**< FILE_FS_SIZE_INFORMATION */
     FileFsDeviceInformation,
     FileFsAttributeInformation,
     FileFsControlInformation,
@@ -2921,5 +2933,5 @@ RT_C_DECLS_END
 /** @} */
 #endif /* IN_RING3 */
 
-#endif
+#endif /* !IPRT_INCLUDED_nt_nt_h */
 

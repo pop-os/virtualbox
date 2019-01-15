@@ -1,5 +1,9 @@
+
 #ifndef __glext_h_
 #define __glext_h_
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -36,7 +40,7 @@ extern "C" {
 */
 
 /* Header file version number, required by OpenGL ABI for Linux */
-/* glext.h last updated $Date: 2014-10-07 10:56:48 +0200 (Tue, 07 Oct 2014) $ */
+/* glext.h last updated $Date: 2019-01-01 05:23:20 +0100 (Tue, 01 Jan 2019) $ */
 /* Current version at http://www.opengl.org/registry/ */
 #define GL_GLEXT_VERSION 87
 /* Function declaration macros - to move into glplatform.h */
@@ -13143,4 +13147,4 @@ typedef void (APIENTRYP PFNGLDRAWTEXTURENVPROC) (GLuint texture, GLuint sampler,
 }
 #endif
 
-#endif
+#endif /* !__glext_h_ */

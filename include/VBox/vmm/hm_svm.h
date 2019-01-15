@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,11 +23,13 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_svm_h
-#define ___VBox_vmm_svm_h
+#ifndef VBOX_INCLUDED_vmm_hm_svm_h
+#define VBOX_INCLUDED_vmm_hm_svm_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
-#include <VBox/err.h>
 #include <iprt/assert.h>
 #include <iprt/asm.h>
 
@@ -662,9 +664,9 @@ typedef union
 {
     struct
     {
-        uint64_t    u12Reserved0        : 12;
-        uint64_t    u40Addr             : 40;
-        uint64_t    u12Reserved1        : 12;
+        RT_GCC_EXTENSION uint64_t u12Reserved0        : 12;
+        RT_GCC_EXTENSION uint64_t u40Addr             : 40;
+        RT_GCC_EXTENSION uint64_t u12Reserved1        : 12;
     } n;
     uint64_t    u;
 } SVMAVIC;
@@ -677,10 +679,10 @@ typedef union
 {
     struct
     {
-        uint64_t    u8LastGuestCoreId   : 8;
-        uint64_t    u4Reserved          : 4;
-        uint64_t    u40Addr             : 40;
-        uint64_t    u12Reserved         : 12;
+        RT_GCC_EXTENSION uint64_t u8LastGuestCoreId   : 8;
+        RT_GCC_EXTENSION uint64_t u4Reserved          : 4;
+        RT_GCC_EXTENSION uint64_t u40Addr             : 40;
+        RT_GCC_EXTENSION uint64_t u12Reserved         : 12;
     } n;
     uint64_t    u;
 } SVMAVICPHYS;
@@ -1017,6 +1019,23 @@ AssertCompileMemberOffset(SVMVMCB, u8Reserved1,  0x698);
 AssertCompileSize(SVMVMCB, 0x1000);
 
 /**
+ * SVM MSRs.
+ */
+typedef struct SVMMSRS
+{
+    /** HWCR MSR. */
+    uint64_t        u64MsrHwcr;
+    /** Reserved for future. */
+    uint64_t        u64Padding[27];
+} SVMMSRS;
+AssertCompileSizeAlignment(SVMMSRS, 8);
+AssertCompileSize(SVMMSRS, 224);
+/** Pointer to a SVMMSRS struct. */
+typedef SVMMSRS *PSVMMSRS;
+/** Pointer to a const SVMMSRS struct. */
+typedef const SVMMSRS *PCSVMMSRS;
+
+/**
  * SVM nested-guest VMCB cache.
  *
  * Contains VMCB fields from the nested-guest VMCB before they're modified by
@@ -1170,5 +1189,5 @@ VMM_INT_DECL(uint16_t) HMGetGuestSvmPauseFilterCount(PVMCPU pVCpu);
 
 /** @} */
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_hm_svm_h */
 

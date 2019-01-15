@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +16,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __H_RESOURCEVBOXCOM
-#define __H_RESOURCEVBOXCOM
+#ifndef MAIN_INCLUDED_win_resource_h
+#define MAIN_INCLUDED_win_resource_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 
 // registry script resource ID
@@ -27,4 +30,4 @@
 #define IDS_SERVICENAME 102
 
 
-#endif // __H_RESOURCEVBOXCOM
+#endif /* !MAIN_INCLUDED_win_resource_h */

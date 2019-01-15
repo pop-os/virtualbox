@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2018 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIActionPool_h___
-#define ___UIActionPool_h___
+#ifndef FEQT_INCLUDED_SRC_globals_UIActionPool_h
+#define FEQT_INCLUDED_SRC_globals_UIActionPool_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 #include <QAction>
@@ -522,6 +525,10 @@ public:
     /** Returns all the actions action-pool contains. */
     QList<UIAction*> actions() const { return m_pool.values(); }
 
+    /** Returns the action group for the passed @a iIndex.
+      * @note Only menu actions can have action groups. */
+    QActionGroup *actionGroup(int iIndex) const;
+
     /** Returns the list of main menus. */
     QList<QMenu*> menus() const { return m_mainMenus; }
 
@@ -637,6 +644,9 @@ protected:
 
     /** Holds the map of actions. */
     QMap<int, UIAction*>          m_pool;
+    /** Holds the map of action groups.
+      * @note Only menu actions can have action groups. */
+    QMap<int, QActionGroup*>      m_groupPool;
     /** Holds the map of validation handlers. */
     QMap<int, PointerToFunction>  m_menuUpdateHandlers;
     /** Holds the set of invalidated action indexes. */
@@ -658,4 +668,4 @@ protected:
 };
 
 
-#endif /* !___UIActionPool_h___ */
+#endif /* !FEQT_INCLUDED_SRC_globals_UIActionPool_h */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBox_svchlp_h___
-#define ___VBox_svchlp_h___
+#ifndef MAIN_INCLUDED_SRC_src_server_win_svchlp_h
+#define MAIN_INCLUDED_SRC_src_server_win_svchlp_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "VBox/com/string.h"
 #include "VBox/com/guid.h"
@@ -90,5 +93,5 @@ public:
     int run();
 };
 
-#endif /* !___VBox_svchlp_h___ */
+#endif /* !MAIN_INCLUDED_SRC_src_server_win_svchlp_h */
 

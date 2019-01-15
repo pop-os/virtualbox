@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIVMLogViewerFilterPanel_h___
-#define ___UIVMLogViewerFilterPanel_h___
+#ifndef FEQT_INCLUDED_SRC_logviewer_UIVMLogViewerFilterPanel_h
+#define FEQT_INCLUDED_SRC_logviewer_UIVMLogViewerFilterPanel_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Qt includes: */
 # include <QSet>
@@ -108,5 +111,5 @@ private:
     int                  m_iFilteredLineCount;
 };
 
-#endif /* !___UIVMLogViewerFilterPanel_h___ */
+#endif /* !FEQT_INCLUDED_SRC_logviewer_UIVMLogViewerFilterPanel_h */
 

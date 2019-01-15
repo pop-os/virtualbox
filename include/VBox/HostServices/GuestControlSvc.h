@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2018 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_HostService_GuestControlService_h
-#define ___VBox_HostService_GuestControlService_h
+#ifndef VBOX_INCLUDED_HostServices_GuestControlSvc_h
+#define VBOX_INCLUDED_HostServices_GuestControlSvc_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/VMMDevCoreTypes.h>
 #include <VBox/VBoxGuestCoreTypes.h>
@@ -1362,5 +1365,5 @@ typedef struct CALLBACKDATA_FILE_NOTIFY
 
 } /* namespace guestControl */
 
-#endif  /* !___VBox_HostService_GuestControlService_h */
+#endif /* !VBOX_INCLUDED_HostServices_GuestControlSvc_h */
 

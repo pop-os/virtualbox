@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2007-2017 Oracle Corporation
+ * Copyright (C) 2007-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___VBoxServiceInternal_h
-#define ___VBoxServiceInternal_h
+#ifndef GA_INCLUDED_SRC_common_VBoxService_VBoxServiceInternal_h
+#define GA_INCLUDED_SRC_common_VBoxService_VBoxServiceInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <stdio.h>
 #ifdef RT_OS_WINDOWS
@@ -210,7 +213,7 @@ extern decltype(Module32Next)                  *g_pfnModule32Next;
 # endif
 extern decltype(GetSystemTimeAdjustment)       *g_pfnGetSystemTimeAdjustment;
 extern decltype(SetSystemTimeAdjustment)       *g_pfnSetSystemTimeAdjustment;
-# ifdef ___iprt_nt_nt_h___
+# ifdef IPRT_INCLUDED_nt_nt_h
 extern decltype(ZwQuerySystemInformation)      *g_pfnZwQuerySystemInformation;
 # endif
 extern ULONG (WINAPI *g_pfnGetAdaptersInfo)(struct _IP_ADAPTER_INFO *, PULONG);
@@ -245,5 +248,5 @@ extern int                      VGSvcVMInfoSignal(void);
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !GA_INCLUDED_SRC_common_VBoxService_VBoxServiceInternal_h */
 

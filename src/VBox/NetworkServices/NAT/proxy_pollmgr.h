@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef _PROXY_POLLMGR_H_
-#define _PROXY_POLLMGR_H_
+#ifndef VBOX_INCLUDED_SRC_NAT_proxy_pollmgr_h
+#define VBOX_INCLUDED_SRC_NAT_proxy_pollmgr_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #ifndef RT_OS_WINDOWS
 # include <unistd.h>             /* for ssize_t */
@@ -79,4 +82,4 @@ void pollmgr_thread(void *);
 /* buffer for callbacks to receive udp without worrying about truncation */
 extern u8_t pollmgr_udpbuf[64 * 1024];
 
-#endif /* _PROXY_POLLMGR_H_ */
+#endif /* !VBOX_INCLUDED_SRC_NAT_proxy_pollmgr_h */

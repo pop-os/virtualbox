@@ -1,11 +1,10 @@
 /* $Id: DataStreamImpl.cpp $ */
 /** @file
- *
- * VirtualBox COM class implementation: DataStream
+ * VirtualBox COM class implementation - DataStream
  */
 
 /*
- * Copyright (C) 2018 Oracle Corporation
+ * Copyright (C) 2018-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -20,15 +19,12 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
+#define LOG_GROUP LOG_GROUP_MAIN_DATASTREAM
 #include "DataStreamImpl.h"
 
 #include "AutoCaller.h"
-#include "Logging.h"
-
-
-/*********************************************************************************************************************************
-*   Structures and Typedefs                                                                                                      *
-*********************************************************************************************************************************/
+#include "LoggingNew.h"
+#include <iprt/errcore.h>
 
 
 /*********************************************************************************************************************************

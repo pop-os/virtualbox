@@ -4,7 +4,7 @@
 #
 
 #
-# Copyright (C) 2010-2017 Oracle Corporation
+# Copyright (C) 2010-2019 Oracle Corporation
 #
 # This file is part of VirtualBox Open Source Edition (OSE), as
 # available from http://www.virtualbox.org. This file is free software;
@@ -54,10 +54,27 @@
 /VBox/VBoxGuestCoreTypes.h:             --license-mit
 /VBox/VBoxGuestLib.h:                   --license-mit
 /VBox/VBoxGuestLibSharedFolders.h:      --license-mit
+/VBox/VBoxGuestLibSharedFoldersInline.h: --license-mit
 /VBox/VMMDev.h:                         --license-mit
 /VBox/VMMDevCoreTypes.h:                --license-mit
 
 /VBox/HostServices/glext.h:             --external-copyright --no-convert-tabs --no-strip-trailing-blanks
 /VBox/HostServices/glxext.h:            --external-copyright --no-convert-tabs --no-strip-trailing-blanks
 /VBox/HostServices/wglext.h:            --external-copyright --no-convert-tabs --no-strip-trailing-blanks
+
+# Some headers actually shouldn't have include guards:
+/VBox/dbus-calls.h:                     --no-fix-header-guards
+/VBox/VDEPlugSymDefs.h:                 --no-fix-header-guards
+/iprt/asn1-generator-core.h:            --no-fix-header-guards
+/iprt/asn1-generator-pass.h:            --no-fix-header-guards
+/iprt/asn1-generator-sanity.h:          --no-fix-header-guards
+/iprt/asn1-generator-internal-header.h: --no-fix-header-guards
+/iprt/asn1-generator-asn1-decoder.h:    --no-fix-header-guards
+/iprt/asn1-generator-init.h:            --no-fix-header-guards
+/iprt/runtime-loader.h:                 --no-fix-header-guards
+/iprt/bldprog-strtab-template.cpp.h:    --no-fix-header-guards
+/iprt/asm*watcom*.h:                    --no-pragma-once
+
+/iprt/*.h: --guard-relative-to-dir iprt --guard-prefix IPRT_INCLUDED_
+/VBox/*.h: --guard-relative-to-dir VBox --guard-prefix VBOX_INCLUDED_
 

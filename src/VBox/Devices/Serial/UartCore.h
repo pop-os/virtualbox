@@ -6,7 +6,7 @@
  */
 
 /*
- * Copyright (C) 2018 Oracle Corporation
+ * Copyright (C) 2018-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +16,12 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-#ifndef ___UartCore_h
-#define ___UartCore_h
+
+#ifndef VBOX_INCLUDED_SRC_Serial_UartCore_h
+#define VBOX_INCLUDED_SRC_Serial_UartCore_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 #include <VBox/vmm/pdmdev.h>
@@ -341,4 +345,4 @@ DECLHIDDEN(int) uartR3LoadDone(PUARTCORE pThis, PSSMHANDLE pSSM);
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_Serial_UartCore_h */

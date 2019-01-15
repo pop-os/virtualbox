@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2018 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,17 +15,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_RECORDING_STREAM
-#define ____H_RECORDING_STREAM
+#ifndef MAIN_INCLUDED_RecordingStream_h
+#define MAIN_INCLUDED_RecordingStream_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <map>
 #include <vector>
 
 #include <iprt/critsect.h>
 
-#include <VBox/com/array.h>
-#include <VBox/com/VirtualBox.h>
-#include <VBox/err.h>
 #include <VBox/settings.h>
 
 #include "RecordingInternals.h"
@@ -215,5 +215,5 @@ protected:
 /** Vector of recording streams. */
 typedef std::vector <RecordingStream *> RecordingStreams;
 
-#endif /* !____H_RECORDING_STREAM */
+#endif /* !MAIN_INCLUDED_RecordingStream_h */
 

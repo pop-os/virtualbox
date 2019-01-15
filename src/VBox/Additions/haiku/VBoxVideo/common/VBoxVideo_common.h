@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -44,8 +44,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#ifndef ___VBOXVIDEO_COMMON_H
-#define ___VBOXVIDEO_COMMON_H
+#ifndef GA_INCLUDED_SRC_haiku_VBoxVideo_common_VBoxVideo_common_h
+#define GA_INCLUDED_SRC_haiku_VBoxVideo_common_VBoxVideo_common_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <Drivers.h>
 #include <Accelerant.h>
@@ -97,5 +100,5 @@ static inline uint32 get_depth_for_color_space(uint32 depth)
     return 0;
 }
 
-#endif /* ___VBOXVIDEO_COMMON_H */
+#endif /* !GA_INCLUDED_SRC_haiku_VBoxVideo_common_VBoxVideo_common_h */
 

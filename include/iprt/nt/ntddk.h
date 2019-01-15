@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2016-2017 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,9 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-
-#ifndef ___iprt_nt_ntddk_h___
-#define ___iprt_nt_ntddk_h___
+#ifndef IPRT_INCLUDED_nt_ntddk_h
+#define IPRT_INCLUDED_nt_ntddk_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* Make sure we get the right prototypes. */
 #pragma warning(push)
@@ -65,5 +67,5 @@
 #undef  _interlockedbittestandset64
 #undef  _interlockedbittestandreset64
 
-#endif
+#endif /* !IPRT_INCLUDED_nt_ntddk_h */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2017 Oracle Corporation
+ * Copyright (C) 2014-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,9 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-
-#ifndef ___VBox_Graphics_HGSMIMemAlloc_h
-#define ___VBox_Graphics_HGSMIMemAlloc_h
+#ifndef VBOX_INCLUDED_Graphics_HGSMIMemAlloc_h
+#define VBOX_INCLUDED_Graphics_HGSMIMemAlloc_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "HGSMIDefs.h"
 #include "VBoxVideoIPRT.h"
@@ -98,4 +100,4 @@ DECLINLINE(HGSMIOFFSET) HGSMIMASize2Order(HGSMISIZE cb)
 
 RT_C_DECLS_END
 
-#endif /* !___VBox_Graphics_HGSMIMemAlloc_h */
+#endif /* !VBOX_INCLUDED_Graphics_HGSMIMemAlloc_h */

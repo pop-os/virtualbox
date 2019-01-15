@@ -8,7 +8,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -28,8 +28,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___EFI_VBoxEFI_h
-#define ___EFI_VBoxEFI_h
+#ifndef VBOX_INCLUDED_SRC_EFI_DevEFI_h
+#define VBOX_INCLUDED_SRC_EFI_DevEFI_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /** @defgroup grp_devefi    DevEFI <-> Firmware Interfaces
  * @{
@@ -250,4 +253,4 @@ typedef enum EFIDBGPOINT
 
 /** @} */
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_EFI_DevEFI_h */

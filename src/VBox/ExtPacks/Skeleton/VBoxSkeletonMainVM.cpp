@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * Permission is hereby granted, free of charge, to any person
  * obtaining a copy of this software and associated documentation
@@ -34,7 +34,7 @@
 *********************************************************************************************************************************/
 #include <VBox/ExtPack/ExtPack.h>
 
-#include <VBox/err.h>
+#include <iprt/errcore.h>
 #include <VBox/version.h>
 #include <VBox/vmm/cfgm.h>
 #include <iprt/string.h>

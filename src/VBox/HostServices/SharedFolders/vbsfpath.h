@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef __VBSFPATH__H
-#define __VBSFPATH__H
+#ifndef VBOX_INCLUDED_SRC_SharedFolders_vbsfpath_h
+#define VBOX_INCLUDED_SRC_SharedFolders_vbsfpath_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "shfl.h"
 #include <VBox/shflsvc.h>
@@ -64,4 +67,4 @@ void vbsfFreeHostPath(char *pszHostPath);
  */
 int vbsfPathAbs(const char *pszRoot, const char *pszPath, char *pszAbsPath, size_t cbAbsPath);
 
-#endif /* !__VBSFPATH__H */
+#endif /* !VBOX_INCLUDED_SRC_SharedFolders_vbsfpath_h */

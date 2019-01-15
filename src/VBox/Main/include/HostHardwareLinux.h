@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 2008-2017 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -18,8 +18,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_HOSTHARDWARELINUX
-# define ____H_HOSTHARDWARELINUX
+#ifndef MAIN_INCLUDED_HostHardwareLinux_h
+#define MAIN_INCLUDED_HostHardwareLinux_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/err.h>
 #include <iprt/cpp/ministring.h>
@@ -171,5 +174,5 @@ public:
     }
 };
 
-#endif /* ____H_HOSTHARDWARELINUX */
+#endif /* !MAIN_INCLUDED_HostHardwareLinux_h */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

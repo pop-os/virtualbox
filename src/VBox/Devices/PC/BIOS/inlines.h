@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2010-2017 Oracle Corporation
+ * Copyright (C) 2010-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,6 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#ifndef VBOX_INCLUDED_SRC_PC_BIOS_inlines_h
+#define VBOX_INCLUDED_SRC_PC_BIOS_inlines_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 extern unsigned inp(unsigned port);
 extern unsigned outp(unsigned port, unsigned value);
@@ -237,3 +242,6 @@ void cpuid( uint32_t __far cpu_id[4], uint32_t leaf );
     parm [es di] [dx ax] modify [bx cx dx]
 
 #endif
+
+#endif /* !VBOX_INCLUDED_SRC_PC_BIOS_inlines_h */
+

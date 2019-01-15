@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2012-2017 Oracle Corporation
+ * Copyright (C) 2012-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,8 +24,11 @@
  * Distributed under the terms of the MIT License.
  */
 
-#ifndef KERNEL_CPP_H
-#define KERNEL_CPP_H
+#ifndef GA_INCLUDED_SRC_haiku_SharedFolders_kernel_cpp_h
+#define GA_INCLUDED_SRC_haiku_SharedFolders_kernel_cpp_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #ifdef __cplusplus
 
@@ -106,4 +109,4 @@ operator delete[](void *ptr) throw ()
 
 #endif  // __cplusplus
 
-#endif  /* KERNEL_CPP_H */
+#endif /* !GA_INCLUDED_SRC_haiku_SharedFolders_kernel_cpp_h */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2016-2018 Oracle Corporation
+ * Copyright (C) 2016-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,21 +15,17 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* GUI includes: */
-# include "UIExtraDataManager.h"
-# include "UIGuestControlTreeItem.h"
-# include "VBoxGlobal.h"
+#include "UIExtraDataManager.h"
+#include "UIGuestControlTreeItem.h"
+#include "VBoxGlobal.h"
 
 /* COM includes: */
-# include "CGuest.h"
-# include "CEventSource.h"
-# include "CGuestProcessStateChangedEvent.h"
-# include "CGuestSessionStateChangedEvent.h"
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CGuest.h"
+#include "CEventSource.h"
+#include "CGuestProcessStateChangedEvent.h"
+#include "CGuestSessionStateChangedEvent.h"
+
 
 QString sessionStatusString(KGuestSessionStatus status)
 {

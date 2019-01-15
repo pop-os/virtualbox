@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2008-2018 Oracle Corporation
+ * Copyright (C) 2008-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,26 +15,20 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QComboBox>
-# include <QGridLayout>
-# include <QLabel>
-# include <QVBoxLayout>
+#include <QComboBox>
+#include <QGridLayout>
+#include <QLabel>
+#include <QVBoxLayout>
 
 /* GUI includes: */
-# include "QILineEdit.h"
-# include "VBoxGlobal.h"
-# include "UIFilePathSelector.h"
-# include "UINameAndSystemEditor.h"
+#include "QILineEdit.h"
+#include "VBoxGlobal.h"
+#include "UIFilePathSelector.h"
+#include "UINameAndSystemEditor.h"
 
 /* COM includes: */
-# include "CSystemProperties.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CSystemProperties.h"
 
 
 /** Defines the VM OS type ID. */

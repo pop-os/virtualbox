@@ -111,6 +111,9 @@ templates for file headers/footers
     <xsl:value-of select="concat('#ifndef ', substring(@name, 2), 'Wrap_H_', $G_sNewLine)"/>
     <xsl:value-of select="concat('#define ', substring(@name, 2), 'Wrap_H_')"/>
     <xsl:text>
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "VirtualBoxBase.h"
 #include "Wrapper.h"
@@ -198,9 +201,9 @@ private:
 
 <xsl:template match="interface" mode="codeheader">
     <xsl:param name="addinterfaces"/>
-    <xsl:value-of select="concat('#define LOG_GROUP_MAIN_OVERRIDE LOG_GROUP_MAIN_', translate(substring(@name, 2), $G_lowerCase, $G_upperCase), $G_sNewLine, $G_sNewLine)"/>
+    <xsl:value-of select="concat('#define LOG_GROUP LOG_GROUP_MAIN_', translate(substring(@name, 2), $G_lowerCase, $G_upperCase), $G_sNewLine, $G_sNewLine)"/>
     <xsl:value-of select="concat('#include &quot;', substring(@name, 2), 'Wrap.h&quot;', $G_sNewLine)"/>
-    <xsl:text>#include "Logging.h"
+    <xsl:text>#include "LoggingNew.h"
 #ifdef VBOX_WITH_DTRACE_R3_MAIN
 # include "dtrace/VBoxAPI.h"
 #endif

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2014-2017 Oracle Corporation
+ * Copyright (C) 2014-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -24,9 +24,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-
-#ifndef ___cidet_h___
-#define ___cidet_h___
+#ifndef VBOX_INCLUDED_SRC_cpu_cidet_h
+#define VBOX_INCLUDED_SRC_cpu_cidet_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/types.h>
 #include <iprt/x86.h>
@@ -1076,5 +1078,5 @@ bool    CidetCoreTestInstruction(PCIDETCORE pThis, PCCIDETINSTR pInstr);
 extern const CIDETINSTR g_aCidetInstructions1[];
 extern const uint32_t   g_cCidetInstructions1;
 
-#endif
+#endif /* !VBOX_INCLUDED_SRC_cpu_cidet_h */
 

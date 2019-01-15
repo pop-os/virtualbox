@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2004-2018 Oracle Corporation
+ * Copyright (C) 2004-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,6 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
+#define LOG_GROUP LOG_GROUP_MAIN_MACHINE
+
 /* Make sure all the stdint.h macros are included - must come first! */
 #ifndef __STDC_LIMIT_MACROS
 # define __STDC_LIMIT_MACROS
@@ -23,7 +25,7 @@
 # define __STDC_CONSTANT_MACROS
 #endif
 
-#include "Logging.h"
+#include "LoggingNew.h"
 #include "VirtualBoxImpl.h"
 #include "MachineImpl.h"
 #include "ClientToken.h"
@@ -76,6 +78,7 @@
 #include <VBox/err.h>
 #include <VBox/param.h>
 #include <VBox/settings.h>
+#include <VBox/VMMDev.h>
 #include <VBox/vmm/ssm.h>
 
 #ifdef VBOX_WITH_GUEST_PROPS
@@ -192,6 +195,8 @@ Machine::HWData::HWData()
     mIBPBOnVMEntry = false;
     mSpecCtrl = false;
     mSpecCtrlByHost = false;
+    mL1DFlushOnSched = true;
+    mL1DFlushOnVMEntry = false;
     mNestedHWVirt = false;
     mHPETEnabled = false;
     mCpuExecutionCap = 100; /* Maximum CPU execution cap by default. */
@@ -2021,6 +2026,14 @@ HRESULT Machine::getCPUProperty(CPUPropertyType_T aProperty, BOOL *aValue)
             *aValue = mHWData->mNestedHWVirt;
             break;
 
+        case CPUPropertyType_L1DFlushOnEMTScheduling:
+            *aValue = mHWData->mL1DFlushOnSched;
+            break;
+
+        case CPUPropertyType_L1DFlushOnVMEntry:
+            *aValue = mHWData->mL1DFlushOnVMEntry;
+            break;
+
         default:
             return E_INVALIDARG;
     }
@@ -2098,6 +2111,18 @@ HRESULT Machine::setCPUProperty(CPUPropertyType_T aProperty, BOOL aValue)
             i_setModified(IsModified_MachineData);
             mHWData.backup();
             mHWData->mNestedHWVirt = !!aValue;
+            break;
+
+        case CPUPropertyType_L1DFlushOnEMTScheduling:
+            i_setModified(IsModified_MachineData);
+            mHWData.backup();
+            mHWData->mL1DFlushOnSched = !!aValue;
+            break;
+
+        case CPUPropertyType_L1DFlushOnVMEntry:
+            i_setModified(IsModified_MachineData);
+            mHWData.backup();
+            mHWData->mL1DFlushOnVMEntry = !!aValue;
             break;
 
         default:
@@ -4036,7 +4061,8 @@ HRESULT Machine::attachDevice(const com::Utf8Str &aName,
                                                  medium->i_getPreferredDiffVariant(),
                                                  pMediumLockList,
                                                  NULL /* aProgress */,
-                                                 true /* aWait */);
+                                                 true /* aWait */,
+                                                 false /* aNotify */);
 
                 alock.acquire();
                 treeLock.acquire();
@@ -4144,6 +4170,8 @@ HRESULT Machine::attachDevice(const com::Utf8Str &aName,
     mParent->i_unmarkRegistryModified(i_getId());
     mParent->i_saveModifiedRegistries();
 
+    if (aM)
+        mParent->i_onMediumConfigChanged(aM);
     return rc;
 }
 
@@ -8829,6 +8857,8 @@ HRESULT Machine::i_loadHardware(const Guid *puuidRegistry,
         mHWData->mIBPBOnVMEntry               = data.fIBPBOnVMEntry;
         mHWData->mSpecCtrl                    = data.fSpecCtrl;
         mHWData->mSpecCtrlByHost              = data.fSpecCtrlByHost;
+        mHWData->mL1DFlushOnSched             = data.fL1DFlushOnSched;
+        mHWData->mL1DFlushOnVMEntry           = data.fL1DFlushOnVMEntry;
         mHWData->mNestedHWVirt                = data.fNestedHWVirt;
         mHWData->mCPUCount                    = data.cCPUs;
         mHWData->mCPUHotPlugEnabled           = data.fCpuHotPlug;
@@ -10150,6 +10180,8 @@ HRESULT Machine::i_saveHardware(settings::Hardware &data, settings::Debugging *p
         data.fIBPBOnVMEntry         = !!mHWData->mIBPBOnVMEntry;
         data.fSpecCtrl              = !!mHWData->mSpecCtrl;
         data.fSpecCtrlByHost        = !!mHWData->mSpecCtrlByHost;
+        data.fL1DFlushOnSched       = !!mHWData->mL1DFlushOnSched;
+        data.fL1DFlushOnVMEntry     = !!mHWData->mL1DFlushOnVMEntry;
         data.fNestedHWVirt          = !!mHWData->mNestedHWVirt;
         data.cCPUs                  = mHWData->mCPUCount;
         data.fCpuHotPlug            = !!mHWData->mCPUHotPlugEnabled;
@@ -10818,7 +10850,8 @@ HRESULT Machine::i_createImplicitDiffs(IProgress *aProgress,
                                               pMedium->i_getPreferredDiffVariant(),
                                               pMediumLockList,
                                               NULL /* aProgress */,
-                                              true /* aWait */);
+                                              true /* aWait */,
+                                              false /* aNotify */);
             alock.acquire();
             if (FAILED(rc)) throw rc;
 
@@ -11054,7 +11087,7 @@ HRESULT Machine::i_deleteImplicitDiffs(bool aOnline)
                 ComObjPtr<Medium> pMedium = pAtt->i_getMedium();
                 Assert(pMedium);
 
-                rc = pMedium->i_deleteStorage(NULL /*aProgress*/, true /*aWait*/);
+                rc = pMedium->i_deleteStorage(NULL /*aProgress*/, true /*aWait*/, false /*aNotify*/);
                 // continue on delete failure, just collect error messages
                 AssertMsg(SUCCEEDED(rc), ("rc=%Rhrc it=%s hd=%s\n", rc, pAtt->i_getLogName(),
                                           pMedium->i_getLocationFull().c_str() ));
@@ -11222,7 +11255,8 @@ HRESULT Machine::i_detachDevice(MediumAttachment *pAttach,
         writeLock.release();
 
         HRESULT rc = oldmedium->i_deleteStorage(NULL /*aProgress*/,
-                                                true /*aWait*/);
+                                                true /*aWait*/,
+                                                false /*aNotify*/);
 
         writeLock.acquire();
 
@@ -14022,6 +14056,8 @@ HRESULT SessionMachine::i_onMediumChange(IMediumAttachment *aAttachment, BOOL aF
             directControl = mData->mSession.mDirectControl;
     }
 
+    mParent->i_onMediumChanged(aAttachment);
+
     /* ignore notifications sent after #OnSessionEnd() is called */
     if (!directControl)
         return S_OK;
@@ -14258,6 +14294,8 @@ HRESULT SessionMachine::i_onStorageDeviceChange(IMediumAttachment *aAttachment, 
         if (mData->mSession.mLockType == LockType_VM)
             directControl = mData->mSession.mDirectControl;
     }
+
+    mParent->i_onStorageDeviceChanged(aAttachment, aRemove, aSilent);
 
     /* ignore notifications sent after #OnSessionEnd() is called */
     if (!directControl)

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___H_VBOXWATCHDOG
-#define ___H_VBOXWATCHDOG
+#ifndef VBOX_INCLUDED_SRC_VBoxBalloonCtrl_VBoxWatchdogInternal_h
+#define VBOX_INCLUDED_SRC_VBoxBalloonCtrl_VBoxWatchdogInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #ifndef VBOX_ONLY_DOCS
 # include <iprt/getopt.h>
@@ -243,5 +246,5 @@ int cfgGetValueU32(const ComPtr<IVirtualBox> &rptrVBox, const ComPtr<IMachine> &
                    const char *pszGlobal, const char *pszVM, uint32_t *puValue, uint32_t uDefault);
 RT_C_DECLS_END
 
-#endif /* !___H_VBOXWATCHDOG */
+#endif /* !VBOX_INCLUDED_SRC_VBoxBalloonCtrl_VBoxWatchdogInternal_h */
 

@@ -5,7 +5,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -16,8 +16,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef VBOX_CPUDB_AMD_Athlon_64_3200
-#define VBOX_CPUDB_AMD_Athlon_64_3200
+#ifndef VBOX_CPUDB_AMD_Athlon_64_3200_h
+#define VBOX_CPUDB_AMD_Athlon_64_3200_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 
 #ifndef CPUM_DB_STANDALONE
@@ -217,5 +220,5 @@ static CPUMDBENTRY const g_Entry_AMD_Athlon_64_3200 =
     /*.paMsrRanges      = */ NULL_ALONE(g_aMsrRanges_AMD_Athlon_64_3200),
 };
 
-#endif /* !VBOX_DB_AMD_Athlon_64_3200 */
+#endif /* !VBOX_CPUDB_AMD_Athlon_64_3200_h */
 

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2009-2017 Oracle Corporation
+ * Copyright (C) 2009-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,31 +15,25 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* Qt includes: */
-# include <QCheckBox>
-# include <QGridLayout>
-# include <QLabel>
-# include <QTextEdit>
-# include <QVBoxLayout>
+#include <QCheckBox>
+#include <QGridLayout>
+#include <QLabel>
+#include <QTextEdit>
+#include <QVBoxLayout>
 
 /* GUI includes: */
-# include "QIRichTextLabel.h"
-# include "QITreeView.h"
-# include "UIApplianceImportEditorWidget.h"
-# include "UIFilePathSelector.h"
-# include "UIMessageCenter.h"
-# include "UIWizardImportApp.h"
-# include "VBoxGlobal.h"
+#include "QIRichTextLabel.h"
+#include "QITreeView.h"
+#include "UIApplianceImportEditorWidget.h"
+#include "UIFilePathSelector.h"
+#include "UIMessageCenter.h"
+#include "UIWizardImportApp.h"
+#include "VBoxGlobal.h"
 
 /* COM includes: */
-# include "CAppliance.h"
-# include "CSystemProperties.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "CAppliance.h"
+#include "CSystemProperties.h"
 
 
 ////////////////////////////////////////////////////////////////////////////////

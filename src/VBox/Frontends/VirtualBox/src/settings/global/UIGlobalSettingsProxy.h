@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2011-2017 Oracle Corporation
+ * Copyright (C) 2011-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ___UIGlobalSettingsProxy_h___
-#define ___UIGlobalSettingsProxy_h___
+#ifndef FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsProxy_h
+#define FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsProxy_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 /* GUI includes: */
 #include "UISettingsPage.h"
@@ -81,4 +84,4 @@ private:
     UISettingsCacheGlobalProxy *m_pCache;
 };
 
-#endif /* !___UIGlobalSettingsProxy_h___ */
+#endif /* !FEQT_INCLUDED_SRC_settings_global_UIGlobalSettingsProxy_h */

@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2013-2017 Oracle Corporation
+ * Copyright (C) 2013-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -14,8 +14,12 @@
  * VirtualBox OSE distribution. VirtualBox OSE is distributed in the
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
-#ifndef _VDScriptInternal_h__
-#define _VDScriptInternal_h__
+
+#ifndef VBOX_INCLUDED_SRC_testcase_VDScriptInternal_h
+#define VBOX_INCLUDED_SRC_testcase_VDScriptInternal_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <iprt/list.h>
 #include <iprt/string.h>
@@ -104,4 +108,4 @@ DECLHIDDEN(int) vdScriptCtxInterprete(PVDSCRIPTCTXINT pThis, const char *pszFn,
                                       PVDSCRIPTARG paArgs, unsigned cArgs,
                                       PVDSCRIPTARG pRet);
 
-#endif /* _VDScriptInternal_h__ */
+#endif /* !VBOX_INCLUDED_SRC_testcase_VDScriptInternal_h */

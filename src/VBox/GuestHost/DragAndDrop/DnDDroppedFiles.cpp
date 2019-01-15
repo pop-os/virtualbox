@@ -1,10 +1,10 @@
 /* $Id: DnDDroppedFiles.cpp $ */
 /** @file
- * DnD: Directory handling.
+ * DnD - Directory handling.
  */
 
 /*
- * Copyright (C) 2014-2018 Oracle Corporation
+ * Copyright (C) 2014-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -19,18 +19,17 @@
 /*********************************************************************************************************************************
 *   Header Files                                                                                                                 *
 *********************************************************************************************************************************/
+#define LOG_GROUP LOG_GROUP_GUEST_DND
+#include <VBox/GuestHost/DragAndDrop.h>
 
 #include <iprt/assert.h>
 #include <iprt/dir.h>
+#include <iprt/err.h>
+#include <iprt/file.h>
 #include <iprt/path.h>
 #include <iprt/string.h>
 
-#include <VBox/GuestHost/DragAndDrop.h>
 
-#ifdef LOG_GROUP
- #undef LOG_GROUP
-#endif
-#define LOG_GROUP LOG_GROUP_GUEST_DND
 #include <VBox/log.h>
 
 DnDDroppedFiles::DnDDroppedFiles(void)

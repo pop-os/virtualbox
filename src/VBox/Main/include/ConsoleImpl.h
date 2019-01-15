@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2005-2018 Oracle Corporation
+ * Copyright (C) 2005-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,8 +15,11 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef ____H_CONSOLEIMPL
-#define ____H_CONSOLEIMPL
+#ifndef MAIN_INCLUDED_ConsoleImpl_h
+#define MAIN_INCLUDED_ConsoleImpl_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include "VirtualBoxBase.h"
 #include "VBox/com/array.h"
@@ -1065,5 +1068,5 @@ private:
     friend class ConsoleVRDPServer;
 };
 
-#endif // !____H_CONSOLEIMPL
+#endif /* !MAIN_INCLUDED_ConsoleImpl_h */
 /* vi: set tabstop=4 shiftwidth=4 expandtab: */

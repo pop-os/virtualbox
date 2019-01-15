@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -15,14 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifdef VBOX_WITH_PRECOMPILED_HEADERS
-# include <precomp.h>
-#else  /* !VBOX_WITH_PRECOMPILED_HEADERS */
-
 /* GUI includes: */
-# include "UIExtraDataDefs.h"
-
-#endif /* !VBOX_WITH_PRECOMPILED_HEADERS */
+#include "UIExtraDataDefs.h"
 
 
 /* General: */
@@ -208,6 +202,7 @@ const char *UIExtraDataDefs::GUI_GuestControl_FileManagerOptions = "GUI/GuestCon
 const char *UIExtraDataDefs::GUI_GuestControl_FileManagerListDirectoriesFirst = "ListDirectoriesFirst";
 const char *UIExtraDataDefs::GUI_GuestControl_FileManagerShowDeleteConfirmation = "ShowDeleteConfimation";
 const char *UIExtraDataDefs::GUI_GuestControl_FileManagerShowHumanReadableSizes = "ShowHumanReadableSizes";
+const char *UIExtraDataDefs::GUI_GuestControl_FileManagerShowHiddenObjects = "ShowHiddenObjects";
 
 /* Virtual Machine: Close dialog: */
 const char *UIExtraDataDefs::GUI_DefaultCloseAction = "GUI/DefaultCloseAction";

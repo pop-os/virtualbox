@@ -4,7 +4,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -157,7 +157,7 @@ typedef struct BLDPROGSTRTAB
 } BLDPROGSTRTAB;
 typedef BLDPROGSTRTAB *PBLDPROGSTRTAB;
 
-#if RT_CLANG_PREREQ(4, 0)
+#if RT_CLANG_PREREQ(4, 0) || RT_GNUC_PREREQ(4, 6)
 #  pragma GCC diagnostic push
 #  pragma GCC diagnostic ignored "-Wunused-function"
 #endif
@@ -1038,7 +1038,7 @@ static void BldProgStrTab_WriteStringTable(PBLDPROGSTRTAB pThis, FILE *pOut,
 #endif
 }
 
-#if RT_CLANG_PREREQ(4, 0)
+#if RT_CLANG_PREREQ(4, 0) || RT_GNUC_PREREQ(4, 6)
 #  pragma GCC diagnostic pop
 #endif
 

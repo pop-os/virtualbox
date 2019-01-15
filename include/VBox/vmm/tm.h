@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006-2017 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -23,8 +23,11 @@
  * terms and conditions of either the GPL or the CDDL or both.
  */
 
-#ifndef ___VBox_vmm_tm_h
-#define ___VBox_vmm_tm_h
+#ifndef VBOX_INCLUDED_vmm_tm_h
+#define VBOX_INCLUDED_vmm_tm_h
+#ifndef RT_WITHOUT_PRAGMA_ONCE
+# pragma once
+#endif
 
 #include <VBox/types.h>
 #ifdef IN_RING3
@@ -288,5 +291,5 @@ VMMR3_INT_DECL(bool)    TMR3CpuTickIsFixedRateMonotonic(PVM pVM, bool fWithParav
 
 RT_C_DECLS_END
 
-#endif
+#endif /* !VBOX_INCLUDED_vmm_tm_h */
 

@@ -9,7 +9,7 @@
  */
 
 /*
- * Copyright (C) 2006-2018 Oracle Corporation
+ * Copyright (C) 2006-2019 Oracle Corporation
  *
  * This file is part of VirtualBox Open Source Edition (OSE), as
  * available from http://www.virtualbox.org. This file is free software;
@@ -1182,6 +1182,14 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
         BOOL fSpecCtrlByHost = false;
         hrc = pMachine->GetCPUProperty(CPUPropertyType_SpecCtrlByHost, &fSpecCtrlByHost); H();
         InsertConfigInteger(pHM, "SpecCtrlByHost", fSpecCtrlByHost);
+
+        BOOL fL1DFlushOnSched = true;
+        hrc = pMachine->GetCPUProperty(CPUPropertyType_L1DFlushOnEMTScheduling, &fL1DFlushOnSched); H();
+        InsertConfigInteger(pHM, "L1DFlushOnSched", fL1DFlushOnSched);
+
+        BOOL fL1DFlushOnVMEntry = false;
+        hrc = pMachine->GetCPUProperty(CPUPropertyType_L1DFlushOnVMEntry, &fL1DFlushOnVMEntry); H();
+        InsertConfigInteger(pHM, "L1DFlushOnVMEntry", fL1DFlushOnVMEntry);
 
         /* Reset overwrite. */
         if (i_isResetTurnedIntoPowerOff())
@@ -2559,10 +2567,10 @@ int Console::i_configConstructorInner(PUVM pUVM, PVM pVM, AutoWriteLock *pAlock)
             switch (adapterType)
             {
                 case NetworkAdapterType_Am79C970A:
-                    InsertConfigInteger(pCfg, "Am79C973", 0);
+                    InsertConfigString(pCfg, "ChipType", "Am79C970A");
                     break;
                 case NetworkAdapterType_Am79C973:
-                    InsertConfigInteger(pCfg, "Am79C973", 1);
+                    InsertConfigString(pCfg, "ChipType", "Am79C973");
                     break;
                 case NetworkAdapterType_I82540EM:
                     InsertConfigInteger(pCfg, "AdapterType", 0);
