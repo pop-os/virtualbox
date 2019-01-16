@@ -2,19 +2,6 @@ Description: Disable "Check for Updates" action.
 Bug-Ubuntu: https://bugs.launchpad.net/bugs/272212
 Author: Daniel Hahler <ubuntu@thequod.de>, Felix Geyer <fgeyer@debian.org>, Gianfranco Costamagna <locutusofborg@debian.org>
 
-Index: virtualbox/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
-===================================================================
---- virtualbox.orig/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
-+++ virtualbox/src/VBox/Frontends/VirtualBox/src/globals/UIActionPool.cpp
-@@ -1038,7 +1038,7 @@
-     /** Returns whether action is allowed. */
-     virtual bool isAllowed() const /* override */
-     {
--        return actionPool()->isAllowedInMenuApplication(UIExtraDataMetaDefs::MenuApplicationActionType_CheckForUpdates);
-+        return false;
-     }
- 
-     /** Returns shortcut extra-data ID. */
 Index: virtualbox/doc/manual/en_US/user_Introduction.xml
 ===================================================================
 --- virtualbox.orig/doc/manual/en_US/user_Introduction.xml
@@ -36,3 +23,16 @@ Index: virtualbox/doc/manual/en_US/user_Introduction.xml
        <listitem>
          <para>
            <emphasis role="bold">Language.</emphasis> Enables the user to
+diff --git a/src/VBox/Frontends/VirtualBox/src/extradata/UIExtraDataManager.cpp b/src/VBox/Frontends/VirtualBox/src/extradata/UIExtraDataManager.cpp
+index 2b0484f22..c532d7e09 100644
+--- a/src/VBox/Frontends/VirtualBox/src/extradata/UIExtraDataManager.cpp
++++ b/src/VBox/Frontends/VirtualBox/src/extradata/UIExtraDataManager.cpp
+@@ -2344,7 +2344,7 @@ QString UIExtraDataManager::preventBetaBuildWarningForVersion()
+ bool UIExtraDataManager::applicationUpdateEnabled()
+ {
+     /* 'True' unless 'restriction' feature allowed: */
+-    return !isFeatureAllowed(GUI_PreventApplicationUpdate);
++    return false;
+ }
+ 
+ QString UIExtraDataManager::applicationUpdateData()
