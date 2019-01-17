@@ -136,7 +136,7 @@ override_dh_fixperms:
 ifneq (,$(filter $(sname), $(shell dh_listpackages)))
 	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxSDL;
 	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxHeadless;
-	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetNat;
+	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetNAT;
 	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetDHCP;
 	chmod +s debian/$(sname)$(INSTALL_PATH)/VBoxNetAdpCtl;
 	chmod 644 debian/$(sname)$(INSTALL_PATH)/*.rc;
