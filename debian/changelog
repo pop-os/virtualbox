@@ -1,3 +1,9 @@
+virtualbox (6.0.2-dfsg-1~exp2) experimental; urgency=medium
+
+  * Add suid bit to VBoxNetNat to make it work (LP: #1805651)
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Thu, 17 Jan 2019 08:54:58 +0100
+
 virtualbox (6.0.2-dfsg-1~exp1) experimental; urgency=medium
 
   [ Robert Edmonds <edmonds@debian.org> ]
