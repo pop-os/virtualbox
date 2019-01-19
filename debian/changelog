@@ -1,3 +1,10 @@
+virtualbox (6.0.2-dfsg-1~exp4) experimental; urgency=medium
+
+  * Setting setuid bit on VirtualBoxVM instead of VirtualBox to fix
+    startup (Closes: #919554).
+
+ -- Daniel Baumann <daniel.baumann@progress-linux.org>  Sat, 19 Jan 2019 15:59:23 +0100
+
 virtualbox (6.0.2-dfsg-1~exp3) experimental; urgency=medium
 
   * Fix typo in previous upload
