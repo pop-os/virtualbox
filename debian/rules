@@ -151,7 +151,7 @@ ifneq (,$(filter $(sname), $(shell dh_listpackages)))
 endif
 
 ifneq (,$(filter $(sxname), $(shell dh_listpackages)))
-	chmod +s debian/$(sxname)$(INSTALL_PATH)/VirtualBox;
+	chmod +s debian/$(sxname)$(INSTALL_PATH)/VirtualBoxVM;
 endif
 
 ifneq (,$(filter $(uxname), $(shell dh_listpackages)))
