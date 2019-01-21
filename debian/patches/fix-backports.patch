@@ -1,0 +1,22 @@
+Description: We should not just don't care about security issues, but this needs fixes in gsoap(stable)
+Author: Gianfranco Costamagna <locutusofborg@debian.org>
+Last-Update: 2019-01-17
+
+Index: virtualbox/src/VBox/Main/webservice/vboxweb.cpp
+===================================================================
+--- virtualbox.orig/src/VBox/Main/webservice/vboxweb.cpp
++++ virtualbox/src/VBox/Main/webservice/vboxweb.cpp
+@@ -616,11 +616,13 @@
+         // keepalive, otherwise stale connections tie up worker threads.
+         m_soap->send_timeout = 60;
+         m_soap->recv_timeout = 60;
++#if GSOAP_VERSION >= 20850
+         // Limit the maximum SOAP request size to a generous amount, just to
+         // be on the safe side (SOAP is quite wordy when representing arrays,
+         // and some API uses need to deal with large arrays). Good that binary
+         // data is no longer represented by byte arrays...
+         m_soap->recv_maxlength = _16M;
++#endif
+         // process the request; this goes into the COM code in methodmaps.cpp
+         do {
+ #ifdef WITH_OPENSSL
