@@ -1,3 +1,16 @@
+virtualbox (6.0.4-dfsg-1) unstable; urgency=medium
+
+  * New upstream version 6.0.4-dfsg
+  * Upload to unstable
+  * Finally relax dh_strip hack
+  * Relax some version constraints, already fullfilled since o-o-stable
+  * Patch refresh for no-update
+  * drop upstream patches:
+    - fix-build-from-bird.patch
+    - 76906.patch
+
+ -- Gianfranco Costamagna <locutusofborg@debian.org>  Mon, 28 Jan 2019 17:10:51 +0100
+
 virtualbox (6.0.2-dfsg-1~exp4) experimental; urgency=medium
 
   * Setting setuid bit on VirtualBoxVM instead of VirtualBox to fix
