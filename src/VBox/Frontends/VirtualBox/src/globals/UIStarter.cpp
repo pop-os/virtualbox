@@ -23,13 +23,12 @@
 #include "UIExtraDataManager.h"
 #include "UIMessageCenter.h"
 #include "UIStarter.h"
-#if !defined(VBOX_GUI_WITH_SHARED_LIBRARY) || !defined(VBOX_RUNTIME_UI)
+#ifndef VBOX_RUNTIME_UI
 # include "UIVirtualBoxManager.h"
-#endif
-#if !defined(VBOX_GUI_WITH_SHARED_LIBRARY) || defined(VBOX_RUNTIME_UI)
+#else
 # include "UIMachine.h"
 # include "UISession.h"
-# endif
+#endif
 
 
 /* static */
@@ -80,8 +79,6 @@ void UIStarter::init()
     /* Listen for VBoxGlobal signals: */
     connect(&vboxGlobal(), &VBoxGlobal::sigAskToRestartUI,
             this, &UIStarter::sltRestartUI);
-    connect(&vboxGlobal(), &VBoxGlobal::sigAskToOpenURLs,
-            this, &UIStarter::sltOpenURLs);
     connect(&vboxGlobal(), &VBoxGlobal::sigAskToCommitData,
             this, &UIStarter::sltHandleCommitDataRequest);
 }
@@ -91,8 +88,6 @@ void UIStarter::deinit()
     /* Listen for VBoxGlobal signals no more: */
     disconnect(&vboxGlobal(), &VBoxGlobal::sigAskToRestartUI,
                this, &UIStarter::sltRestartUI);
-    disconnect(&vboxGlobal(), &VBoxGlobal::sigAskToOpenURLs,
-               this, &UIStarter::sltOpenURLs);
     disconnect(&vboxGlobal(), &VBoxGlobal::sigAskToCommitData,
                this, &UIStarter::sltHandleCommitDataRequest);
 }
@@ -110,87 +105,67 @@ void UIStarter::sltStartUI()
     if (!vboxGlobal().isValid())
         return;
 
-#if !defined(VBOX_GUI_WITH_SHARED_LIBRARY) || !defined(VBOX_RUNTIME_UI)
-    /* Show Selector UI: */
-    if (!vboxGlobal().isVMConsoleProcess())
-    {
-        /* Make sure Selector UI is permitted, quit if not: */
-        if (gEDataManager->guiFeatureEnabled(GUIFeatureType_NoSelector))
-        {
-            msgCenter().cannotStartSelector();
-            return QApplication::quit();
-        }
+#ifndef VBOX_RUNTIME_UI
 
-        /* Create/show manager-window: */
-        UIVirtualBoxManager::create();
+    /* Make sure Selector UI is permitted, quit if not: */
+    if (gEDataManager->guiFeatureEnabled(GUIFeatureType_NoSelector))
+    {
+        msgCenter().cannotStartSelector();
+        return QApplication::quit();
+    }
+
+    /* Create/show manager-window: */
+    UIVirtualBoxManager::create();
 
 # ifdef VBOX_BLEEDING_EDGE
-        /* Show EXPERIMENTAL BUILD warning: */
-        msgCenter().showExperimentalBuildWarning();
+    /* Show EXPERIMENTAL BUILD warning: */
+    msgCenter().showExperimentalBuildWarning();
 # else /* !VBOX_BLEEDING_EDGE */
 #  ifndef DEBUG
-        /* Show BETA warning if necessary: */
-        const QString vboxVersion(vboxGlobal().virtualBox().GetVersion());
-        if (   vboxVersion.contains("BETA")
-            && gEDataManager->preventBetaBuildWarningForVersion() != vboxVersion)
-            msgCenter().showBetaBuildWarning();
+    /* Show BETA warning if necessary: */
+    const QString vboxVersion(vboxGlobal().virtualBox().GetVersion());
+    if (   vboxVersion.contains("BETA")
+        && gEDataManager->preventBetaBuildWarningForVersion() != vboxVersion)
+        msgCenter().showBetaBuildWarning();
 #  endif /* !DEBUG */
 # endif /* !VBOX_BLEEDING_EDGE */
-    }
-#endif /* !VBOX_GUI_WITH_SHARED_LIBRARY || !VBOX_RUNTIME_UI */
 
-#if !defined(VBOX_GUI_WITH_SHARED_LIBRARY) || defined(VBOX_RUNTIME_UI)
-    /* Show Runtime UI: */
-    if (vboxGlobal().isVMConsoleProcess())
-    {
-        /* Make sure machine is started, quit if not: */
-        if (!UIMachine::startMachine(vboxGlobal().managedVMUuid()))
-            return QApplication::quit();
-    }
-# if defined(VBOX_GUI_WITH_SHARED_LIBRARY) && defined(VBOX_RUNTIME_UI)
-    /* Show the error message otherwise and quit: */
-    else
+#else /* VBOX_RUNTIME_UI */
+
+    /* Make sure Runtime UI is even possible, quit if not: */
+    if (vboxGlobal().managedVMUuid().isNull())
     {
         msgCenter().cannotStartRuntime();
         return QApplication::quit();
     }
-# endif /* VBOX_GUI_WITH_SHARED_LIBRARY && VBOX_RUNTIME_UI */
-#endif /* !VBOX_GUI_WITH_SHARED_LIBRARY || VBOX_RUNTIME_UI */
+
+    /* Make sure machine is started, quit if not: */
+    if (!UIMachine::startMachine(vboxGlobal().managedVMUuid()))
+        return QApplication::quit();
+
+#endif /* VBOX_RUNTIME_UI */
 }
 
 void UIStarter::sltRestartUI()
 {
-#if !defined(VBOX_GUI_WITH_SHARED_LIBRARY) || !defined(VBOX_RUNTIME_UI)
+#ifndef VBOX_RUNTIME_UI
     /* Recreate/show manager-window: */
     UIVirtualBoxManager::destroy();
     UIVirtualBoxManager::create();
-#endif /* !VBOX_GUI_WITH_SHARED_LIBRARY || !VBOX_RUNTIME_UI */
+#endif
 }
 
 void UIStarter::cleanup()
 {
-#if !defined(VBOX_GUI_WITH_SHARED_LIBRARY) || !defined(VBOX_RUNTIME_UI)
+#ifndef VBOX_RUNTIME_UI
     /* Destroy Manager UI: */
     if (gpManager)
         UIVirtualBoxManager::destroy();
-#endif /* !VBOX_GUI_WITH_SHARED_LIBRARY || !VBOX_RUNTIME_UI */
-
-#if !defined(VBOX_GUI_WITH_SHARED_LIBRARY) || defined(VBOX_RUNTIME_UI)
+#else
     /* Destroy Runtime UI: */
     if (gpMachine)
         UIMachine::destroy();
-#endif /* !VBOX_GUI_WITH_SHARED_LIBRARY || VBOX_RUNTIME_UI */
-}
-
-void UIStarter::sltOpenURLs()
-{
-#if !defined(VBOX_GUI_WITH_SHARED_LIBRARY) || !defined(VBOX_RUNTIME_UI)
-    /* Create/show manager-window: */
-    UIVirtualBoxManager::create();
-
-    /* Ask the Manager UI to open URLs asynchronously: */
-    QMetaObject::invokeMethod(gpManager, "sltHandleOpenUrlCall", Qt::QueuedConnection);
-#endif /* !VBOX_GUI_WITH_SHARED_LIBRARY || !VBOX_RUNTIME_UI */
+#endif
 }
 
 void UIStarter::sltHandleCommitDataRequest()
@@ -199,13 +174,9 @@ void UIStarter::sltHandleCommitDataRequest()
     if (!vboxGlobal().isValid())
         return;
 
-#if !defined(VBOX_GUI_WITH_SHARED_LIBRARY) || defined(VBOX_RUNTIME_UI)
-    /* For VM process: */
-    if (vboxGlobal().isVMConsoleProcess())
-    {
-        /* Temporary override the default close action to 'SaveState' if necessary: */
-        if (gpMachine->uisession()->defaultCloseAction() == MachineCloseAction_Invalid)
-            gpMachine->uisession()->setDefaultCloseAction(MachineCloseAction_SaveState);
-    }
-#endif /* !VBOX_GUI_WITH_SHARED_LIBRARY || VBOX_RUNTIME_UI */
+#ifdef VBOX_RUNTIME_UI
+    /* Temporary override the default close action to 'SaveState' if necessary: */
+    if (gpMachine->uisession()->defaultCloseAction() == MachineCloseAction_Invalid)
+        gpMachine->uisession()->setDefaultCloseAction(MachineCloseAction_SaveState);
+#endif
 }

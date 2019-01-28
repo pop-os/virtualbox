@@ -27,7 +27,7 @@ CDDL are applicable instead of those of the GPL.
 You may elect to license modified versions of this file under the
 terms and conditions of either the GPL or the CDDL or both.
 """
-__version__ = "$Revision: 127855 $"
+__version__ = "$Revision: 128254 $"
 
 
 # Standard Python imports.
@@ -3095,6 +3095,15 @@ class TestDriver(base.TestDriver):                                              
         """
         sCpuDesc = self._getHostCpuDesc(fQuiet);
         return sCpuDesc.startswith("VIA") or sCpuDesc == 'CentaurHauls';
+
+    def isHostCpuShanghai(self, fQuiet = False):
+        """
+        Checks if the host CPU vendor is Shanghai (or Zhaoxin).
+
+        Returns True / False.
+        """
+        sCpuDesc = self._getHostCpuDesc(fQuiet);
+        return sCpuDesc.startswith("ZHAOXIN") or sCpuDesc.strip(' ') == 'Shanghai';
 
     def isHostCpuP4(self, fQuiet = False):
         """

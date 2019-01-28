@@ -1148,7 +1148,8 @@ DECLCALLBACK(void) cpumR3InfoVmxFeatures(PVM pVM, PCDBGFINFOHLP pHlp, const char
     PCCPUMFEATURES pHostFeatures  = &pVM->cpum.s.HostFeatures;
     PCCPUMFEATURES pGuestFeatures = &pVM->cpum.s.GuestFeatures;
     if (   pHostFeatures->enmCpuVendor == CPUMCPUVENDOR_INTEL
-        || pHostFeatures->enmCpuVendor == CPUMCPUVENDOR_VIA)
+        || pHostFeatures->enmCpuVendor == CPUMCPUVENDOR_VIA
+        || pHostFeatures->enmCpuVendor == CPUMCPUVENDOR_SHANGHAI)
     {
 #define VMXFEATDUMP(a_szDesc, a_Var) \
         pHlp->pfnPrintf(pHlp, "  %s = %u (%u)\n", a_szDesc, pGuestFeatures->a_Var, pHostFeatures->a_Var)
@@ -1159,8 +1160,8 @@ DECLCALLBACK(void) cpumR3InfoVmxFeatures(PVM pVM, PCDBGFINFOHLP pHlp, const char
         /* Basic. */
         VMXFEATDUMP("InsOutInfo - INS/OUTS instruction info.                ", fVmxInsOutInfo);
         /* Pin-based controls. */
-        VMXFEATDUMP("ExtIntExit - External interrupt VM-exit                ", fVmxExtIntExit);
-        VMXFEATDUMP("NmiExit - NMI VM-exit                                  ", fVmxNmiExit);
+        VMXFEATDUMP("ExtIntExit - External interrupt exiting                ", fVmxExtIntExit);
+        VMXFEATDUMP("NmiExit - NMI exiting                                  ", fVmxNmiExit);
         VMXFEATDUMP("VirtNmi - Virtual NMIs                                 ", fVmxVirtNmi);
         VMXFEATDUMP("PreemptTimer - VMX preemption timer                    ", fVmxPreemptTimer);
         VMXFEATDUMP("PostedInt - Posted interrupts                          ", fVmxPostedInt);
@@ -1203,25 +1204,25 @@ DECLCALLBACK(void) cpumR3InfoVmxFeatures(PVM pVM, PCDBGFINFOHLP pHlp, const char
         VMXFEATDUMP("VmFuncs - Enable VM Functions                          ", fVmxVmFunc);
         VMXFEATDUMP("VmcsShadowing - VMCS shadowing                         ", fVmxVmcsShadowing);
         VMXFEATDUMP("RdseedExiting - RDSEED exiting                         ", fVmxRdseedExit);
-        VMXFEATDUMP("PML - Supports Page-Modification Log (PML)             ", fVmxPml);
+        VMXFEATDUMP("PML - Page-Modification Log (PML)                      ", fVmxPml);
         VMXFEATDUMP("EptVe - EPT violations can cause #VE                   ", fVmxEptXcptVe);
         VMXFEATDUMP("XsavesXRstors - Enable XSAVES/XRSTORS                  ", fVmxXsavesXrstors);
         /* VM-entry controls. */
         VMXFEATDUMP("EntryLoadDebugCtls - Load debug controls on VM-entry   ", fVmxEntryLoadDebugCtls);
         VMXFEATDUMP("Ia32eModeGuest - IA-32e mode guest                     ", fVmxIa32eModeGuest);
-        VMXFEATDUMP("EntryLoadEferMsr - Load IA32_EFER on VM-entry          ", fVmxEntryLoadEferMsr);
-        VMXFEATDUMP("EntryLoadPatMsr - Load IA32_PAT on VM-entry            ", fVmxEntryLoadPatMsr);
+        VMXFEATDUMP("EntryLoadEferMsr - Load IA32_EFER MSR on VM-entry      ", fVmxEntryLoadEferMsr);
+        VMXFEATDUMP("EntryLoadPatMsr - Load IA32_PAT MSR on VM-entry        ", fVmxEntryLoadPatMsr);
         /* VM-exit controls. */
         VMXFEATDUMP("ExitSaveDebugCtls - Save debug controls on VM-exit     ", fVmxExitSaveDebugCtls);
         VMXFEATDUMP("HostAddrSpaceSize - Host address-space size            ", fVmxHostAddrSpaceSize);
         VMXFEATDUMP("ExitAckExtInt - Acknowledge interrupt on VM-exit       ", fVmxExitAckExtInt);
-        VMXFEATDUMP("ExitSavePatMsr - Save IA32_PAT on VM-exit              ", fVmxExitSavePatMsr);
-        VMXFEATDUMP("ExitLoadPatMsr - Load IA32_PAT on VM-exit              ", fVmxExitLoadPatMsr);
-        VMXFEATDUMP("ExitSaveEferMsr - Save IA32_EFER on VM-exit            ", fVmxExitSaveEferMsr);
-        VMXFEATDUMP("ExitLoadEferMsr - Load IA32_EFER on VM-exit            ", fVmxExitLoadEferMsr);
+        VMXFEATDUMP("ExitSavePatMsr - Save IA32_PAT MSR on VM-exit          ", fVmxExitSavePatMsr);
+        VMXFEATDUMP("ExitLoadPatMsr - Load IA32_PAT MSR on VM-exit          ", fVmxExitLoadPatMsr);
+        VMXFEATDUMP("ExitSaveEferMsr - Save IA32_EFER MSR on VM-exit        ", fVmxExitSaveEferMsr);
+        VMXFEATDUMP("ExitLoadEferMsr - Load IA32_EFER MSR on VM-exit        ", fVmxExitLoadEferMsr);
         VMXFEATDUMP("SavePreemptTimer - Save VMX-preemption timer           ", fVmxSavePreemptTimer);
         /* Miscellaneous data. */
-        VMXFEATDUMP("ExitSaveEferLma - Save EFER.LMA on VM-exit             ", fVmxExitSaveEferLma);
+        VMXFEATDUMP("ExitSaveEferLma - Save IA32_EFER.LMA on VM-exit        ", fVmxExitSaveEferLma);
         VMXFEATDUMP("IntelPt - Intel PT (Processor Trace) in VMX operation  ", fVmxIntelPt);
         VMXFEATDUMP("VmwriteAll - Write allowed to read-only VMCS fields    ", fVmxVmwriteAll);
         VMXFEATDUMP("EntryInjectSoftInt - Inject softint. with 0-len instr. ", fVmxEntryInjectSoftInt);
@@ -1589,7 +1590,7 @@ void cpumR3InitVmxGuestFeaturesAndMsrs(PVM pVM, PCVMXMSRS pHostVmxMsrs, PVMXMSRS
     EmuFeat.fVmxUncondIoExit          = 1;
     EmuFeat.fVmxUseIoBitmaps          = 1;
     EmuFeat.fVmxMonitorTrapFlag       = 0;
-    EmuFeat.fVmxUseMsrBitmaps         = 0;
+    EmuFeat.fVmxUseMsrBitmaps         = 1;
     EmuFeat.fVmxMonitorExit           = 1;
     EmuFeat.fVmxPauseExit             = 1;
     EmuFeat.fVmxSecondaryExecCtls     = 1;
@@ -1727,6 +1728,11 @@ void cpumR3InitVmxGuestFeaturesAndMsrs(PVM pVM, PCVMXMSRS pHostVmxMsrs, PVMXMSRS
         Assert(!pGuestFeat->fVmxXsavesXrstors);
         Assert(!pGuestFeat->fVmxUseTscScaling);
     }
+    if (pGuestFeat->fVmxUnrestrictedGuest)
+    {
+        /* See footnote in Intel spec. 27.2 "Recording VM-Exit Information And Updating VM-entry Control Fields". */
+        Assert(pGuestFeat->fVmxExitSaveEferLma);
+    }
 
     /*
      * Finally initialize the VMX guest MSRs.
@@ -1756,9 +1762,9 @@ static int cpumR3GetHostHwvirtMsrs(PCPUMMSRS pMsrs)
             if (RT_SUCCESS(rc))
             {
                 if (fCaps & SUPVTCAPS_VT_X)
-                    HMVmxGetVmxMsrsFromHwvirtMsrs(&HwvirtMsrs, &pMsrs->hwvirt.vmx);
+                    HMGetVmxMsrsFromHwvirtMsrs(&HwvirtMsrs, &pMsrs->hwvirt.vmx);
                 else
-                    HMVmxGetSvmMsrsFromHwvirtMsrs(&HwvirtMsrs, &pMsrs->hwvirt.svm);
+                    HMGetSvmMsrsFromHwvirtMsrs(&HwvirtMsrs, &pMsrs->hwvirt.svm);
                 return VINF_SUCCESS;
             }
 
@@ -3383,9 +3389,8 @@ static void  cpumR3InfoVmxVmcs(PCDBGFINFOHLP pHlp, PCVMXVVMCS pVmcs, const char 
     {
         pHlp->pfnPrintf(pHlp, "%sHeader:\n", pszPrefix);
         pHlp->pfnPrintf(pHlp, "  %sVMCS revision id           = %#RX32\n",   pszPrefix, pVmcs->u32VmcsRevId);
-        pHlp->pfnPrintf(pHlp, "  %sVMX-abort id               = %#RX32\n",   pszPrefix, pVmcs->u32VmxAbortId);
-        pHlp->pfnPrintf(pHlp, "  %sVMCS state                 = %#x (%s)\n", pszPrefix, pVmcs->fVmcsState,
-                        HMVmxGetVmcsStateDesc(pVmcs->fVmcsState));
+        pHlp->pfnPrintf(pHlp, "  %sVMX-abort id               = %#RX32 (%s)\n", pszPrefix, pVmcs->enmVmxAbort, HMGetVmxAbortDesc(pVmcs->enmVmxAbort));
+        pHlp->pfnPrintf(pHlp, "  %sVMCS state                 = %#x (%s)\n", pszPrefix, pVmcs->fVmcsState, HMGetVmxVmcsStateDesc(pVmcs->fVmcsState));
     }
 
     /* Control fields. */
@@ -3405,22 +3410,22 @@ static void  cpumR3InfoVmxVmcs(PCDBGFINFOHLP pHlp, PCVMXVVMCS pVmcs, const char 
         pHlp->pfnPrintf(pHlp, "  %sException bitmap           = %#RX32\n",   pszPrefix, pVmcs->u32XcptBitmap);
         pHlp->pfnPrintf(pHlp, "  %sPage-fault mask            = %#RX32\n",   pszPrefix, pVmcs->u32XcptPFMask);
         pHlp->pfnPrintf(pHlp, "  %sPage-fault match           = %#RX32\n",   pszPrefix, pVmcs->u32XcptPFMatch);
-        pHlp->pfnPrintf(pHlp, "  %sCR3-target count           = %#RX32\n",   pszPrefix, pVmcs->u32Cr3TargetCount);
-        pHlp->pfnPrintf(pHlp, "  %sVM-exit MSR store count    = %#RX32\n",   pszPrefix, pVmcs->u32ExitMsrStoreCount);
-        pHlp->pfnPrintf(pHlp, "  %sVM-exit MSR load count     = %#RX32\n",   pszPrefix, pVmcs->u32ExitMsrLoadCount);
-        pHlp->pfnPrintf(pHlp, "  %sVM-entry MSR load count    = %#RX32\n",   pszPrefix, pVmcs->u32EntryMsrLoadCount);
-        pHlp->pfnPrintf(pHlp, "  %sVM-Entry interruption info = %#RX32\n",   pszPrefix, pVmcs->u32EntryIntInfo);
+        pHlp->pfnPrintf(pHlp, "  %sCR3-target count           = %RU32\n",    pszPrefix, pVmcs->u32Cr3TargetCount);
+        pHlp->pfnPrintf(pHlp, "  %sVM-exit MSR store count    = %RU32\n",    pszPrefix, pVmcs->u32ExitMsrStoreCount);
+        pHlp->pfnPrintf(pHlp, "  %sVM-exit MSR load count     = %RU32\n",    pszPrefix, pVmcs->u32ExitMsrLoadCount);
+        pHlp->pfnPrintf(pHlp, "  %sVM-entry MSR load count    = %RU32\n",    pszPrefix, pVmcs->u32EntryMsrLoadCount);
+        pHlp->pfnPrintf(pHlp, "  %sVM-entry interruption info = %#RX32\n",   pszPrefix, pVmcs->u32EntryIntInfo);
         {
             uint32_t const fInfo = pVmcs->u32EntryIntInfo;
             uint8_t  const uType = VMX_ENTRY_INT_INFO_TYPE(fInfo);
             pHlp->pfnPrintf(pHlp, "    %sValid                      = %RTbool\n", pszPrefix, VMX_ENTRY_INT_INFO_IS_VALID(fInfo));
-            pHlp->pfnPrintf(pHlp, "    %sType                       = %#x (%s)\n", pszPrefix, uType, HMVmxGetEntryIntInfoTypeDesc(uType));
+            pHlp->pfnPrintf(pHlp, "    %sType                       = %#x (%s)\n", pszPrefix, uType, HMGetVmxEntryIntInfoTypeDesc(uType));
             pHlp->pfnPrintf(pHlp, "    %sVector                     = %#x\n",     pszPrefix, VMX_ENTRY_INT_INFO_VECTOR(fInfo));
             pHlp->pfnPrintf(pHlp, "    %sNMI-unblocking-IRET        = %RTbool\n", pszPrefix, VMX_ENTRY_INT_INFO_IS_NMI_UNBLOCK_IRET(fInfo));
             pHlp->pfnPrintf(pHlp, "    %sError-code valid           = %RTbool\n", pszPrefix, VMX_ENTRY_INT_INFO_IS_ERROR_CODE_VALID(fInfo));
         }
-        pHlp->pfnPrintf(pHlp, "  %sVM-Entry xcpt error-code   = %#RX32\n",   pszPrefix, pVmcs->u32EntryXcptErrCode);
-        pHlp->pfnPrintf(pHlp, "  %sVM-Entry instruction len   = %u bytes\n", pszPrefix, pVmcs->u32EntryInstrLen);
+        pHlp->pfnPrintf(pHlp, "  %sVM-entry xcpt error-code   = %#RX32\n",   pszPrefix, pVmcs->u32EntryXcptErrCode);
+        pHlp->pfnPrintf(pHlp, "  %sVM-entry instruction len   = %u bytes\n", pszPrefix, pVmcs->u32EntryInstrLen);
         pHlp->pfnPrintf(pHlp, "  %sTPR threshold              = %#RX32\n",   pszPrefix, pVmcs->u32TprThreshold);
         pHlp->pfnPrintf(pHlp, "  %sPLE gap                    = %#RX32\n",   pszPrefix, pVmcs->u32PleGap);
         pHlp->pfnPrintf(pHlp, "  %sPLE window                 = %#RX32\n",   pszPrefix, pVmcs->u32PleWindow);
@@ -3555,7 +3560,7 @@ static void  cpumR3InfoVmxVmcs(PCDBGFINFOHLP pHlp, PCVMXVVMCS pVmcs, const char 
         /* 16-bit (none currently). */
 
         /* 32-bit. */
-        pHlp->pfnPrintf(pHlp, "  %sExit reason                = %u (%s)\n",  pszPrefix, pVmcs->u32RoExitReason, HMR3GetVmxExitName(pVmcs->u32RoExitReason));
+        pHlp->pfnPrintf(pHlp, "  %sExit reason                = %u (%s)\n",  pszPrefix, pVmcs->u32RoExitReason, HMGetVmxExitName(pVmcs->u32RoExitReason));
         pHlp->pfnPrintf(pHlp, "  %sExit qualification         = %#RX64\n",   pszPrefix, pVmcs->u64RoExitQual.u);
         pHlp->pfnPrintf(pHlp, "  %sVM-instruction error       = %#RX32\n",   pszPrefix, pVmcs->u32RoVmInstrError);
         pHlp->pfnPrintf(pHlp, "  %sVM-exit intr info          = %#RX32\n",   pszPrefix, pVmcs->u32RoExitIntInfo);
@@ -3563,7 +3568,7 @@ static void  cpumR3InfoVmxVmcs(PCDBGFINFOHLP pHlp, PCVMXVVMCS pVmcs, const char 
             uint32_t const fInfo = pVmcs->u32RoExitIntInfo;
             uint8_t  const uType = VMX_EXIT_INT_INFO_TYPE(fInfo);
             pHlp->pfnPrintf(pHlp, "    %sValid                      = %RTbool\n", pszPrefix, VMX_EXIT_INT_INFO_IS_VALID(fInfo));
-            pHlp->pfnPrintf(pHlp, "    %sType                       = %#x (%s)\n",     pszPrefix, uType, HMVmxGetExitIntInfoTypeDesc(uType));
+            pHlp->pfnPrintf(pHlp, "    %sType                       = %#x (%s)\n",     pszPrefix, uType, HMGetVmxExitIntInfoTypeDesc(uType));
             pHlp->pfnPrintf(pHlp, "    %sVector                     = %#x\n",     pszPrefix, VMX_EXIT_INT_INFO_VECTOR(fInfo));
             pHlp->pfnPrintf(pHlp, "    %sNMI-unblocking-IRET        = %RTbool\n", pszPrefix, VMX_EXIT_INT_INFO_IS_NMI_UNBLOCK_IRET(fInfo));
             pHlp->pfnPrintf(pHlp, "    %sError-code valid           = %RTbool\n", pszPrefix, VMX_EXIT_INT_INFO_IS_ERROR_CODE_VALID(fInfo));
@@ -3574,7 +3579,7 @@ static void  cpumR3InfoVmxVmcs(PCDBGFINFOHLP pHlp, PCVMXVVMCS pVmcs, const char 
             uint32_t const fInfo = pVmcs->u32RoIdtVectoringInfo;
             uint8_t  const uType = VMX_IDT_VECTORING_INFO_TYPE(fInfo);
             pHlp->pfnPrintf(pHlp, "    %sValid                      = %RTbool\n", pszPrefix, VMX_IDT_VECTORING_INFO_IS_VALID(fInfo));
-            pHlp->pfnPrintf(pHlp, "    %sType                       = %#x (%s)\n",     pszPrefix, uType, HMVmxGetIdtVectoringInfoTypeDesc(uType));
+            pHlp->pfnPrintf(pHlp, "    %sType                       = %#x (%s)\n",     pszPrefix, uType, HMGetVmxIdtVectoringInfoTypeDesc(uType));
             pHlp->pfnPrintf(pHlp, "    %sVector                     = %#x\n",     pszPrefix, VMX_IDT_VECTORING_INFO_VECTOR(fInfo));
             pHlp->pfnPrintf(pHlp, "    %sError-code valid           = %RTbool\n", pszPrefix, VMX_IDT_VECTORING_INFO_IS_ERROR_CODE_VALID(fInfo));
         }
@@ -3701,8 +3706,8 @@ static DECLCALLBACK(void) cpumR3InfoGuestHwvirt(PVM pVM, PCDBGFINFOHLP pHlp, con
         pHlp->pfnPrintf(pHlp, "  GCPhysVmxon                = %#RGp\n",     pCtx->hwvirt.vmx.GCPhysVmxon);
         pHlp->pfnPrintf(pHlp, "  GCPhysVmcs                 = %#RGp\n",     pCtx->hwvirt.vmx.GCPhysVmcs);
         pHlp->pfnPrintf(pHlp, "  GCPhysShadowVmcs           = %#RGp\n",     pCtx->hwvirt.vmx.GCPhysShadowVmcs);
-        pHlp->pfnPrintf(pHlp, "  enmDiag                    = %u (%s)\n",   pCtx->hwvirt.vmx.enmDiag, HMVmxGetDiagDesc(pCtx->hwvirt.vmx.enmDiag));
-        pHlp->pfnPrintf(pHlp, "  enmAbort                   = %u (%s)\n",   pCtx->hwvirt.vmx.enmAbort, HMVmxGetAbortDesc(pCtx->hwvirt.vmx.enmAbort));
+        pHlp->pfnPrintf(pHlp, "  enmDiag                    = %u (%s)\n",   pCtx->hwvirt.vmx.enmDiag, HMGetVmxDiagDesc(pCtx->hwvirt.vmx.enmDiag));
+        pHlp->pfnPrintf(pHlp, "  enmAbort                   = %u (%s)\n",   pCtx->hwvirt.vmx.enmAbort, HMGetVmxAbortDesc(pCtx->hwvirt.vmx.enmAbort));
         pHlp->pfnPrintf(pHlp, "  uAbortAux                  = %u (%#x)\n",  pCtx->hwvirt.vmx.uAbortAux, pCtx->hwvirt.vmx.uAbortAux);
         pHlp->pfnPrintf(pHlp, "  fInVmxRootMode             = %RTbool\n",   pCtx->hwvirt.vmx.fInVmxRootMode);
         pHlp->pfnPrintf(pHlp, "  fInVmxNonRootMode          = %RTbool\n",   pCtx->hwvirt.vmx.fInVmxNonRootMode);

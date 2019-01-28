@@ -1,6 +1,6 @@
-/* $Id: UIVisoCreatorOptionsDialog.h $ */
+/* $Id: UIVisoCreatorOptionsPanel.h $ */
 /** @file
- * VBox Qt GUI - UIVisoCreatorOptionsDialog class declaration.
+ * VBox Qt GUI - UIVisoCreatorOptionsPanel class declaration.
  */
 
 /*
@@ -15,31 +15,39 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_medium_viso_UIVisoCreatorOptionsDialog_h
-#define FEQT_INCLUDED_SRC_medium_viso_UIVisoCreatorOptionsDialog_h
+#ifndef FEQT_INCLUDED_SRC_medium_viso_UIVisoCreatorOptionsPanel_h
+#define FEQT_INCLUDED_SRC_medium_viso_UIVisoCreatorOptionsPanel_h
 #ifndef RT_WITHOUT_PRAGMA_ONCE
 # pragma once
 #endif
 
-/* GUI includes: */
-#include "QIDialog.h"
-#include "QIWithRetranslateUI.h"
-#include "UIVisoCreatorDefs.h"
-
 /* Forward declarations: */
-class QGridLayout;
-class QIDialogButtonBox;
+class QCheckBox;
+class QILabel;
 
-class SHARED_LIBRARY_STUFF UIVisoCreatorOptionsDialog : public QIDialog
+/* GUI includes: */
+#include "UIDialogPanel.h"
+#include "QIWithRetranslateUI.h"
+
+class UIVisoCreatorOptionsPanel : public UIDialogPanel
 {
     Q_OBJECT;
 
 public:
 
-    UIVisoCreatorOptionsDialog(const BrowserOptions &browserOptions,
-                               QWidget *pParent = 0);
-    ~UIVisoCreatorOptionsDialog();
-    const BrowserOptions &browserOptions() const;
+    UIVisoCreatorOptionsPanel(QWidget *pParent = 0);
+    ~UIVisoCreatorOptionsPanel();
+    virtual QString panelName() const /* override */;
+    void setShowHiddenbjects(bool fShow);
+
+signals:
+
+    void sigShowHiddenObjects(bool fShow);
+
+protected:
+
+    void retranslateUi() /* override */;
+
 
 private slots:
 
@@ -49,10 +57,11 @@ private:
 
     void prepareObjects();
     void prepareConnections();
-    QGridLayout          *m_pMainLayout;
-    QIDialogButtonBox    *m_pButtonBox;
-    BrowserOptions       m_browserOptions;
+
+    QCheckBox *m_pShowHiddenObjectsCheckBox;
+    QILabel *m_pShowHiddenObjectsLabel;
+
     friend class UIVisoCreator;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_medium_viso_UIVisoCreatorOptionsDialog_h */
+#endif /* !FEQT_INCLUDED_SRC_medium_viso_UIVisoCreatorOptionsPanel_h */

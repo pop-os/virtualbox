@@ -1,6 +1,6 @@
-/* $Id: VBoxSharedClipboard.rc $ */
+/* $Id: VBoxSharedFoldersSvc.rc $ */
 /** @file
- * Shared Clipboard Service - Resource file containing version info and icon.
+ * VBoxSharedFolders - Resource file containing version info and icon.
  */
 
 /*
@@ -33,9 +33,9 @@ BEGIN
   BEGIN
     BLOCK "040904b0" // Lang=US English, CharSet=Unicode
     BEGIN
-      VALUE "FileDescription",  "VirtualBox Shared Clipboard Host Service\0"
-      VALUE "InternalName",     "VBoxSharedClipboard\0"
-      VALUE "OriginalFilename", "VBoxSharedClipboard.dll\0"
+      VALUE "FileDescription",  "VirtualBox Shared Folders Host Service\0"
+      VALUE "InternalName",     "VBoxSharedFolders\0"
+      VALUE "OriginalFilename", "VBoxSharedFolders.dll\0"
       VALUE "CompanyName",      VBOX_RC_COMPANY_NAME
       VALUE "FileVersion",      VBOX_RC_FILE_VERSION_STR
       VALUE "LegalCopyright",   VBOX_RC_LEGAL_COPYRIGHT

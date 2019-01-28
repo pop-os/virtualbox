@@ -375,14 +375,7 @@ int UIChooserItemGlobal::minimumHeightHint() const
 
 QPixmap UIChooserItemGlobal::toPixmap()
 {
-    /* Ask item to paint itself into pixmap: */
-    const QSize minimumSize = minimumSizeHint().toSize();
-    QPixmap pixmap(minimumSize);
-    QPainter painter(&pixmap);
-    QStyleOptionGraphicsItem options;
-    options.rect = QRect(QPoint(0, 0), minimumSize);
-    paint(&painter, &options);
-    return pixmap;
+    AssertFailedReturn(QPixmap());
 }
 
 bool UIChooserItemGlobal::isDropAllowed(QGraphicsSceneDragDropEvent *, DragToken) const
@@ -783,7 +776,8 @@ void UIChooserItemGlobal::paintGlobalInfo(QPainter *pPainter, const QRect &recta
     int iRightColumnIndent = iFullWidth - iMargin - 1 - m_toolsPixmap.width() / m_toolsPixmap.devicePixelRatio();
 
     /* Paint right column: */
-    if (model()->currentItem() == this)
+    if (   model()->currentItem() == this
+        || isHovered())
     {
         /* Prepare variables: */
         int iToolsPixmapX = iRightColumnIndent;
@@ -793,7 +787,8 @@ void UIChooserItemGlobal::paintGlobalInfo(QPainter *pPainter, const QRect &recta
                                       m_toolsPixmap.width() / m_toolsPixmap.devicePixelRatio(),
                                       m_toolsPixmap.height() / m_toolsPixmap.devicePixelRatio());
         buttonRectangle.adjust(- iButtonMargin, -iButtonMargin, iButtonMargin, iButtonMargin);
-        const QPoint sceneCursorPosition = model()->scene()->views().first()->mapFromGlobal(QCursor::pos());
+        QGraphicsView *pView = model()->scene()->views().first();
+        const QPointF sceneCursorPosition = pView->mapToScene(pView->mapFromGlobal(QCursor::pos()));
         const QPoint itemCursorPosition = mapFromScene(sceneCursorPosition).toPoint();
 
         /* Paint flat button: */

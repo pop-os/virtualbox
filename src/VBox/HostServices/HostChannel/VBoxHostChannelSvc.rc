@@ -1,4 +1,4 @@
-/* $Id: VBoxHostChannel.rc $ */
+/* $Id: VBoxHostChannelSvc.rc $ */
 /** @file
  * VBoxHostChannel - Resource file containing version info and icon.
  */

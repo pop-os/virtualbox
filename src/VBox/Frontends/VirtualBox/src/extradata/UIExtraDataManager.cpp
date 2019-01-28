@@ -4652,6 +4652,16 @@ QFont UIExtraDataManager::logViewerFont()
     return dataBase.font(strFamily, strStyleName, iFontSize);
 }
 
+void UIExtraDataManager::setLogViewerVisiblePanels(const QStringList &panelNameList)
+{
+    setExtraDataStringList(GUI_GuestControl_LogViewerVisiblePanels, panelNameList);
+}
+
+QStringList UIExtraDataManager::logViewerVisiblePanels()
+{
+    return extraDataStringList(GUI_GuestControl_LogViewerVisiblePanels);
+}
+
 void UIExtraDataManager::sltExtraDataChange(const QUuid &uMachineID, const QString &strKey, const QString &strValue)
 {
     /* Re-cache value only if uMachineID known already: */
@@ -4698,7 +4708,7 @@ void UIExtraDataManager::sltExtraDataChange(const QUuid &uMachineID, const QStri
     else
     {
         /* Current VM only: */
-        if (   vboxGlobal().isVMConsoleProcess()
+        if (   vboxGlobal().uiType() == VBoxGlobal::UIType_RuntimeUI
             && uMachineID == vboxGlobal().managedVMUuid())
         {
             /* HID LEDs sync state changed (allowed if not restricted)? */

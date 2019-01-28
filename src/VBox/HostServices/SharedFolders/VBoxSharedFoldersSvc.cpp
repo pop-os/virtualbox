@@ -1,4 +1,4 @@
-/* $Id: service.cpp $ */
+/* $Id: VBoxSharedFoldersSvc.cpp $ */
 /** @file
  * Shared Folders - Host service entry points.
  */

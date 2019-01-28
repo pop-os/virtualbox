@@ -1,4 +1,4 @@
-/* $Id: UIFileManagerPanel.cpp $ */
+/* $Id: UIDialogPanel.cpp $ */
 /** @file
  * VBox Qt GUI - UIVMLogViewer class implementation.
  */
@@ -26,42 +26,40 @@
 /* GUI includes: */
 #include "QIToolButton.h"
 #include "UIIconPool.h"
-#include "UIFileManager.h"
-#include "UIFileManagerPanel.h"
+#include "UIDialogPanel.h"
 #ifdef VBOX_WS_MAC
 # include "VBoxUtils-darwin.h"
 #endif
 
 
-UIFileManagerPanel::UIFileManagerPanel(UIFileManager *pManagerWidget, QWidget *pParent)
+UIDialogPanel::UIDialogPanel(QWidget *pParent /* = 0 */)
     : QIWithRetranslateUI<QWidget>(pParent)
     , m_pMainLayout(0)
     , m_pCloseButton(0)
-    , m_pFileManager(pManagerWidget)
 {
     prepare();
 }
 
-void UIFileManagerPanel::setCloseButtonShortCut(QKeySequence shortCut)
+void UIDialogPanel::setCloseButtonShortCut(QKeySequence shortCut)
 {
     if (!m_pCloseButton)
         return;
     m_pCloseButton->setShortcut(shortCut);
 }
 
-QHBoxLayout* UIFileManagerPanel::mainLayout()
+QHBoxLayout* UIDialogPanel::mainLayout()
 {
     return m_pMainLayout;
 }
 
-void UIFileManagerPanel::prepare()
+void UIDialogPanel::prepare()
 {
     prepareWidgets();
     prepareConnections();
     retranslateUi();
 }
 
-void UIFileManagerPanel::prepareWidgets()
+void UIDialogPanel::prepareWidgets()
 {
     m_pMainLayout = new QHBoxLayout(this);
     if (m_pMainLayout)
@@ -84,19 +82,19 @@ void UIFileManagerPanel::prepareWidgets()
     }
 }
 
-void UIFileManagerPanel::prepareConnections()
+void UIDialogPanel::prepareConnections()
 {
     if (m_pCloseButton)
-        connect(m_pCloseButton, &QIToolButton::clicked, this, &UIFileManagerPanel::hide);
+        connect(m_pCloseButton, &QIToolButton::clicked, this, &UIDialogPanel::hide);
 }
 
-void UIFileManagerPanel::retranslateUi()
+void UIDialogPanel::retranslateUi()
 {
     if (m_pCloseButton)
-        m_pCloseButton->setToolTip(UIFileManager::tr("Close the pane"));
+        m_pCloseButton->setToolTip(QApplication::translate("UIVisoCreator", "Close the pane"));
 }
 
-bool UIFileManagerPanel::eventFilter(QObject *pObject, QEvent *pEvent)
+bool UIDialogPanel::eventFilter(QObject *pObject, QEvent *pEvent)
 {
     Q_UNUSED(pObject);
     Q_UNUSED(pEvent);
@@ -104,12 +102,12 @@ bool UIFileManagerPanel::eventFilter(QObject *pObject, QEvent *pEvent)
     return false;
 }
 
-void UIFileManagerPanel::showEvent(QShowEvent *pEvent)
+void UIDialogPanel::showEvent(QShowEvent *pEvent)
 {
     QWidget::showEvent(pEvent);
 }
 
-void UIFileManagerPanel::hideEvent(QHideEvent *pEvent)
+void UIDialogPanel::hideEvent(QHideEvent *pEvent)
 {
     /* Get focused widget: */
     QWidget *pFocus = QApplication::focusWidget();
@@ -117,8 +115,15 @@ void UIFileManagerPanel::hideEvent(QHideEvent *pEvent)
      * focus next child-widget in line: */
     if (pFocus && pFocus->parent() == this)
         focusNextPrevChild(true);
-    if (m_pFileManager)
-        m_pFileManager->hidePanel(this);
+    emit sigHidePanel(this);
 
     QWidget::hideEvent(pEvent);
+}
+
+void UIDialogPanel::addVerticalSeparator()
+{
+    QFrame *pSeparator = new QFrame();
+    pSeparator->setFrameShape(QFrame::VLine);
+    pSeparator->setFrameShadow(QFrame::Sunken);
+    mainLayout()->addWidget(pSeparator);
 }

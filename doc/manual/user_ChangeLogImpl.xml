@@ -35,6 +35,65 @@ technical terms if no non-technical ones are clear enough.
                            So, we use chapter and xpointer="xpointer(/chapter/)" with xi:include. -->
 
   <sect1>
+    <title>Version 6.0.4 (2019-01-28)</title>
+
+    <para>This is a maintenance release. The following items were fixed and/or
+      added:</para>
+
+    <itemizedlist>
+
+      <listitem>
+        <para>Virtualization core: support Shanghai/Zhaoxin CPUs.</para>
+      </listitem>
+
+      <listitem>
+        <para>User interface: handle command line arguments to VirtualBox correctly
+          (bugs #18206 and #18197)</para>
+      </listitem>
+
+      <listitem>
+        <para>User interface: improvements to machine manager window, virtual
+           optical disk creator, storage selector window and log viewer window
+           </para>
+      </listitem>
+
+      <listitem>
+        <para>User interface: various small fixes and improvements</para>
+      </listitem>
+
+      <listitem>
+        <para>Audio: implemented time scheduling for the AC'97 device emulation
+          to keep audio and video in sync</para>
+      </listitem>
+
+      <listitem>
+        <para>Graphics: basic support for VMSVGA graphics device in virtual
+           machines using EFI</para>
+      </listitem>
+
+      <listitem>
+        <para>Network: fix occasional NATNet crashes (bug #13899)</para>
+      </listitem>
+
+      <listitem>
+        <para>Network: worked around problems in certain PCnet drivers
+           on old operating systems</para>
+      </listitem>
+
+      <listitem>
+        <para>Serial: fixed connecting to pseudo terminals on POSIX hosts
+          (6.0.0 regression; bug #18319)</para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts and guests: fix for building kernel modules
+           against Linux 5.0.  Thank you Kyle Laker</para>
+      </listitem>
+
+    </itemizedlist>
+  </sect1>
+
+  <sect1>
 
     <title>Version 6.0.2 (2019-01-15)</title>
 
@@ -84,6 +143,11 @@ technical terms if no non-technical ones are clear enough.
           PCnet: fixed a regression which caused some PCnet PCI guest
           drivers to not detect the emulated hardware (bug #18286)
         </para>
+      </listitem>
+
+      <listitem>
+        <para>Linux hosts: Skip device enumeration if PulseAudio interface is
+          not available</para>
       </listitem>
 
       <listitem>

@@ -181,13 +181,14 @@ uint8_t DrvAudioHlpAudFmtToBits(PDMAUDIOFMT enmFmt);
 
 /** @name Audio calculation helper methods.
  * @{ */
-void DrvAudioHlpClearBuf(const PPDMAUDIOPCMPROPS pPCMInfo, void *pvBuf, size_t cbBuf, uint32_t cFrames);
+void DrvAudioHlpClearBuf(const PPDMAUDIOPCMPROPS pPCMProps, void *pvBuf, size_t cbBuf, uint32_t cFrames);
 uint32_t DrvAudioHlpCalcBitrate(uint8_t cBits, uint32_t uHz, uint8_t cChannels);
 uint32_t DrvAudioHlpCalcBitrate(const PPDMAUDIOPCMPROPS pProps);
 uint32_t DrvAudioHlpBytesAlign(uint32_t cbSize, const PPDMAUDIOPCMPROPS pProps);
 bool     DrvAudioHlpBytesIsAligned(uint32_t cbSize, const PPDMAUDIOPCMPROPS pProps);
 uint32_t DrvAudioHlpBytesToFrames(uint32_t cbBytes, const PPDMAUDIOPCMPROPS pProps);
 uint64_t DrvAudioHlpBytesToMilli(uint32_t cbBytes, const PPDMAUDIOPCMPROPS pProps);
+uint64_t DrvAudioHlpBytesToMicro(uint32_t cbBytes, const PPDMAUDIOPCMPROPS pProps);
 uint64_t DrvAudioHlpBytesToNano(uint32_t cbBytes, const PPDMAUDIOPCMPROPS pProps);
 uint32_t DrvAudioHlpFramesToBytes(uint32_t cFrames, const PPDMAUDIOPCMPROPS pProps);
 uint64_t DrvAudioHlpFramesToMilli(uint32_t cFrames, const PPDMAUDIOPCMPROPS pProps);
@@ -208,17 +209,22 @@ void DrvAudioHlpPCMPropsPrint(const PPDMAUDIOPCMPROPS pProps);
 int DrvAudioHlpPCMPropsToStreamCfg(const PPDMAUDIOPCMPROPS pPCMProps, PPDMAUDIOSTREAMCFG pCfg);
 /** @}  */
 
-/** @name Audio stream helper methods.
+/** @name Audio configuration helper methods.
  * @{ */
-void DrvAudioHlpStreamCfgPrint(const PPDMAUDIOSTREAMCFG pCfg);
+void DrvAudioHlpStreamCfgInit(PPDMAUDIOSTREAMCFG pCfg);
 bool DrvAudioHlpStreamCfgIsValid(const PPDMAUDIOSTREAMCFG pCfg);
 int DrvAudioHlpStreamCfgCopy(PPDMAUDIOSTREAMCFG pDstCfg, const PPDMAUDIOSTREAMCFG pSrcCfg);
 PPDMAUDIOSTREAMCFG DrvAudioHlpStreamCfgDup(const PPDMAUDIOSTREAMCFG pCfg);
 void DrvAudioHlpStreamCfgFree(PPDMAUDIOSTREAMCFG pCfg);
+void DrvAudioHlpStreamCfgPrint(const PPDMAUDIOSTREAMCFG pCfg);
+/** @}  */
+
+/** @name Audio stream command helper methods.
+ * @{ */
 const char *DrvAudioHlpStreamCmdToStr(PDMAUDIOSTREAMCMD enmCmd);
 /** @}  */
 
-/** @name Audio stream helper methods.
+/** @name Audio stream status helper methods.
  * @{ */
 bool DrvAudioHlpStreamStatusCanRead(PDMAUDIOSTREAMSTS enmStatus);
 bool DrvAudioHlpStreamStatusCanWrite(PDMAUDIOSTREAMSTS enmStatus);

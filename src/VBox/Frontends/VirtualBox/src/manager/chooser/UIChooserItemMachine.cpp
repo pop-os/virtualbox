@@ -46,6 +46,7 @@ UIChooserItemMachine::UIChooserItemMachine(UIChooserItem *pParent,
                                            int iPosition /* = -1 */)
     : UIChooserItem(pParent, pParent->isTemporary(), 0, 100)
     , UIVirtualMachineItem(machine)
+    , m_iPosition(iPosition)
     , m_iDefaultLightnessMin(0)
     , m_iDefaultLightnessMax(0)
     , m_iHoverLightnessMin(0)
@@ -60,23 +61,6 @@ UIChooserItemMachine::UIChooserItemMachine(UIChooserItem *pParent,
 {
     /* Prepare: */
     prepare();
-
-    /* Add item to the parent: */
-    AssertMsg(parentItem(), ("No parent set for machine-item!"));
-    parentItem()->addItem(this, iPosition);
-    setZValue(parentItem()->zValue() + 1);
-
-    /* Configure connections: */
-    connect(gpManager, &UIVirtualBoxManager::sigWindowRemapped,
-            this, &UIChooserItemMachine::sltHandleWindowRemapped);
-
-    /* Init: */
-    updatePixmaps();
-    updateName();
-    updateSnapshotName();
-
-    /* Apply language settings: */
-    retranslateUi();
 }
 
 UIChooserItemMachine::UIChooserItemMachine(UIChooserItem *pParent,
@@ -84,6 +68,7 @@ UIChooserItemMachine::UIChooserItemMachine(UIChooserItem *pParent,
                                            int iPosition /* = -1 */)
     : UIChooserItem(pParent, pParent->isTemporary(), 0, 100)
     , UIVirtualMachineItem(pCopyFrom->machine())
+    , m_iPosition(iPosition)
     , m_iDefaultLightnessMin(0)
     , m_iDefaultLightnessMax(0)
     , m_iHoverLightnessMin(0)
@@ -98,23 +83,6 @@ UIChooserItemMachine::UIChooserItemMachine(UIChooserItem *pParent,
 {
     /* Prepare: */
     prepare();
-
-    /* Add item to the parent: */
-    AssertMsg(parentItem(), ("No parent set for machine-item!"));
-    parentItem()->addItem(this, iPosition);
-    setZValue(parentItem()->zValue() + 1);
-
-    /* Configure connections: */
-    connect(gpManager, &UIVirtualBoxManager::sigWindowRemapped,
-            this, &UIChooserItemMachine::sltHandleWindowRemapped);
-
-    /* Init: */
-    updatePixmaps();
-    updateName();
-    updateSnapshotName();
-
-    /* Apply language settings: */
-    retranslateUi();
 }
 
 UIChooserItemMachine::~UIChooserItemMachine()
@@ -642,6 +610,29 @@ void UIChooserItemMachine::prepare()
     m_iMaximumNameWidth = 0;
     m_iMinimumSnapshotNameWidth = 0;
     m_iMaximumSnapshotNameWidth = 0;
+
+    /* Add item to the parent: */
+    AssertMsg(parentItem(), ("No parent set for machine-item!"));
+    parentItem()->addItem(this, m_iPosition);
+    setZValue(parentItem()->zValue() + 1);
+
+    /* Configure connections: */
+    connect(gpManager, &UIVirtualBoxManager::sigWindowRemapped,
+            this, &UIChooserItemMachine::sltHandleWindowRemapped);
+    connect(model(), &UIChooserModel::sigSelectionChanged,
+            this, &UIChooserItemMachine::sltUpdateFirstRowMaximumWidth);
+    connect(this, &UIChooserItemMachine::sigHoverEnter,
+            this, &UIChooserItemMachine::sltUpdateFirstRowMaximumWidth);
+    connect(this, &UIChooserItemMachine::sigHoverLeave,
+            this, &UIChooserItemMachine::sltUpdateFirstRowMaximumWidth);
+
+    /* Init: */
+    updatePixmaps();
+    updateName();
+    updateSnapshotName();
+
+    /* Apply language settings: */
+    retranslateUi();
 }
 
 QVariant UIChooserItemMachine::data(int iKey) const
@@ -786,8 +777,12 @@ void UIChooserItemMachine::updateFirstRowMaximumWidth()
     iFirstRowMaximumWidth -= iMargin; /* left margin */
     iFirstRowMaximumWidth -= m_pixmapSize.width(); /* left pixmap width */
     iFirstRowMaximumWidth -= iMajorSpacing; /* spacing between left pixmap and name(s) */
-    iFirstRowMaximumWidth -= iMajorSpacing; /* spacing between name(s) and right pixmap */
-    iFirstRowMaximumWidth -= m_toolsPixmapSize.width() + 2 * iButtonMargin; /* right pixmap width */
+    if (   model()->currentItem() == this
+        || isHovered())
+    {
+        iFirstRowMaximumWidth -= iMajorSpacing; /* spacing between name(s) and right pixmap */
+        iFirstRowMaximumWidth -= m_toolsPixmapSize.width() + 2 * iButtonMargin; /* right pixmap width */
+    }
     iFirstRowMaximumWidth -= iMargin; /* right margin */
 
     /* Is there something changed? */
@@ -1287,7 +1282,8 @@ void UIChooserItemMachine::paintMachineInfo(QPainter *pPainter, const QRect &rec
     int iRightColumnIndent = iFullWidth - iMargin - 1 - m_toolsPixmap.width() / m_toolsPixmap.devicePixelRatio();
 
     /* Paint right column: */
-    if (model()->currentItem() == this)
+    if (   model()->currentItem() == this
+        || isHovered())
     {
         /* Prepare variables: */
         int iToolsPixmapX = iRightColumnIndent;
@@ -1297,7 +1293,8 @@ void UIChooserItemMachine::paintMachineInfo(QPainter *pPainter, const QRect &rec
                                       m_toolsPixmap.width() / m_toolsPixmap.devicePixelRatio(),
                                       m_toolsPixmap.height() / m_toolsPixmap.devicePixelRatio());
         buttonRectangle.adjust(- iButtonMargin, -iButtonMargin, iButtonMargin, iButtonMargin);
-        const QPoint sceneCursorPosition = model()->scene()->views().first()->mapFromGlobal(QCursor::pos());
+        QGraphicsView *pView = model()->scene()->views().first();
+        const QPointF sceneCursorPosition = pView->mapToScene(pView->mapFromGlobal(QCursor::pos()));
         const QPoint itemCursorPosition = mapFromScene(sceneCursorPosition).toPoint();
 
         /* Paint flat button: */

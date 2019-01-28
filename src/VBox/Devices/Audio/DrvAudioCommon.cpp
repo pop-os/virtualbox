@@ -927,16 +927,32 @@ void DrvAudioHlpPCMPropsPrint(const PPDMAUDIOPCMPROPS pProps)
  * Converts PCM properties to a audio stream configuration.
  *
  * @return  IPRT status code.
- * @param   pProps              Pointer to PCM properties to convert.
- * @param   pCfg                Pointer to audio stream configuration to store result into.
+ * @param   pProps              PCM properties to convert.
+ * @param   pCfg                Stream configuration to store result into.
  */
 int DrvAudioHlpPCMPropsToStreamCfg(const PPDMAUDIOPCMPROPS pProps, PPDMAUDIOSTREAMCFG pCfg)
 {
     AssertPtrReturn(pProps, VERR_INVALID_POINTER);
     AssertPtrReturn(pCfg,   VERR_INVALID_POINTER);
 
+    DrvAudioHlpStreamCfgInit(pCfg);
+
     memcpy(&pCfg->Props, pProps, sizeof(PDMAUDIOPCMPROPS));
     return VINF_SUCCESS;
+}
+
+/**
+ * Initializes a stream configuration with its default values.
+ *
+ * @param   pCfg                Stream configuration to initialize.
+ */
+void DrvAudioHlpStreamCfgInit(PPDMAUDIOSTREAMCFG pCfg)
+{
+    AssertPtrReturnVoid(pCfg);
+
+    RT_BZERO(pCfg, sizeof(PDMAUDIOSTREAMCFG));
+
+    pCfg->Backend.cfPreBuf = UINT32_MAX; /* Explicitly set to "undefined". */
 }
 
 /**
@@ -1221,20 +1237,50 @@ uint32_t DrvAudioHlpBytesToFrames(uint32_t cbBytes, const PPDMAUDIOPCMPROPS pPro
  * @return  uint64_t            Calculated time (in ms).
  * @param   cbBytes             Amount of bytes to calculate time for.
  * @param   pProps              PCM properties to calculate amount of bytes for.
+ *
+ * @note    Does rounding up the result.
  */
 uint64_t DrvAudioHlpBytesToMilli(uint32_t cbBytes, const PPDMAUDIOPCMPROPS pProps)
 {
     AssertPtrReturn(pProps, 0);
 
-    if (!cbBytes)
+    if (!pProps->uHz) /* Prevent division by zero. */
         return 0;
 
-    const double dbBytesPerMs = (double)drvAudioHlpBytesPerSec(pProps) / (double)RT_MS_1SEC;
-    Assert(dbBytesPerMs >= 0.0f);
-    if (!dbBytesPerMs) /* Prevent division by zero. */
+    const unsigned cbFrame = PDMAUDIOPCMPROPS_F2B(pProps, 1 /* Frame */);
+
+    if (!cbFrame) /* Prevent division by zero. */
         return 0;
 
-    return (double)cbBytes / (double)dbBytesPerMs;
+    uint64_t uTimeMs = ((cbBytes + cbFrame - 1) / cbFrame) * RT_MS_1SEC;
+
+    return (uTimeMs + pProps->uHz - 1) / pProps->uHz;
+}
+
+/**
+ * Returns the time (in us) for given byte amount and PCM properties.
+ *
+ * @return  uint64_t            Calculated time (in us).
+ * @param   cbBytes             Amount of bytes to calculate time for.
+ * @param   pProps              PCM properties to calculate amount of bytes for.
+ *
+ * @note    Does rounding up the result.
+ */
+uint64_t DrvAudioHlpBytesToMicro(uint32_t cbBytes, const PPDMAUDIOPCMPROPS pProps)
+{
+    AssertPtrReturn(pProps, 0);
+
+    if (!pProps->uHz) /* Prevent division by zero. */
+        return 0;
+
+    const unsigned cbFrame = PDMAUDIOPCMPROPS_F2B(pProps, 1 /* Frame */);
+
+    if (!cbFrame) /* Prevent division by zero. */
+        return 0;
+
+    uint64_t uTimeUs = ((cbBytes + cbFrame - 1) / cbFrame) * RT_US_1SEC;
+
+    return (uTimeUs + pProps->uHz - 1) / pProps->uHz;
 }
 
 /**
@@ -1243,20 +1289,24 @@ uint64_t DrvAudioHlpBytesToMilli(uint32_t cbBytes, const PPDMAUDIOPCMPROPS pProp
  * @return  uint64_t            Calculated time (in ns).
  * @param   cbBytes             Amount of bytes to calculate time for.
  * @param   pProps              PCM properties to calculate amount of bytes for.
+ *
+ * @note    Does rounding up the result.
  */
 uint64_t DrvAudioHlpBytesToNano(uint32_t cbBytes, const PPDMAUDIOPCMPROPS pProps)
 {
     AssertPtrReturn(pProps, 0);
 
-    if (!cbBytes)
+    if (!pProps->uHz) /* Prevent division by zero. */
         return 0;
 
-    const double dbBytesPerMs = (PDMAUDIOPCMPROPS_F2B(pProps, 1 /* Frame */) * pProps->uHz) / RT_NS_1SEC;
-    Assert(dbBytesPerMs >= 0.0f);
-    if (!dbBytesPerMs) /* Prevent division by zero. */
+    const unsigned cbFrame = PDMAUDIOPCMPROPS_F2B(pProps, 1 /* Frame */);
+
+    if (!cbFrame) /* Prevent division by zero. */
         return 0;
 
-    return cbBytes / dbBytesPerMs;
+    uint64_t uTimeNs = ((cbBytes + cbFrame - 1) / cbFrame) * RT_NS_1SEC;
+
+    return (uTimeNs + pProps->uHz - 1) / pProps->uHz;
 }
 
 /**

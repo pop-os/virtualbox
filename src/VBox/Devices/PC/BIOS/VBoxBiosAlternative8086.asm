@@ -1179,7 +1179,7 @@ section CONST progbits vstart=0xb0 align=1 ; size=0xcde class=DATA group=DGROUP
 section CONST2 progbits vstart=0xd8e align=1 ; size=0x3fa class=DATA group=DGROUP
   ; disGetNextSymbol 0xf0d8e LB 0x3fa -> off=0x0 cb=0000000000000012 uValue=00000000000f0d8e 'bios_cvs_version_string'
 bios_cvs_version_string:                     ; 0xf0d8e LB 0x12
-    db  'VirtualBox 6.0.2', 000h, 000h
+    db  'VirtualBox 6.0.4', 000h, 000h
   ; disGetNextSymbol 0xf0da0 LB 0x3e8 -> off=0x0 cb=0000000000000008 uValue=00000000000f0da0 '_bios_prefix_string'
 _bios_prefix_string:                         ; 0xf0da0 LB 0x8
     db  'BIOS: ', 000h, 000h
@@ -17841,4 +17841,4 @@ biosorg_check_before_or_at_0FFEEh:           ; 0xfff80 LB 0x70
 cpu_reset:                                   ; 0xffff0 LB 0x10
     jmp far 0f000h:0e05bh                     ; ea 5b e0 00 f0              ; 0xffff0 orgs.asm:2055
   ; disGetNextSymbol 0xffff5 LB 0xb -> off=0xb cb=0000000000000000 uValue=0000000000100000 '_dummy_addr_0x100000'
-    db  030h, 036h, 02fh, 032h, 033h, 02fh, 039h, 039h, 000h, 0fbh, 0d3h
+    db  030h, 036h, 02fh, 032h, 033h, 02fh, 039h, 039h, 000h, 0fbh, 0d1h

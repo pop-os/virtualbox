@@ -1,4 +1,4 @@
-/* $Id: service.cpp $ */
+/* $Id: VBoxGuestPropSvc.cpp $ */
 /** @file
  * Guest Property Service: Host service entry points.
  */

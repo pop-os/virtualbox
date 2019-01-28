@@ -1399,8 +1399,7 @@ typedef enum
 
 /** @name VMX abort reasons.
  * See Intel spec. "27.7 VMX Aborts".
- * Update HMVmxGetAbortDesc() if new reasons are added.
- * @{
+ * Update HMGetVmxAbortDesc() if new reasons are added. @{
  */
 typedef enum
 {
@@ -3302,7 +3301,7 @@ typedef struct
     /** 0x0 - VMX VMCS revision identifier.  */
     VMXVMCSREVID    u32VmcsRevId;
     /** 0x4 - VMX-abort indicator. */
-    uint32_t        u32VmxAbortId;
+    VMXABORT        enmVmxAbort;
     /** 0x8 - VMCS state, see VMX_V_VMCS_STATE_XXX. */
     uint8_t         fVmcsState;
     /** 0x9 - Reserved for future. */
@@ -3723,7 +3722,7 @@ typedef VMXVVMCS *PVMXVVMCS;
 typedef const VMXVVMCS *PCVMXVVMCS;
 AssertCompileSize(VMXVVMCS, X86_PAGE_4K_SIZE);
 AssertCompileMemberSize(VMXVVMCS, fVmcsState, sizeof(uint8_t));
-AssertCompileMemberOffset(VMXVVMCS, u32VmxAbortId,      0x004);
+AssertCompileMemberOffset(VMXVVMCS, enmVmxAbort,        0x004);
 AssertCompileMemberOffset(VMXVVMCS, fVmcsState,         0x008);
 AssertCompileMemberOffset(VMXVVMCS, u16Vpid,            0x028);
 AssertCompileMemberOffset(VMXVVMCS, GuestEs,            0x03e);
@@ -4093,9 +4092,9 @@ AssertCompileSize(VMXVDIAG, 4);
  * These are not HM all-context API functions, those are to be placed in hm.h.
  * @{
  */
-VMM_INT_DECL(int)   HMVmxGetMsrPermission(void const *pvMsrBitmap, uint32_t idMsr, PVMXMSREXITREAD penmRead,
+VMM_INT_DECL(int)   HMGetVmxMsrPermission(void const *pvMsrBitmap, uint32_t idMsr, PVMXMSREXITREAD penmRead,
                                           PVMXMSREXITWRITE penmWrite);
-VMM_INT_DECL(bool)  HMVmxGetIoBitmapPermission(void const *pvIoBitmapA, void const *pvIoBitmapB, uint16_t uPort,
+VMM_INT_DECL(bool)  HMGetVmxIoBitmapPermission(void const *pvIoBitmapA, void const *pvIoBitmapB, uint16_t uPort,
                                                uint8_t cbAccess);
 /** @} */
 

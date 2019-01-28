@@ -1,4 +1,4 @@
-/* $Id: UIFileManagerPanel.h $ */
+/* $Id: UIDialogPanel.h $ */
 /** @file
  * VBox Qt GUI - UIVMLogViewer class declaration.
  */
@@ -15,8 +15,8 @@
  * hope that it will be useful, but WITHOUT ANY WARRANTY of any kind.
  */
 
-#ifndef FEQT_INCLUDED_SRC_guestctrl_UIFileManagerPanel_h
-#define FEQT_INCLUDED_SRC_guestctrl_UIFileManagerPanel_h
+#ifndef FEQT_INCLUDED_SRC_globals_UIDialogPanel_h
+#define FEQT_INCLUDED_SRC_globals_UIDialogPanel_h
 #ifndef RT_WITHOUT_PRAGMA_ONCE
 # pragma once
 #endif
@@ -29,21 +29,23 @@
 
 /* Forward declarations: */
 class QHBoxLayout;
-class QPlainTextEdit;
-class QTextDocument;
 class QIToolButton;
-class UIFileManager;
 
-/** QWidget extension acting as the base class for UIVMLogViewerXXXPanel widgets. */
-class UIFileManagerPanel : public QIWithRetranslateUI<QWidget>
+
+/** QWidget extension acting as the base class for all the dialog panels like file manager, logviewer etc. */
+class SHARED_LIBRARY_STUFF UIDialogPanel : public QIWithRetranslateUI<QWidget>
 {
     Q_OBJECT;
 
 public:
 
-    UIFileManagerPanel(UIFileManager *pManagerWidget, QWidget *pParent);
+    UIDialogPanel(QWidget *pParent = 0);
     void setCloseButtonShortCut(QKeySequence shortCut);
     virtual QString panelName() const = 0;
+
+signals:
+
+    void sigHidePanel(UIDialogPanel *pPanel);
 
 protected:
 
@@ -63,16 +65,12 @@ protected:
     void showEvent(QShowEvent *pEvent);
     /** Handles the Qt hide @a pEvent. */
     void hideEvent(QHideEvent *pEvent);
-
-    /* Return the unmodified log. */
-    const QString* logString() const;
+    void addVerticalSeparator();
 
 private:
 
-    /** Holds the reference to VM Log-Viewer this panel belongs to. */
     QHBoxLayout   *m_pMainLayout;
     QIToolButton  *m_pCloseButton;
-    UIFileManager *m_pFileManager;
 };
 
-#endif /* !FEQT_INCLUDED_SRC_guestctrl_UIFileManagerPanel_h */
+#endif /* !FEQT_INCLUDED_SRC_globals_UIDialogPanel_h */

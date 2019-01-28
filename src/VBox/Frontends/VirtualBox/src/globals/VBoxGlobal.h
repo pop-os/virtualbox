@@ -75,12 +75,6 @@ signals:
         void sigAskToCommitData();
     /** @} */
 
-    /** @name Process arguments stuff.
-     * @{ */
-        /** Asks #UIStarter listener to open URLs. */
-        void sigAskToOpenURLs();
-    /** @} */
-
     /** @name COM stuff.
      * @{ */
         /** Asks #UIStarter listener to restart UI. */
@@ -107,14 +101,12 @@ signals:
 
 public:
 
-#ifdef VBOX_GUI_WITH_SHARED_LIBRARY
     /** UI types. */
     enum UIType
     {
         UIType_SelectorUI,
         UIType_RuntimeUI
     };
-#endif
 
     /** VM launch modes. */
     enum LaunchMode
@@ -135,13 +127,8 @@ public:
 
     /** Returns VBoxGlobal instance. */
     static VBoxGlobal *instance() { return s_pInstance; }
-#ifndef VBOX_GUI_WITH_SHARED_LIBRARY
-    /** Creates VBoxGlobal instance. */
-    static void create();
-#else
     /** Creates VBoxGlobal instance of passed @a enmType. */
     static void create(UIType enmType);
-#endif
     /** Destroys VBoxGlobal instance. */
     static void destroy();
 
@@ -169,10 +156,8 @@ public:
         /** Returns whether VBoxGlobal instance is properly initialized. */
         bool isValid() const { return m_fValid; }
 
-#ifdef VBOX_GUI_WITH_SHARED_LIBRARY
         /** Returns the UI type. */
         UIType uiType() const { return m_enmType; }
-#endif
 
         /** Returns VBox version string. */
         QString vboxVersionString() const;
@@ -209,13 +194,13 @@ public:
         /** Process application args. */
         bool processArgs();
 
+        /** Returns whether there are unhandled URL arguments present. */
+        bool argumentUrlsPresent() const;
         /** Takes and returns the URL argument list while clearing the source. */
         QList<QUrl> takeArgumentUrls();
 
         /** Returns the --startvm option value (managed VM id). */
         QUuid managedVMUuid() const { return m_strManagedVMId; }
-        /** Returns whether this is VM console process. */
-        bool isVMConsoleProcess() const { return !m_strManagedVMId.isNull(); }
         /** Returns the --separate option value (whether GUI process is separate from VM process). */
         bool isSeparateProcess() const { return m_fSeparateProcess; }
         /** Returns the --no-startvm-errormsgbox option value (whether startup VM errors are disabled). */
@@ -515,8 +500,9 @@ public:
 
         /** Creates a VISO by using the VISO creator dialog.
           * @param  pParent    Brings the dialog parent.
+          * @param  strMachineName    Passes the name of the machine,
           * @param  strFolder  Brings the folder to save the VISO file. */
-        QUuid createVisoMediumWithVisoCreator(QWidget *pParent, const QString &strFolder);
+        QUuid createVisoMediumWithVisoCreator(QWidget *pParent, const QString &strMachineName, const QString &strFolder);
 
         /** Creates and shows a dialog thru which user can create a new floppy disk a VISO using the file-open dialog.
           * @param  parent            Passes the parent of the dialog,
@@ -685,13 +671,8 @@ protected slots:
 
 private:
 
-#ifndef VBOX_GUI_WITH_SHARED_LIBRARY
-    /** Construcs global VirtualBox object. */
-    VBoxGlobal();
-#else
     /** Construcs global VirtualBox object of passed @a enmType. */
     VBoxGlobal(UIType enmType);
-#endif
 
     /** Destrucs global VirtualBox object. */
     virtual ~VBoxGlobal() /* override */;
@@ -744,10 +725,8 @@ private:
         /** Holds the tr("User Defined") port name. */
         static QString  s_strUserDefinedPortName;
 
-#ifdef VBOX_GUI_WITH_SHARED_LIBRARY
         /** Holds the UI type. */
         UIType  m_enmType;
-#endif
 
         /** Holds whether VBoxGlobal instance is properly initialized. */
         bool  m_fValid;
@@ -891,9 +870,11 @@ private:
 
         /** Holds the medium enumerator. */
         UIMediumEnumerator *m_pMediumEnumerator;
+        /** List of medium names that should not appears in the recently used media extra data. */
+        QStringList         m_recentMediaExcludeList;
     /** @} */
 
-#if defined(VBOX_WS_WIN) && defined(VBOX_GUI_WITH_SHARED_LIBRARY)
+#if defined(VBOX_WS_WIN)
     /** @name ATL stuff.
      * @{ */
         /** Holds the ATL module instance (for use with VBoxGlobal shared library only).

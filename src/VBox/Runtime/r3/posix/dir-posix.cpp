@@ -90,10 +90,12 @@ RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode, uint32_t fCreate)
         rc = rtPathToNative(&pszNativePath, pszPath, NULL);
         if (RT_SUCCESS(rc))
         {
-            if (mkdir(pszNativePath, fMode & RTFS_UNIX_MASK))
+            if (mkdir(pszNativePath, fMode & RTFS_UNIX_MASK) == 0)
+                rc = VINF_SUCCESS;
+            else
             {
                 rc = errno;
-                bool fVerifyIsDir = true;
+                /*bool fVerifyIsDir = true; - Windows returns VERR_ALREADY_EXISTS, so why bother with this. */
 #ifdef RT_OS_SOLARIS
                 /*
                  * mkdir on nfs mount points has been/is busted in various
@@ -105,13 +107,14 @@ RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode, uint32_t fCreate)
                     ||  rc == EACCES)
                 {
                     rc = RTErrConvertFromErrno(rc);
-                    fVerifyIsDir = false;  /* We'll check if it's a dir ourselves since we're going to stat() anyway. */
+                    /*fVerifyIsDir = false;   We'll check if it's a dir ourselves since we're going to stat() anyway. */
                     struct stat st;
                     if (!stat(pszNativePath, &st))
                     {
                         rc = VERR_ALREADY_EXISTS;
+                        /* Windows returns VERR_ALREADY_EXISTS, so why bother with this:
                         if (!S_ISDIR(st.st_mode))
-                            rc = VERR_IS_A_FILE;
+                            rc = VERR_IS_A_FILE; */
                     }
                 }
                 else
@@ -119,8 +122,9 @@ RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode, uint32_t fCreate)
 #else
                 rc = RTErrConvertFromErrno(rc);
 #endif
+#if 0 /* Windows returns VERR_ALREADY_EXISTS, so why bother with this. */
                 if (   rc == VERR_ALREADY_EXISTS
-                    && fVerifyIsDir == true)
+                    /*&& fVerifyIsDir == true*/)
                 {
                     /*
                      * Verify that it really exists as a directory.
@@ -129,6 +133,7 @@ RTDECL(int) RTDirCreate(const char *pszPath, RTFMODE fMode, uint32_t fCreate)
                     if (!stat(pszNativePath, &st) && !S_ISDIR(st.st_mode))
                         rc = VERR_IS_A_FILE;
                 }
+#endif
             }
         }
 
@@ -151,7 +156,18 @@ RTDECL(int) RTDirRemove(const char *pszPath)
     if (RT_SUCCESS(rc))
     {
         if (rmdir(pszNativePath))
-            rc = RTErrConvertFromErrno(errno);
+        {
+            rc = errno;
+            if (rc != ENOTDIR)
+                rc = RTErrConvertFromErrno(rc);
+            else
+            {
+                rc = RTErrConvertFromErrno(rc);
+                struct stat st;
+                if (!stat(pszNativePath, &st) && !S_ISDIR(st.st_mode))
+                    rc = VERR_NOT_A_DIRECTORY;
+            }
+        }
 
         rtPathFreeNative(pszNativePath, pszPath);
     }

@@ -235,11 +235,7 @@ QString     VBoxGlobal::s_strLoadedLanguageId = vboxBuiltInLanguageName();
 QString     VBoxGlobal::s_strUserDefinedPortName = QString();
 
 /* static */
-#ifndef VBOX_GUI_WITH_SHARED_LIBRARY
-void VBoxGlobal::create()
-#else
 void VBoxGlobal::create(UIType enmType)
-#endif
 {
     /* Make sure instance is NOT created yet: */
     if (s_pInstance)
@@ -248,13 +244,8 @@ void VBoxGlobal::create(UIType enmType)
         return;
     }
 
-#ifndef VBOX_GUI_WITH_SHARED_LIBRARY
-    /* Create instance: */
-    new VBoxGlobal;
-#else
     /* Create instance: */
     new VBoxGlobal(enmType);
-#endif
     /* Prepare instance: */
     s_pInstance->prepare();
 }
@@ -279,14 +270,9 @@ void VBoxGlobal::destroy()
     delete s_pInstance;
 }
 
-#ifndef VBOX_GUI_WITH_SHARED_LIBRARY
-VBoxGlobal::VBoxGlobal()
-    : m_fValid(false)
-#else
 VBoxGlobal::VBoxGlobal(UIType enmType)
     : m_enmType(enmType)
     , m_fValid(false)
-#endif
 #ifdef VBOX_WS_MAC
     , m_enmMacOSVersion(MacOSXRelease_Old)
 #endif
@@ -478,7 +464,7 @@ bool VBoxGlobal::processArgs()
         /* So if the argument file exists, we add it to URL list: */
         if (   !strArg.isEmpty()
             && QFile::exists(strArg))
-            listArgUrls << QUrl::fromLocalFile(strArg);
+            listArgUrls << QUrl::fromLocalFile(QFileInfo(strArg).absoluteFilePath());
     }
 
     /* If there are file URLs: */
@@ -488,7 +474,8 @@ bool VBoxGlobal::processArgs()
         for (int i = 0; i < listArgUrls.size(); ++i)
         {
             /* Check which of them has allowed VM extensions: */
-            const QString &strFile = listArgUrls.at(i).toLocalFile();
+            const QUrl url = listArgUrls.at(i);
+            const QString strFile = url.toLocalFile();
             if (VBoxGlobal::hasAllowedExtension(strFile, VBoxFileExts))
             {
                 /* So that we could run existing VMs: */
@@ -499,7 +486,7 @@ bool VBoxGlobal::processArgs()
                     fResult = true;
                     launchMachine(comMachine);
                     /* And remove their URLs from the ULR list: */
-                    listArgUrls.removeAll(strFile);
+                    listArgUrls.removeAll(url);
                 }
             }
         }
@@ -508,13 +495,16 @@ bool VBoxGlobal::processArgs()
     /* And if there are *still* URLs: */
     if (!listArgUrls.isEmpty())
     {
-        /* We store them: */
+        /* We store them, they will be handled later: */
         m_listArgUrls = listArgUrls;
-        /* And ask UIStarter to open them: */
-        emit sigAskToOpenURLs();
     }
 
     return fResult;
+}
+
+bool VBoxGlobal::argumentUrlsPresent() const
+{
+    return !m_listArgUrls.isEmpty();
 }
 
 QList<QUrl> VBoxGlobal::takeArgumentUrls()
@@ -2252,19 +2242,22 @@ bool VBoxGlobal::launchMachine(CMachine &comMachine, LaunchMode enmLaunchMode /*
     if (   comMachine.GetSessionState() == KSessionState_Locked /* precondition for CanShowConsoleWindow() */
         && comMachine.CanShowConsoleWindow())
     {
-        /* For the Selector UI: */
-        if (!isVMConsoleProcess())
+        switch (uiType())
         {
-            /* Just switch to existing VM window: */
-            return switchToMachine(comMachine);
-        }
-        /* For the Runtime UI: */
-        else
-        {
-            /* Only separate UI process can reach that place,
-             * switch to existing VM window and exit. */
-            switchToMachine(comMachine);
-            return false;
+            /* For Selector UI: */
+            case UIType_SelectorUI:
+            {
+                /* Just switch to existing VM window: */
+                return switchToMachine(comMachine);
+            }
+            /* For Runtime UI: */
+            case UIType_RuntimeUI:
+            {
+                /* Only separate UI process can reach that place.
+                 * Switch to existing VM window and exit. */
+                switchToMachine(comMachine);
+                return false;
+            }
         }
     }
 
@@ -2639,23 +2632,26 @@ QUuid VBoxGlobal::openMediumWithFileOpenDialog(UIMediumDeviceType enmMediumType,
     return QUuid();
 }
 
-QUuid VBoxGlobal::createVisoMediumWithVisoCreator(QWidget *pParent, const QString &strFolder)
+QUuid VBoxGlobal::createVisoMediumWithVisoCreator(QWidget *pParent, const QString &strMachineName, const QString &strFolder)
 {
 
     QWidget *pDialogParent = windowManager().realParentWindow(pParent);
-    QPointer<UIVisoCreator> pVisoCreator = new UIVisoCreator(pDialogParent);
+    QPointer<UIVisoCreator> pVisoCreator = new UIVisoCreator(pDialogParent, strMachineName);
 
     if (!pVisoCreator)
         return QString();
     windowManager().registerNewParent(pVisoCreator, pDialogParent);
+    pVisoCreator->setCurrentPath(gEDataManager->recentFolderForVISOContent());
 
-    if (pVisoCreator->execute(true, false))
+    if (pVisoCreator->exec(false /* not application modal */))
     {
         QStringList files = pVisoCreator->entryList();
         QString strVisoName = pVisoCreator->visoName();
 
         if (files.empty() || files[0].isEmpty())
             return QUuid();
+
+        gEDataManager->setRecentFolderForVISOContent(pVisoCreator->currentPath());
 
         /* Produce the VISO. */
         char szVisoPath[RTPATH_MAX];
@@ -2740,7 +2736,7 @@ QUuid VBoxGlobal::openMediumSelectorDialog(QWidget *pParent, UIMediumDeviceType 
     if (!pSelector)
         return QString();
     windowManager().registerNewParent(pSelector, pDialogParent);
-    if (pSelector->execute(true, false))
+    if (pSelector->exec(false))
     {
         QList<QUuid> selectedMediumIds = pSelector->selectedMediumIds();
         delete pSelector;
@@ -2967,7 +2963,7 @@ void VBoxGlobal::updateMachineStorage(const CMachine &comConstMachine, const UIM
                 if (target.type == UIMediumTarget::UIMediumTargetType_WithID)
                     uMediumID = openMediumWithFileOpenDialog(target.mediumType, windowManager().mainWindowShown(), strMachineFolder);
                 else if(target.type == UIMediumTarget::UIMediumTargetType_CreateAdHocVISO)
-                    uMediumID = createVisoMediumWithVisoCreator(windowManager().mainWindowShown(), strMachineFolder);
+                    uMediumID = createVisoMediumWithVisoCreator(windowManager().mainWindowShown(), comConstMachine.GetName(), strMachineFolder);
 
                 else if(target.type == UIMediumTarget::UIMediumTargetType_CreateFloppyDisk)
                     uMediumID = showCreateFloppyDiskDialog(windowManager().mainWindowShown(), comConstMachine.GetName(), strMachineFolder);
@@ -3030,8 +3026,8 @@ void VBoxGlobal::updateMachineStorage(const CMachine &comConstMachine, const UIM
         AssertReturnVoid(!comSession.isNull());
         comMachine = comSession.GetMachine();
     }
-    /* Is it Selector UI call? */
-    else if (!isVMConsoleProcess())
+    /* Is this a Selector UI call? */
+    else if (uiType() == UIType_SelectorUI)
     {
         /* Open existing 'shared' session: */
         comSession = openExistingSession(comMachine.GetId());
@@ -3130,7 +3126,14 @@ QString VBoxGlobal::details(const CMedium &comMedium, bool fPredictDiff, bool fU
 
 void VBoxGlobal::updateRecentlyUsedMediumListAndFolder(UIMediumDeviceType enmMediumType, QString strMediumLocation)
 {
-       /* Remember the path of the last chosen medium: */
+    /** Don't add the medium to extra data if its name is in exclude list, m_recentMediaExcludeList: */
+    foreach (QString strExcludeName, m_recentMediaExcludeList)
+    {
+        if (strMediumLocation.contains(strExcludeName))
+            return;
+    }
+
+    /* Remember the path of the last chosen medium: */
     switch (enmMediumType)
     {
         case UIMediumDeviceType_HardDisk: gEDataManager->setRecentFolderForHardDrives(QFileInfo(strMediumLocation).absolutePath()); break;
@@ -4105,23 +4108,13 @@ void VBoxGlobal::prepare()
             m_enmLaunchRunning = LaunchRunning_Yes;
         }
 #endif
-#ifdef RT_OS_WINDOWS /** @todo add more here, please... */
-        else
-            msgCenter().warnAboutUnknownOptionType(arguments.at(i));
-#endif
-#ifdef VBOX_GUI_WITH_SHARED_LIBRARY
         if (enmOptType == OptType_VMRunner && m_enmType != UIType_RuntimeUI)
             msgCenter().warnAboutUnrelatedOptionType(arg);
-#endif
 
         i++;
     }
 
-#ifndef VBOX_GUI_WITH_SHARED_LIBRARY
-    if (startVM)
-#else
     if (m_enmType == UIType_RuntimeUI && startVM)
-#endif
     {
         /* m_fSeparateProcess makes sense only if a VM is started. */
         m_fSeparateProcess = fSeparateProcess;
@@ -4142,8 +4135,8 @@ void VBoxGlobal::prepare()
         m_strManagedVMId = machine.GetId();
     }
 
-    /* After initializing *m_strManagedVMId* we already know if that is VM process or not: */
-    if (!isVMConsoleProcess())
+    /* For Selector UI: */
+    if (uiType() == UIType_SelectorUI)
     {
         /* We should create separate logging file for VM selector: */
         char szLogFile[RTPATH_MAX];
@@ -4174,9 +4167,10 @@ void VBoxGlobal::prepare()
         gEDataManager->setRequestedVisualState(visualStateType, m_strManagedVMId);
 
 #ifdef VBOX_WITH_DEBUGGER_GUI
-    /* Setup the debugger gui if VM console process: */
-    if (isVMConsoleProcess())
+    /* For Runtime UI: */
+    if (uiType() == UIType_RuntimeUI)
     {
+        /* Setup the debugger GUI: */
         if (RTEnvExist("VBOX_GUI_NO_DEBUGGER"))
             m_fDbgEnabled = m_fDbgAutoShow =  m_fDbgAutoShowCommandLine = m_fDbgAutoShowStatistics = false;
         if (m_fDbgEnabled)
@@ -4227,6 +4221,10 @@ void VBoxGlobal::prepare()
     /* Make sure no wrong USB mounted: */
     checkForWrongUSBMounted();
 #endif /* RT_OS_LINUX */
+
+    /* Populate the list of medium names to be excluded from the
+       recently used media extra data: */
+    m_recentMediaExcludeList << "ad-hoc.viso";
 }
 
 void VBoxGlobal::cleanup()
@@ -4374,8 +4372,8 @@ void VBoxGlobal::sltHandleVBoxSVCAvailabilityChange(bool fAvailable)
             /* Re-init wrappers: */
             comWrappersReinit();
 
-            /* If that is Selector UI: */
-            if (!isVMConsoleProcess())
+            /* For Selector UI: */
+            if (uiType() == UIType_SelectorUI)
             {
                 /* Recreate Main event listeners: */
                 UIVirtualBoxEventHandler::destroy();

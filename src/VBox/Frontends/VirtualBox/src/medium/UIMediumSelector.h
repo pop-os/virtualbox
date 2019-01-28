@@ -22,7 +22,7 @@
 #endif
 
 /* GUI includes: */
-#include "QIDialog.h"
+#include "QIMainDialog.h"
 #include "QIWithRetranslateUI.h"
 #include "UIMedium.h"
 #include "UIMediumDefs.h"
@@ -41,7 +41,7 @@ class UIToolBar;
 
 
 /** QIDialog extension providing GUI with a dialog to select an existing medium. */
-class SHARED_LIBRARY_STUFF UIMediumSelector : public QIWithRetranslateUI<QIDialog>
+class SHARED_LIBRARY_STUFF UIMediumSelector : public QIWithRetranslateUI<QIMainDialog>
 {
 
     Q_OBJECT;
@@ -68,10 +68,14 @@ private slots:
     void sltHandleMediumEnumerated();
     void sltHandleMediumEnumerationFinish();
     void sltHandleRefresh();
-    void sltHandleSearchTypeChange(int type);
-    void sltHandleSearchTermChange(QString searchTerm);
+    void sltHandlePerformSearch();
+    void sltHandleShowNextMatchingItem();
+    void sltHandleShowPreviousMatchingItem();
+    void sltHandleTreeContextMenuRequest(const QPoint &point);
+    void sltHandleTreeExpandAllSignal();
+    void sltHandleTreeCollapseAllSignal();
 
-private:
+ private:
 
 
     /** @name Event-handling stuff.
@@ -103,11 +107,13 @@ private:
     /** Remember the default foreground brush of the tree so that we can reset tree items' foreground later */
     void          saveDefaultForeground();
     void          selectMedium(const QUuid &uMediumID);
-
+    void          scrollToItem(UIMediumItem* pItem);
+    QWidget              *m_pCentralWidget;
     QVBoxLayout          *m_pMainLayout;
     QITreeWidget         *m_pTreeWidget;
-    UIMediumDeviceType          m_enmMediumType;
+    UIMediumDeviceType    m_enmMediumType;
     QIDialogButtonBox    *m_pButtonBox;
+    QMenu                *m_pMainMenu;
     UIToolBar            *m_pToolBar;
     QAction              *m_pActionAdd;
     QAction              *m_pActionCreate;
@@ -118,7 +124,12 @@ private:
     QITreeWidgetItem     *m_pNotAttachedSubTreeRoot;
     QWidget              *m_pParent;
     UIMediumSearchWidget *m_pSearchWidget;
+    /** The list all items added to tree. kept in sync. with tree to make searching easier (faster). */
     QList<UIMediumItem*>  m_mediumItemList;
+    /** List of items that are matching to the search. */
+    QList<UIMediumItem*>  m_mathingItemList;
+    /** Index of the currently shown (scrolled) item in the m_mathingItemList. */
+    int                   m_iCurrentShownIndex;
     QBrush                m_defaultItemForeground;
     QString               m_strMachineSettingsFilePath;
     QString               m_strMachineName;

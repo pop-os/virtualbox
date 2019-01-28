@@ -1,4 +1,4 @@
-/* $Id: service.cpp $ */
+/* $Id: VBoxHostChannelSvc.cpp $ */
 /* @file
  * Host Channel: Host service entry points.
  */

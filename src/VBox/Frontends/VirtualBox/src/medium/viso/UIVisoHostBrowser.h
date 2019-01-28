@@ -26,15 +26,13 @@
 # include <QModelIndex>
 
 /* GUI includes: */
-#include "QIWithRetranslateUI.h"
 #include "UIVisoBrowserBase.h"
 
 /* Forward declarations: */
 class QItemSelection;
 class UIVisoHostBrowserModel;
 
-/** A QWidget extension. */
-class SHARED_LIBRARY_STUFF UIVisoHostBrowser : public QIWithRetranslateUI<UIVisoBrowserBase>
+class UIVisoHostBrowser : public UIVisoBrowserBase
 {
     Q_OBJECT;
 
@@ -44,9 +42,11 @@ signals:
 
 public:
 
-    UIVisoHostBrowser(QWidget *pParent = 0);
+    UIVisoHostBrowser(QWidget *pParent = 0, QMenu *pMenu = 0);
     ~UIVisoHostBrowser();
     virtual void showHideHiddenObjects(bool bShow) /* override */;
+    QString currentPath() const;
+    void setCurrentPath(const QString &strPath);
 
 protected:
 

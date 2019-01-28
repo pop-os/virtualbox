@@ -1,4 +1,4 @@
-/* $Id: service.cpp $ */
+/* $Id: VBoxSharedClipboardSvc.cpp $ */
 /** @file
  * Shared Clipboard Service - Host service entry points.
  */
